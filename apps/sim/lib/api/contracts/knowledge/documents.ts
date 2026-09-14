@@ -429,8 +429,23 @@ export const readSearchDocumentResultSchema = z.object({
   knowledgeBaseId: z.string().min(1),
   documentName: z.string().nullable(),
   sourceUrl: z.string().nullable(),
-  chunks: z.array(z.object({ content: z.string(), chunkIndex: z.number().int().min(0) })).max(50),
+  chunks: z
+    .array(
+      z.object({
+        content: z.string().max(8000),
+        chunkIndex: z.number().int().min(0),
+        startOffset: z.number().int().min(0),
+        endOffset: z.number().int().min(0),
+        totalCharacters: z.number().int().min(0),
+      })
+    )
+    .max(8),
   hasMore: z.boolean(),
-  nextOffset: z.number().int().min(0).nullable(),
+  next: z
+    .object({
+      startChunkIndex: z.number().int().min(0),
+      startOffset: z.number().int().min(0),
+    })
+    .nullable(),
 })
 export type ReadSearchDocumentResult = z.output<typeof readSearchDocumentResultSchema>

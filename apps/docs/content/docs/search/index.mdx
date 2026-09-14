@@ -104,7 +104,7 @@ Edit **Settings** to change an existing connection's filters. Adding another con
 
 **Sync using** shows the method selected when the source was created. Add a new connection to change that method. To replace a supported indexing credential, select its replacement and use **Change service account** or **Change account**, as shown.
 
-The connection header offers **Sync now**, **Pause syncing** or **Resume syncing**, **Remove connection**, and, where supported, **Full resync**. Full resync fetches all content again and requires confirmation. Manual runs have a 60-second cooldown after a successful sync finishes; failed or partial runs can be retried immediately. **Pause syncing** becomes available when the current sync finishes.
+The connection header offers **Sync now**, **Pause syncing** or **Resume syncing**, and **Remove connection**. Manual runs have a 60-second cooldown after a successful sync finishes; failed or partial runs can be retried immediately. **Pause syncing** becomes available when the current sync finishes.
 
 To deactivate an entire integration, open it from **Settings → Sources**, select **Deactivate**, and confirm. Its content becomes unavailable in Search, Assistant, and MCP; saved connections remain. Select **Activate** on that integration to enable it again.
 
@@ -119,10 +119,6 @@ To deactivate an entire integration, open it from **Settings → Sources**, sele
 **Search** in the organization sidebar finds documents directly. The assistant on **Home** can search and read the same sources to answer questions with citations. Conversations are private to their author, including when another organization member is an admin.
 
 To use these sources from Claude, Codex, Claude Code, Cursor, or another compatible app, open **Settings → Search MCP**. Each person signs in with their own Sim account. The server provides `search`, `read_document`, and `chat`; `chat` starts a new private Sim conversation. See [Search MCP](/search/mcp) for app setup, permissions, and limits.
-
-## Existing workspace Search
-
-Workspace Search remains separate. Workspace admins add sources through **Search → Add source**; the member-account action is **Create & Invite**. Teammates need workspace access and connect from its source list. Organization Search does not automatically include workspace sources or grant access to workspace content.
 
 ## Check that it works
 

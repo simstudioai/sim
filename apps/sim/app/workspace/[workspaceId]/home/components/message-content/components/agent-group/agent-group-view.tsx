@@ -1,16 +1,28 @@
 'use client'
 
-import { type ComponentType, type ReactNode, useMemo, useState } from 'react'
-import { ActivityStatus } from '@/components/ui/activity-status'
+import { type ComponentType, type ReactNode, useState } from 'react'
+import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
-import { ActivityDisclosure } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-disclosure'
+import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
+import {
+  collectGroupTools,
+  hasAgentGroupItemContent,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
 import { BrowserAgentIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/browser-agent-icon'
 import { renderInlineMarkdown } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/inline-markdown'
 import { MainAgentActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
-import { getToolActivitySummary } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import {
+  getActiveToolActivityTitle,
+  getActivityStatusTool,
+  getToolActivitySummary,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
-import { needsToolInput } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
+import {
+  getActivityAttentionKey,
+  needsToolInput,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
 import {
   getAgentIcon,
   isToolDone,
@@ -43,7 +55,7 @@ export interface AgentGroupProps {
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
-  /** The subagent lane is still open (no subagent_end yet) — i.e. actively running. */
+  /** This lane can receive work; main lanes close when a later transcript segment begins. */
   isLaneOpen?: boolean
   /** Opens a subagent group on first render. */
   defaultExpanded?: boolean
@@ -51,25 +63,13 @@ export interface AgentGroupProps {
   autoScrollActivity?: boolean
 }
 
-function toolStatusTitle(tool: ToolCallData): string {
-  return tool.displayTitle || String(tool.toolName ?? '')
-}
-
-/**
- * Every tool in a group, in stream order, including those run by nested
- * agents. A parent's status line speaks for the whole subtree it delegated,
- * so a grandchild's work is what surfaces while the parent itself waits.
- */
-function collectGroupTools(items: AgentGroupItem[]): ToolCallData[] {
-  const tools: ToolCallData[] = []
-  const walk = (list: AgentGroupItem[]) => {
-    for (const item of list) {
-      if (item.type === 'tool') tools.push(item.data)
-      else if (item.type === 'agent_group') walk(item.group.items)
-    }
-  }
-  walk(items)
-  return tools
+function activeToolTitle(tool: ToolCallData): string {
+  return getToolStatusDisplayTitle(
+    tool.displayTitle || String(tool.toolName ?? ''),
+    tool.status === ToolCallStatus.success ? ToolCallStatus.executing : tool.status,
+    tool.toolName,
+    tool.activityDescription
+  )
 }
 
 /** Reveal blocking interactions even when a parent group was manually collapsed. */
@@ -140,7 +140,6 @@ interface AgentGroupViewProps extends AgentGroupProps {
 
 export function AgentGroupView({
   agentName,
-  agentLabel,
   items,
   isDelegating = false,
   isStreaming = false,
@@ -151,35 +150,9 @@ export function AgentGroupView({
   renderBrowserTakeover,
 }: AgentGroupViewProps) {
   const AgentIcon = getAgentIcon(agentName)
-  const agentIcon =
-    agentName === 'browser' ? (
-      <BrowserAgentIcon items={items} />
-    ) : (
-      <AgentIcon className='size-full' />
-    )
   const isMainAgent = agentName === 'mothership'
-  /** Open lanes surface their latest work, including work delegated to nested agents. */
-  const status = useMemo(() => {
-    if (isMainAgent || !isLaneOpen) return undefined
-    const tools = collectGroupTools(items)
-    const running = tools.filter((tool) => tool.status === ToolCallStatus.executing)
-    if (running.length > 0) {
-      const latest = running.reduce((newest, tool) =>
-        (tool.startedAt ?? 0) >= (newest.startedAt ?? 0) ? tool : newest
-      )
-      const title = toolStatusTitle(latest)
-      return running.length > 1 ? `${title} + ${running.length - 1}` : title
-    }
-    const last = tools.at(-1)
-    return last ? toolStatusTitle(last) : undefined
-  }, [isLaneOpen, isMainAgent, items])
-  const completedTools = !isMainAgent && !isLaneOpen ? collectGroupTools(items) : []
-  const headerText = status
-    ? `${agentLabel} — ${status}`
-    : completedTools.length > 0
-      ? `${agentLabel} — ${getToolActivitySummary(completedTools)}`
-      : agentLabel
-  const hasItems = items.length > 0
+  const tools = isMainAgent ? [] : collectGroupTools(items)
+  const statusTool = getActivityStatusTool(tools)
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
   const activeBrowserTakeover =
@@ -187,6 +160,14 @@ export function AgentGroupView({
   const nestedBrowserTakeover = browserAgentAvailable && hasNestedBrowserTakeover(items)
   const isWorking =
     !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
+  const agentIcon =
+    isWorking && !statusTool ? (
+      <ThinkingLoader size={14} startVariant='corners' />
+    ) : agentName === 'browser' ? (
+      <BrowserAgentIcon items={items} />
+    ) : (
+      <AgentIcon className='size-full' />
+    )
 
   const [manualExpanded, setManualExpanded] = useState(defaultExpanded)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
@@ -196,6 +177,9 @@ export function AgentGroupView({
     pendingInteraction ||
     nestedBrowserTakeover ||
     (activeBrowserTakeover ? expandedTakeoverId === activeBrowserTakeover.id : manualExpanded)
+
+  const meaningfulItems = items.filter(hasAgentGroupItemContent)
+  if (meaningfulItems.length === 0) return null
 
   const toggleExpanded = () => {
     if (activeBrowserTakeover) {
@@ -213,6 +197,7 @@ export function AgentGroupView({
           toolCallId={item.data.id}
           toolName={item.data.toolName}
           displayTitle={item.data.displayTitle}
+          activityDescription={item.data.activityDescription}
           status={item.data.status}
           params={item.data.params}
           result={item.data.result}
@@ -237,6 +222,7 @@ export function AgentGroupView({
         />
       )
     }
+    if (!item.content.trim()) return null
     return (
       <NarrationText
         key={`text-${idx}`}
@@ -252,28 +238,49 @@ export function AgentGroupView({
       ToolCallComponent={ToolCallComponent}
       renderItem={renderItem}
       autoScrollActivity={autoScrollActivity}
+      isActive={isStreaming && isLaneOpen}
     />
   ) : (
     <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>{items.map(renderItem)}</div>
   )
-  const header = <ActivityStatus label={headerText} isActive={isWorking} icon={agentIcon} />
+  const headerText = isWorking
+    ? statusTool
+      ? getActiveToolActivityTitle(activeToolTitle(statusTool), statusTool, tools)
+      : 'Thinking'
+    : tools.length > 0
+      ? getToolActivitySummary(tools)
+      : 'Tool activity'
+  const headerActive =
+    isWorking &&
+    (!statusTool ||
+      statusTool.status === ToolCallStatus.executing ||
+      statusTool.status === ToolCallStatus.success)
+  const collapsible =
+    meaningfulItems.length > 1 ||
+    meaningfulItems.some(
+      (item) =>
+        item.type !== 'tool' ||
+        needsToolInput(item.data) ||
+        item.data.toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
+    )
 
   return (
     <div className='flex min-w-0 flex-col gap-1.5'>
       {isMainAgent ? (
         activity
-      ) : hasItems ? (
-        <ActivityDisclosure
-          header={header}
+      ) : (
+        <ActivityStream
+          activity={{ label: headerText, isActive: headerActive, icon: agentIcon }}
+          activityKey={statusTool?.id}
+          attentionKey={`${getActivityAttentionKey(tools)}:${activeBrowserTakeover?.id ?? ''}`}
+          collapsible={collapsible}
           expanded={expanded}
           onToggle={toggleExpanded}
           isStreaming={isStreaming && autoScrollActivity}
           unbounded={pendingInteraction || nestedBrowserTakeover}
         >
           {activity}
-        </ActivityDisclosure>
-      ) : (
-        header
+        </ActivityStream>
       )}
       {activeBrowserTakeover && (
         <div key={activeBrowserTakeover.id} className='animate-stream-fade-in'>

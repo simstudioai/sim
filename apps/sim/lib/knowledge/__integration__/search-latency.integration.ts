@@ -6,6 +6,7 @@ import {
   credential,
   credentialGroup,
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   member,
@@ -16,16 +17,34 @@ import {
 import { createLogger, Logger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
-import { searchWorkspaceServerTool } from '@/lib/copilot/tools/server/knowledge/workspace-search'
+import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/knowledge/search'
+import { internalSessionAuth } from '@/lib/api/server/routes'
+import type {
+  MothershipStreamV1CheckpointPausePayload,
+  MothershipStreamV1ToolCallDescriptor,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { isContractStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import {
+  readDocumentServerTool,
+  searchWorkspaceServerTool,
+} from '@/lib/copilot/tools/server/knowledge/workspace-search'
 import { seedSearchReaderFixture } from '@/lib/knowledge/__integration__/seed-search-reader-fixture'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
+import {
+  SearchBudget,
+  SearchDeadlineError,
+  type SearchExecutor,
+} from '@/lib/knowledge/search/budget'
+import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import { POST as searchRoute } from '@/app/api/knowledge/search/route'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Initialize controlled provider configuration before the real application modules load. */
@@ -39,6 +58,7 @@ vi.hoisted(() => {
   }
 })
 
+const externalFetch = globalThis.fetch
 const enabled = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_TEST === 'true'
 const chunkCount = Number(process.env.KNOWLEDGE_SEARCH_PERFORMANCE_CHUNKS ?? 20_000)
 const dimensions = 1536
@@ -67,7 +87,11 @@ const reused = reuseFile ? readFixtureReport(reuseFile) : undefined
 const ids = reused?.fixture ?? createKnowledgeAclFixtureIds()
 const unrelated = reused?.unrelatedFixture ?? createKnowledgeAclFixtureIds()
 const organizationChatId = generateId()
-const queryVector = Array.from({ length: dimensions }, (_, index) => (index === 0 ? 1 : 0))
+const queryVector = Array.from({ length: dimensions }, (_, index) =>
+  Math.sin((index + 1) * 12.9898)
+)
+const queryMagnitude = Math.hypot(...queryVector)
+for (let index = 0; index < queryVector.length; index++) queryVector[index] /= queryMagnitude
 const captured: CapturedQuery[] = []
 const report: Record<string, unknown> = {
   fixture: ids,
@@ -117,6 +141,7 @@ const explainSchema = z.array(z.object({ Plan: explainNodeSchema }).passthrough(
 
 function usesVectorIndex(node: ExplainNode): boolean {
   return (
+    node['Index Name'] === 'embedding_binary_hnsw_idx' ||
     node['Index Name'] === 'embedding_vector_hnsw_idx' ||
     (node.Plans?.some(usesVectorIndex) ?? false)
   )
@@ -221,14 +246,21 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
     const plan = await db.$client.begin(async (tx) => {
       await tx.unsafe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
       await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 20000')
+      if (query.query.includes('binary_quantize')) {
+        await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 100000')
+        await tx.unsafe('SET LOCAL hnsw.ef_search = 200')
+        await tx.unsafe('SET LOCAL hnsw.scan_mem_multiplier = 4')
+      }
       return tx.unsafe(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query.query}`, query.parameters)
     })
     plans.push({
       kind: query.query.includes('keyword_rank')
         ? 'keyword'
-        : query.query.includes('order by')
+        : query.query.includes('binary_quantize')
           ? 'vector'
-          : 'probe',
+          : query.query.includes('order by')
+            ? 'rerank'
+            : 'probe',
       query: query.query,
       parameters: query.parameters,
       plan: explainSchema.parse(plan[0]['QUERY PLAN']),
@@ -362,8 +394,8 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
             CASE WHEN n % 8 = 0 THEN 'Orion deployment reference. ' ELSE 'Engineering operations reference. ' END ||
               (SELECT string_agg(md5(n::text || ':' || paragraph::text), ' ') FROM generate_series(1, 90) paragraph),
             3000, 750, 0, 3000,
-            l2_normalize(ARRAY(SELECT (CASE WHEN coordinate = n % 32 + 1 THEN 1 ELSE 0 END +
-              0.025 * sin(n::double precision * coordinate * 12.9898 + coordinate * 78.233))::real
+            l2_normalize(ARRAY(SELECT (sin(coordinate * (n % 32 + 1) * 12.9898) +
+              0.25 * sin(n::double precision * coordinate * 12.9898 + coordinate * 78.233))::real
               FROM generate_series(1, ${dimensions}) coordinate)::vector(1536))
           FROM generate_series(${first}::int, ${last}::int) n`)
           })
@@ -400,7 +432,191 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     await db.$client.end()
   }, 120_000)
 
+  it('cancels slow SQL on the server and restores pooled connection settings', async () => {
+    const budget = new SearchBudget('keyword', performance.now() + 200)
+    const started = performance.now()
+    await expect(
+      budget.query('keyword.sql', (tx) => tx.execute(sql`SELECT pg_sleep(5)`))
+    ).rejects.toBeInstanceOf(SearchDeadlineError)
+    expect(performance.now() - started).toBeLessThan(2000)
+    const [active] = await db.execute<{ count: number }>(
+      sql`SELECT count(*)::int AS count FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND state = 'active' AND query = 'SELECT pg_sleep(5)'`
+    )
+    expect(active.count).toBe(0)
+    const [settings] = await db.execute<{ timeout: string }>(
+      sql`SELECT current_setting('statement_timeout') AS timeout`
+    )
+    expect(settings.timeout).toBe('0')
+  })
+
+  it('expires waiting for a saturated pool without executing abandoned work', async () => {
+    let release!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let markSaturated!: () => void
+    const saturated = new Promise<void>((resolve) => {
+      markSaturated = resolve
+    })
+    let acquired = 0
+    const holders = Array.from({ length: db.$client.options.max }, () =>
+      db.transaction(async () => {
+        if (++acquired === db.$client.options.max) markSaturated()
+        await released
+      })
+    )
+    const run = vi.fn((tx: SearchExecutor) => tx.execute(sql`SELECT 1`))
+    const started = performance.now()
+    try {
+      await saturated
+      const budget = new SearchBudget('keyword', performance.now() + 200)
+      await expect(budget.query('keyword.sql', run)).rejects.toBeInstanceOf(SearchDeadlineError)
+      expect(performance.now() - started).toBeLessThan(2000)
+    } finally {
+      release()
+      await Promise.all(holders)
+    }
+    await db.execute(sql`SELECT 1`)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it.each(['vector', 'keyword', 'both'] as const)(
+    'keeps the Assistant budget when %s SQL branches are delayed',
+    async (delayedLegs) => {
+      diagnosticLog?.mockClear()
+      let vectorDelayed = false
+      const query = SearchBudget.prototype.query
+      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
+        this: SearchBudget,
+        stage: SearchStage,
+        run: (executor: SearchExecutor) => PromiseLike<T>
+      ): Promise<T> {
+        return query.call(this, stage, async (tx) => {
+          if (delayedLegs === 'vector' && this.leg === 'vector' && !vectorDelayed) {
+            vectorDelayed = true
+            await tx.execute(sql`SELECT pg_sleep(4)`)
+          } else if (
+            delayedLegs === 'both' ||
+            (delayedLegs === 'keyword' && this.leg === 'keyword')
+          )
+            await tx.execute(sql`SELECT pg_sleep(9)`)
+          return run(tx)
+        }) as Promise<T>
+      })
+      try {
+        const result = await searchWorkspaceServerTool.execute(
+          { query: 'Orion deployment', topK: 15 },
+          {
+            userId: ids.aliceId,
+            workspaceId: ids.workspaceId,
+            toolCallId: generateId(),
+            copilotToolExecution: true,
+            resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+              userId: ids.aliceId,
+              workspaceId: ids.workspaceId,
+            }),
+          }
+        )
+        const completed = diagnosticLog?.mock.calls.find(
+          ([message]) => message === 'Knowledge search completed'
+        )
+        expect(diagnosticSchema.parse(completed?.[1]).vectorBudgetMs).toBe(8000)
+        if (delayedLegs === 'both') {
+          expect(result).toMatchObject({
+            success: true,
+            data: {
+              retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+              results: [],
+            },
+          })
+          return
+        }
+        expect(result).toMatchObject({
+          success: true,
+          data: {
+            retrieval:
+              delayedLegs === 'vector'
+                ? { status: 'complete', timedOutLegs: [] }
+                : { status: 'partial', timedOutLegs: ['keyword'] },
+          },
+        })
+        const parsed = resultSchema.parse(result)
+        expect(parsed.data.results.length).toBeGreaterThan(0)
+        expect(
+          parsed.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)
+        ).toBe(true)
+        report[`assistant.deadline.${delayedLegs}`] = { resultCount: parsed.data.results.length }
+      } finally {
+        delayed.mockRestore()
+      }
+    },
+    30_000
+  )
+
+  it.each(['vector', 'both'] as const)(
+    'returns incomplete dashboard coverage when %s SQL branches exceed their deadline',
+    async (delayedLegs) => {
+      diagnosticLog?.mockClear()
+      const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
+        kind: 'session',
+        userId: ids.aliceId,
+        sessionId: 'fixture-dashboard',
+      })
+      const query = SearchBudget.prototype.query
+      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
+        this: SearchBudget,
+        stage: SearchStage,
+        run: (executor: SearchExecutor) => PromiseLike<T>
+      ): Promise<T> {
+        return query.call(this, stage, async (tx) => {
+          if (delayedLegs === 'both' || this.leg === 'vector')
+            await tx.execute(sql`SELECT pg_sleep(${delayedLegs === 'both' ? 9 : 4})`)
+          return run(tx)
+        }) as Promise<T>
+      })
+      try {
+        const response = await searchRoute(
+          new NextRequest('http://localhost/api/knowledge/search', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              workspaceId: ids.workspaceId,
+              query: 'Orion deployment',
+              topK: 15,
+            }),
+          })
+        )
+        expect(response.status).toBe(200)
+        const completed = diagnosticLog?.mock.calls.find(
+          ([message]) => message === 'Knowledge search completed'
+        )
+        const diagnostics = diagnosticSchema.parse(completed?.[1])
+        expect(diagnostics.vectorBudgetMs).toBe(3000)
+        expect(diagnostics.stages.vector.totalMs).toBeGreaterThan(2500)
+        expect(diagnostics.stages.vector.totalMs).toBeLessThan(4000)
+        const data = workspaceKnowledgeSearchDataSchema.parse((await response.json()).data)
+        expect(data.retrieval).toEqual({
+          status: 'partial',
+          timedOutLegs: delayedLegs === 'both' ? ['vector', 'keyword'] : ['vector'],
+        })
+        if (delayedLegs === 'both') expect(data.results).toEqual([])
+        else {
+          expect(data.results.length).toBeGreaterThan(0)
+          expect(
+            data.results.every((result) => result.knowledgeBaseId === ids.knowledgeBaseId)
+          ).toBe(true)
+        }
+        report[`dashboard.deadline.${delayedLegs}`] = { resultCount: data.results.length }
+      } finally {
+        delayed.mockRestore()
+        authenticate.mockRestore()
+      }
+    },
+    30_000
+  )
+
   it('records first and repeated application searches with the actual SQL plans', async () => {
+    const before = embeddingCalls
     for (let iteration = 0; iteration < 2; iteration++) {
       const { result, plans } = await sample(`broad.${iteration}`, () => search())
       expect(result.data.results).toHaveLength(15)
@@ -411,8 +627,20 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       const vectorPlans = plans.filter((plan) => plan.kind === 'vector')
       expect(vectorPlans).toHaveLength(1)
       expect(usesVectorIndex(vectorPlans[0].plan[0].Plan)).toBe(true)
+      expect(plans.some((plan) => plan.kind === 'rerank')).toBe(true)
+      const rerank = plans.find((plan) => plan.kind === 'rerank')!
+      const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
+      const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND enabled
+        ORDER BY (embedding <=> ${JSON.stringify(queryVector)}::vector) + 0, id
+        LIMIT ${actual.length}`)
+      const expectedIds = new Set(expected.map(({ id }) => id))
+      const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
+      expect(recall).toBeGreaterThanOrEqual(0.95)
+      report[`recall.${iteration}`] = { neighbors: expected.length, recall }
+      saveReport()
     }
-    expect(embeddingCalls).toBe(2)
+    expect(embeddingCalls - before).toBe(2)
   }, 180_000)
 
   it('compares the Search tab and Assistant with the same person, query and index', async () => {
@@ -463,7 +691,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       expect(probe).toHaveLength(1)
       expect(probe[0].query).not.toContain('<=>')
       expect(probe[0].plan[0].Plan['Actual Rows']).toBe(12)
-      const vector = plans.filter((plan) => plan.kind === 'vector')
+      const vector = plans.filter((plan) => plan.kind === 'rerank')
       expect(vector).toHaveLength(1)
       expect(vector[0].query).toContain('"embedding"."id" in')
     } finally {
@@ -555,4 +783,196 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       true
     )
   }, 180_000)
+  /** Opt in with local Sim and Go URLs; uses the real configured provider, billing adapter, and async resume protocol. */
+  it.skipIf(!process.env.KNOWLEDGE_SEARCH_ASSISTANT_URL)(
+    'recovers quietly from incomplete search through local Go Assistant, then reads and cites evidence',
+    async () => {
+      const assistantUrl = new URL(process.env.KNOWLEDGE_SEARCH_ASSISTANT_URL!)
+      const simUrl = new URL(process.env.KNOWLEDGE_SEARCH_SIM_URL!)
+      for (const url of [assistantUrl, simUrl]) {
+        if (!['127.0.0.1', 'localhost'].includes(url.hostname))
+          throw new Error(
+            'Assistant integration requires local servers using the disposable test databases'
+          )
+      }
+      const apiKey = process.env.KNOWLEDGE_SEARCH_ASSISTANT_API_KEY!
+      const internalKey = process.env.KNOWLEDGE_SEARCH_SIM_INTERNAL_KEY!
+      expect(apiKey).toBeTruthy()
+      expect(internalKey).toBeTruthy()
+      const chunkId = `${ids.workspaceId}-chunk-0`
+      const [original] = await db
+        .select({
+          content: embedding.content,
+          contentLength: embedding.contentLength,
+          tokenCount: embedding.tokenCount,
+        })
+        .from(embedding)
+        .where(eq(embedding.id, chunkId))
+        .limit(1)
+      const longContent =
+        'Orion deployment guide. The activation phrase and final checksum appear at the end.\n' +
+        'Review the deployment stages in order. Preserve the rollback procedure.\n'.repeat(320) +
+        '\nActivation phrase: SILVER COMET\nFinal checksum: K7M2-84\n'
+      const registry = new ResolvedSecretTraceRegistry([], { userId: ids.aliceId })
+      const calls: Array<{
+        name: string
+        arguments: unknown
+        milliseconds: number
+        bytes: number
+      }> = []
+      let answer = ''
+      let incompleteSearch = true
+      const query = SearchBudget.prototype.query
+      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
+        this: SearchBudget,
+        stage: SearchStage,
+        run: (executor: SearchExecutor) => PromiseLike<T>
+      ): Promise<T> {
+        return query.call(this, stage, async (tx) => {
+          if (incompleteSearch) await tx.execute(sql`SELECT pg_sleep(9)`)
+          return run(tx)
+        }) as Promise<T>
+      })
+      const started = performance.now()
+      try {
+        await db
+          .update(embedding)
+          .set({
+            content: longContent,
+            contentLength: longContent.length,
+            tokenCount: Math.ceil(longContent.length / 4),
+          })
+          .where(eq(embedding.id, chunkId))
+        const admission = await externalFetch(new URL('/api/copilot/api-keys/validate', simUrl), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': internalKey,
+            'x-sim-billing-protocol': 'legacy-v0',
+          },
+          body: JSON.stringify({
+            userId: ids.aliceId,
+            organizationId: ids.organizationId,
+            chatId: organizationChatId,
+          }),
+        })
+        expect(admission.status, await admission.text()).toBe(200)
+        let path = '/api/mothership'
+        let body: Record<string, unknown> = {
+          message:
+            'Search for the Orion deployment guide that mentions an activation phrase and final checksum. Read enough of that document to report both values and cite it.',
+          version: '3.0.0',
+          mode: 'assistant',
+          userId: ids.aliceId,
+          organizationId: ids.organizationId,
+          chatId: organizationChatId,
+        }
+        for (let round = 0; round < 8; round++) {
+          const response = await externalFetch(new URL(path, assistantUrl), {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-api-key': apiKey,
+              'x-sim-billing-protocol': 'legacy-v0',
+            },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(120000),
+          })
+          const wire = await response.text()
+          expect(response.status, wire.slice(0, 2000)).toBe(200)
+          expect(Buffer.byteLength(wire)).toBeLessThan(2 * 1024 * 1024)
+          const pending = new Map<string, MothershipStreamV1ToolCallDescriptor>()
+          let checkpoint: MothershipStreamV1CheckpointPausePayload | undefined
+          let streamId = ''
+          for (const line of wire.split('\n')) {
+            if (!line.startsWith('data:')) continue
+            const raw = line.slice(5).trim()
+            if (!raw || raw === '[DONE]') continue
+            const event: unknown = JSON.parse(raw)
+            if (!isContractStreamEventEnvelope(event))
+              throw new Error('Assistant returned an invalid generated stream envelope')
+            streamId = event.stream.streamId
+            if (event.type === 'error') throw new Error(JSON.stringify(event.payload))
+            if (event.type === 'text') answer += event.payload.text
+            if (
+              event.type === 'tool' &&
+              event.payload.phase === 'call' &&
+              !event.payload.partial &&
+              event.payload.arguments
+            )
+              pending.set(event.payload.toolCallId, event.payload)
+            if (event.type === 'run' && event.payload.kind === 'checkpoint_pause')
+              checkpoint = event.payload
+          }
+          if (!checkpoint) break
+          const results = await Promise.all(
+            checkpoint.pendingToolCallIds.map(async (callId) => {
+              const call = pending.get(callId)
+              if (!call) throw new Error('Checkpoint referenced an absent tool call')
+              const tool =
+                call.toolName === 'search_workspace'
+                  ? searchWorkspaceServerTool
+                  : call.toolName === 'read_document'
+                    ? readDocumentServerTool
+                    : undefined
+              if (!tool) throw new Error(`Unexpected Assistant tool: ${call.toolName}`)
+              const toolStarted = performance.now()
+              const result = await tool.execute(call.arguments, {
+                userId: ids.aliceId,
+                organizationId: ids.organizationId,
+                chatId: organizationChatId,
+                toolCallId: callId,
+                copilotToolExecution: true,
+                requestMode: 'assistant',
+                resolvedSecretTraceRegistry: registry,
+              })
+              calls.push({
+                name: call.toolName,
+                arguments: call.arguments,
+                milliseconds: performance.now() - toolStarted,
+                bytes: Buffer.byteLength(JSON.stringify(result)),
+              })
+              const { success } = z.object({ success: z.boolean() }).parse(result)
+              expect(success).toBe(true)
+              if (incompleteSearch) {
+                expect(call.toolName).toBe('search_workspace')
+                expect(result).toMatchObject({
+                  data: {
+                    retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+                    results: [],
+                  },
+                })
+              }
+              return { callId, name: call.toolName, success, data: result }
+            })
+          )
+          incompleteSearch = false
+          path = '/api/tools/resume'
+          body = {
+            checkpointId: checkpoint.checkpointId,
+            streamId,
+            userId: ids.aliceId,
+            organizationId: ids.organizationId,
+            chatId: organizationChatId,
+            results,
+          }
+          report['assistant.live.progress'] = { rounds: round + 1, calls }
+          saveReport()
+        }
+        report['assistant.live'] = { milliseconds: performance.now() - started, calls, answer }
+        saveReport()
+        expect(answer).toContain('SILVER COMET')
+        expect(answer).toContain('K7M2-84')
+        expect(answer).toContain('<source>')
+        expect(answer).not.toMatch(/timed?\s*out|timeout|internal retr(?:y|ies)/i)
+        expect(calls.some((call) => call.name === 'read_document')).toBe(true)
+        expect(calls.filter((call) => call.name === 'search_workspace').length).toBeGreaterThan(1)
+        expect(calls.every((call) => call.bytes < 40000)).toBe(true)
+      } finally {
+        delayed.mockRestore()
+        await db.update(embedding).set(original).where(eq(embedding.id, chunkId))
+      }
+    },
+    10 * 60_000
+  )
 })

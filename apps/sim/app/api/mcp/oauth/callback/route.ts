@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { mcpOauthCallbackContract } from '@/lib/api/contracts/mcp'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { credentialGroupOAuthAttemptPrincipal } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupMcpOAuth } from '@/lib/credential-groups/application/public-enrollment'
@@ -238,11 +239,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const provider = new SimMcpOauthProvider({ row, preregistered })
     let result: Awaited<ReturnType<typeof mcpAuthGuarded>>
     try {
-      result = await timedStep('mcpAuthGuarded', 120_000, () =>
-        mcpAuthGuarded(provider, {
-          serverUrl,
-          authorizationCode: code,
-        })
+      result = await withResourceOutboundScope({ workspaceId: serverWorkspaceId }, () =>
+        timedStep('mcpAuthGuarded', 120_000, () =>
+          mcpAuthGuarded(provider, { serverUrl, authorizationCode: code })
+        )
       )
     } catch (e) {
       logger.error('Token exchange failed during MCP OAuth callback', e)
@@ -267,7 +267,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       // forceRefresh: skip any stale cache from before re-auth.
       await timedStep('discoverServerTools', 60_000, () =>
-        mcpService.discoverServerTools(session.user.id, server.id, serverWorkspaceId, 'force')
+        withResourceOutboundScope({ workspaceId: serverWorkspaceId }, () =>
+          mcpService.discoverServerTools(session.user.id, server.id, serverWorkspaceId, 'force')
+        )
       )
     } catch (e) {
       logger.warn('Post-auth tools refresh failed', toError(e).message)

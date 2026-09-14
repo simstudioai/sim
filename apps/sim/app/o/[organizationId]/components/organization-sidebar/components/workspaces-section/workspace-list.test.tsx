@@ -45,6 +45,22 @@ vi.mock('@/hooks/queries/workspace', () => ({
 }))
 
 import { WorkspaceList } from '@/app/o/[organizationId]/components/organization-sidebar/components/workspaces-section/workspace-list'
+import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
+
+function KeyboardWorkspaceFlyout() {
+  const hover = useHoverMenu()
+  return (
+    <DropdownMenu
+      open={hover.isOpen}
+      onOpenChange={(open) => (open ? hover.open() : hover.close())}
+    >
+      <DropdownMenuTrigger>Workspaces</DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <WorkspaceList organizationId='org-1' flyout={hover} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 let container: HTMLDivElement
 let root: Root
@@ -91,6 +107,18 @@ async function render() {
 }
 
 describe('WorkspaceList rail view', () => {
+  it('keeps the flyout open when opened from the keyboard without pointer hover', async () => {
+    workspacesState.workspaces = [{ id: 'ws-1', name: 'Design' }]
+    await act(async () => root.render(<KeyboardWorkspaceFlyout />))
+    const trigger = container.querySelector('button')!
+    await act(async () => {
+      trigger.focus()
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(document.querySelector('[role="menu"]')).not.toBeNull()
+    expect(document.querySelector('a[href="/workspace/ws-1"]')).toHaveTextContent('Design')
+  })
+
   it('lists every workspace as a link into it', async () => {
     workspacesState.workspaces = [
       { id: 'ws-1', name: 'Design' },

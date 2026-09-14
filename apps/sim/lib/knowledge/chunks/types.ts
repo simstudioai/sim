@@ -13,6 +13,8 @@ export interface ChunkFilters {
   enabled?: 'true' | 'false' | 'all'
   limit?: number
   offset?: number
+  /** Inclusive indexed position; unlike an ordinal offset it survives disabled chunk gaps. */
+  startChunkIndex?: number
   sortBy?: ChunkSortBy
   sortOrder?: 'asc' | 'desc'
   /** Keyset position from a previous page. Never combined with `offset`. */

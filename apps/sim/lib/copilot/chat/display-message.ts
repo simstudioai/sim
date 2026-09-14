@@ -5,6 +5,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
+import { normalizeToolActivityDescription } from '@/lib/copilot/tools/tool-display'
 import {
   type ChatContextKind,
   type ChatMessage,
@@ -38,11 +39,13 @@ function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined 
   if (!tc) return undefined
   if (isToolHiddenInUi(tc.name)) return undefined
   const status: ToolCallStatus = STATE_TO_STATUS[tc.state] ?? ToolCallStatus.error
+  const activityDescription = normalizeToolActivityDescription(tc.activityDescription)
   return {
     id: tc.id,
     name: tc.name,
     status,
     displayTitle: status === ToolCallStatus.cancelled ? 'Stopped by user' : tc.display?.title,
+    ...(activityDescription ? { activityDescription } : {}),
     params: tc.params,
     calledBy: tc.calledBy,
     result: tc.result,

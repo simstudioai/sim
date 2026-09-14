@@ -392,15 +392,8 @@ export const ToolInput = memo(function ToolInput({
       [blockId]
     )
   )
-  const { collaborativeSetBlockCanonicalMode, collaborativeSetBlockCanonicalModes } =
+  const { collaborativeSetBlockCanonicalMode, collaborativeSetSubblockValueWithCanonicalModes } =
     useCollaborativeWorkflow()
-  const reindexCanonicalModesOnMutate = useCallback(
-    (oldTools: StoredTool[], newTools: StoredTool[]) => {
-      const next = reindexToolCanonicalModes(oldTools, newTools, canonicalModeOverrides)
-      if (next) collaborativeSetBlockCanonicalModes(blockId, next)
-    },
-    [canonicalModeOverrides, collaborativeSetBlockCanonicalModes, blockId]
-  )
 
   const value = isPreview ? previewValue : storeValue
 
@@ -411,6 +404,39 @@ export const ToolInput = memo(function ToolInput({
     typeof value[0]?.type === 'string'
       ? (value as StoredTool[])
       : []
+
+  /**
+   * Commits a tool list that moves or drops selected tools. Their canonical-mode overrides are
+   * keyed by position, so when any must move they persist in the same operation as the list.
+   * `positionedTools` is the list holding the kept tool references when `nextTools` clones them.
+   */
+  const setToolsWithReindexedModes = useCallback(
+    (nextTools: StoredTool[], positionedTools: StoredTool[] = nextTools) => {
+      const canonicalModes = reindexToolCanonicalModes(
+        selectedTools,
+        positionedTools,
+        canonicalModeOverrides
+      )
+      if (!canonicalModes) {
+        setStoreValue(nextTools)
+        return
+      }
+      collaborativeSetSubblockValueWithCanonicalModes(
+        blockId,
+        subBlockId,
+        structuredClone(nextTools),
+        canonicalModes
+      )
+    },
+    [
+      selectedTools,
+      canonicalModeOverrides,
+      setStoreValue,
+      collaborativeSetSubblockValueWithCanonicalModes,
+      blockId,
+      subBlockId,
+    ]
+  )
 
   // Tool categories the consuming block can't run (declared on its tool-input
   // subBlock): shown in the picker but greyed out with a tooltip instead of added.
@@ -857,10 +883,9 @@ export const ToolInput = memo(function ToolInput({
     (toolIndex: number) => {
       if (isPreview || disabled) return
       const updatedTools = selectedTools.filter((_, index) => index !== toolIndex)
-      reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-      setStoreValue(updatedTools)
+      setToolsWithReindexedModes(updatedTools)
     },
-    [isPreview, disabled, selectedTools, reindexCanonicalModesOnMutate, setStoreValue]
+    [isPreview, disabled, selectedTools, setToolsWithReindexedModes]
   )
 
   const handleRemoveAllFromServer = useCallback(
@@ -869,10 +894,9 @@ export const ToolInput = memo(function ToolInput({
       const updatedTools = selectedTools.filter(
         (t) => !(t.type === 'mcp' && t.params?.serverId === serverId)
       )
-      reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-      setStoreValue(updatedTools)
+      setToolsWithReindexedModes(updatedTools)
     },
-    [isPreview, disabled, selectedTools, reindexCanonicalModesOnMutate, setStoreValue]
+    [isPreview, disabled, selectedTools, setToolsWithReindexedModes]
   )
 
   const handleDeleteTool = useCallback(
@@ -900,11 +924,10 @@ export const ToolInput = memo(function ToolInput({
       })
 
       if (updatedTools.length !== selectedTools.length) {
-        reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-        setStoreValue(updatedTools)
+        setToolsWithReindexedModes(updatedTools)
       }
     },
-    [selectedTools, customTools, reindexCanonicalModesOnMutate, setStoreValue]
+    [selectedTools, customTools, setToolsWithReindexedModes]
   )
 
   const handleParamChange = useCallback(
@@ -1077,8 +1100,7 @@ export const ToolInput = memo(function ToolInput({
       newTools.splice(adjustedDropIndex, 0, draggedTool)
     }
 
-    reindexCanonicalModesOnMutate(selectedTools, newTools)
-    setStoreValue(newTools)
+    setToolsWithReindexedModes(newTools)
     setDraggedIndex(null)
     setDragOverIndex(null)
   }
@@ -1177,8 +1199,7 @@ export const ToolInput = memo(function ToolInput({
               ...filteredTools.map((tool) => ({ ...tool, isExpanded: false })),
               serverBinding,
             ]
-            reindexCanonicalModesOnMutate(selectedTools, filteredTools)
-            setStoreValue(nextTools)
+            setToolsWithReindexedModes(nextTools, filteredTools)
             setMcpServerDrilldown(null)
             setOpen(false)
           },
@@ -1445,7 +1466,7 @@ export const ToolInput = memo(function ToolInput({
     supportsAdvancedMcpServer,
     availableWorkflows,
     isToolAlreadySelected,
-    reindexCanonicalModesOnMutate,
+    setToolsWithReindexedModes,
   ])
 
   return (

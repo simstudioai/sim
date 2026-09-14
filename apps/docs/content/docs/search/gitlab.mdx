@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 
 Connect one GitLab project per source. Choose an **Administrator token** to refresh permissions from GitLab, or a **Non-admin token** with two CSV files to manage access in Sim. Teammates do not connect individual GitLab accounts.
 
-Organization admins set up sources in **Settings → Sources**. For workspace Search, use **Search → Add source**. The same token paths are available when adding a GitLab connector to a regular knowledge base.
+Organization admins set up sources in **Settings → Sources**. The same token paths are available when adding a GitLab connector to a regular knowledge base.
 
 ## Choose a token path
 
@@ -146,7 +146,7 @@ Open a project to use these administrator actions:
 | **Settings** | Change the token, project, filters, or CSV permissions. |
 | **Remove connection** | Confirm removal of the connection and its indexed documents. Documents cannot be retained without the connection that maintains their permissions. |
 
-GitLab does not expose a separate **Full resync** action. Each sync checks the selected content. CSV grants change only when you replace the files.
+Each sync checks the selected content. CSV grants change only when you replace the files.
 
 ## Troubleshooting
 

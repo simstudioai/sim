@@ -63,6 +63,7 @@ describe.each([
     queueTableRows(member, [{ role: 'member' }])
     expect(await operation.execute({ principal, input })).toEqual({
       results: [],
+      retrieval: { status: 'complete', timedOutLegs: [] },
       query: 'policy',
       knowledgeBases: [],
     })

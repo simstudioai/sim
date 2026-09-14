@@ -829,8 +829,7 @@ describe.skipIf(!fixtureFile)('live self-hosted GitLab ingestion and permission 
               input: {
                 documentId: ordinary.id,
                 assertedOrganizationId: ids.organizationId,
-                offset: 0,
-                limit: 10,
+                limit: 3,
                 resultSecretRegistry: new ResolvedSecretTraceRegistry(),
               },
             })

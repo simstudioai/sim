@@ -7,7 +7,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ upload: vi.fn(), refresh: vi.fn() }))
+const mocks = vi.hoisted(() => ({ upload: vi.fn(), refresh: vi.fn(), invite: vi.fn() }))
+vi.mock('@/app/workspace/[workspaceId]/components/invite-modal', () => ({
+  InviteModal: (props: object) => {
+    mocks.invite(props)
+    return null
+  },
+}))
 vi.mock('@/lib/uploads/client/session-upload', () => ({
   uploadInternalFileSession: mocks.upload,
 }))
@@ -49,7 +55,12 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-async function render(canEditLogo = true, isCollapsed = false, onExpandSidebar = vi.fn()) {
+async function render(
+  canEditLogo = true,
+  isCollapsed = false,
+  onExpandSidebar = vi.fn(),
+  canInviteMembers = canEditLogo
+) {
   await act(async () => {
     root.render(
       <QueryClientProvider client={queryClient}>
@@ -57,6 +68,7 @@ async function render(canEditLogo = true, isCollapsed = false, onExpandSidebar =
           <OrganizationHeader
             organization={organization}
             canEditLogo={canEditLogo}
+            canInviteMembers={canInviteMembers}
             isCollapsed={isCollapsed}
             onExpandSidebar={onExpandSidebar}
           />
@@ -188,4 +200,36 @@ describe('OrganizationHeader logo upload', () => {
     expect(mocks.upload).toHaveBeenCalledTimes(2)
     expect(mocks.refresh).toHaveBeenCalledOnce()
   })
+})
+
+describe('OrganizationHeader member actions', () => {
+  it('opens the existing invitation flow for the current organization', async () => {
+    await render()
+    await openMenu()
+    const invite = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+      (item) => item.textContent === 'Invite people'
+    )!
+    await act(async () => invite.click())
+    expect(mocks.invite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        open: true,
+        organizationId: 'org-1',
+        isOrganizationAdmin: true,
+        canInvite: true,
+      })
+    )
+  })
+
+  it.each([false, true])(
+    'keeps settings access but hides disallowed invitations (admin=%s)',
+    async (admin) => {
+      await render(admin, false, vi.fn(), false)
+      await openMenu()
+      expect(document.querySelector('a[href="/o/org-1/settings/members"]')).toHaveTextContent(
+        'Settings'
+      )
+      expect(document.querySelector('[role="menu"]')).not.toHaveTextContent('Invite people')
+      expect(mocks.invite).not.toHaveBeenCalled()
+    }
+  )
 })

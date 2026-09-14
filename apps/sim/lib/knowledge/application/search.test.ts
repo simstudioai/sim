@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   checkActorUsage: vi.fn(),
   generateEmbedding: vi.fn(),
   executeSearch: vi.fn(),
+  retrieval: vi.fn(),
   getDocumentMetadata: vi.fn(),
   getTagDefinitions: vi.fn(),
   getTagDefinitionsBatch: vi.fn(),
@@ -89,7 +90,10 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
 
 vi.mock('@/lib/knowledge/search/queries', () => ({
   generateSearchEmbedding: mocks.generateEmbedding,
-  executeKnowledgeSearch: mocks.executeSearch,
+  retrieveKnowledgeSearch: async (...args: unknown[]) => ({
+    rows: await mocks.executeSearch(...args),
+    retrieval: mocks.retrieval(),
+  }),
   getDocumentMetadataByIds: mocks.getDocumentMetadata,
 }))
 
@@ -126,6 +130,7 @@ const knowledgeBase = {
 
 describe('knowledge search application use case', () => {
   beforeEach(() => {
+    mocks.retrieval.mockReturnValue({ status: 'complete', timedOutLegs: [] })
     vi.clearAllMocks()
     mocks.rerank.mockReset()
     resetDbChainMock()
@@ -199,6 +204,53 @@ describe('knowledge search application use case', () => {
     })
     expect(result.results).toEqual([])
     expect(result.totalResults).toBe(0)
+  })
+
+  it.each([false, true])(
+    'requires explicit partial-result support for empty incomplete searches (allowPartialResults=%s)',
+    async (allowPartialResults) => {
+      mocks.retrieval.mockReturnValue({ status: 'partial', timedOutLegs: ['vector', 'keyword'] })
+      mocks.executeSearch.mockResolvedValue([])
+      const result = searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          query: 'canaries',
+          topK: 20,
+          allowPartialResults,
+        },
+      })
+
+      if (!allowPartialResults) {
+        await expect(result).rejects.toThrow('retrieval deadline')
+        return
+      }
+      await expect(result).resolves.toMatchObject({
+        results: [],
+        totalResults: 0,
+        retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+      })
+    }
+  )
+
+  it.each([
+    { surface: 'dashboard' as const, vectorBudgetMs: 3000 },
+    { surface: 'copilot' as const, vectorBudgetMs: undefined },
+    { surface: 'workflow' as const, vectorBudgetMs: undefined },
+  ])('forwards only the configured vector budget for $surface', async (options) => {
+    await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseIds: ['knowledge-1'],
+        query: 'release',
+        topK: 10,
+        ...options,
+      },
+    })
+    expect(mocks.executeSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ vectorBudgetMs: options.vectorBudgetMs })
+    )
   })
 
   describe.each(['workspace', 'organization'] as const)('%s ranking policy', (scope) => {

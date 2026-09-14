@@ -37,7 +37,13 @@ export function resolveOrganizationSettingsSection(
     path,
     items: ORGANIZATION_SETTINGS_ITEMS,
     defaultSection: null,
-    aliases: { organization: 'members', team: 'members', subscription: 'billing', domains: 'sso' },
+    aliases: {
+      organization: 'members',
+      team: 'members',
+      subscription: 'billing',
+      domains: 'sso',
+      sessions: 'security',
+    },
   })
 }
 

@@ -119,19 +119,18 @@ export class McpClient {
       throw new McpError('OAuth MCP server must use one authentication strategy')
     }
     const useOauth = this.config.authType === 'oauth'
-    // `resolvedIP` is null only when the hostname still carries an unresolved env-var
-    // reference, which is checked again once it resolves. Otherwise the guard validates
-    // addresses per-connect. A private/loopback resolvedIP only reaches here on a
-    // self-hosted deployment whose policy permits it, and that case pins to the address
-    // that was validated rather than to whatever the name resolves to next.
-    const guarded = resolvedIP
-      ? isPrivateIp(resolvedIP)
+    // The transport never runs on the global fetch: the guard validates addresses
+    // per-connect and redirects per-hop whether or not a caller validated the URL
+    // first. A private/loopback resolvedIP only reaches here on a self-hosted
+    // deployment whose policy permits it, and that case pins to the address that
+    // was validated rather than to whatever the name resolves to next.
+    const guarded =
+      resolvedIP && isPrivateIp(resolvedIP)
         ? createPinnedPrivateMcpFetch(resolvedIP, this.config.url)
         : createGuardedMcpFetch(this.config.url)
-      : undefined
-    this.closeGuardedTransport = guarded?.close
+    this.closeGuardedTransport = guarded.close
     const oauthFetch = useOauth
-      ? createMcpEndpointFetch(guarded?.fetch ?? fetch, {
+      ? createMcpEndpointFetch(guarded.fetch, {
           serverUrl: this.config.url,
           headers: this.config.headers,
         })
@@ -142,11 +141,11 @@ export class McpClient {
             serverUrl: this.config.url,
             fetch: oauthFetch,
           })
-        : (oauthFetch ?? guarded?.fetch)
+        : (oauthFetch ?? guarded.fetch)
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       ...(useOauth ? {} : { requestInit: { headers: this.config.headers } }),
-      ...(transportFetch ? { fetch: transportFetch } : {}),
+      fetch: transportFetch,
     })
 
     this.client = new Client(

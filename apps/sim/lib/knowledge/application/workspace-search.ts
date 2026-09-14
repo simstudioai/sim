@@ -31,7 +31,13 @@ const searchWorkspaceKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
     const index = await measureSearchStage('index_resolution', () =>
       findWorkspaceSearchIndex(context.workspaceId)
     )
-    if (!index) return { results: [], query: input.query ?? '', knowledgeBases: [] }
+    if (!index)
+      return {
+        results: [],
+        query: input.query ?? '',
+        knowledgeBases: [],
+        retrieval: { status: 'complete' as const, timedOutLegs: [] },
+      }
     return searchKnowledge.execute({
       principal,
       input: { ...input, workspaceId: context.workspaceId, knowledgeBaseIds: [index.id] },
@@ -75,7 +81,12 @@ const searchOrganizationKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
             results: [],
           })
       }
-      return { results: [], query: input.query ?? '', knowledgeBases: [] }
+      return {
+        results: [],
+        query: input.query ?? '',
+        knowledgeBases: [],
+        retrieval: { status: 'complete' as const, timedOutLegs: [] },
+      }
     }
     return searchKnowledge.execute({
       principal,
@@ -118,7 +129,12 @@ const searchScopedKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
             results: [],
           })
       }
-      return { results: [], query: input.query ?? '', knowledgeBases: [] }
+      return {
+        results: [],
+        query: input.query ?? '',
+        knowledgeBases: [],
+        retrieval: { status: 'complete' as const, timedOutLegs: [] },
+      }
     }
     return searchKnowledge.execute({
       principal,

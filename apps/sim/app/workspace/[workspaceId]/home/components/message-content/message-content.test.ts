@@ -25,7 +25,7 @@ import {
 import { modelToContentBlocks } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '../../types'
 import {
-  assistantMessageHasVisibleExecutingTool,
+  assistantMessageHasVisibleActivity,
   deriveThinkingLabel,
   getOrchestratorMessageText,
   parseBlocks,
@@ -162,6 +162,33 @@ describe('getOrchestratorMessageText', () => {
 })
 
 describe('parseBlocks span-identity tree', () => {
+  it.each(['read', 'respond', 'prepare_file_edit'])(
+    'prefers invocation intent over %s fallback titles',
+    (name) => {
+      const segments = parseBlocks([
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'described-tool',
+            name,
+            status: 'success',
+            displayTitle: 'Fallback title',
+            activityDescription: '  Checking\nlaunch updates ',
+            params: { path: 'workspace/files/brief.md' },
+          },
+          timestamp: 1,
+        },
+      ])
+      const group = segments[0]
+      if (group.type !== 'agent_group') throw new Error('expected mothership group')
+      const tool = group.items[0]
+      if (tool?.type !== 'tool') throw new Error('expected tool activity')
+      expect(tool.data.displayTitle).toBe('Checked launch updates')
+      expect(tool.data.activityDescription).toBe('Checking launch updates')
+      expect(tool.data.params).toEqual({ path: 'workspace/files/brief.md' })
+    }
+  )
+
   it('refines a completed credential rename with its previous and new names', () => {
     const segments = parseBlocks([
       {
@@ -786,7 +813,22 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
   })
 })
 
-describe('assistantMessageHasVisibleExecutingTool', () => {
+describe('assistantMessageHasVisibleActivity', () => {
+  it('keeps the main tail active between calls but closes it when narration follows', () => {
+    const blocks = [mainToolCall('finished', 'read')]
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), true)).toBe(true)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), false)).toBe(false)
+    expect(
+      assistantMessageHasVisibleActivity(parseBlocks([...blocks, mainText('Done.')]), true)
+    ).toBe(false)
+  })
+
+  it('leaves an empty open subagent to the turn indicator', () => {
+    const segments = parseBlocks([subagentStart('workflow', 'S1', 'main')])
+    expect(assistantMessageHasVisibleActivity(segments, true)).toBe(false)
+    expect(assistantMessageHasVisibleActivity(segments, false)).toBe(false)
+  })
+
   it.each([undefined, 'main'])('retains an earlier running tool with spanId=%s', (spanId) => {
     const blocks: ContentBlock[] = [
       {
@@ -800,14 +842,12 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
     ]
     const segments = parseBlocks(blocks)
     expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
-    expect(assistantMessageHasVisibleExecutingTool(segments)).toBe(true)
+    expect(assistantMessageHasVisibleActivity(segments)).toBe(true)
   })
 
   it('does not treat an open subagent lane as an executing tool row', () => {
     expect(
-      assistantMessageHasVisibleExecutingTool(
-        parseBlocks([subagentStart('workflow', 'S1', 'main')])
-      )
+      assistantMessageHasVisibleActivity(parseBlocks([subagentStart('workflow', 'S1', 'main')]))
     ).toBe(false)
   })
 
@@ -821,7 +861,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
         timestamp: 3,
       },
     ]
-    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(true)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(true)
   })
 
   it('does not let open parallel lanes suppress the single turn-level indicator', () => {
@@ -829,7 +869,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
       subagentStart('workflow', 'S1', 'main'),
       subagentStart('search', 'S2', 'main'),
     ]
-    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(false)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(false)
   })
 
   it('ignores the executing dispatch tool represented by its subagent lane', () => {
@@ -844,7 +884,7 @@ describe('assistantMessageHasVisibleExecutingTool', () => {
         parentToolCallId: 'dispatch-1',
       },
     ]
-    expect(assistantMessageHasVisibleExecutingTool(parseBlocks(blocks))).toBe(false)
+    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(false)
   })
 })
 
@@ -941,6 +981,6 @@ describe('deriveThinkingLabel', () => {
     expect(deriveThinkingLabel([mainToolCall('t1', 'workflow')])).toBe('Dispatching…')
     expect(deriveThinkingLabel([mainToolCall('t1', 'prepare_file_edit')])).toBe('Dispatching…')
     expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking…')
-    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBeNull()
+    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBe('Thinking…')
   })
 })

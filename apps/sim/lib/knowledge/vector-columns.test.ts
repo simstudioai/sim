@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { KB_EMBEDDING_STORAGE_DIMENSIONS } from '@/lib/embeddings/catalog'
 import {
+  embeddingCandidateDistance,
   embeddingDistance,
   embeddingVectorColumn,
   embeddingVectorValues,
@@ -17,6 +18,20 @@ describe('embeddingVectorColumn', () => {
 
   it('keeps 1536 on the original bare `embedding` column, where existing rows live', () => {
     expect(embeddingVectorColumn(1536)).toBe('embedding.embedding')
+  })
+})
+
+describe('embeddingCandidateDistance', () => {
+  it('matches the compact expression index for every stored width', () => {
+    for (const width of KB_EMBEDDING_STORAGE_DIMENSIONS) {
+      const rendered = embeddingCandidateDistance(width, '[1,2]').toSQL()
+      expect(rendered.sql).toContain('binary_quantize(?)::bit(?) <~>')
+      expect(rendered.params[0]).toBe(embeddingVectorColumn(width))
+      expect(rendered.params[1]).toEqual(rendered.params[3])
+      expect(JSON.stringify(rendered.params[1])).toContain(String(width))
+      expect(rendered.params[2]).toBe('[1,2]')
+      expect(rendered.sql).not.toContain('<=>')
+    }
   })
 })
 

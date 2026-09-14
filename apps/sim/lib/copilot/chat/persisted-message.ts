@@ -22,6 +22,7 @@ import type {
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
+import { normalizeToolActivityDescription } from '@/lib/copilot/tools/tool-display'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
@@ -36,6 +37,7 @@ interface PersistedToolCall {
   calledBy?: string
   durationMs?: number
   display?: { title?: string }
+  activityDescription?: string
 }
 
 export interface PersistedContentBlock {
@@ -284,10 +286,14 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
 
       const redactedResult = redactToolCallResult(block.toolCall.name, block.toolCall.result)
 
+      const activityDescription = normalizeToolActivityDescription(
+        block.toolCall.activityDescription
+      )
       const toolCall: PersistedToolCall = {
         id: block.toolCall.id,
         name: block.toolCall.name,
         state,
+        ...(activityDescription ? { activityDescription } : {}),
         ...(isSubagentTool && isNonTerminal ? {} : { result: redactedResult }),
         ...(isSubagentTool && isNonTerminal
           ? {}
@@ -466,6 +472,7 @@ interface RawBlock {
     params?: Record<string, unknown>
     result?: { success: boolean; output?: unknown; error?: string }
     display?: { text?: string; title?: string; phaseLabel?: string }
+    activityDescription?: string
     calledBy?: string
     durationMs?: number
     error?: string
@@ -523,10 +530,12 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.status) result.status = block.status as MothershipStreamV1CompletionStatus
   if (block.parentToolCallId) result.parentToolCallId = block.parentToolCallId
   if (block.toolCall) {
+    const activityDescription = normalizeToolActivityDescription(block.toolCall.activityDescription)
     result.toolCall = {
       id: block.toolCall.id ?? '',
       name: block.toolCall.name ?? '',
       state: normalizeToolState(block.toolCall.state),
+      ...(activityDescription ? { activityDescription } : {}),
       ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
       ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
       ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
@@ -549,6 +558,7 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
 
 function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
   if (block.type === 'tool_call' && block.toolCall) {
+    const activityDescription = normalizeToolActivityDescription(block.toolCall.activityDescription)
     return {
       type: MothershipStreamV1EventType.tool,
       phase: MothershipStreamV1ToolPhase.call,
@@ -556,6 +566,7 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
         id: block.toolCall.id ?? '',
         name: block.toolCall.name ?? '',
         state: normalizeToolState(block.toolCall.state),
+        ...(activityDescription ? { activityDescription } : {}),
         ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
         ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
         ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),

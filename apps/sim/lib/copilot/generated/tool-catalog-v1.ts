@@ -4750,16 +4750,24 @@ export const ReadDocument: ToolCatalogEntry = {
         type: 'string',
       },
       limit: {
-        default: 20,
-        description: 'Maximum number of chunks to read.',
-        maximum: 50,
+        default: 3,
+        description:
+          'Maximum chunks to read; the server may return fewer to fit its text budget. Follow next when more context is needed.',
+        maximum: 8,
         minimum: 1,
         type: 'integer',
       },
-      offset: {
-        default: 0,
-        description: 'Number of chunks to skip.',
-        maximum: 5000,
+      startChunkIndex: {
+        description:
+          "Inclusive chunk index from search or a previous read's next object. Gaps from disabled chunks are skipped.",
+        maximum: 2147483647,
+        minimum: 0,
+        type: 'integer',
+      },
+      startOffset: {
+        description:
+          'UTF-16 character offset within startChunkIndex. Omit to read the chunk from its start, or copy next.startOffset to continue a partial chunk.',
+        maximum: 2147483647,
         minimum: 0,
         type: 'integer',
       },
@@ -5616,7 +5624,8 @@ export const SearchWorkspace: ToolCatalogEntry = {
       },
       topK: {
         default: 20,
-        description: 'Maximum number of matching chunks to return.',
+        description:
+          'Maximum number of matching passage previews to return. Retrieval ranking is independent of preview length.',
         maximum: 50,
         minimum: 1,
         type: 'integer',

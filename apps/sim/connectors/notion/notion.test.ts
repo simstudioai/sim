@@ -9,9 +9,11 @@ const { mockFetchWithRetry, mockReadBoundedHttpErrorPayload } = vi.hoisted(() =>
 }))
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
-  fetchWithRetry: mockFetchWithRetry,
   readBoundedHttpErrorPayload: mockReadBoundedHttpErrorPayload,
   VALIDATE_RETRY_OPTIONS: {},
+}))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
+  fetchWithRetry: mockFetchWithRetry,
 }))
 vi.mock('@/components/icons', () => ({ NotionIcon: () => null }))
 

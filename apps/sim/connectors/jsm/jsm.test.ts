@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({
+vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
   fetchWithRetry: mockFetchWithRetry,
-  VALIDATE_RETRY_OPTIONS: {},
 }))
 vi.mock('@/components/icons', () => ({ JiraServiceManagementIcon: () => null }))
 vi.mock('@/tools/jira/utils', () => ({

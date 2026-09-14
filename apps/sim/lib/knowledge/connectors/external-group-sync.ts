@@ -11,6 +11,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import {
   resourceScopeColumns,
   resourceScopeFields,
@@ -434,69 +435,77 @@ export async function refreshConnectorDirectory(
     return 'skipped'
   }
 
-  if (
-    !(
-      await resolveKnowledgeAccessAvailability(
-        resourceScopeFields(resourceScopeFromOwner(connector))
-      )
-    ).sourceMirrored
-  ) {
-    return 'skipped'
-  }
-
-  const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
-  if (!connectorConfig?.openDirectory) return 'skipped'
-
-  const credentialUserId = await resolveConnectorTokenUserId({
-    credentialId: connector.credentialId,
-    ...resourceScopeFields(resourceScopeFromOwner(connector)),
-    fallbackUserId: connector.knowledgeBaseOwnerId,
-  })
-  if (!credentialUserId) return 'unusable'
-
-  const sourceConfig = connector.sourceConfig as Record<string, unknown>
-  const token = await resolveConnectorAccessToken({
-    auth: connectorConfig.auth,
-    accessMode: 'admin',
+  return withResourceOutboundScope(
     connector,
-    userId: credentialUserId,
-    requestId,
-    sourceConfig,
-  })
-  if (!token) return 'unusable'
+    async (): Promise<ConnectorDirectoryRefreshOutcome> => {
+      if (
+        !(
+          await resolveKnowledgeAccessAvailability(
+            resourceScopeFields(resourceScopeFromOwner(connector))
+          )
+        ).sourceMirrored
+      ) {
+        return 'skipped'
+      }
 
-  const recordError = async (lastSyncError: string | null) => {
-    await db
-      .update(knowledgeConnector)
-      .set({ lastSyncError, updatedAt: new Date() })
-      .where(
-        and(
-          eq(knowledgeConnector.id, connector.id),
-          eq(knowledgeConnector.updatedAt, connector.updatedAt),
-          isNull(knowledgeConnector.syncLockToken),
-          isNull(knowledgeConnector.memberSyncLockToken),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
-  }
-  try {
-    const syncContext = syncContextForToken(token)
-    await connectorConfig.permissionConfig?.populateSyncContext(connector.id, syncContext)
-    const outcome = await refreshMirroredDirectory({
-      ...resourceScopeFields(resourceScopeFromOwner(connector)),
-      connectorConfig,
-      sourceConfig,
-      syncContext,
-      accessToken: token.accessToken,
-      force: connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX),
-    })
-    if (outcome === 'refreshed' && connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX)) {
-      await recordError(null)
+      const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType]
+      if (!connectorConfig?.openDirectory) return 'skipped'
+
+      const credentialUserId = await resolveConnectorTokenUserId({
+        credentialId: connector.credentialId,
+        ...resourceScopeFields(resourceScopeFromOwner(connector)),
+        fallbackUserId: connector.knowledgeBaseOwnerId,
+      })
+      if (!credentialUserId) return 'unusable'
+
+      const sourceConfig = connector.sourceConfig as Record<string, unknown>
+      const token = await resolveConnectorAccessToken({
+        auth: connectorConfig.auth,
+        accessMode: 'admin',
+        connector,
+        userId: credentialUserId,
+        requestId,
+        sourceConfig,
+      })
+      if (!token) return 'unusable'
+
+      const recordError = async (lastSyncError: string | null) => {
+        await db
+          .update(knowledgeConnector)
+          .set({ lastSyncError, updatedAt: new Date() })
+          .where(
+            and(
+              eq(knowledgeConnector.id, connector.id),
+              eq(knowledgeConnector.updatedAt, connector.updatedAt),
+              isNull(knowledgeConnector.syncLockToken),
+              isNull(knowledgeConnector.memberSyncLockToken),
+              isNull(knowledgeConnector.archivedAt),
+              isNull(knowledgeConnector.deletedAt)
+            )
+          )
+      }
+      try {
+        const syncContext = syncContextForToken(token)
+        await connectorConfig.permissionConfig?.populateSyncContext(connector.id, syncContext)
+        const outcome = await refreshMirroredDirectory({
+          ...resourceScopeFields(resourceScopeFromOwner(connector)),
+          connectorConfig,
+          sourceConfig,
+          syncContext,
+          accessToken: token.accessToken,
+          force: connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX),
+        })
+        if (
+          outcome === 'refreshed' &&
+          connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX)
+        ) {
+          await recordError(null)
+        }
+        return outcome
+      } catch (error) {
+        await recordError(getErrorMessage(error))
+        throw error
+      }
     }
-    return outcome
-  } catch (error) {
-    await recordError(getErrorMessage(error))
-    throw error
-  }
+  )
 }

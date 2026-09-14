@@ -969,6 +969,7 @@ export class PauseResumeManager {
       }
 
       if (result.status === 'paused') {
+        /** persistPauseResult already settles the answered context and recounts the merged pauses. */
         await PauseResumeManager.markResumeCompleted({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
@@ -1424,9 +1425,10 @@ export class PauseResumeManager {
       })
     }
 
+    /** Resume attempts have separate stream IDs; new pauses must retain the durable run ID. */
     const metadata = {
       ...baseSnapshot.metadata,
-      executionId: resumeExecutionId,
+      executionId: parentExecutionId,
       requestId: baseSnapshot.metadata.requestId,
       startTime: new Date().toISOString(),
       userId: effectiveUserId,
@@ -2024,7 +2026,7 @@ export class PauseResumeManager {
           )
         })
       }
-      void cleanupExecutionBase64Cache(resumeExecutionId)
+      void cleanupExecutionBase64Cache(parentExecutionId)
     }
 
     /**

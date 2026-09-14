@@ -3,7 +3,7 @@ import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import {
   type KeysetKey,
   keysetColumns,
@@ -123,7 +123,13 @@ export async function queryChunks(
    * keyset resume narrows the *page*, and folding it into the count would turn
    * a total into a remainder that shrinks with every page.
    */
-  const pageConditions = [...conditions, resumeKeyset(keys, cursorKeys, sortOrder)]
+  const pageConditions = [
+    ...conditions,
+    resumeKeyset(keys, cursorKeys, sortOrder),
+    filters.startChunkIndex === undefined
+      ? undefined
+      : gte(embedding.chunkIndex, filters.startChunkIndex),
+  ]
 
   const rows = await db
     .select({

@@ -18,6 +18,7 @@ import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   CONTEXT_COMPACTION_DISPLAY_TITLE,
   getToolDisplayTitle,
+  normalizeToolActivityDescription,
 } from '@/lib/copilot/tools/tool-display'
 
 interface StreamSnapshotLike {
@@ -187,6 +188,7 @@ function buildLiveAssistantMessage(params: {
     spanId?: string
     parentSpanId?: string
     displayTitle?: string
+    activityDescription?: string
     params?: Record<string, unknown>
     result?: { success: boolean; output?: unknown; error?: string }
     state?: string
@@ -199,6 +201,10 @@ function buildLiveAssistantMessage(params: {
     if (existingIndex !== undefined) {
       const existing = blocks[existingIndex]
       const existingToolCall = asPayloadRecord(existing.toolCall)
+      const activityDescription =
+        normalizeToolActivityDescription(existingToolCall?.activityDescription) ??
+        input.activityDescription
+      const displayTitle = activityDescription ?? input.displayTitle
       existing.toolCall = {
         ...(existingToolCall ?? {}),
         id: input.toolCallId,
@@ -209,10 +215,11 @@ function buildLiveAssistantMessage(params: {
         ...(ownershipWritable && input.calledBy ? { calledBy: input.calledBy } : {}),
         ...(input.params ? { params: input.params } : {}),
         ...(input.result ? { result: input.result } : {}),
-        ...(input.displayTitle
+        ...(activityDescription ? { activityDescription } : {}),
+        ...(displayTitle
           ? {
               display: {
-                title: input.displayTitle,
+                title: displayTitle,
               },
             }
           : existingToolCall?.display
@@ -247,6 +254,7 @@ function buildLiveAssistantMessage(params: {
         ...(input.calledBy ? { calledBy: input.calledBy } : {}),
         ...(input.params ? { params: input.params } : {}),
         ...(input.result ? { result: input.result } : {}),
+        ...(input.activityDescription ? { activityDescription: input.activityDescription } : {}),
         ...(input.displayTitle
           ? {
               display: {
@@ -366,16 +374,20 @@ function buildLiveAssistantMessage(params: {
           continue
         }
 
+        const activityDescription = normalizeToolActivityDescription(payload.activityDescription)
         ensureToolBlock({
           toolCallId,
           toolName: payload.toolName,
+          activityDescription,
           calledBy: scopedSubagent,
           ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
           ...spanIdentity,
-          displayTitle: getToolDisplayTitle(
-            payload.toolName,
-            isRecordLike(payload.arguments) ? payload.arguments : undefined
-          ),
+          displayTitle:
+            activityDescription ??
+            getToolDisplayTitle(
+              payload.toolName,
+              isRecordLike(payload.arguments) ? payload.arguments : undefined
+            ),
           params: isRecordLike(payload.arguments) ? payload.arguments : undefined,
           state: typeof payload.status === 'string' ? payload.status : 'executing',
           isCallFrame: payload.phase === MothershipStreamV1ToolPhase.call,

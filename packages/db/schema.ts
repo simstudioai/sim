@@ -3269,6 +3269,23 @@ export const embedding = pgTable(
         ef_construction: 64,
       }),
 
+    /** Permission-filtered searches traverse compact candidates, then rerank the stored vectors. */
+    embeddingBinaryHnswIdx: index('embedding_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding})::bit(1536)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+    embedding384BinaryHnswIdx: index('embedding_384_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding384})::bit(384)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+    embedding768BinaryHnswIdx: index('embedding_768_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding768})::bit(768)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+    embedding1024BinaryHnswIdx: index('embedding_1024_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding1024})::bit(1024)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+    embedding3072BinaryHnswIdx: index('embedding_3072_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding3072})::bit(3072)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+
     // Text tag indexes
     tag1Idx: index('emb_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
     tag2Idx: index('emb_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),

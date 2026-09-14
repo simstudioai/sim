@@ -53,6 +53,7 @@ import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
@@ -1540,482 +1541,487 @@ export async function processDocumentAsync(
 
     const ctx = contextRows[0]
     processingFilename = ctx.filename
-    const persistedDocData = {
-      filename: ctx.filename,
-      fileUrl: ctx.fileUrl,
-      fileSize: ctx.fileSize,
-      mimeType: ctx.mimeType,
-    }
-
-    /**
-     * Claiming is guarded by both completion status and queue generation.
-     *
-     * Without a status predicate this write was reachable for a finished
-     * document — a late or duplicate dispatch would flip `completed` back to
-     * `processing`, discard the pass that had already indexed and billed, and
-     * index it a second time. `pending`, `failed`, and `processing` remain
-     * claimable so a Trigger retry can recover if an earlier attempt threw
-     * before persisting its failure. Queued workers also match the exact stamp
-     * carried in their payload. A retry or recovery sweep re-stamps the row, so
-     * an older delayed quota continuation becomes a harmless no-op instead of
-     * stealing the newer pass.
-     */
-    /**
-     * Queue acceptance can precede the parent's pending-state write. The published
-     * successor may adopt that exact processing generation; stamping its token
-     * fences the parent's delayed write and refunds admission at most once.
-     */
-    const predecessor =
-      attemptContext?.processingQueueToken && attemptContext.processingPredecessorToken
-        ? and(
-            eq(document.processingStatus, 'processing'),
-            eq(document.processingQueueToken, attemptContext.processingPredecessorToken)
-          )
-        : undefined
-    const claimed = await db
-      .update(document)
-      .set({
-        processingStatus: 'processing',
-        processingStartedAt,
-        processingDeferredUntil: null,
-        processingCompletedAt: null,
-        processingError: null,
-        ...(attemptContext?.processingQueueToken
-          ? { processingQueueToken: attemptContext.processingQueueToken }
-          : {}),
-        ...(predecessor && attemptContext?.refundPredecessorAdmission
-          ? {
-              processingAttempts: sql`CASE WHEN ${document.processingQueueToken} = ${attemptContext.processingPredecessorToken} THEN GREATEST(${document.processingAttempts} - 1, 0) ELSE ${document.processingAttempts} END`,
-            }
-          : {}),
-      })
-      .where(
-        and(
-          eq(document.id, documentId),
-          inArray(document.processingStatus, ['pending', 'processing', 'failed']),
-          not(skippedDocumentCondition()),
-          ...(predecessor
-            ? [or(and(...queueGenerationConditions(attemptContext)), predecessor)]
-            : queueGenerationConditions(attemptContext)),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
-      )
-      .returning({ id: document.id })
-
-    if (claimed.length === 0) {
-      logger.info(
-        `[${documentId}] Skipping document processing: superseded, already active, completed, archived, or deleted`
-      )
-      return
-    }
-
-    attemptContext?.onClaimed?.()
-
-    logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
-
-    const rawConfig = ctx.chunkingConfig as {
-      maxSize?: number
-      minSize?: number
-      overlap?: number
-      strategy?: ChunkingStrategy
-      strategyOptions?: StrategyOptions
-    } | null
-    const kbConfig = {
-      maxSize: rawConfig?.maxSize ?? 1024,
-      minSize: rawConfig?.minSize ?? 100,
-      overlap: rawConfig?.overlap ?? 200,
-    }
-
-    const kbEmbedding: KbEmbeddingTarget = {
-      model: ctx.embeddingModel,
-      dimensions: toKbEmbeddingDimensions(ctx.embeddingDimension),
-    }
-    const kbEmbeddingModel = kbEmbedding.model
-    const queuedBillingContext = hasDocumentProcessingBillingScope(providedBillingContext)
-      ? assertDocumentProcessingBillingContext(providedBillingContext)
-      : undefined
-    const restoredBillingAttribution =
-      queuedBillingContext && queuedBillingContext.billingScope !== 'non-workspace'
-        ? queuedBillingContext.billingAttribution
-        : providedBillingContext && !queuedBillingContext
-          ? assertBillingAttributionSnapshot(providedBillingContext)
-          : undefined
-    if (queuedBillingContext?.billingScope === 'non-workspace') {
-      throw new Error('Document processing billing scope does not match knowledge base ownership')
-    }
-    if (!restoredBillingAttribution) {
-      throw new Error('Billing attribution is required for queued document processing')
-    }
-    const billingAttribution = restoredBillingAttribution
-    assertBillingAttributionOwner(billingAttribution, ctx)
-    const documentActorUserId = billingAttribution.actorUserId
-
-    const usageGate = await checkIngestionUsageLimits(billingAttribution)
-    if (usageGate.isExceeded) {
-      logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
-      throw new UsageLimitDocumentProcessingError(
-        usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.'
-      )
-    }
-    let billableEmbeddingTokens = 0
-    let embeddingModelName = kbEmbeddingModel
-    let embeddingPricingId = kbEmbeddingModel
-
-    const currentSourceFileProvenance = await loadCurrentSourceFileSecretProvenance({
-      fileUrl: persistedDocData.fileUrl,
-      workspaceId: ctx.workspaceId,
-    })
-    const documentSecretContext = await loadKnowledgeDocumentSecretRegistry(
-      documentId,
-      {
-        userId: documentActorUserId,
-        ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
-      },
-      currentSourceFileProvenance
-    )
-
-    let processingCommitted = false
-    const processingDeadlineAt = Math.min(
-      startTime + TIMEOUTS.OVERALL_PROCESSING - 15_000,
-      (attemptContext?.deadlineAt ?? Number.POSITIVE_INFINITY) - 15_000
-    )
-    await withTimeout(
-      (signal) =>
-        runWithKnowledgeModelInputProvenance(
-          documentSecretContext.registry,
-          async () => {
-            await assertKnowledgeEmbeddingCapacity({
-              ...kbEmbedding,
-              workspaceId: ctx.workspaceId,
-              signal,
-            })
-            const processed = await processDocument(
-              persistedDocData.fileUrl,
-              persistedDocData.filename,
-              persistedDocData.mimeType,
-              kbConfig.maxSize,
-              kbConfig.overlap,
-              kbConfig.minSize,
-              {
-                ...sourceFileAccessFor(ctx.connectorId, documentActorUserId),
-                signal,
-                processingDeadlineAt,
-                ...(indexingPassId
-                  ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
-                  : {}),
-              },
-              ctx.workspaceId,
-              rawConfig?.strategy,
-              rawConfig?.strategyOptions
-            )
-
-            signal.throwIfAborted()
-            assertDocumentChunkCountWithinLimit(processed.chunks.length)
-
-            const now = new Date()
-
-            logger.info(
-              `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
-            )
-
-            const chunkTexts = processed.chunks.map((chunk) => chunk.text)
-            const embeddingModelInfo = getEmbeddingModelInfo(kbEmbeddingModel)
-            const chunkTokenCounts: number[] = []
-            for (let chunkIndex = 0; chunkIndex < chunkTexts.length; chunkIndex++) {
-              const tokenCount = estimateTokenCount(
-                chunkTexts[chunkIndex],
-                embeddingModelInfo.tokenizerProvider
-              ).count
-              chunkTokenCounts.push(tokenCount)
-              if (tokenCount > embeddingModelInfo.maxInputTokens) {
-                throw new PermanentDocumentProcessingError(
-                  'document_complexity_limit',
-                  `Chunk ${chunkIndex + 1} contains ${tokenCount.toLocaleString()} estimated tokens, exceeding the ${embeddingModelInfo.maxInputTokens.toLocaleString()}-token limit for ${kbEmbeddingModel}. Reduce the knowledge-base chunk size and retry.`
-                )
-              }
-            }
-            const embeddings: number[][] = []
-            const embeddingSourceHash = indexingPassId
-              ? sha256Hex(JSON.stringify(chunkTexts.map((text) => sha256Hex(text))))
-              : undefined
-
-            if (chunkTexts.length > 0) {
-              const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
-              const totalBatches = Math.ceil(chunkTexts.length / batchSize)
-
-              logger.info(`[${documentId}] Generating embeddings in ${totalBatches} batches`)
-
-              for (let i = 0; i < chunkTexts.length; i += batchSize) {
-                signal.throwIfAborted()
-                const batch = chunkTexts.slice(i, i + batchSize)
-                const batchNum = Math.floor(i / batchSize) + 1
-
-                logger.info(
-                  `[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`
-                )
-                const {
-                  embeddings: batchEmbeddings,
-                  billableTokens: batchBillableTokens,
-                  modelName,
-                  pricingId,
-                } = await generateEmbeddings(
-                  batch,
-                  kbEmbedding,
-                  ctx.workspaceId,
-                  signal,
-                  indexingPassId && embeddingSourceHash
-                    ? createEmbeddingCheckpoints({
-                        knowledgeBaseId,
-                        documentId,
-                        indexingPassId,
-                        sourceHash: embeddingSourceHash,
-                        batchOffset: i,
-                        deadlineAt: processingDeadlineAt,
-                      })
-                    : undefined
-                )
-                for (const emb of batchEmbeddings) {
-                  embeddings.push(emb)
-                }
-                billableEmbeddingTokens += batchBillableTokens
-                if (i === 0) {
-                  embeddingModelName = modelName
-                  embeddingPricingId = pricingId
-                }
-              }
-            }
-
-            if (embeddings.length !== processed.chunks.length) {
-              throw new Error(
-                `Embedding generation returned ${embeddings.length} vectors for ${processed.chunks.length} chunks`
-              )
-            }
-            const documentTags = ctx
-
-            logger.info(
-              `[${documentId}] Embeddings generated, creating embedding records with tags`
-            )
-
-            const chunkProvenances = processed.chunks.map((chunk) =>
-              documentSecretContext.tracked
-                ? documentSecretContext.registry
-                  ? durableSecretProvenanceFromRegistry(documentSecretContext.registry, chunk.text)
-                  : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
-                : undefined
-            )
-            const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
-              id: generateId(),
-              knowledgeBaseId,
-              documentId,
-              chunkIndex,
-              chunkHash: sha256Hex(chunk.text),
-              content: chunk.text,
-              secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
-              contentLength: chunk.text.length,
-              tokenCount: chunkTokenCounts[chunkIndex],
-              ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
-              embeddingModel: kbEmbeddingModel,
-              startOffset: chunk.metadata.startIndex,
-              endOffset: chunk.metadata.endIndex,
-              tag1: documentTags.tag1,
-              tag2: documentTags.tag2,
-              tag3: documentTags.tag3,
-              tag4: documentTags.tag4,
-              tag5: documentTags.tag5,
-              tag6: documentTags.tag6,
-              tag7: documentTags.tag7,
-              number1: documentTags.number1,
-              number2: documentTags.number2,
-              number3: documentTags.number3,
-              number4: documentTags.number4,
-              number5: documentTags.number5,
-              date1: documentTags.date1,
-              date2: documentTags.date2,
-              boolean1: documentTags.boolean1,
-              boolean2: documentTags.boolean2,
-              boolean3: documentTags.boolean3,
-              createdAt: now,
-              updatedAt: now,
-            }))
-
-            signal.throwIfAborted()
-            processingCommitted = await db.transaction(async (tx) => {
-              signal.throwIfAborted()
-              const activeDocument = await tx
-                .select({ id: document.id })
-                .from(document)
-                .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-                .where(
-                  and(
-                    eq(document.id, documentId),
-                    eq(document.processingStatus, 'processing'),
-                    eq(document.processingStartedAt, processingStartedAt),
-                    ...queueGenerationConditions(attemptContext),
-                    eq(document.userExcluded, false),
-                    isNull(document.archivedAt),
-                    isNull(document.deletedAt),
-                    isNull(knowledgeBase.deletedAt)
-                  )
-                )
-                .for('update', { of: document })
-                .limit(1)
-
-              if (activeDocument.length === 0) {
-                return false
-              }
-
-              if (embeddingRecords.length > 0) {
-                await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-                const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-                const batches: (typeof embeddingRecords)[] = []
-                for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
-                  batches.push(embeddingRecords.slice(i, i + insertBatchSize))
-                }
-
-                logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-                for (const batch of batches) {
-                  signal.throwIfAborted()
-                  await tx.insert(embedding).values(batch)
-                }
-                const provenanceRecords = embeddingRecords.flatMap((record, index) => {
-                  const provenance = chunkProvenances[index]
-                  if (!provenance) return []
-                  return [
-                    {
-                      embeddingId: record.id,
-                      contentHash: record.chunkHash,
-                      status: provenance.status,
-                      entries: provenance.status === 'exact' ? [...provenance.entries] : [],
-                      updatedAt: now,
-                    },
-                  ]
-                })
-                for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
-                  signal.throwIfAborted()
-                  await tx
-                    .insert(embeddingSecretProvenance)
-                    .values(provenanceRecords.slice(i, i + insertBatchSize))
-                }
-              }
-
-              signal.throwIfAborted()
-              await tx
-                .update(document)
-                .set({
-                  chunkCount: processed.metadata.chunkCount,
-                  tokenCount: processed.metadata.tokenCount,
-                  characterCount: processed.metadata.characterCount,
-                  processingStatus: 'completed',
-                  processingCompletedAt: now,
-                  processingError: null,
-                  /** A completed pass restores the retry allowance for a future failure. */
-                  processingAttempts: 0,
-                  processingQueueToken: null,
-                  processingQueuedAt: null,
-                  processingDeferredUntil: null,
-                })
-                .where(
-                  and(
-                    eq(document.id, documentId),
-                    eq(document.processingStatus, 'processing'),
-                    eq(document.processingStartedAt, processingStartedAt),
-                    ...queueGenerationConditions(attemptContext),
-                    eq(document.userExcluded, false),
-                    isNull(document.archivedAt),
-                    isNull(document.deletedAt)
-                  )
-                )
-              signal.throwIfAborted()
-              return true
-            })
-          },
-          {
-            opaqueInputSafe:
-              documentSecretContext.provenance.status === 'exact' &&
-              documentSecretContext.provenance.entries.length === 0,
-          }
-        ),
-      Math.max(1, processingDeadlineAt - Date.now()),
-      'Document processing',
-      attemptContext?.signal
-    )
-
-    if (!processingCommitted) {
-      logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
-      return
-    }
-
-    const processingTime = Date.now() - startTime
-    logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
-
-    if (billableEmbeddingTokens > 0) {
-      try {
-        const costMultiplier = getCostMultiplier()
-        const { total: cost } = calculateCost(
-          embeddingPricingId,
-          billableEmbeddingTokens,
-          0,
-          false,
-          costMultiplier
-        )
-        if (cost > 0) {
-          /**
-           * Dedup identity for this embedding charge. `usage_log.event_key` is
-           * derived from `sourceReference` and guarded by a permanent unique
-           * index — usage_log rows are never pruned, there is no retention job
-           * — so the granularity has to separate two cases for all time:
-           *
-           * - A retry of the same pass must collapse. `knowledge-process-document`
-           *   runs up to `KB_CONFIG_MAX_ATTEMPTS` attempts and the stale-document
-           *   sweep can re-dispatch on top of that, so any per-attempt component
-           *   (a `Date.now()` stamp, `processingStartedAt`) bills one indexing
-           *   pass several times over.
-           * - A genuinely new pass must not collapse. A content change, a
-           *   rehydrate, or a user-triggered reprocess pays a real embedding
-           *   bill, and keying on `documentId` alone would suppress that charge
-           *   permanently.
-           *
-           * `indexingPassId` is exactly that discriminator. Without one, the
-           * resolved pricing id is the safest fallback: it still collapses
-           * attempts and still re-bills a knowledge base whose embedding model
-           * changed. Token counts are deliberately left out — OCR-backed parsing
-           * is not bit-stable across attempts, so they would break the dedup
-           * they appear to sharpen.
-           */
-          const usageSourceReference = [
-            'knowledge-document',
-            documentId,
-            indexingPassId ?? `model:${embeddingPricingId}`,
-          ].join(':')
-          await recordUsage({
-            userId: documentActorUserId,
-            workspaceId: ctx.workspaceId ?? undefined,
-            ...toBillingContext(billingAttribution),
-            entries: [
-              {
-                category: 'model',
-                source: 'knowledge-base',
-                description: embeddingModelName,
-                cost,
-                sourceReference: usageSourceReference,
-                metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
-              },
-            ],
-          })
-          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
-        } else {
-          logger.warn(
-            `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
-            { billableEmbeddingTokens, embeddingModelName }
-          )
-        }
-      } catch (billingError) {
-        logger.error(`[${documentId}] Failed to record embedding usage`, { error: billingError })
+    await withResourceOutboundScope(ctx, async () => {
+      const persistedDocData = {
+        filename: ctx.filename,
+        fileUrl: ctx.fileUrl,
+        fileSize: ctx.fileSize,
+        mimeType: ctx.mimeType,
       }
-    }
+
+      /**
+       * Claiming is guarded by both completion status and queue generation.
+       *
+       * Without a status predicate this write was reachable for a finished
+       * document — a late or duplicate dispatch would flip `completed` back to
+       * `processing`, discard the pass that had already indexed and billed, and
+       * index it a second time. `pending`, `failed`, and `processing` remain
+       * claimable so a Trigger retry can recover if an earlier attempt threw
+       * before persisting its failure. Queued workers also match the exact stamp
+       * carried in their payload. A retry or recovery sweep re-stamps the row, so
+       * an older delayed quota continuation becomes a harmless no-op instead of
+       * stealing the newer pass.
+       */
+      /**
+       * Queue acceptance can precede the parent's pending-state write. The published
+       * successor may adopt that exact processing generation; stamping its token
+       * fences the parent's delayed write and refunds admission at most once.
+       */
+      const predecessor =
+        attemptContext?.processingQueueToken && attemptContext.processingPredecessorToken
+          ? and(
+              eq(document.processingStatus, 'processing'),
+              eq(document.processingQueueToken, attemptContext.processingPredecessorToken)
+            )
+          : undefined
+      const claimed = await db
+        .update(document)
+        .set({
+          processingStatus: 'processing',
+          processingStartedAt,
+          processingDeferredUntil: null,
+          processingCompletedAt: null,
+          processingError: null,
+          ...(attemptContext?.processingQueueToken
+            ? { processingQueueToken: attemptContext.processingQueueToken }
+            : {}),
+          ...(predecessor && attemptContext?.refundPredecessorAdmission
+            ? {
+                processingAttempts: sql`CASE WHEN ${document.processingQueueToken} = ${attemptContext.processingPredecessorToken} THEN GREATEST(${document.processingAttempts} - 1, 0) ELSE ${document.processingAttempts} END`,
+              }
+            : {}),
+        })
+        .where(
+          and(
+            eq(document.id, documentId),
+            inArray(document.processingStatus, ['pending', 'processing', 'failed']),
+            not(skippedDocumentCondition()),
+            ...(predecessor
+              ? [or(and(...queueGenerationConditions(attemptContext)), predecessor)]
+              : queueGenerationConditions(attemptContext)),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        )
+        .returning({ id: document.id })
+
+      if (claimed.length === 0) {
+        logger.info(
+          `[${documentId}] Skipping document processing: superseded, already active, completed, archived, or deleted`
+        )
+        return
+      }
+
+      attemptContext?.onClaimed?.()
+
+      logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
+
+      const rawConfig = ctx.chunkingConfig as {
+        maxSize?: number
+        minSize?: number
+        overlap?: number
+        strategy?: ChunkingStrategy
+        strategyOptions?: StrategyOptions
+      } | null
+      const kbConfig = {
+        maxSize: rawConfig?.maxSize ?? 1024,
+        minSize: rawConfig?.minSize ?? 100,
+        overlap: rawConfig?.overlap ?? 200,
+      }
+
+      const kbEmbedding: KbEmbeddingTarget = {
+        model: ctx.embeddingModel,
+        dimensions: toKbEmbeddingDimensions(ctx.embeddingDimension),
+      }
+      const kbEmbeddingModel = kbEmbedding.model
+      const queuedBillingContext = hasDocumentProcessingBillingScope(providedBillingContext)
+        ? assertDocumentProcessingBillingContext(providedBillingContext)
+        : undefined
+      const restoredBillingAttribution =
+        queuedBillingContext && queuedBillingContext.billingScope !== 'non-workspace'
+          ? queuedBillingContext.billingAttribution
+          : providedBillingContext && !queuedBillingContext
+            ? assertBillingAttributionSnapshot(providedBillingContext)
+            : undefined
+      if (queuedBillingContext?.billingScope === 'non-workspace') {
+        throw new Error('Document processing billing scope does not match knowledge base ownership')
+      }
+      if (!restoredBillingAttribution) {
+        throw new Error('Billing attribution is required for queued document processing')
+      }
+      const billingAttribution = restoredBillingAttribution
+      assertBillingAttributionOwner(billingAttribution, ctx)
+      const documentActorUserId = billingAttribution.actorUserId
+
+      const usageGate = await checkIngestionUsageLimits(billingAttribution)
+      if (usageGate.isExceeded) {
+        logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
+        throw new UsageLimitDocumentProcessingError(
+          usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.'
+        )
+      }
+      let billableEmbeddingTokens = 0
+      let embeddingModelName = kbEmbeddingModel
+      let embeddingPricingId = kbEmbeddingModel
+
+      const currentSourceFileProvenance = await loadCurrentSourceFileSecretProvenance({
+        fileUrl: persistedDocData.fileUrl,
+        workspaceId: ctx.workspaceId,
+      })
+      const documentSecretContext = await loadKnowledgeDocumentSecretRegistry(
+        documentId,
+        {
+          userId: documentActorUserId,
+          ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
+        },
+        currentSourceFileProvenance
+      )
+
+      let processingCommitted = false
+      const processingDeadlineAt = Math.min(
+        startTime + TIMEOUTS.OVERALL_PROCESSING - 15_000,
+        (attemptContext?.deadlineAt ?? Number.POSITIVE_INFINITY) - 15_000
+      )
+      await withTimeout(
+        (signal) =>
+          runWithKnowledgeModelInputProvenance(
+            documentSecretContext.registry,
+            async () => {
+              await assertKnowledgeEmbeddingCapacity({
+                ...kbEmbedding,
+                workspaceId: ctx.workspaceId,
+                signal,
+              })
+              const processed = await processDocument(
+                persistedDocData.fileUrl,
+                persistedDocData.filename,
+                persistedDocData.mimeType,
+                kbConfig.maxSize,
+                kbConfig.overlap,
+                kbConfig.minSize,
+                {
+                  ...sourceFileAccessFor(ctx.connectorId, documentActorUserId),
+                  signal,
+                  processingDeadlineAt,
+                  ...(indexingPassId
+                    ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
+                    : {}),
+                },
+                ctx.workspaceId,
+                rawConfig?.strategy,
+                rawConfig?.strategyOptions
+              )
+
+              signal.throwIfAborted()
+              assertDocumentChunkCountWithinLimit(processed.chunks.length)
+
+              const now = new Date()
+
+              logger.info(
+                `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
+              )
+
+              const chunkTexts = processed.chunks.map((chunk) => chunk.text)
+              const embeddingModelInfo = getEmbeddingModelInfo(kbEmbeddingModel)
+              const chunkTokenCounts: number[] = []
+              for (let chunkIndex = 0; chunkIndex < chunkTexts.length; chunkIndex++) {
+                const tokenCount = estimateTokenCount(
+                  chunkTexts[chunkIndex],
+                  embeddingModelInfo.tokenizerProvider
+                ).count
+                chunkTokenCounts.push(tokenCount)
+                if (tokenCount > embeddingModelInfo.maxInputTokens) {
+                  throw new PermanentDocumentProcessingError(
+                    'document_complexity_limit',
+                    `Chunk ${chunkIndex + 1} contains ${tokenCount.toLocaleString()} estimated tokens, exceeding the ${embeddingModelInfo.maxInputTokens.toLocaleString()}-token limit for ${kbEmbeddingModel}. Reduce the knowledge-base chunk size and retry.`
+                  )
+                }
+              }
+              const embeddings: number[][] = []
+              const embeddingSourceHash = indexingPassId
+                ? sha256Hex(JSON.stringify(chunkTexts.map((text) => sha256Hex(text))))
+                : undefined
+
+              if (chunkTexts.length > 0) {
+                const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
+                const totalBatches = Math.ceil(chunkTexts.length / batchSize)
+
+                logger.info(`[${documentId}] Generating embeddings in ${totalBatches} batches`)
+
+                for (let i = 0; i < chunkTexts.length; i += batchSize) {
+                  signal.throwIfAborted()
+                  const batch = chunkTexts.slice(i, i + batchSize)
+                  const batchNum = Math.floor(i / batchSize) + 1
+
+                  logger.info(
+                    `[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`
+                  )
+                  const {
+                    embeddings: batchEmbeddings,
+                    billableTokens: batchBillableTokens,
+                    modelName,
+                    pricingId,
+                  } = await generateEmbeddings(
+                    batch,
+                    kbEmbedding,
+                    ctx.workspaceId,
+                    signal,
+                    indexingPassId && embeddingSourceHash
+                      ? createEmbeddingCheckpoints({
+                          knowledgeBaseId,
+                          documentId,
+                          indexingPassId,
+                          sourceHash: embeddingSourceHash,
+                          batchOffset: i,
+                          deadlineAt: processingDeadlineAt,
+                        })
+                      : undefined
+                  )
+                  for (const emb of batchEmbeddings) {
+                    embeddings.push(emb)
+                  }
+                  billableEmbeddingTokens += batchBillableTokens
+                  if (i === 0) {
+                    embeddingModelName = modelName
+                    embeddingPricingId = pricingId
+                  }
+                }
+              }
+
+              if (embeddings.length !== processed.chunks.length) {
+                throw new Error(
+                  `Embedding generation returned ${embeddings.length} vectors for ${processed.chunks.length} chunks`
+                )
+              }
+              const documentTags = ctx
+
+              logger.info(
+                `[${documentId}] Embeddings generated, creating embedding records with tags`
+              )
+
+              const chunkProvenances = processed.chunks.map((chunk) =>
+                documentSecretContext.tracked
+                  ? documentSecretContext.registry
+                    ? durableSecretProvenanceFromRegistry(
+                        documentSecretContext.registry,
+                        chunk.text
+                      )
+                    : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
+                  : undefined
+              )
+              const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
+                id: generateId(),
+                knowledgeBaseId,
+                documentId,
+                chunkIndex,
+                chunkHash: sha256Hex(chunk.text),
+                content: chunk.text,
+                secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
+                contentLength: chunk.text.length,
+                tokenCount: chunkTokenCounts[chunkIndex],
+                ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
+                embeddingModel: kbEmbeddingModel,
+                startOffset: chunk.metadata.startIndex,
+                endOffset: chunk.metadata.endIndex,
+                tag1: documentTags.tag1,
+                tag2: documentTags.tag2,
+                tag3: documentTags.tag3,
+                tag4: documentTags.tag4,
+                tag5: documentTags.tag5,
+                tag6: documentTags.tag6,
+                tag7: documentTags.tag7,
+                number1: documentTags.number1,
+                number2: documentTags.number2,
+                number3: documentTags.number3,
+                number4: documentTags.number4,
+                number5: documentTags.number5,
+                date1: documentTags.date1,
+                date2: documentTags.date2,
+                boolean1: documentTags.boolean1,
+                boolean2: documentTags.boolean2,
+                boolean3: documentTags.boolean3,
+                createdAt: now,
+                updatedAt: now,
+              }))
+
+              signal.throwIfAborted()
+              processingCommitted = await db.transaction(async (tx) => {
+                signal.throwIfAborted()
+                const activeDocument = await tx
+                  .select({ id: document.id })
+                  .from(document)
+                  .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+                  .where(
+                    and(
+                      eq(document.id, documentId),
+                      eq(document.processingStatus, 'processing'),
+                      eq(document.processingStartedAt, processingStartedAt),
+                      ...queueGenerationConditions(attemptContext),
+                      eq(document.userExcluded, false),
+                      isNull(document.archivedAt),
+                      isNull(document.deletedAt),
+                      isNull(knowledgeBase.deletedAt)
+                    )
+                  )
+                  .for('update', { of: document })
+                  .limit(1)
+
+                if (activeDocument.length === 0) {
+                  return false
+                }
+
+                if (embeddingRecords.length > 0) {
+                  await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+
+                  const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+                  const batches: (typeof embeddingRecords)[] = []
+                  for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+                    batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+                  }
+
+                  logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+                  for (const batch of batches) {
+                    signal.throwIfAborted()
+                    await tx.insert(embedding).values(batch)
+                  }
+                  const provenanceRecords = embeddingRecords.flatMap((record, index) => {
+                    const provenance = chunkProvenances[index]
+                    if (!provenance) return []
+                    return [
+                      {
+                        embeddingId: record.id,
+                        contentHash: record.chunkHash,
+                        status: provenance.status,
+                        entries: provenance.status === 'exact' ? [...provenance.entries] : [],
+                        updatedAt: now,
+                      },
+                    ]
+                  })
+                  for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
+                    signal.throwIfAborted()
+                    await tx
+                      .insert(embeddingSecretProvenance)
+                      .values(provenanceRecords.slice(i, i + insertBatchSize))
+                  }
+                }
+
+                signal.throwIfAborted()
+                await tx
+                  .update(document)
+                  .set({
+                    chunkCount: processed.metadata.chunkCount,
+                    tokenCount: processed.metadata.tokenCount,
+                    characterCount: processed.metadata.characterCount,
+                    processingStatus: 'completed',
+                    processingCompletedAt: now,
+                    processingError: null,
+                    /** A completed pass restores the retry allowance for a future failure. */
+                    processingAttempts: 0,
+                    processingQueueToken: null,
+                    processingQueuedAt: null,
+                    processingDeferredUntil: null,
+                  })
+                  .where(
+                    and(
+                      eq(document.id, documentId),
+                      eq(document.processingStatus, 'processing'),
+                      eq(document.processingStartedAt, processingStartedAt),
+                      ...queueGenerationConditions(attemptContext),
+                      eq(document.userExcluded, false),
+                      isNull(document.archivedAt),
+                      isNull(document.deletedAt)
+                    )
+                  )
+                signal.throwIfAborted()
+                return true
+              })
+            },
+            {
+              opaqueInputSafe:
+                documentSecretContext.provenance.status === 'exact' &&
+                documentSecretContext.provenance.entries.length === 0,
+            }
+          ),
+        Math.max(1, processingDeadlineAt - Date.now()),
+        'Document processing',
+        attemptContext?.signal
+      )
+
+      if (!processingCommitted) {
+        logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
+        return
+      }
+
+      const processingTime = Date.now() - startTime
+      logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
+
+      if (billableEmbeddingTokens > 0) {
+        try {
+          const costMultiplier = getCostMultiplier()
+          const { total: cost } = calculateCost(
+            embeddingPricingId,
+            billableEmbeddingTokens,
+            0,
+            false,
+            costMultiplier
+          )
+          if (cost > 0) {
+            /**
+             * Dedup identity for this embedding charge. `usage_log.event_key` is
+             * derived from `sourceReference` and guarded by a permanent unique
+             * index — usage_log rows are never pruned, there is no retention job
+             * — so the granularity has to separate two cases for all time:
+             *
+             * - A retry of the same pass must collapse. `knowledge-process-document`
+             *   runs up to `KB_CONFIG_MAX_ATTEMPTS` attempts and the stale-document
+             *   sweep can re-dispatch on top of that, so any per-attempt component
+             *   (a `Date.now()` stamp, `processingStartedAt`) bills one indexing
+             *   pass several times over.
+             * - A genuinely new pass must not collapse. A content change, a
+             *   rehydrate, or a user-triggered reprocess pays a real embedding
+             *   bill, and keying on `documentId` alone would suppress that charge
+             *   permanently.
+             *
+             * `indexingPassId` is exactly that discriminator. Without one, the
+             * resolved pricing id is the safest fallback: it still collapses
+             * attempts and still re-bills a knowledge base whose embedding model
+             * changed. Token counts are deliberately left out — OCR-backed parsing
+             * is not bit-stable across attempts, so they would break the dedup
+             * they appear to sharpen.
+             */
+            const usageSourceReference = [
+              'knowledge-document',
+              documentId,
+              indexingPassId ?? `model:${embeddingPricingId}`,
+            ].join(':')
+            await recordUsage({
+              userId: documentActorUserId,
+              workspaceId: ctx.workspaceId ?? undefined,
+              ...toBillingContext(billingAttribution),
+              entries: [
+                {
+                  category: 'model',
+                  source: 'knowledge-base',
+                  description: embeddingModelName,
+                  cost,
+                  sourceReference: usageSourceReference,
+                  metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
+                },
+              ],
+            })
+            await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+          } else {
+            logger.warn(
+              `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
+              { billableEmbeddingTokens, embeddingModelName }
+            )
+          }
+        } catch (billingError) {
+          logger.error(`[${documentId}] Failed to record embedding usage`, { error: billingError })
+        }
+      }
+    })
   } catch (error) {
     const processingTime = Date.now() - startTime
     const embeddingQuotaExhausted = isEmbeddingQuotaExhaustion(error)

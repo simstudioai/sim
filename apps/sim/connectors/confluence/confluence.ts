@@ -11,9 +11,9 @@ import {
   confluencePageAcl,
 } from '@/lib/knowledge/access/confluence-permissions'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   createRetryableHttpError,
-  fetchWithRetry,
   type RetryOptions,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'

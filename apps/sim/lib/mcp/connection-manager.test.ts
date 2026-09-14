@@ -34,11 +34,21 @@ const {
   mockOnToolsChanged,
   mockPublishToolsChanged,
   mockGetOrCreateOauthRow,
+  mockValidateMcpDomain,
+  mockValidateMcpServerSsrf,
+  mockWithResourceOutboundScope,
 } = vi.hoisted(() => ({
+  mockWithResourceOutboundScope: vi.fn(),
   MockMcpClientConstructor: vi.fn(),
+  mockValidateMcpDomain: vi.fn(),
+  mockValidateMcpServerSsrf: vi.fn(),
   mockOnToolsChanged: vi.fn(() => vi.fn()),
   mockPublishToolsChanged: vi.fn(),
   mockGetOrCreateOauthRow: vi.fn(),
+}))
+
+vi.mock('@/lib/core/network/resource-scope.server', () => ({
+  withResourceOutboundScope: mockWithResourceOutboundScope,
 }))
 
 vi.mock('@/lib/mcp/pubsub', () => ({
@@ -49,6 +59,10 @@ vi.mock('@/lib/mcp/pubsub', () => ({
 }))
 vi.mock('@/lib/mcp/client', () => ({
   McpClient: MockMcpClientConstructor,
+}))
+vi.mock('@/lib/mcp/domain-check', () => ({
+  validateMcpDomain: mockValidateMcpDomain,
+  validateMcpServerSsrf: mockValidateMcpServerSsrf,
 }))
 vi.mock('@/lib/mcp/oauth', () => ({
   getOrCreateOauthRow: mockGetOrCreateOauthRow,
@@ -76,6 +90,8 @@ describe('McpConnectionManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockWithResourceOutboundScope.mockImplementation((_owner, run) => run())
+    mockValidateMcpServerSsrf.mockResolvedValue('93.184.216.34')
     mockGetOrCreateOauthRow.mockResolvedValue({
       id: 'oauth-row-1',
       mcpServerId: 'server-oauth',
@@ -102,6 +118,28 @@ describe('McpConnectionManager', () => {
   }
 
   describe('concurrent connect() guard', () => {
+    it('allows retrying a connection after workspace ownership resolution fails', async () => {
+      const connect = vi.fn().mockResolvedValue(undefined)
+      MockMcpClientConstructor.mockImplementation(
+        class {
+          connect = connect
+          disconnect = vi.fn().mockResolvedValue(undefined)
+          hasListChangedCapability = () => true
+          onClose = vi.fn()
+        }
+      )
+      const mgr = createFreshManager()
+      const config = serverConfig('server-retry')
+      mockWithResourceOutboundScope.mockRejectedValueOnce(new Error('Workspace unavailable'))
+
+      await expect(mgr.connect(config, 'user-1', 'ws-1')).rejects.toThrow('Workspace unavailable')
+      expect(MockMcpClientConstructor).not.toHaveBeenCalled()
+      await expect(mgr.connect(config, 'user-1', 'ws-1')).resolves.toEqual({
+        supportsListChanged: true,
+      })
+      expect(connect).toHaveBeenCalledOnce()
+    })
+
     it('creates only one client when two connect() calls race for the same serverId', async () => {
       const deferred = createDeferred()
       const instances: MockMcpClient[] = []
@@ -274,6 +312,82 @@ describe('McpConnectionManager', () => {
       expect(instances[0].disconnect).toHaveBeenCalled()
 
       deferred.resolve()
+    })
+  })
+
+  describe('destination validation', () => {
+    function mockClients(closeHandlers: Array<() => void> = []): MockMcpClient[] {
+      const instances: MockMcpClient[] = []
+      MockMcpClientConstructor.mockImplementation(
+        class {
+          constructor() {
+            const instance: MockMcpClient = {
+              connect: vi.fn().mockResolvedValue(undefined),
+              disconnect: vi.fn().mockResolvedValue(undefined),
+              hasListChangedCapability: vi.fn().mockReturnValue(true),
+              onClose: vi.fn().mockImplementation((handler: () => void) => {
+                closeHandlers.push(handler)
+              }),
+            }
+            instances.push(instance)
+            Object.assign(this, instance)
+          }
+        }
+      )
+      return instances
+    }
+
+    it('validates the destination and hands the resolved address to the client', async () => {
+      mockClients()
+      const mgr = createFreshManager()
+      const config = serverConfig('server-validate')
+
+      await mgr.connect(config, 'user-1', 'ws-1')
+
+      expect(mockValidateMcpDomain).toHaveBeenCalledWith(config.url)
+      expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(config.url)
+      const options: McpClientOptions = MockMcpClientConstructor.mock.calls[0][0]
+      expect(options.resolvedIP).toBe('93.184.216.34')
+    })
+
+    it('never constructs a client for a refused destination and releases the connecting slot', async () => {
+      const instances = mockClients()
+      mockValidateMcpServerSsrf.mockRejectedValueOnce(new Error('refused by egress policy'))
+      const mgr = createFreshManager()
+      const config = serverConfig('server-refused')
+
+      await expect(mgr.connect(config, 'user-1', 'ws-1')).rejects.toThrow(
+        'refused by egress policy'
+      )
+      expect(instances).toHaveLength(0)
+
+      const retry = await mgr.connect(config, 'user-1', 'ws-1')
+      expect(retry.supportsListChanged).toBe(true)
+      expect(instances).toHaveLength(1)
+    })
+
+    it('re-validates the destination before every reconnect', async () => {
+      vi.useFakeTimers()
+      const closeHandlers: Array<() => void> = []
+      const instances = mockClients(closeHandlers)
+      const mgr = createFreshManager()
+      const config = serverConfig('server-reconnect')
+
+      await mgr.connect(config, 'user-1', 'ws-1')
+      mockValidateMcpServerSsrf.mockRejectedValueOnce(new Error('refused by egress policy'))
+      mockValidateMcpServerSsrf.mockResolvedValueOnce('93.184.216.35')
+
+      closeHandlers[0]()
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(mockValidateMcpServerSsrf).toHaveBeenCalledTimes(2)
+      expect(instances).toHaveLength(1)
+
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(mockValidateMcpServerSsrf).toHaveBeenCalledTimes(3)
+      expect(instances).toHaveLength(2)
+      const options: McpClientOptions = MockMcpClientConstructor.mock.calls[1][0]
+      expect(options.resolvedIP).toBe('93.184.216.35')
+      expect(mgr.hasConnection('server-reconnect')).toBe(true)
     })
   })
 

@@ -41,12 +41,14 @@ import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-inpu
 import { rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
+import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { resolveKnowledgeSearchDefaults } from '@/lib/knowledge/search/defaults'
 import { annotateSearchDiagnostics, measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
-  executeKnowledgeSearch,
   getDocumentMetadataByIds,
+  type RetrievalStatus,
+  retrieveKnowledgeSearch,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
@@ -88,6 +90,10 @@ export class KnowledgeSearchProvenanceUnavailableError extends Error {
 export type KnowledgeSearchTagFilter = KnowledgeTagNameFilter
 
 export interface SearchKnowledgeInput {
+  /** Allows returning available results when a retrieval leg times out. */
+  allowPartialResults?: boolean
+  /** Trusted adapter's vector retrieval budget; omitted callers use the shared default. */
+  vectorBudgetMs?: number
   /** Optional assertion from a trusted adapter or public contract. */
   workspaceId?: string
   organizationId?: string
@@ -154,6 +160,7 @@ interface KnowledgeSearchCost {
 }
 
 export interface SearchKnowledgeResult {
+  retrieval: RetrievalStatus
   results: KnowledgeSearchItem[]
   query: string
   knowledgeBaseIds: string[]
@@ -397,8 +404,9 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
           )
         : Math.min(KNOWLEDGE_SEARCH_COST_POLICY.maxTopK, input.topK * 4)
       : input.topK
-    let rows = await measureSearchStage('retrieval', () =>
-      executeKnowledgeSearch({
+    const retrieved = await measureSearchStage('retrieval', () =>
+      retrieveKnowledgeSearch({
+        vectorBudgetMs: input.vectorBudgetMs,
         knowledgeBaseIds,
         topK: candidateTopK,
         filters: input.filters,
@@ -418,6 +426,13 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       })
     )
 
+    annotateSearchDiagnostics({
+      retrievalStatus: retrieved.retrieval.status,
+      timedOutLegs: retrieved.retrieval.timedOutLegs,
+    })
+    if (retrieved.retrieval.status === 'partial' && !input.allowPartialResults)
+      throw new SearchDeadlineError()
+    let rows = retrieved.rows
     input.signal?.throwIfAborted()
     /** Public callers have no input envelope, but persisted reranker inputs still need provenance. */
     const registrySubjectUserId = resolvePrincipalSubjectUserId(principal)
@@ -715,6 +730,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
         }
       : undefined
     return {
+      retrieval: retrieved.retrieval,
       results,
       query: input.query ?? '',
       knowledgeBaseIds,

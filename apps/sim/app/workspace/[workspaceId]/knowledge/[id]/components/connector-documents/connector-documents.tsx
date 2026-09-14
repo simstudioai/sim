@@ -1,10 +1,11 @@
 'use client'
 
-import { Chip, ChipDropdown, ChipInput, ChipLink, Skeleton } from '@sim/emcn'
+import { Chip, ChipInput, ChipLink, Skeleton } from '@sim/emcn'
 import { RefreshCw, Search, SquareArrowUpRight } from '@sim/emcn/icons'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
+import { ConnectorDocumentStatusFilter } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-documents/connector-document-status-filter'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
@@ -25,6 +26,7 @@ interface ConnectorDocumentsProps {
   connectorId: string
   search?: string
   searchControl?: { value: string; onChange: (value: string) => void }
+  showToolbar?: boolean
   progressScope?: ResourceScope
   isSearchIndex?: boolean
   syncing?: boolean
@@ -38,6 +40,7 @@ export function ConnectorDocuments({
   filter,
   search,
   searchControl,
+  showToolbar = true,
   progressScope,
   isSearchIndex = false,
   syncing,
@@ -79,41 +82,26 @@ export function ConnectorDocuments({
         {isSearchIndex && (
           <p className='text-[var(--text-body)] text-sm'>Documents you can access</p>
         )}
-        <div className='flex items-center gap-2'>
-          {searchControl && (
-            <ChipInput
-              icon={Search}
-              placeholder='Search documents...'
-              value={searchControl.value}
-              onChange={(event) => searchControl.onChange(event.target.value)}
-              autoComplete='off'
-              className='min-w-0 flex-1'
+        {showToolbar && (
+          <div className='flex items-center gap-2'>
+            {searchControl && (
+              <ChipInput
+                icon={Search}
+                placeholder='Search documents...'
+                value={searchControl.value}
+                onChange={(event) => searchControl.onChange(event.target.value)}
+                autoComplete='off'
+                className='min-w-0 flex-1'
+              />
+            )}
+            <ConnectorDocumentStatusFilter
+              filter={filter}
+              onFilterChange={onFilterChange}
+              counts={counts}
+              isLoading={isLoading}
             />
-          )}
-          <ChipDropdown
-            aria-label='Document status'
-            value={filter}
-            onChange={(value) => {
-              if (
-                value === 'active' ||
-                value === 'excluded' ||
-                value === 'failed' ||
-                value === 'skipped'
-              )
-                onFilterChange(value)
-            }}
-            matchTriggerWidth={false}
-            options={[
-              { value: 'active', label: isLoading ? 'Included' : `Included (${counts.active})` },
-              {
-                value: 'excluded',
-                label: isLoading ? 'Excluded' : `Excluded (${counts.excluded})`,
-              },
-              { value: 'failed', label: isLoading ? 'Failed' : `Failed (${counts.failed})` },
-              { value: 'skipped', label: isLoading ? 'Skipped' : `Skipped (${counts.skipped})` },
-            ]}
-          />
-        </div>
+          </div>
+        )}
         <div className={RESOURCE_LIST_STACK}>
           {query.isError && !query.isFetchNextPageError ? (
             <SettingsQueryErrorState

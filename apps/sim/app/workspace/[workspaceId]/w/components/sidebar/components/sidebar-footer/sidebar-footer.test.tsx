@@ -1,10 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { act, type ComponentProps } from 'react'
+import { Building, Credit, Trash, Users } from '@sim/emcn/icons'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const desktopMocks = vi.hoisted(() => ({
   getState: vi.fn(),
@@ -15,15 +15,26 @@ const desktopMocks = vi.hoisted(() => ({
   unsubscribe: vi.fn(),
 }))
 
-const { hostContext } = vi.hoisted(() => ({
-  hostContext: {
-    hostOrganizationId: null as string | null,
-    viewer: { isHostOrganizationMember: false },
-    features: {
-      organizationSearch: undefined as boolean | undefined,
-      knowledgeMemberAccess: false,
-    },
-  },
+const authMocks = vi.hoisted(() => ({ signOut: vi.fn(), userId: 'user-1' }))
+vi.mock('@/lib/auth/sign-out', () => ({ signOutAndRedirect: authMocks.signOut }))
+vi.mock('next/link', () => ({
+  default: ({
+    onNavigate,
+    prefetch: _prefetch,
+    ...props
+  }: ComponentProps<'a'> & {
+    prefetch?: boolean
+    onNavigate?: (event: { preventDefault: () => void }) => void
+  }) => (
+    <a
+      {...props}
+      href={props.href}
+      onClick={(event) => {
+        event.preventDefault()
+        onNavigate?.({ preventDefault: () => {} })
+      }}
+    />
+  ),
 }))
 
 vi.mock('@/lib/desktop', () => ({
@@ -35,23 +46,11 @@ vi.mock('@/lib/desktop', () => ({
   }),
 }))
 vi.mock('@/hooks/queries/user-profile', () => ({
-  useUserProfile: () => ({ data: { id: 'user-1', name: 'Ada', email: 'ada@sim.ai' } }),
+  useUserProfile: () => ({ data: { id: authMocks.userId, name: 'Ada', email: 'ada@sim.ai' } }),
 }))
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'user-1' } } }),
-}))
-vi.mock('@/lib/billing/workspace-permissions', () => ({
-  canViewWorkspaceBillingSettings: () => true,
-}))
-/** Billing routes the invitations-disabled row to Subscription; read at render time. */
-beforeAll(() => setEnvFlags({ isBillingEnabled: true }))
-afterAll(resetEnvFlagsMock)
-vi.mock('@/lib/workspaces/colors', () => ({ getUserColor: () => '#000000' }))
-vi.mock('@/hooks/use-workspace-invite-policy', () => ({
-  useWorkspaceInvitePolicy: () => ({ isInvitationsDisabled: false }),
-}))
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useWorkspaceHostContext: () => hostContext,
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => '/workspace/ws-emir/home',
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip/sidebar-tooltip',
@@ -63,7 +62,9 @@ vi.mock('@/components/icons', () => ({
   SlackIcon: ({ className }: { className?: string }) => <svg className={className} />,
 }))
 
+import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { SidebarFooter } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-footer/sidebar-footer'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 let container: HTMLDivElement
 let root: Root
@@ -76,12 +77,31 @@ async function renderFooter(
   await act(async () => {
     root.render(
       <SidebarFooter
-        workspaceId='workspace-1'
         showDivider={false}
         isCollapsed={false}
         showCollapsedTooltips={false}
-        getSettingsHref={(section) => `/workspace/workspace-1/settings/${section}`}
-        onOpenSettings={() => {}}
+        accountSettingsHref='/workspace/workspace-1/settings/general'
+        onOpenAccountSettings={() => {}}
+        navigationLinks={[
+          {
+            label: 'Subscription',
+            icon: Credit,
+            href: '/workspace/workspace-1/settings/billing',
+            onNavigate: () => {},
+          },
+          {
+            label: 'Teammates',
+            icon: Users,
+            href: '/workspace/workspace-1/settings/teammates',
+            onNavigate: () => {},
+          },
+          {
+            label: 'Recently deleted',
+            icon: Trash,
+            href: '/workspace/workspace-1/settings/recently-deleted',
+            onNavigate: () => {},
+          },
+        ]}
         onOpenDocs={() => {}}
         onJoinSlack={() => {}}
         onContactSupport={() => {}}
@@ -129,10 +149,8 @@ function menuItem(label: string): HTMLElement {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  hostContext.hostOrganizationId = null
-  hostContext.viewer.isHostOrganizationMember = false
-  hostContext.features.organizationSearch = undefined
-  hostContext.features.knowledgeMemberAccess = false
+  authMocks.userId = 'user-1'
+  useSettingsDirtyStore.getState().reset()
   desktopMocks.listener = null
   desktopMocks.onState.mockImplementation((listener) => {
     desktopMocks.listener = listener
@@ -150,50 +168,64 @@ afterEach(() => {
 })
 
 describe('SidebarFooter', () => {
-  it('links members back to the organization hosting the current workspace', async () => {
-    hostContext.hostOrganizationId = 'host-org'
-    hostContext.viewer.isHostOrganizationMember = true
-    hostContext.features.organizationSearch = true
+  it('keeps the familiar Settings entry in the profile menu', async () => {
     await renderFooter({ status: 'idle' })
-
     openProfileMenu()
-
-    expect(menuItem('Organization')).toHaveAttribute('href', '/o/host-org')
-    const labels = Array.from(document.querySelectorAll('[role="menuitem"]')).map(
-      (item) => item.textContent
-    )
-    expect(labels.indexOf('Organization')).toBe(labels.indexOf('Settings') + 1)
-    expect(labels.indexOf('Organization')).toBeLessThan(labels.indexOf('Teammates'))
-    expect(document.querySelector('[role="menu"] [role="separator"]')).toBeNull()
+    expect(
+      [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
+    ).toEqual(['Settings', 'Subscription', 'Teammates', 'Recently deleted', 'Sign out'])
+    expect(document.querySelector('[role="separator"]')).toBeNull()
+    expect(menuItem('Settings')).toHaveAttribute('href', '/workspace/workspace-1/settings/general')
   })
 
-  it.each([false, undefined])(
-    'keeps the workspace profile menu when org rollout is %s',
-    async (enabled) => {
-      hostContext.hostOrganizationId = 'host-org'
-      hostContext.viewer.isHostOrganizationMember = true
-      hostContext.features.organizationSearch = enabled
-      hostContext.features.knowledgeMemberAccess = true
-      await renderFooter({ status: 'idle' })
-
-      openProfileMenu()
-
-      expect(document.querySelector('[role="menu"]')).not.toHaveTextContent('Organization')
-      expect(menuItem('Settings')).toHaveAttribute(
-        'href',
-        '/workspace/workspace-1/settings/general'
-      )
-    }
-  )
-
-  it.each([null, 'host-org'])('hides Organization without host membership (%s)', async (orgId) => {
-    hostContext.hostOrganizationId = orgId
-    hostContext.features.organizationSearch = true
-    await renderFooter({ status: 'idle' })
-
+  it('guards returning to the organization when settings are unsaved', async () => {
+    const onNavigate = vi.fn()
+    await renderFooter(
+      { status: 'idle' },
+      {
+        navigationLinks: [{ label: 'Organization', icon: Building, href: '/o/org-1', onNavigate }],
+      }
+    )
+    useSettingsDirtyStore.getState().setDirty(true)
     openProfileMenu()
+    expect(menuItem('Organization')).toHaveAttribute('href', '/o/org-1')
+    act(() => menuItem('Organization').click())
+    expect(onNavigate).not.toHaveBeenCalled()
+    act(() => useSettingsDirtyStore.getState().confirmLeave())
+    expect(onNavigate).toHaveBeenCalledOnce()
+  })
 
-    expect(document.querySelector('[role="menu"]')).not.toHaveTextContent('Organization')
+  it('uses the shared sign-out flow', async () => {
+    await renderFooter({ status: 'idle' })
+    openProfileMenu()
+    await act(async () => menuItem('Sign out').click())
+    expect(authMocks.signOut).toHaveBeenCalledOnce()
+  })
+
+  it('defers sign-out while settings are unsaved', async () => {
+    await renderFooter({ status: 'idle' })
+    useSettingsDirtyStore.getState().setDirty(true)
+    openProfileMenu()
+    await act(async () => menuItem('Sign out').click())
+    expect(authMocks.signOut).not.toHaveBeenCalled()
+    act(() => useSettingsDirtyStore.getState().confirmLeave())
+    expect(authMocks.signOut).toHaveBeenCalledOnce()
+  })
+
+  it('hides sign-out for auth-disabled deployments', async () => {
+    authMocks.userId = ANONYMOUS_USER_ID
+    await renderFooter({ status: 'idle' })
+    openProfileMenu()
+    expect(document.querySelector('[role="menu"]')).not.toHaveTextContent('Sign out')
+    expect(document.querySelector('[role="separator"]')).toBeNull()
+  })
+
+  it('opens the shared support flow', async () => {
+    const onContactSupport = vi.fn()
+    await renderFooter({ status: 'idle' }, { onContactSupport })
+    openHelpMenu()
+    act(() => menuItem('Contact support').click())
+    expect(onContactSupport).toHaveBeenCalledOnce()
   })
 
   it('keeps the overflow tooltip disabled while the collapsed tooltip still owns the trigger', async () => {
@@ -210,18 +242,6 @@ describe('SidebarFooter', () => {
     })
 
     expect(document.querySelector('[data-native-surface-overlay]')).toBeNull()
-  })
-
-  it('renders profile settings destinations with native link semantics', async () => {
-    await renderFooter({ status: 'idle' })
-
-    openProfileMenu()
-
-    expect(menuItem('Settings')).toHaveAttribute('href', '/workspace/workspace-1/settings/general')
-    expect(menuItem('Subscription')).toHaveAttribute(
-      'href',
-      '/workspace/workspace-1/settings/billing'
-    )
   })
 
   it('keeps the ordinary help treatment when no update is available', async () => {

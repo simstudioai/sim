@@ -8,8 +8,12 @@ import {
   ChipModalHeader,
   ChipModalTabs,
 } from '@sim/emcn'
+import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
-import { ConnectorDocumentsTab } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-documents-tab'
+import {
+  ConnectorDocumentsTab,
+  ConnectorDocumentsTabFilter,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-documents-tab'
 import { ConnectorSettingsFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
 import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
 import { withBrandIcon } from '@/blocks/brand-icon'
@@ -33,6 +37,7 @@ export function EditConnectorModal({
   scope,
 }: EditConnectorModalProps) {
   const [activeTab, setActiveTab] = useState('settings')
+  const [documentFilter, setDocumentFilter] = useState<ConnectorDocumentFilter>('active')
   const form = useConnectorSettingsForm({
     scope,
     knowledgeBaseId,
@@ -56,19 +61,34 @@ export function EditConnectorModal({
         Edit {form.displayName}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalTabs
-          tabs={[
-            { value: 'settings', label: 'Settings' },
-            { value: 'documents', label: 'Documents' },
-          ]}
-          value={activeTab}
-          onChange={setActiveTab}
-          className='mx-2'
-        />
+        <div className='mx-2 flex shrink-0 items-center justify-between gap-2'>
+          <ChipModalTabs
+            tabs={[
+              { value: 'settings', label: 'Settings' },
+              { value: 'documents', label: 'Documents' },
+            ]}
+            value={activeTab}
+            onChange={setActiveTab}
+            aria-label='Connection views'
+          />
+          {activeTab === 'documents' && (
+            <ConnectorDocumentsTabFilter
+              knowledgeBaseId={knowledgeBaseId}
+              connectorId={connector.id}
+              filter={documentFilter}
+              onFilterChange={setDocumentFilter}
+            />
+          )}
+        </div>
         {activeTab === 'settings' ? (
           <ConnectorSettingsFields {...form.fieldsProps} />
         ) : (
-          <ConnectorDocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
+          <ConnectorDocumentsTab
+            knowledgeBaseId={knowledgeBaseId}
+            connectorId={connector.id}
+            filter={documentFilter}
+            onFilterChange={setDocumentFilter}
+          />
         )}
       </ChipModalBody>
       {activeTab === 'settings' && (

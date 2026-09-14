@@ -6,6 +6,7 @@ import {
   assertAssistantIntegrationCall,
 } from '@/lib/copilot/assistant/tool-policy'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
@@ -96,71 +97,76 @@ export async function executeTool(
     }
   }
 
-  const normalizedParams = normalizeToolParams(toolId, params, context)
+  return withResourceOutboundScope(context, async () => {
+    const normalizedParams = normalizeToolParams(toolId, params, context)
 
-  const canUseRegisteredHandler =
-    isKnownTool(toolId) && (isSimExecuted(toolId) || usesHeadlessClientFallback)
-  if (!canUseRegisteredHandler) {
-    const appParams = buildAppToolParams(normalizedParams, context)
-    const options = {
-      ...(context.resolvedSecretTraceRegistry
-        ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
-        : {}),
-      ...(context.abortSignal ? { signal: context.abortSignal } : {}),
-      operationContext: {
-        userId: context.userId,
-        workflowId: context.workflowId,
-        workspaceId: context.workspaceId,
-        executionId: context.executionId,
-        chatId: context.chatId,
-        toolCallId: context.toolCallId,
-        mcpBlockId: context.mcpBlockId,
-        executorDelegationOrigin: context.executorDelegationOrigin ?? {
-          subjectUserId: context.userId,
+    const canUseRegisteredHandler =
+      isKnownTool(toolId) && (isSimExecuted(toolId) || usesHeadlessClientFallback)
+    if (!canUseRegisteredHandler) {
+      const appParams = buildAppToolParams(normalizedParams, context)
+      const options = {
+        ...(context.resolvedSecretTraceRegistry
+          ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
+          : {}),
+        ...(context.abortSignal ? { signal: context.abortSignal } : {}),
+        operationContext: {
+          userId: context.userId,
           workflowId: context.workflowId,
-          ...(context.executionId ? { executionId: context.executionId } : {}),
+          workspaceId: context.workspaceId,
+          executionId: context.executionId,
+          chatId: context.chatId,
+          toolCallId: context.toolCallId,
+          mcpBlockId: context.mcpBlockId,
+          executorDelegationOrigin: context.executorDelegationOrigin ?? {
+            subjectUserId: context.userId,
+            workflowId: context.workflowId,
+            ...(context.executionId ? { executionId: context.executionId } : {}),
+          },
+          copilotToolExecution: context.copilotToolExecution,
+          copilotInteractionMode: context.copilotInteractionMode,
+          requestMode: context.requestMode,
+          billingAttribution: context.billingAttribution,
+          resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
         },
-        copilotToolExecution: context.copilotToolExecution,
-        copilotInteractionMode: context.copilotInteractionMode,
-        requestMode: context.requestMode,
-        billingAttribution: context.billingAttribution,
-        resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
-      },
+      }
+      try {
+        return await (Object.keys(options).length > 0
+          ? executeAppTool(toolId, appParams, options)
+          : executeAppTool(toolId, appParams))
+      } finally {
+        recordAppToolSecretUsage(context)
+      }
     }
+
+    if (context.abortSignal?.aborted) {
+      logger.warn('Tool execution skipped: abort signal already set', {
+        toolId,
+        abortReason: context.abortSignal.reason ?? 'unknown',
+      })
+      return {
+        success: false,
+        error: 'Execution aborted: abort signal was set before tool started',
+      }
+    }
+
+    const handler = handlerRegistry.get(toolId)
+    if (!handler) {
+      logger.warn('No handler registered for tool', { toolId })
+      return { success: false, error: `No handler for tool: ${toolId}` }
+    }
+
     try {
-      return await (Object.keys(options).length > 0
-        ? executeAppTool(toolId, appParams, options)
-        : executeAppTool(toolId, appParams))
-    } finally {
-      recordAppToolSecretUsage(context)
+      return await handler(normalizedParams, context)
+    } catch (error) {
+      const message = toError(error).message
+      logger.error('Tool execution failed', {
+        toolId,
+        error: projectToolErrorMessageForCopilot(message, context.resolvedSecretTraceRegistry),
+        abortSignalAborted: context.abortSignal?.aborted ?? false,
+      })
+      return { success: false, error: message }
     }
-  }
-
-  if (context.abortSignal?.aborted) {
-    logger.warn('Tool execution skipped: abort signal already set', {
-      toolId,
-      abortReason: context.abortSignal.reason ?? 'unknown',
-    })
-    return { success: false, error: 'Execution aborted: abort signal was set before tool started' }
-  }
-
-  const handler = handlerRegistry.get(toolId)
-  if (!handler) {
-    logger.warn('No handler registered for tool', { toolId })
-    return { success: false, error: `No handler for tool: ${toolId}` }
-  }
-
-  try {
-    return await handler(normalizedParams, context)
-  } catch (error) {
-    const message = toError(error).message
-    logger.error('Tool execution failed', {
-      toolId,
-      error: projectToolErrorMessageForCopilot(message, context.resolvedSecretTraceRegistry),
-      abortSignalAborted: context.abortSignal?.aborted ?? false,
-    })
-    return { success: false, error: message }
-  }
+  })
 }
 
 function normalizeToolParams(

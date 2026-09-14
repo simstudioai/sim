@@ -9,6 +9,8 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
 
+const DIRECT_SEARCH_VECTOR_BUDGET_MS = 3000
+
 export const POST = defineInternalJsonRoute({
   contract: searchWorkspaceKnowledgeContract,
   auth: internalSessionAuth,
@@ -24,16 +26,19 @@ export const POST = defineInternalJsonRoute({
     filters: body.filters,
     query: body.query,
     topK: body.topK,
+    allowPartialResults: true,
+    vectorBudgetMs: DIRECT_SEARCH_VECTOR_BUDGET_MS,
     surface: 'dashboard' as const,
     signal: request.signal,
   }),
   useCase: searchScopedKnowledge,
-  present: ({ results, knowledgeBases }, { input }) => {
+  present: ({ results, knowledgeBases, retrieval }, { input }) => {
     const knowledgeBaseNames = new Map(knowledgeBases.map((kb) => [kb.id, kb.name]))
     return {
       success: true as const,
       data: {
         query: input.query ?? '',
+        retrieval,
         results: results.map((result) => ({
           documentId: result.documentId,
           knowledgeBaseId: result.knowledgeBaseId,

@@ -69,3 +69,12 @@ export function embeddingDistance(
   }
   return sql<number>`${embeddingVectorColumn(dimensions)} <=> ${queryVector}::vector`
 }
+
+/** Compact HNSW candidate ordering; final scores always use the stored vector's cosine distance. */
+export function embeddingCandidateDistance(
+  dimensions: KbEmbeddingDimensions,
+  queryVector: string
+): SQL<number> {
+  const width = sql.raw(String(dimensions))
+  return sql<number>`binary_quantize(${embeddingVectorColumn(dimensions)})::bit(${width}) <~> binary_quantize(${queryVector}::vector)::bit(${width})`
+}

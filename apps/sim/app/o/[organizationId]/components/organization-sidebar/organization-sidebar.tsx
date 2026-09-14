@@ -27,6 +27,7 @@ import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/works
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
+  HelpModal,
   isNavItemActive,
   NavItemContextMenu,
   SidebarNavChip,
@@ -94,6 +95,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
   const [menuHref, setMenuHref] = useState<string | null>(null)
   const {
     isOpen: isHrefMenuOpen,
@@ -182,6 +184,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
             <OrganizationHeader
               organization={organization}
               canEditLogo={viewer.isAdmin}
+              canInviteMembers={viewer.canInviteMembers}
               isCollapsed={isCollapsed}
               onExpandSidebar={toggleCollapsed}
             />
@@ -282,6 +285,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
             showCollapsedTooltips={showCollapsedTooltips}
             onOpenDocs={handleOpenDocs}
             onJoinSlack={handleOpenSlackCommunity}
+            onContactSupport={() => setIsHelpModalOpen(true)}
           />
 
           <NavItemContextMenu
@@ -294,6 +298,8 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
           />
         </div>
       </aside>
+
+      <HelpModal open={isHelpModalOpen} onOpenChange={setIsHelpModalOpen} />
 
       {/* Not on the peek card: the resize hook writes an inline `--sidebar-width` that
           out-specifies the `[data-peek]` rule, stranding the card at a stale width. */}
