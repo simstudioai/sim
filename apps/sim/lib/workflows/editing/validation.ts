@@ -1083,17 +1083,6 @@ interface SelectorFieldToValidate {
 }
 
 /**
- * Longest single selector entry `containsReference` will classify.
- *
- * Classifying one entry tokenizes it, and `findWorkflowReferenceTokens` is superlinear in
- * candidate count, so an entry of unbounded length is expensive on a write path that admits
- * megabytes. Splitting is unaffected - it scans reference regions directly and stays linear - so
- * only an individual oversized ENTRY is skipped, where there is no cheap way to tell a literal
- * from a dynamic binding. A long LIST of ordinary ids still splits and validates normally.
- */
-const MAX_SELECTOR_ENTRY_LENGTH = 10_000
-
-/**
  * Walk a workflow state and collect selector/credential fields to validate.
  * For canonical pairs only the ACTIVE member is collected (an intentionally-empty
  * inactive member is never flagged). oauth-input credentials are included only
@@ -1147,26 +1136,18 @@ function collectSelectorFields(
       const subBlockValue = blockData.subBlocks?.[subBlockConfig.id]?.value
       if (!subBlockValue) continue
 
-      const isOversized = (entry: unknown) =>
-        typeof entry === 'string' && entry.length > MAX_SELECTOR_ENTRY_LENGTH
-
       // Handle comma-separated values for multi-select
       let values: string | string[] = subBlockValue
       if (typeof subBlockValue === 'string' && subBlockValue.includes(',')) {
         values = splitOutsideReferences(subBlockValue)
       }
 
-      // A dynamically bound value only acquires its id at execution time, so a static
-      // id-existence check cannot evaluate it. Filtered per entry rather than on the whole
-      // string, because a multi-select can mix literal ids with dynamic ones: testing
-      // `<a.b>,kb_real,<c.d>` as a whole would drop `kb_real` along with the references.
+      // A reference or env var only resolves to an id at execution time, so it cannot be checked
+      // here. Filtered per entry so the literal ids of a mixed multi-select are still checked.
       if (Array.isArray(values)) {
-        const literalValues = values.filter(
-          (entry) => !isOversized(entry) && !containsReference(entry)
-        )
-        if (literalValues.length === 0) continue
-        values = literalValues
-      } else if (isOversized(values) || containsReference(values)) {
+        values = values.filter((entry) => !containsReference(entry))
+        if (values.length === 0) continue
+      } else if (containsReference(values)) {
         continue
       }
 

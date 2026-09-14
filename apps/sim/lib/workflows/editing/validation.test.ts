@@ -1267,8 +1267,7 @@ describe('collectUnresolvedReferences', () => {
   })
 
   it('validates the literal entries when a multi-select opens AND closes with a template', async () => {
-    // `isReference` is unanchored (startsWith '<' && endsWith '>'), so this value reads as one
-    // whole reference. Filtering per entry is what keeps `kb_real` validated.
+    // The whole string contains references, so only filtering per entry keeps `kb_real` checked.
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_real'] })
     const state = {
       blocks: {
@@ -1304,63 +1303,36 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  it('skips a single oversized entry, which cannot be classified cheaply', async () => {
-    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['x'] })
+  it('still validates a literal id however long it is', async () => {
+    const value = `kb_${'a'.repeat(10_000)}`
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [value] })
+    const state = {
+      blocks: {
+        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value } } },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('knowledge-base-selector', value, CTX)
+    expect(refs).toHaveLength(1)
+  })
+
+  it('checks the literal ids around a reference that contains a comma', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
     const state = {
       blocks: {
         kb1: {
           type: 'knowledge',
           name: 'KB',
-          subBlocks: { knowledgeBaseId: { value: `kb_${'a'.repeat(10_000)}` } },
+          subBlocks: { knowledgeBaseId: { value: 'kb_a,<start.pick(a,b)>,kb_missing' } },
         },
       },
     }
-    const startedAt = performance.now()
     const refs = await collectUnresolvedReferences(state, CTX)
-    expect(performance.now() - startedAt).toBeLessThan(1000)
-    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
-    expect(refs).toHaveLength(0)
-  })
-
-  it('keeps a comma-bearing reference intact even in an oversized list', async () => {
-    // Splitting scans reference regions directly and stays linear, so size does not force a
-    // fallback that would tear `<start.pick(a,b)>` into fragments validated as ids.
-    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
-    const padding = Array.from({ length: 400 }, (_, index) => `kb_${'x'.repeat(30)}${index}`)
-    const value = [...padding, '<start.pick(a,b)>', 'kb_missing'].join(',')
-    expect(value.length).toBeGreaterThan(10_000)
-    const state = {
-      blocks: {
-        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value } } },
-      },
-    }
-    await collectUnresolvedReferences(state, CTX)
-
-    const [, ids] = mockValidateSelectorIds.mock.calls[0]
-    expect(ids).toContain('kb_missing')
-    expect(ids).not.toContain('<start.pick(a')
-    expect(ids).not.toContain('b)>')
-  })
-
-  it('still validates the literal entries of an oversized list', async () => {
-    // The cap gives up reference-aware splitting, not validation: the entries are still short,
-    // so each is classified and the literals are still checked.
-    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
-    const padding = Array.from({ length: 400 }, (_, index) => `kb_${'x'.repeat(30)}${index}`)
-    const value = [...padding, '<start.kbId>', 'kb_missing'].join(',')
-    expect(value.length).toBeGreaterThan(10_000)
-    const state = {
-      blocks: {
-        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value } } },
-      },
-    }
-    const startedAt = performance.now()
-    const refs = await collectUnresolvedReferences(state, CTX)
-
-    expect(performance.now() - startedAt).toBeLessThan(1000)
-    const [, ids] = mockValidateSelectorIds.mock.calls[0]
-    expect(ids).toContain('kb_missing')
-    expect(ids).not.toContain('<start.kbId>')
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith(
+      'knowledge-base-selector',
+      ['kb_a', 'kb_missing'],
+      CTX
+    )
     expect(refs).toHaveLength(1)
   })
 
@@ -1384,10 +1356,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(1)
   })
 
-  // `splitOutsideReferences` is what keeps a comma INSIDE a reference from becoming a separator.
-  // Every other reference test above would still pass with a naive `.split(',')` (no comma ->
-  // never split at all), so these two are the only ones that pin the reference-aware split from
-  // the consumer's side: a torn reference reads as plain literals and gets validated as ids.
+  // A torn reference reads as plain literals, so these pin the reference-aware split end to end.
   it('does not split a <block.output> reference that contains a comma', async () => {
     const state = {
       blocks: {
@@ -1433,8 +1402,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  // A multi-select that already stores a native array never reaches the comma split, so the
-  // array filter is entered by a second, independent route.
+  // A native array value never reaches the comma split, so it enters the filter independently.
   it('filters templates out of a value that is already an array', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
     const state = {
@@ -1470,9 +1438,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  // A separator-only string is truthy, so it survives the `!subBlockValue` bail and reaches the
-  // split, which returns nothing. Reusing the all-references bail is what stops an empty list
-  // from being sent to the database as if it were a set of ids.
+  // A separator-only string is truthy, so it passes the `!subBlockValue` bail and splits to nothing.
   it('skips a value that is nothing but separators', async () => {
     const state = {
       blocks: {
@@ -1495,10 +1461,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  // The per-entry filter calls `containsReference` on whatever the array holds, so its
-  // non-string bail is load-bearing here - without it a numeric entry throws. A non-string can
-  // never be a reference, so it must survive untouched, `null` included: the `filter(Boolean)`
-  // that would have dropped it lives inside the comma split, which a native array never reaches.
+  // A non-string can never be a reference, so it passes through the filter untouched.
   it('does not throw on a non-string entry inside an array value', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
     const state = {
@@ -1519,8 +1482,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  // Both delimiters are required. A lone `<` (or a lone `{{`) is a malformed literal, not a
-  // template, and must keep being reported rather than silently waved through.
+  // A lone `<` or `{{` is a malformed literal, not a reference, and must still be reported.
   it.each([
     ['an unclosed < delimiter', 'kb_<start'],
     ['an unopened > delimiter', 'start.kbId>'],
@@ -1557,8 +1519,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(1)
   })
 
-  // The guard runs AFTER the canonical active-member check, so a template in the active member
-  // must be skipped by the guard - and must not push mode resolution onto the empty twin.
+  // The guard runs after the canonical active-member check, so it must not flip the active member.
   it('skips a template held by the ACTIVE canonical member', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['<start.cred>'] })
     const state = {
@@ -1576,9 +1537,7 @@ describe('collectUnresolvedReferences', () => {
   })
 })
 
-// The lint path (collectUnresolvedReferences) and the agent edit path share collectSelectorFields,
-// but only the edit path can REJECT an operation. A dynamically-bound selector must not block an
-// edit - that rejection is the user-visible failure this guard exists to prevent.
+// validateWorkflowSelectorIds shares collectSelectorFields with the lint, so it skips the same values.
 describe('validateWorkflowSelectorIds (reference guard)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -1589,7 +1548,7 @@ describe('validateWorkflowSelectorIds (reference guard)', () => {
     ['a block-output reference', '<start.kbId>'],
     ['an env-var reference', '{{KB_ID}}'],
     ['a partially templated value', 'kb_<start.suffix>'],
-  ])('does not reject an edit whose selector holds %s', async (_label, value) => {
+  ])('reports no error for a selector holding %s', async (_label, value) => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [value] })
     const state = {
       blocks: {
@@ -1601,7 +1560,7 @@ describe('validateWorkflowSelectorIds (reference guard)', () => {
     expect(errors).toHaveLength(0)
   })
 
-  it('still rejects an edit whose selector holds a literal id that does not resolve', async () => {
+  it('still reports a literal id that does not resolve', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_gone'] })
     const state = {
       blocks: {

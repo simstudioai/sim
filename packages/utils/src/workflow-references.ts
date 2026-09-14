@@ -3,11 +3,9 @@ const REFERENCE_END = '>'
 const REFERENCE_PATH_DELIMITER = '.'
 const INVALID_REFERENCE_CHARS = /[+*/=<>!&|]/
 const LEADING_REFERENCE_PATTERN = /^[<>=!\s]*$/
-/**
- * `{{ENV_VAR}}` placeholders. Exported so a consumer that needs the UNION of reference regions
- * can find them without going through the non-overlapping token pass.
- */
-export const ENV_REFERENCE_PATTERN = /\{\{[^{}\r\n]+\}\}/g
+const ENV_REFERENCE_START = '{{'
+const ENV_REFERENCE_PATTERN = /\{\{[^{}\r\n]+\}\}/g
+const LIST_SEPARATOR = ','
 
 export type WorkflowReferenceTokenKind = 'environment' | 'workflow'
 
@@ -61,15 +59,14 @@ export function isLikelyWorkflowReferenceSegment(segment: string): boolean {
   return !INVALID_REFERENCE_CHARS.test(inner) && !/^\d+$/.test(inner) && !/\s\d/.test(inner)
 }
 
-/** Finds non-overlapping `{{ENV}}` and `<workflow.reference>` tokens in source order. */
-export function findWorkflowReferenceTokens(source: string): WorkflowReferenceToken[] {
-  const tokens: WorkflowReferenceToken[] = []
-
-  for (const match of source.matchAll(ENV_REFERENCE_PATTERN)) {
-    const start = match.index
-    tokens.push({ kind: 'environment', value: match[0], start, end: start + match[0].length })
-  }
-
+/**
+ * Calls `onReference` with the `[start, end)` span of every `<workflow.reference>` candidate, in
+ * source order. Spans never overlap each other, but may overlap an `{{ENV}}` placeholder.
+ */
+function scanWorkflowReferenceSpans(
+  source: string,
+  onReference: (start: number, end: number) => void
+): void {
   let candidateStart = -1
   for (let index = 0; index < source.length; index += 1) {
     const character = source[index]
@@ -87,13 +84,81 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
     const split = splitWorkflowReferenceSegment(candidate)
     if (split && isLikelyWorkflowReferenceSegment(candidate)) {
       const start = candidateStart + split.leading.length
-      const end = start + split.reference.length
-      if (!tokens.some((token) => start < token.end && end > token.start)) {
-        tokens.push({ kind: 'workflow', value: split.reference, start, end })
-      }
+      onReference(start, start + split.reference.length)
     }
     candidateStart = -1
   }
+}
 
-  return tokens.sort((left, right) => left.start - right.start)
+/** Finds non-overlapping `{{ENV}}` and `<workflow.reference>` tokens in source order. */
+export function findWorkflowReferenceTokens(source: string): WorkflowReferenceToken[] {
+  const environmentTokens: WorkflowReferenceToken[] = []
+  for (const match of source.matchAll(ENV_REFERENCE_PATTERN)) {
+    const start = match.index
+    environmentTokens.push({
+      kind: 'environment',
+      value: match[0],
+      start,
+      end: start + match[0].length,
+    })
+  }
+
+  /**
+   * Environment tokens are disjoint and ordered, and workflow spans arrive in increasing order, so
+   * one forward cursor finds the only environment token a span can overlap - linear, where a scan
+   * of every prior token per span is quadratic on reference-dense values.
+   */
+  const workflowTokens: WorkflowReferenceToken[] = []
+  let environmentIndex = 0
+  scanWorkflowReferenceSpans(source, (start, end) => {
+    while (
+      environmentIndex < environmentTokens.length &&
+      environmentTokens[environmentIndex].end <= start
+    ) {
+      environmentIndex += 1
+    }
+    const next = environmentTokens[environmentIndex]
+    if (next && next.start < end) return
+    workflowTokens.push({ kind: 'workflow', value: source.slice(start, end), start, end })
+  })
+
+  return [...environmentTokens, ...workflowTokens].sort((left, right) => left.start - right.start)
+}
+
+/**
+ * Splits a comma-separated list without tearing a reference apart.
+ *
+ * A `<block.path>` or `{{ENV_VAR}}` may itself contain a comma (`<start.pick(a,b)>`), so only a
+ * comma outside every reference is a separator. Unlike {@link findWorkflowReferenceTokens}, a
+ * `<...>` that wraps a placeholder (`<start.pick({{A}},b)>`) protects its whole span. Entries are
+ * trimmed and empty entries dropped.
+ */
+export function splitOutsideWorkflowReferences(source: string): string[] {
+  const protectedIndexes = new Uint8Array(source.length)
+  const protect = (start: number, end: number) => {
+    protectedIndexes.fill(1, start, end)
+  }
+  if (source.includes(ENV_REFERENCE_START)) {
+    for (const match of source.matchAll(ENV_REFERENCE_PATTERN)) {
+      protect(match.index, match.index + match[0].length)
+    }
+  }
+  if (source.includes(REFERENCE_START)) {
+    scanWorkflowReferenceSpans(source, protect)
+  }
+
+  const entries: string[] = []
+  const pushEntry = (start: number, end: number) => {
+    const entry = source.slice(start, end).trim()
+    if (entry) entries.push(entry)
+  }
+  let entryStart = 0
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === LIST_SEPARATOR && !protectedIndexes[index]) {
+      pushEntry(entryStart, index)
+      entryStart = index + 1
+    }
+  }
+  pushEntry(entryStart, source.length)
+  return entries
 }
