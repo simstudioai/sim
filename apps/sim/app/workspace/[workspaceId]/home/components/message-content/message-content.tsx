@@ -23,6 +23,12 @@ import {
   normalizeToolActivityDescription,
 } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  collectGroupTools,
+  hasAgentGroupItemContent,
+  hasPendingAgentGroup,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
+import { getActivityStatusTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
@@ -764,7 +770,9 @@ export function assistantMessageHasRenderableContent(
       : fallbackContent.trim()
         ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
         : []
-  return segments.length > 0
+  return segments.some(
+    (segment) => segment.type !== 'agent_group' || segment.items.some(hasAgentGroupItemContent)
+  )
 }
 
 /** The transcript already owns an activity indicator, including gaps between calls. */
@@ -772,18 +780,19 @@ export function assistantMessageHasVisibleActivity(
   segments: MessageSegment[],
   isStreaming = false
 ): boolean {
-  const hasExecutingTool = (items: AgentGroupItem[]): boolean =>
-    items.some((item) =>
-      item.type === 'tool'
-        ? item.data.status === 'executing'
-        : item.type === 'agent_group' && hasExecutingTool(item.group.items)
-    )
-
   return segments.some((segment, index) => {
-    if (segment.type !== 'agent_group') return false
-    if (hasExecutingTool(segment.items)) return true
+    if (segment.type !== 'agent_group' || !segment.items.some(hasAgentGroupItemContent)) {
+      return false
+    }
+    const tools = collectGroupTools(segment.items)
+    if (tools.some((tool) => tool.status === 'executing')) return true
     if (!isStreaming) return false
-    if (segment.agentName !== 'mothership') return segment.isOpen || segment.isDelegating
+    if (segment.agentName !== 'mothership') {
+      const statusTool = getActivityStatusTool(tools)
+      return (
+        (segment.isOpen || segment.isDelegating) && (!statusTool || statusTool.status === 'success')
+      )
+    }
     const lastItem = segment.items.at(-1)
     return (
       index === segments.length - 1 &&
@@ -814,15 +823,12 @@ const DISPATCH_TOOL_NAMES = new Set([...SUBAGENT_KEYS, ...Object.values(SUBAGENT
  * phrase describes the wait, not the output: a stall after streamed text is
  * the agent deciding what's next — Thinking — never "Generating" (while text
  * actually generates the shimmer is hidden). Dispatching covers only the
- * dispatch call itself (whose tool row the parser absorbs, so nothing else
- * shows); once the lane is open its own delegating shimmer owns the state and
- * the turn-level one stays hidden (`null`).
+ * dispatch call itself (whose tool row the parser absorbs). Empty agent lanes
+ * share this indicator until a visible activity row takes over.
  */
-export function deriveThinkingLabel(blocks: ContentBlock[]): string | null {
+export function deriveThinkingLabel(blocks: ContentBlock[]): string {
   const last = blocks[blocks.length - 1]
   switch (last?.type) {
-    case 'subagent':
-      return null
     case 'subagent_end':
       return 'Returning…'
     case 'tool_call':
@@ -976,12 +982,14 @@ function MessageContentInner({
   // wait, not output — the shimmer bridges it without the quiet-period delay.
   const thinkingLabel = deriveThinkingLabel(blocks)
   const hasActivityIndicator = assistantMessageHasVisibleActivity(segments, isStreaming)
+  const hasPendingAgents =
+    isStreaming &&
+    segments.some((segment) => segment.type === 'agent_group' && hasPendingAgentGroup(segment))
   const showShimmer =
     thinkingExpanded &&
-    thinkingLabel !== null &&
     (segments.length === 0 ||
       trailingPendingTag ||
-      (isStreamIdle && !trailingStreamActivity && !hasActivityIndicator))
+      ((hasPendingAgents || isStreamIdle) && !trailingStreamActivity && !hasActivityIndicator))
 
   const actionsRow = (
     <div className='flex items-center gap-0.5'>
@@ -1025,6 +1033,7 @@ function MessageContentInner({
                 />
               )
             case 'agent_group': {
+              if (!segment.items.some(hasAgentGroupItemContent)) return null
               return (
                 <div
                   key={segment.id}
@@ -1077,7 +1086,7 @@ function MessageContentInner({
               showShimmer ? 'opacity-100' : 'opacity-0'
             )}
           >
-            <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />
+            <PendingTagIndicator label={thinkingLabel} />
           </div>
         </div>
       ) : // The settled tail takes the slot's place in the SAME render and at the

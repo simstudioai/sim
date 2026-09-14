@@ -48,23 +48,16 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
   const header = () => container.querySelector('[role="status"]')
   const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms))
 
-  it('uses the shared thinking animation until the first subagent action arrives', () => {
+  it('leaves empty lanes to the turn indicator and shows the first action immediately', () => {
     render([])
-    const row = header()
-    if (agentName === 'mothership') {
-      expect(row).toBeNull()
-    } else {
-      expect(row?.textContent).toBe('Thinking')
-      expect(row?.querySelector('svg[aria-label="Thinking"]')).not.toBeNull()
-    }
+    expect(container.childElementCount).toBe(0)
     advance(100)
     render([tool('first')])
     expect(header()?.textContent).toBe('Reading first')
-    expect(container.querySelector('svg[aria-label="Thinking"]')).toBeNull()
-    if (row) expect(header()).toBe(row)
+    const row = header()
     render([tool('first', 'success')], false)
     expect(header()?.textContent).toBe('Read first')
-    expect(container.querySelector('svg[aria-label="Thinking"]')).toBeNull()
+    expect(header()).toBe(row)
   })
 
   it('preserves a successful model description in the header and expanded history', () => {
