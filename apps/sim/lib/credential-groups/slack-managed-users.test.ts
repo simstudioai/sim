@@ -34,6 +34,7 @@ const shared = vi.hoisted(() => ({
   flag: vi.fn(),
 }))
 vi.mock('@/lib/core/config/env', () => ({ env: shared.env }))
+vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true }))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: shared.flag }))
 
 vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redis }))

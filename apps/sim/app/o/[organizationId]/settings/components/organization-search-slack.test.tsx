@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, type ReactNode } from 'react'
+import { ToastProvider } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SlackSearchInstallationView } from '@/lib/api/contracts/knowledge/slack'
@@ -93,7 +94,13 @@ async function render(installed = false) {
       },
     })
   }
-  await act(async () => root.render(<OrganizationSearchSlack />))
+  await act(async () =>
+    root.render(
+      <ToastProvider>
+        <OrganizationSearchSlack />
+      </ToastProvider>
+    )
+  )
 }
 function button(label: string) {
   const scope = document.querySelector('[role="dialog"]') ?? document
