@@ -146,8 +146,8 @@ test('packaged shell renders the bundled offline page', async () => {
       .toBe(true)
     const picker = findPage('sim-shell://pages/server.html')
     if (!picker) throw new Error('server picker disappeared')
-    await expect(picker.locator('h1')).toHaveText('Sim server')
-    await expect(picker.locator('#origin')).toHaveValue('http://127.0.0.1:1')
+    await expect(picker.getByRole('dialog', { name: 'Sim server' })).toBeVisible()
+    await expect(picker.getByLabel('Server URL')).toHaveValue('http://127.0.0.1:1')
   } finally {
     await browser?.close().catch(() => {})
     if (child.exitCode === null && child.signalCode === null) {

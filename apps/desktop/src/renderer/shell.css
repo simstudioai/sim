@@ -1,0 +1,17 @@
+@import "../../../sim/app/_styles/globals.css";
+
+@source ".";
+
+@font-face {
+  font-family: "Season Sans";
+  src: url("./SeasonSansUprightsVF.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: block;
+}
+
+html {
+  font-family: "Season Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}

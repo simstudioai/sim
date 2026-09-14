@@ -25,7 +25,7 @@ export const LOCAL_PAGE_SCHEME = 'sim-shell'
 const LOCAL_PAGE_HOST = 'pages'
 export const LOCAL_PAGE_ORIGIN = `${LOCAL_PAGE_SCHEME}://${LOCAL_PAGE_HOST}`
 
-export type LocalPage = 'offline.html' | 'server.html'
+export type LocalPage = 'offline.html' | 'server.html' | 'dialog.html'
 
 const LOCAL_PAGES: ReadonlySet<string> = new Set<LocalPage>(['offline.html', 'server.html'])
 
@@ -34,11 +34,23 @@ const LOCAL_PAGES: ReadonlySet<string> = new Set<LocalPage>(['offline.html', 'se
  * directory walk: nothing outside it can be requested however the path is
  * spelled, and adding an asset is a deliberate one-line change.
  */
-const SERVABLE_FILES: ReadonlySet<string> = new Set([...LOCAL_PAGES, 'SeasonSansUprightsVF.woff2'])
+const SERVABLE_FILES: ReadonlySet<string> = new Set([
+  ...LOCAL_PAGES,
+  'SeasonSansUprightsVF.woff2',
+  'server.js',
+  'server.css',
+  'offline.js',
+  'offline.css',
+  'dialog.html',
+  'dialog.js',
+  'dialog.css',
+])
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8',
   '.woff2': 'font/woff2',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
 }
 
 /** Builds the URL of a bundled page, with its query encoded. */
@@ -152,14 +164,14 @@ async function readFirst(rootDirs: readonly string[], name: string): Promise<Buf
 
 /**
  * Where the pages and their assets live. `__dirname` is `dist/` in every
- * build, so `static/` resolves inside the packaged asar as well as in an
- * unpackaged checkout. The brand font is copied into `static/` only when
+ * build: renderer bundles live in `dist/renderer`, and page shells live in
+ * `static/`, inside the packaged asar as well as in an unpackaged checkout. The brand font is copied into `static/` only when
  * packaging (electron-builder.yml); an unpackaged run reads it from the web
  * app's public fonts instead, so nothing generated has to exist in the tree
  * and a cached build restores everything the pages need.
  */
 function localPageRoots(): string[] {
-  const roots = [join(__dirname, '..', 'static')]
+  const roots = [join(__dirname, 'renderer'), join(__dirname, '..', 'static')]
   if (!app.isPackaged) {
     roots.push(join(__dirname, '..', '..', 'sim', 'public', 'brand', 'fonts'))
   }

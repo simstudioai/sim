@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { BrowserPageIssue } from '@sim/browser-protocol'
-import { Button } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { CircleAlert, Globe, RefreshCw } from '@sim/emcn/icons'
 
 interface BrowserPageIssueProps {
@@ -161,10 +161,11 @@ export function BrowserPageIssueView({ issue, onReload, focusRecovery }: Browser
           ))}
         </ul>
         <p className='mt-6 break-all font-mono text-[var(--text-muted)] text-xs'>{copy.code}</p>
-        <Button type='button' variant='default' size='sm' className='mt-8 gap-1' onClick={onReload}>
-          <RefreshCw className='size-[14px]' />
-          Reload
-        </Button>
+        <div className='mt-8'>
+          <Chip leftIcon={RefreshCw} onClick={onReload}>
+            Reload
+          </Chip>
+        </div>
       </div>
     </section>
   )

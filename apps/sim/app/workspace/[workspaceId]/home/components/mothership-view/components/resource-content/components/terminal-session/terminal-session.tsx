@@ -20,7 +20,7 @@ import { type IBufferRange, Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import '@xterm/xterm/css/xterm.css'
-import { describeRunningCommand, type TerminalTabsState } from '@sim/terminal-protocol'
+import type { TerminalTabsState } from '@sim/terminal-protocol'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopTerminalAppearance,
@@ -47,6 +47,7 @@ import {
   writeToTerminal,
 } from '@/lib/terminal/transport'
 import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
+import { useTerminalCloseConfirmation } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/use-terminal-close-confirmation'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 import type { ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -234,6 +235,7 @@ const TerminalView = memo(function TerminalView({
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const { confirmTerminalClose, confirmationDialog } = useTerminalCloseConfirmation(scopeId)
   const [currentZoom, setCurrentZoom] = useState<number>(defaultZoom)
   // Being the selected tab is not enough to be on screen: the whole panel is
   // hidden whenever another resource is open.
@@ -590,20 +592,12 @@ const TerminalView = memo(function TerminalView({
     })
   }, [scopeId])
 
-  // Scoped to the terminal that was right-clicked, not the active one.
-  const closeThisTerminal = useCallback(() => {
-    if (
-      running &&
-      !window.confirm(
-        `${describeRunningCommand(running)} is still running. Close this terminal and stop it?`
-      )
-    ) {
-      return
-    }
+  async function closeThisTerminal() {
+    if (!(await confirmTerminalClose([terminalId]))) return
     void closeTerminal(terminalId, scopeId).catch(() => {
       toast.error('Could not close that terminal. Please try again.')
     })
-  }, [running, terminalId, scopeId])
+  }
 
   // An inactive tab is `display: none`, not merely invisible. xterm watches its
   // element with an IntersectionObserver and pauses rendering once it stops
@@ -613,6 +607,7 @@ const TerminalView = memo(function TerminalView({
   // xterm re-measures and does a full refresh when the element comes back.
   return (
     <>
+      {confirmationDialog}
       <div
         ref={hostRef}
         data-paste-max-bytes={PASTE_LIMITS.TERMINAL_BYTES}
