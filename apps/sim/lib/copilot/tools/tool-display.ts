@@ -1444,7 +1444,7 @@ function statesTerminalOutcome(title: string): boolean {
 /** Apply one terminal outcome prefix while preserving already-resolved titles. */
 function getToolOutcomeTitle(
   title: string,
-  outcome: 'Completed' | 'Failed' | 'Stopped' | 'Skipped',
+  outcome: 'Failed' | 'Stopped' | 'Skipped',
   preserveExistingOutcome: boolean
 ): string {
   if (preserveExistingOutcome && statesTerminalOutcome(title)) return title
@@ -1463,10 +1463,9 @@ function getToolOutcomeTitle(
 }
 
 /**
- * Resolve the final title for a tool status at a rendering boundary. Persisted
- * and live snapshots intentionally keep the present-tense activity title so a
- * RUNNING row remains truthful; terminal states project a tense that says the
- * work is over — completed (past tense), failed, stopped, or skipped.
+ * Resolve a tool title at the rendering boundary. Successful calls use a known
+ * past-tense rewrite when available and otherwise preserve the wording.
+ * Failed, stopped, and skipped calls retain explicit outcome labels.
  */
 export function getToolStatusDisplayTitle(
   title: string,
@@ -1480,10 +1479,7 @@ export function getToolStatusDisplayTitle(
     return 'Resumed browser control'
   }
   if (status === 'success') {
-    return (
-      getToolCompletedTitle(title) ??
-      (description ? getToolOutcomeTitle(title, 'Completed', false) : title)
-    )
+    return getToolCompletedTitle(title) ?? title
   }
   if (status === 'error' || status === 'rejected') {
     return getToolOutcomeTitle(title, 'Failed', !description)

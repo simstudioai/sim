@@ -1,6 +1,7 @@
 'use client'
 
 import { type ComponentType, type ReactNode, useState } from 'react'
+import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
@@ -162,12 +163,6 @@ export function AgentGroupView({
   renderBrowserTakeover,
 }: AgentGroupViewProps) {
   const AgentIcon = getAgentIcon(agentName)
-  const agentIcon =
-    agentName === 'browser' ? (
-      <BrowserAgentIcon items={items} />
-    ) : (
-      <AgentIcon className='size-full' />
-    )
   const isMainAgent = agentName === 'mothership'
   const tools = isMainAgent ? [] : collectGroupTools(items)
   const statusTool = getActivityStatusTool(tools)
@@ -178,6 +173,14 @@ export function AgentGroupView({
   const nestedBrowserTakeover = browserAgentAvailable && hasNestedBrowserTakeover(items)
   const isWorking =
     !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
+  const agentIcon =
+    isWorking && !statusTool ? (
+      <ThinkingLoader size={14} startVariant='corners' />
+    ) : agentName === 'browser' ? (
+      <BrowserAgentIcon items={items} />
+    ) : (
+      <AgentIcon className='size-full' />
+    )
 
   const [manualExpanded, setManualExpanded] = useState(defaultExpanded)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
