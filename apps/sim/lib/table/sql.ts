@@ -19,6 +19,7 @@ import {
   SINGLE_SELECT_OPERATORS,
   SINGLE_SELECT_OPS,
 } from '@/lib/table/column-types'
+import { columnTextForEquality } from '@/lib/table/column-types/comparison-sql'
 import { NAME_PATTERN } from '@/lib/table/constants'
 import { normalizeDateCellValue } from '@/lib/table/dates'
 import { TableQueryValidationError } from '@/lib/table/errors'
@@ -364,7 +365,7 @@ function validateComparisonValue(
         `Range operator on column "${label}" (date) requires a date string, got ${typeof value}`
       )
     }
-    if (normalizeDateCellValue(value) === null) {
+    if (!columnTypeById(columnType).coerce(value, { name: label, type: columnType ?? 'date' }).ok) {
       throw new TableQueryValidationError(
         `Range operator on column "${label}" (date) requires a parseable date string, got "${truncate(value, 64)}"`
       )
@@ -540,7 +541,8 @@ function buildFieldCondition(
  * matching the legacy behavior of emitting no clause.
  *
  * Equality (`eq`/`ne`/`in`/`nin`) uses case-sensitive JSONB containment (GIN
- * indexed). Text matches (`contains`/`ncontains`/`startsWith`/`endsWith`) are
+ * indexed), except types with an equality projection, which use their database
+ * cast. Text matches (`contains`/`ncontains`/`startsWith`/`endsWith`) are
  * ILIKE (case-insensitive). Ranges cast per column type.
  */
 export function fieldPredicate(
@@ -560,6 +562,18 @@ export function fieldPredicate(
   }
 
   const columnType = column?.type
+  const validateFilterValue = column && columnTypeOf(column).validateFilterValue
+  if (
+    column &&
+    validateFilterValue &&
+    ['eq', 'ne', 'in', 'nin', 'gt', 'gte', 'lt', 'lte'].includes(op)
+  ) {
+    for (const operand of Array.isArray(value) ? value : [value]) {
+      if (operand === null) continue
+      const error = validateFilterValue(operand as JsonValue, column)
+      if (error) throw new TableQueryValidationError(error)
+    }
+  }
   // Messages must name what the CALLER sent. `field` is the storage key by the
   // time it reaches here (the boundaries translate name → id before building
   // SQL), so a raw `field` reports a `col_…` the caller never supplied.
@@ -614,12 +628,21 @@ export function fieldPredicate(
         : coerceContainmentOperand(column, value as JsonValue)
       : value
 
+  const equalityClause = (operand: JsonValue): SQL => {
+    const definition = column && columnTypeOf(column)
+    if (column && operand !== null && definition?.valueForEquality && definition.jsonbCast) {
+      const cell = columnTextForEquality(sql.raw(`${tableName}.data->>'${field}'`), column)
+      return sql`COALESCE(${cell} = ${operand}::${sql.raw(definition.jsonbCast)}, false)`
+    }
+    return buildContainmentClause(tableName, field, operand)
+  }
+
   switch (op) {
     case 'eq':
-      return buildContainmentClause(tableName, field, containmentValue as JsonValue)
+      return equalityClause(containmentValue as JsonValue)
 
     case 'ne':
-      return sql`NOT (${buildContainmentClause(tableName, field, containmentValue as JsonValue)})`
+      return sql`NOT (${equalityClause(containmentValue as JsonValue)})`
 
     case 'gt':
       return buildComparisonClause(tableName, field, column, '>', value as number | string)
@@ -633,17 +656,15 @@ export function fieldPredicate(
     case 'in': {
       const values = containmentValue
       if (!Array.isArray(values) || values.length === 0) return undefined
-      if (values.length === 1) return buildContainmentClause(tableName, field, values[0])
-      const inConditions = values.map((v) => buildContainmentClause(tableName, field, v))
+      if (values.length === 1) return equalityClause(values[0])
+      const inConditions = values.map(equalityClause)
       return sql`(${sql.join(inConditions, sql.raw(' OR '))})`
     }
 
     case 'nin': {
       const values = containmentValue
       if (!Array.isArray(values) || values.length === 0) return undefined
-      const ninConditions = values.map(
-        (v) => sql`NOT (${buildContainmentClause(tableName, field, v)})`
-      )
+      const ninConditions = values.map((v) => sql`NOT (${equalityClause(v)})`)
       return sql`(${sql.join(ninConditions, sql.raw(' AND '))})`
     }
 

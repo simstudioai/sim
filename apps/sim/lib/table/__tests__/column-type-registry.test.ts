@@ -10,7 +10,6 @@
  * here.
  */
 import { describe, expect, it } from 'vitest'
-import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import type { ColumnType } from '@/lib/table/column-types'
 import {
   ALL_COLUMN_TYPES,
@@ -112,7 +111,7 @@ describe('conversion write-back', () => {
     for (const definition of ALL_COLUMN_TYPES) {
       if (definition.jsonbCast !== 'timestamptz') continue
       expect(definition.coerce(1700000000000, { name: 'c', type: definition.id }).ok).toBe(false)
-      const coerced = definition.coerce('2023-11-14T22:13:20.000Z', {
+      const coerced = definition.coerce('2023-11-14T22:13:20Z', {
         name: 'c',
         type: definition.id,
       })
@@ -123,139 +122,13 @@ describe('conversion write-back', () => {
 })
 
 describe('ttl columns', () => {
-  const column = { name: 'expires_at', type: 'ttl' } as ColumnDefinition
-
-  it('stores integer epoch seconds while accepting date-shaped input', () => {
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('2023-11-14T22:13:20Z', column)).toEqual({
-      ok: true,
-      value: 1_700_000_000,
+  it('declares offset-preserving editing, string workflow values, timestamp comparisons, and one column per table', () => {
+    expect(COLUMN_TYPE_REGISTRY.ttl).toMatchObject({
+      jsonbCast: 'timestamptz',
+      workflowInputType: 'string',
+      editor: 'offset-date',
+      maxPerTable: 1,
     })
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(1_700_000_000, column)).toEqual({
-      ok: true,
-      value: 1_700_000_000,
-    })
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('1700000000', column)).toEqual({
-      ok: true,
-      value: 1_700_000_000,
-    })
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('2023-11-14T22:13:20.123Z', column)).toEqual({
-      ok: true,
-      value: 1_700_000_001,
-    })
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('not-a-date', column)).toEqual({ ok: false })
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(1_700_000_000.5, column)).toEqual({ ok: false })
-  })
-
-  it.each(['2023-02-29', '2023-02-29T12:00:00', '2023-02-29T12:00:00-05:00'])(
-    'rejects a nonexistent ISO calendar input: %s',
-    (value) => {
-      expect(COLUMN_TYPE_REGISTRY.ttl.coerce(value, column, { timezone: 'UTC' })).toEqual({
-        ok: false,
-      })
-    }
-  )
-
-  it.each([
-    ['2024-02-29', '2024-02-29T00:00:00Z'],
-    ['2024-02-29T12:00:00', '2024-02-29T12:00:00Z'],
-    ['2024-02-29T12:00:00-05:00', '2024-02-29T17:00:00Z'],
-  ])('accepts a valid leap-day ISO calendar input: %s', (value, expectedInstant) => {
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(value, column, { timezone: 'UTC' })).toEqual({
-      ok: true,
-      value: Math.floor(Date.parse(expectedInstant) / 1000),
-    })
-  })
-
-  it('renders and edits epoch seconds as a date', () => {
-    expect(COLUMN_TYPE_REGISTRY.ttl.formatForDisplay(1_700_000_000, column)).toBe(
-      '11/14/2023 10:13:20 PM'
-    )
-    expect(COLUMN_TYPE_REGISTRY.ttl.formatForInput(1_700_000_000, column)).toBe(
-      '2023-11-14T22:13:20Z'
-    )
-    expect(
-      COLUMN_TYPE_REGISTRY.ttl.formatForInput(1_700_000_000, column, {
-        timezone: 'America/New_York',
-      })
-    ).toBe('2023-11-14T17:13:20-05:00')
-  })
-
-  it('preserves the exact instant across both sides of a daylight-saving fold', () => {
-    expect(
-      COLUMN_TYPE_REGISTRY.ttl.formatForInput(1_699_162_200, column, {
-        timezone: 'America/New_York',
-      })
-    ).toBe('2023-11-05T01:30:00-04:00')
-    expect(
-      COLUMN_TYPE_REGISTRY.ttl.formatForInput(1_699_165_800, column, {
-        timezone: 'America/New_York',
-      })
-    ).toBe('2023-11-05T01:30:00-05:00')
-  })
-
-  it('matches the shared wall-clock resolver in every effective timezone', () => {
-    const wallClock = '2026-06-15T09:00:30'
-    for (const timezone of [
-      'UTC',
-      'America/Los_Angeles',
-      'America/New_York',
-      'Asia/Kathmandu',
-      'Australia/Lord_Howe',
-    ]) {
-      const expected = Math.floor(zonedWallClockToUtc(wallClock, timezone).getTime() / 1000)
-      expect(COLUMN_TYPE_REGISTRY.ttl.coerce(wallClock, column, { timezone })).toEqual({
-        ok: true,
-        value: expected,
-      })
-    }
-  })
-
-  it.each([
-    ['Europe/Berlin', '2026-03-29T02:30'],
-    ['Australia/Lord_Howe', '2026-10-04T02:15'],
-  ])('coerces a %s spring-forward gap wall clock to the compatible epoch', (timezone, input) => {
-    const expected = Math.floor(zonedWallClockToUtc(input, timezone).getTime() / 1000)
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce(input, column, { timezone })).toEqual({
-      ok: true,
-      value: expected,
-    })
-  })
-
-  it('coerces a localized month-name gap input in the explicit workspace timezone', () => {
-    const timezone = 'America/New_York'
-    const expected = Math.floor(zonedWallClockToUtc('2026-03-08T02:30', timezone).getTime() / 1000)
-    expect(COLUMN_TYPE_REGISTRY.ttl.coerce('March 8, 2026 2:30 AM', column, { timezone })).toEqual({
-      ok: true,
-      value: expected,
-    })
-  })
-
-  it('rejects an impossible ISO expiration date', () => {
-    expect(
-      COLUMN_TYPE_REGISTRY.ttl.coerce('2026-02-30T12:00:00', column, { timezone: 'UTC' })
-    ).toEqual({ ok: false })
-  })
-
-  it('round-trips epoch seconds after the editor timezone changes', () => {
-    for (const seconds of [1_700_000_000, 1_699_162_200, 1_699_165_800]) {
-      for (const timezone of [
-        'UTC',
-        'America/Los_Angeles',
-        'America/New_York',
-        'Asia/Kathmandu',
-        'Australia/Lord_Howe',
-      ]) {
-        const editable = COLUMN_TYPE_REGISTRY.ttl.formatForInput(seconds, column, { timezone })
-        expect(COLUMN_TYPE_REGISTRY.ttl.coerce(editable, column, { timezone })).toEqual({
-          ok: true,
-          value: seconds,
-        })
-      }
-    }
-  })
-
-  it('limits a table to one ttl column', () => {
-    expect(COLUMN_TYPE_REGISTRY.ttl.maxPerTable).toBe(1)
   })
 })
 

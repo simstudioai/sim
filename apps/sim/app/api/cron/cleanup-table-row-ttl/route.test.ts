@@ -129,4 +129,30 @@ describe('table row TTL cleanup route', () => {
     })
     expect(mockGetJobQueue).not.toHaveBeenCalled()
   })
+
+  it.each(['initialization', 'enqueue'])(
+    'reports a queue %s failure and permits a later retry',
+    async (stage) => {
+      if (stage === 'initialization') {
+        mockGetJobQueue.mockRejectedValueOnce(new Error('queue unavailable'))
+      } else {
+        mockEnqueue.mockRejectedValueOnce(new Error('connection lost'))
+      }
+      const request = () =>
+        createMockRequest(
+          'GET',
+          undefined,
+          {},
+          'http://localhost:3000/api/cron/cleanup-table-row-ttl'
+        )
+      const failed = await GET(request())
+      expect(failed.status).toBe(500)
+      await expect(failed.json()).resolves.toEqual({
+        error: 'Failed to dispatch table row TTL cleanup',
+      })
+      const retried = await GET(request())
+      expect(retried.status).toBe(200)
+      await expect(retried.json()).resolves.toEqual({ triggered: true, jobId: 'job-ttl-1' })
+    }
+  )
 })
