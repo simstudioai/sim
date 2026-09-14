@@ -46,6 +46,7 @@ describe('workspace search route', () => {
     expect(call.input.filters).toEqual({ source: 'slack', documentIds: ['doc-1'] })
     expect(call.input.signal).toBe(request.signal)
     expect(call.input.allowPartialResults).toBe(true)
+    expect(call.input.vectorBudgetMs).toBe(3000)
     controller.abort()
     expect(call.input.signal.aborted).toBe(true)
     await expect(response.json()).resolves.toEqual({

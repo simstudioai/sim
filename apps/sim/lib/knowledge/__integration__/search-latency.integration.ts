@@ -480,9 +480,11 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     expect(run).not.toHaveBeenCalled()
   })
 
-  it.each(['keyword', 'both'] as const)(
-    'handles %s SQL branches exceeding the deadline explicitly',
+  it.each(['vector', 'keyword', 'both'] as const)(
+    'keeps the Assistant budget when %s SQL branches are delayed',
     async (delayedLegs) => {
+      diagnosticLog?.mockClear()
+      let vectorDelayed = false
       const query = SearchBudget.prototype.query
       const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
         this: SearchBudget,
@@ -490,7 +492,13 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         run: (executor: SearchExecutor) => PromiseLike<T>
       ): Promise<T> {
         return query.call(this, stage, async (tx) => {
-          if (delayedLegs === 'both' || this.leg === 'keyword')
+          if (delayedLegs === 'vector' && this.leg === 'vector' && !vectorDelayed) {
+            vectorDelayed = true
+            await tx.execute(sql`SELECT pg_sleep(4)`)
+          } else if (
+            delayedLegs === 'both' ||
+            (delayedLegs === 'keyword' && this.leg === 'keyword')
+          )
             await tx.execute(sql`SELECT pg_sleep(9)`)
           return run(tx)
         }) as Promise<T>
@@ -509,6 +517,10 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
             }),
           }
         )
+        const completed = diagnosticLog?.mock.calls.find(
+          ([message]) => message === 'Knowledge search completed'
+        )
+        expect(diagnosticSchema.parse(completed?.[1]).vectorBudgetMs).toBe(8000)
         if (delayedLegs === 'both') {
           expect(result).toMatchObject({
             success: true,
@@ -521,14 +533,19 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         }
         expect(result).toMatchObject({
           success: true,
-          data: { retrieval: { status: 'partial', timedOutLegs: ['keyword'] } },
+          data: {
+            retrieval:
+              delayedLegs === 'vector'
+                ? { status: 'complete', timedOutLegs: [] }
+                : { status: 'partial', timedOutLegs: ['keyword'] },
+          },
         })
         const parsed = resultSchema.parse(result)
         expect(parsed.data.results.length).toBeGreaterThan(0)
         expect(
           parsed.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)
         ).toBe(true)
-        report['deadline.partial'] = { resultCount: parsed.data.results.length }
+        report[`assistant.deadline.${delayedLegs}`] = { resultCount: parsed.data.results.length }
       } finally {
         delayed.mockRestore()
       }
@@ -539,6 +556,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
   it.each(['vector', 'both'] as const)(
     'returns incomplete dashboard coverage when %s SQL branches exceed their deadline',
     async (delayedLegs) => {
+      diagnosticLog?.mockClear()
       const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
         kind: 'session',
         userId: ids.aliceId,
@@ -552,7 +570,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       ): Promise<T> {
         return query.call(this, stage, async (tx) => {
           if (delayedLegs === 'both' || this.leg === 'vector')
-            await tx.execute(sql`SELECT pg_sleep(9)`)
+            await tx.execute(sql`SELECT pg_sleep(${delayedLegs === 'both' ? 9 : 4})`)
           return run(tx)
         }) as Promise<T>
       })
@@ -569,6 +587,13 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
           })
         )
         expect(response.status).toBe(200)
+        const completed = diagnosticLog?.mock.calls.find(
+          ([message]) => message === 'Knowledge search completed'
+        )
+        const diagnostics = diagnosticSchema.parse(completed?.[1])
+        expect(diagnostics.vectorBudgetMs).toBe(3000)
+        expect(diagnostics.stages.vector.totalMs).toBeGreaterThan(2500)
+        expect(diagnostics.stages.vector.totalMs).toBeLessThan(4000)
         const data = workspaceKnowledgeSearchDataSchema.parse((await response.json()).data)
         expect(data.retrieval).toEqual({
           status: 'partial',

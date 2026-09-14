@@ -144,7 +144,6 @@ export function KnowledgeSearchResults({
     .filter((provider) => provider.isSyncing)
     .map((provider) => connectorDisplayName(provider.connectorType))
   const documents = useMemo(() => groupResultsByDocument(search?.results ?? []), [search?.results])
-  const incomplete = search?.retrieval.status === 'partial'
   const sourceTypes = [
     ...new Set([
       ...(filters.source ? [filters.source] : []),
@@ -205,24 +204,18 @@ export function KnowledgeSearchResults({
     <div className='flex flex-col'>
       <div className='flex items-center gap-2 px-2 py-2'>
         <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
-          {incomplete && documents.length === 0 ? (
-            'Search is incomplete.'
+          {documents.length === 0 ? (
+            'Search found no results.'
           ) : (
             <>
               <span className='tabular-nums'>
                 {documents.length === 1 ? '1 document' : `${documents.length} documents`}
               </span>
               {' · searched as you'}
-              {incomplete && <span className='block'>Some results may be missing.</span>}
             </>
           )}
           {indexingNote && <span className='block'>{indexingNote}</span>}
         </span>
-        {incomplete && (
-          <Chip variant='border' disabled={isFetching} onClick={() => void refetchSearch()}>
-            {isFetching ? 'Retrying…' : 'Try again'}
-          </Chip>
-        )}
       </div>
       {showFilters && (
         <div className='flex flex-wrap items-center gap-1.5 px-2 pb-2'>
@@ -256,15 +249,7 @@ export function KnowledgeSearchResults({
           ))}
         </div>
       )}
-      {documents.length === 0 ? (
-        !incomplete && (
-          <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-            {filtersActive
-              ? 'No documents match these filters.'
-              : `No documents you can read match “${query}”.`}
-          </p>
-        )
-      ) : (
+      {documents.length > 0 && (
         <div className='flex flex-col' onKeyDown={handleResultsKeyDown}>
           {documents.map((result) => {
             const source = toSource(result, query, scope)
