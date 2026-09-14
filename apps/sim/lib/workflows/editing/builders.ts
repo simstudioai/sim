@@ -20,11 +20,14 @@ import {
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
+  applySuppliedToolModes,
+  createToolCanonicalIndexResolver,
+} from '@/lib/workflows/editing/tool-modes'
+import {
   buildCanonicalIndex,
   buildDefaultCanonicalModes,
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
-import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -252,12 +255,17 @@ export function createBlockFromParams(
 
     if (validatedInputs) {
       updateCanonicalModesForInputs(blockState, Object.keys(validatedInputs), blockConfig)
-      const tools = blockState.subBlocks.tools?.value
-      if (params.type === 'agent' && Array.isArray(tools)) {
-        blockState.data = {
-          ...blockState.data,
-          canonicalModes: applyAgentToolUsageControlModes(tools, blockState.data?.canonicalModes),
-        }
+      const getCanonicalIndex = createToolCanonicalIndexResolver()
+      for (const subBlock of blockConfig.subBlocks) {
+        const tools = blockState.subBlocks[subBlock.id]?.value
+        if (subBlock.type !== 'tool-input' || !Array.isArray(tools)) continue
+        const result = applySuppliedToolModes({
+          tools,
+          canonicalModes: blockState.data?.canonicalModes,
+          getCanonicalIndex,
+          includePermissionMode: params.type === 'agent' && subBlock.id === 'tools',
+        })
+        blockState.data = { ...blockState.data, canonicalModes: result.canonicalModes }
       }
     }
   }

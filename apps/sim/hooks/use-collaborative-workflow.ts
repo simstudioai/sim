@@ -11,6 +11,8 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
+import type { ToolInputRef } from '@sim/realtime-protocol/schemas'
+import { isToolInputRefCurrent } from '@sim/realtime-protocol/tool-input'
 import { generateId } from '@sim/utils/id'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
@@ -249,6 +251,20 @@ export function useCollaborativeWorkflow() {
               useWorkflowStore.getState().setBlockRetry(payload.id, payload.retry)
               break
             case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE:
+              if (
+                payload.toolRef &&
+                !isToolInputRefCurrent(
+                  useSubBlockStore.getState().getValue(payload.id, payload.toolRef.subblockId),
+                  payload.canonicalId,
+                  payload.toolRef
+                )
+              ) {
+                logger.debug('Ignoring a tool mode whose tool this editor has moved or removed', {
+                  blockId: payload.id,
+                  canonicalId: payload.canonicalId,
+                })
+                break
+              }
               useWorkflowStore
                 .getState()
                 .setBlockCanonicalMode(payload.id, payload.canonicalId, payload.canonicalMode)
@@ -1352,8 +1368,17 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation]
   )
 
+  /**
+   * Sets one canonical mode. A tool-scoped key passes `toolRef` so the server can refuse the write
+   * when another editor has moved or removed that tool since this editor rendered it.
+   */
   const collaborativeSetBlockCanonicalMode = useCallback(
-    (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
+    (
+      id: string,
+      canonicalId: string,
+      canonicalMode: 'basic' | 'advanced',
+      toolRef?: ToolInputRef
+    ) => {
       if (isBaselineDiffView) {
         return
       }
@@ -1370,7 +1395,9 @@ export function useCollaborativeWorkflow() {
         operation: {
           operation: BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE,
           target: OPERATION_TARGETS.BLOCK,
-          payload: { id, canonicalId, canonicalMode },
+          payload: toolRef
+            ? { id, canonicalId, canonicalMode, toolRef }
+            : { id, canonicalId, canonicalMode },
         },
         workflowId: activeWorkflowId,
         userId: session?.user?.id || 'unknown',

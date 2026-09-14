@@ -16,6 +16,9 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight, Pencil, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import type { ToolInputRef } from '@sim/realtime-protocol/schemas'
+import { getToolInputIdentity } from '@sim/realtime-protocol/tool-input'
+import { filterUndefined } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
@@ -115,6 +118,16 @@ import {
 } from '@/tools/params-resolver'
 
 const logger = createLogger('ToolInput')
+
+/** Names the tool a tool-scoped mode toggle targets, so a write to a stale position is refused. */
+function buildToolInputRef(
+  subblockId: string,
+  toolIndex: number,
+  tool: StoredTool
+): ToolInputRef | undefined {
+  const identity = getToolInputIdentity(tool)
+  return identity ? { subblockId, toolIndex, identity } : undefined
+}
 
 const ADVANCED_MCP_SERVER_TOOL_SCHEMA: McpToolSchema = {
   type: 'object',
@@ -413,21 +426,17 @@ export const ToolInput = memo(function ToolInput({
       : []
 
   /**
-   * Commits a tool list that moves or drops selected tools. Their canonical-mode overrides are
-   * keyed by position, so when any must move they persist in the same operation as the list.
+   * Commits a tool list that moves or drops selected tools together with its canonical-mode
+   * overrides, which are keyed by position. The overrides persist in the same operation even when
+   * none of this editor's own need to move, so a tool-scoped mode another editor saved a moment
+   * earlier is replaced instead of left on a position its tool no longer holds.
    * `positionedTools` is the list holding the kept tool references when `nextTools` clones them.
    */
   const setToolsWithReindexedModes = useCallback(
     (nextTools: StoredTool[], positionedTools: StoredTool[] = nextTools) => {
-      const canonicalModes = reindexToolCanonicalModes(
-        selectedTools,
-        positionedTools,
-        canonicalModeOverrides
-      )
-      if (!canonicalModes) {
-        setStoreValue(nextTools)
-        return
-      }
+      const canonicalModes =
+        reindexToolCanonicalModes(selectedTools, positionedTools, canonicalModeOverrides) ??
+        (filterUndefined(canonicalModeOverrides ?? {}) as Record<string, 'basic' | 'advanced'>)
       collaborativeSetSubblockValueWithCanonicalModes(
         blockId,
         subBlockId,
@@ -438,7 +447,6 @@ export const ToolInput = memo(function ToolInput({
     [
       selectedTools,
       canonicalModeOverrides,
-      setStoreValue,
       collaborativeSetSubblockValueWithCanonicalModes,
       blockId,
       subBlockId,
@@ -1836,7 +1844,8 @@ export const ToolInput = memo(function ToolInput({
                           collaborativeSetBlockCanonicalMode(
                             blockId,
                             buildAgentToolUsageControlCanonicalKey(toolIndex),
-                            nextMode
+                            nextMode,
+                            buildToolInputRef(subBlockId, toolIndex, tool)
                           )
                         }}
                       />
@@ -1917,7 +1926,8 @@ export const ToolInput = memo(function ToolInput({
                                 collaborativeSetBlockCanonicalMode(
                                   blockId,
                                   `${toolIndex}:${canonicalId}`,
-                                  nextMode
+                                  nextMode,
+                                  buildToolInputRef(subBlockId, toolIndex, tool)
                                 )
                               },
                             }

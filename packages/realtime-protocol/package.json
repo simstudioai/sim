@@ -33,6 +33,10 @@
     "./table-presence": {
       "types": "./src/table-presence.ts",
       "default": "./src/table-presence.ts"
+    },
+    "./tool-input": {
+      "types": "./src/tool-input.ts",
+      "default": "./src/tool-input.ts"
     }
   },
   "scripts": {

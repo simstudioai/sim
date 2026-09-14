@@ -179,3 +179,59 @@ describe('workflow operation ACL', () => {
     })
   })
 })
+
+describe('tool-scoped canonical mode broadcast', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAssertMutable.mockResolvedValue(undefined)
+    mockAuthorizeWorkflow.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+  })
+
+  function toolModeToggle(operationId: string) {
+    return {
+      operationId,
+      operation: 'update-canonical-mode',
+      target: 'block',
+      timestamp: Date.now(),
+      payload: {
+        id: BLOCK_ID,
+        canonicalId: '1:agentToolUsageControl',
+        canonicalMode: 'advanced',
+        toolRef: { subblockId: 'tools', toolIndex: 1, identity: { type: 'jira' } },
+      },
+    }
+  }
+
+  it('confirms a stale toggle to its sender without broadcasting it', async () => {
+    mockPersist.mockResolvedValue({ applied: false })
+    const { socket, handlers, toEmit } = setup('sock-tool-mode-1', 'write')
+
+    await handlers['workflow-operation'](toolModeToggle('op-stale'))
+
+    expect(mockPersist).toHaveBeenCalledWith(
+      WORKFLOW_ID,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          toolRef: { subblockId: 'tools', toolIndex: 1, identity: { type: 'jira' } },
+        }),
+      })
+    )
+    expect(toEmit).not.toHaveBeenCalled()
+    expect(socket.emit).toHaveBeenCalledWith(
+      'operation-confirmed',
+      expect.objectContaining({ operationId: 'op-stale' })
+    )
+  })
+
+  it('broadcasts a toggle that applied', async () => {
+    mockPersist.mockResolvedValue({ applied: true })
+    const { handlers, toEmit } = setup('sock-tool-mode-2', 'write')
+
+    await handlers['workflow-operation'](toolModeToggle('op-applied'))
+
+    expect(toEmit).toHaveBeenCalledWith(
+      'workflow-operation',
+      expect.objectContaining({ operation: 'update-canonical-mode' })
+    )
+  })
+})

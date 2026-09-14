@@ -566,7 +566,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
       }
 
       // For non-position operations, persist first then broadcast
-      await persistWorkflowOperation(workflowId, {
+      const persisted = await persistWorkflowOperation(workflowId, {
         operation,
         target,
         payload,
@@ -576,21 +576,23 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
       await roomManager.updateRoomLastModified(wf(workflowId))
 
-      const broadcastData = {
-        operation,
-        target,
-        payload,
-        timestamp: operationTimestamp,
-        senderId: socket.id,
-        userId: session.userId,
-        userName: session.userName,
-        metadata: {
-          workflowId,
-          operationId: generateId(),
-        },
-      }
+      if (persisted?.applied !== false) {
+        const broadcastData = {
+          operation,
+          target,
+          payload,
+          timestamp: operationTimestamp,
+          senderId: socket.id,
+          userId: session.userId,
+          userName: session.userName,
+          metadata: {
+            workflowId,
+            operationId: generateId(),
+          },
+        }
 
-      socket.to(workflowId).emit('workflow-operation', broadcastData)
+        socket.to(workflowId).emit('workflow-operation', broadcastData)
+      }
 
       if (operationId) {
         socket.emit('operation-confirmed', {

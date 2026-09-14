@@ -2,10 +2,13 @@ import { createLogger } from '@sim/logger'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import {
+  applySuppliedToolModes,
+  createToolCanonicalIndexResolver,
+} from '@/lib/workflows/editing/tool-modes'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { reindexRewrittenToolCanonicalModes } from '@/lib/workflows/subblocks/visibility'
-import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { getBlock } from '@/blocks/registry'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
@@ -266,7 +269,7 @@ export function applyOperationsToWorkflowState(
     workflowState.blocks as Record<string, BlockState> | undefined,
     modifiedState.blocks as Record<string, BlockState> | undefined
   )
-  applyAgentToolUsageControlModesAfterEdits(
+  applySuppliedToolModesAfterEdits(
     workflowState.blocks as Record<string, BlockState> | undefined,
     modifiedState.blocks as Record<string, BlockState> | undefined
   )
@@ -342,26 +345,40 @@ function reindexToolCanonicalModesAfterEdits(
 }
 
 /**
- * An agent tool's Permission Mode follows the fields its rewritten entry supplies. Runs after
- * {@link reindexToolCanonicalModesAfterEdits} so each choice lands on its tool's final position
- * rather than being moved again as if it were keyed by the original list.
+ * Tool pair modes (nested basic/advanced params and an agent tool's Permission Mode) follow the
+ * side each rewritten tool entry supplies, and the side an entry left out is kept from the tool it
+ * replaced. Runs after {@link reindexToolCanonicalModesAfterEdits} so each choice lands on its
+ * tool's final position rather than being moved again as if it were keyed by the original list.
  */
-function applyAgentToolUsageControlModesAfterEdits(
+function applySuppliedToolModesAfterEdits(
   originalBlocks: Record<string, BlockState> | undefined,
   blocks: Record<string, BlockState> | undefined
 ): void {
+  const getCanonicalIndex = createToolCanonicalIndexResolver()
   for (const [blockId, block] of Object.entries(blocks ?? {})) {
-    if (block.type !== 'agent') continue
-    const tools = coerceObjectArray(block.subBlocks?.tools?.value).array
-    if (!tools) continue
-    const originalTools = coerceObjectArray(
-      originalBlocks?.[blockId]?.subBlocks?.tools?.value
-    ).array
-    if (originalTools && isEqual(originalTools, tools)) continue
+    const originalBlock = originalBlocks?.[blockId]
+    for (const subBlock of getBlock(block.type)?.subBlocks ?? []) {
+      if (subBlock.type !== 'tool-input') continue
+      const tools = coerceObjectArray(block.subBlocks?.[subBlock.id]?.value).array
+      if (!tools) continue
+      const originalTools =
+        originalBlock?.type === block.type
+          ? coerceObjectArray(originalBlock.subBlocks?.[subBlock.id]?.value).array
+          : null
+      if (originalTools && isEqual(originalTools, tools)) continue
 
-    block.data = {
-      ...block.data,
-      canonicalModes: applyAgentToolUsageControlModes(tools, block.data?.canonicalModes),
+      const result = applySuppliedToolModes({
+        tools,
+        originalTools: originalTools ?? undefined,
+        canonicalModes: block.data?.canonicalModes,
+        getCanonicalIndex,
+        includePermissionMode: block.type === 'agent' && subBlock.id === 'tools',
+      })
+      if (!isEqual(result.tools, tools)) {
+        const field = block.subBlocks[subBlock.id]
+        block.subBlocks[subBlock.id] = { ...field, value: result.tools as typeof field.value }
+      }
+      block.data = { ...block.data, canonicalModes: result.canonicalModes }
     }
   }
 }

@@ -451,20 +451,18 @@ function withoutExpandedState(tool: unknown): unknown {
 }
 
 /**
- * {@link reindexCanonicalModesByPosition} for a tool array rewritten from serialized input (the
- * workflow edit API and Chat), where object identity is gone. Each rewritten tool claims an
- * unclaimed old tool with the same content, then any tool still unmatched claims an unclaimed
- * old tool of the same `type`, so a tool whose params were edited in place keeps its modes. Each
- * pass tries the same position before any other, so unmoved tools and identical duplicates keep
- * their own overrides. A tool left unmatched is new, and an old tool left unmatched was removed.
+ * Matches a tool array rewritten from serialized input (the workflow edit API and Chat) to the
+ * list it replaced, where object identity is gone. Each rewritten tool claims an unclaimed old
+ * tool with the same content, then any tool still unmatched claims an unclaimed old tool of the
+ * same `type`, so a tool whose params were edited in place still matches. Each pass tries the same
+ * position before any other, so unmoved tools and identical duplicates keep their own match. A
+ * tool left unmatched is new, and an old tool left unmatched was removed. Returns each matched old
+ * index's new index.
  */
-export function reindexRewrittenToolCanonicalModes(
+export function matchRewrittenTools(
   oldTools: readonly unknown[],
-  newTools: readonly unknown[],
-  overrides: CanonicalModeOverrides | undefined
-): Record<string, 'basic' | 'advanced'> | undefined {
-  if (!overrides) return undefined
-
+  newTools: readonly unknown[]
+): Map<number, number> {
   const oldContents = oldTools.map(withoutExpandedState)
   const newContents = newTools.map(withoutExpandedState)
   const newIndexByOldIndex = new Map<number, number>()
@@ -490,7 +488,20 @@ export function reindexRewrittenToolCanonicalModes(
       })
     }
   }
-  return reindexCanonicalModesByPosition(newIndexByOldIndex, overrides)
+  return newIndexByOldIndex
+}
+
+/**
+ * {@link reindexCanonicalModesByPosition} for a tool array rewritten from serialized input, using
+ * {@link matchRewrittenTools} to find where each tool now sits.
+ */
+export function reindexRewrittenToolCanonicalModes(
+  oldTools: readonly unknown[],
+  newTools: readonly unknown[],
+  overrides: CanonicalModeOverrides | undefined
+): Record<string, 'basic' | 'advanced'> | undefined {
+  if (!overrides) return undefined
+  return reindexCanonicalModesByPosition(matchRewrittenTools(oldTools, newTools), overrides)
 }
 
 /**

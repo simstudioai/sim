@@ -1382,4 +1382,46 @@ describe('tool canonical-mode reindexing', () => {
       '0:agentToolUsageControl': 'advanced',
     })
   })
+
+  it('switches a nested pair to the side an edit supplies and keeps the side it leaves out', () => {
+    const bothSides = { ...selectorTool, params: { projectId: 'PROJ', manualProjectId: 'MANUAL' } }
+    const workflow = agentWithTools([bothSides], {})
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent',
+        params: { inputs: { tools: [{ ...selectorTool, params: { manualProjectId: 'NEW' } }] } },
+      },
+    ])
+
+    expect(state.blocks.agent.data.canonicalModes).toEqual({ '0:projectId': 'advanced' })
+    expect(state.blocks.agent.subBlocks.tools.value[0].params).toEqual({
+      projectId: 'PROJ',
+      manualProjectId: 'NEW',
+    })
+  })
+
+  it('keeps the fixed Permission Mode an edit leaves out when it switches to a variable', () => {
+    const workflow = agentWithTools([{ ...selectorTool, usageControl: 'none' }], {})
+    const variableOnly = {
+      type: 'jira',
+      operation: 'jira_get_issue',
+      title: 'Selector',
+      params: { projectId: 'PROJ' },
+      usageControlExpression: '<start.toolMode>',
+    }
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'agent', params: { inputs: { tools: [variableOnly] } } },
+    ])
+
+    expect(state.blocks.agent.data.canonicalModes).toEqual({
+      '0:agentToolUsageControl': 'advanced',
+    })
+    expect(state.blocks.agent.subBlocks.tools.value[0]).toMatchObject({
+      usageControl: 'none',
+      usageControlExpression: '<start.toolMode>',
+    })
+  })
 })

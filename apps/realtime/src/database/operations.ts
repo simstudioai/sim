@@ -23,6 +23,8 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
+import { isToolInputRefCurrent } from '@sim/realtime-protocol/tool-input'
+import { isRecordLike } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
@@ -374,7 +376,15 @@ export async function getWorkflowState(workflowId: string) {
   }
 }
 
-export async function persistWorkflowOperation(workflowId: string, operation: any) {
+export interface PersistWorkflowOperationResult {
+  /** False when the operation was a stale no-op that must not be broadcast to other editors. */
+  applied: boolean
+}
+
+export async function persistWorkflowOperation(
+  workflowId: string,
+  operation: any
+): Promise<PersistWorkflowOperationResult> {
   const startTime = Date.now()
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
@@ -392,6 +402,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
       })
     }
 
+    let applied = true
     await db.transaction(async (tx) => {
       // This UPDATE is also this workflow's write-serialization point, not
       // just a timestamp bump: it takes a row lock on `workflow` for the
@@ -408,9 +419,11 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         .where(eq(workflow.id, workflowId))
 
       switch (target) {
-        case OPERATION_TARGETS.BLOCK:
-          await handleBlockOperationTx(tx, workflowId, op, payload)
+        case OPERATION_TARGETS.BLOCK: {
+          const result = await handleBlockOperationTx(tx, workflowId, op, payload)
+          applied = result?.applied ?? true
           break
+        }
         case OPERATION_TARGETS.BLOCKS:
           await handleBlocksOperationTx(tx, workflowId, op, payload)
           break
@@ -457,6 +470,8 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
         workflowId: `${workflowId.substring(0, 8)}...`,
       })
     }
+
+    return { applied }
   } catch (error) {
     const duration = Date.now() - startTime
     logger.error(
@@ -504,12 +519,17 @@ async function auditWorkflowLockToggle(workflowId: string, actorId: string): Pro
   })
 }
 
+function getSubBlockValue(subBlocks: unknown, subblockId: string): unknown {
+  const subBlock = isRecordLike(subBlocks) ? subBlocks[subblockId] : undefined
+  return isRecordLike(subBlock) ? subBlock.value : undefined
+}
+
 async function handleBlockOperationTx(
   tx: any,
   workflowId: string,
   operation: string,
   payload: any
-) {
+): Promise<PersistWorkflowOperationResult | undefined> {
   switch (operation) {
     case BLOCK_OPERATIONS.UPDATE_POSITION: {
       if (!payload.id || !payload.position) {
@@ -782,10 +802,24 @@ async function handleBlockOperationTx(
       }
 
       const existingBlock = await tx
-        .select({ data: workflowBlocks.data })
+        .select({ data: workflowBlocks.data, subBlocks: workflowBlocks.subBlocks })
         .from(workflowBlocks)
         .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
         .limit(1)
+
+      if (
+        payload.toolRef &&
+        !isToolInputRefCurrent(
+          getSubBlockValue(existingBlock?.[0]?.subBlocks, payload.toolRef.subblockId),
+          payload.canonicalId,
+          payload.toolRef
+        )
+      ) {
+        logger.debug(
+          `Skipped stale tool canonical mode: ${payload.id} -> ${payload.canonicalId}: ${payload.canonicalMode}`
+        )
+        return { applied: false }
+      }
 
       const currentData = (existingBlock?.[0]?.data as Record<string, unknown>) || {}
       const currentCanonicalModes = (currentData.canonicalModes as Record<string, unknown>) || {}

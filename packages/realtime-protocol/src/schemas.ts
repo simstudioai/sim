@@ -38,6 +38,20 @@ const AutoConnectEdgeSchema = z.object({
 
 const CanonicalModeSchema = z.enum(['basic', 'advanced'])
 
+/**
+ * Names the `tool-input` entry a tool-scoped canonical mode was set for. Those mode keys are
+ * positional (`${toolIndex}:${canonicalId}`), so the server applies the write only while that
+ * position still holds the same tool, and drops it when another editor's reorder or removal
+ * persisted first.
+ */
+export const ToolInputRefSchema = z.object({
+  subblockId: z.string().min(1),
+  toolIndex: z.number().int().nonnegative(),
+  identity: z.record(z.string(), z.string()),
+})
+
+export type ToolInputRef = z.infer<typeof ToolInputRefSchema>
+
 export const BlockOperationSchema = z.object({
   operation: z.enum([
     BLOCK_OPERATIONS.UPDATE_POSITION,
@@ -70,6 +84,7 @@ export const BlockOperationSchema = z.object({
     horizontalHandles: z.boolean().optional(),
     canonicalId: z.string().optional(),
     canonicalMode: CanonicalModeSchema.optional(),
+    toolRef: ToolInputRefSchema.optional(),
     triggerMode: z.boolean().optional(),
     height: z.number().optional(),
   }),
