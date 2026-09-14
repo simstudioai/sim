@@ -24,16 +24,18 @@ export const POST = defineInternalJsonRoute({
     filters: body.filters,
     query: body.query,
     topK: body.topK,
+    allowPartialResults: true,
     surface: 'dashboard' as const,
     signal: request.signal,
   }),
   useCase: searchScopedKnowledge,
-  present: ({ results, knowledgeBases }, { input }) => {
+  present: ({ results, knowledgeBases, retrieval }, { input }) => {
     const knowledgeBaseNames = new Map(knowledgeBases.map((kb) => [kb.id, kb.name]))
     return {
       success: true as const,
       data: {
         query: input.query ?? '',
+        retrieval,
         results: results.map((result) => ({
           documentId: result.documentId,
           knowledgeBaseId: result.knowledgeBaseId,

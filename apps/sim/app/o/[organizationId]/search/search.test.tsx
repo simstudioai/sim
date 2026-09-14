@@ -90,7 +90,12 @@ beforeEach(() => {
       chunkIndex: 0,
       similarity: 1,
     }
-    return { data: [result], isPending: false, isFetching: false, isError: false }
+    return {
+      data: { query, results: [result], retrieval: { status: 'complete', timedOutLegs: [] } },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+    }
   })
   container = document.createElement('div')
   document.body.appendChild(container)

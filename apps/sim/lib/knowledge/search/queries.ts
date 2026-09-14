@@ -793,10 +793,10 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 }
 
 /**
- * Keep broad candidate visibility correlated with the compact vector scan. Flattening
- * the document join can make PostgreSQL prefer sorting every vector (whose
- * TOAST reads it undercosts) before checking access. OFFSET 0 keeps that
- * visibility check inside the scan, before LIMIT. Binary candidates are reranked
+ * A lateral document lookup lets PostgreSQL memoize visibility per document while
+ * walking the compact index, instead of repeating source ACL checks for every chunk.
+ * OFFSET 0 preserves the parameterized lookup before LIMIT; flattening the join can
+ * make the planner sort the whole corpus instead. Binary candidates are reranked
  * by cosine distance before relevance filtering or live source authorization;
  * full vectors and content are never loaded while traversing inaccessible neighbors.
  * Small scopes and underfilled approximate pages use exact ranking, so selective
@@ -873,28 +873,30 @@ async function selectLiveVectorResults(
         return exactPage(probe.map((candidate) => candidate.id))
       }
       if (useExactRanking) return exactPage()
+      annotateSearchDiagnostics({
+        vectorRanking: 'binary-rerank',
+        vectorCandidateLimit: candidateLimit,
+      })
       const identities = await withVectorScanSettings(
         (executor) =>
           executor
             .select({ id: embedding.id })
             .from(embedding)
-            .where(
-              and(
-                inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds),
-                sql`EXISTS (
-            SELECT 1 FROM ${document}
-            WHERE ${and(eq(document.id, embedding.documentId), ...visibility)}
-            OFFSET 0
-          )`
-              )
+            .innerJoin(
+              sql`LATERAL (
+                SELECT 1 FROM ${document}
+                WHERE ${and(eq(document.id, embedding.documentId), ...visibility)}
+                OFFSET 0
+              ) AS visible_document`,
+              sql`true`
             )
+            .where(inArray(embedding.knowledgeBaseId, params.knowledgeBaseIds))
             .orderBy(candidateDistance)
             .limit(candidateLimit),
         params.budget,
         'binary'
       )
       annotateSearchDiagnostics({
-        vectorRanking: 'binary-rerank',
         vectorCandidateCount: identities.length,
       })
       if (!identities.length) return exactPage()

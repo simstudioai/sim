@@ -553,7 +553,10 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(dbChainMockFns.limit.mock.invocationCallOrder[1]).toBeLessThan(
       dbChainMockFns.select.mock.invocationCallOrder[2]
     )
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls[1][0])).toContain('OFFSET 0')
+    const visibilityJoin = render(dbChainMockFns.innerJoin.mock.calls[1][0])
+    expect(visibilityJoin.sql).toContain('LATERAL')
+    expect(visibilityJoin.sql).toContain('OFFSET 0')
+    expect(JSON.stringify(dbChainMockFns.innerJoin.mock.calls[1][0])).toContain('required_clause')
     expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
     expect(JSON.stringify(dbChainMockFns.where.mock.calls[3][0])).toContain('github_read_grant')
   })

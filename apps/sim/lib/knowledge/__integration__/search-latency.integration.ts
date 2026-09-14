@@ -17,8 +17,11 @@ import {
 import { createLogger, Logger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
+import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/knowledge/search'
+import { internalSessionAuth } from '@/lib/api/server/routes'
 import type {
   MothershipStreamV1CheckpointPausePayload,
   MothershipStreamV1ToolCallDescriptor,
@@ -41,6 +44,7 @@ import {
 } from '@/lib/knowledge/search/budget'
 import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import { POST as searchRoute } from '@/app/api/knowledge/search/route'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Initialize controlled provider configuration before the real application modules load. */
@@ -527,6 +531,60 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         report['deadline.partial'] = { resultCount: parsed.data.results.length }
       } finally {
         delayed.mockRestore()
+      }
+    },
+    30_000
+  )
+
+  it.each(['vector', 'both'] as const)(
+    'returns incomplete dashboard coverage when %s SQL branches exceed their deadline',
+    async (delayedLegs) => {
+      const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
+        kind: 'session',
+        userId: ids.aliceId,
+        sessionId: 'fixture-dashboard',
+      })
+      const query = SearchBudget.prototype.query
+      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
+        this: SearchBudget,
+        stage: SearchStage,
+        run: (executor: SearchExecutor) => PromiseLike<T>
+      ): Promise<T> {
+        return query.call(this, stage, async (tx) => {
+          if (delayedLegs === 'both' || this.leg === 'vector')
+            await tx.execute(sql`SELECT pg_sleep(9)`)
+          return run(tx)
+        }) as Promise<T>
+      })
+      try {
+        const response = await searchRoute(
+          new NextRequest('http://localhost/api/knowledge/search', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              workspaceId: ids.workspaceId,
+              query: 'Orion deployment',
+              topK: 15,
+            }),
+          })
+        )
+        expect(response.status).toBe(200)
+        const data = workspaceKnowledgeSearchDataSchema.parse((await response.json()).data)
+        expect(data.retrieval).toEqual({
+          status: 'partial',
+          timedOutLegs: delayedLegs === 'both' ? ['vector', 'keyword'] : ['vector'],
+        })
+        if (delayedLegs === 'both') expect(data.results).toEqual([])
+        else {
+          expect(data.results.length).toBeGreaterThan(0)
+          expect(
+            data.results.every((result) => result.knowledgeBaseId === ids.knowledgeBaseId)
+          ).toBe(true)
+        }
+        report[`dashboard.deadline.${delayedLegs}`] = { resultCount: data.results.length }
+      } finally {
+        delayed.mockRestore()
+        authenticate.mockRestore()
       }
     },
     30_000

@@ -132,12 +132,17 @@ describe('knowledge query placeholder scope', () => {
   })
 
   it('forwards search cancellation and leaves provider retries to the server', async () => {
-    mocks.requestJson.mockResolvedValueOnce({ data: { results: [] } })
+    const data = {
+      query: 'query',
+      results: [],
+      retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+    }
+    mocks.requestJson.mockResolvedValueOnce({ data })
     const query = captureQuery(() =>
       useWorkspaceKnowledgeSearch('workspace-1', ' query ', { source: 'slack' })
     )
     const controller = new AbortController()
-    await query.queryFn({ signal: controller.signal })
+    await expect(query.queryFn({ signal: controller.signal })).resolves.toEqual(data)
 
     expect(query.retry).toBe(false)
     expect(mocks.requestJson).toHaveBeenLastCalledWith(

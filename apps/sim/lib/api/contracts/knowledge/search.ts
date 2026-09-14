@@ -186,6 +186,16 @@ export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema.safeExtend
 })
 export type WorkspaceKnowledgeSearchBody = z.input<typeof workspaceKnowledgeSearchBodySchema>
 
+export const workspaceKnowledgeSearchDataSchema = z.object({
+  query: z.string(),
+  results: z.array(workspaceKnowledgeSearchResultSchema),
+  retrieval: z.object({
+    status: z.enum(['complete', 'partial']),
+    timedOutLegs: z.array(z.enum(['vector', 'keyword', 'tags'])).max(3),
+  }),
+})
+export type WorkspaceKnowledgeSearchData = z.output<typeof workspaceKnowledgeSearchDataSchema>
+
 /**
  * The search a signed-in person runs from the composer: what their own
  * account may read across the workspace's knowledge bases, presented as
@@ -199,10 +209,7 @@ export const searchWorkspaceKnowledgeContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      data: z.object({
-        query: z.string(),
-        results: z.array(workspaceKnowledgeSearchResultSchema),
-      }),
+      data: workspaceKnowledgeSearchDataSchema,
     }),
   },
 })
