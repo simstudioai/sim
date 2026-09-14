@@ -1335,6 +1335,8 @@ function consumeResolvedSecretNames(
     return false
   }
 
+  if (names.length === 0) return true
+
   const envVars = params.envVars
   if (!envVars || typeof envVars !== 'object' || Array.isArray(envVars)) {
     return false

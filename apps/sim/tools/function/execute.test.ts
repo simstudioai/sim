@@ -2,14 +2,54 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { functionExecuteBodySchema } from '@/lib/api/contracts/hotspots'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
+import { createLLMToolSchema, createUserToolSchema } from '@/tools/params'
 
 describe('Function Execute Tool', () => {
+  it.each(['default', 'copilot'] as const)(
+    'advertises secret-name arrays accepted by the Function boundary on %s',
+    (surface) => {
+      const schema = createUserToolSchema(functionExecuteTool, { surface })
+      expect(schema.properties.mountedSecrets).toMatchObject({
+        type: 'array',
+        items: { type: 'string' },
+      })
+      expect(schema.required).not.toContain('mountedSecrets')
+
+      for (const mountedSecrets of [undefined, [], ['SERVICE_TOKEN']]) {
+        const body = functionExecuteTool.operation.input({
+          code: 'return 1',
+          secretScope: 'selected',
+          mountedSecrets,
+        })
+        const parsed = functionExecuteBodySchema.parse(body)
+        expect(parsed.secretScope).toBe('selected')
+        expect(parsed.mountedSecrets).toEqual(mountedSecrets)
+      }
+      for (const mountedSecrets of [{}, [1]]) {
+        expect(
+          functionExecuteBodySchema.safeParse({ code: 'return 1', mountedSecrets }).success
+        ).toBe(false)
+      }
+    }
+  )
+
+  it('keeps mounted secret names under author control for Agent tool calls', async () => {
+    const { schema, modelBlockedParams } = await createLLMToolSchema(functionExecuteTool, {
+      secretScope: 'selected',
+      mountedSecrets: ['SERVICE_TOKEN'],
+    })
+    expect(schema.properties).not.toHaveProperty('mountedSecrets')
+    expect(schema.properties).not.toHaveProperty('secretScope')
+    expect(modelBlockedParams).toEqual(expect.arrayContaining(['secretScope', 'mountedSecrets']))
+  })
+
   it('declares an in-process operation without HTTP-shaped configuration', () => {
     expect(functionExecuteTool.operation).toBeDefined()
     expect('request' in functionExecuteTool).toBe(false)

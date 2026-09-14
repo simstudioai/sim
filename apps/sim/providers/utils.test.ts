@@ -11,9 +11,13 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
   readWorkflowMetadataForTool: workflowMetadataMocks.readWorkflowMetadataForTool,
 }))
 
+import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
+import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
+import { normalizeFileInput } from '@/blocks/utils'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
 import type { ProviderToolConfig } from '@/providers/types'
 import {
+  buildBlockToolParamsTransform,
   calculateCost,
   describeModelLevel,
   extractAndParseJSON,
@@ -59,6 +63,9 @@ import {
   updateOllamaProviderModels,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
+import { falaiVideoTool } from '@/tools/video/falai'
+import { runwayVideoTool } from '@/tools/video/runway'
 
 const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
@@ -2203,6 +2210,155 @@ describe('isGemini3Model', () => {
     'vertex/publishers/another-provider/models/gemini-3.8-flash',
   ])('does not infer Gemini 3 behavior from %s', (model) => {
     expect(isGemini3Model(model)).toBe(false)
+  })
+})
+
+describe('transformBlockTool configured selectors', () => {
+  it.each([
+    { apiKey: 'test-revenuecat-key' },
+    { apiKey: 'test-revenuecat-key', appUserId: 'customer-1' },
+  ])(
+    'preserves the default operation with credentials but no configured selector',
+    async (params) => {
+      const result = await transformBlockTool(
+        { type: 'revenuecat', params },
+        {
+          getAllBlocks: () => [RevenueCatBlock],
+          getTool: (id) =>
+            id === 'revenuecat_get_customer' ? revenuecatGetCustomerTool : undefined,
+        }
+      )
+      expect(result?.id).toBe('revenuecat_get_customer')
+      expect(result?.params).toEqual(params)
+    }
+  )
+
+  it('selects the configured video provider without an operation', async () => {
+    const result = await transformBlockTool(
+      { type: 'video_generator_v3', params: { provider: 'falai', model: 'veo-3.1-fast' } },
+      {
+        getAllBlocks: () => [VideoGeneratorV3Block],
+        getTool: (id) => (id === 'video_falai' ? falaiVideoTool : runwayVideoTool),
+      }
+    )
+
+    expect(result?.id).toBe('video_falai')
+    expect(result?.parameters?.properties).not.toHaveProperty('visualReference')
+    const prepared = prepareToolExecution(
+      result!,
+      { prompt: 'A paper boat', provider: 'runway', model: 'gen-4-turbo' },
+      {},
+      'call-video'
+    )
+    expect(prepared.toolParams).toMatchObject({
+      provider: 'falai',
+      model: 'veo-3.1-fast',
+      prompt: 'A paper boat',
+    })
+  })
+
+  it.each(['unsupported', 'throws'])(
+    'does not substitute the first tool for an invalid configured provider (%s)',
+    async (failure) => {
+      const getTool = vi.fn()
+      const result = await transformBlockTool(
+        { type: 'fixture', params: { provider: 'unavailable-provider' } },
+        {
+          getAllBlocks: () => [
+            {
+              type: 'fixture',
+              subBlocks: [],
+              tools: {
+                access: ['fixture_read', 'fixture_write'],
+                config: {
+                  tool: () => {
+                    if (failure === 'throws') throw new Error('Invalid provider')
+                    return 'fixture_not_declared'
+                  },
+                },
+              },
+            },
+          ],
+          getTool,
+        }
+      )
+      expect(result).toBeNull()
+      expect(getTool).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { params: {}, selectedOperation: undefined, expected: 'fixture_read' },
+    { params: { operation: 'write' }, selectedOperation: undefined, expected: 'fixture_write' },
+    { params: { operation: 'write' }, selectedOperation: 'read', expected: 'fixture_read' },
+  ])(
+    'retains operation precedence and unconfigured defaults: $expected',
+    async ({ params, selectedOperation, expected }) => {
+      const result = await transformBlockTool(
+        { type: 'fixture', params },
+        {
+          selectedOperation,
+          getAllBlocks: () => [
+            {
+              type: 'fixture',
+              subBlocks: [],
+              tools: {
+                access: ['fixture_read', 'fixture_write'],
+                config: {
+                  tool: (values: Record<string, unknown>) => `fixture_${values.operation}`,
+                },
+              },
+            },
+          ],
+          getTool: (id) => ({ id, name: id, description: id, params: {} }),
+        }
+      )
+
+      expect(result?.id).toBe(expected)
+    }
+  )
+})
+
+describe('block tool file reference normalization', () => {
+  const transform = (single: boolean, omitFile = false) =>
+    buildBlockToolParamsTransform({
+      blockSubBlocks: [],
+      blockParamsFn: (params) => ({
+        files: omitFile
+          ? undefined
+          : single
+            ? normalizeFileInput(params.files, { single: true })
+            : normalizeFileInput(params.files),
+      }),
+      blockInputDefs: undefined,
+      toolParams: { files: { type: single ? 'file' : 'file[]' }, note: { type: 'string' } },
+      canonicalGroups: [],
+      scopedCanonicalModes: undefined,
+    }).paramsTransform!
+
+  it.each([
+    { value: 'wf_first', expected: [{ id: 'wf_first' }] },
+    { value: ['wf_first', 'wf_second'], expected: [{ id: 'wf_first' }, { id: 'wf_second' }] },
+    { value: '["wf_first","wf_second"]', expected: [{ id: 'wf_first' }, { id: 'wf_second' }] },
+  ])(
+    'normalizes scalar, array, and stored JSON file references before the mapper',
+    ({ value, expected }) => {
+      expect(transform(false)({ files: value, note: 'literal text' })).toEqual({
+        files: expected,
+        note: 'literal text',
+      })
+    }
+  )
+
+  it('preserves existing file objects and single-file cardinality checks', () => {
+    const file = { id: 'wf_first', name: 'one.png', url: '/one.png', key: 'workspace/one.png' }
+    expect(transform(true)({ files: file }).files).toBe(file)
+    expect(transform(true)({ files: ['wf_first'] }).files).toEqual({ id: 'wf_first' })
+    expect(() => transform(true)({ files: ['wf_first', 'wf_second'] })).toThrow()
+  })
+
+  it('retains an intentional conditional omission from the mapper', () => {
+    expect(transform(true, true)({ files: 'wf_first' })).toHaveProperty('files', undefined)
   })
 })
 

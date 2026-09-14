@@ -106,7 +106,8 @@ function isContainerBlockType(blockType: string): blockType is 'loop' | 'paralle
 export function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
-  blockId: string
+  blockId: string,
+  existingValues: Record<string, unknown> = {}
 ): ValidationResult {
   const errors: ValidationError[] = []
 
@@ -163,11 +164,13 @@ export function validateInputsForBlock(
   }
 
   const validatedInputs: Record<string, any> = {}
-  const subBlockMap = new Map<string, SubBlockConfig>()
+  const subBlockMap = new Map<string, SubBlockConfig[]>()
+  const conditionValues = { ...existingValues, ...inputs }
 
-  // Build map of subBlock id -> config
   for (const subBlock of blockConfig.subBlocks) {
-    subBlockMap.set(subBlock.id, subBlock)
+    const variants = subBlockMap.get(subBlock.id) ?? []
+    variants.push(subBlock)
+    subBlockMap.set(subBlock.id, variants)
   }
 
   for (const [key, value] of Object.entries(inputs)) {
@@ -176,7 +179,15 @@ export function validateInputsForBlock(
       continue
     }
 
-    const subBlockConfig = subBlockMap.get(key)
+    const variants = subBlockMap.get(key)
+    let subBlockConfig = variants?.at(-1)
+    if (variants && variants.length > 1) {
+      for (const variant of variants) {
+        if (evaluateSubBlockCondition(variant.condition, conditionValues)) {
+          subBlockConfig = variant
+        }
+      }
+    }
 
     // If subBlock doesn't exist in config, report it rather than dropping it
     if (!subBlockConfig) {
@@ -214,10 +225,11 @@ export function validateInputsForBlock(
       continue
     }
 
-    // Note: We do NOT check subBlockConfig.condition here.
-    // Conditions are for UI display logic (show/hide fields in the editor).
-    // For API/Copilot, any valid field in the block schema should be accepted.
-    // The runtime will use the relevant fields based on the actual operation.
+    /**
+     * Conditions choose the schema when an ID has multiple declarations. Keep
+     * accepting dormant fields: if no variant matches, use the existing last
+     * declaration fallback. Missing selector values are not inferred defaults.
+     */
 
     // Validate value based on subBlock type
     const validationResult = validateValueForSubBlockType(
@@ -1528,7 +1540,10 @@ export async function collectUnresolvedAgentToolReferences(
         } else if (entry.type === 'custom-tool' && !entry.schema) {
           kind = 'custom-tool'
           value = entry.customToolId
-        } else if ((entry.type === 'mcp' || entry.type === MCP_SERVER_ADVANCED_TOOL_TYPE) && isPlainRecord(entry.params)) {
+        } else if (
+          (entry.type === 'mcp' || entry.type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
+          isPlainRecord(entry.params)
+        ) {
           kind = 'mcp-tool'
           value = entry.params.serverId
         } else continue

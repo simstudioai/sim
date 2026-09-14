@@ -11,6 +11,7 @@ import {
   normalizeStringRecord,
   normalizeWorkflowVariables,
 } from '@/lib/core/utils/records'
+import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import type { CustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { isFileFieldType, type WorkflowInputField } from '@/lib/workflows/input-format'
 import {
@@ -650,6 +651,17 @@ export function buildBlockToolParamsTransform(config: {
 
         result = decodeToolParams(result, paramShapes, blockSubBlocks ?? [])
 
+        /** Use the executor's partial reference shape before upload-oriented block mappers. */
+        const toFileReference = (value: unknown) =>
+          typeof value === 'string' && value.length > 0 ? { id: value } : value
+        for (const [key, param] of Object.entries(toolParams ?? {})) {
+          if ((param.type === 'file' || param.type === 'file[]') && result[key] != null) {
+            result[key] = Array.isArray(result[key])
+              ? result[key].map(toFileReference)
+              : toFileReference(result[key])
+          }
+        }
+
         if (blockParamsFn) {
           const transformed = blockParamsFn(result)
           result = { ...result, ...transformed }
@@ -843,12 +855,27 @@ export async function transformBlockTool(
   let toolId: string | null = null
 
   if ((blockDef.tools?.access?.length || 0) > 1) {
-    if (selectedOperation && blockDef.tools?.config?.tool) {
+    const hasOperationSelector = blockDef.subBlocks?.some(
+      (subBlock: SubBlockConfig) => subBlock.id === OPERATION_SUBBLOCK_ID
+    )
+    if (
+      blockDef.tools?.config?.tool &&
+      (selectedOperation ||
+        block.params?.operation ||
+        (!hasOperationSelector && Object.keys(block.params ?? {}).length > 0))
+    ) {
       try {
         toolId = blockDef.tools.config.tool({
           ...block.params,
-          operation: selectedOperation,
+          ...(selectedOperation ? { operation: selectedOperation } : {}),
         })
+        if (!blockDef.tools.access.includes(toolId)) {
+          logger.warn('Block selector returned an unavailable tool', {
+            blockType: block.type,
+            toolId,
+          })
+          return null
+        }
       } catch (error) {
         logger.error('Error selecting tool for block', {
           blockType: block.type,

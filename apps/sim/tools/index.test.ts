@@ -27,25 +27,28 @@ import {
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
-import { buildFunctionExecuteBody } from '@/tools/function/execute'
+import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
+import { runwayVideoTool } from '@/tools/video/runway'
 import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
 
@@ -2426,6 +2429,122 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
+  it.each([200, 400, 422])(
+    'preserves a generic Function response with empty provenance and omitted envVars (HTTP %i)',
+    async (status) => {
+      const registry = new ResolvedSecretTraceRegistry()
+      const originalTool = tools.function_execute
+      tools.function_execute = functionExecuteTool
+      const error = 'ValueError: expected one input image'
+      mockExecuteFunction.mockResolvedValueOnce(
+        Response.json(
+          {
+            success: status === 200,
+            ...(status === 200 ? {} : { error }),
+            output: { result: status === 200 ? { width: 160 } : null, stdout: '', files: [] },
+            __resolvedSecretNames: [],
+          },
+          {
+            status,
+            headers: {
+              'x-sim-private-tool-metadata': 'resolved-secret-names-durable-files-v2',
+            },
+          }
+        )
+      )
+
+      try {
+        const result = await executeTool(
+          'function_execute',
+          { code: '__sim_result__ = {"width": 160}', language: 'python' },
+          {
+            operationContext: {
+              userId: 'user-1',
+              workspaceId: 'workspace-456',
+              workflowId: '',
+              copilotToolExecution: true,
+            },
+            resolvedSecretTraceRegistry: registry,
+          }
+        )
+
+        const request = mockExecuteFunction.mock.calls[0]?.[0]
+        expect(request.input.body.envVars).toEqual({})
+        expect(request.input.headers.get('x-sim-request-private-tool-metadata')).toBe(
+          'resolved-secret-names-durable-files-v2'
+        )
+        expect(request.principal).toMatchObject({ kind: 'delegated', serviceId: 'copilot' })
+        expect(result).toMatchObject(
+          status === 200
+            ? { success: true, output: { result: { width: 160 }, files: [] } }
+            : { success: false, error }
+        )
+        expect(JSON.stringify(result)).not.toContain('__resolvedSecretNames')
+        expect(registry.isComplete()).toBe(true)
+        expect(registry.getActiveMatches()).toEqual([])
+        expect(mockMarkWorkspaceFileSecretProvenanceUnknown).not.toHaveBeenCalled()
+        expect(global.fetch).not.toHaveBeenCalled()
+      } finally {
+        tools.function_execute = originalTool
+      }
+    }
+  )
+
+  it.each([
+    { label: 'missing environment map', names: ['API_KEY'], envVars: undefined },
+    { label: 'missing named secret', names: ['API_KEY'], envVars: {} },
+    {
+      label: 'different named secret',
+      names: ['OTHER_KEY'],
+      envVars: { API_KEY: 'catalog-secret' },
+    },
+    { label: 'different secret value', names: ['API_KEY'], envVars: { API_KEY: 'wrong-secret' } },
+    { label: 'corrupt name list', names: {}, envVars: undefined },
+    { label: 'non-string name', names: [42], envVars: undefined },
+    { label: 'missing name list', names: undefined, envVars: undefined },
+    {
+      label: 'wrong capability',
+      names: [],
+      envVars: undefined,
+      marker: 'resolved-secret-provenance-v1',
+    },
+    { label: 'missing capability', names: [], envVars: undefined, marker: '' },
+  ])('rejects unverified Function provenance: $label', async ({ names, envVars, marker }) => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'catalog-secret', encryptedValue: 'encrypted-value' },
+    ])
+    mockExecuteFunction.mockResolvedValueOnce(
+      Response.json(
+        { success: true, output: { result: 'untrusted result' }, __resolvedSecretNames: names },
+        {
+          headers:
+            marker === ''
+              ? {}
+              : {
+                  'x-sim-private-tool-metadata': marker ?? 'resolved-secret-names-durable-files-v2',
+                },
+        }
+      )
+    )
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return "result"', ...(envVars === undefined ? {} : { envVars }) },
+      {
+        executionContext: createToolExecutionContext({ userId: 'user-1' }),
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Internal tool response metadata could not be verified',
+    })
+    expect(JSON.stringify(result)).not.toContain('untrusted result')
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretNames')
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
   it('strips private metadata even when an internal endpoint returns the wrong marker', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     mockExecuteFunction.mockResolvedValueOnce(
@@ -4650,6 +4769,87 @@ describe('File Parameter Normalization', () => {
     cleanupEnvVars()
   })
 
+  it.each(['execution', 'workspace', 'missing'] as const)(
+    'preserves an Agent file ID through the real video mapper and scoped hydration (%s)',
+    async (source) => {
+      const file = {
+        id: source === 'execution' ? 'file_1700000000_abc' : 'wf_reference',
+        name: 'reference.png',
+        url: '/api/files/reference.png',
+        size: 512,
+        type: 'image/png',
+        key: `${source}/workspace-456/reference.png`,
+        context: source === 'execution' ? 'execution' : 'workspace',
+      }
+      const context = createToolExecutionContext({ userId: 'user-1' })
+      if (source === 'execution') context.executionFilesById = new Map([[file.id, file]])
+      mockResolveWorkspaceFileReference.mockResolvedValue(
+        source === 'workspace' ? { ...file, path: file.url } : null
+      )
+      const originalTool = tools.video_runway
+      tools.video_runway = runwayVideoTool
+
+      try {
+        const providerTool = await transformBlockTool(
+          {
+            type: 'video_generator_v3',
+            params: { provider: 'runway', apiKey: 'test-runway-key' },
+          },
+          {
+            getAllBlocks: () => [VideoGeneratorV3Block],
+            getTool: () => runwayVideoTool,
+          }
+        )
+        expect(providerTool?.parameters?.properties?.visualReference).toMatchObject({
+          type: 'string',
+        })
+        expect(providerTool?.parameters?.required).toContain('visualReference')
+        const prepared = prepareToolExecution(
+          providerTool!,
+          {
+            prompt: 'Animate the boat',
+            visualReference: file.id,
+            provider: 'falai',
+            apiKey: 'model-invented-key',
+          },
+          {},
+          'call-video-reference'
+        )
+        expect(prepared.toolParams).toMatchObject({
+          visualReference: { id: file.id },
+          provider: 'runway',
+          apiKey: 'test-runway-key',
+        })
+
+        const result = await executeTool('video_runway', prepared.toolParams, {
+          executionContext: context,
+          skipPostProcess: true,
+        })
+
+        if (source === 'missing') {
+          expect(result.success).toBe(false)
+          expect(result.error).toContain(`Could not resolve file reference "${file.id}"`)
+          expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+        } else {
+          expect(mockExecuteInternalToolOperation.mock.calls[0]?.[0].input).toMatchObject({
+            provider: 'runway',
+            apiKey: 'test-runway-key',
+            prompt: 'Animate the boat',
+            visualReference: file,
+          })
+        }
+        if (source === 'execution') {
+          expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
+        } else {
+          expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-456', file.id)
+        }
+        expect(global.fetch).not.toHaveBeenCalled()
+      } finally {
+        tools.video_runway = originalTool
+      }
+    }
+  )
+
   it('resolves canonical file IDs for single-file params during copilot execution', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValue({
       id: 'wf_123',
@@ -4888,7 +5088,7 @@ describe('Copilot OAuth Credential Enforcement', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('credentialId')
-    expect(result.error).toContain('environment/credentials.json')
+    expect(result.error).toContain('credentials list')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

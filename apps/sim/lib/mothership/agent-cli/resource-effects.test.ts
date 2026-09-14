@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { runEmbeddedCli } from 'sim/embed'
 import { describe, expect, it, vi } from 'vitest'
+import { v2GetLogStatsContract } from '@/lib/api/contracts/v2/logs-stats'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 
@@ -187,6 +188,39 @@ describe('confirmed CLI resource effects', () => {
       },
     ])
   })
+
+  it.each([false, true])(
+    'preserves aggregate log stats without opening a log when observeReads=%s',
+    async (observeReads) => {
+      const body = v2GetLogStatsContract.response.schema.parse({
+        data: {
+          workflows: [],
+          workflowsTruncated: false,
+          aggregateSegments: [],
+          totalRuns: 0,
+          totalErrors: 0,
+          avgLatency: 0,
+          timeBounds: { start: table.createdAt, end: table.updatedAt },
+          segmentMs: 60_000,
+        },
+      })
+      const response = Response.json(body)
+      const fetcher = vi.fn(async () => response)
+      const effects: ResourceChange[] = []
+      const transport = createResourceEffectTransport(endpoint, fetcher, effects, observeReads)
+      const url = new URL(`${endpoint}${v2GetLogStatsContract.path}`)
+      url.searchParams.set('workspaceId', '6fc7631d-88cd-46f8-9f0a-d4764daef7f8')
+      url.searchParams.set('startDate', table.createdAt)
+      url.searchParams.set('endDate', table.updatedAt)
+
+      const returned = await transport(url, { method: v2GetLogStatsContract.method })
+
+      expect(returned).toBe(response)
+      expect(await returned.json()).toEqual(body)
+      expect(fetcher).toHaveBeenCalledTimes(1)
+      expect(effects).toEqual([])
+    }
+  )
 
   it('addresses a log by its canonical execution ID, which the panel can resolve', async () => {
     expect(
