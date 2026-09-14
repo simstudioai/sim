@@ -580,10 +580,10 @@ describe('live repository authorization follows ranked candidates', () => {
 
   it('bounds broad vector ranking before metadata and reorders relaxed candidates before trimming', async () => {
     queueTableRows(
-      schemaMock.embedding,
+      schemaMock.embeddingSearch,
       Array.from({ length: 200 }, (_, index) => candidate(`probe-${index}`, 'allowed-source'))
     )
-    queueTableRows(schemaMock.embedding, [{ id: 'far' }, { id: 'near' }])
+    queueTableRows(schemaMock.embeddingSearch, [{ id: 'far' }, { id: 'near' }])
     queueTableRows(schemaMock.embedding, [
       { ...candidate('far', 'allowed-source'), distance: 0.3 },
       { ...candidate('near', 'allowed-source'), distance: 0.1 },
@@ -617,7 +617,7 @@ describe('live repository authorization follows ranked candidates', () => {
   })
 
   it('finishes empty scopes after the bounded probe without scanning HNSW or calling providers', async () => {
-    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embeddingSearch, [])
     expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([])
     expect(dbChainMockFns.select).toHaveBeenCalledOnce()
     expect(dbChainMockFns.limit).toHaveBeenCalledExactlyOnceWith(200)
@@ -626,7 +626,7 @@ describe('live repository authorization follows ranked candidates', () => {
   })
 
   it('reads vectors only for the bounded IDs when a broad scope has few candidates', async () => {
-    queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
+    queueTableRows(schemaMock.embeddingSearch, [candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
       { id: 'selected', content: 'Verified small scope', distance: 0.1 },
@@ -652,10 +652,10 @@ describe('live repository authorization follows ranked candidates', () => {
 
   it('falls back to exact ranking when the approximate page cannot fill its limit', async () => {
     queueTableRows(
-      schemaMock.embedding,
+      schemaMock.embeddingSearch,
       Array.from({ length: 200 }, (_, index) => candidate(`probe-${index}`, 'allowed-source'))
     )
-    queueTableRows(schemaMock.embedding, [{ id: 'partial' }])
+    queueTableRows(schemaMock.embeddingSearch, [{ id: 'partial' }])
     queueTableRows(schemaMock.embedding, [candidate('partial', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
@@ -677,17 +677,17 @@ describe('live repository authorization follows ranked candidates', () => {
     const approximate = Array.from({ length: 20 }, (_, index) =>
       candidate(`approximate-${index}`, 'allowed-source')
     )
-    queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embeddingSearch, probe)
     queueTableRows(
-      schemaMock.embedding,
+      schemaMock.embeddingSearch,
       approximate.map(({ id }) => ({ id }))
     )
     queueTableRows(schemaMock.embedding, approximate)
     queueTableRows(schemaMock.embedding, [])
-    queueTableRows(schemaMock.embedding, probe)
-    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embeddingSearch, probe)
+    queueTableRows(schemaMock.embeddingSearch, [])
     queueTableRows(schemaMock.embedding, approximate)
-    queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embeddingSearch, probe)
     queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
       { id: 'selected', content: 'Reachable after the exact restart', distance: 0.1 },
@@ -705,15 +705,15 @@ describe('live repository authorization follows ranked candidates', () => {
     const probe = Array.from({ length: 200 }, (_, index) =>
       candidate(`probe-${index}`, 'allowed-source')
     )
-    queueTableRows(schemaMock.embedding, probe)
-    queueTableRows(schemaMock.embedding, [{ id: 'far' }])
+    queueTableRows(schemaMock.embeddingSearch, probe)
+    queueTableRows(schemaMock.embeddingSearch, [{ id: 'far' }])
     queueTableRows(schemaMock.embedding, [
       { ...candidate('far', 'allowed-source'), distance: 0.7 },
       ...Array.from({ length: 19 }, (_, index) => candidate(`hidden-${index}`, 'allowed-source')),
     ])
     queueTableRows(schemaMock.embedding, [{ id: 'far', content: 'Far result', distance: 0.7 }])
-    queueTableRows(schemaMock.embedding, probe)
-    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embeddingSearch, probe)
+    queueTableRows(schemaMock.embeddingSearch, [])
     queueTableRows(schemaMock.embedding, [
       candidate('near', 'allowed-source'),
       candidate('nearer', 'allowed-source'),
