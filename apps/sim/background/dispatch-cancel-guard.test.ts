@@ -25,6 +25,7 @@ vi.mock('@/lib/table/dispatcher', () => ({
 vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({
   getRowById: mocks.getRowById,
+  getRowSummaryById: vi.fn(),
   updateRow: vi.fn(),
 }))
 vi.mock('@/lib/workflows/executor/execute-workflow', () => ({

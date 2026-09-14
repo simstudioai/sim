@@ -122,6 +122,9 @@ describe('updateRow — partial merge', () => {
   })
 
   it('preserves columns not included in the partial update', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...EXISTING_ROW, data: { name: 'Alice', age: 31 }, updatedAt: PERSISTED_UPDATED_AT },
+    ])
     const result = await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
       TABLE,
@@ -176,6 +179,9 @@ describe('updateRow — partial merge', () => {
   })
 
   it('allows updating a single column without affecting others', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...EXISTING_ROW, data: { name: 'Bob', age: 30 }, updatedAt: PERSISTED_UPDATED_AT },
+    ])
     const result = await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Bob' }, workspaceId: 'ws-1' },
       TABLE,
@@ -187,6 +193,9 @@ describe('updateRow — partial merge', () => {
   })
 
   it('allows explicitly nulling a field while preserving others', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...EXISTING_ROW, data: { name: 'Alice', age: null }, updatedAt: PERSISTED_UPDATED_AT },
+    ])
     const result = await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { age: null }, workspaceId: 'ws-1' },
       TABLE,
@@ -199,6 +208,9 @@ describe('updateRow — partial merge', () => {
   })
 
   it('handles a full-row update correctly (idempotent merge)', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...EXISTING_ROW, data: { name: 'Bob', age: 25 }, updatedAt: PERSISTED_UPDATED_AT },
+    ])
     const result = await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Bob', age: 25 }, workspaceId: 'ws-1' },
       TABLE,

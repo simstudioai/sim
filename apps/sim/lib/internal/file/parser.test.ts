@@ -92,6 +92,8 @@ const {
       provider: 's3',
       bucket: 'sim-execution-files',
       containerName: 'execution-files',
+      workspaceBucket: 'sim-workspace-files',
+      workspaceContainerName: 'workspace-files',
     },
     mockGetBlobContainerClient: vi.fn(),
   }
@@ -132,7 +134,13 @@ vi.mock('@/lib/uploads', () => ({
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
-  getStorageConfig: () => storageConfig,
+  getStorageConfig: (context: string) =>
+    context === 'workspace'
+      ? {
+          bucket: storageConfig.workspaceBucket,
+          containerName: storageConfig.workspaceContainerName,
+        }
+      : storageConfig,
   S3_CONFIG: {},
   get USE_S3_STORAGE() {
     return storageConfig.provider === 's3'
@@ -500,6 +508,143 @@ describe('file parser operation', () => {
       maxBytes: 100 * 1024 * 1024,
     })
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      provider: 's3',
+      baseUrl: 'https://sim-workspace-files.s3.us-east-1.amazonaws.com',
+    },
+    {
+      provider: 's3',
+      baseUrl: 'https://s3.us-east-1.amazonaws.com/sim-workspace-files',
+    },
+    {
+      provider: 'blob',
+      baseUrl: 'https://exampleaccount.blob.core.windows.net/workspace-files',
+    },
+    {
+      provider: 'gcs',
+      baseUrl: 'https://sim-workspace-files.storage.googleapis.com',
+    },
+    {
+      provider: 'gcs',
+      baseUrl: 'https://storage.googleapis.com/sim-workspace-files',
+    },
+  ])('preserves owned workspace URL lineage for $baseUrl', async ({ provider, baseUrl }) => {
+    storageConfig.provider = provider
+    mockGetBlobContainerClient.mockImplementation((containerName: string) => ({
+      url: `https://exampleaccount.blob.core.windows.net/${containerName}`,
+    }))
+    const key = 'workspace/workspace-id/report.txt'
+    const source = {
+      identity: { fileId: 'canonical-file', key, context: 'workspace' },
+      ownerUserId: 'test-user-id',
+    }
+    const entries = [
+      { name: 'SECRET', encryptedValue: 'encrypted-value', sourceUserId: 'test-user-id' },
+    ]
+    mockResolveProvenanceSource.mockResolvedValue(source)
+    mockGetBoundProvenance.mockResolvedValue({ status: 'exact', entries })
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { filePath: `${baseUrl}/${key}?signature=test` },
+        { 'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect((await response.json()).success).toBe(true)
+    expect(mockResolveProvenanceSource).toHaveBeenCalledWith(
+      { key, context: 'workspace' },
+      expect.objectContaining({ workspaceId: 'workspace-id' })
+    )
+    expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({ status: 'exact', entries })
+    expect(mockGetFileContentProvenance).toHaveBeenCalledWith(
+      expect.any(Object),
+      'workspace-id',
+      [source],
+      expect.any(AbortSignal)
+    )
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('does not reclassify a rejected owned URL as external ingress', async () => {
+    mockResolveProvenanceSource.mockRejectedValue(new Error('File not found'))
+
+    const response = await POST(
+      createMockRequest('POST', {
+        filePath:
+          'https://sim-workspace-files.s3.us-east-1.amazonaws.com/workspace/workspace-id/report.txt',
+      })
+    )
+
+    expect((await response.json()).success).toBe(false)
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to external ingress when configured storage resolution fails', async () => {
+    storageConfig.provider = 'blob'
+    mockGetBlobContainerClient.mockImplementation(() => {
+      throw new Error('Storage configuration unavailable')
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        filePath:
+          'https://exampleaccount.blob.core.windows.net/workspace-files/workspace/workspace-id/report.txt',
+      })
+    )
+
+    expect((await response.json()).success).toBe(false)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+  })
+
+  it('records authenticated external binary downloads without a Sim-secret contribution', async () => {
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00])
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response(bytes, { headers: { 'content-type': 'image/png' } })
+    )
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+    mockIsSupportedFileType.mockReturnValue(false)
+
+    await POST(
+      createMockRequest('POST', {
+        filePath: 'https://files.slack.com/files-pri/T07-FAAA/download/image.png',
+        headers: { Authorization: 'Bearer xoxb-test-token' },
+      })
+    )
+
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://files.slack.com/files-pri/T07-FAAA/download/image.png',
+      '203.0.113.10',
+      expect.objectContaining({ headers: { Authorization: 'Bearer xoxb-test-token' } })
+    )
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
+      expect.any(Object),
+      bytes,
+      'image.png',
+      'image/png',
+      'test-user-id',
+      { status: 'exact', entries: [] }
+    )
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-id',
+      'test-user-id',
+      bytes,
+      'image.png',
+      'image/png'
+    )
+    expect(mockResolveProvenanceSource).not.toHaveBeenCalled()
+    expect(mockGetBoundProvenance).not.toHaveBeenCalled()
   })
 
   it.each([

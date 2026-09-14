@@ -29,6 +29,7 @@ import {
   getTableSnapshotModelMountSafety,
   loadTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
+  TableRowProvenanceReader,
   updateTableRowsWithDerivedSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 
@@ -212,6 +213,75 @@ describe('table row secret provenance', () => {
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
   })
+
+  it('reports a row revision mismatch without exposing row content', async () => {
+    queueTableRows(userTableRows, [
+      {
+        id: 'tracked-row',
+        updatedAt: new Date(ROW_UPDATED_AT.getTime() + 1),
+        secretProvenanceVersion: 1,
+        sidecarStatus: 'exact',
+        sidecarEntries: [],
+        sidecarIsCurrent: true,
+      },
+    ])
+    const provenance = await loadTableRowSecretProvenance(
+      [{ id: 'tracked-row', updatedAt: ROW_UPDATED_AT }],
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      }
+    )
+    expect(provenance.complete).toBe(false)
+    expect(mockError).toHaveBeenCalledWith('Table row read could not establish secret provenance', {
+      surface: 'table-row',
+      cause: 'row-revision-mismatch',
+      rowCount: 1,
+      workspaceId: 'workspace-1',
+      actorUserId: 'user-1',
+    })
+  })
+
+  it.each([{ selectedColumns: ['input-column'] }, { selectedColumns: [] }])(
+    'captures only selected worker input columns: %j',
+    async ({ selectedColumns }) => {
+      queueTableRows(userTableRows, [
+        {
+          id: 'tracked-row',
+          updatedAt: ROW_UPDATED_AT,
+          secretProvenanceVersion: 1,
+          sidecarStatus: 'exact',
+          sidecarIsCurrent: true,
+          sidecarEntries: ['input-column', 'output-column'].map((columnId) => ({
+            columnId,
+            encryptedValue: `encrypted-${columnId}`,
+            name: columnId,
+            sourceUserId: 'user-1',
+            sourceWorkspaceId: 'workspace-1',
+          })),
+        },
+      ])
+      const reader = new TableRowProvenanceReader(
+        { userId: 'user-1', workspaceId: 'workspace-1' },
+        new Set(selectedColumns)
+      )
+
+      await reader.capture(dbChainMock.db as unknown as DbTransaction, [
+        {
+          id: 'tracked-row',
+          updatedAt: ROW_UPDATED_AT,
+          data: { 'input-column': 'input-secret', 'output-column': 'output-secret' },
+        },
+      ])
+
+      expect(reader.exportProvenance()).toEqual({
+        version: 1,
+        complete: true,
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        entries: selectedColumns.map((name) => ({ name, encryptedValue: `encrypted-${name}` })),
+      })
+    }
+  )
 
   it('does not activate a secret from an unselected column with the same value', async () => {
     queueTableRows(userTableRows, [

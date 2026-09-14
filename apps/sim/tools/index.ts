@@ -471,8 +471,10 @@ async function resolveToolEnvReferences(
 
   const completePendingActivation = resolvedSecretTraceRegistry?.beginPendingActivation()
   try {
-    const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
-    const envVars = await getEffectiveDecryptedEnv(scope.userId, scope.workspaceId)
+    const environmentScope = { userId: scope.userId, workspaceId: scope.workspaceId }
+    const { getEffectiveEnvironmentSnapshot } = await import('@/lib/environment/utils')
+    const environment = await getEffectiveEnvironmentSnapshot(scope.userId, scope.workspaceId)
+    const envVars = { ...environment.personalDecrypted, ...environment.workspaceDecrypted }
 
     for (const { paramId, value, soft } of pending) {
       const missingKeys: string[] = []
@@ -480,9 +482,12 @@ async function resolveToolEnvReferences(
         allowEmbedded: false,
         missingKeys,
         onResolved: (name, resolvedValue) => {
-          resolvedSecretTraceRegistry?.recordResolvedAtInputPath(name, resolvedValue, [paramId], {
-            propagated: true,
-          })
+          resolvedSecretTraceRegistry?.recordResolvedFromEnvironment(
+            name,
+            resolvedValue,
+            { ...environment, scope: environmentScope },
+            { path: [paramId], propagated: true }
+          )
         },
       })
       if (missingKeys.length > 0) {

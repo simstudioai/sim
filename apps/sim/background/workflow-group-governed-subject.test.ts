@@ -7,6 +7,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getTableById: vi.fn(),
   getRowById: vi.fn(),
+  getRowSummaryById: vi.fn(),
+  createProvenanceReader: vi.fn(),
   pickNextEligibleGroupForRow: vi.fn(),
   stashCellContextForResume: vi.fn(),
   writeWorkflowGroupState: vi.fn(),
@@ -15,13 +17,16 @@ const mocks = vi.hoisted(() => ({
   loadDeployedWorkflowState: vi.fn(),
   executeWorkflow: vi.fn(),
   preprocessExecution: vi.fn(),
-  loadTableRowSecretProvenance: vi.fn(),
+  exportProvenance: vi.fn(),
   findStartBlock: vi.fn(),
+  flattenWorkflowOutputs: vi.fn(),
+  normalizeInputFormatValue: vi.fn(),
 }))
 
 vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({
   getRowById: mocks.getRowById,
+  getRowSummaryById: mocks.getRowSummaryById,
   updateRow: vi.fn(),
 }))
 vi.mock('@/lib/table/workflow-columns', () => ({
@@ -58,8 +63,12 @@ vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
 vi.mock('@/lib/workflows/triggers/triggers', () => ({
   TriggerUtils: { findStartBlock: mocks.findStartBlock },
 }))
-vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({ flattenWorkflowOutputs: () => [] }))
-vi.mock('@/lib/workflows/input-format', () => ({ normalizeInputFormatValue: () => [] }))
+vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
+  flattenWorkflowOutputs: mocks.flattenWorkflowOutputs,
+}))
+vi.mock('@/lib/workflows/input-format', () => ({
+  normalizeInputFormatValue: mocks.normalizeInputFormatValue,
+}))
 vi.mock('@/lib/execution/preprocessing', () => ({
   preprocessExecution: mocks.preprocessExecution,
 }))
@@ -69,7 +78,12 @@ vi.mock('@/lib/table/admission-retry', () => ({
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
   createTableRowSecretProvenanceFromRegistry: () => ({ complete: true, columns: {} }),
-  loadTableRowSecretProvenance: mocks.loadTableRowSecretProvenance,
+  TableRowProvenanceReader: class {
+    constructor(scope: unknown, selectedColumnIds: unknown) {
+      mocks.createProvenanceReader(scope, selectedColumnIds)
+    }
+    exportProvenance = mocks.exportProvenance
+  },
 }))
 vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
   ResolvedSecretTraceRegistry: class {
@@ -151,6 +165,11 @@ describe('the workflow half of a table cell', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.getRowSummaryById.mockImplementation((tableId, rowId, workspaceId) =>
+      mocks.getRowById(tableId, rowId, workspaceId)
+    )
+    mocks.flattenWorkflowOutputs.mockReturnValue([])
+    mocks.normalizeInputFormatValue.mockReturnValue([])
     mocks.getTableById.mockResolvedValue(TABLE)
     mocks.getRowById.mockResolvedValue({
       id: 'row-1',
@@ -163,7 +182,7 @@ describe('the workflow half of a table cell', () => {
     mocks.markWorkflowGroupPickedUp.mockResolvedValue('picked-up')
     mocks.loadDeployedWorkflowState.mockResolvedValue({ blocks: {}, edges: [] })
     mocks.findStartBlock.mockReturnValue({ blockId: 'start-1', block: { subBlocks: {} } })
-    mocks.loadTableRowSecretProvenance.mockResolvedValue({
+    mocks.exportProvenance.mockReturnValue({
       scope: { userId: 'workflow-owner', workspaceId: 'workspace-1' },
       byRowId: {},
     })
@@ -211,6 +230,53 @@ describe('the workflow half of a table cell', () => {
     expect(workflow.userId).toBe('workflow-owner')
     expect(options.billingAttribution).toBe(BILLING)
   }, 20_000)
+
+  it.each([false, true])(
+    'captures fresh workflow inputs and explicit output mappings (%s)',
+    async (mapOutput) => {
+      const group = {
+        ...GROUP,
+        outputs: [{ columnName: 'col-output', blockId: 'agent', path: 'content' }],
+        inputMappings: mapOutput ? [{ columnName: 'col-output', inputName: 'explicit' }] : [],
+      }
+      mocks.flattenWorkflowOutputs.mockReturnValue([{ blockId: 'agent', path: 'content' }])
+      mocks.normalizeInputFormatValue.mockReturnValue([{ name: 'explicit' }])
+      mocks.getTableById.mockResolvedValue({
+        ...TABLE,
+        schema: {
+          columns: [
+            { id: 'col-input', name: 'Input', type: 'string' },
+            { id: 'col-output', name: 'Output', type: 'string' },
+          ],
+          workflowGroups: [group],
+        },
+      })
+      mocks.getRowSummaryById.mockResolvedValue({
+        id: 'row-1',
+        data: { 'col-input': 'current-value', 'col-output': 'output-secret' },
+        updatedAt: new Date('2026-09-14T00:00:00Z'),
+      })
+
+      await runRowCascadeLoop(PAYLOAD)
+
+      expect(mocks.createProvenanceReader).toHaveBeenCalledExactlyOnceWith(
+        { userId: 'workflow-owner', workspaceId: 'workspace-1' },
+        new Set(mapOutput ? ['col-input', 'col-output'] : ['col-input'])
+      )
+      const input = mocks.executeWorkflow.mock.calls[0][2]
+      expect(input.row).toEqual({ Input: 'current-value' })
+      expect(input.rawRow).toEqual(input.row)
+      expect(input.headers).toEqual(['Input'])
+      if (mapOutput) expect(input.explicit).toBe('output-secret')
+      else expect(input.Input).toBe('current-value')
+      expect(mocks.markWorkflowGroupPickedUp.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.getRowSummaryById.mock.invocationCallOrder[0]
+      )
+      expect(mocks.getRowSummaryById.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.executeWorkflow.mock.invocationCallOrder[0]
+      )
+    }
+  )
 
   it('declares an explicit null for an actorless auto-fire', async () => {
     await runRowCascadeLoop({ ...PAYLOAD, capabilityGovernedUserId: null })
