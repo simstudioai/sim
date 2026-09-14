@@ -169,6 +169,22 @@ describe('MessageContent shared thinking indicator', () => {
     expect(thinking()).toHaveLength(0)
   })
 
+  it('waits for the normal quiet period between prose chunks while an agent is pending', () => {
+    const prose = 'Here is the result of reviewing the project and checking its configuration.'
+    const blocks: ContentBlock[] = [
+      start('browser'),
+      { type: 'text', content: prose, timestamp: 3 },
+    ]
+    render(blocks)
+    expect(thinking()).toHaveLength(0)
+    act(() => vi.advanceTimersByTime(1_499))
+    expect(thinking()).toHaveLength(0)
+    act(() => vi.advanceTimersByTime(1))
+    expect(thinking()).toHaveLength(1)
+    render([...blocks, { type: 'text', content: ' The configuration is valid.', timestamp: 4 }])
+    expect(thinking()).toHaveLength(0)
+  })
+
   it('removes thinking when a turn stops or finishes without agent output', () => {
     const blocks = [start('workflow'), start('browser')]
     render(blocks)

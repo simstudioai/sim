@@ -989,7 +989,9 @@ function MessageContentInner({
     thinkingExpanded &&
     (segments.length === 0 ||
       trailingPendingTag ||
-      ((hasPendingAgents || isStreamIdle) && !trailingStreamActivity && !hasActivityIndicator))
+      (((hasPendingAgents && revealTailIndex < 0) || isStreamIdle) &&
+        !trailingStreamActivity &&
+        !hasActivityIndicator))
 
   const actionsRow = (
     <div className='flex items-center gap-0.5'>
