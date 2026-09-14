@@ -174,7 +174,6 @@ describe('getToolActivityLabel', () => {
 describe('activity argument streaming', () => {
   const activity = {
     id: 'inputs',
-    title: 'Checking {invoice} inputs',
     completedTitle: 'Checked {invoice} inputs',
   }
   const input = JSON.stringify({ activity, args: ['workflows', 'get'] })
@@ -199,5 +198,10 @@ describe('activity argument streaming', () => {
     expect(readToolActivity({ activity: { title: 'Checking' } })).toBeUndefined()
     expect(readToolActivity({ activity })).toEqual(activity)
     expect(readToolActivity(undefined, '{"activity":{"title":"Checking",oops}')).toBeUndefined()
+  })
+  it('retains completion labels from saved calls without retaining their old live label', () => {
+    expect(readToolActivity({ activity: { ...activity, title: 'Checking inputs' } })).toEqual(
+      activity
+    )
   })
 })

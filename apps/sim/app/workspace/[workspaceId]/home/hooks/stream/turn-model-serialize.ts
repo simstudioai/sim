@@ -142,7 +142,7 @@ export function modelToContentBlocks(
     if (node.kind === 'tool') {
       /** Hidden discovery may introduce an activity; carry its labels onto visible calls and replay. */
       const supplied = node.activity ?? readToolActivity(node.args, node.streamingArgs)
-      if (supplied?.title && supplied.completedTitle) {
+      if (supplied?.completedTitle) {
         const lane = activities.get(node.spanId) ?? new Map<string, ToolActivity>()
         if (!lane.has(supplied.id)) lane.set(supplied.id, supplied)
         activities.set(node.spanId, lane)

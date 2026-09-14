@@ -483,13 +483,13 @@ async function handleCallPhase(
   }
   /** Persist visible labels even when the introducing discovery call is omitted from the transcript. */
   const suppliedActivity = readToolActivity(args) ?? readToolActivity(existing?.params)
-  const activity = suppliedActivity?.title
+  const activity = suppliedActivity?.completedTitle
     ? suppliedActivity
     : suppliedActivity &&
       Array.from(context.toolCalls.values())
         .filter((tool) => tool.agentId === agentId && tool.parentToolCallId === parentToolCallId)
         .map((tool) => readToolActivity(tool.params))
-        .find((candidate) => candidate?.id === suppliedActivity.id && candidate.title)
+        .find((candidate) => candidate?.id === suppliedActivity.id && candidate.completedTitle)
   const displayArgs = activity ? { ...args, activity } : args
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)

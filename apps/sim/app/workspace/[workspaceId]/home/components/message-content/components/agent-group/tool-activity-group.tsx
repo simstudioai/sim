@@ -11,7 +11,7 @@ import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { getActivityAttentionKey } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
-import { getToolIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
+import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 const MAX_SUMMARY_ACTIONS = 3
@@ -66,8 +66,7 @@ export function getActivityStatusTool(tools: ToolCallData[]): ToolCallData | und
   return (
     tools.reduce<ToolCallData | undefined>(
       (newest, tool) =>
-        tool.status === ToolCallStatus.executing &&
-        (!newest || (tool.startedAt ?? 0) >= (newest.startedAt ?? 0))
+        !isToolDone(tool.status) && (!newest || (tool.startedAt ?? 0) >= (newest.startedAt ?? 0))
           ? tool
           : newest,
       undefined
@@ -99,14 +98,12 @@ export function ToolActivityGroup({
     activity ??
     tools
       .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
-      .findLast((entry) => entry?.title && entry.completedTitle)
-  const working =
-    (!groupedActivity && isActive) || tools.some((tool) => tool.status === ToolCallStatus.executing)
-  const headerActive =
-    working &&
-    (statusTool.status === ToolCallStatus.executing || statusTool.status === ToolCallStatus.success)
+      .findLast((entry) => entry?.completedTitle)
+  const running = tools.filter((tool) => !isToolDone(tool.status))
+  const working = running.length > 0
+  const complete = !isActive && !working
+  const headerActive = working && statusTool.status !== ToolCallStatus.awaiting_approval
   const attentionKey = getActivityAttentionKey(tools)
-  const SummaryIcon = getToolIcon(tools[0].toolName)
   const activityTools =
     completedGroupCount > 1 && groupedActivity
       ? tools.filter(
@@ -114,25 +111,28 @@ export function ToolActivityGroup({
         )
       : tools
   const failedActivityTool = activityTools.find(
-    (tool) => tool.status === ToolCallStatus.error || tool.status === ToolCallStatus.rejected
+    (tool) => isToolDone(tool.status) && tool.status !== ToolCallStatus.success
   )
-  const stoppedActivityTool = activityTools.find(
-    (tool) =>
-      tool.status === ToolCallStatus.cancelled ||
-      tool.status === ToolCallStatus.interrupted ||
-      tool.status === ToolCallStatus.skipped
-  )
-  const completedActivityLabel =
-    groupedActivity?.title && groupedActivity.completedTitle
-      ? failedActivityTool
-        ? getToolStatusDisplayTitle(groupedActivity.title, ToolCallStatus.error)
-        : stoppedActivityTool
-          ? getToolStatusDisplayTitle(groupedActivity.title, ToolCallStatus.cancelled)
-          : groupedActivity.completedTitle
-      : undefined
-  const completedLabel = completedActivityLabel
-    ? `${completedActivityLabel}${completedGroupCount > 1 ? ` + ${completedGroupCount - 1}` : ''}`
+  const completedActivityLabel = groupedActivity?.completedTitle
+    ? failedActivityTool
+      ? getToolStatusDisplayTitle(
+          failedActivityTool.displayTitle,
+          failedActivityTool.status,
+          failedActivityTool.toolName,
+          failedActivityTool.activityDescription
+        )
+      : groupedActivity.completedTitle
     : undefined
+  const completedLabel = completedActivityLabel
+    ? [
+        `${completedActivityLabel}${completedGroupCount > 1 ? ` + ${completedGroupCount - 1}` : ''}`,
+        ...getToolActivityOutcomes(tools.filter((tool) => !activityTools.includes(tool))),
+      ].join(' · ')
+    : undefined
+  const generatingCall =
+    working &&
+    (statusTool.toolName === 'sim_cli' || statusTool.toolName === 'run_code') &&
+    Object.keys(statusTool.params ?? {}).every((key) => key === 'activity')
 
   return (
     <ToolCallComponent
@@ -142,12 +142,20 @@ export function ToolActivityGroup({
         <ActivityStream
           activity={{
             label: working
-              ? getActiveToolActivityTitle(status.activeLabel, statusTool, tools)
-              : (completedLabel ??
-                (tools.length === 1 ? status.label : getToolActivitySummary(tools))),
+              ? getActiveToolActivityTitle(
+                  `${generatingCall ? 'Preparing tool call…' : status.label}${running.length > 1 ? ` + ${running.length - 1}` : ''}`,
+                  statusTool,
+                  tools
+                )
+              : complete
+                ? (completedLabel ??
+                  getActiveToolActivityTitle(
+                    `${status.label}${tools.length > 1 ? ` + ${tools.length - 1}` : ''}`,
+                    statusTool,
+                    tools
+                  ))
+                : getActiveToolActivityTitle(status.label, statusTool, tools),
             isActive: headerActive,
-            icon:
-              working || tools.length === 1 ? status.icon : <SummaryIcon className='size-full' />,
           }}
           activityKey={statusTool.id}
           attentionKey={attentionKey}

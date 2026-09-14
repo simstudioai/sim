@@ -565,8 +565,7 @@ function groupByActivity(segments: MessageSegment[], isStreaming: boolean): Mess
     for (const item of segment.items) {
       if (item.type !== 'tool') continue
       const activity = readToolActivity(item.data.params, item.data.streamingArgs)
-      if (activity?.title && activity.completedTitle && !labels.has(activity.id))
-        labels.set(activity.id, activity)
+      if (activity?.completedTitle && !labels.has(activity.id)) labels.set(activity.id, activity)
     }
   }
   return segments.flatMap((segment, index): MessageSegment[] => {

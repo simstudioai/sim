@@ -1248,7 +1248,6 @@ describe('sse-handlers tool lifecycle', () => {
   it('persists labels introduced by hidden discovery on a later visible activity reference', async () => {
     const activity = {
       id: 'requirements',
-      title: 'Reviewing workflow prerequisites',
       completedTitle: 'Reviewed workflow prerequisites',
     }
     for (const [id, name, args] of [

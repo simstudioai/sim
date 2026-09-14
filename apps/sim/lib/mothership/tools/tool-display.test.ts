@@ -88,6 +88,13 @@ describe('getToolDisplayTitle natural-language coverage', () => {
   })
 
   it.each([
+    [
+      ['--output', 'json', 'files', 'read', 'files/panel-notes.md'],
+      'cli_files_read',
+      'Reading panel-notes.md',
+    ],
+    [['files', 'read', 'files/My%20Notes.md'], 'cli_files_read', 'Reading My Notes.md'],
+    [['files', 'read', 'wf_unresolved'], 'cli_files_read', 'Reading file'],
     [['blocks', 'tips', 'exa'], 'cli_blocks_tips', 'Reading Exa guidance'],
     [
       ['docs', 'search', 'advanced inputs'],

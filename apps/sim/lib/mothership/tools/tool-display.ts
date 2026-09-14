@@ -866,6 +866,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       if (query) return `Finding integration actions for ${truncateMiddle(query, 60)}`
       return service ? `Finding ${humanizeToolName(service)} actions` : CLI_TOOL_TITLES[name]
     }
+    case 'cli_files_read': {
+      const path = cliFirstPositional(name, args)
+      return path?.includes('/') ? `Reading ${pathLeaf(path)}` : CLI_TOOL_TITLES[name]
+    }
     case 'cli_files_view': {
       const path = stringArg({ value: cliFirstPositional(name, args) }, 'value')
       return path ? `Viewing ${pathLeaf(path)}` : CLI_TOOL_TITLES[name]

@@ -5,6 +5,7 @@ import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/componen
 import { ToolActivityGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { needsToolInput } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
+import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 interface MainAgentActivityProps {
@@ -36,6 +37,7 @@ export function MainAgentActivity({
   isActive,
 }: MainAgentActivityProps) {
   const activity: ReactNode[] = []
+  const unresolved = items.some((item) => item.type === 'tool' && !isToolDone(item.data.status))
   let tools: ToolCallData[] = []
   const flushTools = (active = false) => {
     if (tools.length === 0) return
@@ -45,7 +47,7 @@ export function MainAgentActivity({
         tools={tools}
         activity={groupActivity}
         completedGroupCount={completedGroupCount}
-        isActive={active}
+        isActive={active || unresolved}
         ToolCallComponent={ToolCallComponent}
         autoScrollActivity={autoScrollActivity}
       />
