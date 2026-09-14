@@ -1,5 +1,11 @@
 import type { McpOperationPolicy } from '@/lib/mcp/operation-policy'
 import type { UserFile } from '@/executor/types'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
+
+export interface FileNameProjection {
+  name: string
+  inputPath?: ResolvedSecretInputPath
+}
 
 export interface SkillInput {
   skillId: string

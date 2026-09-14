@@ -18,6 +18,8 @@ import { AV_MEMORY_WORKFLOW } from '@/components/workflow-preview/academy-video-
 
 By default, an agent keeps nothing between runs: every conversation starts completely fresh. The Memory setting changes that: choose Conversation, give it a conversation ID, and everything said under that key is kept and loaded back before the model runs.
 
+Uploaded attachments stay linked to the message that included them. Memory stores file references; each later run reads the accessible files again and prepares them for the selected provider. Attachments follow the selected memory window and the source file's storage retention. A replay can include up to 20 attachment references; use a smaller memory window for longer file-heavy conversations. Files omitted by older versions of memory need to be attached again.
+
 <WhatYouWillLearn
   items={[
     {
