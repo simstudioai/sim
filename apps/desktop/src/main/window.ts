@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { Event, Rectangle, Session, WebPreferences } from 'electron'
+import type { Event, Rectangle, Session } from 'electron'
 import { app, BrowserWindow, dialog, nativeTheme, screen, systemPreferences } from 'electron'
 import { type ConfigStore, isSafeInternalPath, type WindowBounds } from '@/main/config'
+import { showShellDialog } from '@/main/dialogs'
 import { isAppOrigin, isAuthSurfacePath } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
+import { createSecureWebPreferences } from '@/main/window-preferences'
 
 const logger = createLogger('DesktopWindow')
 
@@ -25,31 +27,6 @@ const THEME_PROBE_SCRIPT = `(() => {
     return null
   }
 })()`
-
-/**
- * The hardened webPreferences shared by the main window and any child window.
- * The preload injects nothing into the page; it only exposes a whitelisted
- * IPC bridge. The shell version rides in as a preload argv flag so the web
- * app can enforce its minimum shell version without an IPC round-trip.
- */
-export function createSecureWebPreferences(
-  partition: string,
-  preloadPath: string,
-  isPackaged: boolean
-): WebPreferences {
-  return {
-    contextIsolation: true,
-    nodeIntegration: false,
-    sandbox: true,
-    webSecurity: true,
-    webviewTag: false,
-    devTools: !isPackaged,
-    spellcheck: true,
-    partition,
-    preload: preloadPath,
-    additionalArguments: [`--sim-desktop-version=${app.getVersion()}`],
-  }
-}
 
 /**
  * The permission matrix: sanitized clipboard writes and microphone access for
@@ -203,7 +180,12 @@ export function fitBoundsToWorkArea(bounds: WindowBounds, workArea: Rectangle): 
   return { x, y, width, height }
 }
 
-/** Applies the shared renderer unload decision to main and child windows. */
+/**
+ * Applies the shared renderer unload decision to main and child windows.
+ * Electron requires this decision before the event returns. Keep this one
+ * synchronous OS confirmation: awaiting a renderer dialog here loses the
+ * pending navigation or close and can discard unsaved changes.
+ */
 export function handleWillPreventUnload(
   win: BrowserWindow,
   event: Event,
@@ -339,15 +321,14 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
       return
     }
     recoveryDialog = 'crash'
-    void dialog
-      .showMessageBox(win, {
-        type: 'error',
-        buttons: ['Reload', 'Quit Sim'],
-        defaultId: 0,
-        cancelId: 0,
-        message: 'Sim encountered a problem',
-        detail: 'The page stopped unexpectedly. Reload to pick up where you left off.',
-      })
+    void showShellDialog(win, {
+      type: 'error',
+      buttons: ['Reload', 'Quit Sim'],
+      defaultId: 0,
+      cancelId: 0,
+      message: 'Sim encountered a problem',
+      detail: 'The page stopped unexpectedly. Reload to pick up where you left off.',
+    })
       .then(({ response }) => {
         if (win.isDestroyed()) return
         if (response === 0) win.webContents.reload()
@@ -377,15 +358,14 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
     if (recoveryDialog !== null || win.isDestroyed()) return
     recoveryDialog = 'hang'
     deps.events.record('renderer_unresponsive')
-    void dialog
-      .showMessageBox(win, {
-        type: 'warning',
-        buttons: ['Wait', 'Reload'],
-        defaultId: 0,
-        cancelId: 0,
-        message: 'Sim isn’t responding',
-        detail: 'You can wait for it to recover or reload the page.',
-      })
+    void showShellDialog(win, {
+      type: 'warning',
+      buttons: ['Wait', 'Reload'],
+      defaultId: 0,
+      cancelId: 0,
+      message: 'Sim isn’t responding',
+      detail: 'You can wait for it to recover or reload the page.',
+    })
       .then(({ response }) => {
         if (!win.isDestroyed() && response === 1) {
           win.webContents.reload()

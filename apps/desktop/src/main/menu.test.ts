@@ -52,7 +52,7 @@ describe('buildMenuTemplate', () => {
     ])
 
     expect(submenu(template, 'Sim').map((item) => item.label ?? item.role ?? item.type)).toEqual([
-      'about',
+      'About Sim',
       'Settings…',
       'Server…',
       'Check for Updates…',

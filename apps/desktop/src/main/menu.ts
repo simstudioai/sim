@@ -1,6 +1,7 @@
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
 import { type ConfigStore, isSimCloudOrigin } from '@/main/config'
+import { showShellDialog } from '@/main/dialogs'
 import { DOCS_URL, STATUS_URL } from '@/main/external-links'
 import { openExternalSafe } from '@/main/navigation'
 import type {
@@ -166,7 +167,18 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
     {
       label: app.name,
       submenu: [
-        { role: 'about' },
+        {
+          label: `About ${app.name}`,
+          click: () => {
+            void showShellDialog({
+              title: `About ${app.name}`,
+              type: 'info',
+              message: app.name,
+              detail: `Version ${app.getVersion()}`,
+              buttons: ['OK'],
+            })
+          },
+        },
         { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: deps.openSettings },
         { label: 'Server…', click: deps.openServerSettings },
         { label: 'Check for Updates…', click: deps.checkForUpdates },
