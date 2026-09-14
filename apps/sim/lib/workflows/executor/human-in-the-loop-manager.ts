@@ -2026,7 +2026,7 @@ export class PauseResumeManager {
           )
         })
       }
-      void cleanupExecutionBase64Cache(resumeExecutionId)
+      void cleanupExecutionBase64Cache(parentExecutionId)
     }
 
     /**
