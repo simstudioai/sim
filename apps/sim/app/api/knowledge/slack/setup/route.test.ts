@@ -17,7 +17,7 @@ vi.mock('@/lib/knowledge/application/slack-search/setup', async () => {
   }
 })
 
-import { createSlackSearchManifest } from '@/lib/slack-search/manifest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST as start } from '@/app/api/knowledge/slack/oauth/route'
 import { POST as prepare } from '@/app/api/knowledge/slack/setup/route'
 
@@ -35,13 +35,13 @@ describe.each([
   ['prepare', prepare, mocks.prepare],
   ['OAuth', start, mocks.start],
 ] as const)('Slack %s route errors', (_name, route, execute) => {
-  it('returns an actionable 400 for a non-HTTPS app URL', async () => {
-    execute.mockImplementation(() =>
-      createSlackSearchManifest(input.name, input.description, 'http://localhost:3000')
+  it('returns application validation errors', async () => {
+    execute.mockRejectedValue(
+      new OrchestrationError('validation', 'Slack app credentials are required')
     )
     const response = await route(createMockRequest('POST', input))
     expect(response.status).toBe(400)
-    expect(await response.json()).toMatchObject({ error: expect.stringContaining('public HTTPS') })
+    expect(await response.json()).toMatchObject({ error: 'Slack app credentials are required' })
     expect(execute).toHaveBeenCalledOnce()
   })
 

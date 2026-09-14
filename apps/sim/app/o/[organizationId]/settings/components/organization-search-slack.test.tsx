@@ -106,8 +106,8 @@ function button(label: string) {
 async function click(label: string) {
   await act(async () => button(label).click())
 }
-async function action(label: string) {
-  const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Sim Search actions"]')!
+async function action(label: string, name = 'Sim Search (custom bot)') {
+  const trigger = container.querySelector<HTMLButtonElement>(`[aria-label="${name} actions"]`)!
   await act(async () => {
     trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   })
@@ -137,27 +137,33 @@ describe('Slack Search settings and shared wizard', () => {
         },
       })
       await render()
-      await click('Install Sim Search')
-      expect(document.querySelector('[role="dialog"]')).toHaveTextContent('Install Sim Search')
+      if (installations.length) {
+        expect(container).toHaveTextContent('Reconnect required')
+        expect(container).toHaveTextContent('Sim Search (custom bot)')
+        await action('Install Sim Search')
+      } else {
+        await click('Install Sim Search')
+      }
+      expect(document.querySelector('[role="dialog"]')).toHaveTextContent(
+        'Install the Sim Search app'
+      )
       expect(document.querySelectorAll('input')).toHaveLength(0)
       expect(mocks.install).not.toHaveBeenCalled()
-      await click('Install Sim Search')
+      await click('Continue with Slack')
       expect(mocks.install).toHaveBeenCalledExactlyOnceWith(
         {
           organizationId: 'org-1',
-          installationId: undefined,
+          installationId: installations[0]?.id,
           name: 'Sim Search',
           description: expect.any(String),
           mode: 'shared',
         },
         expect.any(Object)
       )
-      mocks.installError = new Error(
-        'Remove the previous Slack source configuration before switching apps; members must reconnect'
-      )
+      mocks.installError = new Error('Slack authorization failed. Try again.')
       await render()
       expect(document.querySelector('[role="dialog"] [role="alert"]')).toHaveTextContent(
-        'Remove the previous Slack source configuration'
+        'Slack authorization failed'
       )
       expect(mocks.configure).not.toHaveBeenCalled()
       expect(mocks.remove).not.toHaveBeenCalled()
@@ -175,8 +181,8 @@ describe('Slack Search settings and shared wizard', () => {
     mocks.manifest.mockReturnValue({ data: { sharedAppId: 'A_SHARED', existingApp: null } })
     await render()
     expect(container).not.toHaveTextContent('Install Sim Search')
-    await action('Reconnect')
-    await click('Install Sim Search')
+    await action('Reconnect', 'Sim Search')
+    await click('Continue with Slack')
     expect(mocks.install).toHaveBeenCalledWith(
       expect.objectContaining({ mode: 'shared', installationId: installation.id }),
       expect.any(Object)
@@ -192,12 +198,12 @@ describe('Slack Search settings and shared wizard', () => {
       refetch: mocks.refetch,
     })
     await render()
-    await click('Install Sim Search')
+    await action('Install Sim Search')
     expect(document.querySelector('[role="dialog"] [role="alert"]')).toHaveTextContent(
       'Sim Search installation is unavailable'
     )
     expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Create Slack app')
-    expect(button('Install Sim Search')).toBeDisabled()
+    expect(button('Continue with Slack')).toBeDisabled()
     expect(mocks.install).not.toHaveBeenCalled()
     await click('Retry')
     expect(mocks.refetch).toHaveBeenCalledOnce()
@@ -213,11 +219,11 @@ describe('Slack Search settings and shared wizard', () => {
       refetch: mocks.refetch,
     })
     await render()
-    await click('Install Sim Search')
+    await action('Install Sim Search')
     expect(document.querySelector('[role="dialog"] [role="alert"]')).toHaveTextContent(
       'Could not load Slack setup'
     )
-    expect(button('Install Sim Search')).toBeDisabled()
+    expect(button('Continue with Slack')).toBeDisabled()
     await click('Retry')
     expect(mocks.refetch).toHaveBeenCalledOnce()
     expect(mocks.install).not.toHaveBeenCalled()
@@ -227,6 +233,58 @@ describe('Slack Search settings and shared wizard', () => {
     await render(true)
     expect(container).not.toHaveTextContent('Install Sim Search')
     expect(container).toHaveTextContent('Open in Slack')
+  })
+
+  it('prompts the existing custom bot to reconnect when the feature becomes available', async () => {
+    await render(true)
+    expect(container).toHaveTextContent('Sim Search (custom bot)')
+    expect(container).toHaveTextContent('Enabled')
+    expect(container).not.toHaveTextContent('Reconnect required')
+    mocks.list.mockReturnValue({
+      data: { sharedAppAvailable: true, installations: [installation], bots: [] },
+    })
+    mocks.manifest.mockReturnValue({ data: { sharedAppId: 'A_SHARED', existingApp: null } })
+    await render()
+    expect(container).toHaveTextContent('Reconnect required')
+    expect(container).not.toHaveTextContent('Install Sim Search')
+    expect(mocks.install).not.toHaveBeenCalled()
+    expect(mocks.configure).not.toHaveBeenCalled()
+    await action('Install Sim Search')
+    expect(document.querySelector('[role="dialog"]')).toHaveTextContent(
+      'Install the Sim Search app'
+    )
+    expect(button('Continue with Slack')).not.toBeDisabled()
+    await click('Cancel')
+    expect(mocks.install).not.toHaveBeenCalled()
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
+  it('shows the native app alongside the retained custom bot after installing', async () => {
+    mocks.list.mockReturnValue({
+      data: {
+        sharedAppAvailable: true,
+        installations: [
+          { ...installation, enabled: false },
+          {
+            ...installation,
+            id: 'native-installation',
+            credentialId: 'native-credential',
+            appId: 'A_SHARED',
+            appKind: 'shared',
+          },
+        ],
+        bots: [],
+      },
+    })
+    await render()
+    expect(container.querySelector('[aria-label="Sim Search (custom bot) actions"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Sim Search actions"]')).not.toBeNull()
+    expect(container).toHaveTextContent('Disabled')
+    expect(container).toHaveTextContent('Enabled')
+    expect(container).not.toHaveTextContent('Reconnect required')
+    expect(container).not.toHaveTextContent('Install Sim Search')
+    expect(container.querySelectorAll('a[href*="slack.com/app_redirect"]')).toHaveLength(2)
+    expect(mocks.install).not.toHaveBeenCalled()
   })
 
   it('starts with one setup action and a Slack app link, with no manifest preview or form', async () => {
@@ -246,13 +304,15 @@ describe('Slack Search settings and shared wizard', () => {
 
   it('shows setup errors and blocks progression until the manifest loads', async () => {
     mocks.manifest.mockReturnValue({
-      error: new Error('Slack needs a public HTTPS URL to send messages to Sim.'),
+      error: new Error('Slack app configuration is unavailable.'),
       refetch: mocks.refetch,
       isPending: false,
     })
     await render()
     await click('Set up')
-    expect(document.querySelector('[role="alert"]')).toHaveTextContent('public HTTPS')
+    expect(document.querySelector('[role="alert"]')).toHaveTextContent(
+      'Slack app configuration is unavailable.'
+    )
     expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Step 1')
     expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Continue')
     await click('Retry')
@@ -294,7 +354,7 @@ describe('Slack Search settings and shared wizard', () => {
       expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Loading Slack setup')
       if (mode === 'shared') {
         expect(document.querySelector('[role="dialog"]')).not.toHaveTextContent('Step 1')
-        await click('Install Sim Search')
+        await click('Continue with Slack')
         expect(mocks.install).toHaveBeenCalledWith(
           expect.objectContaining({ organizationId: 'org-1', mode: 'shared' }),
           expect.any(Object)

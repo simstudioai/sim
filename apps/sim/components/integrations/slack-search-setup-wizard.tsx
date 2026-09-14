@@ -149,14 +149,16 @@ export function SlackSearchSetupWizard({
         onOpenChange={(open) => {
           if (!open) onClose()
         }}
-        srTitle='Install Sim Search'
+        srTitle='Install the Sim Search app'
+        size='sm'
       >
         <ChipModalHeader icon={SlackIcon} onClose={onClose}>
-          Install Sim Search
+          Install the Sim Search app
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            Choose your Slack workspace and approve Sim Search.
+            Add Sim Search to your Slack workspace to ask questions and get answers from your
+            connected sources.
           </p>
           <ChipModalError>
             {error?.message ??
@@ -179,7 +181,7 @@ export function SlackSearchSetupWizard({
               : undefined
           }
           primaryAction={{
-            label: busy ? 'Connecting…' : 'Install Sim Search',
+            label: busy ? 'Connecting…' : 'Continue with Slack',
             disabled: busy || !prepare.data.sharedAppId || Boolean(prepare.error),
             onClick: installShared,
           }}
