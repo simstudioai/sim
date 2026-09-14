@@ -144,6 +144,30 @@ describe('useChatStreaming thinking + abort', () => {
     expect(messages[0].isStreaming).toBe(false)
   })
 
+  it('projects file metadata to the fields used by the chat', async () => {
+    mockReadSSEEvents.mockImplementation(async (_source, options) => {
+      await options.onEvent({
+        blockId: 'agent-1',
+        event: 'output',
+        data: {
+          ...imageFile,
+          providerFileId: 'provider-file-1',
+          providerFileUri: 'provider://file-1',
+          remoteUrl: 'https://files.example.com/signed',
+          internalMetadata: { source: 'provider' },
+        },
+      })
+      await options.onEvent({ event: 'final', data: { success: true, output: {} } })
+    })
+
+    await act(async () => {
+      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
+    })
+
+    expect(messages[0].files).toEqual([imageFile])
+    expect(messages[0].content).toBe('')
+  })
+
   it.each([{ data: [] }, { data: null }, { data: { files: [] } }])(
     'keeps empty structured outputs invisible: $data',
     async ({ data }) => {

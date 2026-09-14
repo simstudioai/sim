@@ -37,7 +37,16 @@ const logger = createLogger('UseChatStreaming')
 function extractChatOutput(value: unknown, files: Map<string, ChatFile>): unknown {
   if (value === null || value === undefined) return value
   if (isUserFileWithMetadata(value)) {
-    files.set(value.id, value)
+    files.set(value.id, {
+      id: value.id,
+      name: value.name,
+      url: value.url,
+      key: value.key,
+      size: value.size,
+      type: value.type,
+      context: value.context,
+      base64: value.base64,
+    })
     return undefined
   }
   if (Array.isArray(value)) {

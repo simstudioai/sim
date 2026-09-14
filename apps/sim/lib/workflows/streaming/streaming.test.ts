@@ -152,6 +152,54 @@ describe('createStreamingResponse', () => {
     expect(events).toContainEqual({ blockId: 'agent', event: 'output', data: [file] })
   })
 
+  it('emits composite response-format selections once as structured outputs', async () => {
+    const result = {
+      content: 'Your image.',
+      files: [
+        {
+          id: 'file-image',
+          name: 'image.png',
+          size: 3,
+          type: 'image/png',
+          key: 'execution/image.png',
+          url: '/api/files/serve/execution%2Fimage.png',
+          base64: 'YWJj',
+        },
+      ],
+      count: 1,
+    }
+    const stream = await createStreamingResponse({
+      requestId: 'request-chat-composite',
+      requestHeaders: new Headers({ [AGENT_STREAM_PROTOCOL_HEADER]: CHAT_OUTPUT_PROTOCOL_V1 }),
+      streamConfig: {
+        selectedOutputs: ['agent_result'],
+        workflowTriggerType: 'chat',
+        includeFileBase64: false,
+      },
+      executeFn: async ({ onStream, onBlockComplete }) => {
+        await onStream({
+          blockId: 'agent',
+          clientStreamTransformed: true,
+          stream: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(JSON.stringify(result)))
+              controller.close()
+            },
+          }),
+          execution: { success: true, output: {} },
+        })
+        await onBlockComplete('agent', { result })
+        return { success: true, output: {}, logs: [], metadata: { duration: 1 } }
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.filter((event) => 'chunk' in event)).toEqual([])
+    expect(events.filter((event) => event.event === 'output')).toEqual([
+      { blockId: 'agent', event: 'output', data: result },
+    ])
+  })
+
   it('enforces the aggregate inline byte limit for structured chat outputs', async () => {
     const value = { text: 'x'.repeat(9 * 1024 * 1024) }
     const stream = await createStreamingResponse({
