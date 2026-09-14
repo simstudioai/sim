@@ -1267,7 +1267,9 @@ describe('collectUnresolvedReferences', () => {
   })
 
   it('validates the literal entries when a multi-select opens AND closes with a template', async () => {
-    // The whole string contains references, so only filtering per entry keeps `kb_real` checked.
+    /**
+     * The whole string contains references, so only filtering per entry keeps `kb_real` checked.
+     */
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_real'] })
     const state = {
       blocks: {
@@ -1356,7 +1358,9 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(1)
   })
 
-  // A torn reference reads as plain literals, so these pin the reference-aware split end to end.
+  /**
+   * A torn reference reads as plain literals, so these pin the reference-aware split end to end.
+   */
   it('does not split a <block.output> reference that contains a comma', async () => {
     const state = {
       blocks: {
@@ -1402,7 +1406,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  // A native array value never reaches the comma split, so it enters the filter independently.
+  /** A native array value never reaches the comma split, so it enters the filter independently. */
   it('filters templates out of a value that is already an array', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_missing'] })
     const state = {
@@ -1438,7 +1442,9 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  // A separator-only string is truthy, so it passes the `!subBlockValue` bail and splits to nothing.
+  /**
+   * A separator-only string is truthy, so it passes the `!subBlockValue` bail and splits to nothing.
+   */
   it('skips a value that is nothing but separators', async () => {
     const state = {
       blocks: {
@@ -1461,7 +1467,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  // A non-string can never be a reference, so it passes through the filter untouched.
+  /** A non-string can never be a reference, so it passes through the filter untouched. */
   it('does not throw on a non-string entry inside an array value', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
     const state = {
@@ -1482,7 +1488,7 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(0)
   })
 
-  // A lone `<` or `{{` is a malformed literal, not a reference, and must still be reported.
+  /** A lone `<` or `{{` is a malformed literal, not a reference, and must still be reported. */
   it.each([
     ['an unclosed < delimiter', 'kb_<start'],
     ['an unopened > delimiter', 'start.kbId>'],
@@ -1519,7 +1525,9 @@ describe('collectUnresolvedReferences', () => {
     expect(refs).toHaveLength(1)
   })
 
-  // The guard runs after the canonical active-member check, so it must not flip the active member.
+  /**
+   * The guard runs after the canonical active-member check, so it must not flip the active member.
+   */
   it('skips a template held by the ACTIVE canonical member', async () => {
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['<start.cred>'] })
     const state = {
@@ -1537,7 +1545,9 @@ describe('collectUnresolvedReferences', () => {
   })
 })
 
-// validateWorkflowSelectorIds shares collectSelectorFields with the lint, so it skips the same values.
+/**
+ * validateWorkflowSelectorIds shares collectSelectorFields with the lint, so it skips the same values.
+ */
 describe('validateWorkflowSelectorIds (reference guard)', () => {
   beforeEach(() => {
     vi.clearAllMocks()

@@ -1142,8 +1142,10 @@ function collectSelectorFields(
         values = splitOutsideReferences(subBlockValue)
       }
 
-      // A reference or env var only resolves to an id at execution time, so it cannot be checked
-      // here. Filtered per entry so the literal ids of a mixed multi-select are still checked.
+      /**
+       * A reference or env var only resolves to an id at execution time, so it cannot be checked
+       * here. Filtered per entry so the literal ids of a mixed multi-select are still checked.
+       */
       if (Array.isArray(values)) {
         values = values.filter((entry) => !containsReference(entry))
         if (values.length === 0) continue

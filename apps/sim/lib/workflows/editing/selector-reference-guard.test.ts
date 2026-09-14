@@ -60,8 +60,10 @@ describe('Tier-2 reference guard (real block registry)', () => {
     ['an env-var reference', '{{KB_ID}}'],
     ['a partially templated value', 'kb_<start.suffix>'],
   ])('never hits the database for %s', async (_label, value) => {
-    // Seeded so `toHaveLength(0)` is load-bearing: with a permissive mock it would pass
-    // whether or not the guard ran.
+    /**
+     * Seeded so `toHaveLength(0)` is load-bearing: with a permissive mock it would pass
+     * whether or not the guard ran.
+     */
     mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [value] })
     const refs = await collectUnresolvedReferences(knowledgeGraph(value), CTX)
     expect(mockValidateSelectorIds).not.toHaveBeenCalled()
