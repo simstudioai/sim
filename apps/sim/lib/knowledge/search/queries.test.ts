@@ -67,6 +67,7 @@ describe('retrieval leg budgets', () => {
           get: async () => access,
           getForConnectors: async () => access,
           getForDocuments: async () => access,
+          liveSourceConnectorCondition: async () => null,
         },
         searchMode: 'hybrid' as const,
         vectorBudgetMs,
@@ -560,6 +561,7 @@ describe('live repository authorization follows ranked candidates', () => {
     get: async () => identity,
     getForConnectors,
     getForDocuments: async () => allowed,
+    liveSourceConnectorCondition: async () => null,
   }
   const params: SearchParams = {
     knowledgeBaseIds: ['org-index'],
