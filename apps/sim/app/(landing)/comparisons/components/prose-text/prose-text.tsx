@@ -17,7 +17,7 @@ export function ProseText({ prose }: ProseTextProps) {
         typeof segment === 'string' ? (
           <Fragment key={index}>{segment}</Fragment>
         ) : (
-          <ProseLink key={index} href={segment.href}>
+          <ProseLink key={index} href={segment.source.url}>
             {segment.text}
           </ProseLink>
         )

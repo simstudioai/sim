@@ -116,12 +116,11 @@ export interface ComparisonFacts {
     byok: Fact
   }
   security: {
-    soc2: Fact
     dataResidency: Fact
     rbac: Fact
     auditLogging: Fact
-    /** Compliance certifications beyond a bare SOC2 mention. HIPAA, ISO 27001, GDPR-specific attestations, PCI, FedRAMP, etc. */
-    additionalCompliance: Fact
+    /** Compliance certifications and attestations, including SOC 2, ISO 27001, GDPR, HIPAA, PCI, and FedRAMP. */
+    compliance: Fact
     /** Admin-configurable restrictions on which LLM providers/models members may use, and which specific tools/integrations a role can call. Finer-grained than plain workspace admin/write/read. */
     modelAndToolGovernance: Fact
     /** Restricting which specific stored credentials/connections a role or permission group may use, distinct from feature-level RBAC or integration-level allow/deny. */
@@ -177,9 +176,9 @@ export interface ComparisonFacts {
  * One run of comparison prose, optionally hyperlinked. Kept as data (rather
  * than markup or a markdown string) so the data layer stays UI-free while
  * still expressing the in-sentence citation links that comparison intros
- * need. A segment object renders `text` as a link to `href`.
+ * need. Each linked segment carries the same dated evidence metadata as a table fact.
  */
-export type ProseSegment = string | { text: string; href: string }
+export type ProseSegment = string | { text: string; source: FactSource }
 
 /** A paragraph of comparison prose, as an ordered run of {@link ProseSegment}s. */
 export type Prose = ProseSegment[]
@@ -219,6 +218,8 @@ export interface CompetitorProfile {
   website: string
   /** One-sentence, neutral description of what the product is. */
   oneLiner: string
+  /** Citations for the full description when it makes claims beyond the builder type. */
+  oneLinerSources?: FactSource[]
   /**
    * A 2-4 sentence direct answer to "which of these two should I pick", shown
    * as the page's lead paragraph ahead of the generic intro. Written so an
