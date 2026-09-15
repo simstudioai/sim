@@ -9,6 +9,7 @@ const BATCH_SIZE = 500
 export async function backfillEmbeddingSearch(sql: Sql): Promise<number> {
   await sql.begin(async (tx) => {
     await tx.unsafe("SET LOCAL lock_timeout = '5s'")
+    await tx.unsafe('LOCK TABLE embedding IN SHARE ROW EXCLUSIVE MODE')
     await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_embedding_search()
       RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
@@ -34,20 +35,24 @@ export async function backfillEmbeddingSearch(sql: Sql): Promise<number> {
 
   let afterId = ''
   let count = 0
+  let scanned = 0
+  const startedAt = Date.now()
   for (;;) {
-    const rows = await sql.begin(async (tx) => {
+    const [page] = await sql.begin(async (tx) => {
       await tx.unsafe("SET LOCAL lock_timeout = '5s'")
       await tx.unsafe("SET LOCAL statement_timeout = '60s'")
       /** Key-share locks keep selected parents alive; a concurrent trigger always wins a conflict. */
-      return tx<Array<{ id: string }>>`
-        WITH batch AS MATERIALIZED (
+      return tx<Array<{ after_id: string | null; scanned: number; inserted: number }>>`
+        WITH source_page AS MATERIALIZED (
+          SELECT id FROM embedding WHERE id > ${afterId} ORDER BY id LIMIT ${BATCH_SIZE}
+        ), missing AS MATERIALIZED (
+          SELECT p.id FROM source_page p
+          WHERE NOT EXISTS (SELECT 1 FROM embedding_search s WHERE s.id = p.id)
+        ), batch AS MATERIALIZED (
           SELECT e.id, e.knowledge_base_id, e.document_id, e.enabled,
             e.embedding, e.embedding_384, e.embedding_768, e.embedding_1024, e.embedding_3072
-          FROM embedding e
-          WHERE e.id > ${afterId}
-            AND NOT EXISTS (SELECT 1 FROM embedding_search s WHERE s.id = e.id)
-          ORDER BY e.id LIMIT ${BATCH_SIZE}
-          FOR KEY SHARE OF e
+          FROM missing m INNER JOIN embedding e ON e.id = m.id
+          ORDER BY e.id FOR KEY SHARE OF e
         ), inserted AS (
           INSERT INTO embedding_search
             (id, knowledge_base_id, document_id, enabled, "binary", binary_384, binary_768, binary_1024, binary_3072)
@@ -56,14 +61,23 @@ export async function backfillEmbeddingSearch(sql: Sql): Promise<number> {
             binary_quantize(embedding_768)::bit(768), binary_quantize(embedding_1024)::bit(1024),
             binary_quantize(embedding_3072)::bit(3072)
           FROM batch
-          ON CONFLICT (id) DO NOTHING
+          ON CONFLICT (id) DO NOTHING RETURNING id
         )
-        SELECT id FROM batch ORDER BY id
+        SELECT max(id) AS after_id, count(*)::int AS scanned,
+          (SELECT count(*)::int FROM inserted) AS inserted FROM source_page
       `
     })
-    if (!rows.length) break
-    afterId = rows[rows.length - 1].id
-    count += rows.length
+    if (!page.after_id) break
+    afterId = page.after_id
+    count += page.inserted
+    scanned += page.scanned
+    if (scanned % (BATCH_SIZE * 100) === 0) {
+      logger.info('Embedding candidate backfill progress', {
+        scanned,
+        inserted: count,
+        elapsedMs: Date.now() - startedAt,
+      })
+    }
   }
   /** New projections need usable cardinality estimates before the first app image reads them. */
   await sql.unsafe('ANALYZE embedding_search')
@@ -82,7 +96,7 @@ export const backfillEmbeddingSearchMigration: ScriptMigration = {
 if (import.meta.main) {
   const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is required to initialize embedding search')
-  const sql = postgres(url, { max: 1, onnotice: () => undefined })
+  const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {
     await backfillEmbeddingSearchMigration.up(sql)
   } finally {

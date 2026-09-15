@@ -453,7 +453,7 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
           access: { kind: 'workspace', tokens: WORKSPACE_ACCESS_TOKENS },
           searchMode: 'hybrid',
           query: 'Orion',
-          queryVector: { vector, dimensions: DIMENSIONS },
+          queryVector: { vector, dimensions: DIMENSIONS, model: 'text-embedding-3-small' },
         })
       )
       expect(workspaceResults).toEqual([])
@@ -485,7 +485,11 @@ describe.skipIf(!enabled)('knowledge scale: isolated real PostgreSQL, no provide
                     access,
                     searchMode: mode,
                     query: 'Orion',
-                    queryVector: { vector, dimensions: DIMENSIONS },
+                    queryVector: {
+                      vector,
+                      dimensions: DIMENSIONS,
+                      model: 'text-embedding-3-small',
+                    },
                     structuredFilters: filters,
                   })
                 )
