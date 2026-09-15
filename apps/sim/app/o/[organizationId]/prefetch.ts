@@ -18,20 +18,22 @@ export async function prefetchOrganizationSidebar(
   queryClient: QueryClient,
   organizationId: string,
   principal: SessionPrincipal,
-  activeOrganizationId: string | null
+  activeOrganizationId: string | null,
+  searchAvailable: boolean
 ): Promise<void> {
   await Promise.all([
-    queryClient.prefetchQuery({
-      queryKey: mothershipChatKeys.organizationList(organizationId, 'active'),
-      queryFn: async () => {
-        const chats = await listOrganizationChats.execute({
-          principal,
-          input: { organizationId, scope: 'active' },
-        })
-        return chats.map(mapChat)
-      },
-      staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
-    }),
+    searchAvailable &&
+      queryClient.prefetchQuery({
+        queryKey: mothershipChatKeys.organizationList(organizationId, 'active'),
+        queryFn: async () => {
+          const chats = await listOrganizationChats.execute({
+            principal,
+            input: { organizationId, scope: 'active' },
+          })
+          return chats.map(mapChat)
+        },
+        staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
+      }),
     seedWorkspaceList(queryClient, principal.userId, activeOrganizationId),
     prefetchUserProfile(queryClient, principal.userId),
   ])

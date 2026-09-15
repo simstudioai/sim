@@ -130,10 +130,9 @@ export function SettingsSidebar({
   const userId = session?.user?.id
 
   const isOrgAdminOrOwner = hostContext.viewer.isHostOrganizationAdmin
-  const organizationSettingsId =
-    hostContext.features?.organizationSearch && hostContext.viewer.isHostOrganizationMember
-      ? hostContext.hostOrganizationId
-      : null
+  const organizationSettingsId = hostContext.viewer.isHostOrganizationMember
+    ? hostContext.hostOrganizationId
+    : null
   const subscriptionAccess = getSubscriptionAccessState(hostContext.ownerBilling)
   const inboxEntitled = inboxConfig?.entitled ?? false
   const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
@@ -149,18 +148,9 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
-      if (item.id === 'connected-accounts') {
-        return Boolean(
-          hostContext.hostOrganizationId &&
-            isOrgAdminOrOwner &&
-            hostContext.features?.credentialGroups &&
-            !hostContext.features?.organizationSearch
-        )
-      }
       if (
-        hostContext.hostOrganizationId &&
-        ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id) &&
-        (organizationSettingsId || !hostContext.viewer.isHostOrganizationMember)
+        item.id === 'connected-accounts' ||
+        (hostContext.hostOrganizationId && ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id))
       ) {
         return false
       }
@@ -271,7 +261,6 @@ export function SettingsSidebar({
     hostContext,
     userId,
     isOrgAdminOrOwner,
-    organizationSettingsId,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
     permissionConfig,

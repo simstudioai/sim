@@ -33,7 +33,7 @@ vi.mock('@/lib/billing/client', () => ({
     getSubscriptionAccessState(...args),
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => ({
-  useDeploymentShape: () => deployment,
+  useDeploymentShape: () => hostContext.deployment,
   getDeploymentShape: () => deployment,
 }))
 vi.mock('@/lib/desktop', () => ({
@@ -185,13 +185,24 @@ function expectWorkspaceLinks() {
   expect(workspaceLink('secrets')).toHaveTextContent('Secrets')
 }
 
-describe('workspace SettingsSidebar organization rollout', () => {
+function expectOrganizationLink() {
+  const links = container.querySelectorAll<HTMLAnchorElement>('a[href^="/o/"]')
+  expect(links).toHaveLength(1)
+  expect(links[0]).toHaveAttribute('href', '/o/host-org/settings/members')
+  expect(links[0]).toHaveTextContent('Organization')
+  for (const section of ['organization', 'billing', 'usage', 'sso', 'connected-accounts']) {
+    expect(workspaceLink(section)).toBeNull()
+  }
+  expectWorkspaceLinks()
+}
+
+describe('workspace SettingsSidebar organization navigation', () => {
   it('hides Connected accounts when credential groups are disabled', () => {
     hostContext.features = { ...hostContext.features!, credentialGroups: false }
     renderSidebar()
 
     expect(workspaceLink('connected-accounts')).toBeNull()
-    expectWorkspaceLinks()
+    expectOrganizationLink()
   })
 
   it('does not offer organization accounts in a personal workspace', () => {
@@ -199,79 +210,47 @@ describe('workspace SettingsSidebar organization rollout', () => {
     renderSidebar()
 
     expect(workspaceLink('connected-accounts')).toBeNull()
+    expect(container.querySelector('a[href^="/o/"]')).toBeNull()
   })
 
-  it.each([false, undefined])(
-    'keeps organization settings in the workspace for an admin when rollout is %s',
-    (enabled) => {
-      hostContext = makeHostContext('admin', enabled)
-      renderSidebar()
+  it.each([
+    { role: 'admin', search: true },
+    { role: 'admin', search: false },
+    { role: 'admin', search: undefined },
+    { role: 'member', search: true },
+    { role: 'member', search: false },
+    { role: 'member', search: undefined },
+  ] as const)('links a $role to organization settings with Search $search', ({ role, search }) => {
+    hostContext = makeHostContext(role, search)
+    renderSidebar()
 
-      expect(workspaceLink('organization')).toHaveTextContent('Members')
-      expect(workspaceLink('billing')).toHaveTextContent('Subscription')
-      expect(workspaceLink('usage')).toHaveTextContent('Usage tracking')
-      expect(workspaceLink('sso')).toHaveTextContent('Single sign-on')
-      expect(workspaceLink('connected-accounts')).toHaveTextContent('Connected accounts')
-      expect(container.querySelector('a[href^="/o/"]')).toBeNull()
-      expectWorkspaceLinks()
-    }
-  )
+    expectOrganizationLink()
+  })
 
-  it('keeps existing settings when an older host context has no features object', () => {
+  it('links to organization settings when an older host context has no features object', () => {
     hostContext.features = undefined
     renderSidebar()
 
-    expect(workspaceLink('connected-accounts')).toBeNull()
-
-    expect(workspaceLink('organization')).toHaveTextContent('Members')
-    expect(workspaceLink('billing')).toHaveTextContent('Subscription')
-    expect(container.querySelector('a[href^="/o/"]')).toBeNull()
-    expectWorkspaceLinks()
+    expectOrganizationLink()
   })
 
-  it.each(['admin', 'member'] as const)(
-    'replaces organization entries with one host organization link for a %s when enabled',
-    (role) => {
-      hostContext = makeHostContext(role, true)
-      renderSidebar()
-
-      const links = container.querySelectorAll<HTMLAnchorElement>('a[href^="/o/"]')
-      expect(links).toHaveLength(1)
-      expect(links[0]).toHaveAttribute('href', '/o/host-org/settings/members')
-      expect(links[0]).toHaveTextContent('Organization')
-      for (const section of ['organization', 'billing', 'usage', 'sso', 'connected-accounts']) {
-        expect(workspaceLink(section)).toBeNull()
-      }
-      expectWorkspaceLinks()
-    }
-  )
-
-  it('keeps the member roster while preserving admin-only settings restrictions when disabled', () => {
-    hostContext = makeHostContext('member', false)
+  it('keeps organization settings reachable on self-hosted deployments without billing', () => {
+    hostContext.deployment = { ...deployment, hosted: false, billingEnabled: false }
     renderSidebar()
 
-    expect(workspaceLink('organization')).toHaveTextContent('Members')
-    for (const section of ['billing', 'usage', 'sso', 'connected-accounts']) {
-      expect(workspaceLink(section)).toBeNull()
-    }
-    expect(container.querySelector('a[href^="/o/"]')).toBeNull()
-    expectWorkspaceLinks()
+    expectOrganizationLink()
   })
 
-  it('preserves plan restrictions without hiding the billing recovery link when disabled', () => {
+  it('keeps organization settings reachable when billing is blocked', () => {
     hostContext.ownerBilling.billingBlocked = true
     hostContext.ownerBilling.billingBlockedReason = 'payment_failed'
     renderSidebar()
 
-    expect(workspaceLink('billing')).toHaveTextContent('Subscription')
-    for (const section of ['organization', 'usage', 'sso']) {
-      expect(workspaceLink(section)).toBeNull()
-    }
-    expectWorkspaceLinks()
+    expectOrganizationLink()
   })
 
   it.each([false, true])(
-    'keeps external workspace admins out of organization settings when rollout is %s',
+    'keeps external workspace admins out of organization settings with Search %s',
     (enabled) => {
       hostContext = makeHostContext('external', enabled)
       renderSidebar()

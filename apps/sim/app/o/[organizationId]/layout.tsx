@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -18,9 +18,8 @@ import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/
 
 /**
  * The organization surface: the viewer's own view of one organization, outside
- * any workspace. Requires membership and the organization's Search rollout.
- * Non-members get an explicit denial; members outside the rollout retain
- * workspace settings, including when following a saved organization link.
+ * any workspace. Requires membership; Search availability is checked by the
+ * individual pages and controls that use it.
  */
 export default async function OrganizationLayout({
   children,
@@ -48,13 +47,12 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
-
   await prefetchOrganizationSidebar(
     queryClient,
     organizationId,
     { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-    getActiveOrganizationId(session)
+    getActiveOrganizationId(session),
+    context.searchAccess.memberScoped
   )
 
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
