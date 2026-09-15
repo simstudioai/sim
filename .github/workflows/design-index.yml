@@ -1,0 +1,88 @@
+name: Design index maintenance
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: design-index-maintenance
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    if: vars.DESIGN_DIFF_INDEX_ENABLED == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout immutable trusted engine
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Install trusted dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Resolve current staging source
+        id: staging
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = (await github.rest.repos.getCommit({ owner, repo, ref: 'staging' })).data.sha;
+            if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid staging identity');
+            core.setOutput('sha', sha);
+
+      - name: Identify compatible index
+        id: index
+        run: echo "identity=$(bun --no-env-file scripts/design-diff/index-cli.ts --identity)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore prior facts
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ runner.temp }}/design-index
+          key: design-index-v1-${{ steps.index.outputs.identity }}-${{ steps.staging.outputs.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: design-index-v1-${{ steps.index.outputs.identity }}-
+
+      - name: Fetch source as data
+        env:
+          SOURCE_SHA: ${{ steps.staging.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -c "http.extraheader=AUTHORIZATION: basic $AUTH_HEADER" fetch --no-tags origin "$SOURCE_SHA" >/dev/null 2>&1
+          test "$(git rev-parse --verify "$SOURCE_SHA^{commit}")" = "$SOURCE_SHA"
+
+      - name: Refresh and checkpoint staging snapshot
+        env:
+          SOURCE_SHA: ${{ steps.staging.outputs.sha }}
+          CACHE_DIRECTORY: ${{ runner.temp }}/design-index
+          METRICS_PATH: ${{ runner.temp }}/design-index-metrics.json
+        run: bun run design:index --ref "$SOURCE_SHA" --cache-dir "$CACHE_DIRECTORY" --metrics "$METRICS_PATH" > /dev/null 2>&1
+
+      - name: Save completed immutable cache
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ runner.temp }}/design-index
+          key: design-index-v1-${{ steps.index.outputs.identity }}-${{ steps.staging.outputs.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Retain execution metrics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: design-index-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/design-index-metrics.json
+          retention-days: 7
+          if-no-files-found: warn
