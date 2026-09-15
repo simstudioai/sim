@@ -429,6 +429,7 @@ async function cleanupWorkflowExecutionLogs(
     onBatch: async (rows) => {
       for (const row of rows) {
         await deleteExecutionFiles(row.files, fileStats)
+        if (budget && fileStats.filesDeleteFailed) throw new Error('Log file cleanup failed')
       }
     },
     batchSize: WORKFLOW_LOG_CLEANUP_BATCH_SIZE,
@@ -486,7 +487,6 @@ export async function runCleanupLogs(
   logger.info(
     `[${label}] workflow_execution_logs files: ${workflowResults.filesDeleted}/${workflowResults.filesTotal} deleted, ${workflowResults.filesDeleteFailed} failed`
   )
-  if (budgets && workflowResults.filesDeleteFailed) throw new Error('Log file cleanup failed')
   const largeValueResults = await cleanupLargeExecutionValues(
     workspaceIds,
     retentionDate,
