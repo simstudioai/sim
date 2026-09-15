@@ -209,18 +209,22 @@ function connectorStoredArtifact(extDoc: ExternalDocument): {
     mimeType: 'text/plain',
   }
 }
-type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
+type KnowledgeBaseLockingTx = Pick<typeof db, 'select'>
 
+/**
+ * Holds an active KB through commit without serializing independent document saves.
+ * SHARE blocks soft deletion's NO KEY UPDATE but permits other saves and FK checks.
+ * Callers acquire this before connector/document locks and must not update the KB.
+ */
 async function isKnowledgeBaseActiveInTx(
   tx: KnowledgeBaseLockingTx,
   knowledgeBaseId: string
 ): Promise<boolean> {
-  await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
-
   const rows = await tx
     .select({ id: knowledgeBase.id })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .for('share')
     .limit(1)
 
   return rows.length > 0
