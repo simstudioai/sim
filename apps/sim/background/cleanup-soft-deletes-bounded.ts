@@ -21,7 +21,6 @@ import {
 } from '@/lib/billing/storage'
 import { type BoundedCleanup, setCleanupTimeouts } from '@/lib/cleanup/bounded'
 import { boundedDelete } from '@/lib/cleanup/bounded-delete'
-import { deleteBoundedStorage } from '@/lib/cleanup/bounded-storage'
 import type { CleanupType } from '@/lib/cleanup/bounded-types'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import {
@@ -29,9 +28,13 @@ import {
   cleanupOwnerCondition,
   resolveCleanupOwnerScope,
 } from '@/lib/cleanup/resource-scope'
+import {
+  enqueueRetentionStorageCleanup,
+  processRetentionStorageCleanup,
+} from '@/lib/cleanup/storage-outbox'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { cleanupKnowledgeStorageBinding } from '@/lib/knowledge/documents/storage-cleanup'
-import type { StorageContext } from '@/lib/uploads'
+import { isUsingCloudStorage, type StorageContext } from '@/lib/uploads'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { reRootActiveFolderChildrenUnguarded } from '@/background/cleanup-soft-deletes'
 
@@ -207,8 +210,8 @@ async function cleanupFiles(control: BoundedCleanup, scope: CleanupOwnerScope, c
         ),
       (row) => row.id,
       async (rows) => {
-        const deleted = await control.query(async (tx) =>
-          tx
+        const { deleted, events } = await control.query(async (tx) => {
+          const deleted = await tx
             .delete(workspaceFile)
             .where(
               and(
@@ -220,14 +223,18 @@ async function cleanupFiles(control: BoundedCleanup, scope: CleanupOwnerScope, c
               )
             )
             .returning({ id: workspaceFile.id, key: workspaceFile.key })
-        )
+          const events = isUsingCloudStorage()
+            ? await enqueueRetentionStorageCleanup(
+                tx,
+                deleted.map((row) => row.key),
+                'workspace',
+                control.options.batchSize
+              )
+            : []
+          return { deleted, events }
+        })
         await control.deleted('legacyFiles', deleted.length)
-        await deleteBoundedStorage(
-          control,
-          'legacyFiles',
-          deleted.map((row) => row.key),
-          'workspace'
-        )
+        await processRetentionStorageCleanup(control, 'legacyFiles', events)
       }
     )
   }
@@ -289,21 +296,24 @@ async function cleanupFiles(control: BoundedCleanup, scope: CleanupOwnerScope, c
               billing,
               deleted.reduce((sum, file) => sum + getWorkspaceFileSize(file), 0)
             )
-          return deleted
+          const events = isUsingCloudStorage()
+            ? await enqueueRetentionStorageCleanup(
+                tx,
+                deleted.map((file) => file.key),
+                row.context as StorageContext,
+                control.options.batchSize
+              )
+            : []
+          return { deleted, events }
         }
-        const deleted = billing
+        const { deleted, events } = billing
           ? await db.transaction(async (tx) => {
               await setCleanupTimeouts(tx)
               return remove(tx)
             })
           : await control.query(remove)
         await control.deleted('files', deleted.length)
-        await deleteBoundedStorage(
-          control,
-          'files',
-          deleted.map((file) => file.key),
-          row.context as StorageContext
-        )
+        await processRetentionStorageCleanup(control, 'files', events)
       }
     }
   )

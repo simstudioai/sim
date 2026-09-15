@@ -7,6 +7,7 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { OutboxHandlerRegistry } from '@/lib/core/outbox/service'
 
 const { storage, prepareChat, executeChat, hardDelete, billing, decrement, reRoot } = vi.hoisted(
   () => ({
@@ -19,6 +20,35 @@ const { storage, prepareChat, executeChat, hardDelete, billing, decrement, reRoo
     reRoot: vi.fn(),
   })
 )
+const outbox = vi.hoisted(() => new Map<string, { eventType: string; payload: unknown }>())
+vi.mock('@/lib/core/outbox/service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/core/outbox/service')>()
+  return {
+    ...actual,
+    enqueueOutboxEvent: vi.fn(async (...args: Parameters<typeof actual.enqueueOutboxEvent>) => {
+      const id = await actual.enqueueOutboxEvent(...args)
+      outbox.set(id, { eventType: args[1], payload: args[2] })
+      return id
+    }),
+    processOutboxEventById: vi.fn(async (id: string, handlers: OutboxHandlerRegistry) => {
+      const event = outbox.get(id)
+      if (!event) throw new Error('Missing test outbox event')
+      try {
+        await handlers[event.eventType](event.payload, {
+          eventId: id,
+          eventType: event.eventType,
+          attempts: 0,
+          maxAttempts: 48,
+          signal: new AbortController().signal,
+          checkpointPayload: async () => {},
+        })
+        return 'completed'
+      } catch {
+        return 'pending'
+      }
+    }),
+  }
+})
 vi.mock('@/background/cleanup-logs', () => ({ legacyLargeValuePredicate: vi.fn() }))
 vi.mock('@/background/cleanup-soft-deletes', () => ({
   reRootActiveFolderChildrenUnguarded: reRoot,
@@ -57,6 +87,7 @@ function control(type: CleanupType, dryRun = true, limit = 1) {
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  outbox.clear()
   storage.mockResolvedValue({ deleted: 1, failed: [] })
   prepareChat.mockResolvedValue({ execute: executeChat })
 })
@@ -125,7 +156,7 @@ describe('requested cleanup stages', () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'one', files: [{ key: 'blob' }] }])
     storage.mockResolvedValue({ deleted: 0, failed: [{ key: 'blob', error: 'unavailable' }] })
     const run = control('workflowLogs', false)
-    await expect(runBoundedLogScope(scope, run)).rejects.toThrow('storage deletions failed')
+    await expect(runBoundedLogScope(scope, run)).rejects.toThrow('storage cleanup is incomplete')
     expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
     expect(run.progress.stages.workflowLogs).toMatchObject({
       selected: 1,
@@ -215,7 +246,7 @@ describe('bounded file billing', () => {
       { id: 'file-one', key: 'blob', context: 'workspace', workspaceId: 'ws-one', sizeBytes: 100 },
     ])
     billing.mockResolvedValue({ workspaceId: 'ws-one' })
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'file-one', sizeBytes: 40 }])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'file-one', key: 'blob', sizeBytes: 40 }])
     const run = control('files', false)
     await runBoundedSoftDeleteScope({ ...scope, workspaceIds: ['ws-one', 'ws-two'] }, run)
     expect(decrement).toHaveBeenCalledWith(

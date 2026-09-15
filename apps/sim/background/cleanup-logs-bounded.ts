@@ -12,7 +12,10 @@ import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
 import type { BoundedCleanup } from '@/lib/cleanup/bounded'
 import { boundedDelete } from '@/lib/cleanup/bounded-delete'
 import { pruneBoundedLargeValueMetadata } from '@/lib/cleanup/bounded-large-value-metadata'
-import { deleteBoundedStorage, tombstoneBoundedFiles } from '@/lib/cleanup/bounded-storage'
+import {
+  enqueueRetentionStorageCleanup,
+  processRetentionStorageCleanup,
+} from '@/lib/cleanup/storage-outbox'
 import {
   LIVE_PAUSED_REFERENCE_STATUSES,
   unreferencedLargeValuePredicate,
@@ -51,8 +54,8 @@ export async function runBoundedLogScope(payload: CleanupJobPayload, control: Bo
         ),
       (row) => row.id,
       async (rows) => {
-        const deleted = await control.query(async (tx) =>
-          tx
+        const { deleted, events } = await control.query(async (tx) => {
+          const deleted = await tx
             .delete(workflowExecutionLogs)
             .where(
               and(
@@ -64,19 +67,28 @@ export async function runBoundedLogScope(payload: CleanupJobPayload, control: Bo
               )
             )
             .returning({ id: workflowExecutionLogs.id, files: workflowExecutionLogs.files })
-        )
-        await control.deleted('workflowLogs', deleted.length)
-        for (const row of deleted) {
-          const keys = Array.isArray(row.files)
-            ? row.files.flatMap((file) =>
-                file && typeof file === 'object' && 'key' in file && typeof file.key === 'string'
-                  ? [file.key]
-                  : []
+          const keys = deleted.flatMap((row) =>
+            Array.isArray(row.files)
+              ? row.files.flatMap((file) =>
+                  file && typeof file === 'object' && 'key' in file && typeof file.key === 'string'
+                    ? [file.key]
+                    : []
+                )
+              : []
+          )
+          const events = isUsingCloudStorage()
+            ? await enqueueRetentionStorageCleanup(
+                tx,
+                keys,
+                'execution',
+                control.options.batchSize,
+                true
               )
             : []
-          await deleteBoundedStorage(control, 'workflowLogs', keys, 'execution')
-          if (isUsingCloudStorage()) await tombstoneBoundedFiles(control, keys)
-        }
+          return { deleted, events }
+        })
+        await control.deleted('workflowLogs', deleted.length)
+        await processRetentionStorageCleanup(control, 'workflowLogs', events)
       }
     )
     await boundedDelete(
@@ -123,7 +135,7 @@ export async function runBoundedLogScope(payload: CleanupJobPayload, control: Bo
         async (rows) => {
           if (!isUsingCloudStorage()) return
           const selectedKeys = rows.map((row) => row.key)
-          const keys = await control.query(async (tx) => {
+          const { keys, events } = await control.query(async (tx) => {
             await tx
               .select({ key: table.key })
               .from(table)
@@ -135,11 +147,18 @@ export async function runBoundedLogScope(payload: CleanupJobPayload, control: Bo
               .set({ deletedAt: new Date() })
               .where(and(eligible, inArray(table.key, selectedKeys)))
               .returning({ key: table.key })
-            return claimed.map((row) => row.key)
+            const keys = claimed.map((row) => row.key)
+            const events = await enqueueRetentionStorageCleanup(
+              tx,
+              keys,
+              'execution',
+              control.options.batchSize,
+              true
+            )
+            return { keys, events }
           })
-          await deleteBoundedStorage(control, type, keys, 'execution')
+          await processRetentionStorageCleanup(control, type, events)
           await control.deleted(type, keys.length)
-          await tombstoneBoundedFiles(control, keys)
         }
       )
     }

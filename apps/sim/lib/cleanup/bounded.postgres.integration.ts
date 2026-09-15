@@ -1,11 +1,20 @@
 import { db, dbFor, runOutsideTransactionContext } from '@sim/db'
 import { eq, sql } from 'drizzle-orm'
 import { pgTable, text } from 'drizzle-orm/pg-core'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BoundedCleanup, cleanupQuery } from '@/lib/cleanup/bounded'
 import { boundedDelete } from '@/lib/cleanup/bounded-delete'
 import { pruneBoundedLargeValueMetadata } from '@/lib/cleanup/bounded-large-value-metadata'
+import {
+  enqueueRetentionStorageCleanup,
+  processRetentionStorageCleanup,
+  retentionStorageOutboxHandlers,
+} from '@/lib/cleanup/storage-outbox'
+import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { lockLargeValueKeysForReference } from '@/lib/execution/payloads/large-value-lock'
+
+const { deleteStorageFiles } = vi.hoisted(() => ({ deleteStorageFiles: vi.fn() }))
+vi.mock('@/lib/uploads', () => ({ StorageService: { deleteFiles: deleteStorageFiles } }))
 
 const url = new URL(process.env.DATABASE_URL ?? '')
 if (url.hostname !== '127.0.0.1' || url.pathname !== '/bounded_cleanup_test') {
@@ -18,6 +27,12 @@ const roots = pgTable('cleanup_fixture_roots', {
 const client = dbFor('cleanup')
 
 beforeAll(async () => {
+  await db.execute(sql`CREATE TABLE outbox_event (
+    id text PRIMARY KEY, event_type text NOT NULL, payload json NOT NULL,
+    status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0,
+    max_attempts integer NOT NULL DEFAULT 10, available_at timestamp NOT NULL DEFAULT now(),
+    locked_at timestamp, last_error text, created_at timestamp NOT NULL DEFAULT now(), processed_at timestamp
+  )`)
   await db.execute(
     sql`CREATE TABLE execution_large_value_references (key text, workspace_id text, execution_id text, source text, PRIMARY KEY(key, execution_id, source))`
   )
@@ -41,6 +56,8 @@ beforeAll(async () => {
   )
 })
 beforeEach(async () => {
+  deleteStorageFiles.mockReset()
+  await db.execute(sql`TRUNCATE outbox_event`)
   await db.execute(
     sql`TRUNCATE execution_large_value_references, execution_large_value_dependencies, execution_large_values, workflow_execution_logs, paused_executions, workspace_files`
   )
@@ -56,6 +73,7 @@ beforeEach(async () => {
   )
 })
 afterAll(async () => {
+  await db.execute(sql`DROP TABLE IF EXISTS outbox_event`)
   await db.execute(
     sql`DROP TABLE IF EXISTS execution_large_value_references, execution_large_value_dependencies, execution_large_values, workflow_execution_logs, paused_executions, workspace_files`
   )
@@ -278,5 +296,57 @@ describe('large-value reference lifecycle locks', () => {
     await expect(
       db.transaction((tx) => lockLargeValueKeysForReference(tx, ['missing-key']))
     ).rejects.toThrow('missing large value')
+  })
+})
+
+describe('durable retention storage cleanup', () => {
+  it('rolls back cleanup intents with the root deletion', async () => {
+    await expect(
+      cleanupQuery(async (tx) => {
+        await tx.delete(roots).where(eq(roots.id, 'a'))
+        await enqueueRetentionStorageCleanup(tx, ['blob'], 'execution', 1)
+        throw new Error('abort transaction')
+      })
+    ).rejects.toThrow('abort transaction')
+    expect(await count('roots')).toBe(6)
+    expect((await db.execute(sql`SELECT id FROM outbox_event`)).length).toBe(0)
+    expect(deleteStorageFiles).not.toHaveBeenCalled()
+  })
+  it('retries storage from the outbox after the root is gone', async () => {
+    const [eventId] = await cleanupQuery(async (tx) => {
+      await tx.delete(roots).where(eq(roots.id, 'a'))
+      return enqueueRetentionStorageCleanup(tx, ['blob'], 'execution', 1)
+    })
+    deleteStorageFiles.mockResolvedValueOnce({
+      deleted: 0,
+      failed: [{ key: 'blob', error: 'offline' }],
+    })
+    await expect(
+      processRetentionStorageCleanup(control(1), 'workflows', [eventId])
+    ).rejects.toThrow('incomplete: pending')
+    expect(await count('roots')).toBe(5)
+    const [pending] = await db.execute<{ status: string; payload: { keys: string[] } }>(
+      sql`SELECT status, payload FROM outbox_event WHERE id = ${eventId}`
+    )
+    expect(pending.status).toBe('pending')
+    expect(pending.payload.keys).toEqual(['blob'])
+    await db.execute(
+      sql`UPDATE outbox_event SET available_at = now() - interval '1 second' WHERE id = ${eventId}`
+    )
+    deleteStorageFiles.mockResolvedValueOnce({ deleted: 1, failed: [] })
+    await expect(processOutboxEventById(eventId, retentionStorageOutboxHandlers)).resolves.toBe(
+      'completed'
+    )
+    expect(deleteStorageFiles).toHaveBeenCalledTimes(2)
+    expect(await count('roots')).toBe(5)
+  })
+  it('bounds and deduplicates the persisted key batches', async () => {
+    await cleanupQuery((tx) =>
+      enqueueRetentionStorageCleanup(tx, ['a', 'b', 'a', 'c'], 'workspace', 2)
+    )
+    const events = await db.execute<{ payload: { keys: string[] } }>(
+      sql`SELECT payload FROM outbox_event ORDER BY created_at, id`
+    )
+    expect(events.map((event) => event.payload.keys.length).sort()).toEqual([1, 2])
   })
 })
