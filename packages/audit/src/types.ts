@@ -162,6 +162,7 @@ export const AuditAction = {
   ORGANIZATION_DOMAIN_ADDED: 'organization.domain.added',
   ORGANIZATION_DOMAIN_VERIFIED: 'organization.domain.verified',
   ORGANIZATION_DOMAIN_REMOVED: 'organization.domain.removed',
+  ORGANIZATION_SSO_PRIMARY_PROVIDER_CHANGED: 'organization.sso.primary_provider_changed',
   ORG_MEMBER_ADDED: 'org_member.added',
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',

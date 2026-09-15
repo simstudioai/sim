@@ -4220,15 +4220,6 @@ export const ssoProvider = pgTable(
     // Better Auth resolves providers by `providerId` alone (no org scoping), so
     // a duplicate makes registration and updates ambiguous across tenants.
     providerIdUnique: uniqueIndex('sso_provider_provider_id_unique').on(table.providerId),
-    /**
-     * Sign-in routes by email domain, so an organization's providers must serve
-     * distinct domains. Expression-keyed the way the verify and resolve paths
-     * compare domains, so a legacy `*.` prefix or stray case cannot slip a
-     * second provider onto a domain already routed.
-     */
-    orgDomainUnique: uniqueIndex('sso_provider_org_domain_unique')
-      .on(table.organizationId, sql`lower(regexp_replace(btrim(${table.domain}), '^\\*\\.', ''))`)
-      .where(sql`${table.organizationId} is not null`),
     domainIdx: index('sso_provider_domain_idx').on(table.domain),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
@@ -4259,6 +4250,16 @@ export const ssoDomain = pgTable(
     /** High-entropy token placed in the domain's `_sim-challenge` TXT record. */
     verificationToken: text('verification_token').notNull(),
     verifiedAt: timestamp('verified_at'),
+    /**
+     * The provider sign-in uses for this domain when the organization has more
+     * than one on it, such as while moving from one identity provider to
+     * another. Holds the provider id, not a foreign key: it is honored only
+     * while that provider still belongs to this organization and serves this
+     * domain, and deleting the provider clears it. Null means the domain's
+     * first verified provider by id, which is also the only one when there is
+     * just one. See `sso-primary-provider.ts`.
+     */
+    primaryProviderId: text('primary_provider_id'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

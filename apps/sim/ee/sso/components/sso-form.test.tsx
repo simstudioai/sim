@@ -183,6 +183,39 @@ describe('SSOForm sign-in errors', () => {
     expect(mockSsoSignIn).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'user@example.com', providerId: 'example-okta' })
     )
+    const [signIn] = mockSsoSignIn.mock.calls[0]
+    expect(signIn.errorCallbackURL).not.toContain('provider=')
+  })
+
+  it('signs in through the provider a test link names, and returns to that link on failure', async () => {
+    mockRequestJson.mockResolvedValue({ providerId: 'example-okta', providerType: 'oidc' })
+    mockSsoSignIn.mockResolvedValue({ data: { url: 'https://idp.example.com' }, error: null })
+    renderInteractive('email=user%40example.com&provider=example-okta')
+
+    await submitForm()
+
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/auth/sso/resolve' }),
+      { body: { email: 'user@example.com', providerId: 'example-okta' } }
+    )
+    const [signIn] = mockSsoSignIn.mock.calls[0]
+    expect(signIn.providerId).toBe('example-okta')
+    expect(signIn.errorCallbackURL).toContain('provider=example-okta')
+    /** The SSO plugin appends `?error=…` to the URL, so the test link must survive that suffix. */
+    const retry = new URL(`${signIn.errorCallbackURL}?error=invalid_provider`, 'https://sim.test')
+    expect(retry.searchParams.get('provider')).toBe('example-okta')
+  })
+
+  it('explains a test link that does not match the email domain', async () => {
+    mockRequestJson.mockRejectedValue(
+      new ApiClientError({ status: 404, message: 'No identity provider is configured', body: {} })
+    )
+    renderInteractive('email=user%40example.com&provider=someone-elses-idp')
+
+    await submitForm()
+
+    expect(container).toHaveTextContent('This sign-in link is not set up for your email domain.')
+    expect(mockSsoSignIn).not.toHaveBeenCalled()
   })
 
   it('explains when no provider serves the domain, without starting a sign-in', async () => {
