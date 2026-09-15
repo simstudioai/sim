@@ -30,6 +30,7 @@ import {
   resolveCleanupOwnerScope,
 } from '@/lib/cleanup/resource-scope'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
+import { cleanupKnowledgeStorageBinding } from '@/lib/knowledge/documents/storage-cleanup'
 import type { StorageContext } from '@/lib/uploads'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { reRootActiveFolderChildrenUnguarded } from '@/background/cleanup-soft-deletes'
@@ -121,18 +122,16 @@ export async function runBoundedSoftDeleteScope(
         lt(knowledgeBase.deletedAt, cutoff)
       ),
       {
-        before: async (kbIds) => {
+        beforeDelete: async (kbIds, tx) => {
           // Existing ledger/outbox implementation owns document and embedding deletion.
           while (true) {
             control.assertTimeRemaining()
-            const rows = await control.query(async (tx) =>
-              tx
-                .select({ id: document.id })
-                .from(document)
-                .where(inArray(document.knowledgeBaseId, kbIds))
-                .orderBy(asc(document.id))
-                .limit(control.options.batchSize)
-            )
+            const rows = await tx
+              .select({ id: document.id })
+              .from(document)
+              .where(inArray(document.knowledgeBaseId, kbIds))
+              .orderBy(asc(document.id))
+              .limit(control.options.batchSize)
             if (rows.length === 0) break
             const deleted = await hardDeleteDocuments(
               rows.map((row) => row.id),
@@ -141,7 +140,7 @@ export async function runBoundedSoftDeleteScope(
               undefined,
               undefined,
               undefined,
-              control.query
+              async (query) => query(tx)
             )
             if (deleted !== rows.length)
               throw new Error('Knowledge-base document cleanup did not delete its selected batch')
@@ -176,10 +175,8 @@ export async function runBoundedSoftDeleteScope(
           ),
           target.type === 'folders'
             ? {
-                before: (folderIds) =>
-                  control.query((tx) =>
-                    reRootActiveFolderChildrenUnguarded(folderIds, cutoff, payload.label, tx, true)
-                  ),
+                beforeDelete: (folderIds, tx) =>
+                  reRootActiveFolderChildrenUnguarded(folderIds, cutoff, payload.label, tx, true),
               }
             : {}
         )
@@ -210,12 +207,6 @@ async function cleanupFiles(control: BoundedCleanup, scope: CleanupOwnerScope, c
         ),
       (row) => row.id,
       async (rows) => {
-        await deleteBoundedStorage(
-          control,
-          'legacyFiles',
-          rows.map((row) => row.key),
-          'workspace'
-        )
         const deleted = await control.query(async (tx) =>
           tx
             .delete(workspaceFile)
@@ -228,9 +219,15 @@ async function cleanupFiles(control: BoundedCleanup, scope: CleanupOwnerScope, c
                 )
               )
             )
-            .returning({ id: workspaceFile.id })
+            .returning({ id: workspaceFile.id, key: workspaceFile.key })
         )
         await control.deleted('legacyFiles', deleted.length)
+        await deleteBoundedStorage(
+          control,
+          'legacyFiles',
+          deleted.map((row) => row.key),
+          'workspace'
+        )
       }
     )
   }
@@ -270,7 +267,6 @@ async function cleanupFiles(control: BoundedCleanup, scope: CleanupOwnerScope, c
                 return resolveStorageBillingContext(row.workspaceId, { executor })
               })
             : undefined
-        await deleteBoundedStorage(control, 'files', [row.key], row.context as StorageContext)
         const remove = async (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => {
           const deleted = await tx
             .delete(workspaceFiles)
@@ -282,14 +278,18 @@ async function cleanupFiles(control: BoundedCleanup, scope: CleanupOwnerScope, c
                 billing ? eq(workspaceFiles.workspaceId, billing.workspaceId) : undefined
               )
             )
-            .returning({ id: workspaceFiles.id, sizeBytes: workspaceFiles.sizeBytes })
+            .returning({
+              id: workspaceFiles.id,
+              key: workspaceFiles.key,
+              sizeBytes: workspaceFiles.sizeBytes,
+            })
           if (billing)
             await decrementStorageUsageForBillingContextInTx(
               tx,
               billing,
               deleted.reduce((sum, file) => sum + getWorkspaceFileSize(file), 0)
             )
-          return deleted.length
+          return deleted
         }
         const deleted = billing
           ? await db.transaction(async (tx) => {
@@ -297,7 +297,13 @@ async function cleanupFiles(control: BoundedCleanup, scope: CleanupOwnerScope, c
               return remove(tx)
             })
           : await control.query(remove)
-        await control.deleted('files', deleted)
+        await control.deleted('files', deleted.length)
+        await deleteBoundedStorage(
+          control,
+          'files',
+          deleted.map((file) => file.key),
+          row.context as StorageContext
+        )
       }
     }
   )
@@ -317,7 +323,14 @@ async function cleanupOrphanBindings(control: BoundedCleanup, scope: CleanupOwne
     (limit, seen) =>
       control.query(async (tx) =>
         tx
-          .select({ id: workspaceFiles.id, key: workspaceFiles.key })
+          .select({
+            id: workspaceFiles.id,
+            key: workspaceFiles.key,
+            contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+            workspaceId: workspaceFiles.workspaceId,
+            organizationId: workspaceFiles.organizationId,
+            userId: workspaceFiles.userId,
+          })
           .from(workspaceFiles)
           .where(and(eligible, seen.length ? notInArray(workspaceFiles.id, seen) : undefined))
           .orderBy(asc(workspaceFiles.id))
@@ -325,28 +338,27 @@ async function cleanupOrphanBindings(control: BoundedCleanup, scope: CleanupOwne
       ),
     (row) => row.id,
     async (rows) => {
-      await deleteBoundedStorage(
-        control,
-        type,
-        rows.map((row) => row.key),
-        'knowledge-base'
-      )
-      const deleted = await control.query(async (tx) =>
-        tx
-          .update(workspaceFiles)
-          .set({ deletedAt: new Date() })
-          .where(
-            and(
-              eligible,
-              inArray(
-                workspaceFiles.id,
-                rows.map((row) => row.id)
-              )
-            )
-          )
-          .returning({ id: workspaceFiles.id })
-      )
-      await control.deleted(type, deleted.length)
+      for (const row of rows) {
+        control.assertTimeRemaining()
+        const deleted = await cleanupKnowledgeStorageBinding(
+          {
+            version: 1,
+            documentId: `orphan:${row.id}`,
+            fileId: row.id,
+            key: row.key,
+            contentUpdatedAt: row.contentUpdatedAt.toISOString(),
+            workspaceId: row.workspaceId,
+            organizationId: row.organizationId,
+            userId: row.userId,
+          },
+          AbortSignal.timeout(15_000),
+          control.query
+        )
+        if (deleted) {
+          await control.deleted(type, 1)
+          await control.files(type, 1, 0)
+        }
+      }
     }
   )
 }

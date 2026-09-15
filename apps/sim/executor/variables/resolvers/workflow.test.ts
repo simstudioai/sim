@@ -9,6 +9,11 @@ import { navigatePathAsync } from '@/executor/variables/resolvers/reference-asyn
 import type { ResolutionContext } from './reference'
 import { WorkflowResolver } from './workflow'
 
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  registerLargeValueOwner: vi.fn().mockResolvedValue(true),
+  addLargeValueReference: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/workflows/variables/variable-manager', () => ({
   VariableManager: {
     resolveForExecution: vi.fn((value) => value),

@@ -1,10 +1,11 @@
-import { db, dbFor } from '@sim/db'
+import { db, dbFor, runOutsideTransactionContext } from '@sim/db'
 import { eq, sql } from 'drizzle-orm'
 import { pgTable, text } from 'drizzle-orm/pg-core'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { BoundedCleanup, cleanupQuery } from '@/lib/cleanup/bounded'
 import { boundedDelete } from '@/lib/cleanup/bounded-delete'
 import { pruneBoundedLargeValueMetadata } from '@/lib/cleanup/bounded-large-value-metadata'
+import { lockLargeValueKeysForReference } from '@/lib/execution/payloads/large-value-lock'
 
 const url = new URL(process.env.DATABASE_URL ?? '')
 if (url.hostname !== '127.0.0.1' || url.pathname !== '/bounded_cleanup_test') {
@@ -26,6 +27,9 @@ beforeAll(async () => {
   await db.execute(
     sql`CREATE TABLE execution_large_values (key text PRIMARY KEY, workspace_id text, deleted_at timestamp)`
   )
+  await db.execute(
+    sql`CREATE TABLE workspace_files (key text PRIMARY KEY, context text, deleted_at timestamp)`
+  )
   await db.execute(sql`CREATE TABLE workflow_execution_logs (execution_id text)`)
   await db.execute(sql`CREATE TABLE paused_executions (execution_id text, status text)`)
 
@@ -38,7 +42,7 @@ beforeAll(async () => {
 })
 beforeEach(async () => {
   await db.execute(
-    sql`TRUNCATE execution_large_value_references, execution_large_value_dependencies, execution_large_values, workflow_execution_logs, paused_executions`
+    sql`TRUNCATE execution_large_value_references, execution_large_value_dependencies, execution_large_values, workflow_execution_logs, paused_executions, workspace_files`
   )
 
   await db.execute(sql`TRUNCATE cleanup_fixture_roots, cleanup_fixture_children`)
@@ -53,7 +57,7 @@ beforeEach(async () => {
 })
 afterAll(async () => {
   await db.execute(
-    sql`DROP TABLE IF EXISTS execution_large_value_references, execution_large_value_dependencies, execution_large_values, workflow_execution_logs, paused_executions`
+    sql`DROP TABLE IF EXISTS execution_large_value_references, execution_large_value_dependencies, execution_large_values, workflow_execution_logs, paused_executions, workspace_files`
   )
 
   await db.execute(sql`DROP TABLE IF EXISTS cleanup_fixture_children, cleanup_fixture_roots`)
@@ -104,6 +108,48 @@ describe('bounded cleanup against PostgreSQL', () => {
     })
     expect(run.progress.stages.workflows).toMatchObject({ selected: 1, deleted: 0, skipped: 1 })
     expect(await count('roots')).toBe(6)
+  })
+  it('rolls back child mutations when parent cleanup fails', async () => {
+    const run = control(1)
+    await expect(
+      boundedDelete(run, 'workflows', roots, roots.id, eq(roots.id, 'a'), {
+        beforeDelete: async (ids, tx) => {
+          await tx.execute(sql`DELETE FROM cleanup_fixture_children WHERE root_id = ${ids[0]}`)
+          throw new Error('child cleanup failed')
+        },
+      })
+    ).rejects.toThrow('child cleanup failed')
+    expect(await count('roots')).toBe(6)
+    expect(await count('children')).toBe(120)
+    expect(run.progress.stages.workflows?.deleted).toBe(0)
+  })
+  it('skips destructive hooks when a selected parent was restored', async () => {
+    let changedChildren = false
+    await boundedDelete(control(1), 'workflows', roots, roots.id, eq(roots.owner, 'one'), {
+      before: async (ids) => {
+        await db.update(roots).set({ owner: 'restored' }).where(eq(roots.id, ids[0]))
+      },
+      beforeDelete: async () => {
+        changedChildren = true
+      },
+    })
+    expect(changedChildren).toBe(false)
+    expect(await count('children')).toBe(120)
+  })
+  it('holds the parent lock throughout destructive child work', async () => {
+    await boundedDelete(control(1), 'workflows', roots, roots.id, eq(roots.id, 'a'), {
+      beforeDelete: async () => {
+        await expect(
+          runOutsideTransactionContext(() =>
+            db.transaction(async (tx) => {
+              await tx.execute(sql`SET LOCAL lock_timeout = '100ms'`)
+              await tx.update(roots).set({ owner: 'restored' }).where(eq(roots.id, 'a'))
+            })
+          )
+        ).rejects.toThrow()
+      },
+    })
+    expect(await count('roots')).toBe(5)
   })
   it('aborts a blocked delete after the local lock timeout and preserves prior batches', async () => {
     let signalLocked!: () => void
@@ -195,5 +241,42 @@ describe('bounded metadata SQL against PostgreSQL', () => {
         await db.execute<{ key: string }>(sql`SELECT key FROM execution_large_values ORDER BY key`)
       ).map((row) => row.key)
     ).toEqual(['protected', 'recent'])
+  })
+})
+
+describe('large-value reference lifecycle locks', () => {
+  it.each(['metadata', 'legacy'] as const)(
+    'protects a %s key until its reference commits',
+    async (kind) => {
+      const table = kind === 'metadata' ? 'execution_large_values' : 'workspace_files'
+      if (kind === 'metadata')
+        await db.execute(sql`INSERT INTO execution_large_values VALUES ('live-key','one',NULL)`)
+      else await db.execute(sql`INSERT INTO workspace_files VALUES ('live-key','execution',NULL)`)
+      await db.transaction(async (tx) => {
+        await lockLargeValueKeysForReference(tx, ['live-key'])
+        await expect(
+          runOutsideTransactionContext(() =>
+            cleanupQuery(async (cleanupTx) => {
+              await cleanupTx.execute(
+                sql`SELECT key FROM ${sql.identifier(table)} WHERE key = 'live-key' FOR UPDATE`
+              )
+            })
+          )
+        ).rejects.toThrow()
+      })
+      await cleanupQuery(async (tx) => {
+        await tx.execute(
+          sql`UPDATE ${sql.identifier(table)} SET deleted_at = now() WHERE key = 'live-key'`
+        )
+      })
+      await expect(
+        db.transaction((tx) => lockLargeValueKeysForReference(tx, ['live-key']))
+      ).rejects.toThrow('deleted large value')
+    }
+  )
+  it('rejects reference creation after metadata has been purged', async () => {
+    await expect(
+      db.transaction((tx) => lockLargeValueKeysForReference(tx, ['missing-key']))
+    ).rejects.toThrow('missing large value')
   })
 })

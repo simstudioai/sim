@@ -31,6 +31,11 @@ const { mockUploadFile, mockDownloadFile, mockMaskBatch } = vi.hoisted(() => ({
   mockMaskBatch: vi.fn(),
 }))
 
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  registerLargeValueOwner: vi.fn().mockResolvedValue(true),
+  addLargeValueReference: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
   validateBlockType: vi.fn(),
 }))

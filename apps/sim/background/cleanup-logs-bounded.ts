@@ -51,17 +51,6 @@ export async function runBoundedLogScope(payload: CleanupJobPayload, control: Bo
         ),
       (row) => row.id,
       async (rows) => {
-        for (const row of rows) {
-          const keys = Array.isArray(row.files)
-            ? row.files.flatMap((file) =>
-                file && typeof file === 'object' && 'key' in file && typeof file.key === 'string'
-                  ? [file.key]
-                  : []
-              )
-            : []
-          await deleteBoundedStorage(control, 'workflowLogs', keys, 'execution')
-          if (isUsingCloudStorage()) await tombstoneBoundedFiles(control, keys)
-        }
         const deleted = await control.query(async (tx) =>
           tx
             .delete(workflowExecutionLogs)
@@ -74,9 +63,20 @@ export async function runBoundedLogScope(payload: CleanupJobPayload, control: Bo
                 )
               )
             )
-            .returning({ id: workflowExecutionLogs.id })
+            .returning({ id: workflowExecutionLogs.id, files: workflowExecutionLogs.files })
         )
         await control.deleted('workflowLogs', deleted.length)
+        for (const row of deleted) {
+          const keys = Array.isArray(row.files)
+            ? row.files.flatMap((file) =>
+                file && typeof file === 'object' && 'key' in file && typeof file.key === 'string'
+                  ? [file.key]
+                  : []
+              )
+            : []
+          await deleteBoundedStorage(control, 'workflowLogs', keys, 'execution')
+          if (isUsingCloudStorage()) await tombstoneBoundedFiles(control, keys)
+        }
       }
     )
     await boundedDelete(
@@ -122,15 +122,22 @@ export async function runBoundedLogScope(payload: CleanupJobPayload, control: Bo
         (row) => row.key,
         async (rows) => {
           if (!isUsingCloudStorage()) return
-          const keys = rows.map((row) => row.key)
+          const selectedKeys = rows.map((row) => row.key)
+          const keys = await control.query(async (tx) => {
+            await tx
+              .select({ key: table.key })
+              .from(table)
+              .where(inArray(table.key, selectedKeys))
+              .orderBy(asc(table.key))
+              .for('update')
+            const claimed = await tx
+              .update(table)
+              .set({ deletedAt: new Date() })
+              .where(and(eligible, inArray(table.key, selectedKeys)))
+              .returning({ key: table.key })
+            return claimed.map((row) => row.key)
+          })
           await deleteBoundedStorage(control, type, keys, 'execution')
-          if (!legacy)
-            await control.query(async (tx) => {
-              await tx
-                .update(executionLargeValues)
-                .set({ deletedAt: new Date() })
-                .where(inArray(executionLargeValues.key, keys))
-            })
           await control.deleted(type, keys.length)
           await tombstoneBoundedFiles(control, keys)
         }

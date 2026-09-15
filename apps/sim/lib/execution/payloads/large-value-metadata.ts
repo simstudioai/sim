@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
+import { lockLargeValueKeysForReference } from '@/lib/execution/payloads/large-value-lock'
 
 const logger = createLogger('LargeValueMetadata')
 
@@ -206,6 +207,7 @@ export async function registerLargeValueOwner(
       owner.workspaceId,
       referencedKeys
     )
+    await lockLargeValueKeysForReference(tx, [owner.key, ...dependencyKeys])
     if (dependencyKeys.length === 0) {
       return
     }
@@ -245,34 +247,37 @@ export async function replaceLargeValueReferenceKeysWithClient(
     'Large value reference set'
   )
 
-  await client
-    .delete(executionLargeValueReferences)
-    .where(
-      and(
-        eq(executionLargeValueReferences.workspaceId, workspaceId),
-        eq(executionLargeValueReferences.executionId, executionId),
-        eq(executionLargeValueReferences.source, source)
+  await client.transaction(async (tx) => {
+    await lockLargeValueKeysForReference(tx, keys)
+    await tx
+      .delete(executionLargeValueReferences)
+      .where(
+        and(
+          eq(executionLargeValueReferences.workspaceId, workspaceId),
+          eq(executionLargeValueReferences.executionId, executionId),
+          eq(executionLargeValueReferences.source, source)
+        )
       )
-    )
 
-  if (keys.length === 0) {
-    return
-  }
+    if (keys.length === 0) {
+      return
+    }
 
-  for (const keyChunk of chunkArray(keys, LARGE_VALUE_METADATA_WRITE_CHUNK_SIZE)) {
-    await client
-      .insert(executionLargeValueReferences)
-      .values(
-        keyChunk.map((key) => ({
-          key,
-          workspaceId,
-          workflowId: workflowId ?? null,
-          executionId,
-          source,
-        }))
-      )
-      .onConflictDoNothing()
-  }
+    for (const keyChunk of chunkArray(keys, LARGE_VALUE_METADATA_WRITE_CHUNK_SIZE)) {
+      await tx
+        .insert(executionLargeValueReferences)
+        .values(
+          keyChunk.map((key) => ({
+            key,
+            workspaceId,
+            workflowId: workflowId ?? null,
+            executionId,
+            source,
+          }))
+        )
+        .onConflictDoNothing()
+    }
+  })
 }
 
 export async function addLargeValueReference(
@@ -295,52 +300,54 @@ export async function addLargeValueReference(
     return
   }
 
-  const execDb = dbFor('exec')
-  const [existingRef] = await execDb
-    .select({ key: executionLargeValueReferences.key })
-    .from(executionLargeValueReferences)
-    .where(
-      and(
-        eq(executionLargeValueReferences.workspaceId, workspaceId),
-        eq(executionLargeValueReferences.executionId, executionId),
-        eq(executionLargeValueReferences.source, source),
-        eq(executionLargeValueReferences.key, boundedKey)
+  await dbFor('exec').transaction(async (tx) => {
+    await lockLargeValueKeysForReference(tx, [boundedKey])
+    const [existingRef] = await tx
+      .select({ key: executionLargeValueReferences.key })
+      .from(executionLargeValueReferences)
+      .where(
+        and(
+          eq(executionLargeValueReferences.workspaceId, workspaceId),
+          eq(executionLargeValueReferences.executionId, executionId),
+          eq(executionLargeValueReferences.source, source),
+          eq(executionLargeValueReferences.key, boundedKey)
+        )
       )
-    )
-    .limit(1)
+      .limit(1)
 
-  if (existingRef) {
-    return
-  }
+    if (existingRef) {
+      return
+    }
 
-  const existingRefs = await execDb
-    .select({ key: executionLargeValueReferences.key })
-    .from(executionLargeValueReferences)
-    .where(
-      and(
-        eq(executionLargeValueReferences.workspaceId, workspaceId),
-        eq(executionLargeValueReferences.executionId, executionId),
-        eq(executionLargeValueReferences.source, source)
+    const existingRefs = await tx
+      .select({ key: executionLargeValueReferences.key })
+      .from(executionLargeValueReferences)
+      .where(
+        and(
+          eq(executionLargeValueReferences.workspaceId, workspaceId),
+          eq(executionLargeValueReferences.executionId, executionId),
+          eq(executionLargeValueReferences.source, source)
+        )
       )
-    )
-    .limit(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE + 1)
+      .limit(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE + 1)
 
-  if (existingRefs.length >= MAX_LARGE_VALUE_REFERENCES_PER_SCOPE) {
-    throw new Error(
-      `Large value reference set contains at least ${existingRefs.length} references, exceeding the limit of ${MAX_LARGE_VALUE_REFERENCES_PER_SCOPE}`
-    )
-  }
+    if (existingRefs.length >= MAX_LARGE_VALUE_REFERENCES_PER_SCOPE) {
+      throw new Error(
+        `Large value reference set contains at least ${existingRefs.length} references, exceeding the limit of ${MAX_LARGE_VALUE_REFERENCES_PER_SCOPE}`
+      )
+    }
 
-  await execDb
-    .insert(executionLargeValueReferences)
-    .values({
-      key: boundedKey,
-      workspaceId,
-      workflowId: workflowId ?? null,
-      executionId,
-      source,
-    })
-    .onConflictDoNothing()
+    await tx
+      .insert(executionLargeValueReferences)
+      .values({
+        key: boundedKey,
+        workspaceId,
+        workflowId: workflowId ?? null,
+        executionId,
+        source,
+      })
+      .onConflictDoNothing()
+  })
 }
 
 export async function markLargeValuesDeleted(

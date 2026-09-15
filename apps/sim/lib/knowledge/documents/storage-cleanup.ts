@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
+import type { CleanupQuery } from '@/lib/cleanup/bounded'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
 import {
   type ResourceOwner,
@@ -160,15 +161,30 @@ function isMissingObject(error: unknown): boolean {
  * and a retry after an ambiguous object deletion treats absence as success.
  */
 export const cleanupKnowledgeStorage: OutboxHandler = async (rawPayload, context) => {
+  await cleanupKnowledgeStorageBinding(rawPayload, context.signal)
+}
+
+/** Reuses the binding lock shared by document creation and storage restoration. */
+export async function cleanupKnowledgeStorageBinding(
+  rawPayload: unknown,
+  signal: AbortSignal,
+  query?: CleanupQuery
+): Promise<boolean> {
   const payload = cleanupPayloadSchema.parse(rawPayload)
   if (!isKnowledgeBaseOwnedStorageKey(payload.key)) {
     throw new Error('Knowledge storage cleanup requires a knowledge-base key')
   }
   assertCleanupOwner(payload)
-  context.signal.throwIfAborted()
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
-    await tx.execute(sql`SET LOCAL statement_timeout = '20s'`)
+  signal.throwIfAborted()
+  const execute: CleanupQuery =
+    query ??
+    ((callback) =>
+      db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
+        await tx.execute(sql`SET LOCAL statement_timeout = '20s'`)
+        return callback(tx)
+      }))
+  return execute(async (tx) => {
     const [binding] = await tx
       .select({
         id: workspaceFiles.id,
@@ -183,7 +199,7 @@ export const cleanupKnowledgeStorage: OutboxHandler = async (rawPayload, context
       .where(and(eq(workspaceFiles.id, payload.fileId), isNull(workspaceFiles.deletedAt)))
       .for('update')
       .limit(1)
-    context.signal.throwIfAborted()
+    signal.throwIfAborted()
     if (
       !binding ||
       binding.key !== payload.key ||
@@ -191,17 +207,17 @@ export const cleanupKnowledgeStorage: OutboxHandler = async (rawPayload, context
       binding.contentUpdatedAt.toISOString() !== payload.contentUpdatedAt ||
       !sameCleanupOwner(binding, payload)
     )
-      return
+      return false
 
     const [reference] = await tx
       .select({ id: document.id })
       .from(document)
       .where(eq(document.storageKey, payload.key))
       .limit(1)
-    if (reference) return
+    if (reference) return false
 
-    const signal = AbortSignal.any([context.signal, AbortSignal.timeout(STORAGE_TIMEOUT_MS)])
-    signal.throwIfAborted()
+    const storageSignal = AbortSignal.any([signal, AbortSignal.timeout(STORAGE_TIMEOUT_MS)])
+    storageSignal.throwIfAborted()
     const object = payload.uploadId
       ? await checkpointIo(
           () =>
@@ -210,22 +226,23 @@ export const cleanupKnowledgeStorage: OutboxHandler = async (rawPayload, context
               key: payload.key,
               context: 'knowledge-base',
             }),
-          signal
+          storageSignal
         )
       : undefined
     if (!payload.uploadId || object?.uploadId === payload.uploadId) {
       try {
-        await deleteFile({ key: payload.key, context: 'knowledge-base', signal })
+        await deleteFile({ key: payload.key, context: 'knowledge-base', signal: storageSignal })
       } catch (error) {
-        signal.throwIfAborted()
+        storageSignal.throwIfAborted()
         if (!isMissingObject(error)) throw error
       }
     }
-    signal.throwIfAborted()
+    storageSignal.throwIfAborted()
     const deleted = await deleteFileMetadataByIdentity(
       { ...binding, context: 'knowledge-base' },
       tx
     )
     if (!deleted) throw new Error('Knowledge storage cleanup lost its metadata identity')
+    return true
   })
 }

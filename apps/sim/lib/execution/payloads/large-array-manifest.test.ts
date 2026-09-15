@@ -24,6 +24,11 @@ vi.mock('@/lib/uploads', () => ({
   },
 }))
 
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
+  registerLargeValueOwner: vi.fn().mockResolvedValue(true),
+  addLargeValueReference: vi.fn().mockResolvedValue(undefined),
+}))
+
 const TEST_CONTEXT = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',

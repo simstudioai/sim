@@ -120,18 +120,56 @@ describe('requested cleanup stages', () => {
     expect(run.progress.stages.jobLogs).toMatchObject({ selected: 2, deleted: 2 })
     expect(dbChainMockFns.delete).toHaveBeenCalledTimes(2)
   })
-  it('stops before root deletion if attached log storage fails', async () => {
+  it('records committed log deletion if attached storage cleanup fails', async () => {
     queueTableRows(schemaMock.workflowExecutionLogs, [{ id: 'one', files: [{ key: 'blob' }] }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'one', files: [{ key: 'blob' }] }])
     storage.mockResolvedValue({ deleted: 0, failed: [{ key: 'blob', error: 'unavailable' }] })
     const run = control('workflowLogs', false)
     await expect(runBoundedLogScope(scope, run)).rejects.toThrow('storage deletions failed')
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
     expect(run.progress.stages.workflowLogs).toMatchObject({
       selected: 1,
-      deleted: 0,
+      deleted: 1,
       filesFailed: 1,
     })
   })
+  it('does not remove files of a log protected after selection', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [{ id: 'one', files: [{ key: 'blob' }] }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    const run = control('workflowLogs', false)
+    await runBoundedLogScope(scope, run)
+    expect(storage).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(run.progress.stages.workflowLogs).toMatchObject({ selected: 1, deleted: 0, skipped: 1 })
+  })
+  it.each(['largeValues', 'legacyLargeValues'] as const)(
+    'does not remove a %s key that fails the final liveness claim',
+    async (type) => {
+      queueTableRows(
+        type === 'largeValues' ? schemaMock.executionLargeValues : schemaMock.workspaceFiles,
+        [{ key: 'referenced-key' }]
+      )
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      const run = control(type, false)
+      await runBoundedLogScope(scope, run)
+      expect(storage).not.toHaveBeenCalled()
+      expect(run.progress.stages[type]).toMatchObject({ selected: 1, deleted: 0, skipped: 1 })
+    }
+  )
+  it.each(['files', 'legacyFiles'] as const)(
+    'does not remove a restored %s object',
+    async (type) => {
+      queueTableRows(type === 'files' ? schemaMock.workspaceFiles : schemaMock.workspaceFile, [
+        { id: 'one', key: 'blob', context: 'workspace', workspaceId: 'ws-one', sizeBytes: 100 },
+      ])
+      billing.mockResolvedValue({ workspaceId: 'ws-one' })
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      const run = control(type, false)
+      await runBoundedSoftDeleteScope(scope, run)
+      expect(storage).not.toHaveBeenCalled()
+      expect(run.progress.stages[type]).toMatchObject({ selected: 1, deleted: 0, skipped: 1 })
+    }
+  )
   it('keeps workflow chat side effects even with a zero chat budget', async () => {
     queueTableRows(schemaMock.workflow, [{ id: 'workflow-one' }])
     queueTableRows(schemaMock.copilotChats, [{ id: 'child-chat' }])

@@ -42,7 +42,7 @@ A call with **no query parameters retains the existing scheduled cleanup behavio
 
 ## What the budget means
 
-Limits count **selected roots**, including roots restored before deletion. They do not count all physical rows affected by foreign keys. Two workflows can cascade into thousands of blocks, edges, chats, and messages. Mandatory attached-file and backend cleanup follows selected parents even when its standalone type budget is zero. Knowledge-base deletion retains the existing document accounting and storage-cleanup outbox behavior.
+Limits count **selected roots**, including roots restored before deletion. They do not count all physical rows affected by foreign keys. Two workflows can cascade into thousands of blocks, edges, chats, and messages. Mandatory attached-file and backend cleanup follows selected parents even when its standalone type budget is zero. Knowledge-base deletion retains the existing document accounting and storage-cleanup outbox behavior. Its child changes and parent deletion share one locked transaction, as do folder re-rooting and deletion; a failure rolls all of them back.
 
 `largeValues`/`legacyLargeValues` count object keys. `orphanKnowledgeBaseBindings` counts bindings soft-deleted after object cleanup. Metadata pruning counts its selected metadata records. A dry run previews the current state; it does not reserve rows for a later deletion run.
 
@@ -51,9 +51,9 @@ Limits count **selected roots**, including roots restored before deletion. They 
 - One coordinator walks owner scopes sequentially with shared budgets. It creates no child cleanup jobs.
 - Logs and soft deletes share the named Trigger queue `retention-cleanup`, concurrency 1, including newly dispatched scheduled jobs. No per-type concurrency keys are used.
 - Bounded dispatch sets one attempt and a 180-second hard maximum. The worker stops starting new root batches after 120 seconds; cancellable child preparation also observes that work deadline.
-- Cleanup SQL uses transaction-local **500ms lock_timeout** and **5s statement_timeout**. The billable-file delete and storage decrement remain atomic.
+- Cleanup SQL uses transaction-local **500ms lock_timeout** and **5s statement_timeout**. The billable-file delete and storage decrement remain atomic. Orphan knowledge-base storage cleanup reuses the binding lock held by document creation, with a 15-second storage deadline. Large-value reference writers lock the value before registering references; cleanup locks and rechecks it before claiming a tombstone.
 - Trigger `cleanup` metadata reports each requested type's `selected`, `deleted`, `skipped`, `filesDeleted`, and `filesFailed`, plus stage, duration, and stop reason: `budgets_exhausted`, `scopes_exhausted`, `time_budget`, or `failed`.
-- A failure stops subsequent stages, preserves completed progress, and fails the run. External deletion is not transactional with Postgres. A hard process termination may leave the last metadata checkpoint behind actual effects. Do not blindly replay failed runs: inspect the failed stage and any external work already completed. This change does not add recovery for the existing gap when chat backend/storage cleanup fails after parent rows have committed.
+- A failure stops subsequent stages, preserves completed progress, and fails the run. External deletion is not transactional with Postgres. A hard process termination may leave the last metadata checkpoint behind actual effects. Do not blindly replay failed runs: inspect the failed stage and any external work already completed. Log and file storage is removed only for rows returned by the guarded delete. A storage failure after that commit can leave orphaned objects; a failed large-value storage deletion can leave a tombstone with remaining bytes. This change does not add recovery for those gaps or for chat backend/storage cleanup failures after parent deletion. Inspect failed runs before resubmitting.
 
 ## Rollout
 
