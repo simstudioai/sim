@@ -705,8 +705,8 @@ export function TableGrid({
   // Manual grid entry is "add an empty row, then type into its cells" — the
   // typing is an update. So a *useful* manual add needs BOTH insert and update
   // unlocked; on an append-only table (update locked) it would leave a blank
-  // row the user can't fill. The control stays visible and explains itself via
-  // `onBlockedAction`. Full-row inserts still flow through CSV import / API /
+  // row the user can't fill. The control stays visible and explains itself in
+  // a tooltip. Full-row inserts still flow through CSV import / API /
   // blocks / Mothership, which the insert lock alone governs server-side.
   const canManualAddRow = userPermissions.canEdit && !locks?.insertLocked && !locks?.updateLocked
   const canEditCellRef = useRef(canEditCell)
@@ -4746,6 +4746,7 @@ export function TableGrid({
                                 groupName={workflowGroupById.get(g.groupId)?.name}
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
+                                schemaLocked={locks?.schemaLocked}
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
                                 hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
@@ -4887,6 +4888,7 @@ export function TableGrid({
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
+                            schemaLocked={locks?.schemaLocked}
                             onViewWorkflow={handleViewWorkflow}
                             onSortColumn={onSortColumn}
                             onClearSort={onClearSort}
@@ -4907,7 +4909,6 @@ export function TableGrid({
                           trigger='inline-header'
                           disabled={addColumnMutation.isPending}
                           blocked={!canMutateSchema}
-                          onBlocked={() => onBlockedAction('add-column')}
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}
                           onPickEnrichment={onOpenEnrichments}
@@ -5050,7 +5051,16 @@ export function TableGrid({
             )}
           </div>
           {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
-            <AddRowButton onClick={handleAddRowClick} />
+            <AddRowButton
+              onClick={handleAddRowClick}
+              blockedReason={
+                locks?.insertLocked
+                  ? 'Inserting rows is disabled in Table Security.'
+                  : locks?.updateLocked
+                    ? 'Updating rows is disabled in Table Security, so rows cannot be entered in the grid. Import a CSV, or add complete rows through the API, a workflow, or Sim.'
+                    : undefined
+              }
+            />
           )}
         </div>
       </div>

@@ -8,11 +8,12 @@
 import type { TableLockKind, TableLocks } from '@/lib/table/types'
 
 export interface LockField {
-  /** The `TableLocks` flag this row toggles. */
+  /** The `TableLocks` flag this row controls. */
   key: keyof TableLocks
   kind: TableLockKind
-  /** The action being locked, phrased to read after "Lock " and inside a list. */
+  /** The action being locked, phrased to read inside a list. */
   noun: string
+  label: string
   hint: string
 }
 
@@ -21,57 +22,35 @@ export const LOCK_FIELDS: LockField[] = [
     key: 'insertLocked',
     kind: 'insert',
     noun: 'adding rows',
-    hint: 'On: no new rows can be added — by anyone, including CSV import, the API, workflow blocks, and Sim.',
+    label: 'Inserting Rows',
+    hint: 'Allow new rows to be added, including through CSV imports, the API, workflows, and Sim. Deny blocks new rows when Table Security is enabled.',
   },
   {
     key: 'updateLocked',
     kind: 'update',
     noun: 'editing rows',
-    hint: 'On: existing cell values cannot be changed. Workflow and enrichment columns still populate.',
+    label: 'Updating Rows',
+    hint: 'Allow existing cell values to be changed. Deny blocks edits when Table Security is enabled. Workflow and enrichment columns still populate.',
   },
   {
     key: 'deleteLocked',
     kind: 'delete',
     noun: 'deleting rows',
-    hint: 'On: rows cannot be deleted, and the table cannot be archived.',
+    label: 'Deleting Rows',
+    hint: 'Allow rows to be deleted and the table to be archived. Deny blocks these actions and destructive column changes when Table Security is enabled.',
   },
   {
     key: 'schemaLocked',
     kind: 'schema',
     noun: 'changing columns',
-    hint: 'On: columns cannot be added, renamed, retyped, or removed.',
+    label: 'Changing Table Schema',
+    hint: 'Allow columns to be added, renamed, retyped, or removed. Deny blocks schema changes when Table Security is enabled. Removing or retyping columns also requires Deleting Rows to be set to Allow.',
   },
 ]
 
 /** The locked verbs' nouns, in display order. Empty when nothing is locked. */
 export function lockedNouns(locks: TableLocks): string[] {
   return LOCK_FIELDS.filter((f) => locks[f.key]).map((f) => f.noun)
-}
-
-/**
- * Plain-language summary of a lock set — the named mode when the combination
- * matches one, otherwise a list of what is locked.
- */
-export function describeLocks(locks: TableLocks): { name: string; detail: string } {
-  const locked = lockedNouns(locks)
-  if (locked.length === 0) {
-    return { name: 'Unlocked', detail: 'anyone with edit access can change this table.' }
-  }
-  if (locked.length === LOCK_FIELDS.length) {
-    return { name: 'Read-only', detail: 'no one can change this table’s rows or columns.' }
-  }
-  // Append-only describes the row semantics — adding is the only thing left.
-  // A schema lock on top doesn't change that, so it keeps the name and is
-  // called out in the detail rather than demoted to the generic case.
-  if (!locks.insertLocked && locks.updateLocked && locks.deleteLocked) {
-    return {
-      name: 'Append-only',
-      detail: locks.schemaLocked
-        ? 'rows can be added, but not edited or deleted, and columns are locked.'
-        : 'rows can be added, but not edited or deleted.',
-    }
-  }
-  return { name: 'Locked', detail: `${locked.join(', ')} locked.` }
 }
 
 /**
@@ -127,7 +106,7 @@ export function describeBlockedAction(
     case 'status': {
       const nouns = lockedNouns(locks)
       return {
-        title: 'Table locks',
+        title: 'Table Security',
         text:
           nouns.length > 0
             ? `An admin has locked ${nouns.join(', ')} on this table.`

@@ -1303,7 +1303,7 @@ export function Table({
                   ...(userPermissions.canAdmin
                     ? [
                         {
-                          label: 'Lock settings',
+                          label: 'Table Security',
                           icon: Lock,
                           onClick: () => setShowLockSettings(true),
                         },
@@ -1355,7 +1355,7 @@ export function Table({
         description: text,
         ...(canOpenLockSettings
           ? {
-              action: { label: 'Lock settings', onClick: () => setShowLockSettings(true) },
+              action: { label: 'Table Security', onClick: () => setShowLockSettings(true) },
               // An action would otherwise pin the toast open until dismissed.
               duration: BLOCKED_TOAST_MS,
             }
@@ -1392,7 +1392,7 @@ export function Table({
   )
 
   // A toast's action is captured when it is created, so a viewer who loses
-  // admin access mid-toast would keep a Lock settings button that opens
+  // admin access mid-toast would keep a Table Security button that opens
   // nothing. Dismiss on that transition only — a viewer who never had access
   // has a legitimate action-less notice that must survive.
   const couldOpenLockSettingsRef = useRef(canOpenLockSettings)
@@ -1434,7 +1434,6 @@ export function Table({
       trigger='header'
       disabled={false}
       blocked={!canMutateSchema}
-      onBlocked={() => showBlockedToast('add-column')}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
       onPickEnrichment={onOpenEnrichments}
@@ -1873,6 +1872,7 @@ export function Table({
       )}
       {tableData && userPermissions.canAdmin && (
         <LockSettingsModal
+          key={tableData.id}
           isOpen={showLockSettings}
           onClose={() => setShowLockSettings(false)}
           workspaceId={workspaceId}

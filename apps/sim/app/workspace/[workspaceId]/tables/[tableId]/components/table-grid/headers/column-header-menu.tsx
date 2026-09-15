@@ -15,6 +15,7 @@ interface ColumnHeaderMenuProps {
   column: DisplayColumn
   colIndex: number
   readOnly?: boolean
+  schemaLocked?: boolean
   isRenaming: boolean
   isColumnSelected: boolean
   renameValue: string
@@ -65,6 +66,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
   colIndex,
   readOnly,
+  schemaLocked,
   isRenaming,
   isColumnSelected,
   renameValue,
@@ -346,6 +348,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             column={column}
             deleteLabel={deleteLabel}
             onOpenConfig={onOpenConfig}
+            schemaLocked={schemaLocked}
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
             onDeleteColumn={onDeleteColumn}

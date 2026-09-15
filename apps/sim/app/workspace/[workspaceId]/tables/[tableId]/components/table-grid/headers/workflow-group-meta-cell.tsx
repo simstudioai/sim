@@ -70,6 +70,7 @@ interface ColumnOptionsMenuProps {
    *  it leaves the group with siblings). */
   deleteLabel?: string
   onOpenConfig: (columnName: string) => void
+  schemaLocked?: boolean
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
@@ -122,6 +123,7 @@ export function ColumnOptionsMenu({
   column,
   deleteLabel,
   onOpenConfig,
+  schemaLocked,
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
@@ -228,7 +230,7 @@ export function ColumnOptionsMenu({
             View workflow
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem onSelect={() => onOpenConfig(column.key)}>
+        <DropdownMenuItem disabled={schemaLocked} onSelect={() => onOpenConfig(column.key)}>
           <Pencil />
           Edit column
         </DropdownMenuItem>
@@ -281,6 +283,7 @@ interface WorkflowGroupMetaCellProps {
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
+  schemaLocked?: boolean
   onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[], limit?: RunLimit) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
@@ -334,6 +337,7 @@ export function WorkflowGroupMetaCell({
   isGroupSelected,
   onSelectGroup,
   onOpenConfig,
+  schemaLocked,
   onRunColumn,
   onInsertLeft,
   onInsertRight,
@@ -539,6 +543,7 @@ export function WorkflowGroupMetaCell({
           position={optionsMenuPosition}
           column={column}
           onOpenConfig={onOpenConfig}
+          schemaLocked={schemaLocked}
           onInsertLeft={onInsertLeft}
           onInsertRight={onInsertRight}
           onDeleteColumn={onDeleteColumn}
