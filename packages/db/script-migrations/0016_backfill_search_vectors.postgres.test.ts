@@ -330,10 +330,30 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
       FROM generate_series(1, 1001) n`)
     await sql`DELETE FROM embedding_search WHERE id > 'upgrade-0501' AND id LIKE 'upgrade-%'`
     await sql`DELETE FROM embedding_keyword_search WHERE id LIKE 'upgrade-%'`
+    await sql.unsafe(`CREATE FUNCTION cancel_projection_upgrade() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.id = 'upgrade-0750' THEN
+          RAISE EXCEPTION 'Synthetic upgrade cancellation' USING ERRCODE = '57014';
+        END IF;
+        RETURN NEW;
+      END;
+      $$`)
+    await sql.unsafe(`CREATE TRIGGER cancel_projection_upgrade BEFORE INSERT OR UPDATE ON embedding_search
+      FOR EACH ROW EXECUTE FUNCTION cancel_projection_upgrade()`)
+    try {
+      await expect(runScriptMigrations(sql)).rejects.toMatchObject({ code: '57014' })
+      expect(await sql`SELECT name FROM script_migrations WHERE name >= '0015'`).toHaveLength(0)
+    } finally {
+      await sql.unsafe('DROP TRIGGER cancel_projection_upgrade ON embedding_search')
+      await sql.unsafe('DROP FUNCTION cancel_projection_upgrade()')
+    }
     await runScriptMigrations(sql)
     expect(
       await sql`SELECT name FROM script_migrations WHERE name >= '0015' ORDER BY name`
-    ).toEqual([{ name: '0016_backfill_search_vectors' }])
+    ).toEqual([
+      { name: '0015_backfill_embedding_search' },
+      { name: '0016_backfill_search_vectors' },
+    ])
     const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
       JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id
       WHERE e.id LIKE 'upgrade-%' AND s."binary" = binary_quantize(e.embedding)::bit(1536)

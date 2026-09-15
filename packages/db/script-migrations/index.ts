@@ -99,10 +99,11 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
     console.log(`Applying script migration ${migration.name}...`)
     const startedAt = Date.now()
     await migration.up(sql)
-    await sql`
-      INSERT INTO script_migrations (name) VALUES (${migration.name})
-      ON CONFLICT (name) DO NOTHING
-    `
+    await sql.begin(async (tx) => {
+      for (const name of [migration.name, ...(migration.supersedes ?? [])]) {
+        await tx`INSERT INTO script_migrations (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`
+      }
+    })
     console.log(`Script migration ${migration.name} applied in ${Date.now() - startedAt}ms.`)
   }
 }

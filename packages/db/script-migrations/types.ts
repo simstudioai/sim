@@ -24,6 +24,8 @@ import type { Sql } from 'postgres'
 export interface ScriptMigration {
   /** Unique stable identifier recorded in `script_migrations`; never rename after release. */
   name: string
+  /** Earlier, unregistered migrations whose work this migration fully completes. Recorded only on success. */
+  supersedes?: readonly string[]
   /** Env vars the migration needs; the runner throws before `up` if any is unset. */
   requiredEnv?: readonly string[]
   /**

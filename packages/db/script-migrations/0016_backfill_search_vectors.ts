@@ -231,6 +231,7 @@ export async function buildSearchIndexes(sql: Sql): Promise<void> {
 
 export const backfillSearchVectorsMigration: ScriptMigration = {
   name: '0016_backfill_search_vectors',
+  supersedes: ['0015_backfill_embedding_search'],
   async up(sql) {
     const rows = await backfillSearchVectors(sql)
     const keywordRows = await backfillSearchKeywords(sql)
