@@ -24,6 +24,7 @@ import {
   resolveReferencedWorkspaceFileContext,
 } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { countLines, detectLineEnding } from '@/lib/workspace-files/edit-content'
+import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 
 export interface ReadWorkspaceFileTextInput {
   /** Workspace the reference is resolved in. */
@@ -39,6 +40,8 @@ export interface ReadWorkspaceFileTextInput {
   limit?: number
   /** Private classification for runtime consumers, omitted from ordinary API reads. */
   includeSecretProvenance?: boolean
+  /** Internal agent reads can decode plain source files identified by their MIME type. */
+  allowPlainText?: boolean
 }
 
 export interface ReadWorkspaceFileTextResult {
@@ -98,7 +101,9 @@ async function executeReadWorkspaceFileText({
 >): Promise<ReadWorkspaceFileTextResult> {
   const { file } = context
 
-  const extension = getFileExtension(file.name)
+  const extension = input.allowPlainText
+    ? (workspaceFileTextFormat(file) ?? getFileExtension(file.name))
+    : getFileExtension(file.name)
   if (!isSupportedFileType(extension)) {
     throw new OrchestrationError(
       'validation',

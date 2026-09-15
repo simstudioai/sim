@@ -234,6 +234,34 @@ describe('readWorkspaceFileText', () => {
    * The message is served to raw HTTP, Copilot, and the CLI alike, so it names
    * the remedy rather than an endpoint only one of those three can call.
    */
+  it('keeps public extension behavior while allowing MIME-identified source text internally', async () => {
+    mocks.resolveContext.mockResolvedValue(
+      referenceContext({ name: 'main.ts', type: 'text/typescript' })
+    )
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+    await readWorkspaceFileText.execute({
+      principal: principals[0],
+      input: input({ allowPlainText: true }),
+    })
+    expect(mocks.parseBuffer).toHaveBeenCalledWith(Buffer.from('hello there!'), 'txt')
+  })
+
+  it('does not decode binary MIME as text when internal plain-text support is enabled', async () => {
+    mocks.resolveContext.mockResolvedValue(
+      referenceContext({ name: 'photo.png', type: 'image/png' })
+    )
+    await expect(
+      readWorkspaceFileText.execute({
+        principal: principals[0],
+        input: input({ allowPlainText: true }),
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+  })
+
   it('rejects an unsupported type and names the raw-bytes escape hatch', async () => {
     mocks.resolveContext.mockResolvedValue(referenceContext({ name: 'photo.heic' }))
 

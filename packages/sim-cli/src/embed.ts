@@ -39,7 +39,7 @@ export type {
   ListWorkflowsResponse,
   ReadFileTextResponse,
 } from './generated/v2-api'
-export { SimClient } from './http/client'
+export { SimApiError, SimClient } from './http/client'
 
 export interface EmbeddedCliResult {
   exitCode: number

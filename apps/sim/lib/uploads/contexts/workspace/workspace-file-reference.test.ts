@@ -213,6 +213,65 @@ describe('resolveWorkspaceFileReference', () => {
       })
     )
   })
+
+  it.each([
+    ['6076afcc-31eb-426a-831b-254bce6670fb', 'face.png', 'image/png'],
+    ['7176afcc-31eb-426a-831b-254bce6670fb', 'notes.txt', 'text/plain'],
+  ])('resolves UUID upload %s directly with opt-in', async (id, name, contentType) => {
+    queueTableRows(schemaMock.workspaceFiles, [
+      chatUploadRow({ id, originalName: name, displayName: name, contentType }),
+    ])
+
+    const record = await resolveWorkspaceFileReference(WS, id, { includeChatUploads: true })
+
+    expect(record).toMatchObject({ id, name, type: contentType, vfsNamespace: 'uploads' })
+    expect(lastConditions()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'eq', left: schemaMock.workspaceFiles.id, right: id }),
+        expect.objectContaining({
+          type: 'eq',
+          left: schemaMock.workspaceFiles.workspaceId,
+          right: WS,
+        }),
+        expect.objectContaining({ type: 'isNull', column: schemaMock.workspaceFiles.deletedAt }),
+        expect.objectContaining({
+          type: 'inArray',
+          column: schemaMock.workspaceFiles.context,
+          values: ['workspace', 'mothership'],
+        }),
+      ])
+    )
+    expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
+  })
+
+  it('excludes chat uploads from UUID lookup without opt-in', async () => {
+    const id = '6076afcc-31eb-426a-831b-254bce6670fb'
+    queueTableRows(schemaMock.workspaceFiles, [])
+
+    await expect(resolveWorkspaceFileReference(WS, id)).resolves.toBeNull()
+
+    const firstConditions = flattenMockConditions(dbChainMockFns.where.mock.calls[0]?.[0])
+    expect(firstConditions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'eq', left: schemaMock.workspaceFiles.id, right: id }),
+        expect.objectContaining({
+          type: 'eq',
+          left: schemaMock.workspaceFiles.workspaceId,
+          right: WS,
+        }),
+        expect.objectContaining({
+          type: 'eq',
+          left: schemaMock.workspaceFiles.context,
+          right: 'workspace',
+        }),
+      ])
+    )
+    expect(
+      allConditions().some(
+        (condition) => condition.type === 'inArray' || condition.right === 'mothership'
+      )
+    ).toBe(false)
+  })
 })
 
 describe('listWorkspaceFiles', () => {
