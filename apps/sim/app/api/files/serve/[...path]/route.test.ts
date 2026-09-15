@@ -200,6 +200,26 @@ describe('File Serve API Route', () => {
     })
   })
 
+  it('requires authentication for execution downloads before reading bytes', async () => {
+    mockResolveStoredFileContext.mockResolvedValue('execution')
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: false,
+      error: 'Unauthorized',
+    })
+    const response = await GET(
+      new NextRequest(
+        'http://localhost/api/files/serve/execution%2Fworkspace%2Fworkflow%2Frun%2Fimage.png?context=execution'
+      ),
+      {
+        params: Promise.resolve({ path: ['execution/workspace/workflow/run/image.png'] }),
+      }
+    )
+    expect(response.status).toBe(401)
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockReadFile).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+  })
+
   it('bounds every buffered read at the shared transfer ceiling', async () => {
     mockIsUsingCloudStorage.mockReturnValue(true)
     mockResolveStoredFileContext.mockResolvedValue('copilot')

@@ -1,1 +1,1 @@
-export { StatusPage, StatusPageContent } from './status-page'
+export { StatusPage } from './status-page'

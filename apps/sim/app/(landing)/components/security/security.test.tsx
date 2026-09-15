@@ -5,7 +5,8 @@ import type { AnchorHTMLAttributes } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn')>()),
   ChipLink: ({
     variant: _variant,
     ...props

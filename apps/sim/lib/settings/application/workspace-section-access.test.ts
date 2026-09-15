@@ -118,6 +118,7 @@ function authorize(section: Parameters<typeof authorizeWorkspaceSettingsSection>
 describe('authorizeWorkspaceSettingsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.deploymentShape.billingEnabled = true
     mocks.checkWorkspaceAccess.mockResolvedValue(PERSONAL_ACCESS)
     mocks.isCustomBlocksEligibleForOrganization.mockResolvedValue(true)
     mocks.isForkingAvailableForWorkspace.mockResolvedValue(true)
@@ -247,6 +248,33 @@ describe('authorizeWorkspaceSettingsSection', () => {
     })
     await expect(authorize('billing')).resolves.toEqual({ allowed: true })
     expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
+  })
+
+  it('allows the member roster with billing disabled while keeping billing unavailable', async () => {
+    mocks.deploymentShape.billingEnabled = false
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+
+    await expect(authorize('organization')).resolves.toEqual({ allowed: true })
+    expect(mocks.canOpenOrganizationSettingsSection).toHaveBeenCalledWith(
+      'organization-1',
+      'viewer-1',
+      'members'
+    )
+    await expect(authorize('billing')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+  })
+
+  it('requires current organization membership for the roster with billing disabled', async () => {
+    mocks.deploymentShape.billingEnabled = false
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.canOpenOrganizationSettingsSection.mockResolvedValue(false)
+
+    await expect(authorize('organization')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
   })
 
   it.each([

@@ -9,6 +9,7 @@ import {
   chipVariants,
   cn,
   OverflowText,
+  SimWordmark,
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
@@ -23,7 +24,6 @@ import {
 } from '@/components/settings/navigation'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import { SimWordmark } from '@/app/(landing)/components/navbar/components'
 import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
 import {

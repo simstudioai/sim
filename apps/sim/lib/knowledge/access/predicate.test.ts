@@ -77,7 +77,11 @@ describe('knowledgeAccessCondition', () => {
     )
   })
 
-  it('exempts only the branded system scope', () => {
-    expect(render(knowledgeAccessCondition(SYSTEM_ACCESS_SCOPE)).sql).toBe('true')
+  it('exempts system jobs from ACL checks while refusing removed sources', () => {
+    const { sql } = render(knowledgeAccessCondition(SYSTEM_ACCESS_SCOPE))
+    expect(sql).toContain('"document"."connector_id" IS NULL OR EXISTS')
+    expect(sql).toContain('"knowledge_connector"."deleted_at" IS NULL')
+    expect(sql).toContain('"knowledge_connector"."archived_at" IS NULL')
+    expect(sql).not.toContain('"document"."acl"')
   })
 })

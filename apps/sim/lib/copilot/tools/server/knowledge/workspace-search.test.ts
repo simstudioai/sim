@@ -41,6 +41,7 @@ import {
   searchWorkspaceServerTool,
 } from '@/lib/copilot/tools/server/knowledge/workspace-search'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { annotateSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const context = {
@@ -85,10 +86,16 @@ describe('Assistant retrieval tools', () => {
     })
   })
   it('returns empty incomplete retrieval as a recoverable search outcome and logs coverage', async () => {
-    mocks.search.mockResolvedValue({
-      retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
-      knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
-      results: [],
+    mocks.search.mockImplementation(async () => {
+      annotateSearchDiagnostics({
+        retrievalStatus: 'partial',
+        timedOutLegs: ['vector', 'keyword'],
+      })
+      return {
+        retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+        knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
+        results: [],
+      }
     })
 
     const result = await searchWorkspaceServerTool.execute({ query: 'canaries' }, context)
@@ -104,7 +111,7 @@ describe('Assistant retrieval tools', () => {
     expect(result).not.toHaveProperty('error')
     expect(mocks.info).toHaveBeenCalledWith(
       'Knowledge search completed',
-      expect.objectContaining({ passageBytes: 0, originalPassageBytes: 0, outcome: 'success' })
+      expect.objectContaining({ passageBytes: 0, originalPassageBytes: 0, outcome: 'partial' })
     )
   })
   it('pins organization and private chat while reusing the canonical search index and citations', async () => {

@@ -171,7 +171,7 @@ function saveReport() {
 const diagnosticSchema = z
   .object({
     surface: z.enum(['dashboard', 'copilot']),
-    outcome: z.literal('success'),
+    outcome: z.enum(['success', 'partial']),
     elapsedMs: z.number(),
     vectorBudgetMs: z.number().positive(),
     retrievalStatus: z.enum(['complete', 'partial']),
@@ -259,6 +259,7 @@ async function searchDashboard(query = 'Orion deployment') {
 function expectCompleteVectorSearch(diagnostics: z.infer<typeof diagnosticSchema>) {
   const budget = diagnostics.surface === 'dashboard' ? 3000 : 8000
   expect(diagnostics).toMatchObject({
+    outcome: 'success',
     vectorBudgetMs: budget,
     retrievalStatus: 'complete',
     timedOutLegs: [],
@@ -635,7 +636,10 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         const completed = diagnosticLog?.mock.calls.find(
           ([message]) => message === 'Knowledge search completed'
         )
-        expect(diagnosticSchema.parse(completed?.[1]).vectorBudgetMs).toBe(8000)
+        expect(diagnosticSchema.parse(completed?.[1])).toMatchObject({
+          vectorBudgetMs: 8000,
+          outcome: delayedLegs === 'vector' ? 'success' : 'partial',
+        })
         if (delayedLegs === 'both') {
           expect(result).toMatchObject({
             success: true,
@@ -690,6 +694,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
           ([message]) => message === 'Knowledge search completed'
         )
         const diagnostics = diagnosticSchema.parse(completed?.[1])
+        expect(diagnostics.outcome).toBe('partial')
         expect(diagnostics.vectorBudgetMs).toBe(3000)
         expect(diagnostics.stages.vector.totalMs).toBeGreaterThan(2500)
         expect(diagnostics.stages.vector.totalMs).toBeLessThan(4000)

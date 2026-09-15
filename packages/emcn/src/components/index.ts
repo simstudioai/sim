@@ -70,6 +70,8 @@ export {
   ChipModal,
   ChipModalBody,
   type ChipModalBodyProps,
+  ChipModalDescription,
+  type ChipModalDescriptionProps,
   type ChipModalDropdownOption,
   type ChipModalEmailsFieldProps,
   ChipModalError,
@@ -93,6 +95,7 @@ export {
   type ChipModalTab,
   ChipModalTabs,
   type ChipModalTabsProps,
+  focusChipModalContent,
 } from './chip-modal/chip-modal'
 export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
 export {
@@ -201,8 +204,18 @@ export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
+export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'
+export { SimWordmark, type SimWordmarkProps } from './sim-wordmark/sim-wordmark'
 export { Skeleton } from './skeleton/skeleton'
 export { Slider } from './slider/slider'
+export {
+  LogoPage,
+  type LogoPageProps,
+  PAGE_CONTENT_WIDTH,
+  PAGE_GUTTER,
+  StatusPageContent,
+  type StatusPageContentProps,
+} from './status-page/status-page'
 export { Switch } from './switch/switch'
 export {
   isTabTitleTruncated,

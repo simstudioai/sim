@@ -157,24 +157,50 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       render([tool('first'), tool('second')])
       advance(100)
       render([tool('first'), tool('second', status)])
-      const outcome =
+      const label =
         status === 'error' || status === 'rejected'
-          ? 'failed'
-          : status === 'skipped'
-            ? 'skipped'
-            : 'stopped'
-      expect(header()?.textContent).toBe(`Reading first · 1 ${outcome}`)
+          ? 'Reading first'
+          : `Reading first · 1 ${status === 'skipped' ? 'skipped' : 'stopped'}`
+      expect(header()?.textContent).toBe(label)
       expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
       advance(1000)
-      expect(header()?.textContent).toBe(`Reading first · 1 ${outcome}`)
+      expect(header()?.textContent).toBe(label)
     }
   )
 
-  it('surfaces an earlier parallel failure while the latest call keeps working', () => {
+  it('keeps earlier parallel failures in history without a summary badge', () => {
     render([tool('first'), tool('second')])
     advance(100)
     render([tool('first', 'error'), tool('second')])
-    expect(header()?.textContent).toBe('Reading second · 1 failed')
+    expect(header()?.textContent).toBe('Reading second')
+    const trigger = container.querySelector<HTMLElement>('[role="button"]')!
+    act(() => trigger.click())
+    expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+      'Failed reading firstReading second'
+    )
+    render([tool('first', 'error'), tool('second', 'success')], false)
+    expect(header()?.textContent).toBe('Read files')
+    expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+      'Failed reading firstRead second'
+    )
+  })
+
+  it('shows three distinct actions and keeps the complete history available', () => {
+    render(
+      [
+        tool('first', 'success'),
+        { ...tool('second', 'success'), toolName: 'grep' },
+        { ...tool('third', 'success'), toolName: 'terminal_run' },
+        { ...tool('fourth', 'success'), toolName: 'run_workflow' },
+      ],
+      false
+    )
+    expect(header()?.textContent).toBe('Read files, searched files, ran commands +1 more')
+    const trigger = container.querySelector<HTMLElement>('[role="button"]')!
+    act(() => trigger.click())
+    expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
+      'Read firstRead secondRead thirdRead fourth'
+    )
   })
 
   it('keeps narration from prematurely completing an open lane', () => {

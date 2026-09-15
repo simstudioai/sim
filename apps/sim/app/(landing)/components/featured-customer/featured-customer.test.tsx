@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const motionPreference = vi.hoisted(() => ({ reduced: false }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn')>()),
   Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
   ChipTag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),

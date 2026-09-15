@@ -110,8 +110,9 @@ export const MAX_KNOWLEDGE_ACCESS_CANDIDATES = 400
 declare const systemAccessScopeBrand: unique symbol
 
 /**
- * The one exemption from access filtering: a background job acting on rows it
- * owns (document processing, connector sync). It is a branded type so it cannot
+ * The exemption from ACL filtering for a background job acting on rows it
+ * owns (document processing, connector sync). Removed sources remain inaccessible.
+ * It is a branded type so it cannot
  * be assembled from a literal, and this module is its only source, so every
  * caller is one grep away. Never construct it on a request path.
  */

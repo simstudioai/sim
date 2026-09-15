@@ -6,12 +6,11 @@ import { type ConfigStore, isSafeInternalPath, type WindowBounds } from '@/main/
 import { showShellDialog } from '@/main/dialogs'
 import { isAppOrigin, isAuthSurfacePath } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
+import { attachShellTheme, backgroundColorFor, setShellTheme } from '@/main/shell-theme'
 import { createSecureWebPreferences } from '@/main/window-preferences'
 
 const logger = createLogger('DesktopWindow')
 
-const DARK_BACKGROUND = '#0c0c0c'
-const LIGHT_BACKGROUND = '#ffffff'
 const DEFAULT_WIDTH = 1360
 const DEFAULT_HEIGHT = 860
 const MIN_WIDTH = 800
@@ -19,14 +18,6 @@ const MIN_HEIGHT = 600
 const WINDOW_TITLE = 'Sim'
 const BOUNDS_SAVE_DELAY_MS = 400
 const ROUTE_SAVE_DELAY_MS = 500
-
-const THEME_PROBE_SCRIPT = `(() => {
-  try {
-    return document.documentElement.classList.contains('dark')
-  } catch {
-    return null
-  }
-})()`
 
 /**
  * The permission matrix: sanitized clipboard writes and microphone access for
@@ -125,23 +116,6 @@ export function setupPermissionHandlers(session: Session, getAppOrigin: () => st
     const mediaTypes = details.mediaType ? [details.mediaType] : undefined
     return resolvePermission(permission, originOf(requestingOrigin), getAppOrigin(), mediaTypes)
   })
-}
-
-/**
- * Picks the pre-paint window background from the persisted web-app theme so
- * dark-mode users never see a white flash before the remote page paints.
- */
-export function backgroundColorFor(
-  theme: 'dark' | 'light' | undefined,
-  systemPrefersDark: boolean
-): string {
-  if (theme === 'dark') {
-    return DARK_BACKGROUND
-  }
-  if (theme === 'light') {
-    return LIGHT_BACKGROUND
-  }
-  return systemPrefersDark ? DARK_BACKGROUND : LIGHT_BACKGROUND
 }
 
 /**
@@ -276,6 +250,19 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
     win.show()
   })
 
+  attachShellTheme(win)
+  win.webContents.ipc.on('shell:app-theme', (event, theme: unknown) => {
+    if (
+      event.sender !== win.webContents ||
+      event.senderFrame !== win.webContents.mainFrame ||
+      !isAppOrigin(event.senderFrame.url, deps.appOrigin()) ||
+      (theme !== 'dark' && theme !== 'light')
+    )
+      return
+    deps.config.set('themeBackground', theme)
+    setShellTheme(theme)
+  })
+
   let boundsTimer: NodeJS.Timeout | undefined
   const persistBounds = () => {
     clearTimeout(boundsTimer)
@@ -393,17 +380,6 @@ export function createMainWindow(deps: CreateMainWindowDeps): BrowserWindow {
       if (typeof zoomLevel === 'number' && Number.isFinite(zoomLevel)) {
         win.webContents.setZoomLevel(zoomLevel)
       }
-    }
-    const url = win.webContents.getURL()
-    if (isAppOrigin(url, deps.appOrigin())) {
-      void win.webContents
-        .executeJavaScript(THEME_PROBE_SCRIPT, true)
-        .then((isDark) => {
-          if (typeof isDark === 'boolean') {
-            deps.config.set('themeBackground', isDark ? 'dark' : 'light')
-          }
-        })
-        .catch(() => {})
     }
   })
 

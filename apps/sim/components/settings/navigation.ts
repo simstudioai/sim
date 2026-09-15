@@ -138,7 +138,6 @@ export interface UnifiedSettingsNavigationItem {
   section: UnifiedNavigationSection
   order: number
   hideWhenBillingDisabled?: boolean
-  requiresTeam?: boolean
   requiresEnterprise?: boolean
   requiresMax?: boolean
   requiresHosted?: boolean
@@ -473,16 +472,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       description: 'Members and workspace access in your organization.',
       group: 'organization',
       order: 0,
-      hideWhenBillingDisabled: true,
-      requiresHosted: true,
-      requiresTeam: true,
-      /**
-       * A plain member sees the roster read-only — `resolveOrganizationSectionAccess`
-       * grants them `'view'` on this one section, and `TeamManagement` renders
-       * without management controls. Every other organization section stays
-       * admin-only.
-       */
-      allowNonOrgAdmin: true,
       organizationSection: 'members',
     },
   },
@@ -495,14 +484,10 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'organization',
       order: 1,
       /**
-       * Deliberately no `hideWhenBillingDisabled`, unlike Members above.
-       *
-       * The sidebar applies that filter *before* it consults `selfHostedOverride`,
-       * so pairing the two hid this section from exactly the deployment the
-       * override exists to serve: self-hosted, billing off, `USAGE_MONITORING_ENABLED`
-       * on. Members can carry the flag because it has no override to reach. Here the
-       * two gates below already answer both cases — hosted needs the plan, and
-       * self-hosted needs the flag.
+       * Do not add `hideWhenBillingDisabled`: the sidebar applies it before
+       * `selfHostedOverride`, which would hide usage monitoring on self-hosted
+       * deployments with billing disabled. Hosted deployments require the plan;
+       * self-hosted deployments require the feature flag.
        */
       requiresHosted: true,
       requiresEnterprise: true,
