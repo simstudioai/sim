@@ -246,12 +246,43 @@ export const backfillSearchVectorsMigration: ScriptMigration = {
   },
 }
 
+/** Records the dev push backfill only after success, so later deploys skip both full scans. */
+export async function runDevSearchBackfill(sql: Sql): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS script_migrations (
+      name text PRIMARY KEY,
+      applied_at timestamptz NOT NULL DEFAULT now()
+    )
+  `
+  const [applied] = await sql`
+    SELECT name FROM script_migrations WHERE name = ${backfillSearchVectorsMigration.name}
+  `
+  if (applied) {
+    logger.info('Dev search backfill already applied; skipping')
+    return
+  }
+
+  await backfillSearchVectorsMigration.up(sql)
+  await sql.begin(async (tx) => {
+    for (const name of [
+      backfillSearchVectorsMigration.name,
+      ...(backfillSearchVectorsMigration.supersedes ?? []),
+    ]) {
+      await tx`INSERT INTO script_migrations (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`
+    }
+  })
+}
+
 if (import.meta.main) {
   const url = resolveMigrationDatabaseUrl()
   if (!url) throw new Error('DATABASE_URL is required to initialize search vectors')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {
-    await backfillSearchVectorsMigration.up(sql)
+    if (process.env.SIM_DEV_DB_PUSH === '1') {
+      await runDevSearchBackfill(sql)
+    } else {
+      await backfillSearchVectorsMigration.up(sql)
+    }
   } finally {
     await sql.end()
   }
