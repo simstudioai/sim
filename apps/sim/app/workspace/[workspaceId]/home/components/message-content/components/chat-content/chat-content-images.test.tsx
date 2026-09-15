@@ -116,6 +116,28 @@ describe('standard Markdown private chat images', () => {
       'https://example.com/chart.png'
     )
   })
+  it('opens the same authenticated image in the shared attachment preview with zoom and dismissal', async () => {
+    await render('![Button diagram](/tmp/manual.png)')
+    const preview = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Preview Button diagram"]'
+    )
+    const src = container.querySelector('img')?.getAttribute('src')
+    expect(preview).not.toBeNull()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    await act(async () => preview?.click())
+    const enlarged = document.querySelector<HTMLImageElement>('[role="dialog"] img')
+    expect(enlarged?.getAttribute('src')).toBe(src)
+    expect(enlarged?.getAttribute('alt')).toBe('Button diagram')
+    await act(async () =>
+      document.querySelector<HTMLButtonElement>('button[aria-label="Zoom in"]')?.click()
+    )
+    expect(enlarged?.style.zoom).toBe('1.25')
+    await act(async () =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    )
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(src)
+  })
   it('never displays image syntax inside fenced or inline code', async () => {
     await render('`![Code](/tmp/x.png)`\n\n```markdown\n![Example](files/x.png)\n```')
     expect(container.querySelector('img')).toBeNull()
