@@ -1,13 +1,7 @@
 import type { FocusEvent, ReactNode, RefObject } from 'react'
 import { Button, ChipInput, Label, Tooltip } from '@sim/emcn'
-import {
-  ArrowLeftRight,
-  ArrowUp,
-  Check,
-  Clipboard,
-  SquareArrowUpRight,
-  TriangleAlert,
-} from '@sim/emcn/icons'
+import { ArrowUp, Check, Clipboard, SquareArrowUpRight, TriangleAlert } from '@sim/emcn/icons'
+import { CanonicalModeToggle } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/canonical-mode-toggle'
 
 interface FieldHeaderWandAction {
   isSearchActive: boolean
@@ -62,9 +56,6 @@ export function SubBlockFieldHeader({
   copyAction,
   externalLinkAction,
 }: SubBlockFieldHeaderProps) {
-  const canonicalTooltip =
-    canonicalAction?.mode === 'advanced' ? 'Switch to selector' : 'Switch to manual ID'
-
   const handleWandBlur = (event: FocusEvent<HTMLInputElement>) => {
     if (event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest('button')) return
     wandAction?.onSearchBlur()
@@ -172,27 +163,11 @@ export function SubBlockFieldHeader({
           </Tooltip.Root>
         ) : null}
         {canonicalAction ? (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                type='button'
-                variant='quiet'
-                size='icon'
-                onClick={canonicalAction.onToggle}
-                disabled={canonicalAction.disabled}
-                aria-label={canonicalTooltip}
-              >
-                <ArrowLeftRight
-                  className={
-                    canonicalAction.mode === 'advanced'
-                      ? 'size-[14px] text-[var(--text-primary)]'
-                      : 'size-[14px]'
-                  }
-                />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>{canonicalTooltip}</Tooltip.Content>
-          </Tooltip.Root>
+          <CanonicalModeToggle
+            mode={canonicalAction.mode}
+            onToggle={canonicalAction.onToggle}
+            disabled={canonicalAction.disabled}
+          />
         ) : null}
       </div>
     </div>
