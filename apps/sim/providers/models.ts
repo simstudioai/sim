@@ -2967,6 +2967,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 40960,
         },
         contextWindow: 131072,
+        releaseDate: '2026-08-14',
       },
       {
         id: 'cerebras/gpt-oss-120b',
@@ -3135,6 +3136,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 16384,
         },
         contextWindow: 131042,
+        releaseDate: '2026-08-14',
       },
       {
         id: 'groq/qwen/qwen3.6-27b',
