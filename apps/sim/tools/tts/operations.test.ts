@@ -7,6 +7,7 @@ import { azureTtsTool } from '@/tools/tts/azure'
 import { cartesiaTtsTool } from '@/tools/tts/cartesia'
 import { deepgramTtsTool } from '@/tools/tts/deepgram'
 import { elevenLabsTtsUnifiedTool } from '@/tools/tts/elevenlabs'
+import { gandrTtsTool } from '@/tools/tts/gandr'
 import { googleTtsTool } from '@/tools/tts/google'
 import { openaiTtsTool } from '@/tools/tts/openai'
 import { playhtTtsTool } from '@/tools/tts/playht'
@@ -20,6 +21,7 @@ const TOOLS = [
   googleTtsTool,
   azureTtsTool,
   playhtTtsTool,
+  gandrTtsTool,
 ] as const
 
 describe('TTS operation declarations', () => {
@@ -43,6 +45,12 @@ describe('TTS operation declarations', () => {
       voice: 'alloy',
       responseFormat: 'mp3',
       speed: 1,
+    })
+    expect(gandrTtsTool.operation.input({ text: 'Hello', apiKey: 'key' })).toEqual({
+      text: 'Hello',
+      apiKey: 'key',
+      voice: 'gandr-mia',
+      responseFormat: 'mp3',
     })
     expect(
       elevenLabsTtsTool.operation.input({ text: 'Hello', apiKey: 'key', voiceId: 'voice_1' })
