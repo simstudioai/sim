@@ -22,9 +22,7 @@ export function referencedByWarningText(
   const remaining = referrerNames.length - listed.length
   const names = remaining > 0 ? [...listed, `${remaining} more`] : listed
 
-  return [
-    ` Referenced by ${NAME_LIST_FORMAT.format(names)}. Those references will show as not found.`,
-  ]
+  return [` Reference columns in ${NAME_LIST_FORMAT.format(names)} will point to a missing table.`]
 }
 
 /**
