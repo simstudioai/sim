@@ -7,11 +7,13 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  deployment,
   mockIsAdminOrOwner,
   mockUseOrganization,
   mockUseOrganizationBilling,
   mockUseOrganizationRoster,
 } = vi.hoisted(() => ({
+  deployment: { billingEnabled: true },
   mockIsAdminOrOwner: vi.fn(),
   mockUseOrganization: vi.fn(),
   mockUseOrganizationBilling: vi.fn(),
@@ -20,6 +22,10 @@ const {
 
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'viewer-1', email: 'viewer' } } }),
+}))
+
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => deployment,
 }))
 
 vi.mock('@/lib/billing/client/utils', () => ({
@@ -121,6 +127,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  deployment.billingEnabled = true
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -145,6 +152,28 @@ afterEach(() => {
 })
 
 describe('TeamManagement organization errors', () => {
+  it('renders members without fetching or displaying billing when billing is disabled', () => {
+    deployment.billingEnabled = false
+    mockIsAdminOrOwner.mockReturnValue(true)
+    mockUseOrganization.mockReturnValue({ data: { id: 'org-1' }, error: null, isLoading: false })
+    mockUseOrganizationBilling.mockReturnValue({
+      data: undefined,
+      error: new Error('Billing request failed'),
+      isLoading: false,
+    })
+
+    act(() =>
+      root.render(
+        <TeamManagement organizationId='org-1' billingHref='/workspace/ws-1/settings/billing' />
+      )
+    )
+
+    expect(mockUseOrganizationBilling).toHaveBeenCalledWith('org-1', { enabled: false })
+    expect(container).toHaveTextContent('organization-member-lists')
+    expect(container).not.toHaveTextContent('Billing request failed')
+    expect(container).not.toHaveTextContent('team-seats-overview')
+  })
+
   it.each([
     { admin: true, canInvite: false, shown: true, disabled: true },
     { admin: true, canInvite: true, shown: true, disabled: false },
