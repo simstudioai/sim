@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, type ReactNode, useContext } from 'react'
-import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
@@ -11,22 +10,20 @@ const OrganizationContextValue = createContext<OrganizationSurfaceContext | null
 interface OrganizationProviderProps {
   children: ReactNode
   context: OrganizationSurfaceContext
-  /** The server-resolved deployment shape; this surface has no workspace host context to carry it. */
-  deployment: DeploymentShape
 }
 
 /**
  * Provides the route-resolved organization and the viewer's standing in it to the
- * organization surface, and seeds the server-resolved deployment shape before any
- * child renders, as the workspace host provider does for workspace routes. The
- * layout resolves all of it on the server, so the first paint already knows the
- * organization's name, logo, and which enterprise features this deployment serves.
+ * organization surface, and seeds the context's deployment shape before any child
+ * renders, as the workspace host provider does for workspace routes. The layout
+ * resolves the context on the server, so the first paint already knows the
+ * organization's name, logo, and which features this deployment serves.
  */
-export function OrganizationProvider({ children, context, deployment }: OrganizationProviderProps) {
-  useSeedDeploymentShape(deployment)
+export function OrganizationProvider({ children, context }: OrganizationProviderProps) {
+  useSeedDeploymentShape(context.deployment)
   useMothershipChatEvents(
     context.searchAccess.memberScoped ? { organizationId: context.organization.id } : undefined,
-    deployment.chatEnabled
+    context.deployment.chatEnabled
   )
   return (
     <OrganizationContextValue.Provider value={context}>

@@ -34,10 +34,10 @@ import {
  * after `retry()` or a client-side navigation recovers the app in place. Sim Cloud then
  * renders as self-hosted: API Key fields on hosted models, no Auto model, no billing.
  *
- * Workspace and organization surfaces therefore read a shape resolved on the server per
- * request, seeded here by their provider (the workspace host provider, or the
- * organization provider) before any child renders. The constants remain the fallback
- * only outside those surfaces, where the root layout always runs.
+ * Workspace, organization, and standalone settings surfaces therefore read a shape
+ * resolved on the server per request, seeded here by their provider or shell before any
+ * child renders. The constants remain the fallback only outside those surfaces, where
+ * the root layout always runs.
  *
  * Block definitions import this module, which puts it in React Server Component graphs
  * (the block registry is loaded by auth and workflow lifecycle code), so it must not
@@ -45,7 +45,7 @@ import {
  */
 
 interface DeploymentShapeState {
-  /** Server-resolved shape from the workspace host context; `null` until a workspace mounts. */
+  /** Server-resolved shape seeded by a surface provider; `null` until one mounts. */
   seeded: DeploymentShape | null
   seed: (shape: DeploymentShape) => void
   reset: () => void
@@ -140,8 +140,8 @@ export function resetDeploymentShape(): void {
 /**
  * The deployment shape for code that runs outside React, such as block `condition`
  * functions and sub-block visibility. Server callers get the resolved truth; browser
- * callers get the seeded server value inside a workspace or organization surface, and
- * the `NEXT_PUBLIC_*` fallback elsewhere.
+ * callers get the seeded server value inside a seeded surface, and the `NEXT_PUBLIC_*`
+ * fallback elsewhere.
  */
 export function getDeploymentShape(): DeploymentShape {
   if (typeof window === 'undefined') return resolveDeploymentShape()

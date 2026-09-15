@@ -7,6 +7,7 @@ import {
   type OrganizationSettingsFeatures,
 } from '@/components/settings/navigation'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
+import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
@@ -37,7 +38,8 @@ interface OrganizationSurfaceViewer {
 
 /**
  * Everything the organization surface (`/o/[organizationId]`) needs before it renders:
- * the routed organization's identity and the viewer's standing in it. A `null`
+ * the routed organization's identity, the viewer's standing in it, and the
+ * server-resolved deployment shape its client code reads. A `null`
  * result is an explicit access denial — the viewer is not a member, or there is no
  * such organization.
  */
@@ -47,6 +49,7 @@ export interface OrganizationSurfaceContext {
   connectedAccountsAvailable: boolean
   searchAccess: KnowledgeAccessAvailability
   settingsFeatures: OrganizationSettingsFeatures
+  deployment: DeploymentShape
 }
 
 /**
@@ -110,6 +113,7 @@ async function resolveOrganizationSurfaceContext(
     connectedAccountsAvailable,
     searchAccess,
     settingsFeatures: getOrganizationSettingsFeatures(hasEnterprisePlan, deployment),
+    deployment,
   }
 }
 
