@@ -146,6 +146,7 @@ describe('Slack managed-user authorization', () => {
     'keeps shared setup state secret-free and rechecks configuration on %s',
     async (outcome) => {
       shared.env.SLACK_SEARCH_APP_ID = 'ASHARED'
+      shared.flag.mockImplementation(async (_flag, context) => context?.orgId === 'org-1')
       dbChainMockFns.limit
         .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
         .mockResolvedValueOnce([
@@ -173,6 +174,7 @@ describe('Slack managed-user authorization', () => {
       expect(stored).toMatchObject({ credentialSource: 'environment', expectedAppId: 'ASHARED' })
       expect(stored).not.toHaveProperty('encryptedClientSecret')
       expect(JSON.stringify(stored)).not.toContain('environment-secret')
+      expect(shared.flag).toHaveBeenCalledWith('slack-search-shared-app', { orgId: 'org-1' })
       if (outcome === 'rotation') {
         shared.env.SLACK_SEARCH_CLIENT_SECRET = 'rotated'
         await expect(consumeSlackManagedUsersAttempt(created.state)).rejects.toThrow('changed')
@@ -185,6 +187,7 @@ describe('Slack managed-user authorization', () => {
           clientSecret: 'environment-secret',
           organizationId: 'org-1',
         })
+        expect(shared.flag).toHaveBeenLastCalledWith('slack-search-shared-app', { orgId: 'org-1' })
         await expect(consumeSlackManagedUsersAttempt(created.state)).resolves.toBeNull()
       }
     }

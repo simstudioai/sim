@@ -52,6 +52,10 @@ interface ShortInputProps {
   /** Whether to hide the internal wand button (controlled by parent) */
   hideInternalWand?: boolean
   workflowSearchValuePath?: Array<string | number>
+  /** Whether the env-var and tag reference pickers may open. Defaults to `true`. */
+  allowReferences?: boolean
+  /** Called when the input loses focus. */
+  onBlur?: () => void
 }
 
 /**
@@ -81,6 +85,8 @@ export const ShortInput = memo(function ShortInput({
   wandControlRef,
   hideInternalWand = false,
   workflowSearchValuePath = [],
+  allowReferences = true,
+  onBlur,
 }: ShortInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [localContent, setLocalContent] = useState<string>('')
@@ -284,7 +290,8 @@ export const ShortInput = memo(function ShortInput({
 
   const handleBlur = useCallback(() => {
     setIsFocused(false)
-  }, [])
+    onBlur?.()
+  }, [onBlur])
 
   // Expose wand control handlers to parent via ref
   useImperativeHandle(
@@ -325,6 +332,7 @@ export const ShortInput = memo(function ShortInput({
           disabled={disabled}
           isStreaming={wandHook.isStreaming}
           previewValue={previewValue}
+          allowReferences={allowReferences}
           shouldForceEnvDropdown={shouldForceEnvDropdown}
           shouldForceTagDropdown={shouldForceTagDropdown}
         >

@@ -139,6 +139,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
         queryVector: {
           vector: JSON.stringify([1, ...Array<number>(dimensions - 1).fill(0)]),
           dimensions,
+          model: embeddingModel,
         },
         structuredFilters: [
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' },

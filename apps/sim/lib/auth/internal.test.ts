@@ -3,6 +3,7 @@
  */
 
 import { serializePrincipal } from '@sim/auth/principal'
+import { setRequestAuth } from '@sim/logger'
 import { resetEnvMock } from '@sim/testing'
 import { decodeJwt, SignJWT } from 'jose'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -38,6 +39,19 @@ describe('internal JWT claims', () => {
       valid: true,
       userId: 'user-1',
     })
+  })
+
+  it('records a verified internal token as the request auth kind, and a refused one not at all', async () => {
+    vi.mocked(setRequestAuth).mockClear()
+
+    await verifyInternalToken('not-a-jwt')
+    expect(vi.mocked(setRequestAuth)).not.toHaveBeenCalled()
+
+    await verifyInternalToken(await generateInternalToken('user-1'))
+    expect(vi.mocked(setRequestAuth)).toHaveBeenCalledWith(
+      { kind: 'internal_jwt' },
+      { preserveExisting: true }
+    )
   })
 
   it('rejects unknown sandbox profiles instead of falling back to another image', async () => {

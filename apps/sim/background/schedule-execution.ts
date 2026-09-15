@@ -6,7 +6,7 @@ import {
   workflowExecutionLogs,
   workflowSchedule,
 } from '@sim/db'
-import { createLogger, runWithRequestContext } from '@sim/logger'
+import { createLogger, type RequestContext, runWithRequestContext } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task, timeout } from '@trigger.dev/sdk'
@@ -822,7 +822,12 @@ export async function executeScheduleJob(
   const scheduledFor = payload.scheduledFor ? new Date(payload.scheduledFor) : null
 
   try {
-    return await runWithRequestContext({ requestId }, async () => {
+    /** A trigger, not a client, started this run. */
+    const requestContext: RequestContext = {
+      requestId,
+      client: { surface: 'schedule', source: 'trigger' },
+    }
+    return await runWithRequestContext(requestContext, async () => {
       logger.info(`[${requestId}] Starting schedule execution`, {
         scheduleId: payload.scheduleId,
         workflowId: payload.workflowId,

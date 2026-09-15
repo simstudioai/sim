@@ -11,6 +11,7 @@ import {
   decimal,
   doublePrecision,
   foreignKey,
+  halfvec,
   index,
   integer,
   json,
@@ -3336,9 +3337,28 @@ export const embedding = pgTable(
   })
 )
 
+/** Keyword ranking reads text-search vectors independently of chunk content and semantic vectors. */
+export const embeddingKeywordSearch = pgTable(
+  'embedding_keyword_search',
+  {
+    id: text('id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    knowledgeBaseId: text('knowledge_base_id').notNull(),
+    documentId: text('document_id').notNull(),
+    enabled: boolean('enabled').notNull(),
+    contentTsv: tsvector('content_tsv').notNull(),
+  },
+  (table) => ({
+    knowledgeBaseIdx: index('embedding_keyword_search_kb_idx').on(table.knowledgeBaseId),
+    documentIdx: index('embedding_keyword_search_document_idx').on(table.documentId),
+    contentIdx: index('embedding_keyword_search_content_idx').using('gin', table.contentTsv),
+  })
+)
+
 /**
- * Transactionally maintained candidate projection. Keeping identities and stored bits apart
- * from content and full vectors prevents ANN traversal from fetching or requantizing TOAST values.
+ * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
+ * from content prevents candidate scans from fetching full-precision TOAST values.
  * The embedding write trigger owns this projection; application writers only change embedding.
  */
 export const embeddingSearch = pgTable(
@@ -3350,11 +3370,18 @@ export const embeddingSearch = pgTable(
     knowledgeBaseId: text('knowledge_base_id').notNull(),
     documentId: text('document_id').notNull(),
     enabled: boolean('enabled').notNull(),
+    /** contract-pending(after half-precision search is fully deployed): drop binary columns and indexes — the previous app is their final reader. */
     binary: bit('binary', { dimensions: 1536 }),
     binary384: bit('binary_384', { dimensions: 384 }),
     binary768: bit('binary_768', { dimensions: 768 }),
     binary1024: bit('binary_1024', { dimensions: 1024 }),
     binary3072: bit('binary_3072', { dimensions: 3072 }),
+    vector: halfvec('vector', { dimensions: 1536 }),
+    vector384: halfvec('vector_384', { dimensions: 384 }),
+    vector512: halfvec('vector_512', { dimensions: 512 }),
+    vector768: halfvec('vector_768', { dimensions: 768 }),
+    vector1024: halfvec('vector_1024', { dimensions: 1024 }),
+    vector3072: halfvec('vector_3072', { dimensions: 3072 }),
   },
   (table) => ({
     knowledgeBaseIdx: index('embedding_search_kb_idx').on(table.knowledgeBaseId),
@@ -3372,6 +3399,24 @@ export const embeddingSearch = pgTable(
       .with({ m: 16, ef_construction: 64 }),
     binary3072Idx: index('embedding_search_3072_binary_hnsw_idx')
       .using('hnsw', table.binary3072.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vectorIdx: index('embedding_search_cosine_hnsw_idx')
+      .using('hnsw', table.vector.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector512Idx: index('embedding_search_512_cosine_hnsw_idx')
+      .using('hnsw', table.vector512.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector384Idx: index('embedding_search_384_cosine_hnsw_idx')
+      .using('hnsw', table.vector384.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector768Idx: index('embedding_search_768_cosine_hnsw_idx')
+      .using('hnsw', table.vector768.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector1024Idx: index('embedding_search_1024_cosine_hnsw_idx')
+      .using('hnsw', table.vector1024.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector3072Idx: index('embedding_search_3072_cosine_hnsw_idx')
+      .using('hnsw', table.vector3072.op('halfvec_cosine_ops'))
       .with({ m: 16, ef_construction: 64 }),
     widthCheck: check(
       'embedding_search_width_check',

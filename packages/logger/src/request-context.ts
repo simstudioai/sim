@@ -1,4 +1,4 @@
-import type { ResolvedClientInfo } from '@sim/utils/client-info'
+import { attributeUndeclaredClient, type ResolvedClientInfo } from '@sim/utils/client-info'
 
 export interface RequestContext {
   requestId: string
@@ -98,14 +98,28 @@ export function setRequestTraceId(traceId: string): void {
   if (store && traceId) store.traceId = traceId
 }
 
+export interface SetRequestAuthOptions {
+  /**
+   * Keep an auth kind already recorded. Credential verifiers pass this: they
+   * know only the credential, and must not replace the principal a route
+   * builder described from it (an internal JWT that turned out to carry a
+   * delegated principal), nor be replaced by a later incidental check.
+   */
+  preserveExisting?: boolean
+}
+
 /**
  * Records how the current request authenticated so every later log line and
  * analytics event in it can say so. Authentication runs inside the handler,
  * after the route context exists, hence a mutation of the live store rather
- * than a field supplied at `runWithRequestContext` time. No-op outside a
- * request context.
+ * than a field supplied at `runWithRequestContext` time. A client that did not
+ * identify itself is attributed by the credential here, the first point the
+ * request's origin is known. No-op outside a request context.
  */
-export function setRequestAuth(auth: RequestAuth): void {
+export function setRequestAuth(auth: RequestAuth, options: SetRequestAuthOptions = {}): void {
   const store = storage.getStore()
-  if (store) store.auth = auth
+  if (!store) return
+  if (options.preserveExisting && store.auth) return
+  store.auth = auth
+  if (store.client) store.client = attributeUndeclaredClient(store.client, auth.kind)
 }

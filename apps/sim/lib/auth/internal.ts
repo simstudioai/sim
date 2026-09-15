@@ -5,7 +5,7 @@ import {
   type WorkflowExecutionAuthority,
   type WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { type JWTPayload, jwtVerify, SignJWT } from 'jose'
@@ -295,6 +295,7 @@ export async function verifyInternalToken(
       if (payload.sandboxProfile !== undefined && payload.sandboxProfile !== 'mothership') {
         return { valid: false }
       }
+      setRequestAuth({ kind: 'internal_jwt' }, { preserveExisting: true })
       return {
         valid: true,
         userId: typeof payload.userId === 'string' ? payload.userId : undefined,

@@ -904,6 +904,13 @@ export const schemaMock = {
     createdAt: 'knowledgeBaseTagDefinitions.createdAt',
     updatedAt: 'knowledgeBaseTagDefinitions.updatedAt',
   },
+  embeddingKeywordSearch: {
+    id: 'embeddingKeywordSearch.id',
+    knowledgeBaseId: 'embeddingKeywordSearch.knowledgeBaseId',
+    documentId: 'embeddingKeywordSearch.documentId',
+    enabled: 'embeddingKeywordSearch.enabled',
+    contentTsv: 'embeddingKeywordSearch.contentTsv',
+  },
   embeddingSearch: {
     id: 'embeddingSearch.id',
     knowledgeBaseId: 'embeddingSearch.knowledgeBaseId',
@@ -914,6 +921,12 @@ export const schemaMock = {
     binary768: 'embeddingSearch.binary768',
     binary1024: 'embeddingSearch.binary1024',
     binary3072: 'embeddingSearch.binary3072',
+    vector: 'embeddingSearch.vector',
+    vector384: 'embeddingSearch.vector384',
+    vector512: 'embeddingSearch.vector512',
+    vector768: 'embeddingSearch.vector768',
+    vector1024: 'embeddingSearch.vector1024',
+    vector3072: 'embeddingSearch.vector3072',
   },
   embedding: {
     id: 'embedding.id',

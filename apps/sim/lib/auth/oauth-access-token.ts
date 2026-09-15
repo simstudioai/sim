@@ -1,7 +1,7 @@
 import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { oauthAccessToken, oauthClient, user } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { eq } from 'drizzle-orm'
 import { isAccountBlocked } from '@/lib/auth/ban'
@@ -137,6 +137,7 @@ export async function verifyOAuthAccessToken(
   }
 
   logger.debug('Authenticated OAuth access token', { tokenId: row.id, clientId: row.clientId })
+  setRequestAuth({ kind: 'oauth_access_token', clientId: row.clientId }, { preserveExisting: true })
   return {
     kind: 'oauth_access_token',
     userId: row.userId,

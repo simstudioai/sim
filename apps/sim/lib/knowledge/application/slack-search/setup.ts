@@ -91,7 +91,7 @@ export const prepareSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       getBaseUrl(),
       member.scopes
     )
-    const sharedApp = await readSharedSlackSearchApp()
+    const sharedApp = await readSharedSlackSearchApp(context.organizationId)
     return {
       sharedAppId: sharedApp?.id ?? null,
       manifest: JSON.stringify(manifest, null, 2),
@@ -141,7 +141,7 @@ export const startSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       )
     if (savedApp?.kind === 'custom' && savedApp.organizationId !== context.organizationId)
       throw new OrchestrationError('forbidden', 'Slack app ownership changed')
-    const sharedApp = shared ? await readSharedSlackSearchApp() : null
+    const sharedApp = shared ? await readSharedSlackSearchApp(context.organizationId) : null
     const app = shared ? sharedApp : savedApp
     if (shared && (!app || input.clientId || input.clientSecret || input.signingSecret))
       throw new OrchestrationError(
@@ -274,7 +274,7 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError('validation', 'Invalid Slack app transition')
     let clientSecret: string
     if (attempt.sharedApp) {
-      const app = await readSharedSlackSearchApp()
+      const app = await readSharedSlackSearchApp(context.organizationId)
       if (
         app?.id !== attempt.sharedApp.id ||
         app.revision !== attempt.sharedApp.revision ||
@@ -468,7 +468,7 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
             'This Slack workspace already has an active Search installation'
           )
         if (attempt.sharedApp) {
-          const currentApp = await readSharedSlackSearchApp()
+          const currentApp = await readSharedSlackSearchApp(context.organizationId)
           if (
             currentApp?.id !== attempt.sharedApp.id ||
             currentApp.revision !== attempt.sharedApp.revision

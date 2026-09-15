@@ -15,6 +15,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     TABLE_ROW_TTL: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
     KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
+    SLACK_SEARCH_SHARED_APP: undefined as boolean | undefined,
   },
 }))
 
@@ -125,6 +126,40 @@ describe('isFeatureEnabled', () => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
+    envRef.SLACK_SEARCH_SHARED_APP = undefined
+  })
+
+  describe('slack-search-shared-app flag', () => {
+    it('enables only the allowlisted organization', async () => {
+      withAppConfig({ 'slack-search-shared-app': { enabled: false, orgIds: ['review-org'] } })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'other-org' })).toBe(false)
+      expect(await isFeatureEnabled('slack-search-shared-app')).toBe(false)
+      expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
+    })
+
+    it('does not grant organization access from user or workspace targeting', async () => {
+      withAppConfig({
+        'slack-search-shared-app': {
+          userIds: ['review-org'],
+          workspaceIds: ['review-org'],
+          adminEnabled: true,
+        },
+      })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
+      expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
+    })
+
+    it('preserves the global AppConfig switch', async () => {
+      withAppConfig({ 'slack-search-shared-app': { enabled: true } })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'any-org' })).toBe(true)
+    })
+
+    it('preserves the global fallback switch off AppConfig', async () => {
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
+      envRef.SLACK_SEARCH_SHARED_APP = true
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
+    })
   })
 
   describe('knowledge-member-access flag', () => {

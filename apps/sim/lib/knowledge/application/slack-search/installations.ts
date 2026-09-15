@@ -77,7 +77,7 @@ export const listSlackSearchInstallations = defineAuthorizedKnowledgeUseCase({
           )
         )
         .limit(101),
-      readSharedSlackSearchApp(),
+      readSharedSlackSearchApp(context.organizationId),
     ])
     if (installations.length > 100 || bots.length > 100)
       throw new OrchestrationError(
@@ -158,7 +158,7 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
         ? await tx.select().from(slackApp).where(eq(slackApp.id, current.slackAppId)).limit(1)
         : []
       if (input.enabled && current.slackAppId)
-        await requireSlackSearchAppAvailable(current.slackAppId)
+        await requireSlackSearchAppAvailable(current.slackAppId, context.organizationId)
       if (current.slackAppId && !app) throw new Error('Slack app configuration is missing')
       const appRevision =
         app && secret ? (await resolveSlackAppCredentials(app)).revision : undefined

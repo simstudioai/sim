@@ -48,7 +48,9 @@ interface FeatureFlagDefinition {
 const FEATURE_FLAGS = {
   'slack-search-shared-app': {
     description:
-      'Enable the official shared Slack app for existing Search customers. Global on/off only.',
+      'Enable the official shared Slack app for existing Search customers. Supports orgId ' +
+      'targeting for setup, personal connections, and bot execution. Off-AppConfig falls back ' +
+      'to SLACK_SEARCH_SHARED_APP.',
     fallback: 'SLACK_SEARCH_SHARED_APP',
   },
   'trigger-eu-region': {

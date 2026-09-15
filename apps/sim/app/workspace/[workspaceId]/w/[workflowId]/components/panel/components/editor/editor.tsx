@@ -801,6 +801,7 @@ export function Editor() {
 
                     {showRetrySettings && (
                       <RetrySettings
+                        blockId={currentBlockId}
                         retry={currentBlock?.retry}
                         disabled={!canEditBlock}
                         onChange={handleChangeRetry}
