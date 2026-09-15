@@ -26,7 +26,7 @@ jobs:
     name: Apply Database Migrations
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Bulk projection loads and concurrent index builds can outlast ordinary schema changes.
-    timeout-minutes: 180
+    timeout-minutes: 300
 
     steps:
       - name: Checkout code
