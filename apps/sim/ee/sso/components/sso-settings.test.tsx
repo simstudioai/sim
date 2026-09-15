@@ -794,7 +794,11 @@ describe('SSO provider list', () => {
 
 describe('SSO primary provider', () => {
   /** An organization moving one domain's sign-in from one identity provider to another. */
-  function renderMigration(searchParams = '', okta: Record<string, unknown> = {}) {
+  function renderMigration(
+    searchParams = '',
+    okta: Record<string, unknown> = {},
+    entra: Record<string, unknown> = {}
+  ) {
     mockUseSSOProviders.mockReturnValue({
       data: {
         providers: [
@@ -804,6 +808,7 @@ describe('SSO primary provider', () => {
             providerId: 'acme-entra',
             domainVerified: true,
             isPrimary: true,
+            ...entra,
           },
           {
             ...provider('org-a'),
@@ -846,6 +851,25 @@ describe('SSO primary provider', () => {
     expect(findButton('Edit')).toBeDefined()
     expect(findButton('Make primary')).toBeUndefined()
     expect(container.querySelector('#sso-test-link')).toBeNull()
+  })
+
+  it("shows an OIDC provider's initiate login URL for its identity provider's app dashboard", () => {
+    renderMigration()
+    openProvider('acme-entra')
+
+    expect(container).toHaveTextContent('Initiate login URL')
+    const link = new URL(
+      container.querySelector<HTMLInputElement>('#sso-initiate-login-url')?.value ?? ''
+    )
+    expect(link.pathname).toBe('/sso/launch/acme-entra')
+    expect(link.search).toBe('')
+  })
+
+  it('shows no initiate login URL on a SAML provider', () => {
+    renderMigration('', {}, { providerType: 'saml' })
+    openProvider('acme-entra')
+
+    expect(container.querySelector('#sso-initiate-login-url')).toBeNull()
   })
 
   it('offers a test sign-in link and Make primary on a provider waiting beside the primary', () => {
