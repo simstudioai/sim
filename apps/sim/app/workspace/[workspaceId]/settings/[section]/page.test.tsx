@@ -112,17 +112,17 @@ describe('WorkspaceSettingsSectionPage', () => {
   })
 
   it.each(Object.entries(UNIFIED_TO_ORGANIZATION_SECTION))(
-    'routes %s to organization %s when Search is disabled',
-    async (section, organizationSection) => {
+    'keeps %s in the workspace outside the organization rollout',
+    async (section) => {
       mockGetHostContext.mockResolvedValue({
         hostOrganizationId: 'org-target',
         features: { organizationSearch: false, knowledgeMemberAccess: true },
       })
 
-      await expect(WorkspaceSettingsSectionPage(pageProps(section))).rejects.toThrow(
-        `NEXT_REDIRECT:/o/org-target/settings/${organizationSection}`
-      )
-      expect(mockSectionPrefetch).not.toHaveBeenCalled()
+      const element = await WorkspaceSettingsSectionPage(pageProps(section))
+
+      expect(element).toBeTruthy()
+      expect(mockRedirect).not.toHaveBeenCalled()
       expect(mockAuthorizeSection).toHaveBeenCalledWith({
         workspaceId: 'workspace-b',
         userId: 'viewer-a',
@@ -132,19 +132,19 @@ describe('WorkspaceSettingsSectionPage', () => {
   )
 
   it.each([undefined, { credentialGroups: true, knowledgeMemberAccess: true }])(
-    'routes settings to the organization when older host context omits Search availability',
+    'keeps settings in the workspace when older host context omits the org rollout',
     async (features) => {
       mockGetHostContext.mockResolvedValue({ hostOrganizationId: 'org-target', features })
 
-      await expect(WorkspaceSettingsSectionPage(pageProps('billing'))).rejects.toThrow(
-        'NEXT_REDIRECT:/o/org-target/settings/billing'
-      )
-      expect(mockSectionPrefetch).not.toHaveBeenCalled()
+      await WorkspaceSettingsSectionPage(pageProps('billing'))
+
+      expect(mockRedirect).not.toHaveBeenCalled()
+      expect(mockSectionPrefetch).toHaveBeenCalledTimes(1)
     }
   )
 
   it.each(Object.entries(UNIFIED_TO_ORGANIZATION_SECTION))(
-    'routes %s to organization %s when Search is enabled',
+    'routes %s to organization %s only within the organization rollout',
     async (section, organizationSection) => {
       mockGetHostContext.mockResolvedValue({
         hostOrganizationId: 'org-target',

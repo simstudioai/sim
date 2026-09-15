@@ -123,8 +123,7 @@ describe('OrganizationLayout', () => {
       {},
       'org-1',
       { kind: 'session', userId: 'viewer-1', sessionId: 'session-1' },
-      'active-org',
-      true
+      'active-org'
     )
     expect(html).toContain('Organization child')
     expect(mockUseMothershipChatEvents).toHaveBeenCalledWith(
@@ -159,15 +158,14 @@ describe('OrganizationLayout', () => {
       {},
       'org-1',
       { kind: 'session', userId: 'viewer-1', sessionId: 'session-1' },
-      null,
-      true
+      null
     )
     expect(html).toContain('Impersonating QA Member (member@example.com)')
     expect(html).toContain('Stop impersonating')
     expect(html.indexOf('Stop impersonating')).toBeLessThan(html.indexOf('Organization child'))
   })
 
-  it('uses the impersonated member to open settings when Search is disabled', async () => {
+  it('does not use the impersonating admin to enter an organization outside the rollout', async () => {
     mockGetSession.mockResolvedValue({
       user: { id: 'customer-member' },
       session: { id: 'session-1', impersonatedBy: 'platform-admin' },
@@ -177,24 +175,18 @@ describe('OrganizationLayout', () => {
       searchAccess: { memberScoped: false, sourceMirrored: false },
     })
 
-    const html = renderToStaticMarkup(
-      await OrganizationLayout({
+    await expect(
+      OrganizationLayout({
         children: <div>Organization child</div>,
         params: Promise.resolve({ organizationId: 'customer-org' }),
       })
-    )
+    ).rejects.toThrow('redirect:/workspace?redirect=settings')
     expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith(
       'customer-org',
       'customer-member'
     )
-    expect(html).toContain('Organization child')
-    expect(mockPrefetchOrganizationSidebar).toHaveBeenCalledWith(
-      {},
-      'customer-org',
-      { kind: 'session', userId: 'customer-member', sessionId: 'session-1' },
-      null,
-      false
-    )
+    expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+    expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
   })
 
   it('renders an explicit denial for a non-member without the surface', async () => {
@@ -213,7 +205,7 @@ describe('OrganizationLayout', () => {
   })
 
   it.each(['owner', 'admin', 'member'])(
-    'renders organization settings for a %s when Search is disabled',
+    'returns %s viewers outside the rollout to workspace settings before rendering org chrome',
     async (role) => {
       mockGetOrganizationSurfaceContext.mockResolvedValue({
         ...SURFACE_CONTEXT,
@@ -221,24 +213,14 @@ describe('OrganizationLayout', () => {
         searchAccess: { memberScoped: false, sourceMirrored: true },
       })
 
-      const html = renderToStaticMarkup(
-        await OrganizationLayout({
+      await expect(
+        OrganizationLayout({
           children: <div>Organization settings</div>,
           params: Promise.resolve({ organizationId: 'org-1' }),
         })
-      )
-      expect(html).toContain('Organization settings')
-      expect(mockPrefetchOrganizationSidebar).toHaveBeenCalledWith(
-        {},
-        'org-1',
-        { kind: 'session', userId: 'viewer-1', sessionId: 'session-1' },
-        'active-org',
-        false
-      )
-      expect(mockUseMothershipChatEvents).toHaveBeenCalledWith(
-        undefined,
-        SURFACE_CONTEXT.deployment.chatEnabled
-      )
+      ).rejects.toThrow('redirect:/workspace?redirect=settings')
+      expect(mockWorkspaceChrome).not.toHaveBeenCalled()
+      expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
     }
   )
 

@@ -130,12 +130,12 @@ export function SettingsSidebar({
   const userId = session?.user?.id
 
   const isOrgAdminOrOwner = hostContext.viewer.isHostOrganizationAdmin
-  const organizationSettingsId = hostContext.viewer.isHostOrganizationMember
-    ? hostContext.hostOrganizationId
-    : null
+  const organizationSettingsId =
+    hostContext.features?.organizationSearch && hostContext.viewer.isHostOrganizationMember
+      ? hostContext.hostOrganizationId
+      : null
   const subscriptionAccess = getSubscriptionAccessState(hostContext.ownerBilling)
   const inboxEntitled = inboxConfig?.entitled ?? false
-  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
   const isEnterprisePlan = subscriptionAccess.isEnterprise
 
@@ -148,11 +148,25 @@ export function SettingsSidebar({
 
   const navigationItems = useMemo(() => {
     return allNavigationItems.filter((item) => {
+      if (item.id === 'connected-accounts') {
+        return Boolean(
+          hostContext.hostOrganizationId &&
+            isOrgAdminOrOwner &&
+            hostContext.features?.credentialGroups &&
+            !hostContext.features?.organizationSearch
+        )
+      }
       if (
-        item.id === 'connected-accounts' ||
-        (hostContext.hostOrganizationId && ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id))
+        hostContext.hostOrganizationId &&
+        ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id) &&
+        (organizationSettingsId || !hostContext.viewer.isHostOrganizationMember)
       ) {
         return false
+      }
+      if (item.id === 'organization') {
+        return Boolean(
+          hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationMember
+        )
       }
       if (item.requiresSelfHosted && hosted) {
         return false
@@ -218,10 +232,6 @@ export function SettingsSidebar({
 
       const orgAdminSatisfied = isOrgAdminOrOwner || item.allowNonOrgAdmin
 
-      if (item.requiresTeam && (!hasTeamPlan || !orgAdminSatisfied)) {
-        return false
-      }
-
       if (
         item.requiresEnterprise &&
         (!hasEnterprisePlan || !orgAdminSatisfied) &&
@@ -254,13 +264,13 @@ export function SettingsSidebar({
     deployment,
     hosted,
     billingEnabled,
-    hasTeamPlan,
     hasEnterprisePlan,
     isEnterprisePlan,
     subscriptionAccess.hasUsableMaxAccess,
     hostContext,
     userId,
     isOrgAdminOrOwner,
+    organizationSettingsId,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
     permissionConfig,

@@ -404,10 +404,10 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
 })
 
 describe('WorkspaceHeader context navigation', () => {
-  it.each([true, false, undefined])('links to the host organization with Search %s', (enabled) => {
+  it('links to the current host organization for enrolled members', () => {
     hostContext.hostOrganizationId = 'host-org'
     hostContext.viewer.isHostOrganizationMember = true
-    hostContext.features.organizationSearch = enabled
+    hostContext.features.organizationSearch = true
     render()
     expect(document.querySelector('a[href="/o/host-org"]')).toHaveTextContent(
       'Back to organization'
@@ -417,8 +417,8 @@ describe('WorkspaceHeader context navigation', () => {
   it.each([
     { org: null, member: true, enabled: true },
     { org: 'host-org', member: false, enabled: true },
-    { org: null, member: true, enabled: false },
-    { org: 'host-org', member: false, enabled: false },
+    { org: 'host-org', member: true, enabled: false },
+    { org: 'host-org', member: true, enabled: undefined },
   ])('hides inaccessible organization navigation: %j', ({ org, member, enabled }) => {
     hostContext.hostOrganizationId = org
     hostContext.viewer.isHostOrganizationMember = member

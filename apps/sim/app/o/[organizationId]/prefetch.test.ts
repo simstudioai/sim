@@ -61,8 +61,8 @@ function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
 }
 
-function prefetch(client: QueryClient, searchAvailable = true) {
-  return prefetchOrganizationSidebar(client, 'route-org', PRINCIPAL, 'active-org', searchAvailable)
+function prefetch(client: QueryClient) {
+  return prefetchOrganizationSidebar(client, 'route-org', PRINCIPAL, 'active-org')
 }
 
 describe('organization sidebar hydration', () => {
@@ -130,16 +130,6 @@ describe('organization sidebar hydration', () => {
     workspaces.resolve(WORKSPACES)
     await pending
     expect(dehydrate(client).queries).toHaveLength(3)
-  })
-
-  it('hydrates workspace and profile data without loading Search chats when Search is disabled', async () => {
-    const client = makeClient()
-    await prefetch(client, false)
-
-    expect(mockListOrganizationChats).not.toHaveBeenCalled()
-    expect(client.getQueryState(CHAT_KEY)).toBeUndefined()
-    expect(client.getQueryData(workspaceKeys.list('active'))).toMatchObject(WORKSPACES)
-    expect(client.getQueryData(userProfileKeys.profile())).toMatchObject({ name: 'Ada' })
   })
 
   it('caches an empty chat list but leaves empty workspaces for the client creation path', async () => {
