@@ -2,10 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { env, envNumber } from '@/lib/core/config/env'
-import {
-  filterModelSafeWorkspaceFileAttachments,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { StreamingExecution } from '@/executor/types'
 import {
   applyModelCostPolicy,
@@ -44,9 +42,9 @@ import {
 
 const logger = createLogger('Providers')
 
-async function assertModelSafeProviderFileAttachments(request: ProviderRequest): Promise<void> {
+async function prepareProviderFileAttachments(request: ProviderRequest): Promise<ProviderRequest> {
   const attachments = (request.messages ?? []).flatMap((message) => message.files ?? [])
-  if (attachments.length === 0) return
+  if (attachments.length === 0) return request
 
   let safeAttachments: typeof attachments
   try {
@@ -62,8 +60,25 @@ async function assertModelSafeProviderFileAttachments(request: ProviderRequest):
     throw new Error('File attachments could not be verified for model use')
   }
 
-  if (safeAttachments.length !== attachments.length) {
-    throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+  if (safeAttachments.length === attachments.length) return request
+  const safe = new Set(safeAttachments)
+  logger.warn('Omitting model attachments with unsafe secret provenance', {
+    attachmentCount: attachments.length,
+    omittedCount: attachments.length - safeAttachments.length,
+  })
+  return {
+    ...request,
+    messages: request.messages?.map((message) => {
+      if (!message.files) return message
+      const files = message.files.filter((file) => safe.has(file))
+      const omittedCount = message.files.length - files.length
+      if (omittedCount === 0) return message
+      return {
+        ...message,
+        content: appendUnavailableAttachmentNotice(message.content, omittedCount),
+        files: files.length > 0 ? files : undefined,
+      }
+    }),
   }
 }
 
@@ -226,8 +241,8 @@ export async function executeProviderRequest(
     sanitizedRequest.responseFormat = undefined
   }
 
-  await assertModelSafeProviderFileAttachments(sanitizedRequest)
-  const toolIdentities = assignProviderToolIdentities(sanitizedRequest.tools)
+  const modelSafeRequest = await prepareProviderFileAttachments(sanitizedRequest)
+  const toolIdentities = assignProviderToolIdentities(modelSafeRequest.tools)
   const failedFunctionToolCost = { total: 0 }
   const requestRuntimeContext: ProviderRuntimeContext = {
     ...runtimeContext,
@@ -242,21 +257,21 @@ export async function executeProviderRequest(
       : {}),
   }
 
-  if (sanitizedRequest.responseFormat) {
+  if (modelSafeRequest.responseFormat) {
     const structuredOutputInstructions = generateStructuredOutputInstructions(
-      sanitizedRequest.responseFormat
+      modelSafeRequest.responseFormat
     )
     if (structuredOutputInstructions.trim()) {
-      const originalPrompt = sanitizedRequest.systemPrompt || ''
-      sanitizedRequest.systemPrompt = `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+      const originalPrompt = modelSafeRequest.systemPrompt || ''
+      modelSafeRequest.systemPrompt = `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
       logger.info('Added structured output instructions to system prompt')
     }
   }
 
   const response = await runWithProviderRuntimeContext(requestRuntimeContext, async () => {
-    await attachLargeFileRemoteUrls(sanitizedRequest, providerId, runtimeContext?.executionContext)
-    await uploadLargeFilesToProvider(sanitizedRequest, providerId, runtimeContext?.executionContext)
-    return provider.executeRequest(sanitizedRequest)
+    await attachLargeFileRemoteUrls(modelSafeRequest, providerId, runtimeContext?.executionContext)
+    await uploadLargeFilesToProvider(modelSafeRequest, providerId, runtimeContext?.executionContext)
+    return provider.executeRequest(modelSafeRequest)
   })
 
   if (isStreamingExecution(response)) {

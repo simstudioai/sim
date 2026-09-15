@@ -50,8 +50,6 @@ vi.mock('@/lib/copilot/application/load-search-integrations', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
   filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
     mockFilterModelSafeWorkspaceFileAttachments(...args),
 }))
@@ -673,13 +671,22 @@ describe('runCopilotLifecycle', () => {
     { key: 'fileAttachments', includeSafeFile: false },
     { key: 'fileAttachments', includeSafeFile: true },
   ])(
-    'rejects refused initial $key before the Go request (mixed=$includeSafeFile)',
+    'continues with an error notice for refused $key (mixed=$includeSafeFile)',
     async ({ key, includeSafeFile }) => {
-      const unsafe = { id: 'wf-unsafe', name: 'unsafe.txt', key: 'workspace/ws-1/unsafe.txt' }
+      const unsafe = {
+        id: 'wf-private',
+        name: 'private-filename.txt',
+        key: 'private-storage-key',
+        base64: 'private-bytes',
+      }
       const safe = { id: 'wf-safe', name: 'safe.txt', key: 'workspace/ws-1/safe.txt' }
       const safeFiles = includeSafeFile ? [safe] : []
       mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce(safeFiles)
       const onError = vi.fn()
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context) => {
+        context.accumulatedContent = 'I can continue with the available inputs.'
+        context.completionStatus = MothershipStreamV1CompletionStatus.complete
+      })
       const payload = {
         message: 'Review files',
         [key]: [...safeFiles, unsafe],
@@ -695,15 +702,71 @@ describe('runCopilotLifecycle', () => {
         onError,
       })
 
-      const message = 'File cannot be sent to a model because its secret provenance is unavailable'
-      expect(result).toMatchObject({ success: false, error: message })
-      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message }), result)
+      expect(result).toMatchObject({
+        success: true,
+        content: 'I can continue with the available inputs.',
+      })
+      expect(onError).not.toHaveBeenCalled()
+      expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+      const sent = JSON.parse(String(mockRunStreamLoop.mock.calls[0][1].body))
+      expect(sent.message).toMatch(
+        /^Review files\n\nAttachment error: 1 requested file attachment was not provided/
+      )
+      expect(sent[key] ?? []).toEqual(safeFiles)
+      expect(JSON.stringify(sent)).not.toContain('private-')
       expect(mockFilterModelSafeWorkspaceFileAttachments).toHaveBeenCalledWith(
         [...safeFiles, unsafe],
         { workspaceId: 'ws-1' }
       )
       expect(payload).toEqual(originalPayload)
-      expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['messages', 'both', 'attachment-only', 'system-only'])(
+    'reports combined attachment refusals in %s payloads without changing history',
+    async (shape) => {
+      const history = {
+        role: 'assistant',
+        content: 'Previous response',
+        tool_calls: [{ id: 'existing-call' }],
+      }
+      const messages =
+        shape === 'system-only'
+          ? [{ role: 'system', content: 'System context' }]
+          : [history, { role: 'user', content: 'Review files' }]
+      const payload = {
+        ...(shape === 'both' ? { message: 'Review files' } : {}),
+        ...(shape === 'attachment-only' ? {} : { messages }),
+        attachments: [{ key: 'private-first-file' }],
+        fileAttachments: [{ key: 'private-second-file' }],
+      }
+      const original = structuredClone(payload)
+      mockFilterModelSafeWorkspaceFileAttachments
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+      mockRunStreamLoop.mockResolvedValueOnce(undefined)
+
+      const result = await runCopilotLifecycle(payload, {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
+      })
+
+      expect(result.success).toBe(true)
+      const sent = JSON.parse(String(mockRunStreamLoop.mock.calls[0][1].body))
+      const notice = 'Attachment error: 2 requested file attachments were not provided'
+      if (shape === 'both' || shape === 'attachment-only') expect(sent.message).toContain(notice)
+      if (shape !== 'attachment-only') {
+        expect(sent.messages[0]).toEqual(messages[0])
+        expect(sent.messages.at(-1)).toMatchObject({
+          role: 'user',
+          content: expect.stringContaining(notice),
+        })
+      }
+      expect(sent).not.toHaveProperty('attachments')
+      expect(sent).not.toHaveProperty('fileAttachments')
+      expect(JSON.stringify(sent)).not.toContain('private-')
+      expect(payload).toEqual(original)
     }
   )
 

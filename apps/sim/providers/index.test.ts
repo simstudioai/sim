@@ -37,8 +37,6 @@ vi.mock('@/providers/file-attachments.server', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
   filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
     mockFilterModelSafeWorkspaceFileAttachments(...args),
 }))
@@ -971,45 +969,77 @@ describe('executeProviderRequest — caller-prepared model input', () => {
     { stream: true, includeSafeFile: false },
     { stream: true, includeSafeFile: true },
   ])(
-    'rejects refused attachments before provider processing (stream=$stream, mixed=$includeSafeFile)',
+    'continues with an attachment error notice (stream=$stream, mixed=$includeSafeFile)',
     async ({ stream, includeSafeFile }) => {
       const unsafe = {
         id: 'wf-unsafe',
-        name: 'unsafe.txt',
-        url: '/unsafe',
+        name: 'private-filename.txt',
+        url: '/private-file-url',
         size: 10,
         type: 'text/plain',
-        key: 'workspace/ws-1/unsafe.txt',
+        key: 'workspace/ws-1/private-storage-key.txt',
+        base64: 'private-file-bytes',
       }
-      const safe = { ...unsafe, id: 'wf-safe', key: 'workspace/ws-1/safe.txt' }
+      const safe = {
+        ...unsafe,
+        id: 'wf-safe',
+        name: 'safe.txt',
+        url: '/safe',
+        key: 'safe-key',
+        base64: 'safe-bytes',
+      }
       const safeFiles = includeSafeFile ? [safe] : []
       mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce(safeFiles)
       const messages = [
-        { role: 'user' as const, content: 'Review files', files: safeFiles },
-        { role: 'user' as const, content: 'Include this file too', files: [unsafe] },
+        { role: 'user' as const, content: 'Earlier context' },
+        {
+          role: 'user' as const,
+          content: includeSafeFile ? 'Review files' : null,
+          files: [...safeFiles, unsafe],
+        },
       ]
       const originalMessages = structuredClone(messages)
-
-      await expect(
-        executeProviderRequest('openai', {
-          model: 'test-model',
-          workspaceId: 'ws-1',
-          userId: 'user-1',
-          stream,
-          messages,
+      if (stream) {
+        mockExecuteRequest.mockResolvedValueOnce({
+          stream: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('ok'))
+              controller.close()
+            },
+          }),
+          execution: { success: true, output: { content: 'ok' } },
         })
-      ).rejects.toThrow(
-        'File cannot be sent to a model because its secret provenance is unavailable'
-      )
+      }
 
+      const response = await executeProviderRequest('openai', {
+        model: 'test-model',
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        stream,
+        messages,
+      })
+
+      if (stream) {
+        expect(await new Response((response as StreamingExecution).stream).text()).toBe('ok')
+      } else {
+        expect(response).toMatchObject({ content: 'ok' })
+      }
       expect(mockFilterModelSafeWorkspaceFileAttachments).toHaveBeenCalledWith(
         [...safeFiles, unsafe],
         { workspaceId: 'ws-1', actorUserId: 'user-1' }
       )
+      const sent = mockExecuteRequest.mock.calls[0][0]
+      expect(sent.messages[0]).toEqual(messages[0])
+      expect(sent.messages[1].content).toContain(
+        'Attachment error: 1 requested file attachment was not provided'
+      )
+      expect(sent.messages[1].content).toContain('Continue with the available inputs')
+      if (includeSafeFile) expect(sent.messages[1].content).toMatch(/^Review files\n\n/)
+      expect(sent.messages[1].files ?? []).toEqual(safeFiles)
+      expect(JSON.stringify(sent)).not.toContain('private-')
+      expect(mockAttachLargeFileRemoteUrls.mock.calls[0][0]).toBe(sent)
+      expect(mockUploadLargeFilesToProvider.mock.calls[0][0]).toBe(sent)
       expect(messages).toEqual(originalMessages)
-      expect(mockAttachLargeFileRemoteUrls).not.toHaveBeenCalled()
-      expect(mockUploadLargeFilesToProvider).not.toHaveBeenCalled()
-      expect(mockExecuteRequest).not.toHaveBeenCalled()
     }
   )
 
