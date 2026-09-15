@@ -7,7 +7,7 @@ import { authMockFns } from '@sim/testing'
 import { dehydrate } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 
 const {
   mockGetOrganizationSurfaceContext,
@@ -83,6 +83,7 @@ const SURFACE_CONTEXT = {
   organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: null, memberCount: 1 },
   viewer: { role: 'member', isAdmin: false },
   searchAccess: { memberScoped: true, sourceMirrored: true },
+  deployment: resolveDeploymentShape(),
 }
 
 describe('OrganizationLayout', () => {
@@ -127,7 +128,7 @@ describe('OrganizationLayout', () => {
     expect(html).toContain('Organization child')
     expect(mockUseMothershipChatEvents).toHaveBeenCalledWith(
       { organizationId: 'org-1' },
-      isChatEnabled
+      SURFACE_CONTEXT.deployment.chatEnabled
     )
     expect(html).not.toContain('Stop impersonating')
     expect(mockWorkspaceChrome).toHaveBeenCalledWith(

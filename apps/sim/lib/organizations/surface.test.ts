@@ -72,6 +72,7 @@ describe('getOrganizationSurfaceContext', () => {
         billingEnabled: true,
         hasEnterprisePlan: true,
       }),
+      deployment: expect.objectContaining({ hosted: true, billingEnabled: true }),
     })
     expect(mockSearchAccess).toHaveBeenCalledWith({ organizationId: 'org-1' })
     expect(mockEnterprisePlan).toHaveBeenCalledWith('org-1')
@@ -102,6 +103,7 @@ describe('getOrganizationSurfaceContext', () => {
         billingEnabled: false,
         selfHosted: { 'audit-logs': true },
       },
+      deployment: { hosted: false, billingEnabled: false, features: { auditLogs: true } },
     })
     expect(mockEnterprisePlan).not.toHaveBeenCalled()
   })
