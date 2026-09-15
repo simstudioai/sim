@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { BlockType } from '@/executor/constants'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { DAGExecutor } from '@/executor/execution/executor'
@@ -9,6 +10,15 @@ import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import { buildSentinelStartId } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+/** Reaches the executor's private context factory, which every run's root context comes from. */
+function createExecutionContext(executor: DAGExecutor, workflowId = 'wf-1'): ExecutionContext {
+  return (
+    executor as unknown as {
+      createExecutionContext: (workflowId: string) => { context: ExecutionContext }
+    }
+  ).createExecutionContext(workflowId).context
+}
 
 function createExecutor(): DAGExecutor {
   return new DAGExecutor({
@@ -404,12 +414,7 @@ describe('DAGExecutor createExecutionContext useDraftState', () => {
             : ({ useDraftState: opts.metadataUseDraftState } as ExecutionContext['metadata']),
       },
     })
-    const { context } = (
-      executor as unknown as {
-        createExecutionContext: (workflowId: string) => { context: ExecutionContext }
-      }
-    ).createExecutionContext('wf-1')
-    return context.metadata.useDraftState
+    return createExecutionContext(executor).metadata.useDraftState
   }
 
   it('honors explicit useDraftState=true even when isDeployedContext is true (table dispatcher)', () => {
@@ -442,11 +447,7 @@ describe('DAGExecutor executor delegation origin', () => {
       contextExtensions: { executorDelegationOrigin },
     })
 
-    const { context } = (
-      executor as unknown as {
-        createExecutionContext: (workflowId: string) => { context: ExecutionContext }
-      }
-    ).createExecutionContext('child-workflow')
+    const context = createExecutionContext(executor, 'child-workflow')
 
     expect(context.workflowId).toBe('child-workflow')
     expect(context.executorDelegationOrigin).toBe(executorDelegationOrigin)
@@ -454,21 +455,13 @@ describe('DAGExecutor executor delegation origin', () => {
 })
 
 describe('DAGExecutor run-scoped permission config cache', () => {
-  function createContext(executor: DAGExecutor): ExecutionContext {
-    return (
-      executor as unknown as {
-        createExecutionContext: (workflowId: string) => { context: ExecutionContext }
-      }
-    ).createExecutionContext('wf-1').context
-  }
-
   it('seeds one cache per run that survives per-block context copies', () => {
     const executor = new DAGExecutor({
       workflow: { version: '1', blocks: [], connections: [] },
       contextExtensions: { workspaceId: 'ws-1' },
     })
 
-    const context = createContext(executor)
+    const context = createExecutionContext(executor)
     const blockContext = { ...context }
 
     expect(context.permissionConfigCache).toBeInstanceOf(Map)
@@ -477,9 +470,40 @@ describe('DAGExecutor run-scoped permission config cache', () => {
 
   it('never shares the cache between runs', () => {
     const workflow = { version: '1', blocks: [], connections: [] }
-    const parent = createContext(new DAGExecutor({ workflow, contextExtensions: {} }))
-    const child = createContext(new DAGExecutor({ workflow, contextExtensions: {} }))
+    const parent = createExecutionContext(new DAGExecutor({ workflow, contextExtensions: {} }))
+    const child = createExecutionContext(new DAGExecutor({ workflow, contextExtensions: {} }))
 
     expect(child.permissionConfigCache).not.toBe(parent.permissionConfigCache)
+  })
+})
+
+describe('DAGExecutor exact access key lists', () => {
+  function createContext(contextExtensions: Record<string, unknown>): ExecutionContext {
+    return createExecutionContext(
+      new DAGExecutor({
+        workflow: { version: '1', blocks: [], connections: [] },
+        contextExtensions,
+      })
+    )
+  }
+
+  it('keeps keys a block records on its context copy for later blocks', () => {
+    const context = createContext({})
+
+    mergeLargeValueKeys({ ...context }, ['large-value-key'])
+    mergeFileKeys({ ...context }, ['file-key'])
+
+    expect(context.largeValueKeys).toEqual(['large-value-key'])
+    expect(context.fileKeys).toEqual(['file-key'])
+  })
+
+  it('shares the lists a run passes in rather than copying them', () => {
+    const largeValueKeys = ['inherited-large-value-key']
+    const fileKeys = ['inherited-file-key']
+
+    const context = createContext({ largeValueKeys, fileKeys })
+
+    expect(context.largeValueKeys).toBe(largeValueKeys)
+    expect(context.fileKeys).toBe(fileKeys)
   })
 })
