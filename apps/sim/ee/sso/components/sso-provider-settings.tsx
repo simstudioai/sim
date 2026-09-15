@@ -542,6 +542,8 @@ export function SsoProviderSettings({
         ? [{ text: 'Delete', variant: 'destructive', onSelect: onDelete } satisfies SettingsAction]
         : []),
     ]
+    const isOidcProvider = (existingProvider.providerType ?? 'oidc') === 'oidc'
+    const encodedProviderId = encodeURIComponent(existingProvider.providerId ?? '')
     const providerCallbackUrl =
       (existingProvider.providerType === 'saml' &&
         readProviderConfigString(existingProvider.samlConfig, 'callbackUrl')) ||
@@ -593,11 +595,24 @@ export function SsoProviderSettings({
               </SettingRow>
             )}
 
+            {isOidcProvider && (
+              <SettingRow htmlFor='sso-initiate-login-url' label='Initiate login URL'>
+                <ChipCopyInput
+                  id='sso-initiate-login-url'
+                  value={`${getBaseUrl()}/sso/launch/${encodedProviderId}`}
+                  copyLabel='Copy initiate login URL'
+                />
+                <p className='text-[var(--text-muted)] text-caption'>
+                  Set this in your identity provider to open Sim from its app dashboard
+                </p>
+              </SettingRow>
+            )}
+
             {onMakePrimary && (
               <SettingRow htmlFor='sso-test-link' label='Test sign-in link'>
                 <ChipCopyInput
                   id='sso-test-link'
-                  value={`${getBaseUrl()}/sso?provider=${encodeURIComponent(existingProvider.providerId ?? '')}`}
+                  value={`${getBaseUrl()}/sso?provider=${encodedProviderId}`}
                   copyLabel='Copy test sign-in link'
                 />
                 <p className='text-[var(--text-muted)] text-caption'>
