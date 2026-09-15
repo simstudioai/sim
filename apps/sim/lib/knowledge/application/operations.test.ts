@@ -256,7 +256,7 @@ describe('knowledge operation registry', () => {
     ).toBe(true)
   })
 
-  it('allows Copilot folder discovery without delegating folder mutations or upload completion', () => {
+  it('allows Copilot folder operations and bound upload completion', () => {
     expect(knowledgeOperations.list.principalKinds).toContain('delegated')
     expect(knowledgeOperations.search.principalKinds).toContain('delegated')
     expect(knowledgeOperations.uploadDocument.principalKinds).toContain('delegated')
@@ -271,13 +271,13 @@ describe('knowledge operation registry', () => {
       knowledgeOperations.relocateFolder,
       knowledgeOperations.deleteFolder,
     ]) {
-      expect(operation.principalKinds).not.toContain('delegated')
-      expect(operation.delegatedServices).toBeUndefined()
+      expect(operation.principalKinds).toContain('delegated')
+      expect(operation.delegatedServices).toEqual(['copilot'])
     }
-    expect(knowledgeOperations.uploadComplete.principalKinds).not.toContain('delegated')
+    expect(knowledgeOperations.uploadComplete.principalKinds).toContain('delegated')
     expect(knowledgeOperations.list.delegatedServices).toEqual(['copilot'])
     expect(knowledgeOperations.search.delegatedServices).toEqual(['copilot', 'executor'])
-    expect(knowledgeOperations.uploadComplete.delegatedServices).toBeUndefined()
+    expect(knowledgeOperations.uploadComplete.delegatedServices).toEqual(['copilot'])
   })
 
   it('withholds knowledge base creation separately from using existing ones', () => {

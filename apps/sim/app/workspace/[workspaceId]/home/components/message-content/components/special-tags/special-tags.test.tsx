@@ -2,12 +2,14 @@
  * @vitest-environment jsdom
  * @vitest-environment-options { "url": "https://sim.test/workspace/workspace-1/chat/chat-1" }
  */
-import { act } from 'react'
+import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockParams,
+  mockCredentialHost,
+  mockOrganizationContext,
   mockRefetchPersonalEnvironment,
   mockRefetchWorkspaceCredentials,
   mockIsBrowserAgentAvailable,
@@ -20,6 +22,8 @@ const {
   mockUseWorkspaceCredentials,
 } = vi.hoisted(() => ({
   mockParams: vi.fn(() => ({ workspaceId: 'workspace-1' })),
+  mockOrganizationContext: vi.fn(() => null),
+  mockCredentialHost: vi.fn(({ children }: { children: ReactNode }) => children),
   mockUpdateWorkspaceCredential: vi.fn(async () => undefined),
   mockRefetchPersonalEnvironment: vi.fn(async () => ({ data: {} })),
   mockRefetchWorkspaceCredentials: vi.fn(async () => ({ data: [] })),
@@ -30,6 +34,24 @@ const {
   mockUseUserPermissionsContext: vi.fn(),
   mockUseWorkspaceCredential: vi.fn(),
   mockUseWorkspaceCredentials: vi.fn(),
+}))
+
+vi.mock('@/app/workspace/[workspaceId]/home/components/resource-workspace-host', () => ({
+  ResourceWorkspaceHost: mockCredentialHost,
+}))
+
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
+  useOptionalOrganizationContext: mockOrganizationContext,
+}))
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+  useOptionalWorkspaceHostContext: () => null,
+}))
+vi.mock('@/lib/core/config/deployment-shape', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useDeploymentShape: () => ({ hosted: true }),
+}))
+vi.mock('@/hooks/use-settings-navigation', () => ({
+  useSettingsNavigation: () => ({ getSettingsHref: () => '/unexpected-workspace-settings' }),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
@@ -94,7 +116,10 @@ import {
  * Minimal dependency-free render harness (the repo has no `@testing-library/react`). Mounts the
  * component in a real React 19 root under jsdom, matching the pattern in `use-autosave.test.tsx`.
  */
-function renderCredentialLink(data: CredentialItemData | CredentialItemData[]): {
+function renderCredentialLink(
+  data: CredentialItemData | CredentialItemData[],
+  onOptionSelect?: (message: string) => void
+): {
   container: HTMLDivElement
   root: Root
 } {
@@ -103,7 +128,10 @@ function renderCredentialLink(data: CredentialItemData | CredentialItemData[]): 
   const root: Root = createRoot(container)
   act(() => {
     root.render(
-      <SpecialTags segment={{ type: 'credential', data: Array.isArray(data) ? data : [data] }} />
+      <SpecialTags
+        segment={{ type: 'credential', data: Array.isArray(data) ? data : [data] }}
+        onOptionSelect={onOptionSelect}
+      />
     )
   })
   return { container, root }
@@ -114,6 +142,8 @@ describe('CredentialDisplay link tag', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.clearAllMocks()
     mockParams.mockReturnValue({ workspaceId: 'workspace-1' })
+    mockOrganizationContext.mockReturnValue(null)
+    mockCredentialHost.mockImplementation(({ children }: { children: ReactNode }) => children)
     window.localStorage.clear()
     window.history.replaceState({}, '', '/workspace/workspace-1/chat/chat-1')
     mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
@@ -125,6 +155,108 @@ describe('CredentialDisplay link tag', () => {
     })
     mockIsBrowserAgentAvailable.mockReturnValue(false)
   })
+
+  it('saves an organization credential into its explicit authorized workspace', async () => {
+    mockParams.mockReturnValue({ organizationId: 'org' } as never)
+    const { container, root } = renderCredentialLink(
+      { type: 'secret_input', name: 'TOKEN', workspaceId: 'target-workspace' },
+      vi.fn()
+    )
+    expect(mockCredentialHost).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'target-workspace', organizationId: 'org' }),
+      undefined
+    )
+    const input = container.querySelector('input')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set?.call(
+        input,
+        'test-token'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () =>
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Submit')
+        ?.click()
+    )
+    expect(mockUpsertWorkspaceEnvironment).toHaveBeenCalledWith({
+      workspaceId: 'target-workspace',
+      variables: { TOKEN: 'test-token' },
+    })
+    act(() => root.unmount())
+  })
+
+  it.each(
+    (
+      [
+        [{ type: 'secret_input', name: 'TOKEN' }],
+        [
+          { type: 'secret_input', name: 'A', workspaceId: 'workspace-a' },
+          { type: 'secret_input', name: 'B', workspaceId: 'workspace-b' },
+        ],
+        [
+          {
+            type: 'link',
+            provider: 'slack',
+            workspaceId: 'workspace-a',
+            value: 'https://sim.test/api/auth/oauth2/authorize?workspaceId=workspace-b',
+          },
+        ],
+      ] satisfies CredentialItemData[][]
+    ).map((data) => ({ data }))
+  )('does not mount unscoped or conflicting organization controls: %j', ({ data }) => {
+    mockParams.mockReturnValue({ organizationId: 'org', workspaceId: 'stale-workspace' } as never)
+    const { container, root } = renderCredentialLink(data)
+    expect(container.textContent).toContain('one explicit workspace target')
+    expect(container.querySelector('input')).toBeNull()
+    expect(mockCredentialHost).not.toHaveBeenCalled()
+    expect(mockUpsertWorkspaceEnvironment).not.toHaveBeenCalled()
+    act(() => root.unmount())
+  })
+
+  it('does not mount credential inputs when the target host denies access', () => {
+    mockParams.mockReturnValue({ organizationId: 'org' } as never)
+    mockCredentialHost.mockReturnValue(null)
+    const { container, root } = renderCredentialLink({
+      type: 'secret_input',
+      name: 'TOKEN',
+      workspaceId: 'revoked-workspace',
+    })
+    expect(container.querySelector('input')).toBeNull()
+    expect(mockUpsertWorkspaceEnvironment).not.toHaveBeenCalled()
+    expect(mockUseWorkspaceCredentials).not.toHaveBeenCalled()
+    act(() => root.unmount())
+  })
+
+  it.each([true, false])(
+    'renders organization usage limits without a workspace host (admin=%s)',
+    (isAdmin) => {
+      mockOrganizationContext.mockReturnValue({
+        organization: { id: 'org-a' },
+        viewer: { isAdmin },
+      } as never)
+      const container = document.createElement('div')
+      const root = createRoot(container)
+      act(() =>
+        root.render(
+          <SpecialTags
+            segment={{
+              type: 'usage_upgrade',
+              data: { reason: 'limit', message: 'Usage reached', action: 'increase_limit' },
+            }}
+          />
+        )
+      )
+      expect(container.textContent).toContain('Usage reached')
+      if (isAdmin)
+        expect(container.querySelector('a')?.getAttribute('href')).toBe('/o/org-a/settings/billing')
+      else {
+        expect(container.querySelector('a')).toBeNull()
+        expect(container.textContent).toContain('Contact an organization admin')
+      }
+      act(() => root.unmount())
+    }
+  )
 
   it('keeps organization Search connection completion behind Submit', async () => {
     mockParams.mockReturnValue({ organizationId: 'org' } as never)

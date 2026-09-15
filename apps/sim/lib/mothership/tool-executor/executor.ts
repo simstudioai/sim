@@ -1,12 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import {
   ASSISTANT_TOOLS,
   assertAssistantIntegrationCall,
 } from '@/lib/mothership/assistant/tool-policy'
+import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
-import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
 import { getToolMetadata } from '@/tools/metadata'
@@ -40,18 +43,87 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  if (
-    context.organizationId &&
-    (context.workspaceId ||
+  if (context.organizationId) {
+    if (
+      context.workspaceId ||
       context.workflowId ||
-      context.requestMode !== 'assistant' ||
-      !['search_workspace', 'read_document'].includes(toolId))
-  ) {
-    return {
-      success: false,
-      error: 'Organization Assistant can search and read documents.',
+      !['agent', 'assistant'].includes(context.requestMode ?? '')
+    )
+      return { success: false, error: 'Invalid organization execution scope' }
+    const organizationTools =
+      context.requestMode === 'assistant'
+        ? ['search_workspace', 'read_document']
+        : ['list_workspaces', 'search_workspace', 'read_document']
+    if (organizationTools.includes(toolId)) {
+      if (context.targetWorkspaceId)
+        return { success: false, error: 'Organization retrieval does not take a workspace target' }
+      return executeBoundTool(toolId, params, context)
+    }
+    if (context.requestMode === 'assistant')
+      return { success: false, error: 'Organization Assistant can search and read documents.' }
+    if (toolId === 'sim_cli') return executeBoundTool(toolId, params, context)
+    if (['run_code', 'run_function'].includes(toolId) && !context.targetWorkspaceId)
+      return executeBoundTool(toolId, params, {
+        ...context,
+        secretActorUserId: null,
+        secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+      })
+  }
+  if (context.organizationId || context.targetWorkspaceId) {
+    try {
+      const target = await resolveInvocationWorkspace(context, context.targetWorkspaceId)
+      const chatOrganizationId = context.organizationId
+      const environment = await prepareCopilotEnvironmentContext(
+        context.userId,
+        target.workspaceId,
+        { includeSecrets: context.requestMode !== 'assistant' }
+      )
+      try {
+        const result = await withWorkspaceInvocationScope(
+          { workspaceId: target.workspaceId, organizationId: chatOrganizationId },
+          () =>
+            executeBoundTool(toolId, params, {
+              ...context,
+              ...environment,
+              workspaceId: target.workspaceId,
+              organizationId: undefined,
+              ...(chatOrganizationId
+                ? {
+                    chatOrganizationId,
+                    secretActorUserId: context.userId,
+                    secretMountPolicy: undefined,
+                  }
+                : {}),
+              userPermission: target.permission ?? context.userPermission,
+            })
+        )
+        return chatOrganizationId && result.resources?.length
+          ? {
+              ...result,
+              resources: result.resources.map((resource) => ({
+                ...resource,
+                workspaceId: target.workspaceId,
+              })),
+            }
+          : result
+      } finally {
+        await context.resolvedSecretTraceRegistry?.importProvenance(
+          environment.resolvedSecretTraceRegistry.exportProvenance(),
+          { trusted: true, origin: 'organization-workspace-tool' }
+        )
+      }
+    } catch (error) {
+      return { success: false, error: toError(error).message }
     }
   }
+  return executeBoundTool(toolId, params, context)
+}
+
+async function executeBoundTool(
+  toolId: string,
+  params: Record<string, unknown>,
+  context: ToolExecutionContext
+): Promise<ToolExecutionResult> {
   if (context.requestMode === 'assistant' && !ASSISTANT_TOOLS.has(toolId)) {
     try {
       assertAssistantIntegrationCall(getToolMetadata(toolId), params)

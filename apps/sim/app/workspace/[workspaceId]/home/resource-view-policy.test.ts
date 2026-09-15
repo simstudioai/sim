@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { MothershipResource } from '@/lib/mothership/resources/types'
+import {
+  getChatResourceSelectionId,
+  type MothershipResource,
+} from '@/lib/mothership/resources/types'
 import {
   resolveEffectiveResourceId,
   resolveResourceEventPresentation,
@@ -19,6 +22,24 @@ const SHELLS: MothershipResource[] = [
 const NO_NATIVE = { browser: null, terminal: null }
 
 describe('resolveEffectiveResourceId', () => {
+  it('preserves workspace-qualified selection and fallback for files and tables', () => {
+    const resources: MothershipResource[] = [
+      { type: 'file', id: 'wf_same', title: 'Report', workspaceId: 'workspace-a' },
+      { type: 'file', id: 'wf_same', title: 'Report', workspaceId: 'workspace-b' },
+      { type: 'table', id: 'tbl_inventory', title: 'Inventory', workspaceId: 'workspace-b' },
+    ]
+    for (const resource of resources) {
+      const selection = getChatResourceSelectionId(resource)
+      expect(resolveEffectiveResourceId(resources, selection, NO_NATIVE)).toBe(selection)
+    }
+    expect(resolveEffectiveResourceId(resources, null, NO_NATIVE)).toBe(
+      getChatResourceSelectionId(resources[2])
+    )
+    expect(resolveEffectiveResourceId(resources, 'wf_same', NO_NATIVE)).toBe(
+      getChatResourceSelectionId(resources[2])
+    )
+  })
+
   it('shows nothing when the strip is empty', () => {
     expect(resolveEffectiveResourceId([], null, NO_NATIVE)).toBeNull()
     expect(resolveEffectiveResourceId([], 'anything', NO_NATIVE)).toBeNull()

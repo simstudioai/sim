@@ -2599,8 +2599,17 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
+  const organizationScratch =
+    toolId === 'function_execute' &&
+    internalSandboxProfile === 'mothership' &&
+    context?.copilotToolExecution === true &&
+    context.requestMode === 'agent' &&
+    Boolean(context.organizationId && context.chatId && context.userId) &&
+    !context.workspaceId &&
+    !context.workflowId
   if (
-    !context?.workspaceId ||
+    !context ||
+    (!context.workspaceId && !organizationScratch) ||
     (!context.executorDelegationOrigin && !context.userId && !context.copilotToolExecution)
   ) {
     throw new Error('Internal tool execution requires trusted execution scope')

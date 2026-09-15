@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { isBrowserToolName, isCurrentBrowserToolName } from '@sim/browser-protocol'
+import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
@@ -20,9 +20,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { copilotChatAbortContract } from '@/lib/api/contracts/copilot'
-import {
-  type WorkspaceSearchFilters,
-} from '@/lib/api/contracts/knowledge/search'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
@@ -30,10 +28,7 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
-import {
-  cancelActiveBrowserTools,
-  initBrowserAgentTransport,
-} from '@/lib/browser-agent/transport'
+import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
@@ -65,6 +60,8 @@ import type { FilePreviewSession } from '@/lib/mothership/request/session/file-p
 import { canDisplayResource } from '@/lib/mothership/resources/availability'
 import { ResourcePersistenceQueue } from '@/lib/mothership/resources/client-persistence-queue'
 import {
+  getChatResourceKey,
+  getChatResourceSelectionId,
   isAddressableResource,
   isEphemeralResource,
   type MothershipResourceUpdate,
@@ -241,7 +238,11 @@ export interface UseChatReturn {
   setActiveResourceId: (id: string | null) => void
   addResource: (resource: MothershipResourceUpdate) => boolean
   setTableViewContext: (tableId: string, context: MothershipTableViewContext) => void
-  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  removeResource: (
+    resourceType: MothershipResourceType,
+    resourceId: string,
+    workspaceId?: string
+  ) => void
   reorderResources: (resources: MothershipResource[]) => void
   messageQueue: QueuedMessage[]
   removeFromQueue: (id: string) => void
@@ -545,6 +546,8 @@ export function shouldQueueOutgoingMessage(
 }
 
 export interface UseChatOptions {
+  /** Intent for new turns; persisted chat intent remains authoritative on reload. */
+  requestMode?: ChatRequestMode
   onResourceEvent?: ResourceEventHandler
   apiPath?: string
   stopPath?: string
@@ -1177,6 +1180,11 @@ export function useChat(
 
   const { data: chatHistory, isPending: isChatHistoryPending } =
     useMothershipChatHistory(resolvedChatId)
+  const requestModeRef = useRef<ChatRequestMode>(
+    options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
+  )
+  requestModeRef.current =
+    chatHistory?.mode ?? options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
   const messages = useMemo(() => {
     const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
@@ -1192,7 +1200,7 @@ export function useChat(
         return false
       }
       const existing = resourcesRef.current.find(
-        (r) => r.type === resourceUpdate.type && r.id === resourceUpdate.id
+        (r) => getChatResourceKey(r) === getChatResourceKey(resourceUpdate)
       )
       const resource = mergeChatResource(existing, resourceUpdate)
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
@@ -1202,7 +1210,7 @@ export function useChat(
           (current) => {
             if (!current) return current
             const cached = current.resources.find(
-              (item) => item.type === resource.type && item.id === resource.id
+              (item) => getChatResourceKey(item) === getChatResourceKey(resource)
             )
             const merged = mergeChatResource(cached, resourceUpdate)
             if (cached === merged) return current
@@ -1210,7 +1218,7 @@ export function useChat(
               ...current,
               resources: cached
                 ? current.resources.map((item) =>
-                    item.type === resource.type && item.id === resource.id ? merged : item
+                    getChatResourceKey(item) === getChatResourceKey(resource) ? merged : item
                   )
                 : [...current.resources, merged],
             }
@@ -1222,12 +1230,12 @@ export function useChat(
       }
 
       setResources((prev) => {
-        const current = prev.find((r) => r.type === resource.type && r.id === resource.id)
+        const current = prev.find((r) => getChatResourceKey(r) === getChatResourceKey(resource))
         if (!current) return [...prev, resource]
         const merged = mergeChatResource(current, resourceUpdate)
         return merged === current
           ? prev
-          : prev.map((r) => (r.type === resource.type && r.id === resource.id ? merged : r))
+          : prev.map((r) => (getChatResourceKey(r) === getChatResourceKey(resource) ? merged : r))
       })
       // Synthetic result/preview panels are in-memory only. The browser tab
       // metadata is persisted even though its live page remains desktop-owned.
@@ -1243,17 +1251,29 @@ export function useChat(
   )
 
   const removeResource = useCallback(
-    (resourceType: MothershipResourceType, resourceId: string) => {
+    (resourceType: MothershipResourceType, resourceId: string, resourceWorkspaceId?: string) => {
+      const matches = (resource: MothershipResource) =>
+        resource.type === resourceType &&
+        resource.id === resourceId &&
+        resource.workspaceId === resourceWorkspaceId
       if (resourceType === 'table') tableViewContextsRef.current.views.delete(resourceId)
-      setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
-      setActiveResourceId((prev) => (prev === resourceId ? null : prev))
+      setResources((prev) => prev.filter((r) => !matches(r)))
+      setActiveResourceId((prev) =>
+        prev ===
+        getChatResourceSelectionId({
+          type: resourceType,
+          id: resourceId,
+          workspaceId: resourceWorkspaceId,
+          title: '',
+        })
+          ? null
+          : prev
+      )
 
       // Ephemeral panels were never persisted; nothing to delete server-side.
       if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
 
-      const existing = resourcesRef.current.find(
-        (resource) => resource.type === resourceType && resource.id === resourceId
-      )
+      const existing = resourcesRef.current.find(matches)
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
       const {
@@ -1265,14 +1285,20 @@ export function useChat(
         resourceType,
         resourceId,
         persistenceScopeId,
-        Boolean(existing && persistChatId)
+        Boolean(existing && persistChatId),
+        resourceWorkspaceId
       )
       if (wasPending && !inFlightAdd && !wasPersisted) return
 
       if (!persistChatId) return
       scheduleDelete(persistChatId, () =>
         requestJson(removeMothershipChatResourceContract, {
-          body: { chatId: persistChatId, resourceType, resourceId },
+          body: {
+            chatId: persistChatId,
+            resourceType,
+            resourceId,
+            workspaceId: resourceWorkspaceId,
+          },
         })
       )
     },
@@ -1289,38 +1315,48 @@ export function useChat(
    */
   const reconcileHydratedWorkflowResources = useCallback(
     async (chatId: string, workflowResources: MothershipResource[]) => {
-      if (!workspaceId) return
-      let existing: WorkflowMetadata[]
-      try {
-        existing = await getQueryClient().fetchQuery(getWorkflowListQueryOptions(workspaceId))
-      } catch {
-        // Existence is unknowable right now; keep the tabs rather than delete
-        // resources on a network failure. The next hydration retries.
-        return
+      const byWorkspace = new Map<string, MothershipResource[]>()
+      for (const resource of workflowResources) {
+        const target = resource.workspaceId ?? workspaceId
+        if (target) byWorkspace.set(target, [...(byWorkspace.get(target) ?? []), resource])
       }
-      const missing = selectDeletedWorkflowResources(
-        workflowResources,
-        new Set(existing.map((workflow) => workflow.id)),
-        getWorkflows(workspaceId)
-      )
-      for (const resource of missing) {
-        if ((chatIdRef.current ?? selectedChatIdRef.current) !== chatId) return
-        /** Personal delegation can read another workspace; absence from this list is not deletion. */
-        try {
-          await getQueryClient().fetchQuery({
-            queryKey: workflowKeys.state(resource.id),
-            queryFn: ({ signal }) => fetchWorkflowEnvelope(resource.id, signal),
-            staleTime: 0,
-          })
-        } catch (error) {
-          if (
-            isApiClientError(error) &&
-            error.status === 404 &&
-            (chatIdRef.current ?? selectedChatIdRef.current) === chatId
+      await Promise.all(
+        [...byWorkspace].map(async ([targetWorkspaceId, scopedResources]) => {
+          let existing: WorkflowMetadata[]
+          try {
+            existing = await getQueryClient().fetchQuery(
+              getWorkflowListQueryOptions(targetWorkspaceId)
+            )
+          } catch {
+            // Existence is unknowable right now; keep the tabs rather than delete
+            // resources on a network failure. The next hydration retries.
+            return
+          }
+          const missing = selectDeletedWorkflowResources(
+            scopedResources,
+            new Set(existing.map((workflow) => workflow.id)),
+            getWorkflows(targetWorkspaceId)
           )
-            removeResource('workflow', resource.id)
-        }
-      }
+          for (const resource of missing) {
+            if ((chatIdRef.current ?? selectedChatIdRef.current) !== chatId) return
+            /** Personal delegation can read another workspace; absence from this list is not deletion. */
+            try {
+              await getQueryClient().fetchQuery({
+                queryKey: workflowKeys.state(resource.id),
+                queryFn: ({ signal }) => fetchWorkflowEnvelope(resource.id, signal),
+                staleTime: 0,
+              })
+            } catch (error) {
+              if (
+                isApiClientError(error) &&
+                error.status === 404 &&
+                (chatIdRef.current ?? selectedChatIdRef.current) === chatId
+              )
+                removeResource('workflow', resource.id, resource.workspaceId)
+            }
+          }
+        })
+      )
     },
     [workspaceId, organizationId, scopeKey, removeResource]
   )
@@ -1342,19 +1378,24 @@ export function useChat(
 
   const ensureWorkflowToolResource = useCallback(
     (toolArgs: Record<string, unknown>): string | undefined => {
-      if (!workspaceId) return undefined
+      const targetWorkspaceId =
+        typeof toolArgs.workspaceId === 'string' ? toolArgs.workspaceId : workspaceId
+      if (!targetWorkspaceId) return undefined
       const targetWorkflowId =
         typeof toolArgs.workflowId === 'string'
           ? toolArgs.workflowId
-          : useWorkflowRegistry.getState().activeWorkflowId
+          : workspaceId
+            ? useWorkflowRegistry.getState().activeWorkflowId
+            : undefined
 
       if (!targetWorkflowId) {
         return undefined
       }
 
-      const meta = getWorkflowById(workspaceId, targetWorkflowId)
+      const meta = getWorkflowById(targetWorkspaceId, targetWorkflowId)
       addResource({
         type: 'workflow',
+        ...(organizationId ? { workspaceId: targetWorkspaceId } : {}),
         id: targetWorkflowId,
         title: meta?.name ?? 'Workflow',
       })
@@ -1696,11 +1737,11 @@ export function useChat(
   ])
 
   useEffect(() => {
-    if (organizationId) return
+    if (requestModeRef.current === 'assistant') return
     initBrowserAgentTransport()
     initTerminalTransport()
     void activateDesktopChatScopes(desktopScopeIdRef.current).catch(() => {})
-  }, [organizationId])
+  }, [organizationId, chatHistory?.mode, options?.requestMode])
 
   useEffect(() => {
     if (workflowIdRef.current) return
@@ -1763,13 +1804,13 @@ export function useChat(
     undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
     // Keyed on everything the server holds, not just what is restorable, so a
     // resource being hidden cannot make it look local-only and get re-added.
-    const serverKeys = new Set(persistedResources.map((r) => `${r.type}:${r.id}`))
+    const serverKeys = new Set(persistedResources.map(getChatResourceKey))
     const localOnly = resourcesRef.current.filter(
       (r) =>
         r.id !== 'streaming-file' &&
-        !serverKeys.has(`${r.type}:${r.id}`) &&
+        !serverKeys.has(getChatResourceKey(r)) &&
         (isEphemeralResource(r) ||
-          resourcePersistenceQueue.hasPendingUpsert(chatHistory.id, r.type, r.id))
+          resourcePersistenceQueue.hasPendingUpsert(chatHistory.id, r.type, r.id, r.workspaceId))
     )
     // Server order is authoritative for persisted resources, but local-only
     // items (pending-persist adds and synthetic ephemeral panels)
@@ -1779,7 +1820,7 @@ export function useChat(
     const mergedResources = [...restorableResources]
     for (const resource of localOnly) {
       const currentIndex = resourcesRef.current.findIndex(
-        (r) => r.type === resource.type && r.id === resource.id
+        (r) => getChatResourceKey(r) === getChatResourceKey(resource)
       )
       const insertAt =
         currentIndex < 0 ? mergedResources.length : Math.min(currentIndex, mergedResources.length)
@@ -1797,9 +1838,14 @@ export function useChat(
       // resolved against the tab the desktop app remembers.
       const selectedResourceId = selectedResourceIdRef.current
       const hydratedActiveResourceId =
-        selectedResourceId && mergedResources.some((resource) => resource.id === selectedResourceId)
+        selectedResourceId &&
+        mergedResources.some(
+          (resource) => getChatResourceSelectionId(resource) === selectedResourceId
+        )
           ? selectedResourceId
-          : (restorableResources[restorableResources.length - 1]?.id ?? null)
+          : restorableResources.length
+            ? getChatResourceSelectionId(restorableResources[restorableResources.length - 1])
+            : null
       // Replacing the array with an identical one still re-renders the tab
       // strip and panel — skip the no-op so open panels don't flash.
       if (!resourcesUnchanged) {
@@ -3114,6 +3160,7 @@ export function useChat(
       suppliedContexts?: ChatContext[],
       options?: StartSendMessageOptions
     ): Promise<StartSendMessageResult> => {
+      options = { ...options, requestMode: options?.requestMode ?? requestModeRef.current }
       const contexts = suppliedContexts?.map((context) =>
         context.kind === 'table' &&
         !context.currentView &&
@@ -3424,9 +3471,10 @@ export function useChat(
                 desktopScopeIdRef.current,
                 tableViewContextsRef.current.views
               )
-        const desktopChatCapabilities = organizationId
-          ? {}
-          : await getDesktopChatCapabilities(desktopScopeIdRef.current)
+        const desktopChatCapabilities =
+          options?.requestMode === 'assistant'
+            ? {}
+            : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
@@ -3440,11 +3488,7 @@ export function useChat(
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
-            ...(organizationId
-              ? { mode: 'assistant' }
-              : options?.requestMode
-                ? { mode: options.requestMode }
-                : {}),
+            ...(options?.requestMode ? { mode: options.requestMode } : {}),
             ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
             ...(options?.requestMode !== 'assistant' && workflowIdRef.current
               ? { workflowId: workflowIdRef.current }
@@ -3712,6 +3756,8 @@ export function useChat(
         }
         queueStore.setEditing(activeChatKey, null)
       }
+
+      options = { ...options, requestMode: options?.requestMode ?? requestModeRef.current }
 
       // An in-flight send drains the queue from `finalize`; a pending stop kicks
       // the dispatcher itself, since nothing else will once the stop settles.
@@ -3981,13 +4027,7 @@ export function useChat(
     })
     clearQueuedSendHandoffState(handoff.id)
     clearQueuedSendHandoffClaim(handoff.id)
-  }, [
-    workspaceId,
-    organizationId,
-    scopeKey,
-    chatHistory,
-    queuedHandoffRecoveryEpoch,
-  ])
+  }, [workspaceId, organizationId, scopeKey, chatHistory, queuedHandoffRecoveryEpoch])
 
   const stopGeneration = useCallback(
     async (options?: StopGenerationOptions) => {

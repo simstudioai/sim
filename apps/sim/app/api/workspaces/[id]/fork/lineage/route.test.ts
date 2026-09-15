@@ -91,7 +91,7 @@ describe('fork lineage route', () => {
       expect.objectContaining({ kind: 'session', userId: VIEWER_ID }),
       expect.objectContaining({ id: 'workspaces.fork.discover', minimumRole: 'admin' }),
       expect.objectContaining({ workspaceId: WORKSPACE_ID }),
-      {}
+      { delegation: { audience: 'sim:workspaces', isWithinScope: expect.any(Function) } }
     )
     expect(mockAuthorizeWorkspaceOperation.mock.invocationCallOrder[0]).toBeLessThan(
       mockGetForkParent.mock.invocationCallOrder[0]

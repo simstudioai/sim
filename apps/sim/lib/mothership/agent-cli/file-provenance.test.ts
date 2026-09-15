@@ -49,6 +49,19 @@ vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
 }))
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: async () => 'fixture' }))
 
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+
+// Chat-target admission is covered by workspace-target.test; retain real file authorization below.
+vi.mock('@/lib/mothership/application/workspace-target', () => ({
+  resolveInvocationWorkspace: async (owner: { userId: string }, workspaceId?: string) => ({
+    workspaceId: workspaceId ?? 'workspace',
+    userId: owner.userId,
+  }),
+}))
+vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
+  createScopedCliTransport: () => globalThis.fetch,
+}))
+
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
@@ -134,6 +147,41 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
         entries: [],
       },
     ])
+  })
+
+  it('uses current Copilot file authority with personal keys disabled and rejects a foreign ID-only owner', async () => {
+    mocks.context.mockResolvedValue({
+      workspaceId: 'workspace',
+      fileId: 'file',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: false,
+      billedAccountUserId: 'owner',
+    })
+    classify('exact')
+    const transport = createFileReadTransport({
+      endpoint: 'https://sim.test',
+      userId: 'reader',
+      registry: registry(),
+      invocation: { userId: 'reader', workspaceId: 'workspace', chatId: 'chat' },
+    })
+    const response = await withWorkspaceInvocationScope({ workspaceId: 'workspace' }, () =>
+      transport(fileRequest())
+    )
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe(content)
+    expect(mocks.authenticate).not.toHaveBeenCalled()
+    mocks.context.mockResolvedValue({
+      workspaceId: 'foreign',
+      fileId: 'file',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: false,
+      billedAccountUserId: 'other',
+    })
+    const denied = await withWorkspaceInvocationScope({ workspaceId: 'workspace' }, () =>
+      transport(fileRequest())
+    )
+    expect(denied.status).toBe(404)
+    expect(mocks.stream).toHaveBeenCalledTimes(1)
   })
 
   it('refuses an otherwise authorized visual observation using the stored classification', async () => {

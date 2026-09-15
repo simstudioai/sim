@@ -114,7 +114,8 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
       request,
       workflowOperations.resumeRun,
       { kind: 'v2-api-key' },
-      { kind: 'public-api' }
+      { kind: 'public-api' },
+      { execute: mocks.resume }
     )
     expect(mocks.resume).not.toHaveBeenCalled()
   })

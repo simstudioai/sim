@@ -1,14 +1,14 @@
-import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
-import { type ToolSchema } from '@/lib/mothership/chat/payload'
+import type { Principal } from '@sim/auth/principal'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
-import { discoverMcpServerToolsUseCase } from '@/lib/mcp/application/use-cases'
+import { discoverMcpServerToolsUseCase, getMcpServerUseCase } from '@/lib/mcp/application/use-cases'
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import type { ToolSchema } from '@/lib/mothership/chat/payload'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import type { ToolInput } from '@/executor/handlers/agent/types'
 
@@ -121,4 +121,35 @@ export async function buildSelectedMcpToolSchemas(
   )
 
   return dedupeMcpTools(resolved)
+}
+
+/** Only explicitly enabled servers contribute schemas; each canonical target is freshly authorized. */
+export async function buildOrganizationTaggedMcpToolSchemas(
+  principal: Principal,
+  owner: { userId: string; organizationId: string; chatId: string },
+  serverIds: string[]
+): Promise<ToolSchema[]> {
+  const targets = new Map<string, string[]>()
+  for (const serverId of new Set(serverIds.filter(Boolean))) {
+    const { server } = await getMcpServerUseCase.execute({
+      principal,
+      input: { serverId, organizationId: owner.organizationId },
+    })
+    if (!server.workspaceId) throw new Error('Tagged MCP server has no workspace target')
+    await resolveInvocationWorkspace(owner, server.workspaceId)
+    const ids = targets.get(server.workspaceId) ?? []
+    ids.push(serverId)
+    targets.set(server.workspaceId, ids)
+  }
+  const tools: ToolSchema[] = []
+  for (const [workspaceId, ids] of targets) {
+    const schemas = await buildTaggedMcpToolSchemas(owner.userId, workspaceId, ids)
+    tools.push(
+      ...schemas.map((schema) => ({
+        ...schema,
+        description: `${schema.description} Workspace target: ${workspaceId}.`,
+      }))
+    )
+  }
+  return dedupeMcpTools(tools)
 }

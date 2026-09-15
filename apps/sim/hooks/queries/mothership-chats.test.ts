@@ -47,6 +47,7 @@ import {
   useDeleteMothershipChat,
   useDeleteMothershipChats,
   useMarkMothershipChatRead,
+  useRemoveChatResource,
 } from '@/hooks/queries/mothership-chats'
 
 function jsonResponse(body: unknown, init?: ResponseInit): Response {
@@ -76,6 +77,7 @@ describe('tasks query boundary parsing', () => {
         data: [
           {
             id: 'chat-1',
+            mode: 'agent',
             title: 'Launch plan',
             updatedAt: '2026-04-11T10:00:00.000Z',
             activeStreamId: 'stream-1',
@@ -93,6 +95,7 @@ describe('tasks query boundary parsing', () => {
     expect(tasks[0]).toEqual(
       expect.objectContaining({
         id: 'chat-1',
+        mode: 'agent',
         name: 'Launch plan',
         isActive: true,
         isUnread: false,
@@ -131,6 +134,7 @@ describe('tasks query boundary parsing', () => {
         success: true,
         chat: {
           id: 'chat-1',
+          mode: 'agent',
           title: 'Task history',
           messages: [],
           activeStreamId: 'stream-1',
@@ -148,6 +152,7 @@ describe('tasks query boundary parsing', () => {
 
     expect(history).toEqual({
       id: 'chat-1',
+      mode: 'agent',
       title: 'Task history',
       messages: [],
       activeStreamId: 'stream-1',
@@ -169,7 +174,14 @@ describe('tasks query boundary parsing', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       jsonResponse({
         success: true,
-        chat: { id: 'chat-1', title: null, messages: [], activeStreamId: null, resources },
+        chat: {
+          id: 'chat-1',
+          mode: 'agent',
+          title: null,
+          messages: [],
+          activeStreamId: null,
+          resources,
+        },
       })
     )
     expect((await fetchMothershipChatHistory('chat-1')).resources).toEqual(resources)
@@ -213,6 +225,7 @@ describe('tasks query boundary parsing', () => {
           success: true,
           chat: {
             id: 'chat-1',
+            mode: 'agent',
             title: null,
             messages: [],
             activeStreamId: null,
@@ -372,4 +385,53 @@ describe('tasks query boundary parsing', () => {
       queryKey: ['mothership-chats', 'detail', 'chat-b'],
     })
   })
+})
+
+it('removes only the requested workspace alias and forwards its owner', async () => {
+  const first: MothershipResource = {
+    type: 'file',
+    id: 'files/report.csv',
+    title: 'A',
+    workspaceId: 'ws-a',
+  }
+  const second: MothershipResource = { ...first, title: 'B', workspaceId: 'ws-b' }
+  let cached = {
+    id: 'chat-1',
+    title: null,
+    messages: [],
+    activeStreamId: null,
+    resources: [first, second],
+  }
+  queryClient.setQueryData.mockImplementation((_key, update) => {
+    cached = update(cached)
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue(jsonResponse({ success: true, resources: [first] }))
+  )
+  const mutation = useRemoveChatResource('chat-1') as unknown as {
+    onMutate: (input: {
+      chatId: string
+      resourceType: 'file'
+      resourceId: string
+      workspaceId: string
+    }) => Promise<unknown>
+    mutationFn: (input: {
+      chatId: string
+      resourceType: 'file'
+      resourceId: string
+      workspaceId: string
+    }) => Promise<unknown>
+  }
+  const input = {
+    chatId: 'chat-1',
+    resourceType: 'file' as const,
+    resourceId: 'files/report.csv',
+    workspaceId: 'ws-b',
+  }
+  await mutation.onMutate(input)
+  expect(cached.resources).toEqual([first])
+  await mutation.mutationFn(input)
+  expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(input)
+  vi.unstubAllGlobals()
 })

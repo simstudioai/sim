@@ -1,7 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import {
+  Button,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
+  cn,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { ArrowUp, Search } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -11,6 +19,7 @@ import type { ResourceScope } from '@/lib/core/resource-scope'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { PAGE_COLUMN_CLASS } from '@/app/o/[organizationId]/components/organization-page'
+import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
@@ -19,6 +28,10 @@ import {
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
+import {
+  resourceUrlKeys,
+  searchFilterParsers,
+} from '@/app/workspace/[workspaceId]/home/search-params'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
@@ -126,18 +139,27 @@ function SearchField({
  * the top of the page — where every other organization page's title sits — and
  * the results scroll beneath it under the sidebar's edge fade. The submitted
  * query lives in the URL; the field holds the draft until the next submit.
- * Summarizing a document hands the turn to the Assistant on Home.
+ * Summarizing a document explicitly starts an Assistant turn in this Search surface.
  */
-export function OrganizationSearch() {
-  const { searchAccess } = useOrganizationContext()
-  if (!searchAccess.memberScoped) return null
-  return <OrganizationSearchContent />
+interface OrganizationSearchProps {
+  chatId?: string
+  userName?: string
 }
 
-function OrganizationSearchContent() {
+export function OrganizationSearch(props: OrganizationSearchProps) {
+  const { searchAccess } = useOrganizationContext()
+  if (!searchAccess.memberScoped) return null
+  return <OrganizationSearchContent {...props} />
+}
+
+function OrganizationSearchContent({ chatId, userName }: OrganizationSearchProps) {
   const { organization } = useOrganizationContext()
   const router = useRouter()
-  const [{ q }, setParams] = useQueryStates(organizationSearchParsers, organizationSearchUrlKeys)
+  const [{ q, view }, setParams] = useQueryStates(
+    organizationSearchParsers,
+    organizationSearchUrlKeys
+  )
+  const [filters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const query = q.trim()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
 
@@ -150,7 +172,7 @@ function OrganizationSearchContent() {
       { message, assistantSearch },
       { organizationId: organization.id }
     )
-    router.push(organizationRoutes(organization.id).home)
+    void setParams({ view: 'assistant' })
   }
 
   const submit = (draft: string) => {
@@ -160,14 +182,35 @@ function OrganizationSearchContent() {
   }
 
   const searching = query.length > 0
+  const activeView = chatId ? 'assistant' : view
 
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
       {/* Reserved even while empty so the field docks where the page header sits. */}
       <div className={PAGE_HEADER_BAR}>
-        <div className={HEADER_ACTION_CLUSTER} />
+        <div className={HEADER_ACTION_CLUSTER}>
+          <ChipButtonGroup
+            value={activeView}
+            aria-label='Search view'
+            onValueChange={(next) => {
+              if (next !== 'results' && next !== 'assistant') return
+              if (chatId) {
+                router.push(
+                  `${organizationRoutes(organization.id).search}?${new URLSearchParams({ ...(q ? { q } : {}), ...(filters.source ? { source: filters.source } : {}), ...(filters.updated !== 'any' ? { updated: filters.updated } : {}), ...(next === 'assistant' ? { view: next } : {}) })}`
+                )
+              } else {
+                void setParams({ view: next })
+              }
+            }}
+          >
+            <ChipButtonGroupItem value='results'>Results</ChipButtonGroupItem>
+            <ChipButtonGroupItem value='assistant'>Assistant</ChipButtonGroupItem>
+          </ChipButtonGroup>
+        </div>
       </div>
-      {searching ? (
+      {activeView === 'assistant' ? (
+        <OrganizationHome requestMode='assistant' chatId={chatId} userName={userName} />
+      ) : searching ? (
         <>
           <div className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'shrink-0 pt-8')}>
             <SearchField key={q} initialValue={q} onSubmit={submit} docked focusOnMount />

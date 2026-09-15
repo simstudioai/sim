@@ -16,6 +16,7 @@ import {
 } from '@/lib/mothership/chat/inline-image-reference'
 import { collectMarkdownImageSources } from '@/lib/mothership/chat/markdown-images'
 import { ChatContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-content'
+import * as SpecialTags from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 let root: Root
 let container: HTMLDivElement
@@ -52,6 +53,64 @@ async function render(
     )
   )
 }
+describe('inline workspace resource addresses', () => {
+  it('uses the shared resource component and dispatches only the clicked message with its complete address', async () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const display = vi
+      .spyOn(SpecialTags, 'WorkspaceResourceDisplay')
+      .mockImplementation(({ data, onSelect }) => (
+        <button
+          onClick={() =>
+            onSelect?.({
+              type: 'file',
+              id: data.id,
+              path: data.path,
+              workspaceId: data.workspaceId,
+              title: data.title ?? '',
+            })
+          }
+        >
+          {data.title}
+        </button>
+      ))
+    const a = {
+      type: 'file',
+      id: 'same-id',
+      path: 'files/folder/one (2).csv',
+      workspaceId: 'workspace-a',
+      title: 'First [file]',
+    }
+    const b = { type: 'file', id: 'same-id', workspaceId: 'workspace-b', title: 'Second file' }
+    try {
+      await act(async () =>
+        root.render(
+          <>
+            <ChatContent
+              content={`Here: <workspace_resource>${JSON.stringify(a)}</workspace_resource>.`}
+              onWorkspaceResourceSelect={first}
+            />
+            <ChatContent
+              content={`Here: <workspace_resource>${JSON.stringify(b)}</workspace_resource>.`}
+              onWorkspaceResourceSelect={second}
+            />
+          </>
+        )
+      )
+      const buttons = [...container.querySelectorAll('button')]
+      expect(buttons.map((button) => button.textContent)).toEqual(['First [file]', 'Second file'])
+      await act(async () => buttons[1].click())
+      expect(first).not.toHaveBeenCalled()
+      expect(second).toHaveBeenCalledExactlyOnceWith({ ...b, path: undefined })
+      await act(async () => buttons[0].click())
+      expect(first).toHaveBeenCalledExactlyOnceWith(a)
+      expect(second).toHaveBeenCalledTimes(1)
+    } finally {
+      display.mockRestore()
+    }
+  })
+})
+
 describe('standard Markdown private chat images', () => {
   it.each([
     'files/chart.png',
@@ -77,7 +136,7 @@ describe('standard Markdown private chat images', () => {
       expect(normalizeInlineFileReference(path)).toBe(normalizeInlineFileReference(astSource))
     }
   )
-  it.each(['files/' + 'x'.repeat(2100), 'files/\uD800.png', 'files/\u0000.png'])(
+  it.each([`files/${'x'.repeat(2100)}`, 'files/\uD800.png', 'files/\u0000.png'])(
     'keeps prose when an image source is malformed',
     async (reference) => {
       await render(`Before ![Bad](<${reference}>) after.`)

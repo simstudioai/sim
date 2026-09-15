@@ -5,6 +5,8 @@ import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
+import { readWorkspaceContext } from '@/lib/mothership/chat/application/workspace-context'
+import { WORKSPACE_TARGET_AUDIENCE } from '@/lib/mothership/chat/application/workspace-target'
 import type { SimControlRequest, SimControlResult } from '@/lib/mothership/generated/sim-transport'
 import {
   RUN_CONTROL_AUDIENCE,
@@ -23,12 +25,7 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
   const { scope, operation } = request
   if (Boolean(scope.workspaceId) === Boolean(scope.organizationId))
     return { status: 403, body: '{"error":"Invalid owner scope"}' }
-  if (scope.organizationId && operation.kind !== 'run_control')
-    return {
-      status: 403,
-      body: '{"error":"Organization Assistant cannot execute workspace controls"}',
-    }
-  if (operation.input.chatId !== scope.chatId)
+  if ('chatId' in operation.input && operation.input.chatId !== scope.chatId)
     return { status: 403, body: '{"error":"Chat scope mismatch"}' }
   const principal = scope.organizationId
     ? createTrustedOrganizationCopilotPrincipal(
@@ -38,18 +35,37 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
           chatId: scope.chatId,
           delegationId: `transport:${request.id}`,
         },
-        { audience: RUN_CONTROL_AUDIENCE, ttlMs: 60_000 }
+        {
+          audience:
+            operation.kind === 'workspace_context'
+              ? WORKSPACE_TARGET_AUDIENCE
+              : operation.kind === 'run_control'
+                ? RUN_CONTROL_AUDIENCE
+                : TASK_DELEGATION_AUDIENCE,
+          ttlMs: 60_000,
+        }
       )
     : createTrustedCopilotPrincipal(
         { ...scope, workspaceId: scope.workspaceId!, delegationId: `transport:${request.id}` },
         {
           audience:
-            operation.kind === 'run_control' ? RUN_CONTROL_AUDIENCE : TASK_DELEGATION_AUDIENCE,
+            operation.kind === 'workspace_context'
+              ? WORKSPACE_TARGET_AUDIENCE
+              : operation.kind === 'run_control'
+                ? RUN_CONTROL_AUDIENCE
+                : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
   try {
     switch (operation.kind) {
+      case 'workspace_context':
+        return {
+          status: 200,
+          body: JSON.stringify(
+            await readWorkspaceContext.execute({ principal, input: operation.input })
+          ),
+        }
       case 'run_control':
         return {
           status: 200,

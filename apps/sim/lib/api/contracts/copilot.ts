@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
-import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
@@ -116,6 +116,7 @@ export const addCopilotChatResourceBodySchema = z
 export type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBodySchema>
 
 export const removeCopilotChatResourceBodySchema = z.object({
+  workspaceId: workspaceIdSchema.optional(),
   chatId: z.string(),
   resourceType: mothershipResourceSchema.shape.type,
   resourceId: z.string(),
@@ -147,6 +148,7 @@ export const copilotToolExecuteInternalBodySchema = z
   .object({
     requestMode: z.enum(['assistant', 'agent', 'build', 'plan']).optional(),
     assistantSearch: workspaceSearchFiltersSchema.optional(),
+    targetWorkspaceId: workspaceIdSchema.optional(),
     toolCallId: z.string().min(1, 'toolCallId is required'),
     toolName: z.string().min(1, 'toolName is required'),
     params: z.record(z.string(), z.unknown()).default({}),
@@ -164,11 +166,11 @@ export const copilotToolExecuteInternalBodySchema = z
       !body.organizationId ||
       (!body.workspaceId &&
         !body.workflowId &&
-        body.requestMode === 'assistant' &&
+        (body.requestMode === 'assistant' || body.requestMode === 'agent') &&
         Boolean(body.chatId)),
     {
       message:
-        'Organization tools require Assistant mode and a private chat without workspace or workflow scope',
+        'Organization tools require an explicit mode and a private chat without workspace or workflow owner scope',
     }
   )
 export type CopilotToolExecuteInternalBody = z.input<typeof copilotToolExecuteInternalBodySchema>

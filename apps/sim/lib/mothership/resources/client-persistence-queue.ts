@@ -1,5 +1,8 @@
 import type { MothershipResource, MothershipResourceUpdate } from '@/lib/mothership/resources/types'
-import { mergePendingChatResourceUpdate } from '@/lib/mothership/resources/types'
+import {
+  getChatResourceKey,
+  mergePendingChatResourceUpdate,
+} from '@/lib/mothership/resources/types'
 
 interface ResourcePersistenceQueueOptions {
   persist: (chatId: string, update: MothershipResourceUpdate) => Promise<unknown>
@@ -52,7 +55,7 @@ export class ResourcePersistenceQueue {
     scopeId: string,
     base?: MothershipResource
   ): void {
-    const key = this.getKey(scopeId, update.type, update.id)
+    const key = this.getKey(scopeId, update.type, update.id, update.workspaceId)
     const trackedLocally =
       this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
     if (base && !trackedLocally) this.persistedKeys.add(key)
@@ -83,12 +86,13 @@ export class ResourcePersistenceQueue {
   }
 
   remove(
-    type: string,
+    type: MothershipResource['type'],
     id: string,
     scopeId: string,
-    assumePersisted = false
+    assumePersisted = false,
+    workspaceId?: string
   ): RemovedResourcePersistence {
-    const key = this.getKey(scopeId, type, id)
+    const key = this.getKey(scopeId, type, id, workspaceId)
     const trackedLocally =
       this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
     if (assumePersisted && !trackedLocally) this.persistedKeys.add(key)
@@ -133,8 +137,13 @@ export class ResourcePersistenceQueue {
   }
 
   /** Keeps an optimistic add visible while its write is pending or in flight. */
-  hasPendingUpsert(scopeId: string, type: string, id: string): boolean {
-    return this.desiredUpdates.has(this.getKey(scopeId, type, id))
+  hasPendingUpsert(
+    scopeId: string,
+    type: MothershipResource['type'],
+    id: string,
+    workspaceId?: string
+  ): boolean {
+    return this.desiredUpdates.has(this.getKey(scopeId, type, id, workspaceId))
   }
 
   getPendingResourceKeys(scopeId: string): Set<string> {
@@ -282,7 +291,12 @@ export class ResourcePersistenceQueue {
     return `${scopeId}${QUEUE_KEY_SEPARATOR}`
   }
 
-  private getKey(scopeId: string, type: string, id: string): string {
-    return `${this.getScopePrefix(scopeId)}${type}:${id}`
+  private getKey(
+    scopeId: string,
+    type: MothershipResource['type'],
+    id: string,
+    workspaceId?: string
+  ): string {
+    return `${this.getScopePrefix(scopeId)}${getChatResourceKey({ type, id, workspaceId })}`
   }
 }

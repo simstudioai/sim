@@ -38,7 +38,7 @@ export async function executeOAuthGetAuthLink(
     const message =
       `"${providerName}" is a service account, not an OAuth provider. ` +
       `Emit a service_account credential tag with the service's OAuth provider ` +
-      `value instead (e.g. "slack") — it opens the service account setup form in chat.`
+      `value instead (e.g. "slack") — it opens the service account setup form in chat.${context.chatOrganizationId ? ` Include workspaceId: ${JSON.stringify(context.workspaceId)} on the credential tag.` : ''}`
     return { success: false, error: message, output: { message } }
   }
   const workspaceId = context.workspaceId
@@ -62,11 +62,14 @@ export async function executeOAuthGetAuthLink(
         },
       }
     }
-    const callbackURL = context.workflowId
-      ? `${baseUrl}/workspace/${workspaceId}/w/${context.workflowId}`
-      : context.chatId
-        ? `${baseUrl}/workspace/${workspaceId}/chat/${context.chatId}`
-        : `${baseUrl}/workspace/${workspaceId}`
+    const callbackURL =
+      context.chatOrganizationId && context.chatId
+        ? `${baseUrl}/o/${context.chatOrganizationId}/chat/${context.chatId}`
+        : context.workflowId
+          ? `${baseUrl}/workspace/${workspaceId}/w/${context.workflowId}`
+          : context.chatId
+            ? `${baseUrl}/workspace/${workspaceId}/chat/${context.chatId}`
+            : `${baseUrl}/workspace/${workspaceId}`
     const authorizeUrl = new URL(`${baseUrl}/api/auth/oauth2/authorize`)
     authorizeUrl.searchParams.set('providerId', result.providerId)
     authorizeUrl.searchParams.set('workspaceId', workspaceId)
@@ -81,7 +84,9 @@ export async function executeOAuthGetAuthLink(
           ? `Reconnect authorization URL generated for ${result.serviceName}. Completing it re-authorizes credential ${credentialId} in place — its id stays the same.`
           : `Authorization URL generated for ${result.serviceName}.`,
         oauth_url: authorizeUrl.toString(),
-        instructions: `Open this URL in your browser to ${action} ${result.serviceName}: ${authorizeUrl.toString()}`,
+        instructions: context.chatOrganizationId
+          ? `Use <credential>${JSON.stringify({ type: 'link', provider: result.providerId, workspaceId })}</credential> to ${action} ${result.serviceName} in this workspace. Wait for the connection status before continuing.`
+          : `Open this URL in your browser to ${action} ${result.serviceName}: ${authorizeUrl.toString()}`,
         provider: result.serviceName,
         providerId: result.providerId,
       },

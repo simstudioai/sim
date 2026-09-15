@@ -1,13 +1,13 @@
 /** @vitest-environment node */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
   authorizeOrganizationChatDelegation,
   authorizeOrganizationChatEvents,
   createOrganizationChat,
 } from '@/lib/mothership/chat/organization-chats'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const { authorize, requireSearch, publish } = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -86,7 +86,7 @@ describe('organization chat events application boundary', () => {
     requireSearch.mockResolvedValue(undefined)
   })
 
-  it('authorizes current membership before reading the feature rollout', async () => {
+  it('authorizes current membership without requiring the search-only rollout', async () => {
     await authorizeOrganizationChatEvents.execute({ principal, input: { organizationId: 'org-1' } })
     expect(authorize).toHaveBeenCalledWith(
       principal,
@@ -98,10 +98,7 @@ describe('organization chat events application boundary', () => {
       }),
       { organizationId: 'org-1' }
     )
-    expect(requireSearch).toHaveBeenCalledWith('org-1')
-    expect(authorize.mock.invocationCallOrder[0]).toBeLessThan(
-      requireSearch.mock.invocationCallOrder[0]
-    )
+    expect(requireSearch).not.toHaveBeenCalled()
   })
 
   it('does not examine rollout state for a non-member', async () => {
@@ -112,11 +109,12 @@ describe('organization chat events application boundary', () => {
     expect(requireSearch).not.toHaveBeenCalled()
   })
 
-  it('propagates rollout revocation and infrastructure failures', async () => {
+  it('keeps shared chat events available with search disabled and propagates authorization failures', async () => {
     requireSearch.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Search is disabled'))
     await expect(
       authorizeOrganizationChatEvents.execute({ principal, input: { organizationId: 'org-1' } })
-    ).rejects.toThrow('Search is disabled')
+    ).resolves.toMatchObject({ organizationId: 'org-1', userId: 'member-1' })
+    expect(requireSearch).not.toHaveBeenCalled()
     authorize.mockRejectedValueOnce(new Error('database unavailable'))
     await expect(
       authorizeOrganizationChatEvents.execute({ principal, input: { organizationId: 'org-1' } })

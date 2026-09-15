@@ -101,7 +101,11 @@ export interface StreamLoopDeps {
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
 
   addResource: (resource: MothershipResourceUpdate) => boolean
-  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  removeResource: (
+    resourceType: MothershipResourceType,
+    resourceId: string,
+    workspaceId?: string
+  ) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientBrowserTool: (

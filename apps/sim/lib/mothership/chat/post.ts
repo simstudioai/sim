@@ -20,15 +20,21 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
+import {
+  isKnowledgeMemberAccessAvailable,
+  requireOrganizationSearchAvailable,
+} from '@/lib/knowledge/access/availability'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import { chatOperations } from '@/lib/mothership/application/operations'
+import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import {
   type AssistantImageContent,
-  prepareAssistantImages,
+  prepareOrganizationChatAttachments,
 } from '@/lib/mothership/chat/assistant-images'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import {
@@ -216,6 +222,7 @@ const ChatContextSchema = z
     folderId: z.string().optional(),
     fileFolderId: z.string().optional(),
     skillId: z.string().optional(),
+    workspaceId: z.string().min(1).max(200).optional(),
     serverId: z.string().optional(),
     scheduleId: z.string().optional(),
     tabId: z.string().optional(),
@@ -306,9 +313,7 @@ const ChatMessageSchema = z
       .optional(),
   })
   .refine(
-    (body) =>
-      body.message.length > 0 ||
-      (body.mode === 'assistant' && !!body.organizationId && !!body.fileAttachments?.length),
+    (body) => body.message.length > 0 || (!!body.organizationId && !!body.fileAttachments?.length),
     { message: 'Message is required', path: ['message'] }
   )
 
@@ -462,6 +467,9 @@ function collectChatMcpServerIds(
 async function resolveAgentContexts(params: {
   contexts?: UnifiedChatRequest['contexts']
   resourceAttachments?: UnifiedChatRequest['resourceAttachments']
+  organizationId?: string
+  persistResources?: boolean
+  browserAvailable?: boolean
   userId: string
   message: string
   workspaceId?: string
@@ -472,6 +480,9 @@ async function resolveAgentContexts(params: {
   const {
     contexts,
     resourceAttachments,
+    organizationId,
+    persistResources,
+    browserAvailable,
     userId,
     message,
     workspaceId,
@@ -490,14 +501,20 @@ async function resolveAgentContexts(params: {
         message,
         workspaceId,
         chatId,
-        resolvedSecretTraceRegistry
+        resolvedSecretTraceRegistry,
+        organizationId
       )
     } catch (error) {
       logger.error(`[${requestId}] Failed to process contexts`, error)
     }
   }
 
-  if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0 && workspaceId) {
+  const authorizedResources: z.infer<typeof mothershipResourceSchema>[] = []
+  if (
+    Array.isArray(resourceAttachments) &&
+    resourceAttachments.length > 0 &&
+    (workspaceId || organizationId)
+  ) {
     const results = await Promise.allSettled(
       resourceAttachments.map(async (resource) => {
         // The live browser panel resolves from the attachment itself: its
@@ -513,20 +530,47 @@ async function resolveAgentContexts(params: {
               resource.active ? 'currently visible browser tab' : 'other open browser tab'
             } is open on: ${
               title ? `"${title}" — ` : ''
-            }${resource.url}. You cannot read or drive browser tabs here; this attachment supplies only the title and URL.`,
+            }${resource.url}. ${browserAvailable ? 'Browser tools are available for inspecting and interacting with this tab.' : 'This attachment supplies only the title and URL; browser tools are unavailable.'}`,
           }
         }
-        const ctx = await resolveActiveResourceContext(
-          resource.type,
-          resource.id,
-          workspaceId,
-          userId,
-          chatId,
-          resource.viewId,
-          resource.currentView
+        const target =
+          organizationId || resource.workspaceId
+            ? await resolveInvocationWorkspace(
+                { userId, workspaceId, organizationId, chatId },
+                resource.workspaceId
+              )
+            : { workspaceId: workspaceId! }
+        const ctx = await withWorkspaceInvocationScope(
+          { workspaceId: target.workspaceId, organizationId },
+          () =>
+            resolveActiveResourceContext(
+              resource.type,
+              resource.id,
+              target.workspaceId,
+              userId,
+              chatId,
+              resource.viewId,
+              resource.currentView
+            )
         )
         if (!ctx) return null
-        return { ...ctx, tag: resource.active ? '@active_tab' : '@open_tab' }
+        if (persistResources && isPersistableAttachment(resource))
+          authorizedResources.push(
+            mothershipResourceSchema.parse({
+              ...resource,
+              title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
+              ...(organizationId
+                ? { workspaceId: target.workspaceId }
+                : { workspaceId: undefined, workspaceName: undefined }),
+            })
+          )
+        return {
+          ...ctx,
+          ...(organizationId
+            ? { content: `Workspace ${target.workspaceId}:\n${ctx.content}` }
+            : {}),
+          tag: resource.active ? '@active_tab' : '@open_tab',
+        }
       })
     )
 
@@ -539,6 +583,8 @@ async function resolveAgentContexts(params: {
     }
   }
 
+  if (chatId && authorizedResources.length)
+    await persistChatResources(chatId, sanitizeChatResources(authorizedResources))
   return agentContexts
 }
 
@@ -576,7 +622,7 @@ async function buildInitialExecutionContext(params: {
 
   const [environmentContext, billingAttribution] = await Promise.all([
     prepareCopilotEnvironmentContext(userId, workspaceId, {
-      includeSecrets: requestMode !== 'assistant',
+      includeSecrets: requestMode !== 'assistant' && !organizationId,
     }),
     organizationId
       ? resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
@@ -625,12 +671,18 @@ async function resolveBranch(params: {
 
   if (organizationId) {
     if (!principal) return createUnauthorizedResponse()
-    if (requestedWorkspaceId || providedWorkflowId || workflowName || mode !== 'assistant') {
+    if (
+      requestedWorkspaceId ||
+      providedWorkflowId ||
+      workflowName ||
+      (mode !== 'assistant' && mode !== 'agent')
+    ) {
       return createBadRequestResponse(
-        'Organization conversations support Assistant mode without a workspace or workflow'
+        'Organization conversations require agent or Assistant mode without a workspace or workflow'
       )
     }
     await authorizeOrganizationChat.execute({ principal, input: { organizationId } })
+    if (mode === 'assistant') await requireOrganizationSearchAvailable(organizationId)
     return {
       kind: 'organization',
       organizationId,
@@ -643,8 +695,9 @@ async function resolveBranch(params: {
         buildCopilotRequestPayload(
           {
             ...payloadParams,
+            principal,
             organizationId,
-            mode: 'assistant',
+            mode,
             model: '',
           },
           { selectedModel: '' }
@@ -656,7 +709,7 @@ async function resolveBranch(params: {
           chatId,
           messageId,
           userTimezone,
-          requestMode: 'assistant',
+          requestMode: mode,
         }),
     }
   }
@@ -992,13 +1045,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
 
       const assistantImages =
         branch.kind === 'organization' && body.fileAttachments?.length
-          ? await prepareAssistantImages({
+          ? await prepareOrganizationChatAttachments({
               principal: {
                 kind: 'session',
                 userId: authenticatedUserId,
                 sessionId: session.session.id,
               },
               organizationId: branch.organizationId,
+              mode: body.mode === 'assistant' ? 'assistant' : 'agent',
               attachments: body.fileAttachments,
               signal: req.signal,
             })
@@ -1031,6 +1085,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           () =>
             resolveOrCreateChat({
               chatId: body.chatId,
+              mode: body.mode === 'assistant' ? 'assistant' : 'agent',
               userId: authenticatedUserId,
               ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
               workspaceId: branch.workspaceId,
@@ -1060,25 +1115,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 404)
           activeOtelRoot.finish('error')
           return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
-        }
-      }
-
-      if (
-        body.mode !== 'assistant' &&
-        chatIsNew &&
-        actualChatId &&
-        body.resourceAttachments?.length
-      ) {
-        const persistable = sanitizeChatResources(
-          body.resourceAttachments.filter(isPersistableAttachment).map((resource) =>
-            mothershipResourceSchema.parse({
-              ...resource,
-              title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
-            })
-          )
-        )
-        if (persistable.length > 0) {
-          await persistChatResources(actualChatId, persistable)
         }
       }
 
@@ -1184,6 +1220,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             resolveAgentContexts({
               contexts: normalizedContexts,
               resourceAttachments: body.resourceAttachments,
+              organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
+              persistResources: chatIsNew && body.mode !== 'assistant',
+              browserAvailable:
+                body.mode !== 'assistant' && body.desktopCapabilities?.browser === true,
               userId: authenticatedUserId,
               message: body.message,
               workspaceId,
@@ -1214,7 +1254,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           })),
         })
       }
-      if (branch.kind === 'organization' && actualChatId) {
+      if (
+        branch.kind === 'organization' &&
+        actualChatId &&
+        (body.mode === 'assistant' ||
+          (await isKnowledgeMemberAccessAvailable({ organizationId: branch.organizationId })))
+      ) {
         workspaceContext = await loadCopilotSearchIntegrations({
           userId: authenticatedUserId,
           organizationId: branch.organizationId,
@@ -1224,7 +1269,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         })
       }
       const turnContexts = agentContexts
-      if (body.mode === 'assistant') executionContext.assistantSearch = body.assistantSearch
+      if (body.mode === 'assistant' || branch.kind === 'organization')
+        executionContext.assistantSearch = body.assistantSearch
 
       executionContext.userPermission = userPermission ?? undefined
 
@@ -1272,7 +1318,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userMessageId,
                 chatId: actualChatId,
                 contexts: turnContexts,
-                assistantSearch: body.mode === 'assistant' ? body.assistantSearch : undefined,
+                assistantSearch:
+                  body.mode === 'assistant' || branch.kind === 'organization'
+                    ? body.assistantSearch
+                    : undefined,
                 mcpServerIds,
                 fileAttachments,
                 assistantImages: assistantImages?.content,

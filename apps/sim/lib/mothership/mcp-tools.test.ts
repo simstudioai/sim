@@ -3,22 +3,34 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { discoverServerTools, assertPermissionsAllowed } = vi.hoisted(() => ({
-  discoverServerTools: vi.fn(),
-  assertPermissionsAllowed: vi.fn(),
-}))
+const { discoverServerTools, assertPermissionsAllowed, getServer, resolveTarget } = vi.hoisted(
+  () => ({
+    discoverServerTools: vi.fn(),
+    getServer: vi.fn(),
+    resolveTarget: vi.fn(),
+    assertPermissionsAllowed: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/internal/mcp/discover-tools', () => ({
   discoverMcpServerToolsAsExecutor: discoverServerTools,
 }))
+vi.mock('@/lib/mothership/application/workspace-target', () => ({
+  resolveInvocationWorkspace: resolveTarget,
+}))
 vi.mock('@/lib/mcp/application/use-cases', () => ({
+  getMcpServerUseCase: { execute: getServer },
   discoverMcpServerToolsUseCase: {
     execute: async (args: unknown) => ({ tools: await discoverServerTools(args) }),
   },
 }))
 vi.mock('@/ee/access-control/utils/permission-check', () => ({ assertPermissionsAllowed }))
 
-import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import {
+  buildOrganizationTaggedMcpToolSchemas,
+  buildSelectedMcpToolSchemas,
+  buildTaggedMcpToolSchemas,
+} from '@/lib/mothership/mcp-tools'
 
 describe('mothership MCP tool schemas', () => {
   beforeEach(() => {
@@ -114,5 +126,47 @@ describe('mothership MCP tool schemas', () => {
       expect.objectContaining({ serverId: 'mcp-server-1', workspaceId: 'ws-1' })
     )
     expect(tools[0]).toMatchObject({ name: 'mcp-server-1-search' })
+  })
+})
+
+describe('organization tagged MCP targets', () => {
+  const owner = { userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1' }
+  const principal = { kind: 'session' as const, userId: 'user-1' }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getServer.mockImplementation(async ({ input }) => ({
+      server: { workspaceId: input.serverId === 'server-a' ? 'workspace-a' : 'workspace-b' },
+    }))
+    resolveTarget.mockResolvedValue({})
+    assertPermissionsAllowed.mockResolvedValue(undefined)
+    discoverServerTools.mockImplementation(async ({ input }) => [
+      { serverId: input.serverId, name: 'search', inputSchema: { type: 'object' } },
+    ])
+  })
+  it('retains distinct callable schemas for tagged servers in independently authorized targets', async () => {
+    const tools = await buildOrganizationTaggedMcpToolSchemas(principal, owner, [
+      'server-a',
+      'server-b',
+      'server-a',
+    ])
+    expect(getServer).toHaveBeenCalledTimes(2)
+    expect(resolveTarget).toHaveBeenCalledWith(owner, 'workspace-a')
+    expect(resolveTarget).toHaveBeenCalledWith(owner, 'workspace-b')
+    expect(tools.map((tool) => tool.name)).toEqual(['mcp-server-a-search', 'mcp-server-b-search'])
+    expect(tools[0]?.description).toContain('workspace-a')
+    expect(tools[1]?.description).toContain('workspace-b')
+    expect(discoverServerTools).toHaveBeenCalledTimes(2)
+  })
+  it('does not discover remote schemas after current target access is denied', async () => {
+    resolveTarget.mockRejectedValueOnce(new Error('target denied'))
+    await expect(
+      buildOrganizationTaggedMcpToolSchemas(principal, owner, ['server-a'])
+    ).rejects.toThrow('target denied')
+    expect(discoverServerTools).not.toHaveBeenCalled()
+  })
+  it('does not enumerate untagged servers', async () => {
+    expect(await buildOrganizationTaggedMcpToolSchemas(principal, owner, [])).toEqual([])
+    expect(getServer).not.toHaveBeenCalled()
+    expect(discoverServerTools).not.toHaveBeenCalled()
   })
 })

@@ -148,6 +148,10 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveOrganizationBillingAttribution,
 }))
 
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  requireOrganizationSearchAvailable: vi.fn(async () => {}),
+  isKnowledgeMemberAccessAvailable: vi.fn(async () => true),
+}))
 vi.mock('@/lib/mothership/chat/organization-chats', () => ({
   authorizeOrganizationChat: { execute: authorizeOrganizationChat },
 }))
@@ -325,6 +329,28 @@ describe('handleUnifiedChatPost', () => {
     expect(response.status).toBe(403)
     expect(resolveOrCreateChat).not.toHaveBeenCalled()
     expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
+  it('admits organization agent mode without workspace scope or preloading personal secrets', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Build across my workspaces',
+          organizationId: 'org-1',
+          mode: 'agent',
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(resolveOrCreateChat).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', mode: 'agent' })
+    )
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', mode: 'agent' }),
+      expect.anything()
+    )
+    expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 
   it('runs a private organization Assistant with its own billing scope and no workspace authority', async () => {
@@ -547,7 +573,7 @@ describe('handleUnifiedChatPost', () => {
     })
   })
 
-  it.each([{ workspaceId: 'ws-1' }, { workflowId: 'wf-1' }, { mode: 'agent' }])(
+  it.each([{ workspaceId: 'ws-1' }, { workflowId: 'wf-1' }])(
     'rejects mixed organization scope before persistence: %j',
     async (extra) => {
       getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
@@ -948,11 +974,16 @@ describe('handleUnifiedChatPost', () => {
       'Hello',
       'ws-1',
       expect.anything(),
-      expect.any(ResolvedSecretTraceRegistry)
+      expect.any(ResolvedSecretTraceRegistry),
+      undefined
     )
   })
 
   it('preserves saved view references in explicit context, open tabs and a new chat', async () => {
+    resolveActiveResourceContext.mockResolvedValue({
+      type: 'active_resource',
+      content: 'authorized table',
+    })
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
         method: 'POST',
@@ -982,7 +1013,8 @@ describe('handleUnifiedChatPost', () => {
       'Summarize this view',
       'ws-1',
       'chat-1',
-      expect.any(ResolvedSecretTraceRegistry)
+      expect.any(ResolvedSecretTraceRegistry),
+      undefined
     )
     expect(resolveActiveResourceContext).toHaveBeenCalledWith(
       'table',
@@ -999,6 +1031,10 @@ describe('handleUnifiedChatPost', () => {
   })
 
   it('validates and forwards the live panel query without persisting it as a resource address', async () => {
+    resolveActiveResourceContext.mockResolvedValue({
+      type: 'active_resource',
+      content: 'authorized table',
+    })
     const currentView = { viewId: 'all-view', filter: null, sort: null }
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -1093,7 +1129,8 @@ describe('handleUnifiedChatPost', () => {
       'Explain these selections',
       'ws-1',
       'chat-1',
-      expect.any(ResolvedSecretTraceRegistry)
+      expect.any(ResolvedSecretTraceRegistry),
+      undefined
     )
   })
 
@@ -1179,7 +1216,7 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({
         type: 'active_resource',
         tag: '@active_tab',
-        content: expect.stringContaining('cannot read or drive browser tabs'),
+        content: expect.stringContaining('browser tools are unavailable'),
       }),
     ])
     expect(payload.contexts[0].content).toContain('https://docs.example.com/guide')

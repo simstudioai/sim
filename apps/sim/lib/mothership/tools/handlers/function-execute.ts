@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
@@ -10,14 +11,22 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/execution-observer'
+import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import {
   createSandboxMountBudget,
+  MAX_INLINE_MOUNT_FILE_BYTES,
+  MAX_INLINE_MOUNT_TOTAL_BYTES,
   type SandboxMountBudget,
 } from '@/lib/function-execution/sandbox-mounts'
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
 import { resolveCopilotFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { messageForCopilotTableError } from '@/lib/mothership/auth/table-delegation'
+import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
 import { WorkbenchSecretNames } from '@/lib/mothership/generated/workbench'
 import { applySecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import type {
@@ -39,7 +48,11 @@ import {
   parseChatUploadReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { importWorkspaceFileSnapshotProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  createWorkspaceFileSecretProvenanceFromRegistry,
+  importWorkspaceFileSnapshotProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
@@ -216,13 +229,87 @@ export async function resolveInputFiles(
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<SandboxFile[]> {
   const workspaceId = context.workspaceId
-  if (!workspaceId) throw new Error('A workspace is required for input mounts')
+  if ((inputFiles?.length ?? 0) > MAX_MOUNTED_FILES) throw new Error('Too many input files')
+  const organizationId = context.chatOrganizationId ?? context.organizationId
+  const attachments: SandboxFile[] = []
+  if (organizationId && context.chatId && inputFiles?.length) {
+    const remaining: unknown[] = []
+    let byteCount = 0
+    const principal = createTrustedOrganizationCopilotPrincipal(
+      {
+        userId: context.userId,
+        organizationId,
+        chatId: context.chatId,
+        delegationId: context.toolCallId ?? `mount:${context.chatId}`,
+      },
+      {
+        audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+        ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
+      }
+    )
+    for (const fileRef of inputFiles) {
+      const path = refField(fileRef, 'path')
+      if (!path?.startsWith('uploads/')) {
+        remaining.push(fileRef)
+        continue
+      }
+      if (attachments.length >= MAX_MOUNTED_FILES) throw new Error('Too many input files')
+      if (byteCount >= MAX_INLINE_MOUNT_TOTAL_BYTES)
+        throw new Error('Chat attachment mounts exceed the buffered mount limit')
+      const file = await readChatAttachment.execute({
+        principal,
+        input: {
+          chatId: context.chatId,
+          reference: path,
+          maxBytes: Math.min(MAX_INLINE_MOUNT_FILE_BYTES, MAX_INLINE_MOUNT_TOTAL_BYTES - byteCount),
+          signal: context.abortSignal,
+        },
+      })
+      byteCount += file.buffer.length
+      if (byteCount > MAX_INLINE_MOUNT_TOTAL_BYTES)
+        throw new Error('Chat attachment mounts exceed the buffered mount limit')
+      if (!resolvedSecretTraceRegistry) throw new Error('Chat attachment provenance is unavailable')
+      const classification = await createWorkspaceFileSecretProvenanceFromRegistry(
+        context.resolvedSecretTraceRegistry,
+        { text: file.buffer.toString('utf8'), base64: file.buffer.toString('base64') },
+        { userId: context.userId, ...(workspaceId ? { workspaceId } : {}) }
+      )
+      if (!classification.safe || classification.provenance.status === 'unknown')
+        throw new Error('Chat attachment provenance is unavailable')
+      if (classification.provenance.status === 'exact') {
+        if (
+          !(await importDurableSecretProvenance(
+            resolvedSecretTraceRegistry,
+            classification.provenance
+          ))
+        )
+          throw new Error('Chat attachment provenance could not be imported')
+      } else resolvedSecretTraceRegistry.markIncomplete('mounted-file-provenance-unavailable')
+      attachments.push({
+        path:
+          refField(fileRef, 'sandboxPath') ??
+          `${SANDBOX_INPUT_DIR}/uploads/${file.id}/${encodeVfsPathSegments([file.name])}`,
+        content: file.buffer.toString('base64'),
+        encoding: 'base64',
+      })
+    }
+    inputFiles = remaining
+  }
+  if (!workspaceId) {
+    if (inputFiles?.length || inputTables?.length || inputDirectories?.length)
+      throw new Error('An explicit workspace is required for workspace input mounts')
+    return attachments
+  }
   const filePrincipal =
     inputFiles?.length || inputDirectories?.length
       ? resolveCopilotFilePrincipal(context)
       : undefined
-  const sandboxFiles: SandboxFile[] = []
+  const sandboxFiles: SandboxFile[] = [...attachments]
   const mounted = createSandboxMountBudget()
+  mounted.buffered = attachments.reduce(
+    (total, file) => total + ('content' in file ? Buffer.byteLength(file.content, 'base64') : 0),
+    0
+  )
 
   if (inputFiles?.length && workspaceId) {
     if (!filePrincipal) {
@@ -494,7 +581,7 @@ export async function executeFunctionExecute(
       enrichedParams.unredactedSecretNames = unredactedSecretNames
     }
 
-    if (context.workspaceId) {
+    if (context.workspaceId || context.organizationId || context.chatOrganizationId) {
       const inputs = enrichedParams.inputs as
         | {
             files?: CanonicalFileInput[]
@@ -575,6 +662,9 @@ export async function executeFunctionExecute(
               userId: context.userId,
               workflowId: context.workflowId,
               workspaceId: context.workspaceId,
+              organizationId: context.organizationId,
+              chatId: context.chatId,
+              requestMode: context.requestMode,
               executionId: context.executionId,
               executorDelegationOrigin: {
                 subjectUserId: context.userId,

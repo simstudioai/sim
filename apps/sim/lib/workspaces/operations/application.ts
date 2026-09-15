@@ -19,7 +19,9 @@ export const getWorkspaceOperation = defineAuthorizedWorkspaceUseCase<
   WorkspaceOperationReport
 >({
   operation: workspaceOperations.read,
-  authorizationOptions: {},
+  authorizationOptions: {
+    delegation: { audience: 'sim:workspaces', isWithinScope: () => true },
+  },
   resolveContext: ({ input }: { input: { workspaceId: string; operationId: string } }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ input, context }) {
@@ -49,7 +51,9 @@ interface ListWorkspaceOperationsInput {
 
 export const listWorkspaceOperations = defineAuthorizedWorkspaceUseCase({
   operation: workspaceOperations.read,
-  authorizationOptions: {},
+  authorizationOptions: {
+    delegation: { audience: 'sim:workspaces', isWithinScope: () => true },
+  },
   resolveContext: ({ input }: { input: ListWorkspaceOperationsInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ input, context }) {

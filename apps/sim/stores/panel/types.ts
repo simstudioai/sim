@@ -1,5 +1,5 @@
-import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 
 /**
  * Available panel tabs
@@ -98,7 +98,7 @@ export type ChatContext =
   | { kind: 'terminal_tab'; terminalId: string; label: string; selection?: TerminalTextSelection }
   | { kind: 'slash_command'; command: string; label: string }
   | { kind: 'integration'; blockType: string; label: string }
-  | { kind: 'skill'; skillId: string; label: string }
+  | { kind: 'skill'; skillId: string; label: string; workspaceId?: string }
   | {
       kind: 'mcp'
       serverId: string

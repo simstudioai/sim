@@ -23,7 +23,13 @@ vi.mock('@/lib/mothership/chat-status', () => ({ publishChatStatusChanged: vi.fn
 const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
 const chatId = '11111111-1111-4111-8111-111111111111'
 const streamId = '22222222-2222-4222-8222-222222222222'
-const chat = { userId: 'actor', organizationId: 'org-1', workspaceId: null, type: 'mothership' }
+const chat = {
+  mode: 'assistant',
+  userId: 'actor',
+  organizationId: 'org-1',
+  workspaceId: null,
+  type: 'mothership',
+}
 function input() {
   return {
     chatId,

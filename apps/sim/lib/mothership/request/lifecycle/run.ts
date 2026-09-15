@@ -143,7 +143,7 @@ async function ensureModelEgressRegistry(
     const environmentContext =
       options.environmentContext ??
       (await prepareCopilotEnvironmentContext(options.userId, options.workspaceId, {
-        includeSecrets: execContext.requestMode !== 'assistant',
+        includeSecrets: execContext.requestMode !== 'assistant' && !execContext.organizationId,
       }))
     registry = environmentContext.resolvedSecretTraceRegistry
     execContext.resolvedSecretTraceRegistry = registry
@@ -285,9 +285,12 @@ export async function runCopilotLifecycle(
   ) {
     throw new Error('Recovered execution mode does not match its saved request')
   }
-  if (organizationId && (workspaceId || workflowId || requestMode !== 'assistant')) {
+  if (
+    organizationId &&
+    (workspaceId || workflowId || !['assistant', 'agent'].includes(requestMode ?? ''))
+  ) {
     throw new Error(
-      'Organization conversations require Assistant mode without workspace or workflow scope'
+      'Organization conversations require an explicit mode without workspace or workflow scope'
     )
   }
   const payloadMsgId =
@@ -380,7 +383,7 @@ export async function runCopilotLifecycle(
       execContext.mcpBlockId = lifecycleOptions.mcpBlockId
       execContext.executorDelegationOrigin = lifecycleOptions.executorDelegationOrigin
     }
-    if (execContext.requestMode === 'assistant') {
+    if (execContext.requestMode === 'assistant' || execContext.organizationId) {
       execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
         isContinuation
           ? (execContext.assistantSearch ?? requestPayload.assistantSearch ?? {})
@@ -1028,7 +1031,7 @@ async function runCheckpointLoop(
       lifecycleWorkspaceId ||
       execContext.workspaceId ||
       execContext.workflowId ||
-      execContext.requestMode !== 'assistant' ||
+      !['assistant', 'agent'].includes(execContext.requestMode ?? '') ||
       !execContext.chatId ||
       nonBlankString(payload.workspaceId) ||
       (nonBlankString(payload.organizationId) && payload.organizationId !== lifecycleOrganizationId)
@@ -1487,7 +1490,7 @@ async function buildExecutionContext(
     const activeEnvironmentContext =
       environmentContext ??
       (await prepareCopilotEnvironmentContext(userId, workspaceId, {
-        includeSecrets: requestMode !== 'assistant',
+        includeSecrets: requestMode !== 'assistant' && !organizationId,
       }))
     execContext = {
       userId,
@@ -1503,7 +1506,7 @@ async function buildExecutionContext(
   if (userTimezone) execContext.userTimezone = userTimezone
   execContext.copilotToolExecution = true
   if (requestMode) execContext.requestMode = requestMode
-  if (requestMode === 'assistant') {
+  if (requestMode === 'assistant' || organizationId) {
     execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
       requestPayload?.assistantSearch ?? {}
     )

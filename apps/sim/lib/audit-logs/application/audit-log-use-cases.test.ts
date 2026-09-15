@@ -3,9 +3,22 @@
  */
 import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { sql } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  copilotRequestPrincipal,
+  markCopilotRequest,
+} from '@/lib/api/server/routes/copilot-request'
+import { auditLogOperations } from '@/lib/audit-logs/application/operations'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+
+vi.unmock('@sim/db/schema')
+vi.unmock('drizzle-orm')
 
 const mocks = vi.hoisted(() => ({
+  loadWorkspace: vi.fn(),
+  resolvePermission: vi.fn(),
   resolveAccess: vi.fn(),
   resolveDefaultOrganization: vi.fn(),
   getOrgWorkspaceIds: vi.fn(),
@@ -15,6 +28,14 @@ const mocks = vi.hoisted(() => ({
   queryAuditLogs: vi.fn(),
   recordAudit: vi.fn(),
   isCapabilityWithheldForUser: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  resolveActiveWorkspaceApplicationContext: mocks.loadWorkspace,
+}))
+vi.mock('@sim/platform-authz/workspace', () => ({
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+  permissionSatisfies: (actual: string | null) => actual !== null,
 }))
 
 vi.mock('@/lib/permission-groups/user-scope.server', () => ({
@@ -65,6 +86,12 @@ describe('audit-log application use cases', () => {
       kind: 'resolved',
       organizationId: 'organization-1',
     })
+    mocks.loadWorkspace.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: false,
+    })
+    mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveAccess.mockResolvedValue({
       success: true,
       context: { organizationId: 'organization-1', orgMemberIds: ['admin-1'] },
@@ -77,6 +104,61 @@ describe('audit-log application use cases', () => {
       id: 'audit-1',
     })
     mocks.queryAuditLogs.mockResolvedValue({ data: [], nextCursor: undefined })
+  })
+
+  it('preserves enterprise admin authority and pins private audit listing to the selected workspace', async () => {
+    const request = new Request('https://sim.invalid/api/v2/audit-logs')
+    markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    const principal = copilotRequestPrincipal(request, auditLogOperations.list, listAuditLogs)!
+    await listAuditLogs.execute({ principal, input: { ...listInput, organizationId: undefined } })
+    expect(mocks.resolveAccess).toHaveBeenCalledWith('admin-1', 'organization-1')
+    expect(mocks.resolveDefaultOrganization).not.toHaveBeenCalled()
+    expect(mocks.buildFilterConditions).toHaveBeenCalledWith({ workspaceId: 'workspace-1' })
+    mocks.resolveAccess.mockResolvedValueOnce({
+      success: false,
+      code: 'FORBIDDEN',
+      message: 'Admin required',
+    })
+    await expect(listAuditLogs.execute({ principal, input: listInput })).rejects.toThrow(
+      'Admin required'
+    )
+    expect(mocks.queryAuditLogs).toHaveBeenCalledTimes(1)
+  })
+  it('rejects forged and foreign-target audit reads before returning organization data', async () => {
+    const forged = createCopilotChatPrincipal(
+      { userId: 'admin-1', workspaceId: 'workspace-1' },
+      'sim:audit-logs'
+    )
+    await expect(
+      listAuditLogs.execute({ principal: forged, input: listInput })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    const request = new Request('https://sim.invalid/api/v2/audit-logs')
+    markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    const principal = copilotRequestPrincipal(request, auditLogOperations.list, listAuditLogs)!
+    await expect(
+      listAuditLogs.execute({ principal, input: { ...listInput, organizationId: 'other' } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
+    expect(mocks.resolveAccess).not.toHaveBeenCalled()
+  })
+  it('binds an ID-only private detail read to the selected workspace and rechecks access', async () => {
+    const request = new Request('https://sim.invalid/api/v2/audit-logs/audit-1')
+    markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    const principal = copilotRequestPrincipal(request, auditLogOperations.readDetail, getAuditLog)!
+    mocks.buildOrgScopeCondition.mockReturnValue(sql`true`)
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    await expect(
+      getAuditLog.execute({ principal, input: { id: 'audit-1' } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    const condition = dbChainMockFns.where.mock.calls[0]?.[0]
+    const query = new PgDialect().sqlToQuery(condition)
+    expect(query.sql).toContain('"audit_log"."workspace_id" =')
+    expect(query.params).toEqual(['audit-1', 'workspace-1'])
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(
+      getAuditLog.execute({ principal, input: { id: 'audit-1' } })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
   })
 
   it('rejects workspace keys before organization membership is loaded', async () => {

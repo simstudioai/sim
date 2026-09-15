@@ -2,12 +2,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SimApiError } from 'sim/embed'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import {
   type AgentCliEngine,
   type AgentCliFlags,
   type AgentCliRuntime,
   agentCliFail,
 } from '@/lib/mothership/agent-cli/types'
+import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
@@ -104,6 +106,23 @@ export const fileViewCommand: AgentCliEngine = {
     const reference = positionals[0]
     if (!reference) return agentCliFail('files view requires a workspace file reference.')
     try {
+      if (
+        runtime.chatOrganizationId &&
+        runtime.chatId &&
+        runtime.chatPrincipal &&
+        reference.startsWith('uploads/')
+      ) {
+        const attachment = await readChatAttachment.execute({
+          principal: runtime.chatPrincipal,
+          input: { chatId: runtime.chatId, reference, signal: runtime.signal },
+        })
+        return observePrivateFile(
+          { ...attachment, path: reference, source: 'upload' },
+          { ...flags, render: true },
+          {},
+          runtime.signal
+        )
+      }
       const { metadata, ...result } = await readFileVisual(reference, runtime, flags)
       return { ...result, stdout: JSON.stringify({ ...metadata, id: metadata.fileId }) }
     } catch (error) {

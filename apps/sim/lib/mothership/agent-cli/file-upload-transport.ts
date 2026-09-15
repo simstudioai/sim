@@ -12,12 +12,17 @@ import { readV2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-h
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import {
+  type CopilotChatDelegationContext,
+  createCopilotChatPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   completeWorkspaceFileUploadOperation,
   createWorkspaceFileUploadOperation,
 } from '@/lib/uploads/upload-session/application'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { toV2FileUpload } from '@/app/api/v2/files/uploads/utils'
 
 const logger = createLogger('MothershipFileUploads')
@@ -27,6 +32,7 @@ export function createFileUploadTransport(context: {
   endpoint: string
   workspaceId: string
   userId: string
+  invocation?: CopilotChatDelegationContext
   fallback: typeof fetch
   uploadProvenance: () => WorkspaceFileSecretProvenance
 }): typeof fetch {
@@ -49,9 +55,15 @@ export function createFileUploadTransport(context: {
     const request = new NextRequest(new Request(input, init))
     try {
       request.signal.throwIfAborted()
-      const { principal } = await authenticateV2ApiKey(readV2CredentialHeaders(request.headers))
+      const principal = context.invocation
+        ? createCopilotChatPrincipal(context.invocation, WORKSPACE_FILES_DELEGATION_AUDIENCE)
+        : (await authenticateV2ApiKey(readV2CredentialHeaders(request.headers))).principal
       request.signal.throwIfAborted()
-      if (principal.kind !== 'personal_api_key' || principal.userId !== context.userId) {
+      if (
+        principal.kind === 'delegated'
+          ? principal.subjectUserId !== context.userId
+          : principal.kind !== 'personal_api_key' || principal.userId !== context.userId
+      ) {
         throw new V2ApiKeyUnauthenticatedError()
       }
       if (!completing) {

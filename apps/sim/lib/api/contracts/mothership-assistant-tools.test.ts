@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
   assistantToolContracts,
+  listWorkspacesResultSchema,
   readDocumentInputSchema,
   searchWorkspaceInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
@@ -19,6 +20,42 @@ describe('Assistant execution contracts', () => {
       expect(TOOL_RUNTIME_SCHEMAS[contract.id]?.parameters).toEqual(expected)
     }
   )
+
+  it('distinguishes complete target permissions from compact discovery restrictions', () => {
+    const workspace = {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Workspace',
+      role: 'read',
+    }
+    const result = (detail: Record<string, unknown>) => ({
+      success: true,
+      workspaces: [{ ...workspace, ...detail }],
+      nextCursor: null,
+    })
+    expect(
+      listWorkspacesResultSchema.parse(
+        result({ capabilityDetail: 'full', capabilities: { 'copilot.use': true } })
+      ).workspaces[0]
+    ).toMatchObject({ capabilityDetail: 'full', capabilities: { 'copilot.use': true } })
+    expect(
+      listWorkspacesResultSchema.parse(
+        result({
+          capabilityDetail: 'restrictions',
+          copilotAllowed: true,
+          deniedCapabilities: ['personal_api_key.use'],
+        })
+      ).workspaces[0]
+    ).not.toHaveProperty('capabilities')
+    expect(
+      listWorkspacesResultSchema.safeParse(result({ capabilities: { 'copilot.use': true } }))
+        .success
+    ).toBe(false)
+    expect(
+      listWorkspacesResultSchema.safeParse(
+        result({ capabilityDetail: 'full', copilotAllowed: true })
+      ).success
+    ).toBe(false)
+  })
 
   it('preserves retrieval defaults and normalization without requiring defaulted input fields', () => {
     expect(searchWorkspaceInputSchema.parse({ query: '  needle  ', source: '  slack  ' })).toEqual({

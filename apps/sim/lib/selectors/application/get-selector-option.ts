@@ -17,6 +17,7 @@ export const getSelectorOption: OperationUseCase<
   SafeSelectorOption | null
 > = {
   operation: selectorOperations.execute,
+  delegationAudience: executeSelector.delegationAudience,
   async execute({ input, ...args }) {
     const { id, ...base } = input
     if (getSelectorManifestEntry(input.selectorKey).supportsDetail) {

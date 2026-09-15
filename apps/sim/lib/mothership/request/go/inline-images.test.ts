@@ -111,3 +111,18 @@ describe('stream image publication', () => {
     ).rejects.toThrow('Stopped')
   })
 })
+
+it('prepares organization scratch images with chat ownership and no fallback workspace', async () => {
+  materialize.mockReset().mockResolvedValue({ url: '/private-image' })
+  const context = createStreamingContext({ chatId, requestId })
+  await prepareStreamImages(
+    text('![Diagram](/tmp/chart.png)'),
+    context,
+    { ...execution, workspaceId: undefined, organizationId: 'org' },
+    new Set()
+  )
+  expect(materialize).toHaveBeenCalledWith(
+    { userId: execution.userId, organizationId: 'org', chatId },
+    { requestId, reference: '/tmp/chart.png', signal: undefined }
+  )
+})

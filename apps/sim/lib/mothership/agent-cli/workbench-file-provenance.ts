@@ -11,6 +11,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   bindWorkspaceFileUploadProvenance,
+  parseWorkspaceFileSecretProvenance,
   readWorkspaceFileUploadProvenance,
   WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
 } from '@/lib/uploads/upload-session/workspace-file-provenance'
@@ -27,7 +28,8 @@ return 1
 `
 
 interface WorkbenchFileScope {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   userId: string
   sessionKey: string
   signal?: AbortSignal
@@ -36,6 +38,8 @@ interface WorkbenchFileScope {
 
 /** One invocation holds only stream references; reusable encrypted evidence lives outside the machine. */
 export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
+  if (!scope.workspaceId && !scope.organizationId)
+    throw new Error('Workbench file owner is required')
   const downloads = new WeakMap<ReadableStream<Uint8Array>, WorkspaceFileSecretProvenance>()
   let uploaded: WorkspaceFileSecretProvenance | undefined
   const key = (machine: SessionFileIdentity, digest: string) => {
@@ -43,7 +47,7 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
     const namespace = createHash('sha256')
       .update(
         JSON.stringify([
-          scope.workspaceId,
+          scope.organizationId ? { organizationId: scope.organizationId } : scope.workspaceId,
           scope.userId,
           scope.sessionKey,
           machine.providerId,
@@ -51,10 +55,14 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
         ])
       )
       .digest('hex')
-    return `mothership:file-source:v1:${namespace}:${digest}`
+    return `mothership:file-source:${scope.organizationId ? 'v2' : 'v1'}:${namespace}:${digest}`
   }
   const encoded = (provenance: WorkspaceFileSecretProvenance) =>
-    JSON.stringify(bindWorkspaceFileUploadProvenance(scope.workspaceId, provenance))
+    JSON.stringify(
+      scope.organizationId
+        ? parseWorkspaceFileSecretProvenance(provenance)
+        : bindWorkspaceFileUploadProvenance(scope.workspaceId!, provenance)
+    )
   const unknown = encoded({ status: 'unknown' })
 
   const record =
@@ -96,10 +104,12 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
       } catch {
         binding = undefined
       }
-      uploaded = readWorkspaceFileUploadProvenance({
-        workspaceId: scope.workspaceId,
-        metadata: { [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: binding },
-      }) ?? { status: 'unknown' }
+      uploaded = scope.organizationId
+        ? parseWorkspaceFileSecretProvenance(binding)
+        : readWorkspaceFileUploadProvenance({
+            workspaceId: scope.workspaceId!,
+            metadata: { [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: binding },
+          })
     })
   }
 
@@ -110,7 +120,9 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
       const source = await createWorkspaceFileSecretProvenanceFromRegistry(
         scope.resolvedSecretTraceRegistry,
         value,
-        scope
+        scope.workspaceId
+          ? { userId: scope.userId, workspaceId: scope.workspaceId }
+          : { userId: scope.userId }
       )
       scope.signal?.throwIfAborted()
       return record(source.safe ? source.provenance : { status: 'unknown' })

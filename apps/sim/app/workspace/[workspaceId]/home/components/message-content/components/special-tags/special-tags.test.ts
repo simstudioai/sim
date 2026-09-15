@@ -43,6 +43,14 @@ function renderedText(segments: ContentSegment[]): string {
 }
 
 describe('parseCredentialTagBody', () => {
+  it('retains an explicit workspace target and rejects malformed targets', () => {
+    const item = { type: 'secret_input', name: 'TOKEN', workspaceId: 'workspace-a' }
+    expect(parseCredentialTagBody(JSON.stringify(item))).toEqual([item])
+    for (const workspaceId of ['', ' ', 42, ' workspace-a', 'a'.repeat(257)]) {
+      expect(parseCredentialTagBody(JSON.stringify({ ...item, workspaceId }))).toBeNull()
+    }
+  })
+
   const secret: CredentialItemData = { type: 'secret_input', name: 'OPENAI_API_KEY' }
   const oauth: CredentialItemData = {
     type: 'link',

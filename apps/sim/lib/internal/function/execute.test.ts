@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   createPrincipal: vi.fn(),
   execute: vi.fn(),
+  executeChat: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/principals/executor', () => ({
@@ -16,6 +17,10 @@ vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mocks.execute },
 }))
 
+vi.mock('@/lib/function-execution/application/execute-chat-function', () => ({
+  executeChatFunction: { execute: mocks.executeChat },
+}))
+
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { executeFunctionTool } from '@/lib/internal/function/execute'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -23,6 +28,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 describe('executeFunctionTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.executeChat.mockResolvedValue(Response.json({ success: true }))
     mocks.execute.mockResolvedValue(Response.json({ success: true }))
   })
 
@@ -100,5 +106,64 @@ describe('executeFunctionTool', () => {
         resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
       }),
     })
+  })
+  it('binds workspace-free scratch to the trusted organization Agent chat and strips forged owners', async () => {
+    await executeFunctionTool({
+      body: { code: 'return 1', workspaceId: 'forged', userId: 'forged', timeout: 1000 },
+      headers: new Headers(),
+      requestId: 'request',
+      sandboxProfile: 'mothership',
+      context: {
+        userId: 'actor',
+        organizationId: 'org',
+        chatId: 'chat',
+        requestMode: 'agent',
+        copilotToolExecution: true,
+      },
+    })
+    expect(mocks.executeChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          kind: 'organization_delegated',
+          subjectUserId: 'actor',
+          organizationId: 'org',
+          resourceScope: { chatId: 'chat' },
+        }),
+        input: expect.objectContaining({
+          organizationId: 'org',
+          chatId: 'chat',
+          body: expect.objectContaining({ workspaceId: undefined, userId: undefined }),
+        }),
+      })
+    )
+    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+  })
+  it.each([
+    { requestMode: 'assistant' },
+    { copilotToolExecution: false },
+    { chatId: undefined },
+    { organizationId: undefined },
+    { userId: undefined },
+    { workflowId: 'workflow' },
+  ])('refuses untrusted or non-Agent organization scope %j', async (override) => {
+    await expect(
+      executeFunctionTool({
+        body: { code: 'return 1' },
+        headers: new Headers(),
+        requestId: 'request',
+        sandboxProfile: 'mothership',
+        context: {
+          userId: 'actor',
+          organizationId: 'org',
+          chatId: 'chat',
+          requestMode: 'agent',
+          copilotToolExecution: true,
+          ...override,
+        },
+      })
+    ).rejects.toThrow('trusted Agent chat scope')
+    expect(mocks.executeChat).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 })

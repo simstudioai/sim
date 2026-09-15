@@ -28,10 +28,10 @@ export const getWorkspaceForkLineageDetails = defineForkUseCase({
   availability: true,
   async execute({
     input,
-    principal,
+    context,
   }: {
     input: { workspaceId: string }
-    principal: { userId: string }
+    context: { userId: string }
   }) {
     const { workspaceId } = input
     const [rawParent, rawChildren, run] = await Promise.all([
@@ -41,8 +41,8 @@ export const getWorkspaceForkLineageDetails = defineForkUseCase({
     ])
 
     const [parent, children] = await Promise.all([
-      rawParent ? withViewerAccess(rawParent, principal.userId) : null,
-      Promise.all(rawChildren.map((child) => withViewerAccess(child, principal.userId))),
+      rawParent ? withViewerAccess(rawParent, context.userId) : null,
+      Promise.all(rawChildren.map((child) => withViewerAccess(child, context.userId))),
     ])
 
     let undoableRun: {

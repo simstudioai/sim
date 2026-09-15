@@ -1,6 +1,8 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import type { CursorKey } from '@/lib/api/list-query'
+import { bindCopilotWorkspaceOperation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { PrincipalForOperation } from '@/lib/core/application/workspace-operation'
 import {
   OrchestrationError,
@@ -65,7 +67,7 @@ export const readWorkflowLint = defineAuthorizedWorkflowUseCase({
       {
         workflowId: graph.workflowId,
         workspaceId: graph.workspaceId,
-        subjectUserId: principal.userId,
+        subjectUserId: requirePrincipalSubjectUserId(principal),
       },
       {
         requireComplete: true,
@@ -89,7 +91,12 @@ export const readWorkflowLint = defineAuthorizedWorkflowUseCase({
             if (kind === 'custom-tool') {
               if (!customToolIds) {
                 const { tools } = await listAvailableCustomToolsUseCase.execute({
-                  principal,
+                  principal: bindCopilotWorkspaceOperation(
+                    principal,
+                    graph.workspaceId,
+                    ['sim:workflows'],
+                    listAvailableCustomToolsUseCase
+                  ),
                   input: { workspaceId: graph.workspaceId },
                   request,
                 })
@@ -100,7 +107,12 @@ export const readWorkflowLint = defineAuthorizedWorkflowUseCase({
             }
             if (kind === 'skill') {
               await getSkillUseCase.execute({
-                principal,
+                principal: bindCopilotWorkspaceOperation(
+                  principal,
+                  graph.workspaceId,
+                  ['sim:workflows'],
+                  getSkillUseCase
+                ),
                 input: { workspaceId: graph.workspaceId, skillId: value },
                 request,
               })
@@ -108,7 +120,12 @@ export const readWorkflowLint = defineAuthorizedWorkflowUseCase({
               return undefined
             }
             const { server } = await getMcpServerUseCase.execute({
-              principal,
+              principal: bindCopilotWorkspaceOperation(
+                principal,
+                graph.workspaceId,
+                ['sim:workflows'],
+                getMcpServerUseCase
+              ),
               input: { workspaceId: graph.workspaceId, serverId: value },
               request,
             })
@@ -146,7 +163,7 @@ export const readWorkflowLint = defineAuthorizedWorkflowUseCase({
               reference.selectorType,
               ids,
               {
-                userId: principal.userId,
+                userId: requirePrincipalSubjectUserId(principal),
                 workspaceId: graph.workspaceId,
               },
               { requireComplete: true }
@@ -173,7 +190,12 @@ export const readWorkflowLint = defineAuthorizedWorkflowUseCase({
             try {
               if (isDocument && knowledgeBaseId) {
                 await readKnowledgeDocument.execute({
-                  principal,
+                  principal: bindCopilotWorkspaceOperation(
+                    principal,
+                    graph.workspaceId,
+                    ['sim:workflows'],
+                    readKnowledgeDocument
+                  ),
                   input: {
                     knowledgeBaseId,
                     documentId: id,
@@ -260,7 +282,12 @@ async function readTableDiagnostics(
     if (!tables.has(tableId)) {
       try {
         const { table } = await readTableDefinitionUseCase.execute({
-          principal,
+          principal: bindCopilotWorkspaceOperation(
+            principal,
+            graph.workspaceId,
+            ['sim:workflows'],
+            readTableDefinitionUseCase
+          ),
           input: { tableId, workspaceId: graph.workspaceId },
           request,
         })
@@ -421,7 +448,12 @@ async function collectUndeclaredEnvVars(
   while (unseen.size > 0) {
     signal?.throwIfAborted()
     const response = await listSecretsUseCase.execute({
-      principal,
+      principal: bindCopilotWorkspaceOperation(
+        principal,
+        workspaceId,
+        ['sim:workflows'],
+        listSecretsUseCase
+      ),
       input: { workspaceId, sortBy: 'name', sortOrder: 'asc', limit: 100, cursorKeys },
       request,
     })

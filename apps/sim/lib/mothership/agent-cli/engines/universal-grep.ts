@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import type { ReadFileTextResponse } from 'sim/embed'
 import { listCatalogTools } from '@/lib/catalog/application/list-tools'
 import { readBlockCatalog } from '@/lib/catalog/application/read-block-catalog'
+import { enginePrincipal } from '@/lib/mothership/agent-cli/engine-principal'
 import {
   type AgentCliEngine,
   type AgentCliFlags,
@@ -215,7 +216,7 @@ const INDEXERS: Record<Scope, (runtime: GrepRuntime) => Promise<IndexEntry[]>> =
     // a world-wide grep. With the caller's principal the catalog use case the route itself
     // runs answers in one call, same authorization, same projection.
     if (runtime.principal) {
-      const principal = runtime.principal
+      const principal = enginePrincipal(runtime, listCatalogTools)!
       const page = await gated(
         () =>
           listCatalogTools.execute({
@@ -364,7 +365,7 @@ async function fetchAll(
 /** A whole world, for a search with no `--in`: every resource the index lists. */
 async function materializeScope(runtime: GrepRuntime, scope: Scope): Promise<Materialized[]> {
   if (scope === 'blocks' && runtime.principal) {
-    const principal = runtime.principal
+    const principal = enginePrincipal(runtime, readBlockCatalog)!
     const { blocks } = await gated(
       () =>
         readBlockCatalog.execute({

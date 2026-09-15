@@ -2,7 +2,10 @@ import type { SessionPrincipal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { PersistedFileAttachment } from '@/lib/mothership/chat/persisted-message'
 import { AssistantImage } from '@/lib/mothership/generated/assistant'
-import { readOrganizationAssistantImage } from '@/lib/uploads/contexts/organization-assistant/application'
+import {
+  authorizeOrganizationChatAttachment,
+  readOrganizationAssistantImage,
+} from '@/lib/uploads/contexts/organization-assistant/application'
 import {
   ASSISTANT_IMAGE_MAX_COUNT,
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
@@ -61,6 +64,42 @@ export async function prepareAssistantImages({
       size: image.size,
     })
     prepared.content.push(AssistantImage.parse({ ...content, type: 'image', filename: image.name }))
+  }
+  return prepared
+}
+
+/** Validate org Agent uploads without turning arbitrary files into inline model images. */
+export async function prepareOrganizationChatAttachments({
+  principal,
+  organizationId,
+  attachments,
+  signal,
+  mode,
+}: {
+  principal: SessionPrincipal
+  organizationId: string
+  attachments: readonly { key: string }[]
+  signal?: AbortSignal
+  mode: 'agent' | 'assistant'
+}): Promise<PreparedAssistantImages> {
+  if (mode === 'assistant')
+    return prepareAssistantImages({ principal, organizationId, attachments, signal })
+  const prepared: PreparedAssistantImages = { attachments: [], content: [] }
+  for (const attachment of attachments) {
+    signal?.throwIfAborted()
+    const { session } = await authorizeOrganizationChatAttachment({
+      principal,
+      organizationId,
+      key: attachment.key,
+      signal,
+    })
+    prepared.attachments.push({
+      id: session.id,
+      key: session.finalKey,
+      filename: session.fileName,
+      media_type: session.contentType,
+      size: session.fileSize,
+    })
   }
   return prepared
 }

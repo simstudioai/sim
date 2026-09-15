@@ -28,7 +28,12 @@ export const POST = defineInternalJsonRoute({
   contract: addCopilotChatResourceContract,
   mapInput: ({ body }) => ({
     chatId: body.chatId,
-    change: { kind: 'upsert' as const, resources: [{ ...body.resource, ...(body.clearViewId ? { clearViewId: true as const } : {}) }] },
+    change: {
+      kind: 'upsert' as const,
+      resources: [
+        { ...body.resource, ...(body.clearViewId ? { clearViewId: true as const } : {}) },
+      ],
+    },
   }),
 })
 
@@ -48,7 +53,7 @@ export const DELETE = defineInternalJsonRoute({
     chatId: body.chatId,
     change: {
       kind: 'remove' as const,
-      resources: [{ type: body.resourceType, id: body.resourceId }],
+      resources: [{ type: body.resourceType, id: body.resourceId, workspaceId: body.workspaceId }],
     },
   }),
 })

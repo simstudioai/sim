@@ -70,7 +70,8 @@ async function workbenchCli(
  */
 export async function buildMothershipSandboxSession(args: {
   sessionKey: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   userId: string
   signal?: AbortSignal
 }): Promise<SandboxSessionRequest> {
@@ -85,7 +86,9 @@ export async function buildMothershipSandboxSession(args: {
     if (scopedEndpoint !== endpoint) {
       cliEnvs = {
         SIM_API_KEY: apiKey,
-        SIM_WORKSPACE: args.workspaceId,
+        ...(args.organizationId
+          ? { SIM_ORGANIZATION_ID: args.organizationId }
+          : { SIM_WORKSPACE: args.workspaceId! }),
         SIM_ENDPOINT: scopedEndpoint,
       }
     }

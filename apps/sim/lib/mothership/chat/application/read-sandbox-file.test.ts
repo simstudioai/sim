@@ -16,7 +16,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.permission,
 }))
 vi.mock('@/lib/mothership/chat/application/context', () => ({
-  resolveOwnedWorkspaceChatContext: mocks.context,
+  resolveOwnedChatContext: mocks.context,
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
   isSessionFileProvenanceClean: mocks.clean,

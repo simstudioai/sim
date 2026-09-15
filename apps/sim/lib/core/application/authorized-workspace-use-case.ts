@@ -8,6 +8,7 @@ import {
   type WorkspaceAuthorizationContext,
   type WorkspaceAuthorizationOptions,
 } from '@/lib/core/application/workspace-authorization'
+import { withinAuthorizedWorkspaceOperation } from '@/lib/core/application/workspace-invocation-scope'
 import type {
   PrincipalForOperation,
   WorkspaceOperation,
@@ -200,6 +201,13 @@ export function defineAuthorizedWorkspaceUseCase<
 
   return {
     operation: definition.operation,
+    ...(!isAuthorizationOptionsResolver(definition.authorizationOptions) &&
+    definition.operation.principalKinds.includes('delegated') &&
+    'delegatedServices' in definition.operation &&
+    definition.operation.delegatedServices?.includes('copilot') &&
+    definition.authorizationOptions.delegation
+      ? { delegationAudience: definition.authorizationOptions.delegation.audience }
+      : {}),
     async authorize(args) {
       await authorizePhase(args)
     },
@@ -207,7 +215,9 @@ export function defineAuthorizedWorkspaceUseCase<
       const executionContext = await authorizePhase(args)
       const { principal, context, request } = executionContext
       return runWithOutboundOrganization(context.workspaceOrganizationId, async () => {
-        const result = await definition.execute(executionContext)
+        const result = await withinAuthorizedWorkspaceOperation(() =>
+          definition.execute(executionContext)
+        )
         const resultContext = { ...executionContext, result }
         const projectedAudit = definition.projectAudit?.(resultContext)
         if (projectedAudit !== undefined) {

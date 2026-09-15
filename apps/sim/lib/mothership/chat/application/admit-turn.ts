@@ -61,7 +61,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       request.userId !== userId ||
       request.workspaceId !== workspaceId ||
       request.organizationId !== organizationId ||
-      (organizationId && request.mode !== 'assistant') ||
+      (organizationId && request.mode !== context.mode) ||
       (input.message.requestMode === 'assistant') !== (request.mode === 'assistant') ||
       request.chatId !== chatId ||
       request.messageId !== input.message.id ||

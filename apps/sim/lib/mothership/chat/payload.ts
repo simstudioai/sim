@@ -28,7 +28,10 @@ import {
   integrationGateSignature,
   projectIntegrationToolsForViewer,
 } from '@/lib/mothership/integration-tool-projection'
-import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import {
+  buildOrganizationTaggedMcpToolSchemas,
+  buildTaggedMcpToolSchemas,
+} from '@/lib/mothership/mcp-tools'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -111,11 +114,12 @@ export interface ToolSchema {
 interface BuildIntegrationToolSchemasOptions {
   schemaSurface?: 'default' | 'copilot'
   personalAccountsOnly?: boolean
+  organizationId?: string
 }
 
 interface IntegrationToolSchemaBuildContext {
   userId: string
-  options: Required<BuildIntegrationToolSchemasOptions>
+  options: Required<Omit<BuildIntegrationToolSchemasOptions, 'organizationId'>>
   vis: BlockVisibilityState | null
   permissionConfig: IntegrationGateConfig | null
 }
@@ -168,7 +172,7 @@ export async function buildIntegrationToolSchemas(
 ): Promise<ToolSchema[]> {
   const schemaSurface = options.schemaSurface ?? 'copilot'
   const personalAccountsOnly = options.personalAccountsOnly ?? false
-  const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
+  const vis = await getBlockVisibilityForCopilot(userId, workspaceId, options.organizationId)
   // Resolved before the key, not inside the cached build, so the entry is keyed
   // to the policy it was produced under. The read this adds is cheap next to
   // what the entry caches: a user-tool schema per exposed integration tool.
@@ -338,6 +342,21 @@ export async function buildCopilotRequestPayload(
     }
   }
 
+  if (params.organizationId && !isAssistant) {
+    for (const attachment of params.fileAttachments ?? []) {
+      uploadContexts.push(
+        buildUploadedFileContext(
+          typeof attachment.filename === 'string' ? attachment.filename : attachment.id,
+          typeof attachment.media_type === 'string'
+            ? attachment.media_type
+            : 'application/octet-stream',
+          attachment.size,
+          attachment.id
+        )
+      )
+    }
+  }
+
   const allContexts = isAssistant
     ? params.workspaceContext
       ? [
@@ -347,16 +366,39 @@ export async function buildCopilotRequestPayload(
           },
         ]
       : []
-    : [...(contexts ?? []), ...uploadContexts]
+    : [
+        ...(contexts ?? []),
+        ...uploadContexts,
+        ...(params.organizationId && params.workspaceContext
+          ? [{ type: 'search_integrations', content: params.workspaceContext }]
+          : []),
+      ]
 
   let integrationTools: ToolSchema[] = []
   let mothershipTools: ToolSchema[] = []
 
-  if (!params.organizationId && (effectiveMode === 'build' || isAssistant)) {
+  if (
+    (!params.organizationId && (effectiveMode === 'build' || isAssistant)) ||
+    (params.organizationId && !isAssistant)
+  ) {
     integrationTools = await buildIntegrationToolSchemas(
       userId,
-      { schemaSurface: 'copilot', personalAccountsOnly: isAssistant },
+      {
+        schemaSurface: 'copilot',
+        personalAccountsOnly: isAssistant,
+        organizationId: params.organizationId,
+      },
       params.workspaceId
+    )
+  }
+
+  if (!isAssistant && params.organizationId && params.mcpServerIds?.length) {
+    if (!params.principal || !params.chatId)
+      throw new Error('Organization MCP discovery requires an authenticated chat')
+    mothershipTools = await buildOrganizationTaggedMcpToolSchemas(
+      params.principal,
+      { userId, organizationId: params.organizationId, chatId: params.chatId },
+      params.mcpServerIds
     )
   }
 
@@ -379,9 +421,15 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
     ...(params.organizationId ? { organizationId: params.organizationId } : {}),
     userId,
-    ...(isAssistant ? { mode: 'assistant' as const } : {}),
-    ...(isAssistant && params.assistantSearch ? { assistantSearch: params.assistantSearch } : {}),
-    ...(isAssistant && params.organizationId && params.assistantImages?.length
+    ...(isAssistant
+      ? { mode: 'assistant' as const }
+      : params.organizationId
+        ? { mode: 'agent' as const }
+        : {}),
+    ...((isAssistant || params.organizationId) && params.assistantSearch
+      ? { assistantSearch: params.assistantSearch }
+      : {}),
+    ...(params.organizationId && params.assistantImages?.length
       ? { assistantImages: params.assistantImages }
       : {}),
     messageId: userMessageId,

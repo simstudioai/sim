@@ -1,4 +1,6 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { TASK_DELEGATION_AUDIENCE } from '@/lib/mothership/tasks/application/context'
 
 const taskPrincipalPolicy = {
   minimumRole: 'read',
@@ -24,5 +26,30 @@ export const taskOperations = {
     id: 'mothership.tasks.wake',
     ...taskPrincipalPolicy,
     capability: 'copilot.use',
+  }),
+} as const
+
+export const organizationTaskOperations = {
+  readStatus: defineOrganizationOperation({
+    id: taskOperations.readStatus.id,
+    minimumRole: 'member',
+    capability: 'copilot.use',
+    principalKinds: ['session'],
+  }),
+  readWorkflowStatus: defineOrganizationOperation({
+    id: taskOperations.readWorkflowStatus.id,
+    minimumRole: 'member',
+    capability: 'copilot.use',
+    principalKinds: ['organization_delegated'],
+    delegatedServices: ['copilot'],
+    delegationAudience: TASK_DELEGATION_AUDIENCE,
+  }),
+  wake: defineOrganizationOperation({
+    id: taskOperations.wake.id,
+    minimumRole: 'member',
+    capability: 'copilot.use',
+    principalKinds: ['organization_delegated'],
+    delegatedServices: ['copilot'],
+    delegationAudience: TASK_DELEGATION_AUDIENCE,
   }),
 } as const

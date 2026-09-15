@@ -3,9 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getOption } = vi.hoisted(() => ({ getOption: vi.fn() }))
 vi.mock('@/lib/selectors/application/get-selector-option', () => ({
-  getSelectorOption: { execute: getOption },
+  getSelectorOption: { execute: getOption, delegationAudience: 'sim:selectors' },
 }))
 
+import {
+  isCopilotWorkspaceInvocation,
+  markCopilotWorkspaceInvocation,
+} from '@/lib/core/application/copilot-workspace-invocation'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
   selectedReferenceValues,
   workflowSelectorValidator,
@@ -76,4 +81,51 @@ describe('workflow selector validation', () => {
     ).rejects.toThrow('dependencies')
     expect(getOption).not.toHaveBeenCalled()
   })
+  it.each(['sim:workflows', 'sim:workspaces'])(
+    'derives selector authority from admitted %s without changing scope or lifetime',
+    async (audience) => {
+      const original = {
+        ...createCopilotChatPrincipal(
+          { userId: 'actor', workspaceId: 'destination', chatId: 'chat' },
+          audience
+        ),
+      }
+      markCopilotWorkspaceInvocation(original)
+      await workflowSelectorValidator(
+        original,
+        'destination'
+      )({
+        selectorKey: 'table.outputColumns',
+        context: { tableId: 'table' },
+        title: 'Column',
+        value: 'column',
+      })
+      const derived = getOption.mock.calls[0][0].principal
+      expect(derived).toEqual({ ...original, audience: 'sim:selectors' })
+      expect(derived.expiresAt).toBe(original.expiresAt)
+      expect(isCopilotWorkspaceInvocation(derived)).toBe(true)
+      expect(original.audience).toBe(audience)
+    }
+  )
+  it.each(['unbranded', 'foreign-workspace', 'wrong-audience', 'expired'])(
+    'refuses %s delegation before selector discovery',
+    (kind) => {
+      const original = {
+        ...createCopilotChatPrincipal(
+          {
+            userId: 'actor',
+            workspaceId: kind === 'foreign-workspace' ? 'other' : 'destination',
+            chatId: 'chat',
+          },
+          kind === 'wrong-audience' ? 'sim:files' : 'sim:workflows'
+        ),
+      }
+      if (kind !== 'unbranded') markCopilotWorkspaceInvocation(original)
+      if (kind === 'expired') original.expiresAt = new Date(0)
+      expect(() => workflowSelectorValidator(original, 'destination')).toThrow(
+        'current workspace invocation'
+      )
+      expect(getOption).not.toHaveBeenCalled()
+    }
+  )
 })

@@ -77,6 +77,29 @@ beforeEach(() => {
 })
 
 describe('private embedded upload control', () => {
+  it('uses the private Copilot identity for upload creation and completion without a public key', async () => {
+    const transport = createFileUploadTransport({
+      endpoint,
+      workspaceId,
+      userId: 'reader',
+      fallback,
+      uploadProvenance: mocks.evidence,
+      invocation: { userId: 'reader', workspaceId, chatId: 'chat' },
+    })
+    expect((await create(transport)).status).toBe(200)
+    expect((await complete(transport)).status).toBe(200)
+    for (const call of [mocks.create.mock.calls[0][0], mocks.complete.mock.calls[0][0]])
+      expect(call.principal).toMatchObject({
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'reader',
+        workspaceId,
+        audience: 'sim:workspace-files',
+        resourceScope: { chatId: 'chat' },
+      })
+    expect(mocks.authenticate).not.toHaveBeenCalled()
+  })
+
   it('uses pending creation and completed stream evidence without exposing either in the CLI response', async () => {
     const transport = makeTransport()
     const created = await create(transport)

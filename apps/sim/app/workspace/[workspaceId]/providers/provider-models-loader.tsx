@@ -88,12 +88,17 @@ function useSyncProvider(provider: ProviderName, enabled: boolean, workspaceId?:
   }, [provider, error])
 }
 
-export function ProviderModelsLoader() {
+export function ProviderModelsLoader({
+  workspaceId: scopedWorkspaceId,
+}: {
+  workspaceId?: string
+} = {}) {
   const params = useParams()
   const pathname = usePathname()
-  const workspaceId = params?.workspaceId as string | undefined
+  const workspaceId = scopedWorkspaceId ?? (params?.workspaceId as string | undefined)
   const isSearchModalOpen = useSearchModalStore((state) => state.isOpen)
-  const shouldLoad = shouldLoadProviderModels(pathname, workspaceId, isSearchModalOpen)
+  const shouldLoad =
+    Boolean(scopedWorkspaceId) || shouldLoadProviderModels(pathname, workspaceId, isSearchModalOpen)
 
   useSyncProvider('base', shouldLoad)
   useSyncProvider('ollama', shouldLoad)

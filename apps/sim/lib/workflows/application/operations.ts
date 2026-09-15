@@ -64,7 +64,7 @@ export const workflowOperations = {
     capability: 'none',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
-  /** Full diagnostics include caller-owned secrets, whose read policy requires a human API identity. */
+  /** Full diagnostics retain the caller's subject for protected reference and secret reads. */
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies
   readLint: defineWorkspaceOperation({
     id: 'workflows.lint.read',
@@ -72,7 +72,8 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: reading a workflow's run inputs is workflow content; Chat itself is withheld by copilot.use at the chat surface
   readCopilotRunOptions: defineWorkspaceOperation({
@@ -364,10 +365,9 @@ export const workflowOperations = {
   /**
    * Toggling unauthenticated public execution is an admin-role change a human
    * key-holder may legitimately make from a script, so personal API keys are
-   * accepted alongside sessions. Workspace keys stay denied and Copilot is not
-   * a principal here: the operation removes the authentication requirement from
-   * a deployed workflow, which needs an accountable human rather than a machine
-   * credential or an agent acting on a prompt.
+   * accepted alongside sessions and subject-bearing Copilot delegation. Workspace
+   * keys remain denied; current workspace admin and the direction-specific
+   * public execution capability still govern the operation.
    *
    * permission-group-exempt: `public_api.use` is asserted inside the use case and only for the enabling direction, because a group that withholds public execution must still let an admin withdraw execution a workflow already has
    */
@@ -377,7 +377,8 @@ export const workflowOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
   }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',

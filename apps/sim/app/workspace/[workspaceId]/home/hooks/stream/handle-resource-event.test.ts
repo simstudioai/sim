@@ -434,3 +434,40 @@ describe('handleResourceEvent saved-view pins', () => {
     expect(useTableViewPinStore.getState().pins['tbl-1']).toBeUndefined()
   })
 })
+
+describe('organization resource stream', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it('routes an edit to its owner without an active workspace and retains the panel address', () => {
+    const deps = makeStreamLoopDeps({ workspaceId: undefined })
+    const event: ResourceEvent = {
+      ...removeEvent('workflow', 'wf'),
+      payload: {
+        op: 'upsert',
+        resource: { type: 'workflow', id: 'wf', title: 'Build', workspaceId: 'owner' },
+      },
+    }
+    handleResourceEvent({ deps } as StreamLoopContext, event)
+    expect(mocks.invalidateResourceQueries).toHaveBeenCalledWith(
+      deps.queryClient,
+      'owner',
+      'workflow',
+      'wf'
+    )
+    expect(deps.addResource).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'owner', id: 'wf' })
+    )
+    expect(deps.ensureWorkflowInRegistry).toHaveBeenCalledWith('wf', 'Build', 'owner')
+  })
+  it('never guesses a workspace for an unscoped org event or a mismatched workspace event', () => {
+    const org = makeStreamLoopDeps({ workspaceId: undefined })
+    handleResourceEvent({ deps: org } as StreamLoopContext, removeEvent('file', 'x'))
+    const workspace = makeStreamLoopDeps()
+    handleResourceEvent({ deps: workspace } as StreamLoopContext, {
+      ...removeEvent('file', 'x'),
+      payload: { op: 'remove', resource: { type: 'file', id: 'x', workspaceId: 'other' } },
+    })
+    expect(org.removeResource).not.toHaveBeenCalled()
+    expect(workspace.removeResource).not.toHaveBeenCalled()
+    expect(mocks.invalidateResourceQueries).not.toHaveBeenCalled()
+  })
+})

@@ -8,6 +8,12 @@ import {
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  copilotRequestPrincipal,
+  markCopilotRequest,
+} from '@/lib/api/server/routes/copilot-request'
+import { billingOperations } from '@/lib/billing/application/operations'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -182,6 +188,74 @@ describe('billing application use cases', () => {
     })
   })
 
+  it('admits a private actual-actor billing read without personal keys and never selects account scope', async () => {
+    mocks.loadWorkspace.mockResolvedValue({ ...workspaceContext, allowPersonalApiKeys: false })
+    const request = new Request('https://sim.invalid/api/v2/billing/status')
+    markCopilotRequest(request, { userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    const principal = copilotRequestPrincipal(
+      request,
+      billingOperations.readStatus,
+      getBillingStatus
+    )!
+    const result = await getBillingStatus.execute({ principal, input: {} })
+    expect(result.workspaceId).toBe('workspace-1')
+    expect(result.credits).toBeNull()
+    expect(mocks.resolveAttribution).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    expect(mocks.getSubscription).not.toHaveBeenCalled()
+    expect(mocks.resolveSystemAttribution).not.toHaveBeenCalled()
+    const logsRequest = new Request('https://sim.invalid/api/v2/billing/logs')
+    markCopilotRequest(logsRequest, {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      chatId: 'chat',
+    })
+    const logsPrincipal = copilotRequestPrincipal(
+      logsRequest,
+      billingOperations.listLogs,
+      listBillingLogs
+    )!
+    await listBillingLogs.execute({
+      principal: logsPrincipal,
+      input: { endDate: new Date(), limit: 10 },
+    })
+    expect(mocks.getUsageLogs).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ workspaceId: 'workspace-1' })
+    )
+    expect(mocks.getWorkspaceUsageLogs).not.toHaveBeenCalled()
+  })
+  it('refuses forged, cross-target, expired, and revoked private billing authority', async () => {
+    const forged = createCopilotChatPrincipal(
+      { userId: 'user-1', workspaceId: 'workspace-1' },
+      'sim:billing'
+    )
+    await expect(getBillingStatus.execute({ principal: forged, input: {} })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    const request = new Request('https://sim.invalid/api/v2/billing/status')
+    markCopilotRequest(request, { userId: 'user-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    const principal = copilotRequestPrincipal(
+      request,
+      billingOperations.readStatus,
+      getBillingStatus
+    )!
+    await expect(
+      getBillingStatus.execute({ principal, input: { workspaceId: 'other' } })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(getBillingStatus.execute({ principal, input: {} })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    principal.expiresAt.setTime(0)
+    await expect(getBillingStatus.execute({ principal, input: {} })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(mocks.resolveAttribution).not.toHaveBeenCalled()
+  })
   it('rejects unsupported principals before protected loading', async () => {
     const session: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
 

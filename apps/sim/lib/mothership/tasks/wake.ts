@@ -8,8 +8,14 @@
  */
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
+import {
+  resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
+import {
+  createTrustedCopilotPrincipal,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import {
@@ -29,32 +35,42 @@ const logger = createLogger('CopilotTaskWake')
 
 /** Runs the wake turn to completion; the caller has already answered the worker. */
 export async function runWakeTurn(input: WakeRequest): Promise<void> {
-  const { taskId, chatId, workspaceId, userId, message, runId } = input
+  const { taskId, chatId, workspaceId, organizationId, userId, message, runId } = input
   const userMessageId = runId
+  const owner = organizationId ? { organizationId, userId } : { workspaceId: workspaceId! }
   chatPubSub?.publishStatusChanged({
-    workspaceId,
+    ...owner,
     chatId,
     type: 'started',
     streamId: userMessageId,
   })
   try {
     await authorizeTaskWake({
-      principal: createTrustedCopilotPrincipal(
-        { userId, workspaceId, delegationId: `wake:${runId}` },
-        { audience: TASK_DELEGATION_AUDIENCE, ttlMs: 60_000 }
-      ),
+      principal: organizationId
+        ? createTrustedOrganizationCopilotPrincipal(
+            { userId, organizationId, chatId, delegationId: `wake:${runId}` },
+            { audience: TASK_DELEGATION_AUDIENCE, ttlMs: 60_000 }
+          )
+        : createTrustedCopilotPrincipal(
+            { userId, workspaceId: workspaceId!, chatId, delegationId: `wake:${runId}` },
+            { audience: TASK_DELEGATION_AUDIENCE, ttlMs: 60_000 }
+          ),
       input,
     })
     const [access, integrationTools, billingAttribution] = await Promise.all([
-      checkWorkspaceAccess(workspaceId, userId),
+      workspaceId
+        ? checkWorkspaceAccess(workspaceId, userId)
+        : Promise.resolve({ permission: undefined }),
       buildIntegrationToolSchemas(userId, undefined, workspaceId),
-      resolveBillingAttribution({ actorUserId: userId, workspaceId }),
+      organizationId
+        ? resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
+        : resolveBillingAttribution({ actorUserId: userId, workspaceId: workspaceId! }),
     ])
     const requestPayload: Record<string, unknown> = {
       message,
       userId,
       protocolVersion: PROTOCOL_VERSION,
-      workspaceId,
+      ...(organizationId ? { organizationId, mode: 'agent' as const } : { workspaceId }),
       chatId,
       messageId: userMessageId,
       origin: 'task',
@@ -62,7 +78,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
     }
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
-      workspaceId,
+      ...(organizationId ? { organizationId, mode: 'agent' as const } : { workspaceId }),
       chatId,
       goRoute: '/api/mothership',
       autoExecuteTools: true,
@@ -86,7 +102,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
   } finally {
     await releasePendingChatStream(chatId, userMessageId)
     chatPubSub?.publishStatusChanged({
-      workspaceId,
+      ...owner,
       chatId,
       type: 'completed',
       streamId: userMessageId,

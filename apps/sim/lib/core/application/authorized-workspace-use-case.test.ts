@@ -8,6 +8,7 @@ import type {
   WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 
 const mocks = vi.hoisted(() => ({
   routingEnabled: vi.fn(() => false),
@@ -492,5 +493,73 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
         },
       })
     )
+  })
+})
+
+/** Private per-call target scope is checked against canonical resources, not URL parameters. */
+describe('workspace invocation targeting', () => {
+  const contextFor = (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org-1',
+    allowPersonalApiKeys: true,
+  })
+  const scopedRead = defineAuthorizedWorkspaceUseCase({
+    operation,
+    resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+      contextFor(input.workspaceId),
+    async execute({ context }) {
+      return context.workspaceId
+    },
+  })
+  it('rejects an ID-only resource in another workspace and leaves later calls unscoped', async () => {
+    mocks.resolvePermission.mockResolvedValue('write')
+    await expect(
+      withWorkspaceInvocationScope({ workspaceId: 'ws-1', organizationId: 'org-1' }, () =>
+        scopedRead.execute({ principal: sessionPrincipal, input: { workspaceId: 'ws-2' } })
+      )
+    ).rejects.toThrow('selected workspace')
+    await expect(
+      scopedRead.execute({ principal: sessionPrincipal, input: { workspaceId: 'ws-2' } })
+    ).resolves.toBe('ws-2')
+  })
+  it('isolates concurrent invocations and rejects a second top-level operation after a valid first', async () => {
+    mocks.resolvePermission.mockResolvedValue('write')
+    await Promise.all(
+      ['ws-1', 'ws-2'].map((workspaceId) =>
+        withWorkspaceInvocationScope({ workspaceId }, async () => {
+          await expect(
+            scopedRead.execute({ principal: sessionPrincipal, input: { workspaceId } })
+          ).resolves.toBe(workspaceId)
+          await expect(
+            scopedRead.execute({
+              principal: sessionPrincipal,
+              input: { workspaceId: workspaceId === 'ws-1' ? 'ws-2' : 'ws-1' },
+            })
+          ).rejects.toThrow('selected workspace')
+        })
+      )
+    )
+  })
+  it('allows explicit secondary operations only inside an admitted compound body and retains their permission checks', async () => {
+    const compound = defineAuthorizedWorkspaceUseCase({
+      operation,
+      resolveContext: () => contextFor('ws-1'),
+      execute: () =>
+        scopedRead.execute({ principal: sessionPrincipal, input: { workspaceId: 'ws-2' } }),
+    })
+    mocks.resolvePermission.mockResolvedValue('write')
+    await expect(
+      withWorkspaceInvocationScope({ workspaceId: 'ws-1' }, () =>
+        compound.execute({ principal: sessionPrincipal, input: {} })
+      )
+    ).resolves.toBe('ws-2')
+    mocks.resolvePermission.mockImplementation((_user: string, workspaceId: string) =>
+      workspaceId === 'ws-1' ? 'write' : null
+    )
+    await expect(
+      withWorkspaceInvocationScope({ workspaceId: 'ws-1' }, () =>
+        compound.execute({ principal: sessionPrincipal, input: {} })
+      )
+    ).rejects.toThrow()
   })
 })

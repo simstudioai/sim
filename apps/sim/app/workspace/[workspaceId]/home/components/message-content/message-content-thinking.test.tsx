@@ -142,12 +142,32 @@ describe('MessageContent shared thinking indicator', () => {
     )
   })
 
-  it.each(['awaiting_approval', 'error', 'cancelled', 'rejected'] as const)(
+  it.each(['awaiting_approval', 'cancelled'] as const)(
     'keeps %s tool rows visible while another agent is pending',
     (status) => {
       render([start('workflow'), start('browser'), tool('workflow', status)])
       expect(groups()).toHaveLength(1)
       expect(container.querySelector('[role="status"]')?.textContent).toContain('workflow notes')
+      expect(thinking()).toHaveLength(1)
+    }
+  )
+
+  it.each(['error', 'rejected'] as const)(
+    'keeps %s details inside an expandable group while another agent is pending',
+    (status) => {
+      render([start('workflow'), start('browser'), tool('workflow', status)])
+      expect(groups()).toHaveLength(1)
+      expect(container.querySelector('[role="status"]')?.textContent).toBe('1 tool call')
+      expect(container.textContent).not.toContain('workflow notes')
+      expect(thinking()).toHaveLength(1)
+
+      const disclosure = container.querySelector<HTMLElement>('[role="button"]')!
+      expect(disclosure.getAttribute('aria-expanded')).toBe('false')
+      act(() => disclosure.click())
+      expect(disclosure.getAttribute('aria-expanded')).toBe('true')
+      expect(container.querySelector('[data-state="open"]')?.textContent).toContain(
+        'Failed reading workflow notes'
+      )
       expect(thinking()).toHaveLength(1)
     }
   )

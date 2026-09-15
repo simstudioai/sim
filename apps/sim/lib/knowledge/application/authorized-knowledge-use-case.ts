@@ -207,6 +207,7 @@ export function defineAuthorizedKnowledgeUseCase<
 
   return {
     operation: definition.operation,
+    delegationAudience: workspaceUseCase.delegationAudience,
     async authorize({ principal, input, request }) {
       const resolved = await resolveAuthorizedContext({ principal, input })
       if (resolved.scope !== 'workspace') return

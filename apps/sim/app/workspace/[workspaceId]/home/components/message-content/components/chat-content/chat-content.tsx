@@ -34,9 +34,7 @@ import {
   inlineChatImageUrl,
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
-import { decodeVfsSegmentSafe } from '@/lib/mothership/vfs/path-utils'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
-import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   SourceChip,
   sourceLabel,
@@ -47,11 +45,10 @@ import {
   parseSpecialTags,
   type SourceTagData,
   SpecialTags,
+  WorkspaceResourceDisplay,
+  type WorkspaceResourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import type {
-  ChatContextKind,
-  WorkspaceResourceRef,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
 import { ExternalLink, externalLinkHostname } from './external-link'
@@ -167,6 +164,23 @@ function SourceReference({ index, children }: SourceReferenceProps) {
   return <SourceChip source={source} />
 }
 
+const WORKSPACE_LINK_PREFIX = '#sim-workspace-ref-'
+const WorkspaceRefsContext = createContext<{
+  resources: WorkspaceResourceTagData[]
+  onSelect?: (resource: WorkspaceResourceRef) => void
+}>({ resources: [] })
+
+/** Keeps complete resource addresses local to each rendered message, including interleaved turns. */
+function WorkspaceReference({ index, children }: SourceReferenceProps) {
+  const { resources, onSelect } = useContext(WorkspaceRefsContext)
+  const resource = resources[index]
+  return resource ? (
+    <WorkspaceResourceDisplay data={resource} onSelect={onSelect} />
+  ) : (
+    <>{children}</>
+  )
+}
+
 /**
  * A source's name as a Markdown link label. A site name or knowledge-base
  * name is free text: an unescaped `]` would end the label early and a `*` or
@@ -203,31 +217,6 @@ function appendInlineReferenceMarkdown(
 
 type TdProps = ComponentPropsWithoutRef<'td'>
 type ThProps = ComponentPropsWithoutRef<'th'>
-
-/**
- * Maps a `#wsres-{type}-{ref}` link's resource type to the chat-context kind
- * whose icon represents it, so inline resource references render the same
- * type icon as the user-input context chips.
- */
-const WSRES_LINK_KINDS: Record<string, ChatContextKind | undefined> = {
-  workflow: 'workflow',
-  table: 'table',
-  file: 'file',
-}
-
-/**
- * Label used to pick a file link's extension-aware document icon. The visible
- * link text can be a custom title without an extension, so prefer the file
- * name carried in the link's VFS path (its last extension-bearing segment).
- */
-function fileIconLabel(ref: string, fallback: string): string {
-  const segments = ref.split('/').filter(Boolean)
-  for (let i = segments.length - 1; i >= 0; i--) {
-    const decoded = decodeVfsSegmentSafe(segments[i])
-    if (decoded.includes('.')) return decoded
-  }
-  return fallback
-}
 
 /**
  * Bounded LRU cache for Prism highlight output. Chat rows are virtualized, so a
@@ -335,46 +324,11 @@ const MARKDOWN_COMPONENTS = {
         </SourceReference>
       )
     }
-    if (href?.startsWith('#wsres-')) {
-      const match = href.match(/^#wsres-(\w+)-(.+)$/)
-      const type = match?.[1]
-      const ref = match?.[2]
-      const kind = type ? WSRES_LINK_KINDS[type] : undefined
-      const label = extractTextContent(children)
+    if (href?.startsWith(WORKSPACE_LINK_PREFIX)) {
       return (
-        <a
-          href={href}
-          className={cn(
-            'text-[var(--text-primary)]',
-            kind
-              ? 'not-prose inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] no-underline transition-colors hover-hover:bg-[var(--surface-6)]'
-              : 'underline decoration-dashed underline-offset-4'
-          )}
-          onClick={(e) => {
-            e.preventDefault()
-            if (!type || !ref) return
-            const linkText = label || ref
-            // A file link carries whichever the tag had (`path ?? id`) with no
-            // way to tell them apart here, so it is forwarded as-is and the
-            // resolver tries every interpretation against the real file list.
-            window.dispatchEvent(
-              new CustomEvent('wsres-click', {
-                detail:
-                  type === 'file'
-                    ? { type, path: ref, title: linkText }
-                    : { type, id: ref, title: linkText },
-              })
-            )
-          }}
-        >
-          {kind && ref && (
-            <ContextMentionIcon
-              context={{ kind, label: kind === 'file' ? fileIconLabel(ref, label) : label }}
-              className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
-            />
-          )}
+        <WorkspaceReference index={Number(href.slice(WORKSPACE_LINK_PREFIX.length))}>
           {children}
-        </a>
+        </WorkspaceReference>
       )
     }
     const hostname = externalLinkHostname(href)
@@ -544,9 +498,6 @@ function ChatContentInner({
     () => [[privateImageUrls, { chatId, imageRequestId }], ...Object.values(defaultRehypePlugins)],
     [chatId, imageRequestId]
   )
-  const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
-  onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
-
   const onRevealStateChangeRef = useRef(onRevealStateChange)
   onRevealStateChangeRef.current = onRevealStateChange
 
@@ -646,22 +597,6 @@ function ChatContentInner({
   if (!fadeCutoff && streamedContent.length > FADE_MAX_REVEALED_CHARS) setFadeCutoff(true)
   const fadeActive = streamingTree && !fadeCutoff
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const { type, id, path, title } = (e as CustomEvent).detail
-      // A link built from a path carries no id. Forward what the tag actually
-      // had; the select handler resolves it rather than guessing here.
-      onWorkspaceResourceSelectRef.current?.({
-        type,
-        ...(id ? { id } : {}),
-        ...(path ? { path } : {}),
-        title: title || id || path || '',
-      })
-    }
-    window.addEventListener('wsres-click', handler)
-    return () => window.removeEventListener('wsres-click', handler)
-  }, [])
-
   const parsed = useMemo(
     () => parseSpecialTags(streamedContent, isRevealing),
     [streamedContent, isRevealing]
@@ -702,20 +637,19 @@ function ChatContentInner({
     pendingMarkdown = ''
   }
 
+  const workspaceRefs: WorkspaceResourceTagData[] = []
+
   for (let i = 0; i < parsed.segments.length; i++) {
     const s = parsed.segments[i]
     const nextSegment = parsed.segments[i + 1]
     if (s.type === 'workspace_resource') {
-      // Files are addressed by their encoded VFS path (copied verbatim from the tag);
-      // workflows/tables/KBs by id. The angle-bracket link destination keeps the path
-      // intact through markdown parsing (tolerates parens) without re-encoding it.
-      const ref = s.data.type === 'file' ? (s.data.path ?? s.data.id ?? '') : (s.data.id ?? '')
-      const label = s.data.title || ref
+      const label = s.data.title || s.data.path || s.data.id || ''
       pendingMarkdown = appendInlineReferenceMarkdown(
         pendingMarkdown,
-        `[${label}](<#wsres-${s.data.type}-${ref}>)`,
+        `[${escapeLinkLabel(label)}](<${WORKSPACE_LINK_PREFIX}${workspaceRefs.length}>)`,
         nextSegment
       )
+      workspaceRefs.push(s.data)
     } else if (s.type === 'source') {
       // A citation always stands off from the sentence it supports, even when
       // the model closes the sentence on punctuation the word-boundary rule
@@ -752,42 +686,46 @@ function ChatContentInner({
    */
   return (
     <SourceRefsContext.Provider value={sourceRefs}>
-      <div className='space-y-3'>
-        {groups.map((group, i) => {
-          if (group.kind === 'inline') {
-            return (
-              <div
-                key={`inline-${i}`}
-                className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
-              >
-                <Streamdown
-                  key={streamingTree ? 'stream' : 'settled'}
-                  mode={parserTree ? undefined : 'static'}
-                  animated={fadeActive ? STREAM_ANIMATION : false}
-                  isAnimating={streamingTree}
-                  components={MARKDOWN_COMPONENTS}
-                  rehypePlugins={imageRehypePlugins}
+      <WorkspaceRefsContext.Provider
+        value={{ resources: workspaceRefs, onSelect: onWorkspaceResourceSelect }}
+      >
+        <div className='space-y-3'>
+          {groups.map((group, i) => {
+            if (group.kind === 'inline') {
+              return (
+                <div
+                  key={`inline-${i}`}
+                  className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
                 >
-                  {group.markdown}
-                </Streamdown>
-              </div>
+                  <Streamdown
+                    key={streamingTree ? 'stream' : 'settled'}
+                    mode={parserTree ? undefined : 'static'}
+                    animated={fadeActive ? STREAM_ANIMATION : false}
+                    isAnimating={streamingTree}
+                    components={MARKDOWN_COMPONENTS}
+                    rehypePlugins={imageRehypePlugins}
+                  >
+                    {group.markdown}
+                  </Streamdown>
+                </div>
+              )
+            }
+            return (
+              <SpecialTags
+                key={`special-${group.index}`}
+                segment={group.segment}
+                interactionId={`${messageId ?? 'message'}:${group.index}`}
+                questionAnswers={questionAnswers}
+                credentialSubmission={credentialSubmission}
+                credentialAbandoned={credentialAbandoned}
+                requestMode={requestMode}
+                onOptionSelect={onOptionSelect}
+                onQuestionDismiss={onQuestionDismiss}
+              />
             )
-          }
-          return (
-            <SpecialTags
-              key={`special-${group.index}`}
-              segment={group.segment}
-              interactionId={`${messageId ?? 'message'}:${group.index}`}
-              questionAnswers={questionAnswers}
-              credentialSubmission={credentialSubmission}
-              credentialAbandoned={credentialAbandoned}
-              requestMode={requestMode}
-              onOptionSelect={onOptionSelect}
-              onQuestionDismiss={onQuestionDismiss}
-            />
-          )
-        })}
-      </div>
+          })}
+        </div>
+      </WorkspaceRefsContext.Provider>
     </SourceRefsContext.Provider>
   )
 }

@@ -162,7 +162,9 @@ export function createTrustedCopilotPrincipal(
     ...(options.resourceScope?.credentialId
       ? { credentialId: options.resourceScope.credentialId }
       : {}),
-    ...(options.resourceScope?.mcpServerId ? { mcpServerId: options.resourceScope.mcpServerId } : {}),
+    ...(options.resourceScope?.mcpServerId
+      ? { mcpServerId: options.resourceScope.mcpServerId }
+      : {}),
     ...(input.chatId ? { chatId: input.chatId } : {}),
     ...(input.executionId ? { executionId: input.executionId } : {}),
   })
@@ -232,11 +234,11 @@ export function requireTrustedOrganizationCopilotContext(
   if (
     !context ||
     !context.copilotToolExecution ||
-    context.requestMode !== 'assistant' ||
+    (context.requestMode !== 'assistant' && context.requestMode !== 'agent') ||
     context.workspaceId ||
     context.workflowId
   ) {
-    throw new Error('Organization Assistant requires trusted organization execution context')
+    throw new Error('Organization tools require trusted organization execution context')
   }
   requireNonEmpty(context.userId, 'an authenticated user ID')
   requireNonEmpty(context.organizationId, 'an organization ID')

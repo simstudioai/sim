@@ -15,24 +15,40 @@ import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-ke
 const logger = createLogger('MothershipSandboxResources')
 const CONTEXT_TTL_SECONDS = 600
 const POLL_MS = 200
-const scopeSchema = z.object({
-  toolCallId: z.string(),
-  runId: z.string(),
-  userId: z.string(),
-  ownerToken: z.string(),
-  chatId: z.string(),
-  workspaceId: z.string(),
-  apiKeyHash: z.string(),
-})
+const scopeSchema = z
+  .object({
+    toolCallId: z.string(),
+    runId: z.string(),
+    userId: z.string(),
+    ownerToken: z.string(),
+    chatId: z.string(),
+    workspaceId: z.string().optional(),
+    organizationId: z.string().optional(),
+    apiKeyHash: z.string(),
+  })
+  .refine(
+    (scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId),
+    'Exactly one chat owner is required'
+  )
 type SandboxResourceScope = z.infer<typeof scopeSchema>
 
 interface ActiveSandboxResourceScope {
-  identity: SimToolExecutionOwner & { chatId: string; workspaceId: string }
+  identity: SimToolExecutionOwner & {
+    chatId: string
+    workspaceId?: string
+    organizationId?: string
+  }
   signal: AbortSignal
   token?: string
 }
 
 const resourceScope = new AsyncLocalStorage<ActiveSandboxResourceScope>()
+
+/** Server-admitted physical session owner; never sourced from code arguments. */
+export function activeSandboxChatOwner() {
+  return resourceScope.getStore()?.identity
+}
+
 const contextKey = (token: string) => `mothership:sandbox-resources:${token}:context`
 const inboxKey = (token: string) => `mothership:sandbox-resources:${token}:inbox`
 const seenKey = (token: string) => `mothership:sandbox-resources:${token}:seen`
@@ -46,7 +62,7 @@ function redisClient() {
 /** Only the admitted in-process tool can bind an endpoint; arguments cannot select a chat. */
 export async function sandboxResourceEndpoint(
   endpoint: string,
-  args: { sessionKey: string; workspaceId: string; userId: string },
+  args: { sessionKey: string; workspaceId?: string; organizationId?: string; userId: string },
   apiKey: string
 ): Promise<string> {
   const active = resourceScope.getStore()
@@ -56,6 +72,7 @@ export async function sandboxResourceEndpoint(
   if (
     args.userId !== identity.userId ||
     args.workspaceId !== identity.workspaceId ||
+    args.organizationId !== identity.organizationId ||
     args.sessionKey !== chatSandboxSessionKey(identity.chatId) ||
     !(await isActiveSandboxResourceOwner(identity))
   )

@@ -568,6 +568,7 @@ const TOOL_TITLES: Record<string, string> = {
   manage_knowledge_base: 'Managing knowledge base',
   search_knowledge_base: 'Searching knowledge base',
   search_workspace: 'Searching documents',
+  list_workspaces: 'Listing workspaces',
   read_document: 'Reading document',
   open_resource: 'Opening resource',
 

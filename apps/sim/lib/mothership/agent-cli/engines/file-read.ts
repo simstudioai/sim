@@ -1,7 +1,9 @@
 import { v2ReadFileTextContract, v2ReadFileTextQuerySchema } from '@/lib/api/contracts/v2/files'
 import { fileReadFailure, readFileVisual } from '@/lib/mothership/agent-cli/engines/file-view'
+import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import { readScratchFile } from '@/lib/mothership/agent-cli/engines/scratch-file-read'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
+import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getFileExtension,
@@ -47,6 +49,28 @@ export const fileReadCommand: AgentCliEngine = {
     try {
       if (reference.startsWith('/tmp/') || reference.startsWith('/home/user/'))
         return await readScratchFile(reference, runtime, flags, query.data)
+      if (
+        runtime.chatOrganizationId &&
+        runtime.chatId &&
+        runtime.chatPrincipal &&
+        reference.startsWith('uploads/')
+      ) {
+        const attachment = await readChatAttachment.execute({
+          principal: runtime.chatPrincipal,
+          input: {
+            chatId: runtime.chatId,
+            reference,
+            maxBytes: query.data.maxBytes,
+            signal: runtime.signal,
+          },
+        })
+        return observePrivateFile(
+          { ...attachment, path: reference, source: 'upload' },
+          flags,
+          query.data,
+          runtime.signal
+        )
+      }
       const file = await resolveWorkspaceFileReference({
         principal: runtime.principal,
         operation: fileOperations.readContent,

@@ -7,6 +7,7 @@ import {
   listMothershipChatsContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import {
@@ -21,7 +22,6 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   assertActiveWorkspaceAccess,
@@ -85,11 +85,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const validation = await parseRequest(createMothershipChatContract, request, {})
     if (!validation.success) return validation.response
-    const { workspaceId, organizationId } = validation.data.body
+    const { workspaceId, organizationId, mode } = validation.data.body
 
     if (organizationId) {
       if (!principal) return createUnauthorizedResponse()
-      const chat = await createOrganizationChat.execute({ principal, input: { organizationId } })
+      const chat = await createOrganizationChat.execute({
+        principal,
+        input: { organizationId, mode },
+      })
       return NextResponse.json({ success: true, id: chat.id })
     }
 

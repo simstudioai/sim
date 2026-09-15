@@ -13,7 +13,7 @@ import { runWakeTurn } from '@/lib/mothership/tasks/wake'
 
 export const POST = defineInternalJsonRoute({
   contract: wakeMothershipTaskContract,
-  auth: internalCopilotAuth(TASK_DELEGATION_AUDIENCE),
+  auth: internalCopilotAuth(TASK_DELEGATION_AUDIENCE, { organization: true }),
   operation: taskOperations.wake,
   rateLimit: internalRateLimits.none({
     reason:

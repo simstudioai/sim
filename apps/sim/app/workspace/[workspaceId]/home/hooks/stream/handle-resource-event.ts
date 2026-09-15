@@ -4,6 +4,7 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { getChatResourceKey, getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { notifyWorkflowExternalUpdate } from '@/lib/workflows/external-update'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
@@ -32,7 +33,7 @@ type ResourceEvent = Extract<
  */
 export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEvent): void {
   const {
-    workspaceId,
+    workspaceId: chatWorkspaceId,
     queryClient,
     addResource,
     removeResource,
@@ -45,9 +46,10 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     ensureWorkflowInRegistry,
     onResourceEventRef,
   } = ctx.deps
-  if (!workspaceId) return
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
+  const workspaceId = payload.resource.workspaceId ?? chatWorkspaceId
+  if (!workspaceId || (chatWorkspaceId && workspaceId !== chatWorkspaceId)) return
   // Browser and terminal tabs are projected from the desktop app's live
   // lists, never from the stream; older servers announced them as resources.
   if (payload.resource.type === 'browser' || payload.resource.type === 'terminal') return
@@ -74,6 +76,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     setResources((current) =>
       current.map((resource) => {
         if (
+          (resource.workspaceId ?? chatWorkspaceId) !== workspaceId ||
           resource.type !== 'table' ||
           resource.id !== payload.resource.id ||
           resource.viewId !== payload.resource.viewId
@@ -95,6 +98,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       : undefined
   const resource: MothershipResource = {
     ...payload.resource,
+    ...(chatWorkspaceId ? {} : { workspaceId }),
     type: payload.resource.type as MothershipResourceType,
     title:
       typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
@@ -106,10 +110,13 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     const resourceType = resource.type
     if (payload.effectId) {
       setResources((current) =>
-        current.filter((item) => item.type !== resourceType || item.id !== resource.id)
+        current.filter((item) => getChatResourceKey(item) !== getChatResourceKey(resource))
       )
-      ctx.deps.setActiveResourceId((current) => (current === resource.id ? null : current))
-    } else removeResource(resourceType, resource.id)
+      ctx.deps.setActiveResourceId((current) =>
+        current === getChatResourceSelectionId(resource) ? null : current
+      )
+    } else if (resource.workspaceId) removeResource(resourceType, resource.id, resource.workspaceId)
+    else removeResource(resourceType, resource.id)
     if (resourceType === 'workflow') {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
     }
@@ -154,12 +161,12 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
         !shouldAutoActivatePreviewSession(previewForResource)))
   const wasAdded =
     shouldSuppressFileResourceActivation || payload.effectId
-      ? !resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)
+      ? !resourcesRef.current.some((r) => getChatResourceKey(r) === getChatResourceKey(resource))
       : addResource(resourceUpdate)
   if (payload.effectId) {
     setResources((current) => {
       const previous = current.find(
-        (item) => item.type === resource.type && item.id === resource.id
+        (item) => getChatResourceKey(item) === getChatResourceKey(resource)
       )
       const next = {
         ...previous,
@@ -172,7 +179,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     })
   } else if (shouldSuppressFileResourceActivation && wasAdded) {
     setResources((current) =>
-      current.some((r) => r.type === resource.type && r.id === resource.id)
+      current.some((r) => getChatResourceKey(r) === getChatResourceKey(resource))
         ? current
         : [...current, resource]
     )
@@ -187,9 +194,13 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     // report "added", while only the first updater actually inserted — the
     // updater is idempotent, so it simply runs every time.
     setResources((current) =>
-      current.some((r) => r.type === 'table' && r.id === resource.id && r.viewId !== pinnedViewId)
+      current.some(
+        (r) => getChatResourceKey(r) === getChatResourceKey(resource) && r.viewId !== pinnedViewId
+      )
         ? current.map((r) =>
-            r.type === 'table' && r.id === resource.id ? { ...r, viewId: pinnedViewId } : r
+            getChatResourceKey(r) === getChatResourceKey(resource)
+              ? { ...r, viewId: pinnedViewId }
+              : r
           )
         : current
     )
@@ -200,8 +211,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
 
   if (!shouldSuppressFileResourceActivation) {
     if (resource.type === 'table' && resource.viewId) {
-      onResourceEvent?.(resource.id, { tableViewId: resource.viewId })
-    } else onResourceEvent?.(resource.id)
+      onResourceEvent?.(getChatResourceSelectionId(resource), { tableViewId: resource.viewId })
+    } else onResourceEvent?.(getChatResourceSelectionId(resource))
   }
 
   if (resource.type === 'workflow' && !readOnly) {

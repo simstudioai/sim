@@ -1,17 +1,15 @@
 import { posix } from 'node:path'
-import type {
-  DelegatedPrincipal,
-  PersonalApiKeyPrincipal,
-  SessionPrincipal,
-} from '@sim/auth/principal'
-import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
+import type { Principal } from '@sim/auth/principal'
+import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import type { SessionFileIdentity } from '@/lib/execution/remote-sandbox/session-file-observer'
 import { isSessionFileProvenanceClean } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
-import { resolveOwnedWorkspaceChatContext } from '@/lib/mothership/chat/application/context'
+import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
+import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { workspaceFileDelegationPolicy } from '@/lib/workspace-files/application/authorization'
@@ -32,14 +30,15 @@ export function normalizeScratchPath(path: string) {
 
 interface ReadSandboxFileInput {
   chatId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   path: string
   maxBytes?: number
   signal?: AbortSignal
 }
 
 /** Reads a fixed snapshot from the caller's existing private chat machine, never server disk. */
-export const readChatSandboxFile = defineAuthorizedWorkspaceUseCase({
+export const readChatSandboxFile = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
     id: 'mothership.chats.read_sandbox_file',
     minimumRole: 'read',
@@ -48,15 +47,26 @@ export const readChatSandboxFile = defineAuthorizedWorkspaceUseCase({
     principalKinds: ['session', 'personal_api_key', 'delegated'],
     delegatedServices: ['copilot'],
   }),
+  organizationOperation: defineOrganizationOperation({
+    id: 'mothership.chats.read_sandbox_file',
+    minimumRole: 'member',
+    capability: 'copilot.use',
+    principalKinds: ['session', 'personal_api_key', 'organization_delegated'],
+    delegatedServices: ['copilot'],
+    delegationAudience: workspaceFileDelegationPolicy.audience,
+  }),
   async resolveContext({
     principal,
     input,
   }: {
-    principal: SessionPrincipal | PersonalApiKeyPrincipal | DelegatedPrincipal
+    principal: Principal
     input: ReadSandboxFileInput
   }) {
-    const context = await resolveOwnedWorkspaceChatContext(principal, input.chatId)
-    if (context.workspaceId !== input.workspaceId)
+    const context = await resolveOwnedChatContext(principal, input.chatId)
+    if (
+      context.workspaceId !== input.workspaceId ||
+      context.organizationId !== input.organizationId
+    )
       throw new OrchestrationError('not_found', 'Chat not found')
     return context
   },
@@ -78,6 +88,7 @@ export const readChatSandboxFile = defineAuthorizedWorkspaceUseCase({
     const sessionKey = chatSandboxSessionKey(context.chatId)
     const provenance = createWorkbenchFileProvenance({
       workspaceId: context.workspaceId,
+      organizationId: context.organizationId,
       userId: context.userId,
       sessionKey,
       signal: input.signal,

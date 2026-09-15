@@ -215,7 +215,12 @@ describe('authorized chat stream recovery', () => {
         recovery: { ...run.requestContext.recovery, request, requestMode: 'assistant' },
       },
     })
-    mocks.chat.mockResolvedValue({ userId: 'user', chatId: run.chatId, organizationId })
+    mocks.chat.mockResolvedValue({
+      userId: 'user',
+      chatId: run.chatId,
+      organizationId,
+      mode: 'assistant',
+    })
     mocks.organizationBilling.mockResolvedValue({
       actorUserId: 'user',
       workspaceId: null,

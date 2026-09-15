@@ -48,6 +48,7 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
 
 vi.mock('@/lib/mothership/mcp-tools', () => ({
   buildTaggedMcpToolSchemas: vi.fn(async () => []),
+  buildOrganizationTaggedMcpToolSchemas: vi.fn(async () => []),
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
@@ -517,7 +518,7 @@ describe('buildCopilotRequestPayload', () => {
           type: 'uploaded_file',
           content: [
             'File "payroll.xlsx" (application/octet-stream, 1 bytes) uploaded to this chat as "uploads/payroll.xlsx" (a chat upload: readable here, not listed under workspace files/).',
-            'Read it with: sim --output json files read "uploads/payroll.xlsx"',
+            'Read it with sim_cli: {"args":["files","read","uploads/payroll.xlsx"]}',
             'Pass the same path "uploads/payroll.xlsx" as inputs.files[].path to mount it in run_code.',
           ].join('\n'),
         },
@@ -559,7 +560,7 @@ describe('buildCopilotRequestPayload', () => {
           type: 'uploaded_file',
           content: [
             'File "photo.png" (image/png, 10 bytes) uploaded to this chat as "uploads/photo.png" (a chat upload: readable here, not listed under workspace files/).',
-            'Inspect it with sim_cli: {"args":["files","view","uploads/photo.png"]}',
+            'Read it with sim_cli: {"args":["files","read","uploads/photo.png"]}',
             'Pass the same path "uploads/photo.png" as inputs.files[].path to mount it in run_code or use it as a reference image in generate_image.',
           ].join('\n'),
         },
@@ -754,4 +755,37 @@ describe('desktop request capabilities', () => {
     )
     expect(payload.desktop).toBeUndefined()
   })
+})
+
+it('supplies org visibility and tagged MCP discovery while preserving desktop capabilities', async () => {
+  const { getBlockVisibilityForCopilot } = await import('@/lib/mothership/block-visibility')
+  const { buildOrganizationTaggedMcpToolSchemas } = await import('@/lib/mothership/mcp-tools')
+  const principal = { kind: 'session' as const, userId: 'user-org' }
+  const payload = await buildCopilotRequestPayload(
+    {
+      message: 'Use my tools',
+      userId: 'user-org',
+      userMessageId: 'message-org',
+      organizationId: 'org-catalog',
+      chatId: 'chat-org',
+      principal,
+      mode: 'agent',
+      model: '',
+      mcpServerIds: ['server-a', 'server-b'],
+      browser: true,
+      terminalCapable: true,
+    },
+    { selectedModel: '' }
+  )
+  expect(getBlockVisibilityForCopilot).toHaveBeenCalledWith('user-org', undefined, 'org-catalog')
+  expect(buildOrganizationTaggedMcpToolSchemas).toHaveBeenCalledWith(
+    principal,
+    {
+      userId: 'user-org',
+      organizationId: 'org-catalog',
+      chatId: 'chat-org',
+    },
+    ['server-a', 'server-b']
+  )
+  expect(payload.desktop).toMatchObject({ browser: true, terminal: true })
 })

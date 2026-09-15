@@ -70,12 +70,18 @@ export async function getWorkspaceOrganizationId(workspaceId: string): Promise<s
  */
 export async function getOrgAdminWorkspaceRows(
   userId: string,
-  scope: WorkspaceScope = 'active'
+  scope: WorkspaceScope = 'active',
+  organizationId?: string
 ): Promise<Array<typeof workspaceTable.$inferSelect>> {
   const [membership] = await db
     .select({ organizationId: member.organizationId, role: member.role })
     .from(member)
-    .where(eq(member.userId, userId))
+    .where(
+      and(
+        eq(member.userId, userId),
+        organizationId ? eq(member.organizationId, organizationId) : undefined
+      )
+    )
     .limit(1)
 
   if (!membership || !isOrgAdminRole(membership.role)) {
@@ -99,7 +105,8 @@ export async function getOrgAdminWorkspaceRows(
  */
 export async function listAccessibleWorkspaceRowsForUser(
   userId: string,
-  scope: WorkspaceScope = 'active'
+  scope: WorkspaceScope = 'active',
+  organizationId?: string
 ): Promise<
   Array<{
     workspace: typeof workspaceTable.$inferSelect
@@ -133,7 +140,7 @@ export async function listAccessibleWorkspaceRowsForUser(
     )
     .orderBy(desc(workspaceTable.createdAt))
 
-  const orgRows = await getOrgAdminWorkspaceRows(userId, scope)
+  const orgRows = await getOrgAdminWorkspaceRows(userId, scope, organizationId)
   if (orgRows.length === 0) {
     return explicit.map((row) => ({ ...row, viaOrgAdmin: false }))
   }
