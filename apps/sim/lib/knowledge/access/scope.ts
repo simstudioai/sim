@@ -7,6 +7,7 @@ import {
   document,
   foldedEmail,
   knowledgeBase,
+  knowledgeConnector,
   knowledgeExternalGroup,
   knowledgeExternalGroupMember,
   member,
@@ -14,7 +15,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -34,6 +35,11 @@ import {
   type GitHubReaderCredential,
   resolveGitHubInstallationReadGrants,
 } from '@/lib/knowledge/access/github-installation'
+import {
+  confluenceSiteSourceCondition,
+  githubInstallationSourceCondition,
+  liveSourceKnowledgeBaseCondition,
+} from '@/lib/knowledge/access/live-sources'
 import { knowledgeMetadataCandidateAccessCondition } from '@/lib/knowledge/access/predicate'
 import {
   groupToken,
@@ -397,9 +403,32 @@ function createAccessProvider(
     async get() {
       return (await identity()).access
     },
-    async hasLiveSourceReaders() {
+    async liveSourceConnectorCondition() {
       const { access, githubReaders, confluenceReaders } = await identity()
-      return access.kind === 'user' && (githubReaders.length > 0 || confluenceReaders.length > 0)
+      if (
+        access.kind !== 'user' ||
+        (!githubReaders.length && !confluenceReaders.length) ||
+        context.knowledgeBaseIds?.length === 0
+      )
+        return null
+      return and(
+        or(
+          githubReaders.length ? githubInstallationSourceCondition() : undefined,
+          confluenceReaders.length ? confluenceSiteSourceCondition() : undefined
+        ),
+        inArray(
+          knowledgeConnector.knowledgeBaseId,
+          db
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(
+              liveSourceKnowledgeBaseCondition(
+                resourceScopeFromOwner(context),
+                context.knowledgeBaseIds
+              )
+            )
+        )
+      )!
     },
     async getForConnectors(connectorIds, signal) {
       const ids = boundedIds(connectorIds)

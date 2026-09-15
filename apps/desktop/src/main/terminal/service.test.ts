@@ -266,6 +266,53 @@ describe('focus-gated shortcuts', () => {
     expect(terminal.getTabs().activeTerminalId).toBe(activeId)
   })
 
+  it('waits for a single confirmation and closes only the captured running terminal', async () => {
+    const terminal = service()
+    const started = terminal.start({ cols: 80, rows: 24 })
+    const id = started.activeTerminalId as string
+    stubSessions.get(id)?.setBusy(true)
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
+    let resolvePermission: (value: boolean) => void = () => {}
+    const permission = {
+      promise: new Promise<boolean>((resolve) => {
+        resolvePermission = resolve
+      }),
+      resolve: (value: boolean) => resolvePermission(value),
+    }
+    const confirm = vi.fn(() => permission.promise)
+    terminal.handleFocusedShortcut('close-tab', renderer.window, vi.fn(), confirm)
+    terminal.handleFocusedShortcut('close-tab', renderer.window, vi.fn(), confirm)
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(terminal.getTabs().tabs.some((tab) => tab.terminalId === id)).toBe(true)
+    permission.resolve(true)
+    await vi.waitFor(() =>
+      expect(terminal.getTabs().tabs.some((tab) => tab.terminalId === id)).toBe(false)
+    )
+  })
+
+  it('does not close a replacement terminal after the original exits during confirmation', async () => {
+    const terminal = service()
+    const started = terminal.start({ cols: 80, rows: 24 })
+    const id = started.activeTerminalId as string
+    stubSessions.get(id)?.setBusy(true)
+    const renderer = rendererStub()
+    terminal.setPanelFocused(true, renderer.contents)
+    let resolvePermission: (value: boolean) => void = () => {}
+    const permission = {
+      promise: new Promise<boolean>((resolve) => {
+        resolvePermission = resolve
+      }),
+      resolve: (value: boolean) => resolvePermission(value),
+    }
+    terminal.handleFocusedShortcut('close-tab', renderer.window, vi.fn(), () => permission.promise)
+    stubSessions.get(id)?.exit()
+    const replacement = terminal.openTerminal().activeTerminalId
+    permission.resolve(true)
+    await permission.promise
+    expect(terminal.getTabs().activeTerminalId).toBe(replacement)
+  })
+
   it('opens tabs in main and sends canvas commands to the focused renderer', () => {
     const terminal = service()
     terminal.start({ cols: 80, rows: 24 })

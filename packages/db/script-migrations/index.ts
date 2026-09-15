@@ -1,7 +1,7 @@
 import { reconcileOAuthProviderLifecycleMigration } from '@sim/db/script-migrations/0012_reconcile_oauth_provider_lifecycle'
 import { backfillLegacyKnowledgeBaseWorkspacesMigration } from '@sim/db/script-migrations/0013_backfill_legacy_knowledge_base_workspaces'
 import { requireKnowledgeBaseOwnerMigration } from '@sim/db/script-migrations/0014_require_knowledge_base_owner'
-import { backfillEmbeddingSearchMigration } from '@sim/db/script-migrations/0015_backfill_embedding_search'
+import { backfillSearchVectorsMigration } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -20,7 +20,7 @@ export type { ScriptMigration } from './types'
 
 /**
  * Ordered, append-only registry of script migrations. An entry may be deleted
- * once a later SQL migration supersedes it (accepting that deployments which
+ * once a later migration supersedes it (accepting that deployments which
  * never ran it skip the backfill) — never renamed or reordered.
  */
 export const scriptMigrations: readonly ScriptMigration[] = [
@@ -38,7 +38,8 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   reconcileOAuthProviderLifecycleMigration,
   backfillLegacyKnowledgeBaseWorkspacesMigration,
   requireKnowledgeBaseOwnerMigration,
-  backfillEmbeddingSearchMigration,
+  /** 0016 completes partially applied 0015 binary projections together with the new search vectors. */
+  backfillSearchVectorsMigration,
 ]
 
 /**
@@ -98,10 +99,11 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
     console.log(`Applying script migration ${migration.name}...`)
     const startedAt = Date.now()
     await migration.up(sql)
-    await sql`
-      INSERT INTO script_migrations (name) VALUES (${migration.name})
-      ON CONFLICT (name) DO NOTHING
-    `
+    await sql.begin(async (tx) => {
+      for (const name of [migration.name, ...(migration.supersedes ?? [])]) {
+        await tx`INSERT INTO script_migrations (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`
+      }
+    })
     console.log(`Script migration ${migration.name} applied in ${Date.now() - startedAt}ms.`)
   }
 }

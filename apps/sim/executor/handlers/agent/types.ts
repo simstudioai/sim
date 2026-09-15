@@ -1,5 +1,11 @@
 import type { McpOperationPolicy } from '@/lib/mcp/operation-policy'
 import type { UserFile } from '@/executor/types'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
+
+export interface FileNameProjection {
+  name: string
+  inputPath?: ResolvedSecretInputPath
+}
 
 export interface SkillInput {
   skillId: string
@@ -65,6 +71,8 @@ export interface ToolInput {
   params?: Record<string, any>
   timeout?: number
   usageControl?: 'auto' | 'force' | 'none'
+  /** Resolved value from the variable-capable tool mode input. */
+  usageControlExpression?: unknown
   operation?: string
   /** Database ID for custom tools (new reference format) */
   customToolId?: string

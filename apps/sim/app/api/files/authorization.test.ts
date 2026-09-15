@@ -436,13 +436,15 @@ describe('KB file live source authorization', () => {
     async (allowed) => {
       const scope = { kind: 'user' as const, userId: USER_ID, tokens: ['reader-token'] }
       const getForConnectors = vi.fn().mockResolvedValue(scope)
+      const liveSources = { type: 'live-sources' }
       const access: KnowledgeAccessProvider = {
         get: async () => scope,
         getForConnectors,
         getForDocuments: async () => scope,
+        liveSourceConnectorCondition: async () => liveSources as never,
       }
       queueTableRows(schemaMock.document, [])
-      queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+      queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
       queueTableRows(schemaMock.document, allowed ? [{ id: 'doc-1' }] : [])
       await expect(
         verifyFileAccess(CLOUD_KEY, USER_ID, undefined, 'knowledge-base', false, {
@@ -450,7 +452,12 @@ describe('KB file live source authorization', () => {
         })
       ).resolves.toBe(allowed)
       expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['confluence-source'], undefined)
+      const discovery = dbChainMockFns.where.mock.calls.filter(([condition]) =>
+        hasMockCondition(condition, (node) => node === liveSources)
+      )
+      expect(discovery).toHaveLength(1)
       for (const [condition] of dbChainMockFns.where.mock.calls) {
+        if (discovery.some(([live]) => live === condition)) continue
         expect(
           hasMockCondition(
             condition,

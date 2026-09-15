@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { filterUndefined } from '@sim/utils/object'
 import {
   anyToolCallRunning,
   applyToolCallPhase,
@@ -17,6 +18,7 @@ import {
   isChatChunkResetFrame,
   isChatErrorFrame,
   isChatFinalFrame,
+  isChatOutputFrame,
   isChatStreamErrorFrame,
   isChatThinkingFrame,
   isChatToolFrame,
@@ -31,43 +33,47 @@ import { CHAT_ERROR_MESSAGES } from '@/app/(interfaces)/chat/constants'
 
 const logger = createLogger('UseChatStreaming')
 
-function extractFilesFromData(
-  data: any,
-  files: ChatFile[] = [],
-  seenIds = new Set<string>()
-): ChatFile[] {
-  if (!data || typeof data !== 'object') {
-    return files
+/** Separates file attachments from visible output, omitting empty containers. */
+function extractChatOutput(value: unknown, files: Map<string, ChatFile>): unknown {
+  if (value === null || value === undefined) return value
+  if (isUserFileWithMetadata(value)) {
+    files.set(value.id, {
+      id: value.id,
+      name: value.name,
+      url: value.url,
+      key: value.key,
+      size: value.size,
+      type: value.type,
+      context: value.context,
+      base64: value.base64,
+    })
+    return undefined
   }
-
-  if (isUserFileWithMetadata(data)) {
-    if (!seenIds.has(data.id)) {
-      seenIds.add(data.id)
-      files.push({
-        id: data.id,
-        name: data.name,
-        url: data.url,
-        key: data.key,
-        size: data.size,
-        type: data.type,
-        context: data.context,
-      })
-    }
-    return files
+  if (Array.isArray(value)) {
+    const items = value
+      .map((item) => extractChatOutput(item, files))
+      .filter((item) => item !== undefined)
+    return items.length > 0 ? items : undefined
   }
-
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      extractFilesFromData(item, files, seenIds)
-    }
-    return files
+  if (typeof value === 'object') {
+    const content = filterUndefined(
+      Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [key, extractChatOutput(entry, files)])
+      )
+    )
+    return Object.keys(content).length > 0 ? content : undefined
   }
+  return value
+}
 
-  for (const value of Object.values(data)) {
-    extractFilesFromData(value, files, seenIds)
+function formatChatOutput(value: unknown, files: Map<string, ChatFile>): string {
+  const content = extractChatOutput(value, files)
+  if (content === null || content === undefined) return ''
+  if (typeof content === 'string') return content
+  if (typeof content === 'object') {
+    return `\`\`\`json\n${JSON.stringify(content, null, 2)}\n\`\`\``
   }
-
-  return files
+  return String(content)
 }
 
 export interface StreamingOptions {
@@ -83,7 +89,7 @@ export interface StreamingOptions {
 interface ChatFinalData {
   success?: boolean
   error?: string | { message?: string }
-  output?: Record<string, Record<string, any>>
+  output?: Record<string, Record<string, unknown>>
 }
 
 export function useChatStreaming() {
@@ -167,6 +173,7 @@ export function useChatStreaming() {
      */
     const blockTextOrder: string[] = []
     const blockTextSegments = new Map<string, string>()
+    const outputFiles = new Map<string, ChatFile>()
     let accumulatedText = ''
     const recomputeAccumulatedText = () => {
       accumulatedText = blockTextOrder.map((id) => blockTextSegments.get(id) ?? '').join('')
@@ -206,6 +213,7 @@ export function useChatStreaming() {
       const thinkingStreamingSnapshot = isThinkingStreaming
       const toolCallsSnapshot = snapshotToolCalls(toolCallOrder, toolCallsMap)
       const toolStreamingSnapshot = anyToolCallRunning(toolCallsMap)
+      const filesSnapshot = Array.from(outputFiles.values())
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== messageId) return msg
@@ -217,6 +225,7 @@ export function useChatStreaming() {
             isThinkingStreaming: thinkingStreamingSnapshot,
             toolCalls: toolCallsSnapshot,
             isToolStreaming: toolStreamingSnapshot,
+            files: filesSnapshot.length > 0 ? filesSnapshot : undefined,
           }
         })
       )
@@ -364,6 +373,22 @@ export function useChatStreaming() {
             return false
           }
 
+          if (isChatOutputFrame(json)) {
+            const content = formatChatOutput(json.data, outputFiles)
+            if (content.trim()) {
+              if (!blockTextSegments.has(json.blockId)) {
+                blockTextOrder.push(json.blockId)
+              }
+              const previous = blockTextSegments.get(json.blockId) ?? ''
+              const separator = accumulatedText.trim() ? '\n\n' : ''
+              blockTextSegments.set(json.blockId, previous + separator + content)
+              recomputeAccumulatedText()
+            }
+            uiDirty = true
+            scheduleUIFlush()
+            return false
+          }
+
           if (isChatFinalFrame(json)) {
             flushUI()
             const finalData = json.data as ChatFinalData
@@ -376,37 +401,7 @@ export function useChatStreaming() {
 
             const outputConfigs = streamingOptions?.outputConfigs
             const formattedOutputs: string[] = []
-            let extractedFiles: ChatFile[] = []
-
-            const formatValue = (value: any): string | null => {
-              if (value === null || value === undefined) {
-                return null
-              }
-
-              if (isUserFileWithMetadata(value)) {
-                return null
-              }
-
-              if (Array.isArray(value) && value.length === 0) {
-                return null
-              }
-
-              if (typeof value === 'string') {
-                return value
-              }
-
-              if (typeof value === 'object') {
-                try {
-                  return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
-                } catch {
-                  return String(value)
-                }
-              }
-
-              return String(value)
-            }
-
-            const getOutputValue = (blockOutputs: Record<string, any>, path?: string) => {
+            const getOutputValue = (blockOutputs: Record<string, unknown>, path?: string) => {
               if (!path || path === 'content') {
                 if (blockOutputs.content !== undefined) return blockOutputs.content
                 if (blockOutputs.result !== undefined) return blockOutputs.result
@@ -418,9 +413,9 @@ export function useChatStreaming() {
               }
 
               if (path.includes('.')) {
-                return path.split('.').reduce<any>((current, segment) => {
+                return path.split('.').reduce<unknown>((current, segment) => {
                   if (current && typeof current === 'object' && segment in current) {
-                    return current[segment]
+                    return (current as Record<string, unknown>)[segment]
                   }
                   return undefined
                 }, blockOutputs)
@@ -439,26 +434,7 @@ export function useChatStreaming() {
 
                 const value = getOutputValue(blockOutputs, config.path)
 
-                if (isUserFileWithMetadata(value)) {
-                  extractedFiles.push({
-                    id: value.id,
-                    name: value.name,
-                    url: value.url,
-                    key: value.key,
-                    size: value.size,
-                    type: value.type,
-                    context: value.context,
-                  })
-                  continue
-                }
-
-                const nestedFiles = extractFilesFromData(value)
-                if (nestedFiles.length > 0) {
-                  extractedFiles = [...extractedFiles, ...nestedFiles]
-                  continue
-                }
-
-                const formatted = formatValue(value)
+                const formatted = formatChatOutput(value, outputFiles)
                 if (formatted) {
                   formattedOutputs.push(formatted)
                 }
@@ -477,16 +453,16 @@ export function useChatStreaming() {
               }
             }
 
-            if (!finalContent && extractedFiles.length === 0) {
+            if (!finalContent && outputFiles.size === 0) {
               if (finalData.error) {
                 if (typeof finalData.error === 'string') {
                   finalContent = finalData.error
                 } else if (typeof finalData.error?.message === 'string') {
                   finalContent = finalData.error.message
                 }
-              } else if (finalData.success && finalData.output) {
+              } else if (!outputConfigs?.length && finalData.success && finalData.output) {
                 const fallbackOutput = Object.values(finalData.output)
-                  .map((block) => formatValue(block)?.trim())
+                  .map((block) => formatChatOutput(block, outputFiles).trim())
                   .filter(Boolean)[0]
                 if (fallbackOutput) {
                   finalContent = fallbackOutput
@@ -505,7 +481,7 @@ export function useChatStreaming() {
                       content: finalContent ?? msg.content,
                       thinking: accumulatedThinking || msg.thinking,
                       toolCalls: toolsSnapshot ?? msg.toolCalls,
-                      files: extractedFiles.length > 0 ? extractedFiles : undefined,
+                      files: outputFiles.size > 0 ? Array.from(outputFiles.values()) : undefined,
                     }
                   : msg
               )

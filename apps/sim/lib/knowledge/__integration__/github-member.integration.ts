@@ -886,7 +886,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
         {
           connectorId,
           viewerMembership: 'connected',
-          viewerDocumentCount: userId === ids.aliceId ? 1 : 0,
+          hasViewerDocuments: userId === ids.aliceId,
         },
       ])
     }
@@ -919,7 +919,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
         })
       ).sources[0]
     expect(await summary(ids.aliceId)).toMatchObject({
-      viewerDocumentCount: 1,
+      hasViewerDocuments: true,
       viewerFailedDocumentCount: 0,
       hasSyncError: false,
     })
@@ -977,7 +977,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
         )
       }
       expect(await summary(userId)).toMatchObject({
-        viewerDocumentCount: userId === ids.aliceId ? 1 : 0,
+        hasViewerDocuments: userId === ids.aliceId,
         viewerFailedDocumentCount: userId === ids.aliceId ? 1 : 0,
       })
     }
@@ -1327,13 +1327,13 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       expect(
         summaries.sources.map((source) => ({
           connectorId: source.connectorId,
-          viewerDocumentCount: source.viewerDocumentCount,
+          hasViewerDocuments: source.hasViewerDocuments,
         }))
       ).toEqual(
         expect.arrayContaining([
-          { connectorId: enrolled.connectorId, viewerDocumentCount: 1 },
-          { connectorId: privateId, viewerDocumentCount: userId === ids.aliceId ? 1 : 0 },
-          { connectorId: blockedId, viewerDocumentCount: 0 },
+          { connectorId: enrolled.connectorId, hasViewerDocuments: true },
+          { connectorId: privateId, hasViewerDocuments: userId === ids.aliceId },
+          { connectorId: blockedId, hasViewerDocuments: false },
         ])
       )
     }

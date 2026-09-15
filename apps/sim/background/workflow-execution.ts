@@ -25,6 +25,7 @@ import {
   getTimeoutErrorMessage,
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
+import type { RequestAttribution } from '@/lib/core/utils/request-attribution'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -76,6 +77,8 @@ export type WorkflowExecutionPayload = {
   correlation?: AsyncExecutionCorrelation
   metadata?: Record<string, any>
   callChain?: string[]
+  /** Who queued the run, restored into the job's context so its events stay attributed. */
+  attribution?: RequestAttribution
   executionMode?: 'sync' | 'stream' | 'async'
   /** Upstream preprocessing already consumed rate-limit quota and owns the usage reservation. */
   admissionCompleted?: boolean
@@ -177,7 +180,7 @@ export async function executeWorkflowJob(
       }
     }
 
-    return await runWithRequestContext({ requestId }, async () => {
+    return await runWithRequestContext({ requestId, ...payload.attribution }, async () => {
       logger.info(`[${requestId}] Starting workflow execution job: ${workflowId}`, {
         userId: payload.userId,
         triggerType: payload.triggerType,

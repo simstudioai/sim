@@ -1,6 +1,7 @@
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
+import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresConstraintName } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -82,7 +83,6 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  let requestedDomain: string | null = null
   try {
     if (!isSsoEnabled) {
       return NextResponse.json({ error: 'SSO is not enabled' }, { status: 400 })
@@ -134,7 +134,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const domain = normalizeSSODomain(body.domain)
-    requestedDomain = domain
     if (!domain) {
       return NextResponse.json(
         { error: 'Enter a valid domain, for example acme.com' },
@@ -192,10 +191,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
 
     /**
-     * Refuses the domain when another tenant has claimed it, or when the caller
-     * already routes it through a different provider. An organization may run
-     * several identity providers, but sign-in routes by email domain, so each
-     * domain must name exactly one of them.
+     * Refuses the domain when another tenant has claimed it, or when the caller's
+     * own personal provider signs it in. The caller's organization may add a
+     * provider to a domain it already signs in through: the new provider waits,
+     * reachable by test link, until an admin makes it the domain's primary.
      */
     const findDomainRefusal = async (): Promise<NextResponse | null> => {
       const claims = await db
@@ -205,7 +204,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           providerId: ssoProvider.providerId,
         })
         .from(ssoProvider)
-        .where(sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${domain}`)
+        .where(sql`${ssoProviderDomainKey} = ${domain}`)
       if (claims.some((provider) => !isOwnedByCaller(provider))) {
         logger.warn('Rejected SSO registration for domain owned by another tenant', {
           domain,
@@ -220,16 +219,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 409 }
         )
       }
-      const sibling = claims.find(
+      const personal = claims.find(
         (provider) =>
-          isOwnedByCaller(provider) &&
+          !provider.organizationId &&
           typeof provider.providerId === 'string' &&
           provider.providerId !== providerId
       )
-      if (sibling) {
+      if (personal) {
         return NextResponse.json(
           {
-            error: `${domain} already signs in through the provider "${sibling.providerId}". Edit that provider, or give this one a different verified domain.`,
+            error: `${domain} already signs in through the provider "${personal.providerId}". Edit that provider, or give this one a different verified domain.`,
             code: 'SSO_DOMAIN_ALREADY_ROUTED',
           },
           { status: 409 }
@@ -642,6 +641,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         id: ssoProvider.id,
         issuer: ssoProvider.issuer,
         domain: ssoProvider.domain,
+        domainVerified: ssoProvider.domainVerified,
         oidcConfig: ssoProvider.oidcConfig,
         samlConfig: ssoProvider.samlConfig,
         jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
@@ -655,18 +655,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      *
      * A WHERE-clause EXISTS test is not enough: under READ COMMITTED the subquery
      * sees the statement's original snapshot, so a delete committing while the
-     * UPDATE waits can still grant trust after ownership is gone. `FOR SHARE`
+     * UPDATE waits can still grant trust after ownership is gone. The row lock
      * orders the two — the delete blocks until this commits, and if it committed
      * first the SELECT finds nothing.
+     *
+     * A provider joining a domain another provider already signs in does not
+     * take over by sorting first: unless the domain's named primary still signs
+     * it in, the provider signing it in until now is named, in the same
+     * transaction. The lock is `FOR UPDATE` so two providers joining at once
+     * settle it one after the other.
      */
-    const grantProviderDomainTrust = (): Promise<boolean> =>
+    const grantProviderDomainTrust = (joinsDomain: boolean): Promise<boolean> =>
       db.transaction(async (tx) => {
         const [proof] = await tx
           .select({ id: ssoDomain.id })
           .from(ssoDomain)
           .where(verifiedDomainClause)
           .limit(1)
-          .for('share')
+          .for('update')
         if (!proof) return false
 
         const granted = await tx
@@ -674,7 +680,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .set({ domainVerified: true, jitProvisioningEnabled })
           .where(ownerClause)
           .returning({ id: ssoProvider.id })
-        return granted.length > 0
+        if (granted.length === 0) return false
+
+        if (joinsDomain) {
+          await keepDomainSignInProvider(tx, {
+            domainRecordId: proof.id,
+            organizationId: orgId,
+            domain,
+            joiningProviderId: providerId,
+          })
+        }
+        return true
       })
 
     if (existingOwnedProvider) {
@@ -705,7 +721,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       let domainTrustGranted: boolean
       try {
-        domainTrustGranted = await grantProviderDomainTrust()
+        /** An owned provider joins the domain when it moves to it or is not yet trusted on it. */
+        domainTrustGranted = await grantProviderDomainTrust(
+          !existingOwnedProvider.domainVerified ||
+            normalizeSSODomain(existingOwnedProvider.domain) !== domain
+        )
       } catch (error) {
         try {
           await revertProviderUpdate()
@@ -753,7 +773,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // A refused grant means the proof vanished mid-write, leaving a provider on a
     // domain the org no longer proves — roll it back. Deleted by primary key, not
     // providerId, which a concurrent delete+recreate could point at another row.
-    if (!(await grantProviderDomainTrust())) {
+    if (!(await grantProviderDomainTrust(true))) {
       // registerSSOProvider spreads the created row's `id` at runtime, but the
       // typed return omits it — read it defensively and only delete when it's a
       // real id, so a future shape change can't turn the rollback into a silent
@@ -800,20 +820,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       errorStack: error instanceof Error ? error.stack : undefined,
       errorDetails: JSON.stringify(error),
     })
-
-    /**
-     * The one-provider-per-domain index is the authority when two registrations
-     * race past the read above; its violation is the same refusal, not a fault.
-     */
-    if (getPostgresConstraintName(error) === 'sso_provider_org_domain_unique') {
-      return NextResponse.json(
-        {
-          error: `${requestedDomain ?? 'This domain'} already signs in through another provider of this organization. Edit that provider, or use a different verified domain.`,
-          code: 'SSO_DOMAIN_ALREADY_ROUTED',
-        },
-        { status: 409 }
-      )
-    }
 
     // Surface Better Auth's own APIError (e.g. a 409 when identity fields change
     // while linked accounts exist, or a 404) with its status and message instead

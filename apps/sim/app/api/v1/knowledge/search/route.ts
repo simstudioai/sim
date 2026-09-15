@@ -269,6 +269,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         queryVector: {
           vector: JSON.stringify(queryEmbeddingResult.embedding),
           dimensions: queryEmbeddingTarget!.dimensions,
+          model: queryEmbeddingTarget!.model,
         },
         structuredFilters: hasFilters ? structuredFilters : undefined,
       })

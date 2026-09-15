@@ -36,6 +36,9 @@ export const AGENT_STREAM_PROTOCOL_HEADER_LABEL = 'X-Sim-Stream-Protocol' as con
 
 export const AGENT_STREAM_PROTOCOL_V1 = 'agent-events-v1' as const
 
+/** Additional capability for structured selected outputs in deployed chats. */
+export const CHAT_OUTPUT_PROTOCOL_V1 = 'chat-outputs-v1' as const
+
 export type AgentStreamProtocol = typeof AGENT_STREAM_PROTOCOL_V1
 
 /**
@@ -49,6 +52,13 @@ export type AgentStreamProtocol = typeof AGENT_STREAM_PROTOCOL_V1
 export interface ChatStreamChunkFrame {
   blockId: string
   chunk: string
+}
+
+/** Selected non-text output for negotiated deployed chats, preserving UserFile metadata. */
+export interface ChatStreamOutputFrame {
+  blockId: string
+  event: 'output'
+  data: unknown
 }
 
 /**
@@ -106,6 +116,7 @@ export interface ChatStreamStreamErrorFrame {
  */
 export type ChatStreamFrame =
   | ChatStreamChunkFrame
+  | ChatStreamOutputFrame
   | ChatStreamChunkResetFrame
   | ChatStreamThinkingFrame
   | ChatStreamToolFrame
@@ -131,6 +142,11 @@ export function isChatChunkFrame(value: unknown): value is ChatStreamChunkFrame 
 export function isChatChunkResetFrame(value: unknown): value is ChatStreamChunkResetFrame {
   if (!isRecordLike(value)) return false
   return value.event === 'chunk_reset' && typeof value.blockId === 'string'
+}
+
+export function isChatOutputFrame(value: unknown): value is ChatStreamOutputFrame {
+  if (!isRecordLike(value)) return false
+  return value.event === 'output' && typeof value.blockId === 'string' && 'data' in value
 }
 
 export function isChatThinkingFrame(value: unknown): value is ChatStreamThinkingFrame {
@@ -185,6 +201,19 @@ export function isChatStreamErrorFrame(value: unknown): value is ChatStreamStrea
 export function clientAcceptsAgentStreamProtocol(
   requestHeaders: Headers | { get(name: string): string | null }
 ): boolean {
+  return acceptsStreamProtocol(requestHeaders, AGENT_STREAM_PROTOCOL_V1)
+}
+
+export function clientAcceptsChatOutputProtocol(
+  requestHeaders: Headers | { get(name: string): string | null }
+): boolean {
+  return acceptsStreamProtocol(requestHeaders, CHAT_OUTPUT_PROTOCOL_V1)
+}
+
+function acceptsStreamProtocol(
+  requestHeaders: Headers | { get(name: string): string | null },
+  protocol: string
+): boolean {
   const raw = requestHeaders.get(AGENT_STREAM_PROTOCOL_HEADER)
   if (!raw) {
     return false
@@ -196,7 +225,7 @@ export function clientAcceptsAgentStreamProtocol(
     .map((token) => token.trim().toLowerCase())
     .filter(Boolean)
 
-  return tokens.includes(AGENT_STREAM_PROTOCOL_V1)
+  return tokens.includes(protocol)
 }
 
 /** True when either agent-event policy is on, before protocol negotiation. */

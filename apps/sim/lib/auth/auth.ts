@@ -4,7 +4,7 @@ import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import {
@@ -1758,13 +1758,25 @@ export const auth = betterAuth({
 async function getSessionImpl() {
   if (isAuthDisabled) {
     await ensureAnonymousUserExists()
-    return createAnonymousSession()
+    return recordSessionAuth(createAnonymousSession())
   }
 
   const hdrs = await headers()
-  return await auth.api.getSession({
-    headers: hdrs,
-  })
+  return recordSessionAuth(
+    await auth.api.getSession({
+      headers: hdrs,
+    })
+  )
+}
+
+/**
+ * Records a resolved session as the request's auth kind. Stamped here, where
+ * every session is resolved, so the many routes that authenticate by calling
+ * `getSession` directly are attributed without each one remembering to.
+ */
+function recordSessionAuth<T extends { user?: { id?: string } } | null>(session: T): T {
+  if (session?.user?.id) setRequestAuth({ kind: 'session' }, { preserveExisting: true })
+  return session
 }
 
 export const getSession = cache(getSessionImpl)

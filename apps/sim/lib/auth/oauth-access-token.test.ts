@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { setRequestAuth } from '@sim/logger'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -85,12 +86,17 @@ describe('verifyOAuthAccessToken', () => {
     })
     expect(dbChainMockFns.where).toHaveBeenCalledOnce()
     expect(JSON.stringify(dbChainMockFns.where.mock.calls[0])).toContain('hash:secret')
+    expect(vi.mocked(setRequestAuth)).toHaveBeenCalledWith(
+      { kind: 'oauth_access_token', clientId: 'sim-cli' },
+      { preserveExisting: true }
+    )
   })
 
   it('refuses a credential that is not one of ours without a database read', async () => {
     expect(await reason('sim_abc')).toBe('malformed')
     expect(await reason('sim_oat_')).toBe('malformed')
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
+    expect(vi.mocked(setRequestAuth)).not.toHaveBeenCalled()
   })
 
   it('refuses an unknown, expired, disabled-client, orphaned, or banned token', async () => {

@@ -11,6 +11,7 @@ import {
   decimal,
   doublePrecision,
   foreignKey,
+  halfvec,
   index,
   integer,
   json,
@@ -3024,6 +3025,16 @@ export const document = pgTable(
       .where(
         sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
       ),
+    /**
+     * Per-source processing probes (any failed, pending or processing document) behind the
+     * source status, progress and overview reads. Partial on the rare non-terminal states so a
+     * healthy source proves absence without walking every completed document.
+     */
+    connectorProcessingStatusIdx: index('doc_connector_processing_status_idx')
+      .on(table.connectorId, table.processingStatus)
+      .where(
+        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // Connector document uniqueness (partial — only non-deleted rows)
     connectorExternalIdIdx: uniqueIndex('doc_connector_external_id_idx')
       .on(table.connectorId, table.externalId)
@@ -3326,9 +3337,28 @@ export const embedding = pgTable(
   })
 )
 
+/** Keyword ranking reads text-search vectors independently of chunk content and semantic vectors. */
+export const embeddingKeywordSearch = pgTable(
+  'embedding_keyword_search',
+  {
+    id: text('id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    knowledgeBaseId: text('knowledge_base_id').notNull(),
+    documentId: text('document_id').notNull(),
+    enabled: boolean('enabled').notNull(),
+    contentTsv: tsvector('content_tsv').notNull(),
+  },
+  (table) => ({
+    knowledgeBaseIdx: index('embedding_keyword_search_kb_idx').on(table.knowledgeBaseId),
+    documentIdx: index('embedding_keyword_search_document_idx').on(table.documentId),
+    contentIdx: index('embedding_keyword_search_content_idx').using('gin', table.contentTsv),
+  })
+)
+
 /**
- * Transactionally maintained candidate projection. Keeping identities and stored bits apart
- * from content and full vectors prevents ANN traversal from fetching or requantizing TOAST values.
+ * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
+ * from content prevents candidate scans from fetching full-precision TOAST values.
  * The embedding write trigger owns this projection; application writers only change embedding.
  */
 export const embeddingSearch = pgTable(
@@ -3340,11 +3370,18 @@ export const embeddingSearch = pgTable(
     knowledgeBaseId: text('knowledge_base_id').notNull(),
     documentId: text('document_id').notNull(),
     enabled: boolean('enabled').notNull(),
+    /** contract-pending(after half-precision search is fully deployed): drop binary columns and indexes — the previous app is their final reader. */
     binary: bit('binary', { dimensions: 1536 }),
     binary384: bit('binary_384', { dimensions: 384 }),
     binary768: bit('binary_768', { dimensions: 768 }),
     binary1024: bit('binary_1024', { dimensions: 1024 }),
     binary3072: bit('binary_3072', { dimensions: 3072 }),
+    vector: halfvec('vector', { dimensions: 1536 }),
+    vector384: halfvec('vector_384', { dimensions: 384 }),
+    vector512: halfvec('vector_512', { dimensions: 512 }),
+    vector768: halfvec('vector_768', { dimensions: 768 }),
+    vector1024: halfvec('vector_1024', { dimensions: 1024 }),
+    vector3072: halfvec('vector_3072', { dimensions: 3072 }),
   },
   (table) => ({
     knowledgeBaseIdx: index('embedding_search_kb_idx').on(table.knowledgeBaseId),
@@ -3362,6 +3399,24 @@ export const embeddingSearch = pgTable(
       .with({ m: 16, ef_construction: 64 }),
     binary3072Idx: index('embedding_search_3072_binary_hnsw_idx')
       .using('hnsw', table.binary3072.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vectorIdx: index('embedding_search_cosine_hnsw_idx')
+      .using('hnsw', table.vector.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector512Idx: index('embedding_search_512_cosine_hnsw_idx')
+      .using('hnsw', table.vector512.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector384Idx: index('embedding_search_384_cosine_hnsw_idx')
+      .using('hnsw', table.vector384.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector768Idx: index('embedding_search_768_cosine_hnsw_idx')
+      .using('hnsw', table.vector768.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector1024Idx: index('embedding_search_1024_cosine_hnsw_idx')
+      .using('hnsw', table.vector1024.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector3072Idx: index('embedding_search_3072_cosine_hnsw_idx')
+      .using('hnsw', table.vector3072.op('halfvec_cosine_ops'))
       .with({ m: 16, ef_construction: 64 }),
     widthCheck: check(
       'embedding_search_width_check',
@@ -4165,15 +4220,6 @@ export const ssoProvider = pgTable(
     // Better Auth resolves providers by `providerId` alone (no org scoping), so
     // a duplicate makes registration and updates ambiguous across tenants.
     providerIdUnique: uniqueIndex('sso_provider_provider_id_unique').on(table.providerId),
-    /**
-     * Sign-in routes by email domain, so an organization's providers must serve
-     * distinct domains. Expression-keyed the way the verify and resolve paths
-     * compare domains, so a legacy `*.` prefix or stray case cannot slip a
-     * second provider onto a domain already routed.
-     */
-    orgDomainUnique: uniqueIndex('sso_provider_org_domain_unique')
-      .on(table.organizationId, sql`lower(regexp_replace(btrim(${table.domain}), '^\\*\\.', ''))`)
-      .where(sql`${table.organizationId} is not null`),
     domainIdx: index('sso_provider_domain_idx').on(table.domain),
     userIdIdx: index('sso_provider_user_id_idx').on(table.userId),
     organizationIdIdx: index('sso_provider_organization_id_idx').on(table.organizationId),
@@ -4204,6 +4250,16 @@ export const ssoDomain = pgTable(
     /** High-entropy token placed in the domain's `_sim-challenge` TXT record. */
     verificationToken: text('verification_token').notNull(),
     verifiedAt: timestamp('verified_at'),
+    /**
+     * The provider sign-in uses for this domain when the organization has more
+     * than one on it, such as while moving from one identity provider to
+     * another. Holds the provider id, not a foreign key: it is honored only
+     * while that provider still belongs to this organization and serves this
+     * domain, and deleting the provider clears it. Null means the domain's
+     * first verified provider by id, which is also the only one when there is
+     * just one. See `sso-primary-provider.ts`.
+     */
+    primaryProviderId: text('primary_provider_id'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4570,6 +4626,12 @@ export const auditLog = pgTable(
     metadata: jsonb('metadata').default('{}'),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
+    /**
+     * The official client the request came from (`web`, `desktop`, `cli`,
+     * `sdk-js`, `sdk-python`), as resolved from `X-Sim-Client-Info`. Null for
+     * background work and callers that do not identify themselves.
+     */
+    surface: text('surface'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({

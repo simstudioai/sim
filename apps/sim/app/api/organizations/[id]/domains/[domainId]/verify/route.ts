@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, ssoDomain, ssoProvider } from '@sim/db/schema'
+import { ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresErrorCode } from '@sim/utils/errors'
@@ -121,7 +122,7 @@ export const POST = withRouteHandler(
     const providersOnDomain = (verifiedDomain: string) =>
       and(
         eq(ssoProvider.organizationId, organizationId),
-        sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${verifiedDomain}`
+        sql`${ssoProviderDomainKey} = ${verifiedDomain}`
       )
 
     let updated: (typeof row)[]

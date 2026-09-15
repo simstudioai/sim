@@ -21,7 +21,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
-import { describeRunningCommand, type TerminalTabState } from '@sim/terminal-protocol'
+import type { TerminalTabState } from '@sim/terminal-protocol'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import {
   openBrowserTab,
@@ -37,6 +37,7 @@ import { closeTerminal, openTerminal, reorderTerminal } from '@/lib/terminal/tra
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import { useTerminalCloseConfirmation } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/use-terminal-close-confirmation'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_HEADER_CLASSES,
@@ -76,24 +77,6 @@ const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
 ] as const
 
 const EMPTY_TERMINAL_TABS: TerminalTabState[] = []
-
-/** Closing a shell mid-command stops that command, so the user confirms first. */
-function confirmClosingRunningTerminals(
-  targets: readonly MothershipResource[],
-  terminalTabs: readonly TerminalTabState[]
-): boolean {
-  const running = targets.flatMap((resource) => {
-    if (resource.type !== 'terminal') return []
-    const tab = terminalTabs.find((entry) => terminalResourceId(entry.terminalId) === resource.id)
-    return tab?.running ? [tab.running] : []
-  })
-  if (running.length === 0) return true
-  return window.confirm(
-    running.length === 1
-      ? `${describeRunningCommand(running[0])} is still running. Close this terminal and stop it?`
-      : `${running.length} selected terminals have a running process. Close them anyway?`
-  )
-}
 
 /**
  * Returns the id of the nearest resource to `idx` that is in `filter`
@@ -242,6 +225,7 @@ export function ResourceTabs({
   const removeResource = useRemoveChatResource(chatId)
   const reorderResources = useReorderChatResources(chatId)
 
+  const { confirmTerminalClose, confirmationDialog } = useTerminalCloseConfirmation(desktopScopeId)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const anchorIdRef = useRef<string | null>(null)
   const prevChatIdRef = useRef(chatId)
@@ -407,13 +391,16 @@ export function ResourceTabs({
   )
 
   const handleClose = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const index = resources.findIndex((r) => r.id === id)
       const resource = resources[index]
       if (!resource) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
-      if (!confirmClosingRunningTerminals(targets, terminalTabs)) return
+      const terminalIds = targets
+        .filter((target) => target.type === 'terminal')
+        .map((target) => terminalIdFromResourceId(target.id))
+      if (!(await confirmTerminalClose(terminalIds))) return
       // Closing the shown tab moves to its neighbour, right then left, so the
       // strip does not fall back to its last tab and jump. For a desktop tab
       // this is also the neighbour the desktop app itself picks.
@@ -469,7 +456,7 @@ export function ResourceTabs({
       resources,
       selectResource,
       selectedIds,
-      terminalTabs,
+      confirmTerminalClose,
     ]
   )
 
@@ -574,38 +561,44 @@ export function ResourceTabs({
     ) : null
 
   return (
-    <TabStrip
-      tabs={tabs}
-      onSelect={handleSelect}
-      onClose={handleClose}
-      onReorder={handleReorder}
-      onTabDragStart={handleTabDragStart}
-      variant='floating'
-      className={cn(RESOURCE_HEADER_CLASSES.stripGeometry, resourceTabWidthClass(resources.length))}
-      newTabControl={
-        // Offered before the chat exists too: a resource opened while composing
-        // the first prompt is context for that prompt, and gating on a chat id
-        // meant the panel could be opened but not filled.
-        <div className={cn(resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}>
-          <AddResourceDropdown
-            workspaceId={workspaceId}
-            onAdd={handleAdd}
-            excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
-            onRequestOpen={onRequestAddResourceOpen}
-            onClose={onAddResourceClose}
-          />
-        </div>
-      }
-      // A bare fragment is always truthy, so the empty case has to be `null` or
-      // the strip renders an empty trailing cluster.
-      endActions={
-        actions || previewToggle ? (
-          <>
-            {actions}
-            {previewToggle}
-          </>
-        ) : null
-      }
-    />
+    <>
+      {confirmationDialog}
+      <TabStrip
+        tabs={tabs}
+        onSelect={handleSelect}
+        onClose={handleClose}
+        onReorder={handleReorder}
+        onTabDragStart={handleTabDragStart}
+        variant='floating'
+        className={cn(
+          RESOURCE_HEADER_CLASSES.stripGeometry,
+          resourceTabWidthClass(resources.length)
+        )}
+        newTabControl={
+          // Offered before the chat exists too: a resource opened while composing
+          // the first prompt is context for that prompt, and gating on a chat id
+          // meant the panel could be opened but not filled.
+          <div className={cn(resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}>
+            <AddResourceDropdown
+              workspaceId={workspaceId}
+              onAdd={handleAdd}
+              excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+              onRequestOpen={onRequestAddResourceOpen}
+              onClose={onAddResourceClose}
+            />
+          </div>
+        }
+        // A bare fragment is always truthy, so the empty case has to be `null` or
+        // the strip renders an empty trailing cluster.
+        endActions={
+          actions || previewToggle ? (
+            <>
+              {actions}
+              {previewToggle}
+            </>
+          ) : null
+        }
+      />
+    </>
   )
 }

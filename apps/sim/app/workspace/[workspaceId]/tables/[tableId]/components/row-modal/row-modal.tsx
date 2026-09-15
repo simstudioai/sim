@@ -22,6 +22,7 @@ import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { resolveCurrencyCode } from '@/lib/table/currency'
+import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import { type TimezoneState, useTimezoneState } from '@/hooks/queries/general-settings'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
@@ -332,7 +333,7 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
         required={column.required}
         hint={hint}
         mono
-        value={formatValueForInput(value, column.type, timeZone)}
+        value={formatValueForInput(value, column.type)}
         onChange={onChange}
         placeholder='{"key": "value"}'
         rows={4}
@@ -340,28 +341,37 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
     )
   }
 
-  if (definition.editor === 'date') {
-    const parts = dateValueToLocalParts(formatValueForInput(value, column.type, timeZone))
+  if (definition.editor === 'date' || definition.editor === 'offset-date') {
+    const storedValue = formatValueForInput(value, column.type)
+    const offsetParts =
+      definition.editor === 'offset-date' ? ttlValueToPickerParts(storedValue) : null
+    const parts = offsetParts ?? dateValueToLocalParts(storedValue)
+    const pickerToday = offsetParts
+      ? todayAtTtlOffset(offsetParts.offset)
+      : todayLocalCalendarDate(timeZone)
     const valueFromParts = (day: string, time: string | null) =>
-      column.type === 'ttl' && time ? `${day}T${time}` : localPartsToDateValue(day, time, timeZone)
+      offsetParts
+        ? ttlValueFromPicker(day, time, offsetParts.offset)
+        : localPartsToDateValue(day, time, timeZone)
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <div className='flex items-center gap-2'>
           <ChipDatePicker
             value={parts.day ?? undefined}
-            today={todayLocalCalendarDate(timeZone)}
+            today={pickerToday}
             onChange={(day) => onChange(valueFromParts(day, parts.time))}
             placeholder='Select date'
             className='flex-1'
           />
           <ChipTimePicker
             value={parts.time?.slice(0, 5)}
-            onChange={(time) =>
-              onChange(valueFromParts(parts.day ?? todayLocalCalendarDate(timeZone), time))
-            }
+            onChange={(time) => onChange(valueFromParts(parts.day ?? pickerToday, time))}
             placeholder='Add time'
             className='w-[110px]'
           />
+          {offsetParts && (
+            <span className='text-[var(--text-tertiary)] text-small'>{offsetParts.offset}</span>
+          )}
         </div>
       </ChipModalField>
     )
@@ -387,7 +397,7 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
       inputType={
         definition.inputMode === 'decimal' && !definition.acceptsFormattedInput ? 'number' : 'text'
       }
-      value={formatValueForInput(value, column.type, timeZone)}
+      value={formatValueForInput(value, column.type)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}
     />

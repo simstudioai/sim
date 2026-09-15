@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { db } from '@sim/db'
+import { credential, slackSearchInstallation } from '@sim/db/schema'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
@@ -17,6 +18,10 @@ const m = vi.hoisted(() => ({
   revoke: vi.fn(),
   validateGrant: vi.fn(),
   ensureGroup: vi.fn(),
+  memberApps: vi.fn(),
+  adoptMemberApp: vi.fn(),
+  insert: vi.fn(),
+  update: vi.fn(),
 }))
 vi.mock('@/lib/slack-search/shared-app', () => ({ readSharedSlackSearchApp: m.shared }))
 vi.mock('@sim/audit', () => ({
@@ -55,8 +60,8 @@ vi.mock('@/lib/internal/slack/oauth', () => ({
 }))
 vi.mock('@/lib/credential-groups/service', () => ({ ensureWorkspaceAccountsGroup: m.ensureGroup }))
 vi.mock('@/lib/credential-groups/organization-slack-app', () => ({
-  loadOrganizationSlackMemberApps: async () => [],
-  adoptOrganizationSlackMemberApp: vi.fn(),
+  loadOrganizationSlackMemberApps: m.memberApps,
+  adoptOrganizationSlackMemberApp: m.adoptMemberApp,
 }))
 vi.mock('@/lib/internal/slack/search-client', () => ({
   verifySlackSearchBot: m.verify,
@@ -98,6 +103,7 @@ beforeEach(() => {
   m.revoke.mockResolvedValue(undefined)
   m.validateGrant.mockReset()
   m.ensureGroup.mockResolvedValue({ id: 'accounts' })
+  m.memberApps.mockReset().mockResolvedValue([])
   m.baseUrl.mockReturnValue('https://sim.test')
   m.membership.mockResolvedValue([{ role: 'admin' }])
   m.rows.mockReset().mockResolvedValue([])
@@ -138,28 +144,31 @@ beforeEach(() => {
   const tx = {
     execute: vi.fn(),
     select: () => txQuery,
-    insert: () => txQuery,
-    update: () => txQuery,
+    insert: m.insert.mockReturnValue(txQuery),
+    update: m.update.mockReturnValue(txQuery),
   }
   vi.mocked(db.transaction).mockImplementation(async (callback) =>
     callback(tx as Parameters<Parameters<typeof db.transaction>[0]>[0])
   )
 })
 describe('Search OAuth installation', () => {
-  it('fails setup and OAuth with actionable validation before storing secrets on localhost', async () => {
+  it('prepares setup and starts OAuth using the configured app origin', async () => {
     m.baseUrl.mockReturnValue('http://localhost:3000')
     const input = { organizationId: 'org1', name: 'Sim Search', description: 'Search with sources' }
-    await expect(prepareSlackSearchSetup.execute({ principal, input })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('public HTTPS'),
-    })
+    await expect(prepareSlackSearchSetup.execute({ principal, input })).resolves.toHaveProperty(
+      'manifest'
+    )
     await expect(
       startSlackSearchSetup.execute({
         principal,
         input: { ...input, clientId: 'client', clientSecret: 'secret', signingSecret: 'signing' },
       })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(m.store).not.toHaveBeenCalled()
+    ).resolves.toHaveProperty('authorizationUrl')
+    expect(m.store).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirectUri: 'http://localhost:3000/api/knowledge/slack/oauth/callback',
+      })
+    )
     expect(m.exchange).not.toHaveBeenCalled()
     expect(db.transaction).not.toHaveBeenCalled()
   })
@@ -291,9 +300,10 @@ describe('Search OAuth installation', () => {
   })
 })
 
-it('rejects a shared-app callback if the global configuration was disabled or rotated', async () => {
+it('rejects a shared-app callback if organization access was disabled or configuration rotated', async () => {
   m.consume.mockResolvedValue({ ...attempt, sharedApp: { id: 'ASHARED', revision: 'app-rev' } })
   await expect(complete()).rejects.toThrow('configuration changed')
+  expect(m.shared).toHaveBeenCalledWith('org1')
   expect(m.exchange).not.toHaveBeenCalled()
   m.shared.mockResolvedValue({ id: 'ASHARED', revision: 'new-rev' })
   await expect(complete()).rejects.toThrow()
@@ -318,6 +328,24 @@ describe('shared app completion', () => {
     })
   })
 
+  it('only offers and starts shared OAuth for the enabled organization', async () => {
+    m.shared.mockImplementation(async (orgId) => (orgId === 'org1' ? sharedApp : null))
+    const details = { name: 'Sim Search', description: 'Search with sources' }
+    await expect(
+      prepareSlackSearchSetup.execute({ principal, input: { ...details, organizationId: 'org1' } })
+    ).resolves.toHaveProperty('sharedAppId', 'A1')
+    await expect(
+      prepareSlackSearchSetup.execute({ principal, input: { ...details, organizationId: 'org2' } })
+    ).resolves.toHaveProperty('sharedAppId', null)
+    await expect(
+      startSlackSearchSetup.execute({
+        principal,
+        input: { ...details, organizationId: 'org2', mode: 'shared' },
+      })
+    ).rejects.toThrow('unavailable')
+    expect(m.store).not.toHaveBeenCalled()
+  })
+
   it('starts shared OAuth without storing deployment secrets in the attempt', async () => {
     const result = await startSlackSearchSetup.execute({
       principal,
@@ -329,11 +357,263 @@ describe('shared app completion', () => {
       },
     })
     expect(new URL(result.authorizationUrl).searchParams.get('client_id')).toBe('client')
+    expect(m.shared).toHaveBeenCalledWith('org1')
     const stored = m.store.mock.calls[0][0]
     expect(stored.sharedApp).toEqual({ id: 'A1', revision: 'shared-revision' })
     expect(stored).not.toHaveProperty('encryptedClientSecret')
     expect(stored).not.toHaveProperty('encryptedSigningSecret')
     expect(JSON.stringify(stored)).not.toContain('environment-secret')
+  })
+
+  describe('custom bot transition', () => {
+    const customInstallation = {
+      id: 'custom-installation',
+      revision: 'custom-revision',
+      organizationId: 'org1',
+      credentialId: 'custom-credential',
+      appId: 'ACUSTOM',
+      slackAppId: 'ACUSTOM',
+      teamId: 'T1',
+      enabled: true,
+    }
+    const customApp = {
+      id: 'ACUSTOM',
+      kind: 'custom',
+      organizationId: 'org1',
+      revision: 'custom-app-revision',
+    }
+    const memberApp = { appId: 'ACUSTOM', teamId: 'T1' }
+    const input = {
+      organizationId: 'org1',
+      installationId: customInstallation.id,
+      mode: 'shared' as const,
+      name: 'Sim Search',
+      description: 'Search',
+    }
+
+    beforeEach(() => {
+      m.memberApps.mockResolvedValue([
+        { configuration: { slack: { ...memberApp, scopes: ['im:history'] } } },
+      ])
+      m.consume.mockResolvedValue({
+        ...attempt,
+        sharedApp: { id: sharedApp.id, revision: sharedApp.revision },
+        customInstallation,
+        memberApp,
+      })
+    })
+
+    function queueTransitionRows(custom = customInstallation) {
+      m.rows
+        .mockResolvedValueOnce([sharedApp])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([custom])
+        .mockResolvedValueOnce([])
+    }
+
+    it('binds the old installation and workspace without changing anything before approval', async () => {
+      m.membership
+        .mockResolvedValueOnce([{ role: 'admin' }])
+        .mockResolvedValueOnce([customInstallation])
+        .mockResolvedValueOnce([customApp])
+      const result = await startSlackSearchSetup.execute({ principal, input })
+      const url = new URL(result.authorizationUrl)
+      expect(url.searchParams.get('team')).toBe('T1')
+      expect(url.searchParams.get('client_id')).toBe(sharedApp.clientId)
+      expect(url.searchParams.has('user_scope')).toBe(false)
+      expect(m.store).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customInstallation: {
+            id: customInstallation.id,
+            revision: customInstallation.revision,
+            credentialId: customInstallation.credentialId,
+            appId: customInstallation.appId,
+            teamId: 'T1',
+            appRevision: customApp.revision,
+          },
+          memberApp,
+        })
+      )
+      expect(m.store.mock.calls[0][0]).not.toHaveProperty('installation')
+      expect(db.transaction).not.toHaveBeenCalled()
+    })
+
+    it('keeps the old row and credentials while activating a new bot in one transaction', async () => {
+      queueTransitionRows()
+      await complete()
+      expect(db.transaction).toHaveBeenCalledOnce()
+      expect(m.update).toHaveBeenCalledExactlyOnceWith(slackSearchInstallation)
+      expect(m.set).toHaveBeenCalledExactlyOnceWith({
+        enabled: false,
+        revision: expect.not.stringMatching(customInstallation.revision),
+        updatedAt: expect.any(Date),
+      })
+      expect(m.insert).toHaveBeenCalledWith(credential)
+      expect(m.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: expect.not.stringMatching(customInstallation.credentialId),
+          organizationId: 'org1',
+          slackAppId: 'A1',
+          workspaceId: null,
+        })
+      )
+      expect(m.values).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          id: expect.not.stringMatching(customInstallation.id),
+          appId: 'A1',
+          teamId: 'T1',
+          enabled: true,
+        })
+      )
+      expect(m.adoptMemberApp).not.toHaveBeenCalled()
+      expect(m.ensureGroup).not.toHaveBeenCalled()
+      expect(m.revoke).not.toHaveBeenCalled()
+      expect(m.audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ previousInstallationId: customInstallation.id }),
+        })
+      )
+      expect(m.set.mock.invocationCallOrder[0]).toBeLessThan(
+        m.values.mock.invocationCallOrder.at(-1)!
+      )
+    })
+
+    it('refuses a foreign installation before issuing OAuth state', async () => {
+      m.membership.mockResolvedValueOnce([{ role: 'admin' }]).mockResolvedValueOnce([])
+      await expect(startSlackSearchSetup.execute({ principal, input })).rejects.toThrow('not found')
+      expect(m.store).not.toHaveBeenCalled()
+    })
+
+    it('rechecks the rollout gate before disabling the old bot', async () => {
+      queueTransitionRows()
+      m.shared.mockResolvedValueOnce(sharedApp).mockResolvedValueOnce(null)
+      await expect(complete()).rejects.toThrow('configuration changed')
+      expect(m.shared.mock.calls).toEqual([['org1'], ['org1']])
+      expect(m.update).not.toHaveBeenCalled()
+      expect(m.values).not.toHaveBeenCalled()
+    })
+
+    it('rejects another active workspace binding even during a custom transition', async () => {
+      m.rows
+        .mockResolvedValueOnce([sharedApp])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([customInstallation])
+        .mockResolvedValueOnce([{ id: 'another-installation' }])
+      await expect(complete()).rejects.toThrow('already has an active Search installation')
+      expect(m.update).not.toHaveBeenCalled()
+      expect(m.values).not.toHaveBeenCalled()
+    })
+
+    it('rejects a duplicate completion without revoking the already installed native bot', async () => {
+      m.rows
+        .mockResolvedValueOnce([sharedApp])
+        .mockResolvedValueOnce([{ id: 'native-installation', organizationId: 'org1' }])
+        .mockResolvedValueOnce([{ id: 'native-installation' }])
+      await expect(complete()).rejects.toThrow('already connected')
+      expect(m.update).not.toHaveBeenCalled()
+      expect(m.revoke).not.toHaveBeenCalled()
+    })
+
+    it('fails the transaction if saving the new installation fails after disabling the custom bot', async () => {
+      queueTransitionRows()
+      const baseValues = m.values.getMockImplementation()!
+      m.values.mockImplementation((value) => {
+        if (value.enabled === true) throw new Error('installation write failed')
+        return baseValues(value)
+      })
+      await expect(complete()).rejects.toThrow('installation write failed')
+      expect(m.set).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }))
+      await expect(vi.mocked(db.transaction).mock.results[0].value).rejects.toThrow(
+        'installation write failed'
+      )
+      expect(m.audit).not.toHaveBeenCalled()
+      expect(m.revoke).toHaveBeenCalledWith('bot-token')
+    })
+
+    it('leaves the custom bot untouched when the admin cancels Slack consent', async () => {
+      await expect(
+        completeSlackSearchSetup.execute({
+          principal,
+          input: { state: 'state', error: 'access_denied' },
+        })
+      ).rejects.toThrow('not authorized')
+      expect(m.exchange).not.toHaveBeenCalled()
+      expect(db.transaction).not.toHaveBeenCalled()
+    })
+
+    it('rejects a transition to a different Slack workspace', async () => {
+      m.exchange.mockResolvedValue({
+        app_id: 'A1',
+        team: { id: 'T2' },
+        bot_user_id: 'UBOT',
+        access_token: 'bot-token',
+      })
+      m.verify.mockResolvedValue({ ...identity, teamId: 'T2' })
+      await expect(complete()).rejects.toThrow('same Slack workspace')
+      expect(m.update).not.toHaveBeenCalled()
+      expect(m.values).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      { revision: 'changed' },
+      { organizationId: 'other-org' },
+      { credentialId: 'another-credential' },
+      { appId: 'another-app' },
+    ])('rejects a stale or foreign custom installation: %j', async (changed) => {
+      queueTransitionRows({ ...customInstallation, ...changed })
+      await expect(complete()).rejects.toThrow('custom bot changed')
+      expect(m.update).not.toHaveBeenCalled()
+      expect(m.values).not.toHaveBeenCalled()
+    })
+
+    it('refuses an installation removed while OAuth was open', async () => {
+      m.rows.mockResolvedValueOnce([sharedApp]).mockResolvedValueOnce([]).mockResolvedValueOnce([])
+      await expect(complete()).rejects.toThrow('custom bot changed')
+      expect(m.update).not.toHaveBeenCalled()
+    })
+
+    it('refuses a changed personal source configuration without touching its grants', async () => {
+      queueTransitionRows()
+      m.memberApps.mockResolvedValue([])
+      await expect(complete()).rejects.toThrow('source configuration changed')
+      expect(m.update).not.toHaveBeenCalled()
+      expect(m.adoptMemberApp).not.toHaveBeenCalled()
+      expect(m.ensureGroup).not.toHaveBeenCalled()
+    })
+
+    it('rejects a transition when the shared app is disabled', async () => {
+      m.shared.mockResolvedValue(null)
+      await expect(complete()).rejects.toThrow('configuration changed')
+      expect(m.exchange).not.toHaveBeenCalled()
+      expect(m.update).not.toHaveBeenCalled()
+    })
+
+    it('reconnects the native bot later without changing the custom source configuration', async () => {
+      const installed = {
+        id: 'native-installation',
+        revision: 'native-revision',
+        credentialId: 'native-credential',
+        appId: 'A1',
+        teamId: 'T1',
+        organizationId: 'org1',
+      }
+      m.consume.mockResolvedValue({
+        ...attempt,
+        sharedApp: { id: sharedApp.id, revision: sharedApp.revision },
+        installation: installed,
+        memberApp,
+      })
+      m.rows
+        .mockResolvedValueOnce([sharedApp])
+        .mockResolvedValueOnce([installed])
+        .mockResolvedValueOnce([])
+      await complete()
+      expect(m.ensureGroup).not.toHaveBeenCalled()
+      expect(m.adoptMemberApp).not.toHaveBeenCalled()
+      expect(m.set).toHaveBeenCalledWith(
+        expect.objectContaining({ slackAppId: 'A1', enabled: true })
+      )
+    })
   })
 
   it('creates shared identity without app secrets and installs atomically without registration', async () => {

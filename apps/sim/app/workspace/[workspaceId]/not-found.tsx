@@ -1,8 +1,7 @@
 'use client'
 
-import { Button, buttonVariants } from '@sim/emcn'
+import { Chip, ChipLink } from '@sim/emcn'
 import { ArrowLeft, Compass, Home } from '@sim/emcn/icons'
-import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
 
@@ -17,14 +16,12 @@ export default function WorkspaceNotFound() {
       description="The page you're looking for doesn't exist or has been moved. Head back to your workspace to keep building."
       icon={<Compass className='size-[22px]' />}
     >
-      <Button variant='default' size='md' onClick={() => router.back()}>
-        <ArrowLeft className='mr-1.5 size-[14px]' />
+      <Chip leftIcon={ArrowLeft} onClick={() => router.back()}>
         Go back
-      </Button>
-      <Link href={homeHref} className={buttonVariants({ variant: 'primary', size: 'md' })}>
-        <Home className='mr-1.5 size-[14px]' />
+      </Chip>
+      <ChipLink href={homeHref} variant='primary' leftIcon={Home}>
         Return home
-      </Link>
+      </ChipLink>
     </ErrorShell>
   )
 }

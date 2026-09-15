@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { sleep } from '../helpers'
 import { buildUrl, REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
-import { USER_AGENT } from '../version'
+import { identityHeaders } from '../telemetry/client-info'
 
 /**
  * The terminal half of the CLI key handoff.
@@ -192,7 +192,7 @@ export async function pollForKey(
         headers: {
           'content-type': 'application/json',
           accept: 'application/json',
-          'user-agent': USER_AGENT,
+          ...identityHeaders(),
         },
         body: JSON.stringify({ request: auth.request, verifier: auth.pollSecret }),
         signal,

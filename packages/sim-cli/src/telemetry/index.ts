@@ -1,4 +1,3 @@
-export { clientInfoHeader } from './client-info'
 export { createCommandTelemetry } from './invocation'
 export {
   DO_NOT_TRACK_VARIABLE,

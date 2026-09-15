@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSecureWebPreferences } from '@/main/window-preferences'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -8,7 +9,6 @@ import type { EventRecorder } from '@/main/observability'
 import {
   backgroundColorFor,
   createMainWindow,
-  createSecureWebPreferences,
   ensureMicrophoneAccess,
   fitBoundsToWorkArea,
   resolvePermission,

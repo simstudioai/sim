@@ -57,6 +57,28 @@ describe('Slack OAuth state', () => {
       'already completed'
     )
   })
+  it('round-trips the custom installation snapshot in a single-use shared-app attempt', async () => {
+    const { encryptedClientSecret, encryptedSigningSecret, ...common } = attempt
+    const transition = {
+      ...common,
+      sharedApp: { id: 'ASHARED', revision: 'env-revision' },
+      customInstallation: {
+        id: 'old-installation',
+        revision: 'old-revision',
+        credentialId: 'old-credential',
+        appId: 'ACUSTOM',
+        teamId: 'T1',
+      },
+      memberApp: { appId: 'ACUSTOM', teamId: 'T1' },
+    }
+    await storeSlackSearchOAuthAttempt(transition)
+    expect(JSON.parse(redis.set.mock.calls[0][1])).toEqual(transition)
+    redis.eval.mockResolvedValueOnce(redis.set.mock.calls[0][1])
+    await expect(consumeSlackSearchOAuthAttempt('state', principal)).resolves.toEqual(transition)
+    await expect(consumeSlackSearchOAuthAttempt('state', principal)).rejects.toThrow(
+      'already completed'
+    )
+  })
   it('rejects an expired attempt even when storage returns it', async () => {
     redis.eval.mockResolvedValueOnce(
       JSON.stringify({ ...attempt, createdAt: Date.now() - 601_000 })

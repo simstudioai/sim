@@ -1,5 +1,6 @@
 'use client'
 
+import { ChipTag } from '@sim/emcn'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
@@ -19,8 +20,9 @@ interface SsoProviderListProps {
 /**
  * The organization's identity providers.
  *
- * One provider serves each verified domain, so the rows read as a routing table:
- * which domain signs in where.
+ * The rows read as a routing table: which domain signs in where. A domain with
+ * more than one provider marks the one sign-in uses, so an organization moving
+ * between identity providers can see which is live.
  */
 export function SsoProviderList({
   providers,
@@ -29,6 +31,12 @@ export function SsoProviderList({
   onOpen,
   docsLink,
 }: SsoProviderListProps) {
+  const providerCountByDomain = new Map<string, number>()
+  for (const provider of providers) {
+    const domainKey = provider.domainKey ?? ''
+    providerCountByDomain.set(domainKey, (providerCountByDomain.get(domainKey) ?? 0) + 1)
+  }
+
   return (
     <>
       {active && (
@@ -47,6 +55,12 @@ export function SsoProviderList({
                 key={provider.id ?? providerId}
                 title={providerId}
                 description={`${(provider.providerType ?? 'oidc').toUpperCase()} · ${provider.domain ?? 'no domain'}`}
+                badge={
+                  provider.isPrimary &&
+                  (providerCountByDomain.get(provider.domainKey ?? '') ?? 0) > 1 ? (
+                    <ChipTag variant='gray'>Primary</ChipTag>
+                  ) : undefined
+                }
                 onClick={() => onOpen(providerId)}
                 clickLabel={`Open ${providerId}`}
                 navigable

@@ -7,8 +7,8 @@ export function getTimezoneEditBlockedMessage(state: TimezoneState): string | nu
     return 'Your timezone setting is still loading. Try again in a moment.'
   }
   if (state.status === 'error') {
-    return 'We couldn’t load your timezone setting. Try again before editing Date or Expiration cells.'
+    return 'We couldn’t load your timezone setting. Try again before editing Date cells.'
   }
   const savedTimezone = sanitizeTimezoneForDisplay(state.savedTimezone ?? '')
-  return `Your saved timezone “${savedTimezone}” is invalid. Update it in Settings → General before editing Date or Expiration cells.`
+  return `Your saved timezone “${savedTimezone}” is invalid. Update it in Settings → General before editing Date cells.`
 }

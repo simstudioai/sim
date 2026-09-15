@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 import type { TerminalCommandEvent } from '@sim/terminal-protocol'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('electron', () => import('@/test/electron-mock'))
+
 interface StubSessionControl {
   terminalId: string
   cwd: string

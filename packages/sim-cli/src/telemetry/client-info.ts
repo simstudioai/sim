@@ -1,6 +1,6 @@
-import { formatClientInfo } from '@sim/utils/client-info'
-import { CLI_VERSION } from '../version'
-import { detectCodingAgent } from './coding-agent'
+import { CLIENT_INFO_HEADER, formatClientInfo } from '@sim/utils/client-info'
+import { CLI_VERSION, USER_AGENT } from '../version'
+import { detectCodingAgent, NO_CODING_AGENT } from './coding-agent'
 import { telemetryStatus } from './policy'
 import { loadTelemetryState } from './state'
 
@@ -10,7 +10,7 @@ let cached: string | undefined
 /**
  * The `X-Sim-Client-Info` value: the same facts as the user agent, in the
  * header every official client sends, plus the AI coding agent driving this
- * shell when one can be detected. The server reads this header, not the user
+ * shell (`none` when none is detected). The server reads this header, not the user
  * agent, so a request from the CLI is attributed to the CLI on every log line
  * and analytics event it produces.
  *
@@ -25,6 +25,16 @@ export function clientInfoHeader(env: NodeJS.ProcessEnv = process.env): string {
   return cached
 }
 
+/**
+ * The headers that identify the CLI on every request it makes to a Sim
+ * deployment: the user agent and `X-Sim-Client-Info`. One definition, so the
+ * API client and the login flows cannot drift into identifying themselves
+ * differently.
+ */
+export function identityHeaders(): Record<string, string> {
+  return { 'user-agent': USER_AGENT, [CLIENT_INFO_HEADER]: clientInfoHeader() }
+}
+
 function buildClientInfoHeader(env: NodeJS.ProcessEnv): string {
   return formatClientInfo({
     surface: 'cli',
@@ -32,7 +42,7 @@ function buildClientInfoHeader(env: NodeJS.ProcessEnv): string {
     runtime: { name: 'node', version: process.versions.node },
     os: process.platform,
     arch: process.arch,
-    ...(reportingAllowed(env) ? { agent: detectCodingAgent(env) } : {}),
+    ...(reportingAllowed(env) ? { agent: detectCodingAgent(env) ?? NO_CODING_AGENT } : {}),
   })
 }
 

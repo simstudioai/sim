@@ -2402,6 +2402,34 @@
       "when": 1789410616549,
       "tag": "0343_stored_embedding_candidates",
       "breakpoints": true
+    },
+    {
+      "idx": 344,
+      "version": "7",
+      "when": 1789423183443,
+      "tag": "0344_audit_log_surface",
+      "breakpoints": true
+    },
+    {
+      "idx": 345,
+      "version": "7",
+      "when": 1789427851762,
+      "tag": "0345_document_connector_processing_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 346,
+      "version": "7",
+      "when": 1789430644029,
+      "tag": "0346_half_precision_search_candidates",
+      "breakpoints": true
+    },
+    {
+      "idx": 347,
+      "version": "7",
+      "when": 1789436120319,
+      "tag": "0347_sso_domain_primary_provider",
+      "breakpoints": true
     }
   ]
 }

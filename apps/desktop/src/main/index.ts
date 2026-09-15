@@ -717,8 +717,6 @@ function main(): void {
         onSessionStatus: (alive, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
         },
-        sitePermissionPromptSupported: (scopeId) =>
-          scopeEvents.browserSitePermissionPromptSupported(scopeId),
         onFillAvailability: (available, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
             available,

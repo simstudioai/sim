@@ -48,7 +48,7 @@ import {
   createMemorySecretProvenanceSelector,
 } from '@/lib/memory/secret-provenance'
 import { Memory } from '@/executor/handlers/agent/memory'
-import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
+import type { AgentInputs, FileNameProjection, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { memoryAddTool } from '@/tools/memory/add'
@@ -196,38 +196,74 @@ describe.each([false, true])('memory message provenance with enforcement %s', (e
     expect(mocks.logger.error).not.toHaveBeenCalled()
   })
 
-  it.each(['append', 'seed'] as const)('binds %s messages after removing files', async (mode) => {
-    const service = new Memory()
-    const writes = service as unknown as MemoryWrites
-    const append = vi.spyOn(writes, 'appendMessage').mockResolvedValue(undefined)
-    const seed = vi.spyOn(writes, 'seedMemoryRecord').mockResolvedValue(undefined)
-    const registry = new ResolvedSecretTraceRegistry(
-      [{ name: 'TOKEN', plaintext: SECRET, encryptedValue: 'ciphertext' }],
-      SCOPE
-    )
-    registry.recordResolved('TOKEN', SECRET)
-    const message = {
-      role: 'user',
-      content: SECRET,
-      files: [{ id: 'file-1', name: 'document.txt' }],
-    } as Message
-    if (mode === 'append') await service.appendToMemory(executionContext(registry), INPUTS, message)
-    else await service.seedMemory(executionContext(registry), INPUTS, [message])
+  it.each(['append', 'seed'] as const)(
+    'binds %s messages after removing transient attachment fields',
+    async (mode) => {
+      const service = new Memory()
+      const writes = service as unknown as MemoryWrites
+      const append = vi.spyOn(writes, 'appendMessage').mockResolvedValue(undefined)
+      const seed = vi.spyOn(writes, 'seedMemoryRecord').mockResolvedValue(undefined)
+      const registry = new ResolvedSecretTraceRegistry(
+        [{ name: 'TOKEN', plaintext: SECRET, encryptedValue: 'ciphertext' }],
+        SCOPE
+      )
+      registry.recordResolved('TOKEN', SECRET)
+      const message = {
+        role: 'user',
+        content: SECRET,
+        files: [
+          {
+            id: 'file-1',
+            name: `${SECRET}.txt`,
+            key: 'workspace/workspace-1/document.txt',
+            url: 'https://storage.example.com/signed',
+            size: 8,
+            type: 'text/plain',
+            base64: 'cGF5bG9hZA==',
+            providerFileId: 'expired-file',
+          },
+        ],
+      } as Message
+      if (mode === 'append')
+        await service.appendToMemory(executionContext(registry), INPUTS, message)
+      else await service.seedMemory(executionContext(registry), INPUTS, [message])
 
-    const stored = mode === 'append' ? [append.mock.calls[0][2]] : seed.mock.calls[0][2]
-    const provenance = mode === 'append' ? append.mock.calls[0][3] : seed.mock.calls[0][3]
-    expect(stored).toEqual([{ role: 'user', content: SECRET }])
-    expect(provenance).toMatchObject({
-      status: 'exact',
-      entries: [{ sourceValueHash: hashDurableSecretProvenanceValue(stored[0]) }],
-    })
-    if (provenance?.status !== 'exact') throw new Error('Expected exact provenance')
-    queueStoredMemory(stored, provenance.entries)
-    expect((await service.fetchMemoryMessages(executionContext(), INPUTS))[0].content).toBe(
-      '{{TOKEN}}'
-    )
-    expect(mocks.logger.error).not.toHaveBeenCalled()
-  })
+      const stored = mode === 'append' ? [append.mock.calls[0][2]] : seed.mock.calls[0][2]
+      const provenance = mode === 'append' ? append.mock.calls[0][3] : seed.mock.calls[0][3]
+      expect(stored).toEqual([
+        {
+          role: 'user',
+          content: SECRET,
+          files: [
+            {
+              id: 'file-1',
+              name: `${SECRET}.txt`,
+              key: 'workspace/workspace-1/document.txt',
+              url: '',
+              size: 8,
+              type: 'text/plain',
+            },
+          ],
+        },
+      ])
+      expect(provenance).toMatchObject({
+        status: 'exact',
+        entries: [{ sourceValueHash: hashDurableSecretProvenanceValue(stored[0]) }],
+      })
+      if (provenance?.status !== 'exact') throw new Error('Expected exact provenance')
+      queueStoredMemory(stored, provenance.entries)
+      const projectedNames = new WeakMap<object, FileNameProjection>()
+      const [replayed] = await service.fetchMemoryMessages(
+        executionContext(),
+        INPUTS,
+        projectedNames
+      )
+      expect(replayed.content).toBe('{{TOKEN}}')
+      expect(replayed.files?.[0].name).toBe(`${SECRET}.txt`)
+      expect(projectedNames.get(replayed.files![0])).toEqual({ name: '{{TOKEN}}.txt' })
+      expect(mocks.logger.error).not.toHaveBeenCalled()
+    }
+  )
 
   it.each(['unbound', 'before-file-sanitization'] as const)(
     'redacts historical %s entries without refusing the run or exposing telemetry values',

@@ -2,7 +2,13 @@
  * @vitest-environment node
  */
 import type { Principal } from '@sim/auth/principal'
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { eq, inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +18,13 @@ const {
   mockGitHubReadGrants,
   mockConfluenceReadGrants,
   mockCsvGrants,
+  mockLiveSources,
 } = vi.hoisted(() => ({
+  mockLiveSources: {
+    github: vi.fn(() => ({ type: 'github-sources' })),
+    confluence: vi.fn(() => ({ type: 'confluence-sources' })),
+    knowledgeBases: vi.fn(() => ({ type: 'live-knowledge-bases' })),
+  },
   mockAvailability: vi.fn(async () => ({ memberScoped: true, sourceMirrored: true })),
   mockCheckWorkspaceAccess: vi.fn(async () => ({ hasAccess: true })),
   mockGitHubReadGrants: vi.fn(async () => []),
@@ -31,6 +43,11 @@ vi.mock('@/lib/knowledge/access/confluence-site', () => ({
 }))
 vi.mock('@/lib/knowledge/access/github-installation', () => ({
   resolveGitHubInstallationReadGrants: mockGitHubReadGrants,
+}))
+vi.mock('@/lib/knowledge/access/live-sources', () => ({
+  githubInstallationSourceCondition: mockLiveSources.github,
+  confluenceSiteSourceCondition: mockLiveSources.confluence,
+  liveSourceKnowledgeBaseCondition: mockLiveSources.knowledgeBases,
 }))
 vi.mock('@/lib/knowledge/access/connector-permissions', () => ({
   loadConnectorPermissionGroupTokens: mockCsvGrants,
@@ -266,11 +283,11 @@ describe('createKnowledgeAccessProvider', () => {
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
   })
 
-  it('reports live-source readers only when a member-scoped source credential exists', async () => {
+  it('scopes live-source discovery to sources a held reader credential can prove', async () => {
     queueSubjects([{ providerId: 'slack', providerTenantId: 'T1', providerSubjectId: 'U1' }])
     await expect(
-      createKnowledgeAccessProvider(SESSION, WORKSPACE).hasLiveSourceReaders?.()
-    ).resolves.toBe(false)
+      createKnowledgeAccessProvider(SESSION, WORKSPACE).liveSourceConnectorCondition()
+    ).resolves.toBeNull()
 
     queueSubjects([
       {
@@ -280,9 +297,41 @@ describe('createKnowledgeAccessProvider', () => {
         credentialId: 'credential-1',
       },
     ])
+    const condition = await createKnowledgeAccessProvider(
+      SESSION,
+      WORKSPACE
+    ).liveSourceConnectorCondition()
+    expect(condition).not.toBeNull()
+    expect(mockLiveSources.confluence).toHaveBeenCalledOnce()
+    expect(mockLiveSources.github).not.toHaveBeenCalled()
+    expect(mockLiveSources.knowledgeBases).toHaveBeenCalledExactlyOnceWith(
+      { kind: 'workspace', workspaceId: 'ws-1' },
+      undefined
+    )
+    expect(
+      hasMockCondition(
+        condition,
+        (node) =>
+          node.type === 'inArray' && node.column === schemaMock.knowledgeConnector.knowledgeBaseId
+      )
+    ).toBe(true)
+  })
+
+  it('has no live sources to discover when the operation is bound to no knowledge bases', async () => {
+    queueSubjects([
+      {
+        providerId: 'github-repositories',
+        providerTenantId: '-',
+        providerSubjectId: 'account-1',
+        credentialId: 'credential-1',
+      },
+    ])
     await expect(
-      createKnowledgeAccessProvider(SESSION, WORKSPACE).hasLiveSourceReaders?.()
-    ).resolves.toBe(true)
+      createKnowledgeAccessProvider(SESSION, {
+        ...WORKSPACE,
+        knowledgeBaseIds: [],
+      }).liveSourceConnectorCondition()
+    ).resolves.toBeNull()
   })
 
   it('retries after a failed lookup rather than caching the failure', async () => {

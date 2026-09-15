@@ -59,7 +59,7 @@ const source = {
   isSyncing: false,
   lastSyncAt: null,
   hasSyncError: false,
-  viewerDocumentCount: 0,
+  hasViewerDocuments: false,
   viewerFailedDocumentCount: 0,
   viewerEmailVerified: true,
   viewerAccounts: [],

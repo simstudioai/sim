@@ -78,6 +78,7 @@ function contextProperties(explicit: Record<string, unknown>): Record<string, un
 
   stamp('surface', context.client?.surface)
   stamp('client_version', context.client?.version)
+  stamp('client_name', context.client?.name)
   stamp('coding_agent', context.client?.agent)
 
   stamp('auth_kind', context.auth?.kind)

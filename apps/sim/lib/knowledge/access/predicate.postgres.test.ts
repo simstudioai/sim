@@ -55,6 +55,7 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     await client.unsafe(approvalMigration.replaceAll('"public".', `"${schemaName}".`))
     await client.unsafe(`
       ALTER TABLE knowledge_connector ADD COLUMN credential_id text,
+        ADD COLUMN access_rewrite_pending boolean NOT NULL DEFAULT false,
         ADD COLUMN source_config json NOT NULL DEFAULT '{}',
         ADD COLUMN credential_group_id text, ADD COLUMN credential_group_option_id text;
       ALTER TABLE credential ADD COLUMN revoked_at timestamp, ADD COLUMN credential_group_option_id text;

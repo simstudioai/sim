@@ -6,7 +6,7 @@ import {
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
-import { createLogger, runWithRequestContext } from '@sim/logger'
+import { createLogger, type RequestContext, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -556,7 +556,12 @@ export async function executeWebhookJob(
       })
     }
 
-    return await runWithRequestContext({ requestId }, async () => {
+    /** A trigger, not a client, started this run. */
+    const requestContext: RequestContext = {
+      requestId,
+      client: { surface: 'webhook', source: 'trigger' },
+    }
+    return await runWithRequestContext(requestContext, async () => {
       logger.info(`[${requestId}] Starting webhook execution`, {
         webhookId: authenticatedPayload.webhookId,
         workflowId: authenticatedPayload.workflowId,

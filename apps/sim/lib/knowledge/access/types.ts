@@ -1,3 +1,5 @@
+import type { SQL } from 'drizzle-orm'
+
 /** Held by every principal in the workspace; the default ACL of an upload. */
 export const WORKSPACE_ACCESS_TOKEN = 'ws' as const
 
@@ -94,11 +96,12 @@ export interface KnowledgeAccessProvider {
     signal?: AbortSignal
   ): Promise<KnowledgeAccessScope>
   /**
-   * Whether the reader holds any credential a live source (GitHub, Confluence) could
-   * authorize beyond the stored ACL. Without one, candidate discovery can only re-prove
-   * the ordinary predicate, so readers skip it. Absent means unknown: discover.
+   * A `knowledge_connector` predicate for the sources whose live authorization (GitHub,
+   * Confluence) could admit this reader beyond the stored ACL: those a held reader credential
+   * can prove, within the operation's knowledge bases. Null when there are none, so readers
+   * skip candidate discovery.
    */
-  hasLiveSourceReaders?(): Promise<boolean>
+  liveSourceConnectorCondition(): Promise<SQL | null>
 }
 
 /** Two existing search legs each contribute at most 200 candidates to one authorization batch. */

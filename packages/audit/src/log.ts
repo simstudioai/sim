@@ -1,5 +1,5 @@
 import { auditLog, db, user } from '@sim/db'
-import { createLogger } from '@sim/logger'
+import { createLogger, getRequestContext } from '@sim/logger'
 import { createClientIpResolver } from '@sim/security/ip'
 import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -66,6 +66,10 @@ export function recordAuditBatch(entries: AuditLogParams[]): void {
  * insert paths so the write shape cannot drift between them. Actor fields
  * are taken as-is — lazy actor resolution is layered on top by
  * {@link recordAudit} only.
+ *
+ * The surface comes from the ambient request context, which the route wrapper
+ * resolves once per request, so every entry recorded while serving a request
+ * is attributed without each caller passing it. It is absent outside a request.
  */
 function buildAuditRow(
   params: AuditLogParams,
@@ -86,6 +90,7 @@ function buildAuditRow(
     metadata: params.metadata ?? {},
     ipAddress: params.request ? clientIpResolver.resolve(params.request.headers) : undefined,
     userAgent: params.request?.headers.get('user-agent') ?? undefined,
+    surface: getRequestContext()?.client?.surface,
   }
 }
 

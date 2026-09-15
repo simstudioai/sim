@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, ssoDomain, ssoProvider } from '@sim/db/schema'
+import { ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, sql } from 'drizzle-orm'
@@ -79,7 +80,7 @@ export const DELETE = withRouteHandler(
         .where(
           and(
             eq(ssoProvider.organizationId, organizationId),
-            sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${deleted.domain}`
+            sql`${ssoProviderDomainKey} = ${deleted.domain}`
           )
         )
 

@@ -87,6 +87,41 @@ describe('ClientChatMessage thinking chrome (Step 6)', () => {
     }
   })
 
+  it('renders no message row or copy action for empty assistant output', () => {
+    const { container, unmount } = renderMessage({
+      id: 'empty-output',
+      type: 'assistant',
+      content: '',
+      files: [],
+      timestamp: new Date(),
+    })
+    mounts.push(unmount)
+    expect(container.innerHTML).toBe('')
+  })
+
+  it('does not show a copy action for a file-only response', () => {
+    const { container, unmount } = renderMessage({
+      id: 'file-output',
+      type: 'assistant',
+      content: '',
+      files: [
+        {
+          id: 'file-1',
+          name: 'image.png',
+          url: '/image.png',
+          key: 'image.png',
+          size: 3,
+          type: 'image/png',
+        },
+      ],
+      timestamp: new Date(),
+    })
+    mounts.push(unmount)
+    expect(container.querySelector('[data-message-id]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="answer"]')).toBeNull()
+    expect(container.textContent).not.toContain('Copy to clipboard')
+  })
+
   it('does not show thinking chrome when thinking is absent or empty', () => {
     const without = renderMessage({
       id: '1',
