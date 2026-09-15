@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { document, embedding, embeddingSearch, knowledgeConnector } from '@sim/db/schema'
+import {
+  document,
+  embedding,
+  embeddingKeywordSearch,
+  embeddingSearch,
+  knowledgeConnector,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
@@ -436,10 +442,8 @@ export function getStructuredTagFilters(filters: StructuredFilter[], embeddingTa
 }
 
 /**
- * Text-search configuration used to build the query. Must match the config the
- * generated `embedding.content_tsv` column was built with
- * (`to_tsvector('english', content)`) — a mismatch silently stops Postgres from
- * using the `emb_content_fts_idx` GIN index and degrades to a sequential scan.
+ * Match the normalization used by the stored text vectors so query terms and
+ * document terms resolve to the same lexemes in both keyword retrieval paths.
  */
 const FTS_CONFIG = 'english'
 
@@ -1074,6 +1078,8 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       sql`${embedding.contentTsv} @@ ${tsQuery}`,
       ...tagFilterConditions,
     ]
+    const candidateRank = sql<number>`ts_rank_cd(${embeddingKeywordSearch.contentTsv}, ${tsQuery})`
+    /** Keep readable identities and rank scalars separate so sorts never carry full text-search vectors. */
     return selectAuthorizedSearchResults({
       leg: 'keyword',
       accessProvider: params.accessProvider,
@@ -1083,24 +1089,47 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
       topK,
       selectPage: async (limit, offset, excludedSources) => {
         const candidates = await runSearchQuery(params.budget, 'keyword.sql', (executor) =>
-          executor
-            .select({ ...SEARCH_READ_CANDIDATE_FIELDS, keywordRank: rankExpr.as('keyword_rank') })
-            .from(embedding)
-            .innerJoin(document, eq(embedding.documentId, document.id))
-            .where(
-              and(
-                ...conditions,
-                ...getVisibilityConditions(
+          executor.execute<SearchReadCandidate>(sql`
+            WITH visible_keyword_documents AS MATERIALIZED (
+              SELECT ${document.id} AS id FROM ${document}
+              WHERE ${and(
+                inArray(document.knowledgeBaseId, knowledgeBaseIds),
+                ...getDocumentVisibilityConditions(
                   access,
                   params.filters,
                   knowledgeMetadataCandidateAccessCondition(access)
                 ),
                 excludeSearchSources(excludedSources)
-              )
+              )}
+            ), scored_keyword_candidates AS MATERIALIZED (
+              SELECT ${embeddingKeywordSearch.id} AS id,
+                ${embeddingKeywordSearch.documentId} AS document_id,
+                ${candidateRank} AS keyword_rank
+              FROM ${embeddingKeywordSearch}
+              WHERE ${and(
+                inArray(embeddingKeywordSearch.knowledgeBaseId, knowledgeBaseIds),
+                eq(embeddingKeywordSearch.enabled, true),
+                sql`${embeddingKeywordSearch.contentTsv} @@ ${tsQuery}`,
+                sql`${embeddingKeywordSearch.documentId} IN (SELECT id FROM visible_keyword_documents)`,
+                sql`EXISTS (SELECT 1 FROM visible_keyword_documents)`,
+                tagFilterConditions.length
+                  ? sql`EXISTS (
+                  SELECT 1 FROM ${embedding} WHERE ${embedding.id} = ${embeddingKeywordSearch.id}
+                    AND ${and(...tagFilterConditions)}
+                )`
+                  : undefined
+              )}
+            ), ranked_keyword_candidates AS MATERIALIZED (
+              SELECT * FROM scored_keyword_candidates
+              ORDER BY keyword_rank DESC, id LIMIT ${limit} OFFSET ${offset}
             )
-            .orderBy(sql`${rankExpr} DESC`, embedding.id)
-            .limit(limit)
-            .offset(offset)
+            SELECT ranked_keyword_candidates.id, ${document.id} AS "documentId",
+              ${document.connectorId} AS "connectorId",
+              ${SEARCH_READ_CANDIDATE_FIELDS.liveAuthorizationSource} AS "liveAuthorizationSource"
+            FROM ranked_keyword_candidates INNER JOIN ${document}
+              ON ${document.id} = ranked_keyword_candidates.document_id
+            ORDER BY ranked_keyword_candidates.keyword_rank DESC, ranked_keyword_candidates.id
+          `)
         )
         return { candidates, nextOffset: offset + candidates.length }
       },

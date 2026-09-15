@@ -155,6 +155,14 @@ function assertCompactCandidates(node: ExplainNode) {
   for (const child of node.Plans ?? []) assertCompactCandidates(child)
 }
 
+/** Keyword sort memory must scale with identities and scores, not the matched document text. */
+function assertScalarKeywordSorts(node: ExplainNode) {
+  if (node['Node Type'] === 'Sort') {
+    expect((node.Output ?? []).join(' ')).not.toContain('content_tsv')
+  }
+  for (const child of node.Plans ?? []) assertScalarKeywordSorts(child)
+}
+
 function saveReport() {
   const file = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_REPORT_FILE
   if (file) writeFileSync(file, JSON.stringify(report, null, 2), { mode: 0o600 })
@@ -219,7 +227,7 @@ async function search(
   )
 }
 
-async function searchDashboard() {
+async function searchDashboard(query = 'Orion deployment') {
   const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
     kind: 'session',
     userId: ids.aliceId,
@@ -232,7 +240,7 @@ async function searchDashboard() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           workspaceId: ids.workspaceId,
-          query: 'Orion deployment',
+          query,
           topK: 15,
         }),
       })
@@ -291,15 +299,19 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
       (item.query.includes('from "embedding"') ||
         item.query.includes('FROM "embedding"') ||
         item.query.includes('from "embedding_search"') ||
-        item.query.includes('FROM "embedding_search"')) &&
+        item.query.includes('FROM "embedding_search"') ||
+        item.query.includes('from "embedding_keyword_search"') ||
+        item.query.includes('FROM "embedding_keyword_search"')) &&
       (item.query.includes('order by') ||
         item.query.includes('limit') ||
         item.query.includes('WITH visible_search_documents') ||
-        item.query.includes('WITH scored_search_candidates'))
+        item.query.includes('WITH scored_search_candidates') ||
+        item.query.includes('WITH visible_keyword_documents'))
   )
   const plans = []
   for (const query of searches) {
     const plan = await db.$client.begin(async (tx) => {
+      await tx.unsafe("SET LOCAL statement_timeout = '45s'")
       await tx.unsafe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
       await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 20000')
       if (
@@ -315,6 +327,10 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
         query.parameters
       )
     })
+    const parsedPlan = explainSchema.parse(plan[0]['QUERY PLAN'])
+    if (query.query.includes('WITH visible_keyword_documents')) {
+      assertScalarKeywordSorts(parsedPlan[0].Plan)
+    }
     plans.push({
       kind: query.query.includes('keyword_rank')
         ? 'keyword'
@@ -327,7 +343,7 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
             : 'probe',
       query: query.query,
       parameters: query.parameters,
-      plan: explainSchema.parse(plan[0]['QUERY PLAN']),
+      plan: parsedPlan,
     })
   }
   report[label] = {
@@ -504,6 +520,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     await db.execute(sql`ANALYZE document`)
     await db.execute(sql`ANALYZE embedding`)
     await db.execute(sql`ANALYZE embedding_search`)
+    await db.execute(sql`ANALYZE embedding_keyword_search`)
     report.server = (
       await db.execute(sql`SELECT version(), current_setting('work_mem') AS work_mem,
       (SELECT extversion FROM pg_extension WHERE extname = 'vector') AS pgvector`)
@@ -854,6 +871,20 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       await db.update(document).set({ userExcluded: false }).where(eq(document.id, documentIds[0]))
     }
   }, 180_000)
+
+  it.each(['copilot', 'dashboard'] as const)(
+    'keeps %s searches for common keyword terms complete',
+    async (surface) => {
+      const { result, diagnostics } = await sample(`common-keyword.${surface}`, () =>
+        surface === 'dashboard'
+          ? searchDashboard('Engineering operations')
+          : search(ids.aliceId, 'Engineering operations')
+      )
+      expectCompleteVectorSearch(diagnostics)
+      expect(result.data.results).toHaveLength(15)
+    },
+    180_000
+  )
 
   it('runs two independent Assistant searches concurrently', async () => {
     diagnosticLog?.mockClear()

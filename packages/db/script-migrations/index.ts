@@ -1,7 +1,6 @@
 import { reconcileOAuthProviderLifecycleMigration } from '@sim/db/script-migrations/0012_reconcile_oauth_provider_lifecycle'
 import { backfillLegacyKnowledgeBaseWorkspacesMigration } from '@sim/db/script-migrations/0013_backfill_legacy_knowledge_base_workspaces'
 import { requireKnowledgeBaseOwnerMigration } from '@sim/db/script-migrations/0014_require_knowledge_base_owner'
-import { backfillEmbeddingSearchMigration } from '@sim/db/script-migrations/0015_backfill_embedding_search'
 import { backfillSearchVectorsMigration } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
@@ -21,7 +20,7 @@ export type { ScriptMigration } from './types'
 
 /**
  * Ordered, append-only registry of script migrations. An entry may be deleted
- * once a later SQL migration supersedes it (accepting that deployments which
+ * once a later migration supersedes it (accepting that deployments which
  * never ran it skip the backfill) — never renamed or reordered.
  */
 export const scriptMigrations: readonly ScriptMigration[] = [
@@ -39,7 +38,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   reconcileOAuthProviderLifecycleMigration,
   backfillLegacyKnowledgeBaseWorkspacesMigration,
   requireKnowledgeBaseOwnerMigration,
-  backfillEmbeddingSearchMigration,
+  /** 0016 completes partially applied 0015 binary projections together with the new search vectors. */
   backfillSearchVectorsMigration,
 ]
 

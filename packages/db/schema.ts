@@ -3337,6 +3337,25 @@ export const embedding = pgTable(
   })
 )
 
+/** Keyword ranking reads text-search vectors independently of chunk content and semantic vectors. */
+export const embeddingKeywordSearch = pgTable(
+  'embedding_keyword_search',
+  {
+    id: text('id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    knowledgeBaseId: text('knowledge_base_id').notNull(),
+    documentId: text('document_id').notNull(),
+    enabled: boolean('enabled').notNull(),
+    contentTsv: tsvector('content_tsv').notNull(),
+  },
+  (table) => ({
+    knowledgeBaseIdx: index('embedding_keyword_search_kb_idx').on(table.knowledgeBaseId),
+    documentIdx: index('embedding_keyword_search_document_idx').on(table.documentId),
+    contentIdx: index('embedding_keyword_search_content_idx').using('gin', table.contentTsv),
+  })
+)
+
 /**
  * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
  * from content prevents candidate scans from fetching full-precision TOAST values.

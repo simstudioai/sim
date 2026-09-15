@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { backfillEmbeddingSearch } from '@sim/db/script-migrations/0015_backfill_embedding_search'
-import { backfillSearchVectors } from '@sim/db/script-migrations/0016_backfill_search_vectors'
+import {
+  backfillSearchKeywords,
+  backfillSearchVectors,
+  buildSearchIndexes,
+} from '@sim/db/script-migrations/0016_backfill_search_vectors'
+import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -59,38 +64,23 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     }
   })
 
-  it('replays the schema migration after committed columns and an invalid concurrent index', async () => {
+  it('replays the additive schema before backfilling and building new indexes', async () => {
     const statements = readFileSync(
       new URL('../migrations/0346_half_precision_search_candidates.sql', import.meta.url),
       'utf8'
     )
       .split('--> statement-breakpoint')
-      .map((statement) => statement.trim())
+      .map((statement) => statement.trim().replaceAll('"public".', `"${schemaName}".`))
       .filter(Boolean)
-    const commitIndex = statements.indexOf('COMMIT;')
-    expect(commitIndex).toBeGreaterThan(0)
-    await sql.unsafe('BEGIN')
-    for (const statement of statements.slice(0, commitIndex + 1)) await sql.unsafe(statement)
-    await expect(
-      sql.unsafe(
-        'CREATE UNIQUE INDEX CONCURRENTLY embedding_search_cosine_hnsw_idx ON embedding_search (knowledge_base_id)'
-      )
-    ).rejects.toMatchObject({ code: '23505' })
-    expect(
-      (
-        await sql`SELECT indisvalid FROM pg_index WHERE indexrelid = 'embedding_search_cosine_hnsw_idx'::regclass`
-      )[0].indisvalid
-    ).toBe(false)
     for (let replay = 0; replay < 2; replay++) {
-      await sql.unsafe('BEGIN')
-      for (const statement of statements) await sql.unsafe(statement)
+      await sql.begin(async (tx) => {
+        for (const statement of statements) await tx.unsafe(statement)
+      })
     }
-    const indexes = await sql`SELECT indisvalid FROM pg_index
-      INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
-      WHERE indrelid = 'embedding_search'::regclass
-        AND relname LIKE 'embedding_search%cosine_hnsw_idx'`
-    expect(indexes).toHaveLength(6)
-    expect(indexes.every((index) => index.indisvalid)).toBe(true)
+    expect(
+      await sql`SELECT 1 FROM pg_index JOIN pg_class ON pg_class.oid = pg_index.indexrelid
+      WHERE indrelid = 'embedding_search'::regclass AND relname LIKE '%cosine_hnsw_idx'`
+    ).toHaveLength(0)
     expect((await sql`SELECT count(*)::int AS count FROM embedding_search`)[0].count).toBe(501)
   }, 60_000)
 
@@ -138,6 +128,61 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     expect(await backfillSearchVectors(sql)).toBe(0)
   }, 60_000)
 
+  it('backfills identical keyword vectors and keeps content edits, scope changes, and deletes current', async () => {
+    expect(await backfillSearchKeywords(sql)).toBe(501)
+    expect(await backfillSearchKeywords(sql)).toBe(0)
+    const [initial] = await sql`SELECT count(*)::int AS count FROM embedding e
+      JOIN embedding_keyword_search s ON s.id = e.id
+      WHERE e.content_tsv IS DISTINCT FROM s.content_tsv
+        OR e.enabled IS DISTINCT FROM s.enabled
+        OR e.knowledge_base_id IS DISTINCT FROM s.knowledge_base_id
+        OR e.document_id IS DISTINCT FROM s.document_id`
+    expect(initial.count).toBe(0)
+    await sql`UPDATE embedding SET content = 'Revised deployment instructions',
+      knowledge_base_id = 'full', document_id = 'revised-document', enabled = false
+      WHERE id = 'chunk-2'`
+    expect(
+      await sql`SELECT knowledge_base_id, document_id, enabled,
+      content_tsv = to_tsvector('english', 'Revised deployment instructions') AS current
+      FROM embedding_keyword_search WHERE id = 'chunk-2'`
+    ).toEqual([
+      { knowledge_base_id: 'full', document_id: 'revised-document', enabled: false, current: true },
+    ])
+    await sql`DELETE FROM embedding WHERE id = 'chunk-2'`
+    expect(await sql`SELECT id FROM embedding_keyword_search WHERE id = 'chunk-2'`).toHaveLength(0)
+    expect(await backfillSearchKeywords(sql)).toBe(0)
+  })
+
+  it('repairs an interrupted index build and preserves valid indexes on replay', async () => {
+    await expect(
+      sql.unsafe(
+        'CREATE UNIQUE INDEX CONCURRENTLY embedding_search_cosine_hnsw_idx ON embedding_search (knowledge_base_id)'
+      )
+    ).rejects.toMatchObject({ code: '23505' })
+    expect(
+      (
+        await sql`SELECT indisvalid FROM pg_index WHERE indexrelid = 'embedding_search_cosine_hnsw_idx'::regclass`
+      )[0].indisvalid
+    ).toBe(false)
+    await buildSearchIndexes(sql)
+    const indexes = await sql`SELECT indexrelid, indisvalid FROM pg_index
+      INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
+      WHERE indrelid IN ('embedding_search'::regclass, 'embedding_keyword_search'::regclass)
+        AND (relname LIKE '%cosine_hnsw_idx' OR relname IN
+          ('embedding_keyword_search_kb_idx', 'embedding_keyword_search_document_idx', 'embedding_keyword_search_content_idx'))
+      ORDER BY indexrelid`
+    expect(indexes).toHaveLength(9)
+    expect(indexes.every((index) => index.indisvalid)).toBe(true)
+    await buildSearchIndexes(sql)
+    const replay = await sql`SELECT indexrelid, indisvalid FROM pg_index
+      INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
+      WHERE indrelid IN ('embedding_search'::regclass, 'embedding_keyword_search'::regclass)
+        AND (relname LIKE '%cosine_hnsw_idx' OR relname IN
+          ('embedding_keyword_search_kb_idx', 'embedding_keyword_search_document_idx', 'embedding_keyword_search_content_idx'))
+      ORDER BY indexrelid`
+    expect(replay).toEqual(indexes)
+  }, 60_000)
+
   it('keeps inserts, state changes, width changes, and deletes synchronous after the upgrade', async () => {
     await sql.unsafe(`INSERT INTO embedding
       (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length, token_count, start_offset, end_offset, embedding_384)
@@ -162,6 +207,32 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     expect(await sql`SELECT id FROM embedding_search WHERE id = 'chunk-1'`).toHaveLength(0)
   })
 
+  it.each([128, 512])(
+    'stores a %i-token keyword vector without widening semantic candidates',
+    async (tokens) => {
+      const id = generateId()
+      await sql.unsafe(
+        `INSERT INTO embedding
+      (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length,
+        token_count, start_offset, end_offset, embedding)
+      SELECT $1, 'full', $1, 0, $1, string_agg(md5(n::text), ' '), $2 * 33,
+        $2, 0, $2 * 33, array_fill(0.01::real, ARRAY[1536])::vector(1536)
+      FROM generate_series(1, $2::int) n`,
+        [id, tokens]
+      )
+      const [row] = await sql`SELECT s.content_tsv = e.content_tsv AS identical,
+      pg_column_toast_chunk_id(s.content_tsv) IS NULL AS inline,
+      pg_column_size(s.content_tsv) AS bytes
+      FROM embedding_keyword_search s JOIN embedding e ON e.id = s.id WHERE s.id = ${id}`
+      expect(row.identical).toBe(true)
+      expect(row.bytes).toBeGreaterThan(2048)
+      expect(row.inline).toBe(tokens === 128)
+      expect(
+        (await sql`SELECT count(*)::int AS count FROM embedding_search WHERE id = ${id}`)[0].count
+      ).toBe(1)
+    }
+  )
+
   it.each([1536, 3072])(
     'keeps lookup identities inline beside %i-dimensional vectors',
     async (width) => {
@@ -185,4 +256,91 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
       expect(row).toEqual({ chunk: null, knowledge_base: null, document: null })
     }
   )
+
+  it.each([
+    { name: 'binary', table: 'embedding_search', backfill: backfillEmbeddingSearch },
+    { name: 'vector', table: 'embedding_search', backfill: backfillSearchVectors },
+    { name: 'keyword', table: 'embedding_keyword_search', backfill: backfillSearchKeywords },
+  ])(
+    'resumes $name after cancellation and traverses fully populated source pages',
+    async ({ name, table, backfill }) => {
+      await backfillSearchVectors(sql)
+      await sql.unsafe(`INSERT INTO embedding
+      (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length,
+        token_count, start_offset, end_offset, embedding)
+      SELECT 'recovery-' || lpad(n::text, 4, '0'), 'prefix', 'recovery-document', n,
+        'recovery-hash-' || n, 'Synthetic recovery fixture', 26, 4, 0, 26,
+        array_fill(0.01::real, ARRAY[1536])::vector(1536)
+      FROM generate_series(1, 1001) n`)
+      if (name === 'vector') {
+        await sql.unsafe(`UPDATE embedding_search SET ${fields.map((field) => `${field} = NULL`).join(', ')}
+        WHERE id LIKE 'recovery-%'`)
+      } else {
+        await sql.unsafe(`DELETE FROM ${table} WHERE id LIKE 'recovery-%'`)
+      }
+      await sql.unsafe(`CREATE FUNCTION cancel_projection_batch() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.id = 'recovery-0750' THEN
+          RAISE EXCEPTION 'Synthetic statement cancellation' USING ERRCODE = '57014';
+        END IF;
+        RETURN NEW;
+      END;
+      $$`)
+      await sql.unsafe(`CREATE TRIGGER cancel_projection_batch BEFORE INSERT OR UPDATE ON ${table}
+      FOR EACH ROW EXECUTE FUNCTION cancel_projection_batch()`)
+      try {
+        await expect(backfill(sql)).rejects.toMatchObject({ code: '57014' })
+      } finally {
+        await sql.unsafe(`DROP TRIGGER cancel_projection_batch ON ${table}`)
+        await sql.unsafe('DROP FUNCTION cancel_projection_batch()')
+      }
+      const populated = name === 'vector' ? `AND coalesce(${fields.join(', ')}) IS NOT NULL` : ''
+      const [{ committed }] = await sql.unsafe<Array<{ committed: number }>>(`
+      SELECT count(*)::int AS committed FROM ${table} WHERE id LIKE 'recovery-%' ${populated}`)
+      expect(committed).toBeGreaterThan(0)
+      expect(committed).toBeLessThan(750)
+      expect(await backfill(sql)).toBe(1001 - committed)
+      expect(await backfill(sql)).toBe(0)
+      if (name === 'vector') {
+        await sql.unsafe(`UPDATE embedding_search SET ${fields.map((field) => `${field} = NULL`).join(', ')}
+        WHERE id = 'recovery-1001'`)
+      } else {
+        await sql.unsafe(`DELETE FROM ${table} WHERE id = 'recovery-1001'`)
+      }
+      expect(await backfill(sql)).toBe(1)
+      await sql`DELETE FROM embedding WHERE id LIKE 'recovery-%'`
+    },
+    60_000
+  )
+
+  it('runs 0016 directly after a partially committed, unjournaled 0015', async () => {
+    await sql`CREATE TABLE script_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`
+    for (const migration of scriptMigrations) {
+      if (migration.name !== '0016_backfill_search_vectors') {
+        await sql`INSERT INTO script_migrations (name) VALUES (${migration.name})`
+      }
+    }
+    await backfillEmbeddingSearch(sql)
+    await sql.unsafe(`INSERT INTO embedding
+      (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length,
+        token_count, start_offset, end_offset, embedding)
+      SELECT 'upgrade-' || lpad(n::text, 4, '0'), 'prefix', 'upgrade-document', n,
+        'upgrade-hash-' || n, 'Synthetic upgrade fixture', 25, 4, 0, 25,
+        array_fill(0.01::real, ARRAY[1536])::vector(1536)
+      FROM generate_series(1, 1001) n`)
+    await sql`DELETE FROM embedding_search WHERE id > 'upgrade-0501' AND id LIKE 'upgrade-%'`
+    await sql`DELETE FROM embedding_keyword_search WHERE id LIKE 'upgrade-%'`
+    await runScriptMigrations(sql)
+    expect(
+      await sql`SELECT name FROM script_migrations WHERE name >= '0015' ORDER BY name`
+    ).toEqual([{ name: '0016_backfill_search_vectors' }])
+    const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
+      JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id
+      WHERE e.id LIKE 'upgrade-%' AND s."binary" = binary_quantize(e.embedding)::bit(1536)
+        AND s.vector_512 = subvector(e.embedding, 1, 512)::halfvec(512)
+        AND k.content_tsv = e.content_tsv`
+    expect(complete).toBe(1001)
+    await runScriptMigrations(sql)
+    await sql`DELETE FROM embedding WHERE id LIKE 'upgrade-%'`
+  }, 60_000)
 })

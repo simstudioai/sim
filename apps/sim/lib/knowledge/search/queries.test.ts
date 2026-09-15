@@ -575,6 +575,7 @@ describe('live repository authorization follows ranked candidates', () => {
 
   const candidatePages: Array<Array<{ id: string; initial_count: number }>> = []
   const rerankPages: Array<Array<ReturnType<typeof candidate>>> = []
+  const keywordPages: Array<Array<ReturnType<typeof candidate>>> = []
   function queueRerank(rows: Array<ReturnType<typeof candidate>>) {
     rerankPages.push(rows)
   }
@@ -586,12 +587,15 @@ describe('live repository authorization follows ranked candidates', () => {
     resetDbChainMock()
     candidatePages.length = 0
     rerankPages.length = 0
+    keywordPages.length = 0
     dbChainMockFns.execute.mockImplementation(async (query) =>
       render(query).sql.includes('WITH visible_search_documents')
         ? (candidatePages.shift() ?? [])
         : render(query).sql.includes('WITH scored_search_candidates')
           ? (rerankPages.shift() ?? [])
-          : []
+          : render(query).sql.includes('WITH visible_keyword_documents')
+            ? (keywordPages.shift() ?? [])
+            : []
     )
     getForConnectors.mockReset().mockResolvedValue(allowed)
   })
@@ -768,7 +772,9 @@ describe('live repository authorization follows ranked candidates', () => {
   it.each(['vector', 'tag-vector', 'tags', 'keyword'] as const)(
     '%s ranks identifiers before verification and loads content under the full predicate',
     async (mode) => {
-      queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
+      const candidates = [candidate('selected', 'allowed-source')]
+      if (mode === 'keyword') keywordPages.push(candidates)
+      else queueTableRows(schemaMock.embedding, candidates)
       queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
       const rows =
         mode === 'vector'
@@ -784,22 +790,32 @@ describe('live repository authorization follows ranked candidates', () => {
                 })
       expect(rows).toEqual([{ id: 'selected', content: 'verified result' }])
       expect(getForConnectors).toHaveBeenCalledWith(['allowed-source'], undefined)
-      expect(Object.keys(dbChainMockFns.select.mock.calls[0][0]).sort()).toEqual(
-        [
-          'id',
-          'documentId',
-          'connectorId',
-          'liveAuthorizationSource',
-          ...(mode === 'keyword' ? ['keywordRank'] : mode === 'tags' ? [] : ['distance']),
-        ].sort()
-      )
-      expect(dbChainMockFns.select.mock.invocationCallOrder[0]).toBeLessThan(
-        getForConnectors.mock.invocationCallOrder[0]
-      )
+      if (mode === 'keyword') {
+        const ranking = render(dbChainMockFns.execute.mock.calls[0][0]).sql
+        expect(ranking).toContain('scored_keyword_candidates AS MATERIALIZED')
+        expect(ranking).toContain('ORDER BY keyword_rank DESC, id LIMIT')
+        expect(ranking).not.toContain('<=>')
+        expect(ranking).not.toContain('"content"')
+      } else {
+        expect(Object.keys(dbChainMockFns.select.mock.calls[0][0]).sort()).toEqual(
+          [
+            'id',
+            'documentId',
+            'connectorId',
+            'liveAuthorizationSource',
+            ...(mode === 'tags' ? [] : ['distance']),
+          ].sort()
+        )
+      }
+      const rankingOrder =
+        mode === 'keyword'
+          ? dbChainMockFns.execute.mock.invocationCallOrder[0]
+          : dbChainMockFns.select.mock.invocationCallOrder[0]
+      expect(rankingOrder).toBeLessThan(getForConnectors.mock.invocationCallOrder[0])
       expect(getForConnectors.mock.invocationCallOrder[0]).toBeLessThan(
-        dbChainMockFns.select.mock.invocationCallOrder[1]
+        dbChainMockFns.select.mock.invocationCallOrder.at(-1)!
       )
-      const fullPredicate = dbChainMockFns.where.mock.calls[1][0]
+      const fullPredicate = dbChainMockFns.where.mock.calls.at(-1)![0]
       const serializedPredicate = JSON.stringify(fullPredicate)
       expect(serializedPredicate).toContain('github_read_grant')
       expect(serializedPredicate).toContain('allowed-source')
@@ -822,9 +838,9 @@ describe('live repository authorization follows ranked candidates', () => {
     '%s skips discovery for an explicit non-GitHub source and retains full hydration',
     async (mode) => {
       getForConnectors.mockResolvedValue(identity)
-      queueTableRows(schemaMock.embedding, [
-        { ...candidate('gmail', 'gmail-source'), installationSource: false },
-      ])
+      const candidates = [{ ...candidate('gmail', 'gmail-source'), installationSource: false }]
+      if (mode === 'keyword') keywordPages.push(candidates)
+      else queueTableRows(schemaMock.embedding, candidates)
       const hydrated = [{ id: 'gmail', content: 'current permitted content' }]
       queueTableRows(schemaMock.embedding, hydrated)
       const searchParams = { ...params, filters: { source: 'gmail' } }
@@ -846,10 +862,13 @@ describe('live repository authorization follows ranked candidates', () => {
       for (const [condition] of dbChainMockFns.where.mock.calls) {
         expect(JSON.stringify(condition)).toContain('gmail')
       }
-      const hydration = JSON.stringify(dbChainMockFns.where.mock.calls[1][0])
+      if (mode === 'keyword') {
+        expect(JSON.stringify(dbChainMockFns.execute.mock.calls[0][0])).toContain('gmail')
+      }
+      const hydration = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])
       expect(hydration).toContain('acl')
       expect(hydration).toContain('knowledgeConnectorMember')
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(mode === 'keyword' ? 1 : 2)
     }
   )
 
@@ -905,6 +924,29 @@ describe('live repository authorization follows ranked candidates', () => {
     const refillPredicate = JSON.stringify(dbChainMockFns.where.mock.calls[2][0])
     expect(refillPredicate).toContain('NOT')
     expect(refillPredicate).toContain('revoked-source')
+  })
+
+  it('recomputes keyword candidates after excluding a revoked source and rechecks content access', async () => {
+    getForConnectors.mockResolvedValueOnce(identity)
+    keywordPages.push(
+      [candidate('denied', 'revoked-source')],
+      [candidate('selected', 'allowed-source')]
+    )
+    queueTableRows(schemaMock.embedding, [])
+    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
+    expect(
+      await executeKeywordSearch({ ...params, query: 'release', queryVector: params.queryVector! })
+    ).toEqual([{ id: 'selected', content: 'verified result' }])
+    expect(getForConnectors.mock.calls.map(([ids]) => ids)).toEqual([
+      ['revoked-source'],
+      ['allowed-source'],
+    ])
+    const refill = JSON.stringify(dbChainMockFns.execute.mock.calls[1][0])
+    expect(refill).toContain('revoked-source')
+    expect(refill).toContain('NOT')
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain(
+      'github_read_grant'
+    )
   })
 
   it.each([undefined, 'confluence'])(

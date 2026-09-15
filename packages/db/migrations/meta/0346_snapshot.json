@@ -1,5 +1,5 @@
 {
-  "id": "a6137fff-53e3-430c-bff1-dc4706535131",
+  "id": "44929069-8639-4927-a122-96c84680d631",
   "prevId": "3f607ef9-8cab-431c-b9be-e518b7fe0486",
   "version": "7",
   "dialect": "postgresql",
@@ -6976,6 +6976,105 @@
           "value": "num_nonnulls(\"embedding\", \"embedding_384\", \"embedding_768\", \"embedding_1024\", \"embedding_3072\") = 1"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.embedding_keyword_search": {
+      "name": "embedding_keyword_search",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "knowledge_base_id": {
+          "name": "knowledge_base_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_tsv": {
+          "name": "content_tsv",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "embedding_keyword_search_kb_idx": {
+          "name": "embedding_keyword_search_kb_idx",
+          "columns": [
+            {
+              "expression": "knowledge_base_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "embedding_keyword_search_document_idx": {
+          "name": "embedding_keyword_search_document_idx",
+          "columns": [
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "embedding_keyword_search_content_idx": {
+          "name": "embedding_keyword_search_content_idx",
+          "columns": [
+            {
+              "expression": "content_tsv",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "embedding_keyword_search_id_embedding_id_fk": {
+          "name": "embedding_keyword_search_id_embedding_id_fk",
+          "tableFrom": "embedding_keyword_search",
+          "tableTo": "embedding",
+          "columnsFrom": ["id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.embedding_search": {

@@ -904,6 +904,13 @@ export const schemaMock = {
     createdAt: 'knowledgeBaseTagDefinitions.createdAt',
     updatedAt: 'knowledgeBaseTagDefinitions.updatedAt',
   },
+  embeddingKeywordSearch: {
+    id: 'embeddingKeywordSearch.id',
+    knowledgeBaseId: 'embeddingKeywordSearch.knowledgeBaseId',
+    documentId: 'embeddingKeywordSearch.documentId',
+    enabled: 'embeddingKeywordSearch.enabled',
+    contentTsv: 'embeddingKeywordSearch.contentTsv',
+  },
   embeddingSearch: {
     id: 'embeddingSearch.id',
     knowledgeBaseId: 'embeddingSearch.knowledgeBaseId',
