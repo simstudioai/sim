@@ -144,7 +144,7 @@ export function ToolActivityGroup({
           activity={{
             label: working
               ? getActiveToolActivityTitle(
-                  `${generatingCall ? 'Preparing tool call…' : status.label}${running.length > 1 ? ` + ${running.length - 1}` : ''}`,
+                  `${generatingCall ? 'Working…' : status.label}${running.length > 1 ? ` + ${running.length - 1}` : ''}`,
                   statusTool,
                   tools
                 )
