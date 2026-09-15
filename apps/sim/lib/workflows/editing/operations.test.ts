@@ -402,6 +402,100 @@ describe('handleEditOperation dependent inputs', () => {
       projectId: 'PROJECT-NEW',
     })
   })
+
+  it('switches nested Agent Tool Mode based on the canonical field supplied', () => {
+    const workflow = {
+      blocks: {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Agent 1',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {
+            tools: {
+              id: 'tools',
+              type: 'tool-input',
+              value: [
+                {
+                  type: 'custom-tool',
+                  customToolId: 'custom-1',
+                  usageControl: 'auto',
+                  usageControlExpression: '<route.oldToolMode>',
+                },
+              ],
+            },
+          },
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const basicRoundTrip = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [
+              {
+                type: 'custom-tool',
+                customToolId: 'custom-1',
+                usageControl: 'auto',
+                usageControlExpression: '<route.oldToolMode>',
+              },
+            ],
+          },
+        },
+      },
+    ]).state
+
+    expect(basicRoundTrip.blocks['agent-1'].data.canonicalModes).not.toHaveProperty(
+      '0:agentToolUsageControl'
+    )
+
+    const advanced = applyOperationsToWorkflowState(basicRoundTrip, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [
+              {
+                type: 'custom-tool',
+                customToolId: 'custom-1',
+                usageControlExpression: '<route.toolMode>',
+              },
+            ],
+          },
+        },
+      },
+    ]).state
+
+    expect(advanced.blocks['agent-1'].data.canonicalModes).toMatchObject({
+      '0:agentToolUsageControl': 'advanced',
+    })
+
+    const basic = applyOperationsToWorkflowState(advanced, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [{ type: 'custom-tool', customToolId: 'custom-1', usageControl: 'force' }],
+          },
+        },
+      },
+    ]).state
+
+    expect(basic.blocks['agent-1'].data.canonicalModes).not.toHaveProperty(
+      '0:agentToolUsageControl'
+    )
+  })
 })
 
 function makeParallelWorkflow() {
@@ -1249,5 +1343,43 @@ describe('tool canonical-mode reindexing', () => {
 
     expect(editTools(workflow, [selectorTool])).toEqual({ '0:projectId': 'basic' })
     expect(editTools(workflow, [])).toEqual({})
+  })
+
+  it('selects a Permission Mode at the final position of a tool the edit also moves', () => {
+    const fixedTool = { ...selectorTool, usageControl: 'force' }
+    const expressionTool = {
+      type: 'jira',
+      operation: 'jira_get_issue',
+      title: 'Variable',
+      params: { manualProjectId: '{{PROJECT}}' },
+      usageControlExpression: '<start.toolMode>',
+      isExpanded: false,
+    }
+    const workflow = agentWithTools([expressionTool, fixedTool], {
+      '0:agentToolUsageControl': 'advanced',
+    })
+
+    expect(editTools(workflow, [fixedTool, expressionTool])).toEqual({
+      '1:agentToolUsageControl': 'advanced',
+    })
+  })
+
+  it('keeps a round-tripped Permission Mode with its tool when an explicit choice moves past it', () => {
+    const roundTripTool = { ...selectorTool, usageControlExpression: '<start.dormant>' }
+    const expressionTool = {
+      type: 'jira',
+      operation: 'jira_get_issue',
+      title: 'Variable',
+      params: { manualProjectId: '{{PROJECT}}' },
+      usageControlExpression: '<start.toolMode>',
+      isExpanded: false,
+    }
+    const workflow = agentWithTools([roundTripTool, expressionTool], {
+      '1:agentToolUsageControl': 'advanced',
+    })
+
+    expect(editTools(workflow, [expressionTool, roundTripTool])).toEqual({
+      '0:agentToolUsageControl': 'advanced',
+    })
   })
 })
