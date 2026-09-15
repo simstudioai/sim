@@ -34,8 +34,7 @@ interface NavbarProps {
 
 export function Navbar({ stars }: NavbarProps) {
   return (
-    <NavbarShell>
-      <AnnouncementBanner />
+    <NavbarShell announcement={<AnnouncementBanner />}>
       <nav
         aria-label='Primary navigation'
         itemScope
