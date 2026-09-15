@@ -35,7 +35,7 @@ export function SearchPreview({ layout = 'menu', mode = 'chat' }: SearchPreviewP
       aria-hidden='true'
       className={cn(
         'pointer-events-none relative isolate overflow-hidden',
-        layout === 'hero' ? 'h-[420px] max-sm:h-[400px]' : 'size-full min-h-[340px]'
+        layout === 'hero' ? 'h-[360px] max-sm:h-[400px]' : 'size-full min-h-[340px]'
       )}
     >
       {layout === 'hero' && <SearchBackdrop />}

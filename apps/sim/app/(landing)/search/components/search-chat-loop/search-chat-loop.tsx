@@ -71,7 +71,7 @@ export function SearchChatLoop({
           : 'typing'
       }
       data-search-result={scenario.kind}
-      className='relative mx-auto flex h-full w-full max-w-chat flex-col px-6 pt-5 pb-9 max-sm:px-4'
+      className='relative mx-auto flex h-full w-full max-w-chat flex-col px-6 pt-5 pb-5 max-sm:px-4'
     >
       <div
         className={cn(
@@ -89,7 +89,7 @@ export function SearchChatLoop({
             reducedMotion={reducedMotion}
           />
         ) : !sent ? null : (
-          <div className='flex h-full flex-col gap-4 overflow-hidden pb-5'>
+          <div className='flex h-full flex-col justify-end gap-4 overflow-hidden pb-2'>
             <div className='max-w-[80%] shrink-0 self-end rounded-2xl bg-[var(--surface-5)] px-3.5 py-2 text-[var(--text-primary)] text-sm leading-5'>
               {scenario.prompt}
             </div>
@@ -118,7 +118,7 @@ export function SearchChatLoop({
         data-search-composer
         className={cn(
           'absolute inset-x-6 z-10 rounded-2xl border border-[var(--border)] bg-[var(--white)] px-2.5 py-2 transition-[bottom,translate] duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none max-sm:inset-x-4 dark:bg-[var(--surface-4)]',
-          sent ? 'bottom-9 translate-y-0' : 'bottom-1/2 translate-y-1/2 shadow-ambient'
+          sent ? 'bottom-5 translate-y-0' : 'bottom-1/2 translate-y-1/2 shadow-ambient'
         )}
       >
         <div inert>
