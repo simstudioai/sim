@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
+import type { DesktopTabResourceOptions } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const { sendBrowserPanelAction, openUrlInNewBrowserTab, openInPanelListeners } = vi.hoisted(() => ({
@@ -37,17 +38,7 @@ function pushTabs(scopeId: string, tabs: ReturnType<typeof tab>[], activeTabId: 
   })
 }
 
-interface HostProps {
-  scopeId: string
-  resources: MothershipResource[]
-  activeResourceId: string | null
-  addResource: (resource: MothershipResource) => void
-  removeResource: (type: MothershipResource['type'], id: string) => void
-  selectResource: (id: string) => void
-  onResourceEvent: (id: string, options?: { activate?: boolean }) => void
-}
-
-function Host(props: HostProps) {
+function Host(props: DesktopTabResourceOptions) {
   useBrowserTabResources(props)
   return null
 }
@@ -60,11 +51,12 @@ describe('useBrowserTabResources', () => {
   const selectResource = vi.fn()
   const onResourceEvent = vi.fn()
 
-  function render(overrides: Partial<HostProps> = {}) {
-    const props: HostProps = {
+  function render(overrides: Partial<DesktopTabResourceOptions> = {}) {
+    const props: DesktopTabResourceOptions = {
       scopeId: SCOPE,
       resources: [],
       activeResourceId: null,
+      selectedResourceId: null,
       addResource,
       removeResource,
       selectResource,
@@ -72,7 +64,12 @@ describe('useBrowserTabResources', () => {
       ...overrides,
     }
     act(() => root.render(<Host {...props} />))
-    return (next: Partial<HostProps>) => act(() => root.render(<Host {...props} {...next} />))
+    /** `alsoInThisCommit` lands a store push and the new props together. */
+    return (next: Partial<DesktopTabResourceOptions>, alsoInThisCommit?: () => void) =>
+      act(() => {
+        alsoInThisCommit?.()
+        root.render(<Host {...props} {...next} />)
+      })
   }
 
   beforeEach(() => {
@@ -153,11 +150,11 @@ describe('useBrowserTabResources', () => {
       { type: 'browser', id: '1', title: 'Page 1' },
       { type: 'browser', id: '2', title: 'Page 2' },
     ]
-    const rerender = render({ resources, activeResourceId: '1' })
+    const rerender = render({ resources, activeResourceId: '1', selectedResourceId: '1' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
 
-    rerender({ activeResourceId: '2' })
+    rerender({ activeResourceId: '2', selectedResourceId: '2' })
     expect(sendBrowserPanelAction).toHaveBeenCalledExactlyOnceWith(
       'switch-tab',
       { tabId: '2', claim: false },
@@ -169,13 +166,62 @@ describe('useBrowserTabResources', () => {
     expect(selectResource).not.toHaveBeenCalled()
   })
 
+  it('shows a page selected before the pages landed, once it arrives', () => {
+    render({ selectedResourceId: '2', activeResourceId: '2' })
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    expect(sendBrowserPanelAction).toHaveBeenCalledExactlyOnceWith(
+      'switch-tab',
+      { tabId: '2', claim: false },
+      SCOPE
+    )
+  })
+
+  it('does not claim the scope first report as a user switch', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1'), tab('2')], null)
+    rerender({ resources, activeResourceId: '2', selectedResourceId: null })
+
+    // The desktop app reports the page it restored. The strip resolves to that
+    // page on its own, so there is nothing here to claim for the user.
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    expect(selectResource).not.toHaveBeenCalled()
+    expect(sendBrowserPanelAction).not.toHaveBeenCalled()
+  })
+
+  it('claims a native switch away from a page it was already showing', () => {
+    const resources: MothershipResource[] = [
+      { type: 'browser', id: '1', title: 'Page 1' },
+      { type: 'browser', id: '2', title: 'Page 2' },
+    ]
+    const rerender = render()
+    pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
+    rerender({ resources, activeResourceId: '1', selectedResourceId: null })
+    expect(selectResource).not.toHaveBeenCalled()
+
+    // A keyboard shortcut in the page moves the desktop app to page 2. With no
+    // explicit selection the strip resolves to that page in the same commit,
+    // so the switch is only visible against the page the desktop app left.
+    rerender({ resources, activeResourceId: '2' }, () => {
+      useBrowserSessionStore
+        .getState()
+        .setTabsState({ scopeId: SCOPE, tabs: [tab('1'), tab('2', true)], activeTabId: '2' })
+    })
+    expect(selectResource).toHaveBeenCalledExactlyOnceWith('2')
+  })
+
   it('follows a native switch into the strip only while the user is on the browser', () => {
     const resources: MothershipResource[] = [
       { type: 'browser', id: '1', title: 'Page 1' },
       { type: 'browser', id: '2', title: 'Page 2' },
       { type: 'file', id: 'f', title: 'notes.md' },
     ]
-    const rerender = render({ resources, activeResourceId: '1' })
+    const rerender = render({ resources, activeResourceId: '1', selectedResourceId: '1' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
 
     pushTabs(SCOPE, [tab('1'), tab('2', true)], '2')
@@ -183,7 +229,7 @@ describe('useBrowserTabResources', () => {
     expect(sendBrowserPanelAction).not.toHaveBeenCalled()
 
     selectResource.mockClear()
-    rerender({ activeResourceId: 'f' })
+    rerender({ activeResourceId: 'f', selectedResourceId: 'f' })
     pushTabs(SCOPE, [tab('1', true), tab('2')], '1')
     expect(selectResource).not.toHaveBeenCalled()
   })
@@ -192,6 +238,7 @@ describe('useBrowserTabResources', () => {
     render({
       resources: [{ type: 'browser', id: '1', title: 'Page 1' }],
       activeResourceId: '1',
+      selectedResourceId: '1',
     })
     pushTabs(SCOPE, [tab('1', true)], '1')
     act(() => {

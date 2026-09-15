@@ -1,10 +1,16 @@
-import { db, member, ssoProvider } from '@sim/db'
+import { db, member, ssoDomain, ssoProvider } from '@sim/db'
+import {
+  isNamedPrimary,
+  ssoProviderDomainKey,
+  verifiedDomainOfProvider,
+} from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { markSignInProviders } from '@/lib/auth/sso/primary-provider'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -76,12 +82,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           userId: ssoProvider.userId,
           organizationId: ssoProvider.organizationId,
           jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
+          domainVerified: ssoProvider.domainVerified,
+          domainKey: ssoProviderDomainKey,
+          isNamedPrimary,
         })
         .from(ssoProvider)
+        .leftJoin(ssoDomain, verifiedDomainOfProvider)
         .where(whereClause)
         .orderBy(asc(ssoProvider.providerId))
 
-      providers = results.map((provider) => {
+      providers = markSignInProviders(results).map((provider) => {
         let oidcConfig = provider.oidcConfig
         if (oidcConfig) {
           try {

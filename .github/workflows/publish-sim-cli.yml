@@ -5,6 +5,11 @@ on:
     branches: [main, staging, dev]
     paths:
       - 'packages/sim-cli/**'
+      # The build bundles its workspace dependencies, so a change there
+      # changes what ships.
+      - 'packages/utils/**'
+      # A change to how the package is built or published has to republish it.
+      - '.github/workflows/publish-sim-cli.yml'
 
 permissions:
   contents: read

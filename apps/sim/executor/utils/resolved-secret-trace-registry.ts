@@ -1175,6 +1175,46 @@ export class ResolvedSecretTraceRegistry {
     child.copyResolvedInputPathsTo(this)
   }
 
+  /**
+   * Vouches for one explicit resolution using the same authorized environment snapshot that
+   * supplied its value. A long-lived Copilot turn can outlive a secret addition or rotation;
+   * refreshing this name leaves earlier active values and sibling call registries intact.
+   */
+  recordResolvedFromEnvironment(
+    name: string,
+    resolvedValue: string,
+    environment: CreateResolvedSecretTraceRegistryOptions,
+    options: { path?: ResolvedSecretInputPath; propagated?: boolean } = {}
+  ): boolean {
+    if (!scopesMatch(this.scope, environment.scope)) {
+      this.markIncomplete('tool-call-scope-mismatch')
+      return false
+    }
+
+    const encryptedValue = hasOwn(environment.workspaceEncrypted, name)
+      ? environment.workspaceEncrypted[name]
+      : environment.personalEncrypted[name]
+    const entry =
+      typeof encryptedValue === 'string' && encryptedValue.length > 0
+        ? buildEffectiveCatalogEntry(
+            environment,
+            new Set(environment.decryptionFailures ?? []),
+            new Set(environment.workspaceUnredactedKeys ?? []),
+            name,
+            encryptedValue
+          )
+        : undefined
+    if (!entry || entry.plaintext !== resolvedValue || !this.addCatalogEntry(entry)) {
+      if (options.path?.length) {
+        this.markInputPathIncomplete(options.path, 'unverified-resolved-entry')
+      } else {
+        this.markIncomplete('unverified-resolved-entry')
+      }
+      return false
+    }
+    return this.recordResolvedAtInputPath(name, resolvedValue, options.path, options)
+  }
+
   /** Activates a configured secret only when the resolved runtime value matches its catalog value. */
   recordResolved(
     name: string,

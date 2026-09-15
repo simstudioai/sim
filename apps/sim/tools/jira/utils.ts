@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { resolveAtlassianCloudId } from '@/lib/atlassian/discovery'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
-import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import {
   AttachmentDownloadBudget,
   rethrowAttachmentDownloadError,

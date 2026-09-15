@@ -58,6 +58,24 @@ describe('captureServerEvent', () => {
     )
   })
 
+  it('stamps the user agent product of an undeclared client', () => {
+    vi.mocked(loggerMock.getRequestContext).mockReturnValue({
+      requestId: 'req-1',
+      client: { surface: 'api', source: 'credential', name: 'python-requests' },
+    })
+
+    captureServerEvent('user-1', 'workflow_deployed', {
+      workflow_id: 'workflow-1',
+      workspace_id: 'workspace-1',
+    })
+
+    expect(captureSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        properties: expect.objectContaining({ surface: 'api', client_name: 'python-requests' }),
+      })
+    )
+  })
+
   it('stamps the request, its authentication, and the workflow call chain', () => {
     vi.mocked(loggerMock.getRequestContext).mockReturnValue({
       requestId: 'req-1',

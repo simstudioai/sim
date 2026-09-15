@@ -451,6 +451,7 @@ describe('script migration registry', () => {
       '0012_reconcile_oauth_provider_lifecycle',
       '0013_backfill_legacy_knowledge_base_workspaces',
       '0014_require_knowledge_base_owner',
+      '0016_backfill_search_vectors',
     ])
   })
 })

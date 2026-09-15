@@ -13,16 +13,19 @@ const {
   mockUseDeleteSSOProvider,
   mockUseOrganizationBilling,
   mockUseSession,
+  mockUseSetPrimarySSOProvider,
   mockUseSSOProviders,
 } = vi.hoisted(() => ({
   mockUseConfigureSSO: vi.fn(),
   mockUseDeleteSSOProvider: vi.fn(),
+  mockUseSetPrimarySSOProvider: vi.fn(),
   mockUseOrganizationBilling: vi.fn(),
   mockUseSession: vi.fn(),
   mockUseSSOProviders: vi.fn(),
 }))
 
 vi.mock('@sim/emcn', () => ({
+  ChipTag: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({ children, ...props }: { children?: ReactNode }) => (
     <button type='button' {...props}>
       {children}
@@ -37,15 +40,18 @@ vi.mock('@sim/emcn', () => ({
   ChipConfirmModal: ({
     open,
     title,
+    text,
     confirm,
   }: {
     open: boolean
     title: string
+    text: Array<string | { text: string }>
     confirm: { label: string; onClick: () => void }
   }) =>
     open ? (
       <div role='dialog'>
         <span>{title}</span>
+        <p>{text.map((part) => (typeof part === 'string' ? part : part.text)).join('')}</p>
         <button type='button' onClick={confirm.onClick}>
           {confirm.label}
         </button>
@@ -221,6 +227,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard
 vi.mock('@/ee/sso/hooks/sso', () => ({
   useConfigureSSO: mockUseConfigureSSO,
   useDeleteSSOProvider: mockUseDeleteSSOProvider,
+  useSetPrimarySSOProvider: mockUseSetPrimarySSOProvider,
   useSSOProviders: mockUseSSOProviders,
 }))
 
@@ -230,11 +237,13 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row
   SettingsResourceRow: ({
     title,
     description,
+    badge,
     clickLabel,
     onClick,
   }: {
     title: ReactNode
     description?: ReactNode
+    badge?: ReactNode
     clickLabel?: string
     onClick?: () => void
   }) => (
@@ -243,6 +252,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row
         {title}
         {description}
       </button>
+      {badge}
     </div>
   ),
 }))
@@ -259,6 +269,8 @@ function provider(organizationId: string) {
     id: `sso-${suffix}`,
     providerId: `provider-${suffix}`,
     domain: `org-${suffix}.example.com`,
+    domainKey: `org-${suffix}.example.com`,
+    domainVerified: true,
     issuer: `https://issuer-${suffix}.example.com`,
     organizationId,
     jitProvisioningEnabled: true,
@@ -330,6 +342,10 @@ beforeEach(() => {
     mutateAsync: vi.fn(),
   })
   mockUseDeleteSSOProvider.mockReturnValue({
+    isPending: false,
+    mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+  })
+  mockUseSetPrimarySSOProvider.mockReturnValue({
     isPending: false,
     mutateAsync: vi.fn().mockResolvedValue({ success: true }),
   })
@@ -773,5 +789,148 @@ describe('SSO provider list', () => {
     expect(findButton('Edit')).toBeDefined()
     expect(findButton('Delete')).toBeDefined()
     expect(findButton('Identity providers')).toBeDefined()
+  })
+})
+
+describe('SSO primary provider', () => {
+  /** An organization moving one domain's sign-in from one identity provider to another. */
+  function renderMigration(searchParams = '', okta: Record<string, unknown> = {}) {
+    mockUseSSOProviders.mockReturnValue({
+      data: {
+        providers: [
+          {
+            ...provider('org-a'),
+            id: 'sso-entra',
+            providerId: 'acme-entra',
+            domainVerified: true,
+            isPrimary: true,
+          },
+          {
+            ...provider('org-a'),
+            id: 'sso-okta',
+            providerId: 'acme-okta',
+            isPrimary: false,
+            ...okta,
+          },
+        ],
+      },
+      error: null,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    })
+    renderSso('org-a', searchParams)
+  }
+
+  it('marks the provider sign-in uses when a domain has more than one', () => {
+    renderMigration()
+    const rows = Array.from(container.querySelectorAll('[aria-label^="Open "]')).map(
+      (row) => row.parentElement?.textContent ?? ''
+    )
+    expect(rows.find((row) => row.includes('acme-entra'))).toContain('Primary')
+    expect(rows.find((row) => row.includes('acme-okta'))).not.toContain('Primary')
+  })
+
+  it('changes nothing for a provider that is alone on its domain', () => {
+    mockUseSSOProviders.mockReturnValue({
+      data: { providers: [{ ...provider('org-a'), isPrimary: true }] },
+      error: null,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    })
+    renderSso('org-a')
+    expect(container).not.toHaveTextContent('Primary')
+
+    openProvider('provider-a')
+    expect(findButton('Edit')).toBeDefined()
+    expect(findButton('Make primary')).toBeUndefined()
+    expect(container.querySelector('#sso-test-link')).toBeNull()
+  })
+
+  it('offers a test sign-in link and Make primary on a provider waiting beside the primary', () => {
+    renderMigration()
+    openProvider('acme-okta')
+
+    expect(findButton('Make primary')).toBeDefined()
+    const testLink = container.querySelector<HTMLInputElement>('#sso-test-link')
+    expect(new URL(testLink?.value ?? '').pathname).toBe('/sso')
+    expect(new URL(testLink?.value ?? '').searchParams.get('provider')).toBe('acme-okta')
+  })
+
+  it('groups a provider whose stored domain is spelled differently with its domain', () => {
+    renderMigration('', { domain: '*.ORG-A.example.com' })
+    const rows = Array.from(container.querySelectorAll('[aria-label^="Open "]')).map(
+      (row) => row.parentElement?.textContent ?? ''
+    )
+    expect(rows.find((row) => row.includes('acme-entra'))).toContain('Primary')
+
+    openProvider('acme-okta')
+    expect(findButton('Make primary')).toBeDefined()
+  })
+
+  it('offers neither on a waiting provider that is not verified', () => {
+    renderMigration('', { domainVerified: false })
+    openProvider('acme-okta')
+
+    expect(findButton('Make primary')).toBeUndefined()
+    expect(container.querySelector('#sso-test-link')).toBeNull()
+  })
+
+  it('offers neither on the primary provider itself', () => {
+    renderMigration()
+    openProvider('acme-entra')
+
+    expect(findButton('Make primary')).toBeUndefined()
+    expect(container.querySelector('#sso-test-link')).toBeNull()
+  })
+
+  it('switches the primary provider after confirmation', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({ success: true })
+    mockUseSetPrimarySSOProvider.mockReturnValue({ isPending: false, mutateAsync })
+    renderMigration()
+    openProvider('acme-okta')
+
+    act(() => findButton('Make primary')?.click())
+    const dialog = container.querySelector('[role="dialog"]')
+    expect(dialog).toHaveTextContent('Make primary provider')
+    expect(dialog).toHaveTextContent('People already signed in stay signed in')
+
+    await act(async () => {
+      Array.from(container.querySelectorAll('[role="dialog"] button'))
+        .find((button) => button.textContent === 'Make primary')
+        ?.click()
+    })
+    expect(mutateAsync).toHaveBeenCalledWith('acme-okta')
+  })
+
+  it('names the provider that takes over when the primary is deleted', () => {
+    renderMigration()
+    openProvider('acme-entra')
+
+    act(() => findButton('Delete')?.click())
+    expect(container.querySelector('[role="dialog"]')).toHaveTextContent(
+      'People at org-a.example.com will sign in through acme-okta.'
+    )
+  })
+
+  it('warns that SSO stops when the only other provider is not verified', () => {
+    renderMigration('', { domainVerified: false })
+    openProvider('acme-entra')
+
+    act(() => findButton('Delete')?.click())
+    expect(container.querySelector('[role="dialog"]')).toHaveTextContent(
+      'People at org-a.example.com can no longer sign in through it.'
+    )
+  })
+
+  it('names the primary that keeps signing people in when another provider is deleted', () => {
+    renderMigration()
+    openProvider('acme-okta')
+
+    act(() => findButton('Delete')?.click())
+    expect(container.querySelector('[role="dialog"]')).toHaveTextContent(
+      'People at org-a.example.com keep signing in through acme-entra.'
+    )
   })
 })

@@ -150,6 +150,15 @@ describe('vllmProvider', () => {
     mockCreatePinnedFetch.mockReturnValue(pinnedFetchFn)
   })
 
+  it('preserves a custom served-model name when stripping an uppercase namespace', async () => {
+    mockCreate.mockResolvedValueOnce(chatResponse('hello'))
+    await vllmProvider.executeRequest({
+      model: 'VLLM/Org/CustomModel',
+      messages: [{ role: 'user', content: 'hi' }],
+    })
+    expect(createPayload(0).model).toBe('Org/CustomModel')
+  })
+
   describe('endpoint SSRF protection', () => {
     it('does not validate or pin when no endpoint is supplied (uses env base URL)', async () => {
       mockCreate.mockResolvedValueOnce(chatResponse('hi'))

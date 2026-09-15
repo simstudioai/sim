@@ -4,6 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AgentGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import {
   BrowserAgentIcon,
@@ -226,6 +227,58 @@ describe('BrowserAgentIcon', () => {
       )
     )
   }
+
+  it('keeps a loaded favicon paired with the paced label when disclosure appears and the site changes', () => {
+    vi.useFakeTimers()
+    const first = tool({
+      id: 'first',
+      displayTitle: 'Opening first page',
+      result: undefined,
+      status: 'executing',
+      params: { url: 'https://example.com/' },
+    })
+    const second = tool({
+      id: 'second',
+      displayTitle: 'Opening second page',
+      result: undefined,
+      status: 'executing',
+      params: { url: 'https://example.org/' },
+    })
+    const renderGroup = (items: AgentGroupItem[]) =>
+      act(() =>
+        root.render(
+          <AgentGroup
+            agentName='browser'
+            agentLabel='Browser'
+            isStreaming
+            isLaneOpen
+            items={items}
+          />
+        )
+      )
+    try {
+      openPage('https://example.com/')
+      renderGroup([first])
+      const img = container.querySelector('img')!
+      act(() => img.dispatchEvent(new Event('load')))
+      act(() => vi.advanceTimersByTime(100))
+      openPage('https://example.org/')
+      renderGroup([first, second])
+      expect(container.querySelector('img')).toBe(img)
+      expect(container.querySelector('[role="status"]')?.textContent).toBe('Opening first page')
+      expect(container.querySelector('[role="button"]')).not.toBeNull()
+      act(() => vi.advanceTimersByTime(900))
+      expect(container.querySelector('[role="status"]')?.textContent).toBe('Opening second page')
+      const nextImage = container.querySelector('img')!
+      expect(nextImage).not.toBe(img)
+      expect(nextImage.src).toBe('https://example.org/favicon.ico')
+      act(() => nextImage.dispatchEvent(new Event('error')))
+      expect(container.querySelector('img')).toBeNull()
+      expect(container.querySelector('[role="status"] svg')).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
   it('does not contact sites from history, other chats, or pending navigation', () => {
     render('https://example.com/document')

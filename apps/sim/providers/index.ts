@@ -114,10 +114,6 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   sanitizedRequest.verbosity = normalizeModelLevel(sanitizedRequest.verbosity)
   sanitizedRequest.thinkingLevel = normalizeModelLevel(sanitizedRequest.thinkingLevel)
 
-  if (model && !supportsTemperature(model)) {
-    sanitizedRequest.temperature = undefined
-  }
-
   /**
    * A model absent from the catalogue is unknown, not known-incapable. The model field is an
    * editable combobox, so a model newer than `models.ts` reaches this point routed by pattern
@@ -127,6 +123,10 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
    * the protective drop.
    */
   const isCatalogued = Boolean(model) && isKnownModelId(model)
+
+  if (model && isCatalogued && !supportsTemperature(model)) {
+    sanitizedRequest.temperature = undefined
+  }
 
   if (model && isCatalogued && !supportsReasoningEffort(model)) {
     sanitizedRequest.reasoningEffort = undefined

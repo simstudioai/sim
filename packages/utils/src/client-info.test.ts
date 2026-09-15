@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  attributeUndeclaredClient,
   CLIENT_INFO_HEADER,
   formatClientInfo,
   parseClientInfo,
@@ -121,15 +122,76 @@ describe('resolveClientInfo', () => {
     expect(resolved).toEqual({ surface: 'web', source: 'fetch_metadata' })
   })
 
-  it('leaves a credentialed browser request unattributed', () => {
+  it('leaves a credentialed browser request to be attributed by its credential', () => {
     expect(
-      resolveClientInfo(headers({ 'sec-fetch-mode': 'cors' }), { hasExternalCredentials: true })
-    ).toBeUndefined()
+      resolveClientInfo(
+        headers({
+          'sec-fetch-mode': 'cors',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        }),
+        { hasExternalCredentials: true }
+      )
+    ).toEqual({ surface: 'unknown', source: 'unidentified', name: 'browser' })
   })
 
-  it('leaves a bare request unattributed', () => {
+  it('names an undeclared client by its user agent product', () => {
     expect(
-      resolveClientInfo(headers({ 'user-agent': 'curl/8.0.0' }), { hasExternalCredentials: true })
-    ).toBeUndefined()
+      resolveClientInfo(headers({ 'user-agent': 'python-requests/2.32.3' }), {
+        hasExternalCredentials: true,
+      })
+    ).toEqual({ surface: 'unknown', source: 'unidentified', name: 'python-requests' })
+    expect(
+      resolveClientInfo(headers({ 'user-agent': 'Go-http-client/1.1' }), {
+        hasExternalCredentials: false,
+      })
+    ).toEqual({ surface: 'unknown', source: 'unidentified', name: 'go-http-client' })
+  })
+
+  it('omits the name when there is no readable user agent', () => {
+    expect(resolveClientInfo(headers({}), { hasExternalCredentials: false })).toEqual({
+      surface: 'unknown',
+      source: 'unidentified',
+    })
+    expect(
+      resolveClientInfo(headers({ 'user-agent': '(bad)' }), { hasExternalCredentials: true })
+    ).toEqual({ surface: 'unknown', source: 'unidentified' })
+  })
+})
+
+describe('attributeUndeclaredClient', () => {
+  const undeclared = { surface: 'unknown', source: 'unidentified', name: 'curl' } as const
+
+  it('attributes a customer credential to the API', () => {
+    for (const kind of ['personal_api_key', 'workspace_api_key', 'oauth_access_token']) {
+      expect(attributeUndeclaredClient(undeclared, kind)).toEqual({
+        surface: 'api',
+        source: 'credential',
+        name: 'curl',
+      })
+    }
+  })
+
+  it("attributes Sim's own service credentials to internal traffic", () => {
+    for (const kind of ['internal_jwt', 'delegated', 'organization_delegated', 'system']) {
+      expect(attributeUndeclaredClient(undeclared, kind).surface).toBe('internal')
+    }
+  })
+
+  it('keeps a session without browser headers unknown', () => {
+    expect(attributeUndeclaredClient(undeclared, 'session')).toEqual(undeclared)
+  })
+
+  it('re-attributes when a more specific principal replaces the credential', () => {
+    const asApi = attributeUndeclaredClient(undeclared, 'personal_api_key')
+    expect(attributeUndeclaredClient(asApi, 'delegated').surface).toBe('internal')
+  })
+
+  it('never changes a client that identified itself or a trigger that started a run', () => {
+    const cli = { surface: 'cli', version: '2.1.2', source: 'header' } as const
+    const web = { surface: 'web', source: 'fetch_metadata' } as const
+    const schedule = { surface: 'schedule', source: 'trigger' } as const
+    expect(attributeUndeclaredClient(cli, 'personal_api_key')).toBe(cli)
+    expect(attributeUndeclaredClient(web, 'session')).toBe(web)
+    expect(attributeUndeclaredClient(schedule, 'system')).toBe(schedule)
   })
 })

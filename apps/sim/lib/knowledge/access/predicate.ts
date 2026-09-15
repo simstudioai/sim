@@ -16,6 +16,7 @@ import { type SQL, sql } from 'drizzle-orm'
 import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
 import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
+import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
 import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -202,7 +203,7 @@ function storedKnowledgeAccessCondition(
   scope: KnowledgeAccessScope | SystemAccessScope,
   liveSourceAccess: SQL
 ): SQL {
-  if (scope.kind === 'system') return sql`true`
+  if (scope.kind === 'system') return documentConnectorIsActive()
   if (scope.tokens.length === 0) return sql`false`
   const tokens = textArrayLiteral(scope.tokens)
   const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
@@ -217,6 +218,8 @@ function storedKnowledgeAccessCondition(
       OR EXISTS (
         SELECT 1 FROM ${knowledgeConnector}
         WHERE ${knowledgeConnector.id} = ${document.connectorId}
+          AND ${knowledgeConnector.deletedAt} IS NULL
+          AND ${knowledgeConnector.archivedAt} IS NULL
           AND ${knowledgeConnector.accessRewritePending} = false
           AND ${searchIntegrationAccessCondition()}
           AND ${liveSourceAccess}
@@ -224,13 +227,11 @@ function storedKnowledgeAccessCondition(
             (${knowledgeConnector.accessMode} = 'workspace' AND ${document.acl} = ARRAY['ws']::text[])
             OR (${document.acl} <> ARRAY['ws']::text[] AND (
             (${knowledgeConnector.accessMode} = 'admin' AND ${document.aclVerifiedAt} > ${cutoff})
-            OR (${knowledgeConnector.accessMode} = 'members' AND EXISTS (
-              SELECT 1 FROM ${knowledgeDocumentObservation}
+            OR (${knowledgeConnector.accessMode} = 'members' AND (${document.id}, ${document.connectorId}) IN (
+              SELECT ${knowledgeDocumentObservation.documentId}, ${knowledgeConnectorMember.connectorId} FROM ${knowledgeDocumentObservation}
               JOIN ${knowledgeConnectorMember}
                 ON ${knowledgeConnectorMember.id} = ${knowledgeDocumentObservation.memberId}
-              WHERE ${knowledgeDocumentObservation.documentId} = ${document.id}
-                AND ${knowledgeConnectorMember.connectorId} = ${document.connectorId}
-                AND ${knowledgeConnectorMember.status} = 'active'
+              WHERE ${knowledgeConnectorMember.status} = 'active'
                 AND ${knowledgeConnectorMember.subjectToken} = ANY(${tokens})
                 AND GREATEST(${knowledgeDocumentObservation.lastSeenAt}, ${knowledgeConnectorMember.memberSyncedThrough}) > ${cutoff}
             ))

@@ -5,11 +5,8 @@ import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import {
-  fetchWithRetry,
-  isRateLimitError,
-  VALIDATE_RETRY_OPTIONS,
-} from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { isRateLimitError, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import {
   slackConversationTypes as conversationTypes,
   readSlackConversationSetting as readConversationSetting,

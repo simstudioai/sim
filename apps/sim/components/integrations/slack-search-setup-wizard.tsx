@@ -20,6 +20,7 @@ import { useSlackSearchManifest, useStartSlackSearchOAuth } from '@/hooks/querie
 
 interface SlackSearchSetupWizardProps {
   organizationId: string
+  mode?: 'custom' | 'shared'
   installationId?: string
   appId?: string
   initialName?: string
@@ -29,6 +30,7 @@ interface SlackSearchSetupWizardProps {
 /** App creation, credentials, and consent are one organization-specific setup flow. */
 export function SlackSearchSetupWizard({
   organizationId,
+  mode,
   installationId,
   appId,
   initialName,
@@ -61,9 +63,12 @@ export function SlackSearchSetupWizard({
     }
   }
 
-  const shared = Boolean(
-    prepare.data?.sharedAppId && (!configuredAppId || configuredAppId === prepare.data.sharedAppId)
-  )
+  const shared = mode
+    ? mode === 'shared'
+    : Boolean(
+        prepare.data?.sharedAppId &&
+          (!configuredAppId || configuredAppId === prepare.data.sharedAppId)
+      )
 
   function installShared() {
     oauth.mutate(
@@ -144,22 +149,40 @@ export function SlackSearchSetupWizard({
         onOpenChange={(open) => {
           if (!open) onClose()
         }}
-        srTitle='Install Sim Search'
+        srTitle='Install the Sim Search app'
+        size='sm'
       >
         <ChipModalHeader icon={SlackIcon} onClose={onClose}>
-          Install Sim Search
+          Install the Sim Search app
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            Choose your Slack workspace and approve Sim Search.
+            Add Sim Search to your Slack workspace to ask questions and get answers from your
+            connected sources.
           </p>
-          <ChipModalError>{error?.message}</ChipModalError>
+          <ChipModalError>
+            {error?.message ??
+              (!prepare.data.sharedAppId
+                ? 'Sim Search installation is unavailable. Try again.'
+                : null)}
+          </ChipModalError>
         </ChipModalBody>
         <ChipModalFooter
           onCancel={onClose}
+          secondaryActions={
+            prepare.error || !prepare.data.sharedAppId
+              ? [
+                  {
+                    label: 'Retry',
+                    onClick: () => void prepare.refetch(),
+                    disabled: prepare.isFetching,
+                  },
+                ]
+              : undefined
+          }
           primaryAction={{
-            label: busy ? 'Connecting…' : 'Install Sim Search',
-            disabled: busy,
+            label: busy ? 'Connecting…' : 'Continue with Slack',
+            disabled: busy || !prepare.data.sharedAppId || Boolean(prepare.error),
             onClick: installShared,
           }}
         />

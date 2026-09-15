@@ -22,15 +22,22 @@ describe('embeddingVectorColumn', () => {
 })
 
 describe('embeddingCandidateDistance', () => {
-  it('matches the compact expression index for every stored width', () => {
+  it('preserves dimensions for models without prefix-shortening support', () => {
     for (const width of KB_EMBEDDING_STORAGE_DIMENSIONS) {
-      const rendered = embeddingCandidateDistance(width, '[1,2]').toSQL()
-      expect(rendered.sql).toContain('binary_quantize(?)::bit(?) <~>')
-      expect(rendered.params[0]).toBe(embeddingVectorColumn(width))
-      expect(rendered.params[1]).toEqual(rendered.params[3])
-      expect(JSON.stringify(rendered.params[1])).toContain(String(width))
-      expect(rendered.params[2]).toBe('[1,2]')
-      expect(rendered.sql).not.toContain('<=>')
+      const rendered = embeddingCandidateDistance(width, '[1,2]', 'text-embedding-ada-002').toSQL()
+      expect(rendered.sql).toContain('<=>')
+      expect(rendered.sql).not.toContain('subvector')
+      expect(rendered.params[0]).toBe(`embeddingSearch.vector${width === 1536 ? '' : width}`)
+    }
+  })
+  it('shortens compatible models only when the original is wider than 512', () => {
+    for (const model of ['text-embedding-3-small', 'text-embedding-3-large']) {
+      const wide = embeddingCandidateDistance(1536, '[1,2]', model).toSQL()
+      expect(JSON.stringify(wide)).toContain('subvector')
+      expect(wide.params[0]).toBe('embeddingSearch.vector512')
+      const narrow = embeddingCandidateDistance(384, '[1,2]', model).toSQL()
+      expect(narrow.sql).not.toContain('subvector')
+      expect(narrow.params[0]).toBe('embeddingSearch.vector384')
     }
   })
 })

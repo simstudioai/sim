@@ -33,10 +33,10 @@ export function Avatars({ workflowId }: AvatarsProps) {
 
   /**
    * Scale the max visible avatars between MIN_COUNT and MAX_COUNT as the sidebar
-   * widens.
+   * widens past its default width.
    */
   const maxVisible = useMemo(() => {
-    const widthDelta = sidebarWidth - SIDEBAR_WIDTH.MIN
+    const widthDelta = sidebarWidth - SIDEBAR_WIDTH.DEFAULT
     const additionalAvatars = Math.floor(widthDelta / AVATAR_CONFIG.WIDTH_PER_AVATAR)
     const calculated = AVATAR_CONFIG.MIN_COUNT + additionalAvatars
     return Math.max(AVATAR_CONFIG.MIN_COUNT, Math.min(AVATAR_CONFIG.MAX_COUNT, calculated))

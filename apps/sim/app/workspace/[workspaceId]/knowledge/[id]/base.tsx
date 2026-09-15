@@ -41,6 +41,7 @@ import { format } from 'date-fns'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import {
   ALL_TAG_SLOTS,
   type AllTagSlot,
@@ -104,7 +105,6 @@ import {
   documentFiltersUrlKeys,
   kbDocumentSortParams,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'

@@ -42,6 +42,7 @@ describe('getDocuments pagination', () => {
       get: async () => identity,
       getForConnectors: async () => identity,
       getForDocuments: resolve,
+      liveSourceConnectorCondition: async () => ({ type: 'live-sources' }) as never,
     }
     queueTableRows(document, [{ count: 0 }])
     dbChainMockFns.limit

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 import * as cheerio from 'cheerio'
 import {
   AtlassianSiteNotAccessibleError,
@@ -11,9 +12,9 @@ import {
   confluencePageAcl,
 } from '@/lib/knowledge/access/confluence-permissions'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
   createRetryableHttpError,
-  fetchWithRetry,
   type RetryOptions,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
@@ -172,8 +173,36 @@ function extractBlockJoinedText($: cheerio.CheerioAPI, $el: cheerio.Cheerio<any>
   return parts.join(' ').trim()
 }
 
-/** Matches either flavor of panel/macro this function rewrites. */
+/** Matches either flavor of panel/macro {@link rewriteConfluenceCallouts} rewrites. */
 const MACRO_SELECTOR = 'div.confluence-information-macro, div.panel'
+
+/**
+ * Rendered-page elements whose text is never page prose. App macros render as a
+ * bootstrap `<script>` carrying their JSON config, colored text and the table of
+ * contents emit inline `<style>` rules, and charts embed their data as a script.
+ */
+const VIEW_NOISE_SELECTOR = 'script, style'
+
+/**
+ * Jira macros render as placeholders the browser fills in. A single issue renders
+ * its key, then a localized "Getting issue details..." summary and "STATUS"
+ * lozenge, both marked `issue-placeholder`; the key is the only real content, and
+ * a macro Confluence did resolve carries no placeholder and keeps its summary and
+ * status. An issues table renders as a `placeholder` shell holding only column
+ * headers, a loading spinner, and its refresh settings.
+ */
+function collapseJiraIssuePlaceholders($: cheerio.CheerioAPI): void {
+  $('.jira-issue')
+    .filter((_, el) => $(el).find('.issue-placeholder').length > 0)
+    .each((_, el) => {
+      const $macro = $(el)
+      const key =
+        $macro.find('.jira-issue-key').first().text().trim() || $macro.attr('data-jira-key') || ''
+      $macro.text(key)
+    })
+
+  $('.jira-table.placeholder').remove()
+}
 
 /**
  * Confluence's rendered `view` HTML wraps Info/Note/Warning/Tip macros in
@@ -197,11 +226,7 @@ const MACRO_SELECTOR = 'div.confluence-information-macro, div.panel'
  * bracketed `<p>` by the time its parent's body/header text is read — at which
  * point it correctly reads as plain text carrying its own label.
  */
-export function preserveConfluenceCallouts(html: string): string {
-  if (!html) return html
-
-  const $ = cheerio.load(html)
-
+function rewriteConfluenceCallouts($: cheerio.CheerioAPI): void {
   let progressed = true
   while (progressed) {
     progressed = false
@@ -228,8 +253,21 @@ export function preserveConfluenceCallouts(html: string): string {
       progressed = true
     })
   }
+}
 
-  return $.html()
+/**
+ * Plain text of a rendered `view` body: drops non-prose elements, reduces
+ * unresolved Jira placeholders to their issue keys, and labels callouts before
+ * the tags are stripped.
+ */
+export function confluenceViewToPlainText(html: string): string {
+  if (!html) return ''
+
+  const $ = cheerio.load(html)
+  $(VIEW_NOISE_SELECTOR).replaceWith(' ')
+  collapseJiraIssuePlaceholders($)
+  rewriteConfluenceCallouts($)
+  return htmlToPlainText($.html())
 }
 
 const STORAGE_MACRO_SELECTOR = 'ac\\:structured-macro, ac\\:macro'
@@ -416,7 +454,7 @@ export function readIncludedLabels(page: Record<string, unknown>): string[] {
  * is unchanged. Search must replace rendered inclusions with authored content;
  * ordinary knowledge bases retain their existing rendered representation.
  */
-const CONTENT_REPRESENTATION = 'view-callouts'
+const CONTENT_REPRESENTATION = 'view-text-v2'
 const SCOPED_CONTENT_REPRESENTATION = 'storage-local-body-v2'
 
 /**
@@ -464,7 +502,8 @@ function pageToStub(
     mimeType: 'text/plain',
     sourceUrl: options.sourceUrl,
     contentHash: `confluence:${representation}:${page.id}:${versionKey}`,
-    metadata: {
+    /** Hydration merges over the listing stub, so an absent key must not erase a listed value. */
+    metadata: filterUndefined({
       spaceId: options.spaceId,
       spaceKey: options.spaceKey,
       contentType: options.contentType,
@@ -472,7 +511,7 @@ function pageToStub(
       version: versionNumber,
       labels: options.labels ?? [],
       lastModified,
-    },
+    }),
   }
 }
 
@@ -767,7 +806,8 @@ export const confluenceConnector: ConnectorConfig = {
     const scopedContent = usesPermissionScopedContent(syncContext)
     const bodyFormat = scopedContent ? 'storage' : 'view'
     let page: Record<string, unknown> | null = null
-    for (const endpoint of ['pages', 'blogposts']) {
+    let contentType: 'page' | 'blogpost' = 'page'
+    for (const endpoint of ['pages', 'blogposts'] as const) {
       const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${endpoint}/${encodeURIComponent(externalId)}?body-format=${bodyFormat}&include-labels=true`
       const response = await fetchWithRetry(url, {
         method: 'GET',
@@ -779,6 +819,7 @@ export const confluenceConnector: ConnectorConfig = {
 
       if (response.ok) {
         page = await response.json()
+        contentType = endpoint === 'pages' ? 'page' : 'blogpost'
         break
       }
       if (response.status === 401) throw await createRetryableHttpError(response)
@@ -795,13 +836,14 @@ export const confluenceConnector: ConnectorConfig = {
     }
     const rawContent = representation.value
     const scoped = scopedContent ? extractConfluenceStorageText(rawContent) : null
-    const plainText = scoped ? scoped.text : htmlToPlainText(preserveConfluenceCallouts(rawContent))
+    const plainText = scoped ? scoped.text : confluenceViewToPlainText(rawContent)
 
     const links = page._links as Record<string, unknown> | undefined
     const stub = pageToStub(
       page,
       {
         spaceId: page.spaceId,
+        contentType,
         labels: readIncludedLabels(page),
         sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
       },

@@ -21,6 +21,7 @@ const FORM = `<!doctype html><html><head><title>Form fixture</title></head><body
   <label>Updates <input id="updates" type="checkbox"></label>
   <label>Password <input id="password" type="password"></label>
   <label>Route <input id="route" oninput="history.pushState({}, '', '/form?changed=1')"></label>
+  <a href="/redirect">Other website</a>
   <div id="horizontal" role="region" aria-label="Wide table" tabindex="0" style="width:280px;overflow-x:auto">
     <div style="width:1600px;height:100px">Wide content</div>
   </div>
@@ -40,6 +41,11 @@ test.describe('browser tools', () => {
   test.beforeAll(async () => {
     server = createServer(async (request, response) => {
       const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+      if (path === '/redirect') {
+        response.writeHead(302, { Location: `${origin.replace('127.0.0.1', 'localhost')}/landing` })
+        response.end()
+        return
+      }
       if (path === '/api/desktop/tool/authorize') {
         let body = ''
         for await (const chunk of request) body += chunk.toString()
@@ -187,6 +193,28 @@ test.describe('browser tools', () => {
       doNotRetry: true,
     })
     expect(await formState()).toMatchObject({ name: '', route: 'change route' })
+  })
+
+  test('follows a link and cross-origin redirect without a website approval prompt', async () => {
+    await openForm()
+    await app.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+      if (!page) throw new Error('Missing browser fixture')
+      await page.executeJavaScript("document.querySelector('a').click()")
+    }, `${origin}/form`)
+
+    const destination = `${origin.replace('127.0.0.1', 'localhost')}/landing`
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ webContents }, url) =>
+            webContents.getAllWebContents().some((contents) => contents.getURL() === url),
+          destination
+        )
+      )
+      .toBe(true)
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+    await expect(window.getByRole('heading')).toHaveText('Browser tools fixture')
   })
 
   test('stops when a new popup exceeds the page summary limit', async () => {

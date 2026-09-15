@@ -563,7 +563,7 @@ function validateFilePath(filePath: string): { isValid: boolean; error?: string 
  * so keying a cache by filename returns stale bytes. `fetchExternalUrlToWorkspace`
  * delegates to `uploadWorkspaceFile`, which suffix-disambiguates collisions on save.
  *
- * URLs for our execution-files storage resolve through the authorized canonical
+ * URLs for our workspace and execution storage resolve through the authorized canonical
  * read path, keeping stored provenance bound to the same bytes the parser reads.
  */
 async function handleExternalUrl(
@@ -583,15 +583,14 @@ async function handleExternalUrl(
 
     const { getStorageConfig, S3_CONFIG, USE_S3_STORAGE, USE_BLOB_STORAGE, USE_GCS_STORAGE } =
       await import('@/lib/uploads/config')
-    const executionConfig = getStorageConfig('execution')
-
-    let executionFileKey: string | undefined
-    try {
-      const parsedUrl = new URL(url)
-
-      if (USE_S3_STORAGE && executionConfig.bucket) {
+    const parsedUrl = new URL(url)
+    let ownedFileKey: string | undefined
+    /** Workspace storage also holds mothership attachments. */
+    for (const storageContext of ['execution', 'workspace'] as const) {
+      const storageConfig = getStorageConfig(storageContext)
+      if (USE_S3_STORAGE && storageConfig.bucket) {
         const endpointHost = S3_CONFIG.endpoint ? new URL(S3_CONFIG.endpoint).host : undefined
-        const bucketHostPrefix = `${executionConfig.bucket}.`
+        const bucketHostPrefix = `${storageConfig.bucket}.`
         const storageHost = parsedUrl.host.startsWith(bucketHostPrefix)
           ? parsedUrl.host.slice(bucketHostPrefix.length)
           : parsedUrl.host
@@ -600,45 +599,42 @@ async function handleExternalUrl(
           : /^s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/.test(storageHost)
         const bucketInHost = matchesStorageHost && parsedUrl.host.startsWith(bucketHostPrefix)
         const bucketInPath =
-          matchesStorageHost && parsedUrl.pathname.startsWith(`/${executionConfig.bucket}/`)
+          matchesStorageHost && parsedUrl.pathname.startsWith(`/${storageConfig.bucket}/`)
         if (bucketInHost || bucketInPath) {
-          executionFileKey = decodeURIComponent(
+          ownedFileKey = decodeURIComponent(
             bucketInHost
               ? parsedUrl.pathname.slice(1)
-              : parsedUrl.pathname.slice(executionConfig.bucket.length + 2)
+              : parsedUrl.pathname.slice(storageConfig.bucket.length + 2)
           )
         }
-      } else if (USE_BLOB_STORAGE && executionConfig.containerName) {
+      } else if (USE_BLOB_STORAGE && storageConfig.containerName) {
         const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
         const client = await getBlobServiceClient()
-        const containerUrl = new URL(client.getContainerClient(executionConfig.containerName).url)
+        const containerUrl = new URL(client.getContainerClient(storageConfig.containerName).url)
         const prefix = `${containerUrl.pathname.replace(/\/$/, '')}/`
         if (parsedUrl.origin === containerUrl.origin && parsedUrl.pathname.startsWith(prefix)) {
-          executionFileKey = decodeURIComponent(parsedUrl.pathname.slice(prefix.length))
+          ownedFileKey = decodeURIComponent(parsedUrl.pathname.slice(prefix.length))
         }
-      } else if (USE_GCS_STORAGE && executionConfig.bucket) {
-        const bucketInHost =
-          parsedUrl.hostname === `${executionConfig.bucket}.storage.googleapis.com`
+      } else if (USE_GCS_STORAGE && storageConfig.bucket) {
+        const bucketInHost = parsedUrl.hostname === `${storageConfig.bucket}.storage.googleapis.com`
         const bucketInPath =
           parsedUrl.hostname === 'storage.googleapis.com' &&
-          parsedUrl.pathname.startsWith(`/${executionConfig.bucket}/`)
+          parsedUrl.pathname.startsWith(`/${storageConfig.bucket}/`)
         if (bucketInHost || bucketInPath) {
-          executionFileKey = decodeURIComponent(
+          ownedFileKey = decodeURIComponent(
             bucketInHost
               ? parsedUrl.pathname.slice(1)
-              : parsedUrl.pathname.slice(executionConfig.bucket.length + 2)
+              : parsedUrl.pathname.slice(storageConfig.bucket.length + 2)
           )
         }
       }
-    } catch (error) {
-      logger.warn('Failed to parse URL for execution file check:', error)
-      executionFileKey = undefined
+      if (ownedFileKey) break
     }
 
     /** Read owned storage through its authorized, canonical bytes and provenance together. */
-    if (executionFileKey) {
+    if (ownedFileKey) {
       return handleCloudFile(
-        executionFileKey,
+        ownedFileKey,
         fileType,
         userId,
         fileReadAccess,
@@ -668,8 +664,13 @@ async function handleExternalUrl(
     let userFile: UserFile | undefined
     if (executionContext) {
       try {
+        /**
+         * External ingress carries no tracked Sim-secret contribution. Using a fetch credential
+         * does not classify the response bytes as derived secret content.
+         */
         userFile = await uploadExecutionFile(executionContext, buffer, filename, mimeType, userId, {
-          status: 'unrecorded',
+          status: 'exact',
+          entries: [],
         })
         logger.info(`Stored file in execution storage: ${filename}`, { key: userFile.key })
       } catch (uploadError) {

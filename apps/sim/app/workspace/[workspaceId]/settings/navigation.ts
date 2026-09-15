@@ -44,6 +44,7 @@ const SECTION_ALIASES: Readonly<Record<string, SettingsSection>> = {
   'api-keys': 'apikeys',
   /** Verified domains moved into the SSO page. */
   domains: 'sso',
+  sessions: 'security',
 }
 
 export interface ResolvedSettingsSection {

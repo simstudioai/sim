@@ -451,6 +451,99 @@ describe('getBYOKKey', () => {
   })
 })
 
+describe('getApiKeyWithBYOK provider classification', () => {
+  const dynamicProviders = [
+    'ollama',
+    'vllm',
+    'litellm',
+    'fireworks',
+    'together',
+    'baseten',
+    'ollama-cloud',
+  ] as const
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsHosted.value = true
+    mockEnv.AZURE_OPENAI_API_KEY = 'azure-env-key'
+    mockEnv.AZURE_ANTHROPIC_API_KEY = 'azure-anthropic-env-key'
+    mockEnv.VLLM_API_KEY = 'vllm-env-key'
+    mockEnv.LITELLM_API_KEY = 'litellm-env-key'
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('other-provider-key')])
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted: encrypted.replace('encrypted-', 'decrypted-'),
+    }))
+  })
+
+  it.each(dynamicProviders)(
+    'keeps Azure credentials when %s discovery contains the same model ID',
+    async (discoveredProvider) => {
+      const model = 'AZURE/CustomDeployment'
+      vi.mocked(useProvidersStore.getState).mockReturnValue({
+        providers: Object.fromEntries(
+          dynamicProviders.map((provider) => [
+            provider,
+            { models: provider === discoveredProvider ? [model] : [] },
+          ])
+        ),
+      } as ReturnType<typeof useProvidersStore.getState>)
+
+      const result = await getApiKeyWithBYOK('azure-openai', model, uniqueWorkspaceId())
+
+      expect(result).toEqual({ apiKey: 'azure-env-key', isBYOK: false })
+      expect(dbChainMockFns.where).not.toHaveBeenCalled()
+      expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['vertex', 'vertex/CustomDeployment', 'vertex-access-token'],
+    ['azure-anthropic', 'azure-anthropic/CustomDeployment', 'azure-anthropic-user-key'],
+  ])(
+    'retains caller credentials for %s despite a local model name collision',
+    async (provider, model, apiKey) => {
+      vi.mocked(useProvidersStore.getState).mockReturnValue({
+        providers: Object.fromEntries(dynamicProviders.map((name) => [name, { models: [model] }])),
+      } as ReturnType<typeof useProvidersStore.getState>)
+
+      expect(await getApiKeyWithBYOK(provider, model, uniqueWorkspaceId(), apiKey)).toEqual({
+        apiKey,
+        isBYOK: false,
+      })
+      expect(dbChainMockFns.where).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['ollama', 'empty'],
+    ['vllm', 'vllm-env-key'],
+    ['litellm', 'litellm-env-key'],
+  ])('preserves %s authentication for a custom unprefixed model', async (provider, apiKey) => {
+    expect(await getApiKeyWithBYOK(provider, 'MyCustomModel', uniqueWorkspaceId())).toEqual({
+      apiKey,
+      isBYOK: false,
+    })
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+
+  it.each(['vllm', 'litellm'])(
+    'prefers a caller key to the configured %s key for a local model',
+    async (provider) => {
+      expect(
+        await getApiKeyWithBYOK(provider, 'MyCustomModel', uniqueWorkspaceId(), 'caller-key')
+      ).toEqual({ apiKey: 'caller-key', isBYOK: false })
+    }
+  )
+
+  it('uses Bedrock credentials for an uncataloged inference profile', async () => {
+    expect(
+      await getApiKeyWithBYOK('bedrock', 'BEDROCK/MyInferenceProfile', uniqueWorkspaceId())
+    ).toEqual({ apiKey: 'placeholder', isBYOK: false })
+    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+  })
+})
+
 describe('getApiKeyWithBYOK for Fireworks', () => {
   const HOSTED_POOL_MODEL = 'fireworks/glm-5.2'
 

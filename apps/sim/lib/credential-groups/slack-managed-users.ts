@@ -73,7 +73,7 @@ type StoredSlackManagedUsersAttempt = {
   requiredScopes: string[]
   createdAt: number
 } & (
-  | { credentialSource: 'environment'; encryptedClientSecret?: never }
+  | { credentialSource: 'environment'; organizationId: string; encryptedClientSecret?: never }
   | { credentialSource?: undefined; encryptedClientSecret: string }
 )
 
@@ -525,7 +525,7 @@ export async function createSlackManagedUsersAttempt(params: {
         'Set up this organization’s Slack app first.',
         'invalid_response'
       )
-    await requireSlackSearchAppAvailable(configured.app.id)
+    await requireSlackSearchAppAvailable(configured.app.id, scope.organizationId)
     const app = await resolveSlackAppCredentials(configured.app)
     identity = { appId: configured.app.id, teamId: configured.teamId }
     clientId = app.clientId
@@ -569,8 +569,8 @@ export async function createSlackManagedUsersAttempt(params: {
     expectedTeamId: identity.teamId,
     clientId,
     ...(appRevision ? { appRevision } : {}),
-    ...(sharedApp
-      ? { credentialSource: 'environment' as const }
+    ...(sharedApp && scope.kind === 'organization'
+      ? { credentialSource: 'environment' as const, organizationId: scope.organizationId }
       : { encryptedClientSecret: (await encryptSecret(clientSecret)).encrypted }),
     requiredScopes,
     redirectUri,
@@ -626,7 +626,7 @@ async function parseSlackManagedUsersAttempt(
         'The shared Slack app changed. Start again.',
         'invalid_state'
       )
-    await requireSlackSearchAppAvailable(app.id)
+    await requireSlackSearchAppAvailable(app.id, parsed.organizationId)
     clientSecret = app.clientSecret
   } else {
     clientSecret = (await decryptSecret(parsed.encryptedClientSecret)).decrypted
@@ -729,7 +729,8 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
         )
         .limit(1)
         .for('update')
-      if (app?.kind === 'shared') await requireSlackSearchAppAvailable(app.id)
+      if (app?.kind === 'shared')
+        await requireSlackSearchAppAvailable(app.id, params.attempt.organizationId)
       const resolved = app ? await resolveSlackAppCredentials(app) : null
       if (
         !resolved ||

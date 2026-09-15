@@ -23,7 +23,6 @@ export const personalSearchIntegrationSchema = z.object({
     .max(100),
   connectionStatus: z.enum(['connected', 'reconnect_needed', 'not_connected', 'unavailable']),
   indexingStatus: z.enum(['indexing', 'indexed', 'not_indexed', 'sync_failed', 'paused']),
-  searchableDocuments: z.number().int().nonnegative(),
   action: searchConnectionTargetSchema.nullable(),
 })
 

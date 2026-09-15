@@ -10,6 +10,7 @@ import { getLinkPreviewContract } from '@/lib/api/contracts/link-preview'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { enforceUserRateLimit } from '@/lib/core/rate-limiter/route-helpers'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -104,7 +105,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   let preview: LinkPreview = null
   try {
-    preview = await fetchPreview(url)
+    /** Link previews have no organization owner and use a shared URL cache. */
+    preview = await runWithOutboundOrganization(null, () => fetchPreview(url))
   } catch (error) {
     logger.info('Link preview fetch failed; returning null preview', {
       host: new URL(url).hostname,

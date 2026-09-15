@@ -89,6 +89,7 @@ export {
   type ChipModalPromptBodyProps,
   type ChipModalProps,
   ChipModalSeparator,
+  ChipModalSurface,
   type ChipModalTab,
   ChipModalTabs,
   type ChipModalTabsProps,
@@ -152,6 +153,7 @@ export {
 export { Input, type InputProps } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
+export { Lightbox, type LightboxProps } from './lightbox/lightbox'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
 export {
   MODAL_SIZES,

@@ -7,9 +7,9 @@ const { mockFetchWithRetry } = vi.hoisted(() => ({
   mockFetchWithRetry: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({
+vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: { maxRetries: 0 } }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
   fetchWithRetry: mockFetchWithRetry,
-  VALIDATE_RETRY_OPTIONS: { maxRetries: 0 },
 }))
 
 import { linearConnector } from '@/connectors/linear/linear'

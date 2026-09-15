@@ -6,7 +6,11 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
-import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import {
+  getModelCapabilities,
+  getProviderDefaultModel,
+  getProviderModels,
+} from '@/providers/models'
 import { createReadableStreamFromNvidiaStream } from '@/providers/nvidia/utils'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { executeProviderTool } from '@/providers/runtime-context'
@@ -25,6 +29,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  generateSchemaInstructions,
   isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
@@ -86,13 +91,22 @@ export const nvidiaProvider: ProviderConfig = {
         allMessages.push(...request.messages)
       }
       const formattedMessages = formatMessagesForProvider(allMessages, 'nvidia')
+      const useJsonMode =
+        !!request.responseFormat &&
+        getModelCapabilities(request.model)?.nativeStructuredOutputs === false
+      if (useJsonMode) {
+        formattedMessages.push({
+          role: 'system',
+          content: generateSchemaInstructions(request.responseFormat),
+        })
+      }
 
       const tools = request.tools?.length
         ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
         : undefined
 
       const payload: any = {
-        model: request.model,
+        model: request.model.replace(/^nvidia\//i, 'nvidia/'),
         messages: formattedMessages,
       }
 
@@ -100,15 +114,19 @@ export const nvidiaProvider: ProviderConfig = {
       if (request.maxTokens != null) payload.max_tokens = request.maxTokens
 
       const responseFormatPayload = request.responseFormat
-        ? {
-            type: 'json_schema' as const,
-            json_schema: {
-              name: request.responseFormat.name || 'response_schema',
-              schema: request.responseFormat.schema || request.responseFormat,
-              strict: request.responseFormat.strict !== false,
-            },
-          }
+        ? useJsonMode
+          ? { type: 'json_object' as const }
+          : {
+              type: 'json_schema' as const,
+              json_schema: {
+                name: request.responseFormat.name || 'response_schema',
+                schema: request.responseFormat.schema || request.responseFormat,
+                strict: request.responseFormat.strict !== false,
+              },
+            }
         : undefined
+
+      if (useJsonMode) payload.chat_template_kwargs = { enable_thinking: false }
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
       let hasActiveTools = false

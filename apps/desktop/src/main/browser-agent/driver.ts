@@ -194,8 +194,6 @@ export interface DriverCallbacks {
   onPageState: (state: BrowserPageState) => void
   onTabsState: (state: BrowserTabsState) => void
   onSessionStatus: (alive: boolean, scopeId: string) => void
-  /** Whether a live renderer for the scope registered support for the consent prompt. */
-  sitePermissionPromptSupported?: (scopeId: string) => boolean
   /** Whether the active tab shows a login form Sim holds a credential for. */
   onFillAvailability: (available: boolean, scopeId: string) => void
   /** Live native download state for one isolated browser scope. */
@@ -467,7 +465,6 @@ function recordNotice(notice: string): void {
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   const issue = session.pageIssueForContents(contents)
   const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
-  const sitePermissionRequest = session.sitePermissionRequestForScope()
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
@@ -478,7 +475,6 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
     canGoForward: session.canGoForward(contents),
     ...(issue ? { issue } : {}),
     ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
-    ...(sitePermissionRequest ? { sitePermissionRequest } : {}),
   }
 }
 
@@ -661,8 +657,6 @@ export function initDriver(
         void fillCoordinator()?.refreshAvailability(true)
       },
       onPageStateChanged: pushPageState,
-      sitePermissionPromptSupported: (scopeId) =>
-        driverCallbacks?.sitePermissionPromptSupported?.(scopeId) === true,
       onTabsChanged: pushTabsState,
       onTabThemeChanged: (contents, theme) => {
         void cdp.setColorScheme(contents, theme).catch((error) => {
@@ -1373,7 +1367,7 @@ async function loadAgentCheckedUrlAndGetResult(
   url: string
 ): Promise<Record<string, unknown>> {
   session.prepareExplicitNavigation(contents)
-  if (!session.grantSiteOriginForAgentNavigation(contents, url)) {
+  if (contents.isDestroyed()) {
     throw new ToolError('The tab was closed before navigation could start.')
   }
   const beforeUrl = contents.getURL()
@@ -4766,9 +4760,7 @@ export async function handlePanelAction(
       return
     }
     if (action.action === 'respond-site-permission') {
-      if (typeof action.requestId === 'string' && typeof action.allowed === 'boolean') {
-        session.respondToSitePermission(action.requestId, action.allowed)
-      }
+      /** Older renderers can still send a response to the retired task-navigation prompt. */
       return
     }
     // Navigate bootstraps the session: the user can open the panel manually
@@ -4779,7 +4771,6 @@ export async function handlePanelAction(
         session.claimActiveTabForUser()
         const contents = session.ensureTab().view.webContents
         session.prepareExplicitNavigation(contents)
-        session.grantSiteOriginForUserNavigation(contents, action.url)
         void contents.loadURL(action.url).catch(() => {})
       }
       return

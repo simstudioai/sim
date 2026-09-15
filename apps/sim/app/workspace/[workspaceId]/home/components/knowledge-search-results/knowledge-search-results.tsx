@@ -133,7 +133,7 @@ export function KnowledgeSearchResults({
     }
   }, [filters.source, filters.updated])
   const {
-    data: results,
+    data: search,
     isPending,
     isFetching,
     isError: searchFailed,
@@ -143,7 +143,7 @@ export function KnowledgeSearchResults({
   const indexing = (overview?.providers ?? [])
     .filter((provider) => provider.isSyncing)
     .map((provider) => connectorDisplayName(provider.connectorType))
-  const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
+  const documents = useMemo(() => groupResultsByDocument(search?.results ?? []), [search?.results])
   const sourceTypes = [
     ...new Set([
       ...(filters.source ? [filters.source] : []),
@@ -155,8 +155,7 @@ export function KnowledgeSearchResults({
   const showFilters =
     filtersActive || (documents.length >= FILTERS_MIN_RESULTS && sourceTypes.length > 1)
 
-  /* A failed search says so in one quiet line and offers to run again; the cause is
-     the server's to log, never the reader's to parse. */
+  /** A failed search offers a retry; server diagnostics carry the cause. */
   if (basesFailed || searchFailed) {
     const retrying = basesFetching || isFetching
     return (
@@ -180,7 +179,7 @@ export function KnowledgeSearchResults({
           href={
             scope.kind === 'organization'
               ? `/o/${scope.organizationId}/integrations`
-              : `/workspace/${scope.workspaceId}/search`
+              : `/workspace/${scope.workspaceId}/knowledge`
           }
         >
           View sources
@@ -188,7 +187,7 @@ export function KnowledgeSearchResults({
       </div>
     )
   }
-  if (isPending || (isFetching && !results)) {
+  if (isPending || (isFetching && !search)) {
     return (
       <div className='px-2 py-2'>
         <ActivityStatus label='Searching…' isActive />
@@ -205,10 +204,16 @@ export function KnowledgeSearchResults({
     <div className='flex flex-col'>
       <div className='flex items-center gap-2 px-2 py-2'>
         <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
-          <span className='tabular-nums'>
-            {documents.length === 1 ? '1 document' : `${documents.length} documents`}
-          </span>
-          {' · searched as you'}
+          {documents.length === 0 ? (
+            'Search found no results.'
+          ) : (
+            <>
+              <span className='tabular-nums'>
+                {documents.length === 1 ? '1 document' : `${documents.length} documents`}
+              </span>
+              {' · searched as you'}
+            </>
+          )}
           {indexingNote && <span className='block'>{indexingNote}</span>}
         </span>
       </div>
@@ -244,13 +249,7 @@ export function KnowledgeSearchResults({
           ))}
         </div>
       )}
-      {documents.length === 0 ? (
-        <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-          {filtersActive
-            ? 'No documents match these filters.'
-            : `No documents you can read match “${query}”.`}
-        </p>
-      ) : (
+      {documents.length > 0 && (
         <div className='flex flex-col' onKeyDown={handleResultsKeyDown}>
           {documents.map((result) => {
             const source = toSource(result, query, scope)

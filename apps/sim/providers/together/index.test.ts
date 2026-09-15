@@ -154,6 +154,14 @@ describe('togetherProvider', () => {
     expect(result).toHaveProperty('execution')
   })
 
+  it('preserves custom model casing after an uppercase provider prefix', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+
+    await togetherProvider.executeRequest({ ...baseRequest, model: 'TOGETHER/Org/Custom-Model' })
+
+    expect(callBody(0).model).toBe('Org/Custom-Model')
+  })
+
   it('sends a json_schema response_format with no strict field', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('{}'))
 

@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
-  fetchWithRetry,
   readBoundedHttpErrorPayload,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'

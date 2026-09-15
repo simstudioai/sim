@@ -34,6 +34,8 @@ describe('tool activity catalog coverage', () => {
       if (!isRecordLike(schema) || !Array.isArray(schema.enum)) continue
       expect(typeof activity, `${tool.id}.${parameter}`).toBe('object')
       if (typeof activity === 'string') continue
+      expect('parameter' in activity, `${tool.id}.${parameter}`).toBe(true)
+      if (!('parameter' in activity)) continue
       expect(activity.parameter).toBe(parameter)
       expect(Object.keys(activity.operations).sort()).toEqual([...schema.enum].sort())
       if (typeof schema.default === 'string') {
@@ -136,7 +138,7 @@ describe('getToolActivityLabel', () => {
   ])('keeps legacy combined table operations consistent with %s', (toolName) => {
     const activity = TOOL_ACTIVITIES[toolName]
     expect(typeof activity).toBe('object')
-    if (typeof activity === 'string') return
+    if (typeof activity === 'string' || !('parameter' in activity)) return
     for (const operation of Object.keys(activity.operations)) {
       expect(getToolActivityLabel('user_table', { operation })).toBe(
         getToolActivityLabel(toolName, { operation })

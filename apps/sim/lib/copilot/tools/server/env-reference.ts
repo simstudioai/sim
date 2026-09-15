@@ -1,4 +1,4 @@
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getEffectiveEnvironmentSnapshot } from '@/lib/environment/utils'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /**
@@ -26,14 +26,17 @@ export async function resolveEnvReferenceSecretArg(args: {
   const braced = value.match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)
   if (!braced) return { value }
   const name = braced[1]
-  const env = await getEffectiveDecryptedEnv(args.userId, args.workspaceId)
+  const environment = await getEffectiveEnvironmentSnapshot(args.userId, args.workspaceId)
+  const env = { ...environment.personalDecrypted, ...environment.workspaceDecrypted }
   const resolved = env[name]
   if (resolved === undefined || resolved === '') {
     return {
       error: `Environment variable "${name}" referenced by ${args.argName} is not set for this workspace or user. Set it first, or pass the raw value.`,
     }
   }
-  // Activate on the call's egress registry so an accidental echo is redacted.
-  args.registry?.recordResolved(name, resolved)
+  args.registry?.recordResolvedFromEnvironment(name, resolved, {
+    ...environment,
+    scope: { userId: args.userId, workspaceId: args.workspaceId },
+  })
   return { value: resolved }
 }

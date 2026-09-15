@@ -1176,6 +1176,10 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
     MothershipStreamV1ToolCallDescriptor: {
       additionalProperties: false,
       properties: {
+        activityDescription: {
+          maxLength: 160,
+          type: 'string',
+        },
         arguments: {
           $ref: '#/$defs/MothershipStreamV1AdditionalPropertiesMap',
         },

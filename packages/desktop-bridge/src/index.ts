@@ -158,8 +158,8 @@ export interface SimDesktopBrowserAgentApi {
   /** New shells can atomically force-hide a native page before renderer effects paint. */
   readonly supportsAtomicPanelOcclusion?: true
   /**
-   * Confirms that this renderer can present and answer site-origin prompts.
-   * Optional for compatibility with installed shells that predate site consent.
+   * Confirms that this renderer can present and answer legacy site-origin prompts.
+   * Only installed shells with the retired per-task navigation gate expose this.
    */
   registerSitePermissionPromptSupport?(): void
   /**

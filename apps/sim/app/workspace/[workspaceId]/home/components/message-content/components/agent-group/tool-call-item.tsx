@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
-import { ActivityStatus } from '@/components/ui/activity-status'
+import { ActivityStatus, type ActivityStatusProps } from '@/components/ui/activity-status'
 import {
   CallIntegrationTool,
   PrepareFileEdit,
@@ -45,6 +45,7 @@ export function CircleStop({ className }: { className?: string }) {
 export interface ToolCallItemProps {
   toolName: string
   displayTitle: string
+  activityDescription?: string
   status: ToolCallStatus
   params?: Record<string, unknown>
   result?: ToolCallData['result']
@@ -54,7 +55,12 @@ export interface ToolCallItemProps {
   /** When the call started, used to count down a running `wait`. */
   startedAt?: number
   /** Projects one computed status into a header and history without duplicating tool state. */
-  renderStatus?: (status: ReactNode) => ReactNode
+  renderStatus?: (status: ToolActivityPresentation) => ReactNode
+}
+
+export interface ToolActivityPresentation extends ActivityStatusProps {
+  /** Keep the action in progress while its containing activity group remains open. */
+  activeLabel: string
 }
 
 function stringParam(params: Record<string, unknown> | undefined, key: string): string {
@@ -125,6 +131,7 @@ function useElapsedMs(
 export function ToolCallItem({
   toolName,
   displayTitle,
+  activityDescription,
   status,
   params,
   result,
@@ -188,7 +195,12 @@ export function ToolCallItem({
   const liveTitle = isCountingDown
     ? getWaitCountdownTitle(params, elapsedMs)
     : liveWorkspaceFileTitle || displayTitle
-  const title = getToolStatusDisplayTitle(liveTitle, status, toolName)
+  const title = getToolStatusDisplayTitle(
+    liveTitle,
+    status,
+    toolName,
+    isCountingDown ? undefined : activityDescription
+  )
 
   // A waiting terminal handoff swaps its row for the hand-back chip, the same
   // way a browser takeover does: the row would otherwise spin with nothing
@@ -209,7 +221,7 @@ export function ToolCallItem({
       <ToolPermissionCard
         toolCallId={toolCallId}
         toolName={toolName}
-        displayTitle={liveTitle}
+        displayTitle={title}
         params={params}
       />
     )
@@ -240,18 +252,18 @@ export function ToolCallItem({
     )
   }
 
-  const activity = (
-    <ActivityStatus
-      label={title}
-      isActive={isExecuting}
-      icon={
-        BlockIcon ? (
-          <BrandIcon icon={BlockIcon} className='size-full' />
-        ) : (
-          <ToolIcon className='size-full' />
-        )
-      }
-    />
-  )
-  return renderStatus ? renderStatus(activity) : activity
+  const activity: ToolActivityPresentation = {
+    label: title,
+    activeLabel:
+      status === 'success'
+        ? getToolStatusDisplayTitle(liveTitle, 'executing', toolName, activityDescription)
+        : title,
+    isActive: isExecuting,
+    icon: BlockIcon ? (
+      <BrandIcon icon={BlockIcon} className='size-full' />
+    ) : (
+      <ToolIcon className='size-full' />
+    ),
+  }
+  return renderStatus ? renderStatus(activity) : <ActivityStatus {...activity} />
 }

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const m = vi.hoisted(() => ({
   authorize: vi.fn(),
   sources: vi.fn(),
-  overview: vi.fn(),
+  configuredTypes: vi.fn(),
   approvals: vi.fn(),
   availability: vi.fn(),
 }))
@@ -23,7 +23,7 @@ vi.mock('@/lib/knowledge/application/search-sources', () => ({
   listSearchSources: { execute: m.sources },
 }))
 vi.mock('@/lib/knowledge/application/search-source-overview', () => ({
-  readSearchSourceOverview: { execute: m.overview },
+  listConfiguredSearchProviderTypes: m.configuredTypes,
 }))
 vi.mock('@/lib/knowledge/search/integration-policy', () => ({
   listOrganizationSearchApprovals: m.approvals,
@@ -73,7 +73,7 @@ const source = {
   isSyncing: false,
   hasSyncError: false,
   viewerFailedDocumentCount: 0,
-  viewerDocumentCount: 0,
+  hasViewerDocuments: false,
 }
 beforeEach(() => {
   vi.clearAllMocks()
@@ -81,7 +81,7 @@ beforeEach(() => {
   queueTableRows(user, [{ emailVerified: true }])
   m.authorize.mockResolvedValue(undefined)
   m.sources.mockResolvedValue({ sources: [source], nextCursor: null })
-  m.overview.mockResolvedValue({ providers: [{ connectorType: 'gmail' }] })
+  m.configuredTypes.mockResolvedValue(['gmail'])
   m.approvals.mockResolvedValue(
     new Map([
       ['gmail', true],
@@ -94,7 +94,7 @@ describe('personal Search inventory', () => {
   it.each([
     [{}, 'connected', 'not_indexed'],
     [{ isSyncing: true }, 'connected', 'indexing'],
-    [{ viewerDocumentCount: 3 }, 'connected', 'indexed'],
+    [{ hasViewerDocuments: true }, 'connected', 'indexed'],
     [{ hasSyncError: true }, 'connected', 'sync_failed'],
     [
       {
@@ -111,12 +111,13 @@ describe('personal Search inventory', () => {
       expect(result.connections[0]).toMatchObject({ connectionStatus, indexingStatus })
       expect(personalSearchIntegrationPageSchema.safeParse(result).success).toBe(true)
       expect(m.sources).toHaveBeenCalledWith({ principal, input })
+      expect(m.configuredTypes).toHaveBeenCalledWith({ organizationId: 'org' })
       expect(JSON.stringify(result)).not.toMatch(/accessToken|authorizationUrl|other-person/)
     }
   )
   it('offers approved ready providers with no index, excluding app setup and unapproved providers', async () => {
     m.sources.mockResolvedValue({ sources: [], nextCursor: null })
-    m.overview.mockResolvedValue({ providers: [] })
+    m.configuredTypes.mockResolvedValue([])
     const result = await listPersonalSearchIntegrations.execute({ principal, input })
     expect(result.available.map((entry) => entry.target.connectorType)).toEqual(['gmail'])
     expect(result.connections).toEqual([])
@@ -125,7 +126,7 @@ describe('personal Search inventory', () => {
     resetDbChainMock()
     queueTableRows(user, [{ emailVerified: false }])
     m.sources.mockResolvedValue({ sources: [], nextCursor: null })
-    m.overview.mockResolvedValue({ providers: [] })
+    m.configuredTypes.mockResolvedValue([])
     expect((await listPersonalSearchIntegrations.execute({ principal, input })).available).toEqual(
       []
     )

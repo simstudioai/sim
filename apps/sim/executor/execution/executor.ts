@@ -418,8 +418,8 @@ export class DAGExecutor {
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
       largeValueExecutionIds: this.contextExtensions.largeValueExecutionIds,
-      largeValueKeys: this.contextExtensions.largeValueKeys,
-      fileKeys: this.contextExtensions.fileKeys,
+      largeValueKeys: this.contextExtensions.largeValueKeys ?? [],
+      fileKeys: this.contextExtensions.fileKeys ?? [],
       allowLargeValueWorkflowScope: this.contextExtensions.allowLargeValueWorkflowScope,
       userId: this.contextExtensions.userId,
       principal: this.contextExtensions.principal,
@@ -493,6 +493,7 @@ export class DAGExecutor {
         : new Set(),
       // Deliberately not restored from a snapshot: it is a cache, so a resumed run re-resolves.
       toolBindingLabelCache: new Map(),
+      permissionConfigCache: new Map(),
       loopExecutions: snapshotState?.loopExecutions
         ? new Map(
             Object.entries(snapshotState.loopExecutions).map(([loopId, scope]) => [

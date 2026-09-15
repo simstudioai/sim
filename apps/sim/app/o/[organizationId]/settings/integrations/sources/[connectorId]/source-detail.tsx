@@ -197,6 +197,8 @@ function SourceDetailContent({
   const description =
     [title === meta?.name ? undefined : meta?.name, status].filter(Boolean).join(' · ') || undefined
   const onBack = () => router.push(backHref)
+  const onRemoved = () =>
+    router.replace(organizationRoutes(organization.id).settingsSection('integrations'))
   const onViewChange = (value: string) => {
     const next = sourceViewParam.parser.parse(value)
     if (next) void setView(next)
@@ -254,6 +256,7 @@ function SourceDetailContent({
         queryError={integrationFeedback}
         backText={backText}
         onBack={onBack}
+        onRemoved={onRemoved}
         onViewChange={onViewChange}
       />
     )
@@ -264,7 +267,7 @@ function SourceDetailContent({
       title={title}
       description={description}
       docsLink={meta?.searchDocsUrl}
-      onRemoved={onBack}
+      onRemoved={onRemoved}
     >
       {integrationFeedback}
       <SourceNavigation view={view} onViewChange={onViewChange} />
@@ -367,6 +370,7 @@ interface SourceSettingsEditorProps {
   queryError?: ReactNode
   backText: string
   onBack: () => void
+  onRemoved: () => void
   onViewChange: (view: string) => void
 }
 
@@ -400,6 +404,7 @@ function SourceSettingsForm({
   queryError,
   backText,
   onBack,
+  onRemoved,
   onViewChange,
   onSaved,
   onDiscard,
@@ -420,7 +425,7 @@ function SourceSettingsForm({
       description={description}
       docsLink={form.docsUrl}
       lifecycleDisabled={form.dirty || form.saving}
-      onRemoved={onBack}
+      onRemoved={onRemoved}
       actions={saveDiscardActions({
         dirty: form.dirty,
         saving: form.saving,

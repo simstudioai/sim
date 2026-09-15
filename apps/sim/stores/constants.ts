@@ -29,7 +29,8 @@ export const CONTENT_WINDOW_GAP = 0
 /** Sidebar width constraints */
 export const SIDEBAR_WIDTH = {
   DEFAULT: 256,
-  MIN: 256,
+  /** Narrowest the expanded rail can be dragged — slightly under the default */
+  MIN: 224,
   /** Width when sidebar is collapsed to icon-only mode */
   COLLAPSED: 48,
   /**

@@ -19,6 +19,7 @@ import {
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockWithResourceOutboundScope,
   mockResolveWebhookRecordProviderConfig,
   mockExecuteWorkflowCore,
   mockWasExecutionFinalizedByCore,
@@ -32,6 +33,7 @@ const {
 } = vi.hoisted(() => {
   const mockEnqueue = vi.fn()
   return {
+    mockWithResourceOutboundScope: vi.fn(),
     mockResolveWebhookRecordProviderConfig: vi.fn(),
     mockExecuteWorkflowCore: vi.fn(),
     mockWasExecutionFinalizedByCore: vi.fn(),
@@ -61,6 +63,10 @@ const {
 const mockGetExecutionEnvironment = environmentUtilsMockFns.mockGetExecutionEnvironment
 
 afterAll(resetEnvironmentUtilsMock)
+
+vi.mock('@/lib/core/network/resource-scope.server', () => ({
+  withResourceOutboundScope: mockWithResourceOutboundScope,
+}))
 
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
@@ -285,6 +291,7 @@ describe('executeWebhookJob fault vs error handling', () => {
         projectDiagnosticError: loggingSessionMockFns.mockProjectDiagnosticError,
       }
     })
+    mockWithResourceOutboundScope.mockReset().mockImplementation((_owner, run) => run())
     mockRefreshExecutionSlotExpiry.mockReset().mockResolvedValue(true)
     mockReleaseExecutionSlot.mockReset().mockResolvedValue(undefined)
     mockGetProviderHandler.mockReturnValue({})
@@ -854,6 +861,19 @@ describe('executeWebhookJob fault vs error handling', () => {
 
     expect(mockEnqueue).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('requeues transient organization ownership failures before any workflow block starts', async () => {
+    mockWithResourceOutboundScope.mockRejectedValueOnce(
+      Object.assign(new Error('Connection terminated unexpectedly'), { code: 'ECONNRESET' })
+    )
+
+    await expect(executeWebhookJob(payload)).resolves.toMatchObject({
+      requeued: true,
+    })
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockEnqueue).toHaveBeenCalledOnce()
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
   })
 
   it('requeues on retryable infrastructure errors thrown by setup reads', async () => {

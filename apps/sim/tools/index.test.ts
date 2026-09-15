@@ -28,6 +28,7 @@ import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
@@ -93,7 +94,8 @@ const {
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
-const mockGetEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
+const mockGetEffectiveEnvironmentSnapshot =
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 // Mock getBYOKKey
 vi.mock('@/lib/api-key/byok', () => ({
@@ -1346,41 +1348,7 @@ describe('executeTool Function', () => {
     )
   })
 
-  it('retries transient database failures during permission preflight', async () => {
-    const driverError = Object.assign(new Error('read ECONNRESET'), {
-      code: 'ECONNRESET',
-      errno: 'ECONNRESET',
-      syscall: 'read',
-    })
-    const databaseError = new DrizzleQueryError(
-      'select "id" from "workspace" where "workspace"."id" = $1 limit $2',
-      ['workspace-secret-id', 1],
-      driverError
-    )
-    mockAssertPermissionsAllowed.mockRejectedValueOnce(databaseError)
-    mockToolsLogger.warn.mockClear()
-
-    const result = await executeTool(
-      'function_execute',
-      { code: 'return 1' },
-      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
-    )
-
-    expect(result.success).toBe(true)
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(2)
-    expect(mockExecuteFunction).toHaveBeenCalledTimes(1)
-    expect(global.fetch).not.toHaveBeenCalled()
-    expect(mockToolsLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Retrying tool permission preflight after database error'),
-      expect.objectContaining({
-        attempt: 1,
-        maxAttempts: 3,
-        cause: expect.objectContaining({ code: 'ECONNRESET' }),
-      })
-    )
-  })
-
-  it('logs exhausted database retries without exposing query details to the caller', async () => {
+  it('logs a permission database failure without exposing query details to the caller', async () => {
     const driverError = Object.assign(new Error('read ECONNRESET'), {
       code: 'ECONNRESET',
       errno: 'ECONNRESET',
@@ -1406,7 +1374,7 @@ describe('executeTool Function', () => {
     )
     expect(JSON.stringify(result)).not.toContain('Failed query')
     expect(JSON.stringify(result)).not.toContain('workspace-secret-id')
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(3)
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
     expect(global.fetch).not.toHaveBeenCalled()
 
     const loggedError = mockToolsLogger.error.mock.calls.at(-1)?.[1]
@@ -1427,28 +1395,6 @@ describe('executeTool Function', () => {
     )
     expect(loggedError).not.toHaveProperty('stack')
     expect(JSON.stringify(loggedError)).not.toContain('workspace-secret-id')
-  })
-
-  it('does not retry non-transient database failures during permission preflight', async () => {
-    const databaseError = new DrizzleQueryError(
-      'select "missing_column" from "workspace"',
-      [],
-      Object.assign(new Error('column does not exist'), { code: '42703' })
-    )
-    mockAssertPermissionsAllowed.mockRejectedValue(databaseError)
-
-    const result = await executeTool(
-      'function_execute',
-      { code: 'return 1' },
-      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toBe(
-      'An internal error occurred while executing the tool. Please try again.'
-    )
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
-    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('surfaces cancellation instead of a concurrent permission database failure', async () => {
@@ -5041,6 +4987,21 @@ describe('Managed OAuth Credential Delegation', () => {
 describe('Copilot Env Variable Reference Resolution', () => {
   let cleanupEnvVars: () => void
 
+  function environmentSnapshot(variables: Record<string, string>): EnvironmentResolutionSnapshot {
+    return {
+      personalEncrypted: {},
+      workspaceEncrypted: Object.fromEntries(
+        Object.keys(variables).map((name) => [name, `encrypted-${name}`])
+      ),
+      personalDecrypted: {},
+      workspaceDecrypted: variables,
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceUnredactedKeys: [],
+    }
+  }
+
   function sentOperationInput(): Record<string, unknown> {
     const call = mockExecuteInternalToolOperation.mock.calls.findLast(
       ([request]) => request.toolId === 'test_env_ref_tool'
@@ -5069,8 +5030,10 @@ describe('Copilot Env Variable Reference Resolution', () => {
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
       INTERNAL_API_BASE_URL: '',
     })
-    mockGetEffectiveDecryptedEnv.mockReset()
-    mockGetEffectiveDecryptedEnv.mockResolvedValue({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
+    mockGetEffectiveEnvironmentSnapshot.mockReset()
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue(
+      environmentSnapshot({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
+    )
   })
 
   afterEach(() => {
@@ -5086,32 +5049,34 @@ describe('Copilot Env Variable Reference Resolution', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', 'workspace-456')
     expect(sentOperationInput().apiKey).toBe('sntrys_real_token')
   })
 
   it('keeps direct integration execution raw while projecting only its active workspace secret', async () => {
     const activeSecret = 'xxxxxxxx'
     const unusedSecret = 'true'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({
-      SERPER_API_KEY: activeSecret,
-      UNUSED_SECRET: unusedSecret,
-    })
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce(
+      environmentSnapshot({ SERPER_API_KEY: activeSecret, UNUSED_SECRET: unusedSecret })
+    )
     mockExecuteInternalToolOperation.mockResolvedValueOnce(
       Response.json({ reflected: activeSecret, ordinary: unusedSecret })
     )
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'SERPER_API_KEY',
-        plaintext: activeSecret,
-        encryptedValue: 'encrypted-active',
-      },
-      {
-        name: 'UNUSED_SECRET',
-        plaintext: unusedSecret,
-        encryptedValue: 'encrypted-unused',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'SERPER_API_KEY',
+          plaintext: activeSecret,
+          encryptedValue: 'encrypted-active',
+        },
+        {
+          name: 'UNUSED_SECRET',
+          plaintext: unusedSecret,
+          encryptedValue: 'encrypted-unused',
+        },
+      ],
+      { userId: 'user-123', workspaceId: 'workspace-456' }
+    )
     const callerParams = { apiKey: '{{SERPER_API_KEY}}' }
 
     const result = await executeTool('test_env_ref_tool', callerParams, {
@@ -5124,7 +5089,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
       output: { reflected: activeSecret, ordinary: unusedSecret },
     })
     expect(callerParams).toEqual({ apiKey: '{{SERPER_API_KEY}}' })
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', 'workspace-456')
     expect(sentOperationInput().apiKey).toBe(activeSecret)
     expect(projectToolResultForCopilot(result, registry)).toMatchObject({
       success: true,
@@ -5132,23 +5097,64 @@ describe('Copilot Env Variable Reference Resolution', () => {
     })
   })
 
+  it('tracks a secret added after the Copilot turn started', async () => {
+    const secret = 'new-workspace-api-key'
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce({
+      personalEncrypted: {},
+      workspaceEncrypted: { ADDED_API_KEY: 'encrypted-new-key' },
+      personalDecrypted: {},
+      workspaceDecrypted: { ADDED_API_KEY: secret },
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceUnredactedKeys: [],
+    })
+    const parent = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-123',
+      workspaceId: 'workspace-456',
+    })
+    const registry = parent.forkForInputPaths([])
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(Response.json({ reflected: secret }))
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{ADDED_API_KEY}}' },
+      { executionContext: copilotContext(), resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(sentOperationInput().apiKey).toBe(secret)
+    expect(projectToolResultForCopilot(result, registry)).toMatchObject({
+      success: true,
+      output: { reflected: '{{ADDED_API_KEY}}' },
+    })
+    expect(registry.isComplete()).toBe(true)
+    expect(parent.getActiveMatches()).toEqual([])
+    parent.mergeToolCallRegistry(registry)
+    expect(parent.getActiveMatches()).toEqual([
+      { plaintext: secret, replacement: '{{ADDED_API_KEY}}' },
+    ])
+  })
+
   it('does not let a pending user-only reference affect an unrelated result', async () => {
     const secret = 'sntrys_real_token'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'SENTRY_AUTH_TOKEN',
-        plaintext: secret,
-        encryptedValue: 'encrypted-token',
-      },
-    ])
-    let resolveEnvironment!: (variables: Record<string, string>) => void
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'SENTRY_AUTH_TOKEN',
+          plaintext: secret,
+          encryptedValue: 'encrypted-token',
+        },
+      ],
+      { userId: 'user-123', workspaceId: 'workspace-456' }
+    )
+    let resolveEnvironment!: (environment: EnvironmentResolutionSnapshot) => void
     let markResolutionStarted!: () => void
     const resolutionStarted = new Promise<void>((resolve) => {
       markResolutionStarted = resolve
     })
-    mockGetEffectiveDecryptedEnv.mockImplementationOnce(
+    mockGetEffectiveEnvironmentSnapshot.mockImplementationOnce(
       () =>
-        new Promise<Record<string, string>>((resolve) => {
+        new Promise<EnvironmentResolutionSnapshot>((resolve) => {
           resolveEnvironment = resolve
           markResolutionStarted()
         })
@@ -5168,7 +5174,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
       projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
     ).toMatchObject({ output: { result: secret } })
 
-    resolveEnvironment({ SENTRY_AUTH_TOKEN: secret })
+    resolveEnvironment(environmentSnapshot({ SENTRY_AUTH_TOKEN: secret }))
     await expect(execution).resolves.toMatchObject({ success: true })
 
     expect(registry.isComplete()).toBe(true)
@@ -5208,7 +5214,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(true)
     expect(sentOperationInput().apiKey).toBe('Bearer {{SENTRY_AUTH_TOKEN}}')
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 
   it('fails with a clear error before any request when the variable is missing', async () => {
@@ -5239,7 +5245,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('authenticated user context')
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
     expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
@@ -5258,7 +5264,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('only personal variables are available')
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', undefined)
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', undefined)
     expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
@@ -5270,7 +5276,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
     expect(sentOperationInput().apiKey).toBe('{{SENTRY_AUTH_TOKEN}}')
   })
 

@@ -8,7 +8,6 @@ import {
   type PersonalSourceSetupQuery,
   personalSourceSetupContract,
 } from '@/lib/api/contracts/knowledge/personal-source-setup'
-import { memberConnectorKeys } from '@/hooks/queries/kb/connectors'
 import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import { personalSearchIntegrationKeys } from '@/hooks/queries/personal-search-integrations'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
@@ -54,7 +53,6 @@ export function useConnectPersonalSourceSetup() {
       Promise.all([
         client.invalidateQueries({ queryKey: personalSourceSetupKeys.lists() }),
         client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
-        client.invalidateQueries({ queryKey: memberConnectorKeys.lists() }),
         client.invalidateQueries({
           queryKey: searchSourceKeys.list({
             kind: 'organization',

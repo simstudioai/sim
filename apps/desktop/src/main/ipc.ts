@@ -52,7 +52,6 @@ import {
   addTab,
   findInActiveTab,
   getBrowserDownloadsState,
-  grantSiteOriginForUserNavigation,
   peekTabsState,
   reorderTab,
   setBrowserAppTheme,
@@ -335,11 +334,7 @@ export interface IpcDeps {
   terminal: TerminalRegistry
   scopeEvents: Pick<
     ScopedEventRouter,
-    | 'activateBrowser'
-    | 'activateTerminal'
-    | 'registerBrowserSitePermissionPromptSupport'
-    | 'sendBrowser'
-    | 'sendTerminal'
+    'activateBrowser' | 'activateTerminal' | 'sendBrowser' | 'sendTerminal'
   >
   settings: DesktopSettingsService
   getWindowState: (sender: WebContents) => DesktopWindowState
@@ -928,15 +923,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         })
       },
     },
-    'browser-agent:register-site-permission-prompt-support': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender) => {
-        deps.scopeEvents.registerBrowserSitePermissionPromptSupport(sender as WebContents)
-      },
-    },
     'browser-agent:open-url': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -953,7 +939,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
         return withBrowserScope(scope, () => {
           const tab = addTab()
-          if (!grantSiteOriginForUserNavigation(tab.view.webContents, destination)) {
+          if (tab.view.webContents.isDestroyed()) {
             return peekTabsState()
           }
           void tab.view.webContents.loadURL(destination).catch(() => {})
@@ -1146,11 +1132,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       needsUserActivation: ([action]) => {
         if (!isRecordLike(action)) return false
         if (action.action === 'navigate') return true
-        return (
-          (action.action === 'respond-media-permission' ||
-            action.action === 'respond-site-permission') &&
-          action.allowed === true
-        )
+        return action.action === 'respond-media-permission' && action.allowed === true
       },
       handler: (sender, action, rawScope) => {
         const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)

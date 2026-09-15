@@ -159,7 +159,7 @@ async function resolveSlackConfiguration(
     .limit(1)
   if (!app) throw new Error('Organization Slack app configuration is missing')
   if (app.kind === 'shared') {
-    await requireSlackSearchAppAvailable(app.id)
+    await requireSlackSearchAppAvailable(app.id, params.organizationId)
     const [installation] = await (params.executor ?? db)
       .select({ id: slackSearchInstallation.id })
       .from(slackSearchInstallation)

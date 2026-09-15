@@ -55,7 +55,7 @@ export function SettingsQueryErrorState({
   return (
     <SettingsEmptyState variant={variant} tone='error'>
       <div className='flex flex-col items-center gap-2'>
-        <span>{getErrorMessage(error, fallback)}</span>
+        <span role='alert'>{getErrorMessage(error, fallback)}</span>
         <Chip variant='border' disabled={isRetrying} onClick={onRetry}>
           {isRetrying ? 'Retrying…' : 'Try again'}
         </Chip>

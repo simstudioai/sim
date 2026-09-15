@@ -41,8 +41,12 @@ type RetryableError =
   | { status?: number; message?: string; headers?: HeaderReader }
 
 export interface RetryOptions {
-  /** Provider transport hooks run for every attempt, including retries and streamed responses. */
-  fetcher?: typeof fetch
+  /** Admission hooks must call the supplied transport, which resolves routing after any wait. */
+  fetcher?: (
+    input: RequestInfo | URL,
+    init: RequestInit,
+    transport: typeof fetch
+  ) => Promise<Response>
   /** Cancels the current retry cycle, including waits between attempts. */
   signal?: AbortSignal
   maxRetries?: number
@@ -58,7 +62,6 @@ export interface RetryOptions {
 
 const MAX_HTTP_ERROR_DIAGNOSTIC_CHARS = 2000
 const HTTP_ERROR_BODY_OMITTED = '[response body omitted]'
-const DEFAULT_FETCH_RETRY_BUDGET_MS = 150_000
 
 /**
  * Reads an upstream error body without allowing a provider or proxy error page
@@ -602,52 +605,4 @@ export const VALIDATE_RETRY_OPTIONS: RetryOptions = {
   maxRetries: 3,
   initialDelayMs: 1000,
   maxDelayMs: 10000,
-}
-
-/**
- * Bounds requests and response bodies within one retry budget.
- */
-export async function fetchWithRetry(
-  url: string,
-  options: RequestInit = {},
-  retryOptions: RetryOptions = {}
-): Promise<Response> {
-  const callerSignal = options.signal
-    ? retryOptions.signal
-      ? AbortSignal.any([options.signal, retryOptions.signal])
-      : options.signal
-    : retryOptions.signal
-
-  return retryWithExponentialBackoff(
-    async (signal, deadlineAt) => {
-      /** The fetch deadline stays active while callers consume the returned response body. */
-      const requestSignal = AbortSignal.any([
-        signal,
-        AbortSignal.timeout(Math.max(0, Math.ceil(deadlineAt - Date.now()))),
-      ])
-      const response = await (retryOptions.fetcher ?? fetch)(url, {
-        ...options,
-        signal: requestSignal,
-      })
-
-      if (
-        !response.ok &&
-        isRetryableError({ status: response.status, headers: response.headers })
-      ) {
-        throw await createRetryableHttpError(response)
-      }
-
-      return response
-    },
-    {
-      ...retryOptions,
-      retryBudgetMs: retryOptions.retryBudgetMs ?? DEFAULT_FETCH_RETRY_BUDGET_MS,
-      maxRetryAfterMs:
-        retryOptions.maxRetryAfterMs ??
-        retryOptions.retryBudgetMs ??
-        retryOptions.maxDelayMs ??
-        30_000,
-      signal: callerSignal,
-    }
-  )
 }

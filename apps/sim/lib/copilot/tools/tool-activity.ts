@@ -1,3 +1,18 @@
+interface SharedObjectActivity {
+  verb: string
+  object: string
+}
+
+type ActivityPhrase = string | SharedObjectActivity
+
+const PAGE_NAVIGATION = {
+  verb: 'navigated',
+  object: 'pages',
+} as const satisfies SharedObjectActivity
+const PAGE_READING = { verb: 'read', object: 'pages' } as const satisfies SharedObjectActivity
+const PAGE_SEARCHING = { verb: 'searched', object: 'pages' } as const satisfies SharedObjectActivity
+const PAGE_SCROLLING = { verb: 'scrolled', object: 'pages' } as const satisfies SharedObjectActivity
+
 interface OperationActivity {
   label: string
   parameter: 'operation' | 'action'
@@ -61,34 +76,34 @@ const TABLE_ENRICHMENTS_OPERATIONS = {
 } as const
 
 /** Client-owned summaries; the executable tool registry stays outside the UI bundle. */
-export const TOOL_ACTIVITIES: Readonly<Record<string, string | OperationActivity>> = {
+export const TOOL_ACTIVITIES: Readonly<Record<string, ActivityPhrase | OperationActivity>> = {
   apply_file_edit: 'edited files',
   browser_click: 'clicked elements',
   browser_click_at: 'clicked elements',
   browser_close_tab: 'closed tabs',
   browser_drag: 'dragged elements',
-  browser_extract: 'read pages',
+  browser_extract: PAGE_READING,
   browser_fill_form: 'filled forms',
-  browser_find: 'searched pages',
-  browser_go_back: 'navigated pages',
-  browser_go_forward: 'navigated pages',
+  browser_find: PAGE_SEARCHING,
+  browser_go_back: PAGE_NAVIGATION,
+  browser_go_forward: PAGE_NAVIGATION,
   browser_hover: 'hovered over elements',
   browser_insert_text: 'entered text',
   browser_list_downloads: 'listed downloads',
   browser_list_sessions: 'checked signed-in sites',
   browser_list_tabs: 'listed tabs',
-  browser_navigate: 'navigated pages',
+  browser_navigate: PAGE_NAVIGATION,
   browser_open_tab: 'opened tabs',
-  browser_open_url: 'navigated pages',
+  browser_open_url: PAGE_NAVIGATION,
   browser_press_key: 'pressed keys',
-  browser_read_text: 'read pages',
-  browser_reload: 'navigated pages',
+  browser_read_text: PAGE_READING,
+  browser_reload: PAGE_NAVIGATION,
   browser_request_takeover: 'resumed browser control',
   browser_screenshot: 'captured screenshots',
-  browser_scroll: 'scrolled pages',
+  browser_scroll: PAGE_SCROLLING,
   browser_select_option: 'selected options',
   browser_set_checked: 'updated selections',
-  browser_snapshot: 'read pages',
+  browser_snapshot: PAGE_READING,
   browser_switch_tab: 'switched tabs',
   browser_type: 'entered text',
   browser_wait_for: 'waited',
@@ -382,13 +397,43 @@ export const TOOL_ACTIVITIES: Readonly<Record<string, string | OperationActivity
 }
 
 /** Unknown tools and operations retain a neutral summary for historical/custom calls. */
-export function getToolActivityLabel(toolName: string, params?: Record<string, unknown>): string {
+function resolveToolActivity(toolName: string, params?: Record<string, unknown>): ActivityPhrase {
   const activity = Object.hasOwn(TOOL_ACTIVITIES, toolName) ? TOOL_ACTIVITIES[toolName] : undefined
   if (!activity) return toolName.startsWith('browser_') ? 'used the browser' : 'used tools'
-  if (typeof activity === 'string') return activity
+  if (typeof activity === 'string' || 'verb' in activity) return activity
   const suppliedOperation = params?.[activity.parameter]
   const operation = suppliedOperation === undefined ? activity.defaultOperation : suppliedOperation
   return typeof operation === 'string' && Object.hasOwn(activity.operations, operation)
     ? activity.operations[operation]
     : activity.label
+}
+
+function activityLabel(activity: ActivityPhrase): string {
+  return typeof activity === 'string' ? activity : `${activity.verb} ${activity.object}`
+}
+
+export function getToolActivityLabel(toolName: string, params?: Record<string, unknown>): string {
+  return activityLabel(resolveToolActivity(toolName, params))
+}
+
+/** Compact only explicitly related phrases, after capping, so the shared object remains visible. */
+export function getToolActivitySummaryActions(
+  tools: ReadonlyArray<{ toolName: string; params?: Record<string, unknown> }>,
+  limit: number
+): { labels: string[]; additionalActions: number } {
+  const unique = new Map<string, ActivityPhrase>()
+  for (const tool of tools) {
+    const activity = resolveToolActivity(tool.toolName, tool.params)
+    unique.set(activityLabel(activity), activity)
+  }
+  const visible = Array.from(unique.values()).slice(0, limit)
+  const labels = visible.map((activity, index) => {
+    const next = visible[index + 1]
+    return typeof activity !== 'string' &&
+      typeof next !== 'string' &&
+      next?.object === activity.object
+      ? activity.verb
+      : activityLabel(activity)
+  })
+  return { labels, additionalActions: Math.max(0, unique.size - limit) }
 }

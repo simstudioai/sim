@@ -17,8 +17,11 @@ import {
 import { createLogger, Logger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
+import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/knowledge/search'
+import { internalSessionAuth } from '@/lib/api/server/routes'
 import type {
   MothershipStreamV1CheckpointPausePayload,
   MothershipStreamV1ToolCallDescriptor,
@@ -33,7 +36,6 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import {
   SearchBudget,
   SearchDeadlineError,
@@ -41,6 +43,7 @@ import {
 } from '@/lib/knowledge/search/budget'
 import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import { POST as searchRoute } from '@/app/api/knowledge/search/route'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Initialize controlled provider configuration before the real application modules load. */
@@ -48,6 +51,7 @@ vi.hoisted(() => {
   if (process.env.KNOWLEDGE_SEARCH_PERFORMANCE_TEST === 'true') {
     Object.assign(process.env, {
       OPENAI_API_KEY: 'isolated-embedding-http-fixture',
+      GEMINI_API_KEY: 'isolated-gemini-http-fixture',
       CONFLUENCE_CLIENT_ID: 'isolated-confluence-fixture-client',
       CONFLUENCE_CLIENT_SECRET: 'isolated-confluence-fixture-secret',
     })
@@ -74,7 +78,8 @@ const fixtureSchema = z.object({
 })
 const reuseFile = enabled ? process.env.KNOWLEDGE_SEARCH_PERFORMANCE_REUSE_REPORT_FILE : undefined
 function readFixtureReport(file: string) {
-  if (statSync(file).size > 8 * 1024 * 1024) throw new Error('Fixture report exceeds 8 MiB')
+  /** Captured SQL plans include repeated high-dimensional query parameters. */
+  if (statSync(file).size > 64 * 1024 * 1024) throw new Error('Fixture report exceeds 64 MiB')
   return z
     .object({ fixture: fixtureSchema, unrelatedFixture: fixtureSchema })
     .parse(JSON.parse(readFileSync(file, 'utf8')))
@@ -83,11 +88,14 @@ const reused = reuseFile ? readFixtureReport(reuseFile) : undefined
 const ids = reused?.fixture ?? createKnowledgeAclFixtureIds()
 const unrelated = reused?.unrelatedFixture ?? createKnowledgeAclFixtureIds()
 const organizationChatId = generateId()
-const queryVector = Array.from({ length: dimensions }, (_, index) =>
-  Math.sin((index + 1) * 12.9898)
-)
-const queryMagnitude = Math.hypot(...queryVector)
-for (let index = 0; index < queryVector.length; index++) queryVector[index] /= queryMagnitude
+function topicVector(topic = 0) {
+  const vector = Array.from({ length: dimensions }, (_, index) =>
+    Math.sin((index + 1) * (topic + 1) * 12.9898)
+  )
+  const magnitude = Math.hypot(...vector)
+  return vector.map((value) => value / magnitude)
+}
+const queryVector = topicVector()
 const captured: CapturedQuery[] = []
 const report: Record<string, unknown> = {
   fixture: ids,
@@ -120,6 +128,8 @@ interface ExplainNode {
   'Node Type': string
   'Actual Rows': number
   'Index Name'?: string
+  'Relation Name'?: string
+  Output?: string[]
   Plans?: ExplainNode[]
 }
 
@@ -129,18 +139,28 @@ const explainNodeSchema: z.ZodType<ExplainNode> = z.lazy(() =>
       'Node Type': z.string(),
       'Actual Rows': z.number(),
       'Index Name': z.string().optional(),
+      'Relation Name': z.string().optional(),
+      Output: z.array(z.string()).optional(),
       Plans: z.array(explainNodeSchema).optional(),
     })
     .passthrough()
 )
 const explainSchema = z.array(z.object({ Plan: explainNodeSchema }).passthrough()).length(1)
 
-function usesVectorIndex(node: ExplainNode): boolean {
-  return (
-    node['Index Name'] === 'embedding_binary_hnsw_idx' ||
-    node['Index Name'] === 'embedding_vector_hnsw_idx' ||
-    (node.Plans?.some(usesVectorIndex) ?? false)
-  )
+/** The ANN stage must not fetch full vectors, even for planner-added sort projections. */
+function assertCompactCandidates(node: ExplainNode) {
+  expect(node['Relation Name']).not.toBe('embedding')
+  for (const expression of node.Output ?? [])
+    expect(expression).not.toMatch(/binary_quantize\([^)]*embedding\.embedding/)
+  for (const child of node.Plans ?? []) assertCompactCandidates(child)
+}
+
+/** Keyword sort memory must scale with identities and scores, not the matched document text. */
+function assertScalarKeywordSorts(node: ExplainNode) {
+  if (node['Node Type'] === 'Sort') {
+    expect((node.Output ?? []).join(' ')).not.toContain('content_tsv')
+  }
+  for (const child of node.Plans ?? []) assertScalarKeywordSorts(child)
 }
 
 function saveReport() {
@@ -153,6 +173,9 @@ const diagnosticSchema = z
     surface: z.enum(['dashboard', 'copilot']),
     outcome: z.literal('success'),
     elapsedMs: z.number(),
+    vectorBudgetMs: z.number().positive(),
+    retrievalStatus: z.enum(['complete', 'partial']),
+    timedOutLegs: z.array(z.enum(['vector', 'keyword', 'tags'])),
     toolResultBytes: z.number().int().nonnegative().optional(),
     passageBytes: z.number().int().nonnegative().optional(),
     maxPassageBytes: z.number().int().nonnegative().optional(),
@@ -204,6 +227,45 @@ async function search(
   )
 }
 
+async function searchDashboard(query = 'Orion deployment') {
+  const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
+    kind: 'session',
+    userId: ids.aliceId,
+    sessionId: 'fixture-dashboard',
+  })
+  try {
+    const response = await searchRoute(
+      new NextRequest('http://localhost/api/knowledge/search', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: ids.workspaceId,
+          query,
+          topK: 15,
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    return {
+      success: true as const,
+      data: workspaceKnowledgeSearchDataSchema.parse((await response.json()).data),
+    }
+  } finally {
+    authenticate.mockRestore()
+  }
+}
+
+/** Allow either index or filtered plans, but require successful retrieval within the real surface budget. */
+function expectCompleteVectorSearch(diagnostics: z.infer<typeof diagnosticSchema>) {
+  const budget = diagnostics.surface === 'dashboard' ? 3000 : 8000
+  expect(diagnostics).toMatchObject({
+    vectorBudgetMs: budget,
+    retrievalStatus: 'complete',
+    timedOutLegs: [],
+  })
+  expect(diagnostics.stages.vector.totalMs).toBeLessThanOrEqual(budget)
+}
+
 async function sample(label: string, run: () => ReturnType<typeof search>) {
   captured.length = 0
   diagnosticLog?.mockClear()
@@ -234,32 +296,54 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
   expect(captured.length).toBeLessThan(300)
   const searches = captured.filter(
     (item) =>
-      item.query.includes('from "embedding"') &&
-      (item.query.includes('order by') || item.query.includes('limit'))
+      (item.query.includes('from "embedding"') ||
+        item.query.includes('FROM "embedding"') ||
+        item.query.includes('from "embedding_search"') ||
+        item.query.includes('FROM "embedding_search"') ||
+        item.query.includes('from "embedding_keyword_search"') ||
+        item.query.includes('FROM "embedding_keyword_search"')) &&
+      (item.query.includes('order by') ||
+        item.query.includes('limit') ||
+        item.query.includes('WITH visible_search_documents') ||
+        item.query.includes('WITH scored_search_candidates') ||
+        item.query.includes('WITH visible_keyword_documents'))
   )
   const plans = []
   for (const query of searches) {
     const plan = await db.$client.begin(async (tx) => {
+      await tx.unsafe("SET LOCAL statement_timeout = '45s'")
       await tx.unsafe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
       await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 20000')
-      if (query.query.includes('binary_quantize')) {
-        await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 100000')
-        await tx.unsafe('SET LOCAL hnsw.ef_search = 200')
-        await tx.unsafe('SET LOCAL hnsw.scan_mem_multiplier = 4')
+      if (
+        query.query.includes('WITH visible_search_documents') ||
+        (query.query.includes('from "embedding_search"') && query.query.includes('order by'))
+      ) {
+        await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 1000')
+        await tx.unsafe('SET LOCAL hnsw.ef_search = 1000')
+        await tx.unsafe('SET LOCAL hnsw.scan_mem_multiplier = 2')
       }
-      return tx.unsafe(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query.query}`, query.parameters)
+      return tx.unsafe(
+        `EXPLAIN (ANALYZE, BUFFERS, VERBOSE, FORMAT JSON) ${query.query}`,
+        query.parameters
+      )
     })
+    const parsedPlan = explainSchema.parse(plan[0]['QUERY PLAN'])
+    if (query.query.includes('WITH visible_keyword_documents')) {
+      assertScalarKeywordSorts(parsedPlan[0].Plan)
+    }
     plans.push({
       kind: query.query.includes('keyword_rank')
         ? 'keyword'
-        : query.query.includes('binary_quantize')
+        : query.query.includes('WITH visible_search_documents') ||
+            (query.query.includes('from "embedding_search"') && query.query.includes('order by'))
           ? 'vector'
-          : query.query.includes('order by')
+          : query.query.includes('order by') ||
+              query.query.includes('WITH scored_search_candidates')
             ? 'rerank'
             : 'probe',
       query: query.query,
       parameters: query.parameters,
-      plan: explainSchema.parse(plan[0]['QUERY PLAN']),
+      plan: parsedPlan,
     })
   }
   report[label] = {
@@ -300,6 +384,29 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
           ? new Response(null, { status: 403 })
           : Response.json({ type: 'known', accountId: ids.aliceId })
       }
+      if (
+        url ===
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents'
+      ) {
+        const body = z
+          .object({
+            requests: z
+              .array(
+                z.object({
+                  content: z.object({ parts: z.array(z.object({ text: z.string() })).length(1) }),
+                })
+              )
+              .length(1),
+          })
+          .parse(JSON.parse(String(init?.body)))
+        embeddingCalls++
+        const text = body.requests[0].content.parts[0].text
+        const topic = Number(/^Topic (\d+) deployment$/.exec(text)?.[1] ?? 0)
+        return Response.json({
+          embeddings: [{ values: topicVector(topic) }],
+          usageMetadata: { promptTokenCount: 4 },
+        })
+      }
       if (url !== 'https://api.openai.com/v1/embeddings')
         throw new Error(`Unexpected outbound request in search fixture: ${new URL(url).origin}`)
       const body = z
@@ -307,7 +414,8 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         .parse(JSON.parse(String(init?.body)))
       embeddingCalls += body.input.length
       const bytes = Buffer.alloc(dimensions * 4)
-      queryVector.forEach((value, index) => bytes.writeFloatLE(value, index * 4))
+      const topic = Number(/^Topic (\d+) deployment$/.exec(body.input[0])?.[1] ?? 0)
+      topicVector(topic).forEach((value, index) => bytes.writeFloatLE(value, index * 4))
       return Response.json({
         data: [{ embedding: bytes.toString('base64') }],
         usage: { total_tokens: 4 },
@@ -332,7 +440,11 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       }
       await db
         .update(knowledgeBase)
-        .set({ workspaceId: ids.workspaceId, organizationId: null })
+        .set({
+          workspaceId: ids.workspaceId,
+          organizationId: null,
+          embeddingModel: 'gemini-embedding-001',
+        })
         .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
       await db
         .update(knowledgeConnector)
@@ -357,6 +469,11 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     } else {
       await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
       await seedKnowledgeAclFixture(unrelated, { connectorType: 'google_drive' })
+      /** These arbitrary dense vectors are not trained for prefix shortening. */
+      await db
+        .update(knowledgeBase)
+        .set({ embeddingModel: 'gemini-embedding-001' })
+        .where(inArray(knowledgeBase.id, [ids.knowledgeBaseId, unrelated.knowledgeBaseId]))
       await db
         .update(knowledgeBase)
         .set({ isSearchIndex: true })
@@ -365,7 +482,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         indexname: string
         indexdef: string
       }>(sql`SELECT indexname, indexdef FROM pg_indexes
-      WHERE tablename = 'embedding' AND indexdef LIKE '% USING hnsw %'`)
+      WHERE tablename IN ('embedding', 'embedding_search') AND indexdef LIKE '% USING hnsw %'`)
       for (const index of indexes)
         await db.execute(sql`DROP INDEX ${sql.identifier(index.indexname)}`)
       for (const fixture of [ids, unrelated]) {
@@ -402,6 +519,8 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     }
     await db.execute(sql`ANALYZE document`)
     await db.execute(sql`ANALYZE embedding`)
+    await db.execute(sql`ANALYZE embedding_search`)
+    await db.execute(sql`ANALYZE embedding_keyword_search`)
     report.server = (
       await db.execute(sql`SELECT version(), current_setting('work_mem') AS work_mem,
       (SELECT extversion FROM pg_extension WHERE extname = 'vector') AS pgvector`)
@@ -410,7 +529,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       if (capture && captured.length < 300) captured.push({ query, parameters: [...parameters] })
     }
     diagnosticLog = vi.spyOn(Logger.prototype, 'info')
-  }, 60 * 60_000)
+  }, 120 * 60_000)
 
   afterAll(async () => {
     diagnosticLog?.mockRestore()
@@ -476,9 +595,11 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     expect(run).not.toHaveBeenCalled()
   })
 
-  it.each(['keyword', 'both'] as const)(
-    'handles %s SQL branches exceeding the deadline explicitly',
+  it.each(['vector', 'keyword', 'both'] as const)(
+    'keeps the Assistant budget when %s SQL branches are delayed',
     async (delayedLegs) => {
+      diagnosticLog?.mockClear()
+      let vectorDelayed = false
       const query = SearchBudget.prototype.query
       const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
         this: SearchBudget,
@@ -486,7 +607,13 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         run: (executor: SearchExecutor) => PromiseLike<T>
       ): Promise<T> {
         return query.call(this, stage, async (tx) => {
-          if (delayedLegs === 'both' || this.leg === 'keyword')
+          if (delayedLegs === 'vector' && this.leg === 'vector' && !vectorDelayed) {
+            vectorDelayed = true
+            await tx.execute(sql`SELECT pg_sleep(4)`)
+          } else if (
+            delayedLegs === 'both' ||
+            (delayedLegs === 'keyword' && this.leg === 'keyword')
+          )
             await tx.execute(sql`SELECT pg_sleep(9)`)
           return run(tx)
         }) as Promise<T>
@@ -505,6 +632,10 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
             }),
           }
         )
+        const completed = diagnosticLog?.mock.calls.find(
+          ([message]) => message === 'Knowledge search completed'
+        )
+        expect(diagnosticSchema.parse(completed?.[1]).vectorBudgetMs).toBe(8000)
         if (delayedLegs === 'both') {
           expect(result).toMatchObject({
             success: true,
@@ -517,14 +648,63 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         }
         expect(result).toMatchObject({
           success: true,
-          data: { retrieval: { status: 'partial', timedOutLegs: ['keyword'] } },
+          data: {
+            retrieval:
+              delayedLegs === 'vector'
+                ? { status: 'complete', timedOutLegs: [] }
+                : { status: 'partial', timedOutLegs: ['keyword'] },
+          },
         })
         const parsed = resultSchema.parse(result)
         expect(parsed.data.results.length).toBeGreaterThan(0)
         expect(
           parsed.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)
         ).toBe(true)
-        report['deadline.partial'] = { resultCount: parsed.data.results.length }
+        report[`assistant.deadline.${delayedLegs}`] = { resultCount: parsed.data.results.length }
+      } finally {
+        delayed.mockRestore()
+      }
+    },
+    30_000
+  )
+
+  it.each(['vector', 'both'] as const)(
+    'returns incomplete dashboard coverage when %s SQL branches exceed their deadline',
+    async (delayedLegs) => {
+      diagnosticLog?.mockClear()
+      const query = SearchBudget.prototype.query
+      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
+        this: SearchBudget,
+        stage: SearchStage,
+        run: (executor: SearchExecutor) => PromiseLike<T>
+      ): Promise<T> {
+        return query.call(this, stage, async (tx) => {
+          if (delayedLegs === 'both' || this.leg === 'vector')
+            await tx.execute(sql`SELECT pg_sleep(${delayedLegs === 'both' ? 9 : 4})`)
+          return run(tx)
+        }) as Promise<T>
+      })
+      try {
+        const { data } = await searchDashboard()
+        const completed = diagnosticLog?.mock.calls.find(
+          ([message]) => message === 'Knowledge search completed'
+        )
+        const diagnostics = diagnosticSchema.parse(completed?.[1])
+        expect(diagnostics.vectorBudgetMs).toBe(3000)
+        expect(diagnostics.stages.vector.totalMs).toBeGreaterThan(2500)
+        expect(diagnostics.stages.vector.totalMs).toBeLessThan(4000)
+        expect(data.retrieval).toEqual({
+          status: 'partial',
+          timedOutLegs: delayedLegs === 'both' ? ['vector', 'keyword'] : ['vector'],
+        })
+        if (delayedLegs === 'both') expect(data.results).toEqual([])
+        else {
+          expect(data.results.length).toBeGreaterThan(0)
+          expect(
+            data.results.every((result) => result.knowledgeBaseId === ids.knowledgeBaseId)
+          ).toBe(true)
+        }
+        report[`dashboard.deadline.${delayedLegs}`] = { resultCount: data.results.length }
       } finally {
         delayed.mockRestore()
       }
@@ -535,7 +715,8 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
   it('records first and repeated application searches with the actual SQL plans', async () => {
     const before = embeddingCalls
     for (let iteration = 0; iteration < 2; iteration++) {
-      const { result, plans } = await sample(`broad.${iteration}`, () => search())
+      const { result, plans, diagnostics } = await sample(`broad.${iteration}`, () => search())
+      expectCompleteVectorSearch(diagnostics)
       expect(result.data.results).toHaveLength(15)
       expect(result.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)).toBe(
         true
@@ -543,7 +724,8 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       expect(plans.length).toBeGreaterThanOrEqual(2)
       const vectorPlans = plans.filter((plan) => plan.kind === 'vector')
       expect(vectorPlans).toHaveLength(1)
-      expect(usesVectorIndex(vectorPlans[0].plan[0].Plan)).toBe(true)
+      expect(vectorPlans[0].plan[0].Plan['Actual Rows']).toBeGreaterThan(0)
+      assertCompactCandidates(vectorPlans[0].plan[0].Plan)
       expect(plans.some((plan) => plan.kind === 'rerank')).toBe(true)
       const rerank = plans.find((plan) => plan.kind === 'rerank')!
       const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
@@ -560,20 +742,33 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     expect(embeddingCalls - before).toBe(2)
   }, 180_000)
 
+  it('preserves exact-neighbor recall across different query vectors', async () => {
+    for (const topic of [3, 11, 23]) {
+      const { plans, diagnostics } = await sample(`topic.${topic}`, () =>
+        search(ids.aliceId, `Topic ${topic} deployment`)
+      )
+      expectCompleteVectorSearch(diagnostics)
+      const candidates = plans.find((plan) => plan.kind === 'vector')!
+      assertCompactCandidates(candidates.plan[0].Plan)
+      const rerank = plans.find((plan) => plan.kind === 'rerank')!
+      const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
+      const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND enabled
+        ORDER BY (embedding <=> ${JSON.stringify(topicVector(topic))}::vector) + 0, id
+        LIMIT ${actual.length}`)
+      const expectedIds = new Set(expected.map(({ id }) => id))
+      const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
+      expect(recall).toBeGreaterThanOrEqual(0.95)
+      report[`recall.topic.${topic}`] = { neighbors: expected.length, recall }
+      saveReport()
+    }
+  }, 180_000)
+
   it('compares the Search tab and Assistant with the same person, query and index', async () => {
-    const dashboard = await sample('dashboard', async () => {
-      const result = await searchScopedKnowledge.execute({
-        principal: { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-dashboard' },
-        input: {
-          workspaceId: ids.workspaceId,
-          query: 'Orion deployment',
-          topK: 15,
-          surface: 'dashboard',
-        },
-      })
-      return resultSchema.parse({ success: true, data: result })
-    })
+    const dashboard = await sample('dashboard', searchDashboard)
     const assistant = await sample('assistant.comparison', () => search())
+    expectCompleteVectorSearch(dashboard.diagnostics)
+    expectCompleteVectorSearch(assistant.diagnostics)
     expect(dashboard.diagnostics.surface).toBe('dashboard')
     expect(assistant.diagnostics.surface).toBe('copilot')
     expect(dashboard.diagnostics.stages.result_provenance).toBeUndefined()
@@ -586,12 +781,51 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     expect(assistantVector).toHaveLength(1)
     expect(dashboardVector[0].query).toBe(assistantVector[0].query)
     expect(dashboardVector[0].parameters).toEqual(assistantVector[0].parameters)
-    expect(usesVectorIndex(dashboardVector[0].plan[0].Plan)).toBe(true)
+    expect(dashboardVector[0].plan[0].Plan['Actual Rows']).toBeGreaterThan(0)
   }, 180_000)
 
   it('keeps inaccessible content out of an otherwise identical search', async () => {
     const { result } = await sample('denied', () => search(ids.bobId))
     expect(result.data.results).toEqual([])
+  }, 180_000)
+
+  it('preserves recall when the nearest topic is mostly inaccessible within a broad permission scope', async () => {
+    const reader = `u:${ids.aliceId}@fixture.test`
+    /** Four consecutive topics share each document; hide 99% of the query's topic cluster. */
+    await db.execute(sql`UPDATE document
+      SET acl = ARRAY[${`u:${ids.bobId}@fixture.test`}]
+      WHERE knowledge_base_id = ${ids.knowledgeBaseId}
+        AND external_id::int % 8 = 0 AND external_id::int % 800 <> 0`)
+    try {
+      for (const surface of ['copilot', 'dashboard'] as const) {
+        const { result, plans, diagnostics } = await sample(
+          `filtered-neighborhood.${surface}`,
+          surface === 'copilot' ? () => search() : searchDashboard
+        )
+        expectCompleteVectorSearch(diagnostics)
+        expect(result.data.results).toHaveLength(15)
+        const rerank = plans.find((plan) => plan.kind === 'rerank')!
+        expect(rerank).toBeDefined()
+        const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
+        const expected = await db.execute<{ id: string }>(sql`SELECT e.id FROM embedding e
+          INNER JOIN document d ON d.id = e.document_id
+          WHERE e.knowledge_base_id = ${ids.knowledgeBaseId} AND e.enabled
+            AND d.acl @> ARRAY[${reader}]::text[]
+          ORDER BY (e.embedding <=> ${JSON.stringify(queryVector)}::vector) + 0, e.id
+          LIMIT ${actual.length}`)
+        expect(expected.length).toBeGreaterThan(0)
+        const expectedIds = new Set(expected.map(({ id }) => id))
+        const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
+        expect(recall).toBeGreaterThanOrEqual(0.95)
+        report[`recall.filtered-neighborhood.${surface}`] = { neighbors: expected.length, recall }
+        saveReport()
+      }
+    } finally {
+      await db
+        .update(document)
+        .set({ acl: [reader] })
+        .where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
+    }
   }, 180_000)
 
   it('ranks a small permission scope by its bounded IDs without a corpus-wide vector probe', async () => {
@@ -638,15 +872,36 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     }
   }, 180_000)
 
+  it.each(['copilot', 'dashboard'] as const)(
+    'keeps %s searches for common keyword terms complete',
+    async (surface) => {
+      const { result, diagnostics } = await sample(`common-keyword.${surface}`, () =>
+        surface === 'dashboard'
+          ? searchDashboard('Engineering operations')
+          : search(ids.aliceId, 'Engineering operations')
+      )
+      expectCompleteVectorSearch(diagnostics)
+      expect(result.data.results).toHaveLength(15)
+    },
+    180_000
+  )
+
   it('runs two independent Assistant searches concurrently', async () => {
+    diagnosticLog?.mockClear()
     const start = performance.now()
     const results = await Promise.all([search(), search(ids.aliceId, 'Engineering operations')])
+    const completed = diagnosticLog!.mock.calls
+      .filter(([message]) => message === 'Knowledge search completed')
+      .map(([, metadata]) => diagnosticSchema.parse(metadata))
     report.concurrent = {
       milliseconds: performance.now() - start,
       resultCounts: results.map((result) => result.data.results.length),
+      diagnostics: completed,
     }
     saveReport()
     for (const result of results) expect(result.data.results).toHaveLength(15)
+    expect(completed).toHaveLength(2)
+    for (const diagnostics of completed) expectCompleteVectorSearch(diagnostics)
   }, 180_000)
 
   it('checks live reader access on every search, including after revocation', async () => {

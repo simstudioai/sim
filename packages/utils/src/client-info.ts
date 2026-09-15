@@ -51,11 +51,42 @@ export interface ClientInfo {
   agent?: string
 }
 
-/** How the server established a request's client. */
-export type ClientInfoSource = 'header' | 'user_agent' | 'fetch_metadata'
+/**
+ * The surfaces the server assigns to work no official client declared, so every
+ * request and run is attributed to something rather than left blank:
+ *
+ * - `api`: direct API traffic, authenticated by a customer's credential.
+ * - `internal`: Sim's own services calling each other, authenticated by a
+ *   service credential.
+ * - `webhook`, `schedule`: a run a trigger started rather than a client.
+ * - `unknown`: none of the above, such as an unauthenticated webhook delivery.
+ */
+export const UNDECLARED_SURFACES = ['api', 'internal', 'webhook', 'schedule', 'unknown'] as const
 
-export interface ResolvedClientInfo extends ClientInfo {
+export type UndeclaredSurface = (typeof UNDECLARED_SURFACES)[number]
+
+/** Every surface a request or run can be attributed to. */
+export type RequestSurface = SimSurface | UndeclaredSurface
+
+/** How the server established a request's client. */
+export type ClientInfoSource =
+  | 'header'
+  | 'user_agent'
+  | 'fetch_metadata'
+  | 'credential'
+  | 'trigger'
+  | 'unidentified'
+
+export interface ResolvedClientInfo extends Omit<ClientInfo, 'surface'> {
+  surface: RequestSurface
   source: ClientInfoSource
+  /**
+   * The product an undeclared client names first in its `User-Agent`
+   * (`python-requests`, `curl`, `node`, or `browser` for any browser), in the
+   * sense of OpenTelemetry's `user_agent.name`. Present only when the client
+   * did not declare itself, since a declared client already says what it is.
+   */
+  name?: string
 }
 
 /** Bounds a caller-controlled header before it is parsed or logged. */
@@ -74,6 +105,12 @@ const LEGACY_CLI_USER_AGENT = /^sim-cli\/([A-Za-z0-9._+-]+)/
 
 /** The header browsers attach to every request and non-browser clients never do. */
 const FETCH_METADATA_HEADER = 'sec-fetch-mode'
+
+/** The leading product name of a `User-Agent`, bounded so a hostile value stays cheap to read. */
+const USER_AGENT_PRODUCT = /^([A-Za-z0-9._+-]{1,64})(?:[/\s]|$)/
+
+/** The product every browser, and many libraries imitating one, names first. */
+const BROWSER_PRODUCT = 'mozilla'
 
 const SURFACE_SET: ReadonlySet<string> = new Set(SIM_SURFACES)
 
@@ -179,26 +216,70 @@ export interface ResolveClientInfoOptions {
  *    else does, so a browser request that carries no external credentials can
  *    only have come from a page Sim served — the web app, or a public surface
  *    such as a shared chat. A browser request that does carry an API key is a
- *    third-party integration and is deliberately left unattributed. The web app
+ *    third-party integration, and falls through to the credential. The web app
  *    declares itself on its contract-bound calls; this covers the raw-`fetch`
  *    exceptions and stale bundles that do not.
  *
- * Returns `undefined` when none of these apply: direct API traffic from an
- * unofficial client, or a server-to-server call.
+ * 4. Anything else is `unknown` until it authenticates, when
+ *    {@link attributeUndeclaredClient} refines it by the credential it used.
+ *    Headers alone cannot separate a customer's API key from one of Sim's own
+ *    services, so the refinement waits for the credential to verify.
+ *
+ * An undeclared client records its `User-Agent` product name, so it still says
+ * which library or tool sent it.
  */
 export function resolveClientInfo(
   headers: HeaderReader,
   options: ResolveClientInfoOptions
-): ResolvedClientInfo | undefined {
+): ResolvedClientInfo {
   const declared = parseClientInfo(headers.get(CLIENT_INFO_HEADER))
   if (declared) return { ...declared, source: 'header' }
 
-  const legacyCli = LEGACY_CLI_USER_AGENT.exec(headers.get('user-agent') ?? '')
+  const userAgent = headers.get('user-agent') ?? ''
+  const legacyCli = LEGACY_CLI_USER_AGENT.exec(userAgent)
   if (legacyCli) return { surface: 'cli', version: legacyCli[1], source: 'user_agent' }
 
   if (headers.get(FETCH_METADATA_HEADER) !== null && !options.hasExternalCredentials) {
     return { surface: 'web', source: 'fetch_metadata' }
   }
 
-  return undefined
+  const name = userAgentName(userAgent)
+  return { surface: 'unknown', source: 'unidentified', ...(name ? { name } : {}) }
+}
+
+/** Auth kinds only Sim's own services hold: the executor, Copilot, and system jobs. */
+const INTERNAL_AUTH_KINDS: ReadonlySet<string> = new Set([
+  'internal_jwt',
+  'delegated',
+  'organization_delegated',
+  'system',
+])
+
+/**
+ * Refines an undeclared client by the credential its request authenticated
+ * with: a customer's credential (an API key, an OAuth token, a SCIM or Slack
+ * connection) makes it `api`, a Sim service credential makes it `internal`. A
+ * session stays `unknown`, since a cookie without browser headers says nothing
+ * about the client. A client that identified itself is returned unchanged, and
+ * so is one a trigger started.
+ */
+export function attributeUndeclaredClient(
+  client: ResolvedClientInfo,
+  authKind: string
+): ResolvedClientInfo {
+  if (client.source !== 'unidentified' && client.source !== 'credential') return client
+  if (authKind === 'session') return { ...client, surface: 'unknown', source: 'unidentified' }
+  const surface = INTERNAL_AUTH_KINDS.has(authKind) ? 'internal' : 'api'
+  return { ...client, surface, source: 'credential' }
+}
+
+/**
+ * The first product a `User-Agent` names, lowercased so one library groups as
+ * one value, with every browser collapsed to `browser` since they all claim to
+ * be Mozilla.
+ */
+function userAgentName(userAgent: string): string | undefined {
+  const product = USER_AGENT_PRODUCT.exec(userAgent)?.[1]?.toLowerCase()
+  if (!product) return undefined
+  return product === BROWSER_PRODUCT ? 'browser' : product
 }

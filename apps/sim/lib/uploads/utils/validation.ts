@@ -205,7 +205,7 @@ const SUPPORTED_IMAGE_MIME_TYPES = [
   'image/vnd.microsoft.icon',
 ]
 
-const SUPPORTED_ARCHIVE_MIME_TYPES = [
+export const SUPPORTED_ARCHIVE_MIME_TYPES = [
   'application/zip',
   'application/x-zip-compressed',
   'application/x-zip',

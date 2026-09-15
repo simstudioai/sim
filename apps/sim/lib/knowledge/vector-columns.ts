@@ -5,7 +5,7 @@
  * can never drift apart.
  */
 
-import { embedding } from '@sim/db/schema'
+import { embedding, embeddingSearch } from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 
@@ -24,6 +24,15 @@ const VECTOR_FIELD_BY_WIDTH = {
 } as const satisfies Record<KbEmbeddingDimensions, VectorField>
 
 const VECTOR_FIELDS = Object.values(VECTOR_FIELD_BY_WIDTH) as readonly VectorField[]
+
+const CANDIDATE_COLUMN_BY_WIDTH = {
+  384: embeddingSearch.vector384,
+  512: embeddingSearch.vector512,
+  768: embeddingSearch.vector768,
+  1024: embeddingSearch.vector1024,
+  1536: embeddingSearch.vector,
+  3072: embeddingSearch.vector3072,
+} as const
 
 export function embeddingVectorColumn(dimensions: KbEmbeddingDimensions) {
   return embedding[VECTOR_FIELD_BY_WIDTH[dimensions]]
@@ -70,11 +79,28 @@ export function embeddingDistance(
   return sql<number>`${embeddingVectorColumn(dimensions)} <=> ${queryVector}::vector`
 }
 
-/** Compact HNSW candidate ordering; final scores always use the stored vector's cosine distance. */
+/** Only models trained for prefix shortening can use a smaller candidate dimension. */
+export function embeddingCandidateDimensions(dimensions: KbEmbeddingDimensions, model: string) {
+  if (
+    dimensions > 512 &&
+    (model === 'text-embedding-3-small' || model === 'text-embedding-3-large')
+  ) {
+    return 512
+  }
+  return dimensions
+}
+
+/** Candidate scores never escape retrieval; final scores use the original vector's cosine distance. */
 export function embeddingCandidateDistance(
   dimensions: KbEmbeddingDimensions,
-  queryVector: string
+  queryVector: string,
+  model: string
 ): SQL<number> {
-  const width = sql.raw(String(dimensions))
-  return sql<number>`binary_quantize(${embeddingVectorColumn(dimensions)})::bit(${width}) <~> binary_quantize(${queryVector}::vector)::bit(${width})`
+  const candidateDimensions = embeddingCandidateDimensions(dimensions, model)
+  const width = sql.raw(String(candidateDimensions))
+  const query =
+    candidateDimensions === dimensions
+      ? sql`${queryVector}::halfvec(${width})`
+      : sql`subvector(${queryVector}::vector, 1, ${width})::halfvec(${width})`
+  return sql<number>`${CANDIDATE_COLUMN_BY_WIDTH[candidateDimensions]} <=> ${query}`
 }

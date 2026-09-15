@@ -47,7 +47,10 @@ import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import {
+  getToolDisplayTitle,
+  normalizeToolActivityDescription,
+} from '@/lib/copilot/tools/tool-display'
 import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
 import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolScope } from './types'
@@ -71,6 +74,10 @@ const logger = createLogger('CopilotToolHandler')
 
 function applyToolDisplay(toolCall: ToolCallState | undefined): void {
   if (!toolCall?.name) return
+  if (toolCall.activityDescription) {
+    toolCall.displayTitle = toolCall.activityDescription
+    return
+  }
   // Integration rows show only the model-authored activity phrase; the trusted
   // integration branding is the icon, derived client-side from the operation
   // name (or streamed toolId) via the block registry. With no description yet,
@@ -439,7 +446,11 @@ async function handleCallPhase(
   const isGenerating = data.status === TOOL_CALL_STATUS.generating
   const isPartial = data.partial === true || isGenerating
   const existing = context.toolCalls.get(toolCallId)
-  if (existing) existing.agentId ??= agentId
+  const activityDescription = normalizeToolActivityDescription(data.activityDescription)
+  if (existing) {
+    existing.agentId ??= agentId
+    existing.activityDescription ??= activityDescription
+  }
   const isSubagent = scope === 'subagent'
   const ui = getToolCallUI(data)
 
@@ -486,10 +497,21 @@ async function handleCallPhase(
       agentId,
       ui,
       spanIdentity,
-      !isPartial
+      !isPartial,
+      activityDescription
     )
   } else {
-    registerMainToolCall(context, toolCallId, toolName, args, existing, agentId, ui, !isPartial)
+    registerMainToolCall(
+      context,
+      toolCallId,
+      toolName,
+      args,
+      existing,
+      agentId,
+      ui,
+      !isPartial,
+      activityDescription
+    )
   }
 
   if (isPartial) return
@@ -588,7 +610,8 @@ function registerSubagentToolCall(
   agentId: string,
   ui: { title?: string; phaseLabel?: string; hidden?: boolean },
   spanIdentity: { spanId?: string; parentSpanId?: string },
-  finalized: boolean
+  finalized: boolean,
+  activityDescription?: string
 ): void {
   if (!context.subAgentToolCalls[parentToolCallId]) {
     context.subAgentToolCalls[parentToolCallId] = []
@@ -607,6 +630,7 @@ function registerSubagentToolCall(
       name: toolName,
       status: 'pending',
       agentId,
+      ...(activityDescription ? { activityDescription } : {}),
       params: args,
       startTime: Date.now(),
     }
@@ -628,6 +652,7 @@ function registerSubagentToolCall(
   const existingSubagentToolCall = subagentToolCalls.find((tc) => tc.id === toolCallId)
   if (existingSubagentToolCall) {
     existingSubagentToolCall.agentId ??= agentId
+    existingSubagentToolCall.activityDescription ??= activityDescription
     if (!rebindResolvedIntegrationCall(existingSubagentToolCall, toolName, args)) {
       updateToolCallFromFrame(existingSubagentToolCall, toolName, args, finalized)
     }
@@ -645,7 +670,8 @@ function registerMainToolCall(
   existing: ToolCallState | undefined,
   agentId: string,
   ui: { title?: string; phaseLabel?: string; hidden?: boolean },
-  finalized: boolean
+  finalized: boolean,
+  activityDescription?: string
 ): void {
   const hideFromUi = isToolHiddenInUi(toolName) || ui.hidden === true
   if (existing) {
@@ -669,6 +695,7 @@ function registerMainToolCall(
       name: toolName,
       status: 'pending',
       agentId,
+      ...(activityDescription ? { activityDescription } : {}),
       params: args,
       startTime: Date.now(),
     }

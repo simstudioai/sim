@@ -14,9 +14,8 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithValidation: mockSecureFetchWithValidation,
 }))
 
-import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { fetchWithRetry, secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
-  fetchWithRetry,
   getRetryAfterMs,
   type HTTPError,
   hasRateLimitEvidence,

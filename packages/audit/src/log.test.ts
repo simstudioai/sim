@@ -15,6 +15,10 @@ vi.mock('drizzle-orm', () => ({
   or: vi.fn(),
   sql: vi.fn(),
 }))
+const { mockGetRequestContext } = vi.hoisted(() => ({
+  mockGetRequestContext: vi.fn(),
+}))
+
 vi.mock('@sim/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
@@ -22,6 +26,7 @@ vi.mock('@sim/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+  getRequestContext: mockGetRequestContext,
 }))
 vi.mock('@sim/utils/id', () => ({
   generateId: () => 'test-uuid-123',
@@ -179,6 +184,43 @@ describe('recordAudit', () => {
         userAgent: 'TestAgent/1.0',
       })
     )
+  })
+
+  it('records the surface the request came from', async () => {
+    mockGetRequestContext.mockReturnValueOnce({
+      requestId: 'req-1',
+      client: { surface: 'cli', version: '2.1.16', source: 'header' },
+    })
+
+    recordAudit({
+      workspaceId: 'ws-1',
+      actorId: 'user-1',
+      actorName: 'Test',
+      actorEmail: 'test@test.com',
+      action: AuditAction.WORKFLOW_CREATED,
+      resourceType: AuditResourceType.WORKFLOW,
+    })
+
+    await flush()
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ surface: 'cli' }))
+  })
+
+  it('records no surface outside a request', async () => {
+    mockGetRequestContext.mockReturnValueOnce(undefined)
+
+    recordAudit({
+      workspaceId: 'ws-1',
+      actorId: 'user-1',
+      actorName: 'Test',
+      actorEmail: 'test@test.com',
+      action: AuditAction.WORKFLOW_CREATED,
+      resourceType: AuditResourceType.WORKFLOW,
+    })
+
+    await flush()
+
+    expect(dbChainMockFns.values.mock.calls.at(-1)?.[0].surface).toBeUndefined()
   })
 
   it('records null when x-forwarded-for is absent', async () => {

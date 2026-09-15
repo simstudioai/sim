@@ -73,6 +73,7 @@ export interface ToolCallData {
   id: string
   toolName: string
   displayTitle: string
+  activityDescription?: string
   status: ToolCallStatus
   params?: Record<string, unknown>
   result?: ToolCallResult
@@ -86,6 +87,8 @@ export interface ToolCallInfo {
   name: string
   status: ToolCallStatus
   displayTitle?: string
+  /** Model-authored activity text, separate from executable tool arguments. */
+  activityDescription?: string
   /** Model-authored activity phrase for a gateway-resolved integration call. */
   integrationDescription?: string
   params?: Record<string, unknown>

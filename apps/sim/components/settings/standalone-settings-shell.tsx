@@ -17,11 +17,15 @@ import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settin
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
+import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
+  /** The server-resolved deployment shape, seeded before the sidebar and sections read it. */
+  deployment: DeploymentShape
 }
 
 interface AccountSettingsShellProps extends StandaloneSettingsShellBaseProps {
@@ -37,6 +41,7 @@ type StandaloneSettingsShellProps = AccountSettingsShellProps | SelfHostSettings
 
 export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const { children, plane } = props
+  useSeedDeploymentShape(props.deployment)
   useSettingsBeforeUnload()
   const pathname = usePathname()
   const { hosted, billingEnabled } = useDeploymentShape()

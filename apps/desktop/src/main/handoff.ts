@@ -5,7 +5,8 @@ import { safeCompare } from '@sim/security/compare'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import type { BrowserWindow } from 'electron'
-import { app, dialog } from 'electron'
+import { app } from 'electron'
+import { showShellDialog } from '@/main/dialogs'
 import type { EventRecorder } from '@/main/observability'
 
 const logger = createLogger('DesktopHandoff')
@@ -417,7 +418,7 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
       'handoff_redeem_fail',
       status === undefined ? { reason } : { reason, status }
     )
-    void dialog.showMessageBox(win, {
+    void showShellDialog(win, {
       type: 'error',
       message: 'Sign-in failed',
       detail: 'The sign-in could not be completed. Try signing in again.',
@@ -433,7 +434,7 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
       if (!opened) {
         const win = await resolveWindow('begin_window')
         if (!win) return
-        void dialog.showMessageBox(win, {
+        void showShellDialog(win, {
           type: 'error',
           message: 'Couldn’t start sign-in',
           detail: 'Sim could not open your browser to sign in. Try again.',

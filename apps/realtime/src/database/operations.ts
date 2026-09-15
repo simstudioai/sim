@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import * as schema from '@sim/db'
 import {
@@ -25,6 +26,7 @@ import {
 import { randomFloat } from '@sim/utils/random'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
+import type { DbOrTx } from '@sim/workflow-persistence/types'
 import {
   filterAcyclicEdges,
   filterUniqueWorkflowEdges,
@@ -1988,8 +1990,36 @@ async function handleSubflowOperationTx(
   }
 }
 
-function valuesEqual(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right)
+/** Every block in the workflow by id, for the locked-container check subblock writes need. */
+async function loadSubblockUpdateBlocks(tx: DbOrTx, workflowId: string) {
+  const allBlocks = await tx
+    .select({
+      id: workflowBlocks.id,
+      subBlocks: workflowBlocks.subBlocks,
+      locked: workflowBlocks.locked,
+      data: workflowBlocks.data,
+    })
+    .from(workflowBlocks)
+    .where(eq(workflowBlocks.workflowId, workflowId))
+  return Object.fromEntries(allBlocks.map((block) => [block.id, block]))
+}
+
+/**
+ * The block a subblock write targets, rejecting one that is missing, locked, or in a locked
+ * container.
+ */
+function getWritableSubblockUpdateBlock(
+  blocksById: Awaited<ReturnType<typeof loadSubblockUpdateBlocks>>,
+  blockId: string
+) {
+  const block = blocksById[blockId]
+  if (!block) {
+    throw new Error(`Block ${blockId} not found`)
+  }
+  if (isWorkflowBlockProtected(blockId, blocksById)) {
+    throw new Error(`Block ${blockId} is locked or inside a locked container`)
+  }
+  return block
 }
 
 // Subblock operations - targeted value updates without replacing workflow state
@@ -2006,20 +2036,7 @@ async function handleSubblockOperationTx(
         return
       }
 
-      const allBlocks = await tx
-        .select({
-          id: workflowBlocks.id,
-          subBlocks: workflowBlocks.subBlocks,
-          locked: workflowBlocks.locked,
-          data: workflowBlocks.data,
-        })
-        .from(workflowBlocks)
-        .where(eq(workflowBlocks.workflowId, workflowId))
-
-      type SubblockUpdateBlockRecord = (typeof allBlocks)[number]
-      const blocksById: Record<string, SubblockUpdateBlockRecord> = Object.fromEntries(
-        allBlocks.map((block: SubblockUpdateBlockRecord) => [block.id, block])
-      )
+      const blocksById = await loadSubblockUpdateBlocks(tx, workflowId)
 
       for (const update of updates) {
         const { blockId, subblockId, value, expectedValue } = update
@@ -2027,19 +2044,13 @@ async function handleSubblockOperationTx(
           throw new Error('Missing required fields for subblock batch update')
         }
 
-        const block = blocksById[blockId]
-        if (!block) {
-          throw new Error(`Block ${blockId} not found`)
-        }
-
-        if (isWorkflowBlockProtected(blockId, blocksById)) {
-          throw new Error(`Block ${blockId} is locked or inside a locked container`)
-        }
+        const block = getWritableSubblockUpdateBlock(blocksById, blockId)
 
         const subBlocks = { ...((block.subBlocks as Record<string, any>) || {}) }
         const currentSubBlock = subBlocks[subblockId]
         const currentValue = currentSubBlock?.value
-        if (expectedValue !== undefined && !valuesEqual(currentValue, expectedValue)) {
+        /** JSONB can reorder object keys; changed values and array order must still conflict. */
+        if (expectedValue !== undefined && !isDeepStrictEqual(currentValue, expectedValue)) {
           throw new Error(`Subblock ${blockId}.${subblockId} changed since replacement was planned`)
         }
 
@@ -2059,6 +2070,36 @@ async function handleSubblockOperationTx(
       }
 
       logger.debug(`Batch updated ${updates.length} subblocks for workflow ${workflowId}`)
+      break
+    }
+
+    case SUBBLOCK_OPERATIONS.UPDATE_WITH_CANONICAL_MODES: {
+      const { blockId, subblockId, value, canonicalModes } = payload
+      if (!blockId || !subblockId || !canonicalModes) {
+        throw new Error('Missing required fields for subblock update with canonical modes')
+      }
+
+      const blocksById = await loadSubblockUpdateBlocks(tx, workflowId)
+      const block = getWritableSubblockUpdateBlock(blocksById, blockId)
+
+      const subBlocks = {
+        ...((block.subBlocks as Record<string, Record<string, unknown>> | null) || {}),
+      }
+      const currentSubBlock = subBlocks[subblockId]
+      subBlocks[subblockId] = currentSubBlock
+        ? { ...currentSubBlock, value }
+        : { id: subblockId, type: 'unknown', value }
+
+      await tx
+        .update(workflowBlocks)
+        .set({
+          subBlocks,
+          data: { ...((block.data as Record<string, unknown>) || {}), canonicalModes },
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+
+      logger.debug(`Updated subblock ${blockId}.${subblockId} with canonical modes`)
       break
     }
 

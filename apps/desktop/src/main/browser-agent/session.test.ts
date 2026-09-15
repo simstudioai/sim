@@ -106,7 +106,6 @@ function freshSession(
       onTabCreated: vi.fn(),
       onActiveTabChanged: vi.fn(),
       onPageStateChanged: vi.fn(),
-      sitePermissionPromptSupported: vi.fn(() => true),
       onTabsChanged: vi.fn(),
       onTabThemeChanged: vi.fn(),
       onTabNavigated: vi.fn(),
@@ -841,53 +840,64 @@ describe('browser-agent session', () => {
     }
   })
 
-  it('extends an in-flight background restore without restarting its load', async () => {
-    vi.useFakeTimers()
-    try {
-      const tabs = Array.from({ length: 4 }, (_, index) => ({
-        url: `https://active-restore-${index}.example/`,
-      }))
-      const { persistence } = memoryBrowserPersistence({
-        'chat-active-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
-      })
-      const createdContents: MockView['webContents'][] = []
-      const selectedLoads: Array<() => void> = []
-      session = freshSession(
-        win,
-        {
-          onTabCreated: (webContents) => {
-            const contents = webContents as unknown as MockView['webContents']
-            const index = createdContents.push(contents) - 1
-            contents.loadURL.mockImplementation(
-              () =>
-                new Promise<void>((resolve) => {
-                  if (index === 1) selectedLoads.push(resolve)
-                })
-            )
+  it.each(['loaded', 'timed-out'] as const)(
+    'gives a late foreground promotion its full loading window (%s)',
+    async (outcome) => {
+      vi.useFakeTimers()
+      try {
+        const tabs = Array.from({ length: 4 }, (_, index) => ({
+          url: `https://active-restore-${index}.example/`,
+        }))
+        const { persistence } = memoryBrowserPersistence({
+          'chat-active-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
+        })
+        const createdContents: MockView['webContents'][] = []
+        const selectedLoads: Array<() => void> = []
+        session = freshSession(
+          win,
+          {
+            onTabCreated: (webContents) => {
+              const contents = webContents as unknown as MockView['webContents']
+              const index = createdContents.push(contents) - 1
+              contents.loadURL.mockImplementation(
+                () =>
+                  new Promise<void>((resolve) => {
+                    if (index === 1) selectedLoads.push(resolve)
+                  })
+              )
+            },
           },
-        },
-        persistence
-      )
+          persistence
+        )
 
-      const selected = session.withBrowserScope('chat-active-restore', () => {
-        session.restoreBrowserSession()
-        return session.switchAutomationTab('2')
-      })
-      const selection = session.withBrowserScope('chat-active-restore', () =>
-        session.waitForPendingTabRestore(selected)
-      )
+        session.withBrowserScope('chat-active-restore', () => session.restoreBrowserSession())
+        await vi.advanceTimersByTimeAsync(14_000)
+        const selected = session.withBrowserScope('chat-active-restore', () =>
+          session.switchAutomationTab('2')
+        )
+        const selection = session.withBrowserScope('chat-active-restore', () =>
+          session.waitForPendingTabRestore(selected)
+        )
 
-      expect(createdContents[1].loadURL).toHaveBeenCalledOnce()
-      expect(createdContents[1].stop).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(15_000)
-      expect(createdContents[1].stop).not.toHaveBeenCalled()
+        expect(createdContents[1].loadURL).toHaveBeenCalledOnce()
+        expect(createdContents[1].stop).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(19_999)
+        expect(createdContents[1].stop).not.toHaveBeenCalled()
 
-      selectedLoads[0]?.()
-      await expect(selection).resolves.toBe(true)
-    } finally {
-      vi.useRealTimers()
+        if (outcome === 'loaded') {
+          selectedLoads[0]?.()
+          await expect(selection).resolves.toBe(true)
+        } else {
+          session.withBrowserScope('chat-active-restore', () => session.switchAutomationTab('2'))
+          await vi.advanceTimersByTimeAsync(1)
+          await expect(selection).resolves.toBe(false)
+          expect(createdContents[1].stop).toHaveBeenCalledOnce()
+        }
+      } finally {
+        vi.useRealTimers()
+      }
     }
-  })
+  )
 
   it('queues a fifth foreground restore without preempting another foreground restore', async () => {
     const snapshots = Object.fromEntries(
@@ -1031,123 +1041,39 @@ describe('browser-agent session', () => {
     }
   })
 
-  it('gives a redirected background restore its complete site-decision window', async () => {
+  it('does not extend a background restore timeout for cross-origin redirects', async () => {
     vi.useFakeTimers()
     try {
-      const tabs = [
-        { url: 'http://127.0.0.1:4601/active' },
-        { url: 'http://127.0.0.1:4601/background' },
-      ]
       const { persistence } = memoryBrowserPersistence({
-        'chat-stale-restore-prompt': { v: 1, tabs, activeIndex: 0, downloads: [] },
+        'chat-test': {
+          v: 1,
+          tabs: [
+            { url: 'http://127.0.0.1:4601/active' },
+            { url: 'http://127.0.0.1:4601/background' },
+          ],
+          activeIndex: 0,
+          downloads: [],
+        },
       })
-      const createdContents: MockView['webContents'][] = []
+      const created: MockView['webContents'][] = []
       session = freshSession(
         win,
         {
           onTabCreated: (webContents) => {
             const contents = webContents as unknown as MockView['webContents']
-            createdContents.push(contents)
+            created.push(contents)
             contents.loadURL.mockImplementation(() => new Promise<void>(() => {}))
           },
         },
         persistence
       )
-
-      session.withBrowserScope('chat-stale-restore-prompt', () => session.restoreBrowserSession())
-      session.activateBrowserScope('chat-stale-restore-prompt')
-      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-      const background = createdContents[1]
-      const redirected = beginMainFrameRequest(background, 'http://127.0.0.1:4602/redirect')
-      await vi.advanceTimersByTimeAsync(0)
-      expect(
-        session.withBrowserScope('chat-stale-restore-prompt', () =>
-          session.sitePermissionRequestForScope()
-        )
-      ).toMatchObject({ origin: 'http://127.0.0.1:4602' })
-
+      session.restoreBrowserSession()
+      const background = created[1]
+      await expect(
+        beginMainFrameRequest(background, 'http://127.0.0.1:4602/login')
+      ).resolves.toEqual({ cancel: false })
       await vi.advanceTimersByTimeAsync(15_000)
-
-      expect(background.stop).not.toHaveBeenCalled()
-      expect(
-        session.withBrowserScope('chat-stale-restore-prompt', () =>
-          session.sitePermissionRequestForScope()
-        )
-      ).toBeDefined()
-
-      await vi.advanceTimersByTimeAsync(5_000)
-
-      await expect(redirected).resolves.toEqual({ cancel: true })
-      expect(
-        session.withBrowserScope('chat-stale-restore-prompt', () =>
-          session.sitePermissionRequestForScope()
-        )
-      ).toBeUndefined()
-      expect(background.stop).not.toHaveBeenCalled()
-
-      await vi.advanceTimersByTimeAsync(15_000)
-
       expect(background.stop).toHaveBeenCalledOnce()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('does not let repeated redirect prompts extend a restore without bound', async () => {
-    vi.useFakeTimers()
-    try {
-      const tabs = [
-        { url: 'http://127.0.0.1:4611/active' },
-        { url: 'http://127.0.0.1:4611/background' },
-      ]
-      const { persistence } = memoryBrowserPersistence({
-        'chat-bounded-restore-prompt': { v: 1, tabs, activeIndex: 0, downloads: [] },
-      })
-      const createdContents: MockView['webContents'][] = []
-      session = freshSession(
-        win,
-        {
-          onTabCreated: (webContents) => {
-            const contents = webContents as unknown as MockView['webContents']
-            createdContents.push(contents)
-            contents.loadURL.mockImplementation(() => new Promise<void>(() => {}))
-          },
-        },
-        persistence
-      )
-
-      session.withBrowserScope('chat-bounded-restore-prompt', () => session.restoreBrowserSession())
-      session.activateBrowserScope('chat-bounded-restore-prompt')
-      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-      const background = createdContents[1]
-      const firstRedirect = beginMainFrameRequest(background, 'http://127.0.0.1:4612/first')
-      await vi.advanceTimersByTimeAsync(0)
-      expect(
-        session.withBrowserScope('chat-bounded-restore-prompt', () =>
-          session.sitePermissionRequestForScope()
-        )
-      ).toMatchObject({ origin: 'http://127.0.0.1:4612' })
-
-      await vi.advanceTimersByTimeAsync(20_000)
-      await expect(firstRedirect).resolves.toEqual({ cancel: true })
-      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-      const secondRedirect = beginMainFrameRequest(background, 'http://127.0.0.1:4613/second', 2)
-      await vi.advanceTimersByTimeAsync(0)
-      expect(
-        session.withBrowserScope('chat-bounded-restore-prompt', () =>
-          session.sitePermissionRequestForScope()
-        )
-      ).toMatchObject({ origin: 'http://127.0.0.1:4613' })
-
-      await vi.advanceTimersByTimeAsync(15_000)
-
-      expect(background.stop).toHaveBeenCalledOnce()
-      await expect(secondRedirect).resolves.toEqual({ cancel: true })
-      expect(
-        session.withBrowserScope('chat-bounded-restore-prompt', () =>
-          session.sitePermissionRequestForScope()
-        )
-      ).toBeUndefined()
     } finally {
       vi.useRealTimers()
     }
@@ -2789,7 +2715,7 @@ describe('browser-agent session', () => {
     expect(onTabCreated).toHaveBeenLastCalledWith(userTab?.view.webContents)
   })
 
-  it('does not treat an untrusted page popup as user authorization for its origin', async () => {
+  it('lets internal page popups navigate after the network check', async () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const source = (session.ensureTab().view as unknown as MockView).webContents
     const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as (details: {
@@ -2801,13 +2727,8 @@ describe('browser-agent session', () => {
     const popup = (session.activeTab()?.view as unknown as MockView).webContents
     const request = beginMainFrameRequest(popup, destination)
 
-    await vi.waitFor(() =>
-      expect(session.sitePermissionRequestForScope()).toMatchObject({
-        origin: 'http://127.0.0.1:4099',
-      })
-    )
-    session.respondToSitePermission(session.sitePermissionRequestForScope()?.requestId ?? '', false)
-    await expect(request).resolves.toEqual({ cancel: true })
+    await expect(request).resolves.toEqual({ cancel: false })
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
   })
 
   it('blocks controlled pages from moving or resizing the desktop window', () => {
@@ -3095,210 +3016,50 @@ describe('browser-agent session', () => {
     }
   })
 
-  it('holds a new top-level origin for an exact task-scoped user decision', async () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+  it('allows public and loopback cross-origin navigation without a task prompt', async () => {
     const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const first = beginMainFrameRequest(
-      contents,
-      'http://127.0.0.1:4101/private?token=secret#fragment'
-    )
-
-    await vi.waitFor(() => {
-      expect(session.sitePermissionRequestForScope()).toMatchObject({
-        tabId: '1',
-        origin: 'http://127.0.0.1:4101',
-      })
-    })
-    const prompt = session.sitePermissionRequestForScope()
-    expect(prompt).not.toHaveProperty('url')
-    expect(win.focus).toHaveBeenCalled()
-    expect(win.webContents.focus).toHaveBeenCalled()
-    expect(session.respondToSitePermission(prompt?.requestId ?? '', true)).toBe(true)
-    await expect(first).resolves.toEqual({ cancel: false })
-
-    await expect(
-      beginMainFrameRequest(contents, 'http://127.0.0.1:4101/another?different=secret', 2)
-    ).resolves.toEqual({ cancel: false })
-    expect(session.sitePermissionRequestForScope()).toBeUndefined()
-
-    const otherOrigin = beginMainFrameRequest(contents, 'http://127.0.0.1:4102/', 3)
-    await vi.waitFor(() => expect(session.sitePermissionRequestForScope()).toBeDefined())
-    expect(session.respondToSitePermission('not-the-live-request', true)).toBe(false)
-    const otherPrompt = session.sitePermissionRequestForScope()
-    expect(session.respondToSitePermission(otherPrompt?.requestId ?? '', false)).toBe(true)
-    await expect(otherOrigin).resolves.toEqual({ cancel: true })
-  })
-
-  it('allows an SSRF-checked agent destination without granting a cross-origin redirect', async () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const destination = 'http://127.0.0.1:4111/agent-path?token=secret'
-
-    expect(
-      session.grantSiteOriginForAgentNavigation(contents as unknown as WebContents, destination)
-    ).toBe(true)
-    await expect(beginMainFrameRequest(contents, destination)).resolves.toEqual({ cancel: false })
-    expect(session.sitePermissionRequestForScope()).toBeUndefined()
-
-    const redirect = beginMainFrameRequest(contents, 'http://127.0.0.1:4112/redirected', 2)
-    await vi.waitFor(() =>
-      expect(session.sitePermissionRequestForScope()).toMatchObject({
-        origin: 'http://127.0.0.1:4112',
-      })
-    )
-    const prompt = session.sitePermissionRequestForScope()
-    expect(session.respondToSitePermission(prompt?.requestId ?? '', false)).toBe(true)
-    await expect(redirect).resolves.toEqual({ cancel: true })
-  })
-
-  it('uses a native exact-origin prompt when the active renderer lacks prompt support', async () => {
-    session = freshSession(win, {
-      sitePermissionPromptSupported: vi.fn(() => false),
-    })
-    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
-      response: 1,
-      checkboxChecked: false,
-    })
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-
-    const request = beginMainFrameRequest(
-      contents,
-      'http://127.0.0.1:4151/private?token=secret#fragment'
-    )
-
-    await expect(request).resolves.toEqual({ cancel: false })
-    expect(dialog.showMessageBox).toHaveBeenCalledWith(
-      win,
-      expect.objectContaining({
-        buttons: ['Block', 'Allow'],
-        defaultId: 0,
-        cancelId: 0,
-        message: 'Allow this browser task to open http://127.0.0.1:4151?',
-      })
-    )
-    expect(JSON.stringify(vi.mocked(dialog.showMessageBox).mock.lastCall)).not.toContain('secret')
-    expect(session.sitePermissionRequestForScope()).toBeUndefined()
-  })
-
-  it('attaches the native fallback to the window that owns the visible panel', async () => {
-    const panelOwner = mainWindowMock()
-    session = freshSession(win, {
-      sitePermissionPromptSupported: vi.fn(() => false),
-    })
-    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({
-      response: 0,
-      checkboxChecked: false,
-    })
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 }, panelOwner)
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-
-    await expect(beginMainFrameRequest(contents, 'http://127.0.0.1:4155/private')).resolves.toEqual(
-      { cancel: true }
-    )
-
-    expect(dialog.showMessageBox).toHaveBeenCalledWith(panelOwner, expect.any(Object))
-  })
-
-  it('denies a new site prompt immediately when its scope is hidden or inactive', async () => {
-    const hiddenContents = (session.ensureTab().view as unknown as MockView).webContents
-
-    await expect(
-      beginMainFrameRequest(hiddenContents, 'http://127.0.0.1:4156/hidden')
-    ).resolves.toEqual({ cancel: true })
-    expect(session.sitePermissionRequestForScope()).toBeUndefined()
-
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const inactiveContents = session.withBrowserScope(
-      'chat-inactive',
-      () => session.ensureTab().view as unknown as MockView
-    ).webContents
-    await expect(
-      beginMainFrameRequest(inactiveContents, 'http://127.0.0.1:4157/inactive')
-    ).resolves.toEqual({ cancel: true })
-    expect(
-      session.withBrowserScope('chat-inactive', () => session.sitePermissionRequestForScope())
-    ).toBeUndefined()
-  })
-
-  it('does not show the native fallback when the active renderer owns the prompt', async () => {
-    vi.mocked(dialog.showMessageBox).mockClear()
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const request = beginMainFrameRequest(contents, 'http://127.0.0.1:4152/docs')
-
-    await vi.waitFor(() => expect(session.sitePermissionRequestForScope()).toBeDefined())
-
+    for (const url of [
+      'https://public.example/',
+      'https://redirect.example/login',
+      'http://127.0.0.1:4101/',
+      'http://localhost:4102/',
+    ]) {
+      await expect(beginMainFrameRequest(contents, url)).resolves.toEqual({ cancel: false })
+    }
     expect(dialog.showMessageBox).not.toHaveBeenCalled()
-    const prompt = session.sitePermissionRequestForScope()
-    expect(session.respondToSitePermission(prompt?.requestId ?? '', false)).toBe(true)
-    await expect(request).resolves.toEqual({ cancel: true })
   })
 
-  it('revalidates a native allow decision after the held request becomes stale', async () => {
-    session = freshSession(win, {
-      sitePermissionPromptSupported: vi.fn(() => false),
-    })
-    vi.mocked(dialog.showMessageBox).mockClear()
-    let answerPrompt: ((result: { response: number; checkboxChecked: boolean }) => void) | undefined
-    vi.mocked(dialog.showMessageBox).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          answerPrompt = resolve
+  it.each(['mainFrame', 'subFrame'])(
+    'retains private-network checks for %s navigation',
+    async (resourceType) => {
+      const contents = (session.ensureTab().view as unknown as MockView).webContents
+      for (const url of ['http://169.254.169.254/', 'http://10.0.0.1/', 'file:///tmp/example']) {
+        await expect(beginSubresourceRequest(contents, url, resourceType)).resolves.toEqual({
+          cancel: true,
         })
-    )
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
+      }
+      mockLookup.mockResolvedValue([{ address: '192.168.0.1', family: 4 }])
+      await expect(
+        beginSubresourceRequest(contents, 'https://private-redirect.example/', resourceType)
+      ).resolves.toEqual({ cancel: true })
+      mockLookup.mockRejectedValue(new Error('DNS unavailable'))
+      await expect(
+        beginSubresourceRequest(contents, 'https://unresolved-redirect.example/', resourceType)
+      ).resolves.toEqual({ cancel: true })
+    }
+  )
+
+  it('allows checked navigation in hidden and inactive tasks without a prompt', async () => {
     const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const request = beginMainFrameRequest(contents, 'http://127.0.0.1:4153/held')
-    await vi.waitFor(() => expect(dialog.showMessageBox).toHaveBeenCalled())
-    const signal = vi.mocked(dialog.showMessageBox).mock.lastCall?.at(-1)?.signal
-    expect(signal?.aborted).toBe(false)
-
-    mainFrameNavigationStarted(contents, false, 'http://127.0.0.1:4154/replacement')
-    await expect(request).resolves.toEqual({ cancel: true })
-    expect(signal?.aborted).toBe(true)
-    answerPrompt?.({ response: 1, checkboxChecked: false })
-
-    const retried = beginMainFrameRequest(contents, 'http://127.0.0.1:4153/retried', 2)
-    await expect(retried).resolves.toEqual({ cancel: true })
-    expect(dialog.showMessageBox).toHaveBeenCalledTimes(2)
+    panel.setPanelBounds(null)
+    session.activateBrowserScope('another-task')
+    await expect(beginMainFrameRequest(contents, 'http://127.0.0.1:4201/')).resolves.toEqual({
+      cancel: false,
+    })
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
   })
 
-  it('keeps the held request alive through its own navigation-start event', async () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const destination = 'http://127.0.0.1:4201/docs'
-    const request = beginMainFrameRequest(contents, destination)
-    await vi.waitFor(() => expect(session.sitePermissionRequestForScope()).toBeDefined())
-
-    mainFrameNavigationStarted(contents, false, `${destination}#section`)
-    const prompt = session.sitePermissionRequestForScope()
-    expect(prompt).toBeDefined()
-    expect(session.respondToSitePermission(prompt?.requestId ?? '', true)).toBe(true)
-    await expect(request).resolves.toEqual({ cancel: false })
-
-    const replaced = beginMainFrameRequest(contents, 'http://127.0.0.1:4202/', 2)
-    await vi.waitFor(() => expect(session.sitePermissionRequestForScope()).toBeDefined())
-    mainFrameNavigationStarted(contents, false, 'http://127.0.0.1:4203/')
-    await expect(replaced).resolves.toEqual({ cancel: true })
-    expect(session.sitePermissionRequestForScope()).toBeUndefined()
-  })
-
-  it('invalidates a held site decision before an explicit replacement navigation', async () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    const held = beginMainFrameRequest(contents, 'http://127.0.0.1:4204/held')
-    await vi.waitFor(() => expect(session.sitePermissionRequestForScope()).toBeDefined())
-    const requestId = session.sitePermissionRequestForScope()?.requestId
-
-    session.prepareExplicitNavigation(contents as unknown as WebContents)
-
-    await expect(held).resolves.toEqual({ cancel: true })
-    expect(session.sitePermissionRequestForScope()).toBeUndefined()
-    expect(session.respondToSitePermission(requestId ?? '', true)).toBe(false)
-  })
-
-  it('seeds restored origins before loading while still holding a new redirect origin', async () => {
+  it('allows restored pages and their checked cross-origin redirects', async () => {
     const restoredUrl = 'http://127.0.0.1:4301/restored?private=value'
     const { persistence } = memoryBrowserPersistence({
       'chat-test': {
@@ -3315,56 +3076,9 @@ describe('browser-agent session', () => {
     expect(contents.loadURL).toHaveBeenCalledWith(restoredUrl)
 
     await expect(beginMainFrameRequest(contents, restoredUrl)).resolves.toEqual({ cancel: false })
-    expect(session.sitePermissionRequestForScope()).toBeUndefined()
 
     const redirected = beginMainFrameRequest(contents, 'http://127.0.0.1:4302/login', 2)
-    await vi.waitFor(() =>
-      expect(session.sitePermissionRequestForScope()).toMatchObject({
-        origin: 'http://127.0.0.1:4302',
-      })
-    )
-    const prompt = session.sitePermissionRequestForScope()
-    session.respondToSitePermission(prompt?.requestId ?? '', false)
-    await expect(redirected).resolves.toEqual({ cancel: true })
-  })
-
-  it('bounds task grants and fails closed when a main-frame request cannot map to a live tab', async () => {
-    panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-    const contents = (session.ensureTab().view as unknown as MockView).webContents
-    for (let index = 0; index <= 64; index += 1) {
-      expect(
-        session.grantSiteOriginForUserNavigation(
-          contents as unknown as WebContents,
-          `http://127.0.0.1:${4400 + index}/private`
-        )
-      ).toBe(true)
-    }
-
-    const evicted = beginMainFrameRequest(contents, 'http://127.0.0.1:4400/again')
-    await vi.waitFor(() =>
-      expect(session.sitePermissionRequestForScope()).toMatchObject({
-        origin: 'http://127.0.0.1:4400',
-      })
-    )
-    session.respondToSitePermission(session.sitePermissionRequestForScope()?.requestId ?? '', false)
-    await expect(evicted).resolves.toEqual({ cancel: true })
-
-    const handler = contents.session.webRequest.onBeforeRequest.mock.calls[0]?.[0]
-    const unmapped = new Promise<{ cancel: boolean }>((resolve) => {
-      handler(
-        {
-          id: 99,
-          url: 'http://127.0.0.1:4499/',
-          method: 'GET',
-          resourceType: 'mainFrame',
-          referrer: '',
-          timestamp: Date.now(),
-          uploadData: [],
-        },
-        resolve
-      )
-    })
-    await expect(unmapped).resolves.toEqual({ cancel: true })
+    await expect(redirected).resolves.toEqual({ cancel: false })
   })
 
   it('blocks an image hostname that resolves to a private address', async () => {
@@ -3378,34 +3092,6 @@ describe('browser-agent session', () => {
       all: true,
       verbatim: true,
     })
-  })
-
-  it('default-denies pending site requests on timeout, tab close, and stale-document approval', async () => {
-    vi.useFakeTimers()
-    try {
-      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-      const tab = session.ensureTab()
-      const contents = (tab.view as unknown as MockView).webContents
-      const timedOut = beginMainFrameRequest(contents, 'http://127.0.0.1:4501/')
-      await vi.advanceTimersByTimeAsync(0)
-      await vi.advanceTimersByTimeAsync(20_000)
-      await expect(timedOut).resolves.toEqual({ cancel: true })
-
-      panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
-      const stale = beginMainFrameRequest(contents, 'http://127.0.0.1:4502/', 2)
-      await vi.advanceTimersByTimeAsync(0)
-      const stalePrompt = session.sitePermissionRequestForScope()
-      contents.getURL.mockReturnValue('https://changed.example/')
-      expect(session.respondToSitePermission(stalePrompt?.requestId ?? '', true)).toBe(true)
-      await expect(stale).resolves.toEqual({ cancel: true })
-
-      const closing = beginMainFrameRequest(contents, 'http://127.0.0.1:4503/', 3)
-      await vi.advanceTimersByTimeAsync(0)
-      session.closeTab(tab.id)
-      await expect(closing).resolves.toEqual({ cancel: true })
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('leaves nothing of the signed-out user behind in the browser profile', async () => {

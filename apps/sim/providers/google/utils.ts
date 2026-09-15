@@ -162,6 +162,7 @@ export function convertToGeminiFormat(
         if (message.role === 'assistant' && message.tool_calls?.length) {
           const functionCalls = message.tool_calls.map((toolCall) => ({
             functionCall: {
+              id: toolCall.id,
               name: toolCall.function?.name,
               args: JSON.parse(toolCall.function?.arguments || '{}') as Record<string, unknown>,
             },

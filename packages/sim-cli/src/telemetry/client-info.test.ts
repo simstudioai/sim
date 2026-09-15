@@ -24,6 +24,10 @@ describe('clientInfoHeader', () => {
     )
   })
 
+  it('reports that no agent was detected rather than leaving it out', () => {
+    expect(clientInfoHeader({})).toContain('; agent/none')
+  })
+
   it('withholds the agent when usage reporting is opted out', () => {
     const header = clientInfoHeader({ CLAUDECODE: '1', DO_NOT_TRACK: '1' })
     expect(header).not.toContain('agent/')

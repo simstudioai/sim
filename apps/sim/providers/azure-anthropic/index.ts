@@ -64,7 +64,7 @@ export const azureAnthropicProvider: ProviderConfig = {
     return executeAnthropicProviderRequest(request, {
       providerId: 'azure-anthropic',
       providerLabel: 'Azure Anthropic',
-      resolveWireModel: ({ model }) => model.replace(/^azure-anthropic\//, ''),
+      resolveWireModel: ({ model }) => model.replace(/^azure-anthropic\//i, ''),
       createClient: (apiKey) => {
         const cacheKey = [
           'azure-anthropic',

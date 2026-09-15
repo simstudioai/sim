@@ -10,6 +10,7 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -540,6 +541,8 @@ describe('knowledge base counts with live source permissions', () => {
       get: async () => scope,
       getForConnectors,
       getForDocuments: async () => scope,
+      liveSourceConnectorCondition: async () =>
+        inArray(schemaMock.knowledgeConnector.knowledgeBaseId, ['kb-1']),
     }
     return { access, getForConnectors }
   }
@@ -556,14 +559,14 @@ describe('knowledge base counts with live source permissions', () => {
         createdAt: new Date('2026-01-01'),
       },
     ])
-    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
     queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 3, tokenCount: 20 }])
     const result = await getWorkspaceKnowledgeBases('ws-1', 'active', { access, limit: 2 })
     expect(result.data).toHaveLength(1)
     expect(result.data[0]).toMatchObject({ docCount: 5, tokenCount: 30 })
     expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['confluence-source'], undefined)
-    expect(dbChainMockFns.selectDistinct).toHaveBeenCalledWith({
-      connectorId: schemaMock.document.connectorId,
+    expect(dbChainMockFns.select).toHaveBeenCalledWith({
+      connectorId: schemaMock.knowledgeConnector.id,
     })
     expect(
       dbChainMockFns.where.mock.calls.every(
@@ -597,14 +600,18 @@ describe('knowledge base counts with live source permissions', () => {
       createdAt: new Date('2026-01-01'),
     }))
     queueTableRows(schemaMock.knowledgeBase, bases)
-    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
     queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-7', docCount: 3, tokenCount: 20 }])
     const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { access })
     expect(result.data).toHaveLength(1000)
     expect(result.data[7]).toMatchObject({ docCount: 4, tokenCount: 21 })
     expect(result.data[8]).toMatchObject({ docCount: 1, tokenCount: 1 })
     expect(getForConnectors).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.selectDistinct).toHaveBeenCalledOnce()
+    expect(
+      dbChainMockFns.select.mock.calls.filter(
+        ([fields]) => fields?.connectorId === schemaMock.knowledgeConnector.id
+      )
+    ).toHaveLength(1)
     expect(dbChainMockFns.groupBy).toHaveBeenCalledTimes(2)
     expect(
       dbChainMockFns.where.mock.calls.some(([condition]) =>
@@ -618,7 +625,7 @@ describe('knowledge base counts with live source permissions', () => {
 
   it('never discovers live sources for a reader without live-source credentials', async () => {
     const { access, getForConnectors } = reader()
-    access.hasLiveSourceReaders = async () => false
+    access.liveSourceConnectorCondition = async () => null
     queueTableRows(schemaMock.knowledgeBase, [
       {
         id: 'kb-1',
@@ -632,14 +639,16 @@ describe('knowledge base counts with live source permissions', () => {
     const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { access })
     expect(result.data[0]).toMatchObject({ docCount: 2, tokenCount: 10 })
     expect(getForConnectors).not.toHaveBeenCalled()
-    expect(dbChainMockFns.selectDistinct).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalledWith({
+      connectorId: schemaMock.knowledgeConnector.id,
+    })
     expect(dbChainMockFns.groupBy).toHaveBeenCalledOnce()
   })
 
   it('does not retain stale totals when a live source no longer authorizes its documents', async () => {
     const { access, getForConnectors } = reader()
     queueTableRows(schemaMock.document, [])
-    queueTableRows(schemaMock.document, [{ connectorId: 'confluence-source' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
     queueTableRows(schemaMock.document, [])
     const base = { id: 'kb-1', docCount: 5, tokenCount: 50 } as KnowledgeBaseWithCounts
     await expect(attachKnowledgeBaseConnectors(base, access)).resolves.toMatchObject({

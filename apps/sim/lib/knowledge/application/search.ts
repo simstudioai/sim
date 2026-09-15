@@ -90,8 +90,10 @@ export class KnowledgeSearchProvenanceUnavailableError extends Error {
 export type KnowledgeSearchTagFilter = KnowledgeTagNameFilter
 
 export interface SearchKnowledgeInput {
-  /** Only surfaces displaying retrieval status may accept incomplete evidence. */
+  /** Allows returning available results when a retrieval leg times out. */
   allowPartialResults?: boolean
+  /** Trusted adapter's vector retrieval budget; omitted callers use the shared default. */
+  vectorBudgetMs?: number
   /** Optional assertion from a trusted adapter or public contract. */
   workspaceId?: string
   organizationId?: string
@@ -404,6 +406,7 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
       : input.topK
     const retrieved = await measureSearchStage('retrieval', () =>
       retrieveKnowledgeSearch({
+        vectorBudgetMs: input.vectorBudgetMs,
         knowledgeBaseIds,
         topK: candidateTopK,
         filters: input.filters,
@@ -417,18 +420,19 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
           ? {
               vector: JSON.stringify(queryEmbedding?.embedding ?? null),
               dimensions: embeddingTarget!.dimensions,
+              model: embeddingTarget!.model,
             }
           : undefined,
         structuredFilters: structuredFilters.length > 0 ? structuredFilters : undefined,
       })
     )
 
-    if (retrieved.retrieval.status === 'partial' && !input.allowPartialResults)
-      throw new SearchDeadlineError()
     annotateSearchDiagnostics({
       retrievalStatus: retrieved.retrieval.status,
       timedOutLegs: retrieved.retrieval.timedOutLegs,
     })
+    if (retrieved.retrieval.status === 'partial' && !input.allowPartialResults)
+      throw new SearchDeadlineError()
     let rows = retrieved.rows
     input.signal?.throwIfAborted()
     /** Public callers have no input envelope, but persisted reranker inputs still need provenance. */

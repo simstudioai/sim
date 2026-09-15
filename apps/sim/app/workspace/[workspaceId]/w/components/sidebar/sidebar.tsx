@@ -756,12 +756,7 @@ export const Sidebar = memo(function Sidebar() {
           label: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          /* Skills and Search are tabs of this surface, not their own nav items —
-             keep the entry lit while the user is on either. */
-          additionalActivePaths: [
-            `/workspace/${workspaceId}/skills`,
-            `/workspace/${workspaceId}/search`,
-          ],
+          additionalActivePaths: [`/workspace/${workspaceId}/skills`],
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
@@ -829,7 +824,7 @@ export const Sidebar = memo(function Sidebar() {
 
   const handleOpenSettings = (section: SettingsSection) => {
     if (!isCollapsedRef.current) {
-      setSidebarWidth(SIDEBAR_WIDTH.MIN)
+      setSidebarWidth(SIDEBAR_WIDTH.DEFAULT)
     }
     navigateToSettings({ section })
   }
@@ -903,7 +898,7 @@ export const Sidebar = memo(function Sidebar() {
   const navigateToPage = useCallback(
     (path: string) => {
       if (!isCollapsedRef.current) {
-        setSidebarWidth(SIDEBAR_WIDTH.MIN)
+        setSidebarWidth(SIDEBAR_WIDTH.DEFAULT)
       }
       router.push(path)
     },

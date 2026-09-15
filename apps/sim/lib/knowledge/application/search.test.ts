@@ -234,6 +234,25 @@ describe('knowledge search application use case', () => {
     }
   )
 
+  it.each([
+    { surface: 'dashboard' as const, vectorBudgetMs: 3000 },
+    { surface: 'copilot' as const, vectorBudgetMs: undefined },
+    { surface: 'workflow' as const, vectorBudgetMs: undefined },
+  ])('forwards only the configured vector budget for $surface', async (options) => {
+    await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseIds: ['knowledge-1'],
+        query: 'release',
+        topK: 10,
+        ...options,
+      },
+    })
+    expect(mocks.executeSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ vectorBudgetMs: options.vectorBudgetMs })
+    )
+  })
+
   describe.each(['workspace', 'organization'] as const)('%s ranking policy', (scope) => {
     beforeEach(() => {
       if (scope === 'organization') {

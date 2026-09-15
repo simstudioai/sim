@@ -5,7 +5,8 @@ import {
   type ConfluenceRestriction,
   confluenceSubjectToken,
 } from '@/lib/knowledge/access/confluence-permissions'
-import { fetchWithRetry, type RetryOptions } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { extractCursor } from '@/connectors/confluence/cursor'
 import type {
   ConnectorDirectory,
