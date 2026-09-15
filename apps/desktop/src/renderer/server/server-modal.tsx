@@ -2,16 +2,17 @@ import { useRef, useState } from 'react'
 import type { DesktopServerConfiguration } from '@sim/desktop-bridge'
 import {
   ChipModalBody,
+  ChipModalDescription,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   ChipModalSurface,
 } from '@sim/emcn'
-import { observeShellSize } from '@/renderer/shell'
+import { mountShellModal } from '@/renderer/shell'
 import type { ShellWindowApi } from '@/shared/shell'
 
 interface ServerModalProps {
-  server: ShellWindowApi['server'] | undefined
+  server: ShellWindowApi['server']
   configuration?: DesktopServerConfiguration
   initialError?: string
 }
@@ -20,9 +21,8 @@ function closeWindow() {
   window.close()
 }
 
-function focusServerInput(element: HTMLDivElement | null) {
-  element?.querySelector('input')?.select()
-  return observeShellSize(element)
+function mountServerModal(element: HTMLDivElement | null) {
+  return mountShellModal(element, closeWindow)
 }
 
 export function ServerModal({ server, configuration, initialError }: ServerModalProps) {
@@ -43,10 +43,8 @@ export function ServerModal({ server, configuration, initialError }: ServerModal
     setError(undefined)
     setMessage('')
     try {
-      const result = await server?.setOrigin(origin)
-      if (!result) {
-        setError('The desktop shell is unavailable.')
-      } else if (!result.ok) {
+      const result = await server.setOrigin(origin)
+      if (!result.ok) {
         setError(result.error)
       } else if (result.unchanged) {
         setMessage('Already connected to this server.')
@@ -61,12 +59,12 @@ export function ServerModal({ server, configuration, initialError }: ServerModal
 
   return (
     <ChipModalSurface
-      ref={focusServerInput}
+      ref={mountServerModal}
       role='dialog'
       aria-modal='true'
       aria-labelledby='server-title'
       aria-describedby='server-description'
-      className='max-h-screen [&_input]:select-text'
+      className='max-h-screen'
     >
       <ChipModalHeader
         onClose={closeWindow}
@@ -75,10 +73,10 @@ export function ServerModal({ server, configuration, initialError }: ServerModal
         <span id='server-title'>Sim server</span>
       </ChipModalHeader>
       <ChipModalBody>
-        <p id='server-description' className='px-2 text-[var(--text-muted)] text-small'>
+        <ChipModalDescription id='server-description'>
           Point this app at your own Sim deployment. Self-hosted servers must use HTTPS; localhost
           may use HTTP.
-        </p>
+        </ChipModalDescription>
         <ChipModalField
           type='input'
           inputType='url'

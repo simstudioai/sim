@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
+
+import { applyDesktopTitleBarMode, supportsDesktopTitleBar } from '@sim/desktop-bridge'
 import { describe, expect, it } from 'vitest'
-import { applyDesktopTitleBarMode, supportsDesktopTitleBar } from '@/app/_shell/desktop-title-bar'
 
 describe('desktop title bar', () => {
   it('reserves traffic-light space on macOS desktop, and nowhere else', () => {

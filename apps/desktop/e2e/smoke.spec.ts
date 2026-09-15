@@ -179,6 +179,55 @@ test.describe('desktop shell smoke', () => {
     await expect(window.locator('#detail')).toHaveAttribute('role', 'status')
   })
 
+  test('offline title-bar geometry follows native fullscreen state across reloads', async () => {
+    test.skip(process.platform !== 'darwin', 'The traffic-light lane is macOS-specific')
+    app = await launchApp('http://127.0.0.1:1')
+    const window = await app.firstWindow()
+    await expect(window.locator('#server')).toBeVisible()
+    await expect(window.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0].setFullScreen(true)
+    })
+    await expect(window.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'fullscreen')
+    await window.reload()
+    await expect(window.locator('#server')).toBeVisible()
+    await expect(window.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'fullscreen')
+    await expect(window.locator('.desktop-title-bar-page')).toHaveCSS('padding-top', '0px')
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0].setFullScreen(false)
+    })
+    await expect(window.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
+  })
+
+  test('bundled dialogs follow the app theme independently of the system theme', async () => {
+    app = await launchApp(origin)
+    const window = await app.firstWindow()
+    await expect(window.locator('#app')).toBeVisible()
+    await app.evaluate(({ nativeTheme }) => {
+      nativeTheme.themeSource = 'light'
+    })
+    await window.evaluate(() => {
+      document.documentElement.className = 'dark'
+    })
+    const dialogPromise = app.waitForEvent('window')
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0].webContents.emit('unresponsive')
+    })
+    const prompt = await dialogPromise
+    await expect(prompt.getByRole('dialog')).toBeVisible()
+    await expect(prompt.locator('html')).toHaveClass('dark')
+    await expect(prompt.locator('html')).toHaveCSS('color-scheme', 'dark')
+    await expect(prompt.locator('#dialog-message')).toHaveCSS('-webkit-font-smoothing', 'auto')
+    await expect(prompt.locator('#dialog-message')).toHaveCSS('font-weight', '400')
+    await expect(prompt.locator('#dialog-message')).toHaveCSS('font-size', '14px')
+    await window.evaluate(() => {
+      document.documentElement.className = 'light'
+    })
+    await expect(prompt.locator('html')).toHaveClass('light')
+    await expect(prompt.locator('html')).toHaveCSS('color-scheme', 'light')
+    await prompt.getByRole('button', { name: 'Wait', exact: true }).click()
+  })
+
   test('recovery messages use an isolated EMCN dialog with a safe keyboard default', async () => {
     app = await launchApp('http://127.0.0.1:1')
     const window = await app.firstWindow()
@@ -188,7 +237,9 @@ test.describe('desktop shell smoke', () => {
       BrowserWindow.getAllWindows()[0].webContents.emit('unresponsive')
     })
     const prompt = await dialogPromise
-    await expect(prompt.getByRole('dialog', { name: 'Sim', exact: true })).toBeVisible()
+    await expect(
+      prompt.getByRole('dialog', { name: 'Sim isn’t responding', exact: true })
+    ).toBeVisible()
     await expect(prompt.getByText('Sim isn’t responding')).toBeVisible()
     await expect(prompt.getByRole('button', { name: 'Wait', exact: true })).toBeFocused()
     await expect
@@ -213,10 +264,7 @@ test.describe('desktop shell smoke', () => {
       win.webContents.ipc.removeHandler('shell:configuration')
       win.webContents.ipc.handle('shell:configuration', () => ({
         title: 'Long recovery message',
-        message: 'Recovery details',
-        detail: Array.from({ length: 80 }, (_, index) => `Diagnostic detail ${index + 1}`).join(
-          '\n'
-        ),
+        text: Array.from({ length: 80 }, (_, index) => `Diagnostic detail ${index + 1}`).join('\n'),
         type: 'warning',
         buttons: ['Wait', 'Reload'],
         defaultId: 0,
@@ -291,8 +339,7 @@ test.describe('desktop shell smoke', () => {
     })
 
     const closed = picker.waitForEvent('close')
-    // The main process destroys the window on the key-down, so the key-up half
-    // of `press` has no target to reach; the close event is the assertion.
+    /** Dismissal can destroy the window before key-up; the close event is the assertion. */
     await picker.keyboard.press('Escape').catch(() => {})
     await closed
     expect(app.windows()).toHaveLength(1)

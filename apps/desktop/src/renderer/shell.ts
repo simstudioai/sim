@@ -1,17 +1,33 @@
-import type { ShellWindowApi } from '@/shared/shell'
+import { focusChipModalContent } from '@sim/emcn'
+import type { ShellTheme, ShellThemeApi, ShellWindowApi } from '@/shared/shell'
 
 export const shellWindow = (window as Window & { simShell?: ShellWindowApi }).simShell
 
-/** Local windows follow the system theme independently of any reachable deployment. */
-export function initializeShellPage() {
-  const theme = window.matchMedia('(prefers-color-scheme: dark)')
-  const syncTheme = () => document.documentElement.classList.toggle('dark', theme.matches)
+/** Uses Sim's resolved theme, falling back to the system before an app theme is known. */
+export async function initializeShellPage() {
+  const api = (window as Window & { simShellTheme?: ShellThemeApi }).simShellTheme
+  const system = window.matchMedia('(prefers-color-scheme: dark)')
+  let theme: ShellTheme | undefined
+  let receivedUpdate = false
+  const syncTheme = () => {
+    const dark = theme ? theme === 'dark' : system.matches
+    document.documentElement.classList.toggle('dark', dark)
+    document.documentElement.classList.toggle('light', !dark)
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+  }
+  api?.onChange((next) => {
+    receivedUpdate = true
+    theme = next
+    syncTheme()
+  })
+  const initialTheme = await api?.get()
+  if (!receivedUpdate) theme = initialTheme
   syncTheme()
-  theme.addEventListener('change', syncTheme)
+  system.addEventListener('change', syncTheme)
 }
 
 /** Fits the native window to the complete modal, including changing inline messages. */
-export function observeShellSize(element: HTMLDivElement | null) {
+function observeShellSize(element: HTMLDivElement | null) {
   if (!element || !shellWindow) return
   const resize = () => {
     const body = element.querySelector<HTMLElement>('[data-chip-modal-body]')
@@ -28,5 +44,23 @@ export function observeShellSize(element: HTMLDivElement | null) {
   return () => {
     observer.disconnect()
     mutations.disconnect()
+  }
+}
+
+/** Native host lifecycle; Escape also works when a disabled control leaves focus on the document. */
+export function mountShellModal(element: HTMLDivElement | null, dismiss: () => void) {
+  if (!element) return
+  focusChipModalContent(element)
+  const stopSizing = observeShellSize(element)
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      dismiss()
+    }
+  }
+  element.ownerDocument.addEventListener('keydown', onKeyDown)
+  return () => {
+    stopSizing?.()
+    element.ownerDocument.removeEventListener('keydown', onKeyDown)
   }
 }

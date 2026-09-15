@@ -1,6 +1,12 @@
-import { ChipModalBody, ChipModalFooter, ChipModalHeader, ChipModalSurface } from '@sim/emcn'
+import {
+  ChipModalBody,
+  ChipModalDescription,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalSurface,
+} from '@sim/emcn'
 import { createRoot } from 'react-dom/client'
-import { initializeShellPage, observeShellSize, shellWindow } from '@/renderer/shell'
+import { initializeShellPage, mountShellModal, shellWindow } from '@/renderer/shell'
 import type { ShellDialogConfiguration } from '@/shared/shell'
 import '@/renderer/shell.css'
 
@@ -9,21 +15,18 @@ interface ShellDialogProps {
 }
 
 function ShellDialog({ configuration }: ShellDialogProps) {
-  const { message, detail, buttons, defaultId, cancelId } = configuration
+  const { text, buttons, defaultId, cancelId } = configuration
   const primaryId = buttons.length === 1 ? 0 : buttons.findIndex((_, index) => index !== cancelId)
   const respond = (response: number) => shellWindow?.respond(response)
   const close = () => respond(cancelId)
 
   return (
     <ChipModalSurface
-      ref={(element) => {
-        element?.querySelector<HTMLButtonElement>('[data-chip-modal-default-action]')?.focus()
-        return observeShellSize(element)
-      }}
+      ref={(element) => mountShellModal(element, close)}
       role='dialog'
       aria-modal='true'
       aria-labelledby='dialog-title'
-      aria-describedby={detail ? 'dialog-message dialog-detail' : 'dialog-message'}
+      aria-describedby={text ? 'dialog-message' : undefined}
       className='max-h-screen'
     >
       <ChipModalHeader
@@ -33,17 +36,7 @@ function ShellDialog({ configuration }: ShellDialogProps) {
         <span id='dialog-title'>{configuration.title}</span>
       </ChipModalHeader>
       <ChipModalBody>
-        <p id='dialog-message' className='break-words px-2 text-[var(--text-body)] text-small'>
-          {message}
-        </p>
-        {detail ? (
-          <p
-            id='dialog-detail'
-            className='whitespace-pre-wrap break-words px-2 text-[var(--text-body)] text-small'
-          >
-            {detail}
-          </p>
-        ) : null}
+        {text ? <ChipModalDescription id='dialog-message'>{text}</ChipModalDescription> : null}
       </ChipModalBody>
       <ChipModalFooter
         defaultAction={defaultId === primaryId ? 'primary' : 'dismiss'}
@@ -65,13 +58,11 @@ function ShellDialog({ configuration }: ShellDialogProps) {
   )
 }
 
-initializeShellPage()
 const container = document.getElementById('root')
 if (!container || !shellWindow) throw new Error('Dialog host is unavailable')
-void shellWindow.getDialogConfiguration().then((configuration) => {
-  document.title = configuration.title
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') shellWindow?.respond(configuration.cancelId)
-  })
-  createRoot(container).render(<ShellDialog configuration={configuration} />)
-})
+void Promise.all([initializeShellPage(), shellWindow.getDialogConfiguration()]).then(
+  ([, configuration]) => {
+    document.title = configuration.title
+    createRoot(container).render(<ShellDialog configuration={configuration} />)
+  }
+)

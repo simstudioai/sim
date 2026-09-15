@@ -1,9 +1,15 @@
 import type { DesktopServerChangeResult, DesktopServerConfiguration } from '@sim/desktop-bridge'
 
+export type ShellTheme = 'dark' | 'light'
+
+export interface ShellThemeApi {
+  get(): Promise<ShellTheme | undefined>
+  onChange(callback: (theme: ShellTheme | undefined) => void): () => void
+}
+
 export interface ShellDialogConfiguration {
   title: string
-  message: string
-  detail: string
+  text: string
   buttons: string[]
   defaultId: number
   cancelId: number
