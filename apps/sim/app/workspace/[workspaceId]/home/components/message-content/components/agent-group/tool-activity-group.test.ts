@@ -12,8 +12,14 @@ function tool(toolName: string, status: ToolCallStatus = 'success'): ToolCallDat
 describe('getToolActivitySummary', () => {
   it('caps distinct actions in order and counts the remaining categories, not repeated calls', () => {
     expect(
-      getToolActivitySummary([tool('read'), tool('terminal_run'), tool('read'), tool('grep')])
-    ).toBe('Read files, ran commands +1 more')
+      getToolActivitySummary([
+        tool('read'),
+        tool('terminal_run'),
+        tool('read'),
+        tool('grep'),
+        tool('browser_navigate'),
+      ])
+    ).toBe('Read files, ran commands, searched files +1 more')
   })
 
   it('summarizes browser navigation and interactions without repeating actions', () => {
@@ -24,13 +30,16 @@ describe('getToolActivitySummary', () => {
         tool('browser_type'),
         tool('browser_navigate'),
       ])
-    ).toBe('Navigated, read pages +1 more')
+    ).toBe('Navigated, read pages, entered text')
   })
 
   it.each([
     [['browser_navigate', 'browser_read_text'], 'Navigated, read pages'],
     [['browser_read_text', 'browser_navigate'], 'Read, navigated pages'],
-    [['browser_navigate', 'browser_read_text', 'browser_scroll'], 'Navigated, read pages +1 more'],
+    [
+      ['browser_navigate', 'browser_read_text', 'browser_scroll'],
+      'Navigated, read, scrolled pages',
+    ],
     [['browser_navigate', 'browser_type'], 'Navigated pages, entered text'],
     [['browser_navigate', 'browser_navigate'], 'Navigated pages'],
     [['read', 'browser_read_text'], 'Read files, read pages'],
@@ -46,7 +55,7 @@ describe('getToolActivitySummary', () => {
         tool('terminal_run', 'cancelled'),
         tool('browser_type', 'rejected'),
       ])
-    ).toBe('Read files · 2 failed · 1 stopped')
+    ).toBe('Read files · 1 stopped')
   })
 
   it('does not invent actions when all calls failed or were stopped', () => {
@@ -55,7 +64,22 @@ describe('getToolActivitySummary', () => {
         tool('apply_file_edit', 'error'),
         tool('terminal_run', 'interrupted'),
       ])
-    ).toBe('Tool activity · 1 failed · 1 stopped')
+    ).toBe('Tool activity · 1 stopped')
+  })
+
+  it('uses a neutral summary when every call failed', () => {
+    expect(
+      getToolActivitySummary([tool('run_workflow', 'error'), tool('terminal', 'rejected')])
+    ).toBe('Tool activity')
+  })
+
+  it('does not infer tool failures from workflow results', () => {
+    expect(
+      getToolActivitySummary([
+        tool('read'),
+        { ...tool('run_workflow'), result: { success: false, error: 'Workflow run failed' } },
+      ])
+    ).toBe('Read files, ran workflows')
   })
 
   it('keeps an individual tool’s descriptive title', () => {
@@ -91,10 +115,10 @@ describe('getToolActivitySummary', () => {
         tool('deploy_as_api'),
         tool('table_rows'),
       ])
-    ).toBe('Navigated pages, filled forms +5 more')
+    ).toBe('Navigated pages, filled forms, entered text +4 more')
   })
 
-  it('keeps failure and interruption counts visible when action categories are capped', () => {
+  it('keeps interruption counts without failure badges when action categories are capped', () => {
     expect(
       getToolActivitySummary([
         tool('read'),
@@ -105,14 +129,14 @@ describe('getToolActivitySummary', () => {
         tool('wait', 'interrupted'),
         tool('browser_type', 'skipped'),
       ])
-    ).toBe('Read files, searched files +2 more · 1 failed · 1 stopped · 1 skipped')
+    ).toBe('Read files, searched files, used the terminal +1 more · 1 stopped · 1 skipped')
   })
 
-  it('uses the same outcome wording for rejected individual and grouped calls', () => {
+  it('keeps individual failures explicit without adding aggregate failure badges', () => {
     const rejected = { ...tool('terminal', 'rejected'), displayTitle: 'Running checks' }
     expect(getToolActivitySummary([rejected])).toBe('Failed running checks')
     expect(getToolActivitySummary([rejected, tool('read', 'skipped')])).toBe(
-      'Tool activity · 1 failed · 1 skipped'
+      'Tool activity · 1 skipped'
     )
   })
 
@@ -124,7 +148,7 @@ describe('getToolActivitySummary', () => {
         { ...tool('deploy_as_mcp'), params: { action: 'undeploy' } },
         tool('read'),
       ])
-    ).toBe('Deployed workflows, undeployed workflows +1 more')
+    ).toBe('Deployed workflows, undeployed workflows, read files')
   })
 
   it('describes terminal runs from their operation', () => {
