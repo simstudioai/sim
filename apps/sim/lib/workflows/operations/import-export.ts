@@ -456,9 +456,9 @@ export function extractWorkflowName(content: string, filename: string): string {
 }
 
 /**
- * Normalize subblock values by converting empty strings to null and repairing invalid subblocks.
- * This provides backwards compatibility for workflows exported before the null sanitization fix,
- * preventing Zod validation errors like "Expected array, received string".
+ * Repair invalid subblocks and legacy empty strings in non-string fields.
+ * Preserve empty strings accepted by text controls, since clearing a field can
+ * intentionally suppress its generated default during serialization.
  *
  * Also filters out subBlocks with the literal key "undefined", which cannot be associated
  * with a stable block field.
@@ -590,8 +590,7 @@ export function parseWorkflowJson(
       return { data: null, errors }
     }
 
-    // Normalize non-string subblock values (convert empty strings to null)
-    // This handles exported workflows that may have empty strings for non-string types
+    /** Repair legacy non-string values while preserving intentionally cleared text. */
     const normalizedBlocks = normalizeSubblockValues(workflowData.blocks || {})
 
     // Construct the workflow state with defaults
