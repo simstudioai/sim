@@ -1675,7 +1675,7 @@ export async function resolveWorkspaceFileReference(
 
   const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
   const normalizedReference = referenceSegments.join('/')
-  if (normalizedReference.startsWith('wf_')) {
+  if (normalizedReference.startsWith('wf_') || isUuid(normalizedReference)) {
     const file = await getWorkspaceFileWithCurrentVersion(workspaceId, normalizedReference, {
       includeChatUploads,
     })

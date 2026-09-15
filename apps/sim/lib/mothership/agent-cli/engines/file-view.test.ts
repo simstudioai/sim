@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { PDFDocument } from 'pdf-lib'
+import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { read } = vi.hoisted(() => ({ read: vi.fn() }))
@@ -36,7 +37,9 @@ describe('registered files view boundary', () => {
       const bytes =
         contentType === 'application/pdf'
           ? Buffer.from(await pdf.save())
-          : Buffer.from([137, 80, 78, 71, 0, 255])
+          : await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+              .png()
+              .toBuffer()
       read.mockResolvedValue({
         file: { id: 'canonical', name: 'report' },
         buffer: bytes,
@@ -64,7 +67,7 @@ describe('registered files view boundary', () => {
         input: {
           workspaceId: 'trusted-workspace',
           reference: 'requested',
-          maxBytes: 8 * 1024 * 1024,
+          maxBytes: 25 * 1024 * 1024,
         },
       })
     }
@@ -77,7 +80,12 @@ describe('registered files view boundary', () => {
       contentType: 'application/pdf',
       buffer: Buffer.from(await pdf.save()),
     })
-    expect((await runEngine('files view', ['requested'], runtime, {})).stderr).toContain('25 pages')
+    const preview = await runEngine('files view', ['requested'], runtime, {})
+    expect(preview.exitCode).toBe(0)
+    expect(JSON.parse(preview.stdout)).toMatchObject({
+      truncated: true,
+      pages: { first: 1, last: 20, total: 25 },
+    })
     for (const pages of ['0', '5-2', '1-21', '26', '1,4', '1-2junk']) {
       expect((await runEngine('files view', ['requested'], runtime, { pages })).exitCode).toBe(1)
     }

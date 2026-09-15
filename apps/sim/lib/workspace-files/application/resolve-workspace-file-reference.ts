@@ -20,6 +20,8 @@ export interface ResolveWorkspaceFileReferenceInput {
   reference: string
   /** Resolve `reference` as an exact file name in this folder instead of as a path or id. */
   folderId?: string | null
+  /** Trusted internal chat scope; never accepted from public file contracts. */
+  chatId?: string
 }
 
 interface WorkspaceFileReferenceInput {
@@ -63,9 +65,16 @@ export async function resolveReferencedWorkspaceFileContext(
     (principal.kind === 'delegated' && principal.serviceId === 'copilot'
       ? principal.resourceScope?.chatId
       : undefined) ?? input.chatId
-  const file = input.folderId === undefined
-    ? await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference, chatId === undefined ? options : { ...options, chatId })
-    : await getWorkspaceFileByName(input.workspaceId, input.reference, { folderId: input.folderId })
+  const file =
+    input.folderId === undefined
+      ? await resolveStoredWorkspaceFileReference(
+          input.workspaceId,
+          input.reference,
+          chatId === undefined ? options : { ...options, chatId }
+        )
+      : await getWorkspaceFileByName(input.workspaceId, input.reference, {
+          folderId: input.folderId,
+        })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   const canonical = await loadActiveWorkspaceFileContext(file.id, options)
   if (!canonical || canonical.workspaceId !== input.workspaceId) {
@@ -131,11 +140,17 @@ export async function resolveWorkspaceFileReference({
   workspaceId,
   reference,
   folderId,
+  chatId,
 }: ResolveWorkspaceFileReferenceInput): Promise<WorkspaceFileRecord> {
   const useCase = getWorkspaceFileReferenceUseCase(operation)
   const result = await useCase.execute({
     principal,
-    input: { workspaceId, reference, ...(folderId === undefined ? {} : { folderId }) },
+    input: {
+      workspaceId,
+      reference,
+      ...(folderId === undefined ? {} : { folderId }),
+      ...(chatId === undefined ? {} : { chatId }),
+    },
   })
   return result.file
 }
@@ -169,6 +184,7 @@ export async function readWorkspaceFileReference({
   reference,
   folderId,
   maxBytes,
+  chatId,
 }: ReadWorkspaceFileReferenceInput): Promise<{ file: WorkspaceFileRecord; content: Buffer }> {
   return readWorkspaceFileReferenceUseCase.execute({
     principal,
@@ -176,6 +192,7 @@ export async function readWorkspaceFileReference({
       workspaceId,
       reference,
       maxBytes,
+      ...(chatId === undefined ? {} : { chatId }),
       ...(folderId === undefined ? {} : { folderId }),
     },
   })

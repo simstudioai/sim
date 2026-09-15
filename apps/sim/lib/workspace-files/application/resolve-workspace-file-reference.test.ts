@@ -56,6 +56,22 @@ describe('workspace file reference application service', () => {
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('source'))
   })
 
+  it('carries trusted chat scope into an authorized upload lookup', async () => {
+    await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.readContent,
+      workspaceId: file.workspaceId,
+      reference: 'uploads/source.txt',
+      chatId: 'current-chat',
+    })
+    expect(mocks.resolveStoredReference).toHaveBeenCalledWith(
+      file.workspaceId,
+      'uploads/source.txt',
+      { includeChatUploads: true, chatId: 'current-chat' }
+    )
+    expect(mocks.resolvePermission).toHaveBeenCalled()
+  })
+
   it('uses one fixed semantic use case for an authorized reference lookup', async () => {
     await expect(
       resolveWorkspaceFileReference({

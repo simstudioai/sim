@@ -28,6 +28,7 @@ import {
   type ReferencedWorkspaceFileContext,
   resolveReferencedWorkspaceFileContext,
 } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 
 export interface ReadWorkspaceFileTextInput {
   /** Workspace the reference is resolved in. */
@@ -43,6 +44,8 @@ export interface ReadWorkspaceFileTextInput {
   limit?: number
   /** Private classification for runtime consumers, omitted from ordinary API reads. */
   includeSecretProvenance?: boolean
+  /** Internal agent reads can decode plain source files identified by their MIME type. */
+  allowPlainText?: boolean
 }
 
 export interface ReadWorkspaceFileTextResult {
@@ -116,11 +119,13 @@ async function executeReadWorkspaceFileText({
  */
 export async function extractWorkspaceFileRecordText(
   file: WorkspaceFileRecord,
-  input: Pick<ReadWorkspaceFileTextInput, 'maxBytes' | 'offset' | 'limit'>,
+  input: Pick<ReadWorkspaceFileTextInput, 'maxBytes' | 'offset' | 'limit' | 'allowPlainText' | 'includeSecretProvenance'>,
   principal: Principal,
   signal?: AbortSignal
 ): Promise<ReadWorkspaceFileTextResult> {
-  const extension = getFileExtension(file.name)
+  const extension = input.allowPlainText
+    ? (workspaceFileTextFormat(file) ?? getFileExtension(file.name))
+    : getFileExtension(file.name)
   if (!isSupportedFileType(extension)) {
     throw new OrchestrationError(
       'validation',
@@ -151,7 +156,7 @@ export async function extractWorkspaceFileRecordText(
   const parsed = await parseFileText(content, extension, file.name, signal)
   const metadata = parsed.metadata ?? {}
   const secretProvenance = input.includeSecretProvenance
-    ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+    ? await getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
         fileId: file.id,
         key: file.key,
         context: file.storageContext ?? 'workspace',
