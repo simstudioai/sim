@@ -57,6 +57,7 @@ export {
 export {
   findWorkflowReferenceTokens,
   isLikelyWorkflowReferenceSegment,
+  splitOutsideWorkflowReferences,
   splitWorkflowReferenceSegment,
   type WorkflowReferenceToken,
   type WorkflowReferenceTokenKind,
