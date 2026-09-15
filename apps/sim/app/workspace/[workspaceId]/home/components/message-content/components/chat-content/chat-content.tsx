@@ -21,7 +21,14 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
-import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } from '@sim/emcn'
+import {
+  Checkbox,
+  CopyCodeButton,
+  cn,
+  Lightbox,
+  languages,
+  highlight as prismHighlight,
+} from '@sim/emcn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   inlineChatImageUrl,
@@ -448,12 +455,20 @@ const MARKDOWN_COMPONENTS = {
   img({ src, alt }: ComponentPropsWithoutRef<'img'>) {
     if (typeof src !== 'string' || !src) return null
     return (
-      <img
-        src={src}
-        alt={alt ?? ''}
-        loading='lazy'
-        className='my-4 h-auto max-w-full rounded-lg border border-[var(--border)]'
-      />
+      <Lightbox src={src} alt={alt ?? ''}>
+        <button
+          type='button'
+          aria-label={alt ? `Preview ${alt}` : 'Preview image'}
+          className='my-4 block max-w-full cursor-zoom-in rounded-lg'
+        >
+          <img
+            src={src}
+            alt={alt ?? ''}
+            loading='lazy'
+            className='m-0 block h-auto max-h-[360px] w-auto max-w-full rounded-lg border border-[var(--border)] object-contain'
+          />
+        </button>
+      </Lightbox>
     )
   },
 }
