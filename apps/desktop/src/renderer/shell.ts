@@ -20,6 +20,7 @@ export async function initializeShellPage() {
     theme = next
     syncTheme()
   })
+  syncTheme()
   const initialTheme = await api?.get()
   if (!receivedUpdate) theme = initialTheme
   syncTheme()

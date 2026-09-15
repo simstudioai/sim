@@ -27,6 +27,8 @@ describe('shell appearance bootstrap', () => {
       vi.fn(() => ({ matches: true, addEventListener: vi.fn() }))
     )
     const ready = initializeShellPage()
+    expect(document.documentElement.className).toBe('dark')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
     update('light')
     resolveInitial('dark')
     await ready
