@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { bindPreviewHorizontalWheel } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
+import { bindPreviewHorizontalWheel } from '@sim/emcn'
 
 /**
  * Ref callback that gives a preview scroll container horizontal wheel scrolling.
