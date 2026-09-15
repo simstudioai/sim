@@ -180,7 +180,9 @@ export async function withSearchDiagnostics<T>(
       outcome =
         result && typeof result === 'object' && 'success' in result && result.success === false
           ? 'error'
-          : 'success'
+          : trace.metadata.retrievalStatus === 'partial'
+            ? 'partial'
+            : 'success'
       return result
     } finally {
       clearInterval(timer)
