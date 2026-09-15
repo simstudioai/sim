@@ -8,6 +8,7 @@ import { sleep } from '@sim/utils/helpers'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { saveBlob } from '@/lib/uploads/client/download'
+import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { ChatFile } from '@/app/(interfaces)/chat/components/message/message'
 
 const logger = createLogger('ChatFileDownload')
@@ -69,9 +70,10 @@ async function triggerDownload(file: ChatFile): Promise<void> {
     return
   }
 
-  const hasStorageKey = Boolean(file.key && !file.key.startsWith('url/'))
+  const storageContext = tryInferContextFromKey(file.key)
+  const hasStorageKey = storageContext !== null
   const url = hasStorageKey
-    ? `/api/files/serve/${encodeURIComponent(file.key)}?context=${encodeURIComponent(file.context || 'execution')}`
+    ? `/api/files/serve/${encodeURIComponent(file.key)}?context=${encodeURIComponent(storageContext)}`
     : isSafeHttpUrl(file.url)
       ? file.url
       : null
@@ -167,6 +169,7 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
 
 export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [failedCount, setFailedCount] = useState(0)
 
   if (!files || files.length === 0) return null
 
@@ -174,6 +177,8 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
     if (isDownloading) return
 
     setIsDownloading(true)
+    setFailedCount(0)
+    let failures = 0
 
     try {
       logger.info(`Initiating download for ${files.length} files`)
@@ -189,25 +194,35 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
           }
         } catch (error) {
           logger.error(`Failed to download file ${file.name}:`, error)
+          failures++
         }
       }
     } finally {
+      setFailedCount(failures)
       setIsDownloading(false)
     }
   }
 
   return (
-    <Button
-      variant='ghost-secondary'
-      onClick={handleDownloadAll}
-      disabled={isDownloading}
-      className='p-0'
-    >
-      {isDownloading ? (
-        <Loader className='size-3' animate />
-      ) : (
-        <Download className='size-3' strokeWidth={2} />
+    <div className='flex flex-col items-start gap-2'>
+      <Button
+        variant='ghost-secondary'
+        onClick={handleDownloadAll}
+        disabled={isDownloading}
+        className='p-0'
+      >
+        {isDownloading ? (
+          <Loader className='size-3' animate />
+        ) : (
+          <Download className='size-3' strokeWidth={2} />
+        )}
+      </Button>
+      {failedCount > 0 && (
+        <p role='alert' className='text-[var(--text-error)] text-xs'>
+          Unable to download {failedCount} {failedCount === 1 ? 'file' : 'files'}. Please try
+          downloading them individually.
+        </p>
       )}
-    </Button>
+    </div>
   )
 }

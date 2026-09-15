@@ -136,11 +136,14 @@ describe('chat file downloads', () => {
     }
   )
 
-  it('keeps external URL files on their existing URL path', async () => {
-    fetchMock.mockResolvedValue(new Response('external bytes'))
-    await clickDownload(renderFile({ ...imageFile, base64: undefined, key: 'url/external' }))
-    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(imageFile.url, { cache: 'no-store' })
-  })
+  it.each(['url/external', 'result-123', ''])(
+    'keeps external URL files with key "%s" on their existing URL path',
+    async (key) => {
+      fetchMock.mockResolvedValue(new Response('external bytes'))
+      await clickDownload(renderFile({ ...imageFile, base64: undefined, key }))
+      expect(fetchMock).toHaveBeenCalledExactlyOnceWith(imageFile.url, { cache: 'no-store' })
+    }
+  )
 
   it('preserves delivered signed access for public visitors without a workspace session', async () => {
     fetchMock
@@ -182,6 +185,36 @@ describe('chat file downloads', () => {
       await vi.waitFor(() => expect(downloadedNames).toEqual(['generated.png', 'stored.png']))
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports partial bulk failures, continues the batch, and clears the alert after a successful retry', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 403 }))
+    const stored = { ...imageFile, id: 'stored', name: 'stored.png', base64: undefined }
+    const container = renderFile([stored, imageFile])
+    await clickDownload(container)
+    expect(downloadedNames).toEqual(['generated.png'])
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'Unable to download 1 file'
+    )
+    fetchMock.mockResolvedValue(new Response('stored bytes'))
+    await act(async () => {
+      container.querySelector('button')!.click()
+      await vi.waitFor(() =>
+        expect(downloadedNames).toEqual(['generated.png', 'stored.png', 'generated.png'])
+      )
+    })
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('uses the recognized key context when metadata omits it', async () => {
+    fetchMock.mockResolvedValue(new Response('workspace bytes'))
+    await clickDownload(
+      renderFile({ ...imageFile, base64: undefined, key: 'workspace/id/file.png' })
+    )
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      '/api/files/serve/workspace%2Fid%2Ffile.png?context=workspace',
+      { cache: 'no-store' }
+    )
   })
 })
 
