@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { DESKTOP_TITLE_BAR_ATTRIBUTE } from '@sim/desktop-bridge'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,10 +10,7 @@ const { mockGetDesktopBridge } = vi.hoisted(() => ({ mockGetDesktopBridge: vi.fn
 
 vi.mock('@/lib/desktop', () => ({ getDesktopBridge: mockGetDesktopBridge }))
 
-import {
-  DESKTOP_TITLE_BAR_ATTRIBUTE,
-  DesktopTitleBarController,
-} from '@/app/_shell/desktop-title-bar'
+import { DesktopTitleBarController } from '@/app/_shell/desktop-title-bar'
 
 let container: HTMLDivElement
 let root: Root

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { backgroundColorFor } from '@/main/shell-theme'
 import { createSecureWebPreferences } from '@/main/window-preferences'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -7,7 +8,6 @@ import { BrowserWindow, dialog, screen, systemPreferences } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import type { EventRecorder } from '@/main/observability'
 import {
-  backgroundColorFor,
   createMainWindow,
   ensureMicrophoneAccess,
   fitBoundsToWorkArea,

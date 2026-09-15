@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { describe, expect, it, vi } from 'vitest'
 

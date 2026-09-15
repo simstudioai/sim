@@ -18,7 +18,8 @@ interface TestLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 
 const { setTheme } = vi.hoisted(() => ({ setTheme: vi.fn() }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn')>()),
   cn: (...values: unknown[]) => values.flat().filter(Boolean).join(' '),
   ChipLink: ({ href, children, className }: TestLinkProps) => (
     <a href={href} className={className}>

@@ -167,13 +167,13 @@ async function readFirst(rootDirs: readonly string[], name: string): Promise<Buf
  * build: renderer bundles live in `dist/renderer`, and page shells live in
  * `static/`, inside the packaged asar as well as in an unpackaged checkout. The brand font is copied into `static/` only when
  * packaging (electron-builder.yml); an unpackaged run reads it from the web
- * app's public fonts instead, so nothing generated has to exist in the tree
+ * app's Next font source instead, so nothing generated has to exist in the tree
  * and a cached build restores everything the pages need.
  */
 function localPageRoots(): string[] {
   const roots = [join(__dirname, 'renderer'), join(__dirname, '..', 'static')]
   if (!app.isPackaged) {
-    roots.push(join(__dirname, '..', '..', 'sim', 'public', 'brand', 'fonts'))
+    roots.push(join(__dirname, '..', '..', 'sim', 'app', '_styles', 'fonts', 'season'))
   }
   return roots
 }

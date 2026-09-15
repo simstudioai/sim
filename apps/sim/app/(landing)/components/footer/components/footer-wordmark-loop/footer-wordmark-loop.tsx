@@ -1,8 +1,7 @@
 'use client'
 
 import { type CSSProperties, useEffect, useId, useRef } from 'react'
-import { cn } from '@sim/emcn'
-import { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from '@/lib/branding/wordmark'
+import { cn, WORDMARK_PATHS, WORDMARK_VIEW_BOX } from '@sim/emcn'
 
 /**
  * The mark's ink: the platform's thinking-loader gradient tokens, so it follows

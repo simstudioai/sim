@@ -17,7 +17,6 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/o/org-a/settings/members',
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }))
-vi.mock('@/app/(landing)/components/navbar/components', () => ({ SimWordmark: () => null }))
 vi.mock('@/components/settings/settings-intent-link', () => ({
   SettingsIntentLink: ({
     onNavigate,

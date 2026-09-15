@@ -4,12 +4,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron'
 import { app, BrowserWindow, dialog, nativeTheme, session } from 'electron'
 import { attachLocalPageProtocol, localPageUrl } from '@/main/local-pages'
+import { attachShellTheme, backgroundColorFor, getShellTheme } from '@/main/shell-theme'
 import { attachShellWindowSizing, isShellWindowSender } from '@/main/shell-window'
 import { createSecureWebPreferences } from '@/main/window-preferences'
 import type { ShellDialogConfiguration } from '@/shared/shell'
 
 const logger = createLogger('DesktopDialogs')
-const DIALOG_WIDTH = 500
+const DIALOG_WIDTH = 440
 const DIALOG_PARTITION = 'shell-dialogs'
 
 interface ShellDialogOptions extends MessageBoxOptions {
@@ -39,9 +40,8 @@ export function showShellDialog(
       buttons.findIndex((label) => /^(cancel|no|close|ok)$/i.test(label))
     )
   const configuration: ShellDialogConfiguration = {
-    title: options.title ?? 'Sim',
-    message: options.message,
-    detail: options.detail ?? '',
+    title: options.title ?? options.message,
+    text: [options.title ? options.message : '', options.detail].filter(Boolean).join('\n\n'),
     buttons,
     defaultId: options.defaultId ?? 0,
     cancelId,
@@ -66,7 +66,7 @@ export function showShellDialog(
       fullscreenable: false,
       show: false,
       title: configuration.title,
-      backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1b1b' : '#ffffff',
+      backgroundColor: backgroundColorFor(getShellTheme(), nativeTheme.shouldUseDarkColors),
       ...(parent && !parent.isDestroyed() ? { parent, modal: true } : {}),
       webPreferences: createSecureWebPreferences(
         DIALOG_PARTITION,
@@ -75,6 +75,7 @@ export function showShellDialog(
       ),
     })
     const pageUrl = localPageUrl('dialog.html')
+    attachShellTheme(win)
     let settled = false
     const finish = (response: number) => {
       if (settled) return

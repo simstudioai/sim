@@ -1,3 +1,5 @@
+import { PAGE_CONTENT_WIDTH, PAGE_GUTTER } from '@sim/emcn'
+
 /**
  * Shared centered width used by the landing navbar and every primary section.
  *
@@ -5,14 +7,14 @@
  * screen the frame is the viewport minus a small gutter, not a 1460px column
  * floating in 80px insets.
  */
-export const LANDING_CONTENT_WIDTH = 'mx-auto w-full max-w-[1728px]'
+export const LANDING_CONTENT_WIDTH = PAGE_CONTENT_WIDTH
 
 /**
  * Shared responsive horizontal gutter. Matches Harvey's page padding
  * (`px-7` / `md:px-8` / `lg:px-9` / `xl:px-10`) so section edges sit close
  * to the browser. Desktop-first `max-*` equivalents of that scale.
  */
-export const LANDING_GUTTER = 'px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'
+export const LANDING_GUTTER = PAGE_GUTTER
 
 /** Shared responsive top clearance for the first landing hero beneath the navbar. */
 export const LANDING_HERO_TOP_PADDING = 'pt-[112px] max-sm:pt-12 max-xl:pt-20'
