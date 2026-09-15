@@ -3,7 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTrustedCopilotPrincipal } from '@/lib/copilot/auth/application-delegation'
+import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 
 const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),

@@ -1,4 +1,4 @@
-import type { Command } from 'commander'
+import { type Command, CommanderError } from 'commander'
 import { ProfileConfigError } from './config/index'
 import {
   type EmbedContext,
@@ -167,14 +167,13 @@ export async function runEmbeddedCli(
 function renderEmbeddedError(ctx: EmbedContext, error: unknown): number {
   if (error instanceof EmbeddedOutputLimitError) return 1
   if (error instanceof EmbeddedExit) return error.code
-  if (error && typeof error === 'object' && 'exitCode' in error && 'code' in error) {
+  if (error instanceof CommanderError) {
     // commander's CommanderError from exitOverride: usage/parse errors already
     // printed through the (captured) output; help/version exit 0.
-    const commander = error as { exitCode: number; code: string }
-    if (commander.code === 'commander.helpDisplayed' || commander.code === 'commander.version') {
+    if (error.code === 'commander.helpDisplayed' || error.code === 'commander.version') {
       return 0
     }
-    return commander.exitCode || 1
+    return error.exitCode || 1
   }
   if (error instanceof ProfileConfigError) {
     ctx.stderr.diagnostic(`Error: ${sanitize(error.message)}`)

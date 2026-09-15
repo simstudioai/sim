@@ -3767,6 +3767,22 @@ export const copilotRequestStops = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.workspaceId, table.streamId] })]
 )
 
+/** Organization Stop intents preserve the workspace table's deployed key and write contract. */
+export const copilotOrganizationRequestStops = pgTable(
+  'copilot_organization_request_stops',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    streamId: text('stream_id').notNull(),
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.organizationId, table.streamId] })]
+)
+
 export const copilotRuns = pgTable(
   'copilot_runs',
   {
@@ -3785,6 +3801,9 @@ export const copilotRuns = pgTable(
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     streamId: text('stream_id').notNull(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     agent: text('agent'),
     model: text('model'),
     provider: text('provider'),

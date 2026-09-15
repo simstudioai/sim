@@ -18,6 +18,7 @@ import { importWorkflow } from '@/lib/workflows/application/import-export'
 import { previewWorkflowImport } from '@/lib/workflows/application/mapped-import'
 import { buildWorkflowReferenceManifest } from '@/lib/workflows/references/manifest'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const userId = generateId()
@@ -158,6 +159,14 @@ describe('authorized mapped imports against PostgreSQL', () => {
       .from(workflowBlocks)
       .where(eq(workflowBlocks.workflowId, result.workflow.id))
     expect(blocks).toHaveLength(2)
+    const summary = [
+      { id: result.operation!.idMap!.fn, type: 'function', name: 'Compute' },
+      { id: result.operation!.idMap!.agent, type: 'agent', name: 'Agent' },
+    ]
+    for (const imported of results) expect(imported.workflow.blocks).toEqual(summary)
+    expect(blocks.map(({ id, type, name }) => ({ id, type, name }))).toEqual(
+      expect.arrayContaining(summary)
+    )
     const [edge] = await db
       .select()
       .from(workflowEdges)
@@ -174,12 +183,33 @@ describe('authorized mapped imports against PostgreSQL', () => {
       .from(customTools)
       .where(and(eq(customTools.workspaceId, workspaceId), eq(customTools.title, name)))
     expect(tools).toHaveLength(1)
-    expect(
-      await db
-        .select()
-        .from(workspaceOperationReceipt)
-        .where(eq(workspaceOperationReceipt.requestId, mutation.requestId))
-    ).toHaveLength(1)
+    const receipts = await db
+      .select()
+      .from(workspaceOperationReceipt)
+      .where(eq(workspaceOperationReceipt.requestId, mutation.requestId))
+    expect(receipts).toHaveLength(1)
+    const report = receipts[0].report as WorkspaceOperationReport
+    expect(report.importedWorkflow?.blocks).toEqual(summary)
+    /** Replay describes the committed import, even after the current graph changes. */
+    await db
+      .update(workflowBlocks)
+      .set({ name: 'Renamed after import' })
+      .where(eq(workflowBlocks.id, summary[0].id))
+    const replay = await importWorkflow.execute({ principal, input: mutation })
+    expect(replay.replayed).toBe(true)
+    expect(replay.workflow.blocks).toEqual(summary)
+    /** Legacy receipts remain replayable without inventing an empty/current summary. */
+    const { blocks: _blocks, ...legacyWorkflow } = report.importedWorkflow!
+    const legacyReport = { ...report, importedWorkflow: legacyWorkflow }
+    await db
+      .update(workspaceOperationReceipt)
+      .set({ report: legacyReport })
+      .where(eq(workspaceOperationReceipt.requestId, mutation.requestId))
+    const legacyReplay = await importWorkflow.execute({ principal, input: mutation })
+    expect(legacyReplay.replayed).toBe(true)
+    expect(legacyReplay.workflow).not.toHaveProperty('blocks')
+    expect(legacyReplay.workflow.id).toBe(result.workflow.id)
+    expect(await countImports(name)).toHaveLength(1)
     expect(
       await db
         .select()

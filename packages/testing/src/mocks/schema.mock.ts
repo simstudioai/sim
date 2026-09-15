@@ -1068,6 +1068,7 @@ export const schemaMock = {
     userId: 'copilotRuns.userId',
     workflowId: 'copilotRuns.workflowId',
     workspaceId: 'copilotRuns.workspaceId',
+    organizationId: 'copilotRuns.organizationId',
     streamId: 'copilotRuns.streamId',
     agent: 'copilotRuns.agent',
     model: 'copilotRuns.model',
@@ -1085,6 +1086,12 @@ export const schemaMock = {
     workspaceId: 'copilotRequestStops.workspaceId',
     streamId: 'copilotRequestStops.streamId',
     stoppedAt: 'copilotRequestStops.stoppedAt',
+  },
+  copilotOrganizationRequestStops: {
+    userId: 'copilotOrganizationRequestStops.userId',
+    organizationId: 'copilotOrganizationRequestStops.organizationId',
+    streamId: 'copilotOrganizationRequestStops.streamId',
+    stoppedAt: 'copilotOrganizationRequestStops.stoppedAt',
   },
   copilotRunCheckpoints: {
     id: 'copilotRunCheckpoints.id',

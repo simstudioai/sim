@@ -219,6 +219,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
       import('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/parts/route'),
   },
   {
+    pattern: '/api/v2/knowledge/{knowledgeBaseId}/export',
+    load: () => import('@/app/api/v2/knowledge/[knowledgeBaseId]/export/route'),
+  },
+  {
     pattern: '/api/v2/knowledge/{knowledgeBaseId}/restore',
     load: () => import('@/app/api/v2/knowledge/[knowledgeBaseId]/restore/route'),
   },
@@ -289,6 +293,14 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/secrets/{name}',
     load: () => import('@/app/api/v2/secrets/[name]/route'),
+  },
+  {
+    pattern: '/api/v2/selectors/get',
+    load: () => import('@/app/api/v2/selectors/get/route'),
+  },
+  {
+    pattern: '/api/v2/selectors/list',
+    load: () => import('@/app/api/v2/selectors/list/route'),
   },
   {
     pattern: '/api/v2/skills',
@@ -551,6 +563,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/import/route'),
   },
   {
+    pattern: '/api/v2/workflows/import/preview',
+    load: () => import('@/app/api/v2/workflows/import/preview/route'),
+  },
+  {
     pattern: '/api/v2/workflows/move',
     load: () => import('@/app/api/v2/workflows/move/route'),
   },
@@ -563,7 +579,71 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/route'),
   },
   {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/availability',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/availability/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/children',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/children/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/exclusions',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/exclusions/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/lineage',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/lineage/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/mappings',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/mappings/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/preview',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/preview/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/pull',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/pull/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/pull/preview',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/pull/preview/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/push',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/push/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/push/preview',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/push/preview/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/resources',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/resources/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/rollback',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/rollback/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/fork/unlink',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/fork/unlink/route'),
+  },
+  {
     pattern: '/api/v2/workspaces/{workspaceId}/members',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/members/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/operations',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/operations/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/operations/{operationId}',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/operations/[operationId]/route'),
   },
 ]

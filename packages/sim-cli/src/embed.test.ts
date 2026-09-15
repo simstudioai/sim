@@ -130,7 +130,10 @@ describe('runEmbeddedCli', () => {
     expect(seen[0].url).toContain('https://sim.internal.test/api/v2/workflows')
     expect(seen[0].url).toContain(IDENTITY.workspaceId)
     expect(seen[0].auth).toBe(IDENTITY.apiKey)
-    expect(JSON.parse(result.stdout)).toMatchObject([{ id: 'wf-1', name: 'Email digest' }])
+    expect(JSON.parse(result.stdout)).toEqual({
+      data: [{ id: 'wf-1', name: 'Email digest' }],
+      nextCursor: null,
+    })
   })
 
   it('returns a parse error as a rendered failure, never killing the host process', async () => {
@@ -167,7 +170,7 @@ describe('runEmbeddedCli', () => {
       runEmbeddedCli(['--output', 'json', 'workflows', 'list'], { ...IDENTITY, workspaceId: wsA }),
       runEmbeddedCli(['--output', 'json', 'workflows', 'list'], { ...IDENTITY, workspaceId: wsB }),
     ])
-    expect(JSON.parse(a.stdout)[0].id).toBe(wsA)
-    expect(JSON.parse(b.stdout)[0].id).toBe(wsB)
+    expect(JSON.parse(a.stdout).data[0].id).toBe(wsA)
+    expect(JSON.parse(b.stdout).data[0].id).toBe(wsB)
   })
 })

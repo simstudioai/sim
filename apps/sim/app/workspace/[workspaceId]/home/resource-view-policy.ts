@@ -1,5 +1,5 @@
 import type { SetStateAction } from 'react'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 /** The tab each desktop-backed kind currently shows, as resource ids. */
 export interface NativeActiveTabIds {

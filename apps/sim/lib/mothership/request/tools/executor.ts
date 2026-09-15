@@ -8,6 +8,7 @@ import type {
   AsyncCompletionSignal,
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
+  type CompleteAsyncToolCallInput,
   completeAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
@@ -771,6 +772,23 @@ async function executeToolAndReportInner(
 
   let committedCompletion: AsyncCompletionSignal
   let publishResult: () => Promise<void>
+  async function commitToolResult(input: CompleteAsyncToolCallInput): Promise<void> {
+    const candidate = toolCall.result
+    try {
+      await lifetime.complete(input)
+    } catch {
+      /** A provisional local result is not a durable receipt; preserve only a competing winner. */
+      if (toolCall.result !== candidate) return
+      const message =
+        'The tool result could not be committed. Its outcome is unknown; do not retry it automatically.'
+      setTerminalToolCallState(toolCall, {
+        status: MothershipStreamV1ToolOutcome.error,
+        error: message,
+        output: { error: message, outcomeUnknown: true, doNotRetry: true },
+      })
+      logger.warn('Tool result commit was not confirmed', { toolCallId: toolCall.id })
+    }
+  }
   try {
     let result = await executeToolWithWatchdog(
       toolCall,
@@ -918,7 +936,7 @@ async function executeToolAndReportInner(
     const terminalResult = toolCall.result
 
     markToolResultSeen(context, toolCall.id)
-    await lifetime.complete({
+    await commitToolResult({
       toolCallId: toolCall.id,
       status: modelSucceeded
         ? MothershipStreamV1AsyncToolRecordStatus.completed
@@ -1024,7 +1042,7 @@ async function executeToolAndReportInner(
     })
 
     markToolResultSeen(context, toolCall.id)
-    await lifetime.complete({
+    await commitToolResult({
       toolCallId: toolCall.id,
       status: MothershipStreamV1AsyncToolRecordStatus.failed,
       result: { error: toolCall.error },

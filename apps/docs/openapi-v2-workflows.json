@@ -351,7 +351,7 @@
       "put": {
         "operationId": "replaceWorkflowState",
         "summary": "Replace Workflow State",
-        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state. Ids are the one conflict that is detected: block, edge, and subflow ids are globally unique, so a body carrying an id another workflow already owns is refused with `409` rather than written.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{workflowId}/deploy` publishes the draft.\n\n`lint` is advisory and never blocks the write. `lint.fieldIssues` is the most actionable part for a headless builder — it names blocks missing a required field, which fail at run time — and `lint.unresolvedReferences` names credential, resource, tool, and skill values that do not resolve. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nSet `?dryRun=true` to validate and lint without persisting: nothing is written, no audit entry is recorded, and collaborators are not notified. The response carries the same shape and the same validation and `lint` findings the committed write would, with `dryRun: true` — including the warnings the write’s own preparation step raises, and the same `409` when an id is already owned by another workflow. Two things differ: `needsRedeployment` describes the state before the write, and block ids are previews — `mintedBlockIds` is empty and the provisional ids come back under `previewBlockIds` with a warning, because the real apply mints new ones.\n\nOAuth scope: `api:write`.",
+        "description": "Atomically replace the draft graph; row-locked concurrent writes are last-write-wins. Block, edge, or subflow IDs owned by another workflow return `409`. Deployments remain immutable snapshots; schedules and webhook registrations are unchanged. Deploy to publish edits. Lint is advisory. Use `dryRun=true` to validate without writing. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.state.replace",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -372,9 +372,9 @@
             "name": "dryRun",
             "in": "query",
             "required": false,
-            "description": "Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.",
+            "description": "Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.",
             "schema": {
-              "description": "Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.",
+              "description": "Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.",
               "type": "boolean"
             }
           }
@@ -473,9 +473,9 @@
             "name": "dryRun",
             "in": "query",
             "required": false,
-            "description": "Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.",
+            "description": "Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.",
             "schema": {
-              "description": "Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.",
+              "description": "Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.",
               "type": "boolean"
             }
           }
@@ -1593,7 +1593,7 @@
       "get": {
         "operationId": "getWorkflowDeployment",
         "summary": "Get Workflow Deployment",
-        "description": "Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, whether the editable draft has since diverged from the live version, and the public delivery URL of every webhook the live version registered. This is the only operation that publishes `needsRedeployment`, `isPublicApi`, and `webhooks`.\n\n`webhooks` is where a caller learns the URL a webhook-triggered deploy started serving: the block's own URL field is computed in the editor and reads back empty through the API. Trigger blocks that receive events through a shared endpoint with no per-workflow URL are omitted.\n\n`isPublicApi` is the security-relevant one: while it is `true` the deployed workflow executes without an API key, so anyone holding the execution URL can run it — and consume the workspace’s billed usage — anonymously. It is set through `PATCH /workflows/{workflowId}/deployment`, and this read is the only way to audit whether it is on.\n\n`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.\n\nOAuth scope: `api:read`.",
+        "description": "Read live status, deployment time, latest attempt readiness and failure, draft divergence (`needsRedeployment`), anonymous execution access (`isPublicApi`), and registered webhook URLs. This read exposes public API access and webhook URLs; see their field descriptions for security and delivery details.\n\n`/workflows/{workflowId}/deployment` controls overall API executability; `/deployments/chat` controls only the hosted-chat surface. A workflow can remain deployed without a chat.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -5756,7 +5756,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List Workflow Runs."
           },
           "lastRunAt": {
             "anyOf": [
@@ -5928,7 +5928,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List Workflow Runs."
           },
           "lastRunAt": {
             "anyOf": [
@@ -7035,7 +7035,7 @@
           },
           "needsRedeployment": {
             "type": "boolean",
-            "description": "Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it."
+            "description": "Whether the live deployment differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it. On a dry run, this describes the state before the proposed write."
           },
           "lint": {
             "$ref": "#/components/schemas/WorkflowLintReport"
@@ -7647,7 +7647,7 @@
           },
           "needsRedeployment": {
             "type": "boolean",
-            "description": "Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it."
+            "description": "Whether the live deployment differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it. On a dry run, this describes the state before the proposed write."
           },
           "applied": {
             "type": "integer",
@@ -7685,7 +7685,7 @@
               "type": "string",
               "description": "The id the block was actually given."
             },
-            "description": "The id each newly created block was actually given, keyed by the `block_id` you asked for, and present only for the ones that differ. A `block_id` on an `add` or `insert_into_subflow` that is not already a UUID is replaced with a minted one, so this is how you learn what to reference afterwards. Within a single batch you can keep using your own ids — references between operations are remapped for you — but a later request must use the minted id, so send your own UUIDs when you want an id you chose to survive. Always empty on a dry run, which reports its provisional ids under `previewBlockIds` instead."
+            "description": "Assigned IDs keyed by requested `block_id`, including only changed IDs. `add` and `insert_into_subflow` replace non-UUID labels with minted UUIDs. References within the batch are remapped automatically; later requests must use the minted IDs. Supply UUIDs to preserve your chosen IDs. Empty on dry runs, which return provisional IDs in `previewBlockIds` instead."
           },
           "previewBlockIds": {
             "description": "Dry run only: the provisional id the evaluation assigned to each block whose `block_id` was not already a UUID, keyed by the `block_id` you asked for. These are not the ids a committed apply produces — the real apply mints new ones — so never wire a later request against them. Wire edges by `block_id` within one batch, or by the `mintedBlockIds` the real apply returns.",
@@ -8851,7 +8851,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`."
+            "description": "Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List Workflow Runs."
           },
           "lastRunAt": {
             "anyOf": [
@@ -9863,7 +9863,7 @@
             "items": {
               "$ref": "#/components/schemas/WorkflowDeploymentWebhook"
             },
-            "description": "Public delivery URL of every webhook the live version registered, one per trigger block. Empty while nothing is deployed, and omits trigger blocks that receive events through a shared endpoint with no per-workflow URL."
+            "description": "Public delivery URL of every webhook the live version registered, one per trigger block. Read URLs here: the editor computes the block URL field, which reads empty through the API. Empty while nothing is deployed; triggers using a shared endpoint without a per-workflow URL are omitted."
           }
         },
         "required": [
@@ -10593,11 +10593,11 @@
             "format": "date-time"
           },
           "blocks": {
+            "description": "Blocks the import created, in payload order. Omitted only when replaying an older receipt that did not record this summary. The workflow state read returns the current full graph.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ImportedWorkflowBlock"
-            },
-            "description": "Blocks the import created, in payload order. A summary only; the workflow state read returns the full graph."
+            }
           },
           "warnings": {
             "type": "array",
@@ -10822,7 +10822,6 @@
           "folderPath",
           "createdAt",
           "updatedAt",
-          "blocks",
           "warnings"
         ],
         "additionalProperties": false,
@@ -11930,7 +11929,7 @@
             "type": "boolean"
           },
           "selectedOutputs": {
-            "description": "Block output references to include in the response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names, and selecting a child workflow applies to every invocation of it. On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings exactly as sent; on a stream they shape the streamed envelope. A selector whose block name or id matches no block in the workflow is rejected with `400` naming the available blocks, before the run starts. A selector whose block did not run or whose path is absent is omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.",
+            "description": "Select `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>` using normalized block reference names. Child selectors cover every invocation. Synchronous results use selector strings verbatim as `blockOutputs` keys; streaming selections shape the envelope. Unknown block names or IDs return `400` with available blocks before execution. Unexecuted blocks and absent paths are omitted. Incompatible with `async`; select outputs from the finished run resource instead.",
             "maxItems": 100,
             "type": "array",
             "items": {

@@ -15,7 +15,7 @@ afterAll(() => {
 })
 
 const { mockAuthorizeOrganization } = vi.hoisted(() => ({ mockAuthorizeOrganization: vi.fn() }))
-vi.mock('@/lib/copilot/chat/organization-chats', () => ({
+vi.mock('@/lib/mothership/chat/organization-chats', () => ({
   authorizeOrganizationChat: { execute: mockAuthorizeOrganization },
 }))
 

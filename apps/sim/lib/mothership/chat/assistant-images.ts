@@ -1,17 +1,15 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
-import type { PersistedFileAttachment } from '@/lib/mothership/chat/persisted-message'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { PersistedFileAttachment } from '@/lib/mothership/chat/persisted-message'
+import { AssistantImage } from '@/lib/mothership/generated/assistant'
 import { readOrganizationAssistantImage } from '@/lib/uploads/contexts/organization-assistant/application'
 import {
   ASSISTANT_IMAGE_MAX_COUNT,
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
 } from '@/lib/uploads/shared/assistant-images'
-import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
+import { createFileContent } from '@/lib/uploads/utils/file-utils'
 
-export interface AssistantImageContent extends MessageContent {
-  type: 'image'
-  filename: string
-}
+export type AssistantImageContent = AssistantImage
 
 interface PreparedAssistantImages {
   attachments: PersistedFileAttachment[]
@@ -62,7 +60,7 @@ export async function prepareAssistantImages({
       media_type: image.contentType,
       size: image.size,
     })
-    prepared.content.push({ ...content, type: 'image', filename: image.name })
+    prepared.content.push(AssistantImage.parse({ ...content, type: 'image', filename: image.name }))
   }
   return prepared
 }

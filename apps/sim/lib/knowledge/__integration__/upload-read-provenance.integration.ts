@@ -1,4 +1,4 @@
-/** Real upload reads and save_upload must agree on the same bytes across promotion. */
+/** Authorized upload reads retain their captured revision across concurrent promotion. */
 import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -24,11 +24,6 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { executeMaterializeFile } from '@/lib/copilot/tools/handlers/materialize-file'
-import {
-  grepChatUploadWithProvenance,
-  readChatUploadWithProvenance,
-} from '@/lib/copilot/tools/handlers/upload-file-reader'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -44,6 +39,7 @@ import {
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
+import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 const CONTENT = 'The same uploaded bytes remain readable after saving.\n'
@@ -91,19 +87,33 @@ async function seedUpload(provenance?: WorkspaceFileSecretProvenance) {
   return { ...ids, chatId, file, name }
 }
 
-async function promoteUpload(ids: Awaited<ReturnType<typeof seedUpload>>) {
-  const result = await executeMaterializeFile(
-    { fileNames: [ids.name], operation: 'save' },
-    {
-      userId: ids.aliceId,
+async function readUpload(ids: Awaited<ReturnType<typeof seedUpload>>) {
+  const result = await readWorkspaceFileText.execute({
+    principal: { kind: 'session', userId: ids.aliceId, sessionId: 'upload-provenance-fixture' },
+    input: {
       workspaceId: ids.workspaceId,
-      workflowId: '',
       chatId: ids.chatId,
-      toolCallId: generateId(),
-      copilotToolExecution: true,
-    }
-  )
-  expect(result.success).toBe(true)
+      reference: `uploads/${ids.name}`,
+      includeSecretProvenance: true,
+    },
+  })
+  return {
+    value: { content: result.text },
+    file: {
+      fileId: result.file.id,
+      key: result.file.key,
+      context: result.file.storageContext ?? 'workspace',
+      contentUpdatedAt: result.file.contentUpdatedAt ?? undefined,
+    },
+  }
+}
+
+/** Models promotion by an already-running Go tool after the new reader captured its revision. */
+async function promoteUpload(ids: Awaited<ReturnType<typeof seedUpload>>) {
+  await db
+    .update(workspaceFiles)
+    .set({ context: 'workspace', chatId: null })
+    .where(eq(workspaceFiles.id, ids.file.id))
 }
 
 beforeAll(() => {
@@ -123,19 +133,17 @@ afterAll(async () => {
 
 describe('chat upload reads racing with save_upload', () => {
   it.each(['legacy', 'exact'] as const)(
-    'keeps a %s upload read and grep valid across promotion',
+    'keeps a %s authorized upload read valid across promotion',
     async (kind) => {
       const ids = await seedUpload(kind === 'exact' ? { status: 'exact', entries: [] } : undefined)
-      const read = await readChatUploadWithProvenance(ids.name, ids.chatId)
-      const grep = await grepChatUploadWithProvenance(ids.name, ids.chatId, 'uploaded')
+      const read = await readUpload(ids)
       expect(read?.value.content).toBe(CONTENT)
       expect(read?.file).toBeDefined()
-      expect(grep.file).toBeDefined()
 
       /** Fixes the production interleaving: save commits after bytes are read, before admission. */
       await promoteUpload(ids)
 
-      for (const envelope of [read, grep]) {
+      for (const envelope of [read]) {
         if (!envelope?.file) throw new Error('Upload read did not return its identity')
         expect(
           await importWorkspaceFileSecretProvenanceForModelView({
@@ -148,13 +156,13 @@ describe('chat upload reads racing with save_upload', () => {
         ).toBe(true)
         expect(envelope.file.contentUpdatedAt).toEqual(ids.file.contentUpdatedAt)
       }
-      expect(await readChatUploadWithProvenance(ids.name, ids.chatId)).toBeNull()
+      await expect(readUpload(ids)).rejects.toMatchObject({ code: 'not_found' })
     }
   )
 
   it('still rejects changed bytes, mismatched scope or key, and a promotion without a captured revision', async () => {
     const ids = await seedUpload({ status: 'exact', entries: [] })
-    const read = await readChatUploadWithProvenance(ids.name, ids.chatId)
+    const read = await readUpload(ids)
     if (!read?.file) throw new Error('Upload read did not return its identity')
     await promoteUpload(ids)
     for (const identity of [
@@ -197,7 +205,7 @@ describe('chat upload reads racing with save_upload', () => {
     'does not relax an opaque read with %j provenance when the upload is promoted',
     async (provenance) => {
       const ids = await seedUpload(provenance)
-      const read = await readChatUploadWithProvenance(ids.name, ids.chatId)
+      const read = await readUpload(ids)
       if (!read?.file) throw new Error('Upload read did not return its identity')
       await promoteUpload(ids)
       expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, read.file)).toEqual(

@@ -1,7 +1,7 @@
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { resolveOwnedWorkspaceChatContext as resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { InternalTaskStatus } from '@/lib/mothership/generated/tasks'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'

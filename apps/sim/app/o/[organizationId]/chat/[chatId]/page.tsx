@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'

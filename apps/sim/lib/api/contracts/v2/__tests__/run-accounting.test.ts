@@ -12,11 +12,11 @@ import type { OpenApiDocumentDefinition } from '@/lib/api/openapi/types'
  * from a response, and that a wrong description therefore turns into a silent
  * wrong answer.
  *
- * `runCount` is a monotonic column on the workflow row, incremented only for a
- * run that finished successfully and was not left paused, and never decremented
+ * `runCount` is a monotonic column on the workflow row, incremented for every
+ * settled outcome (paused runs count once they settle), and never decremented
  * by log retention. `GET /workflows/{workflowId}/runs` reads the execution-log table,
  * which lists every recorded run *and* is hard-deleted on the workspace's
- * retention window. The two therefore disagree in both directions, and each
+ * retention window. The counter can therefore exceed the retained list, and each
  * operation has to say so where a caller reads it.
  */
 function operationDescription(document: OpenApiDocumentDefinition, operationId: string): string {
@@ -31,19 +31,20 @@ function fieldDescription(field: string): string {
 }
 
 describe('v2 run accounting descriptions', () => {
-  it('discloses that runCount excludes runs that did not succeed', () => {
+  it('discloses that runCount includes every settled outcome and defers paused runs', () => {
     const description = fieldDescription('runCount')
 
-    expect(description).toMatch(/succe/i)
-    expect(description).toMatch(/fail/i)
+    expect(description).toMatch(/settled runs/i)
+    expect(description).toMatch(/completed, failed, or cancelled/i)
+    expect(description).toMatch(/paused run is counted once it settles/i)
   })
 
   it('discloses that runCount is not the length of the runs list', () => {
     expect(fieldDescription('runCount')).toMatch(/retention/i)
   })
 
-  it('discloses that lastRunAt tracks the same successful-run population', () => {
-    expect(fieldDescription('lastRunAt')).toMatch(/succe/i)
+  it('discloses that lastRunAt tracks the same settled-run population', () => {
+    expect(fieldDescription('lastRunAt')).toMatch(/latest settled run, whatever its outcome/i)
   })
 
   it.each([

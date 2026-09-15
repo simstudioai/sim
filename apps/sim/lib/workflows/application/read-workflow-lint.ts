@@ -1,7 +1,7 @@
-import type { Principal } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import type { CursorKey } from '@/lib/api/list-query'
+import type { PrincipalForOperation } from '@/lib/core/application/workspace-operation'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -40,6 +40,7 @@ import { extractBlockParams } from '@/serializer/index'
 interface ReadWorkflowLintInput extends ReadWorkflowGraphInput {
   signal?: AbortSignal
 }
+type LintPrincipal = PrincipalForOperation<typeof workflowOperations.readLint>
 
 export interface WorkflowLintDiagnostic extends WorkflowLintReport {
   undeclaredEnvVars: { name: string; blocks: string[] }[]
@@ -231,7 +232,7 @@ function hasRuntimeReference(value: string): boolean {
 /** Read each active table once; column checks consume the Table block's own pure input transform. */
 async function readTableDiagnostics(
   graph: ReadWorkflowGraphResult,
-  principal: Extract<Principal, { kind: 'session' | 'personal_api_key' }>,
+  principal: LintPrincipal,
   signal: AbortSignal | undefined,
   request: OrchestrationRequestContext | undefined
 ): Promise<WorkflowLintTableDiagnostics> {
@@ -409,7 +410,7 @@ function collectEnvTokenNames(
 
 /** Absence requires exhausting the visible inventory; only referenced names are retained. */
 async function collectUndeclaredEnvVars(
-  principal: Extract<Principal, { kind: 'session' | 'personal_api_key' }>,
+  principal: LintPrincipal,
   workspaceId: string,
   unseen: Map<string, Set<string>>,
   signal: AbortSignal | undefined,

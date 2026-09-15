@@ -248,7 +248,6 @@ const INDEXERS: Record<Scope, (runtime: GrepRuntime) => Promise<IndexEntry[]>> =
     // chat request carries, so `integrations list` and this world never disagree.
     const tools = await buildIntegrationToolSchemas(
       runtime.userId,
-      undefined,
       { schemaSurface: 'copilot' },
       runtime.workspaceId
     )

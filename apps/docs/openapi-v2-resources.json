@@ -3874,7 +3874,7 @@
       "get": {
         "operationId": "listWorkflowMcpTools",
         "summary": "List Workflow MCP Tools",
-        "description": "Every tool a server publishes, tool-name ordered. The server list reports tool *names* only, so this is where a caller reads the `workflowId` that `DELETE /api/v2/workflow-mcp-servers/{serverId}/tools/{workflowId}` addresses. Registrations that undeploying their workflow archived are included with `status: \"inactive\"` rather than omitted; deploying the workflow again makes them `active`. Returned in one page rather than paged — so `nextCursor` is always null — and capped at 2,000 tools, `truncated` indicates an incomplete inventory that cannot be paginated. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "List published tools ordered by name, including the `workflowId` used to delete each registration. Undeploying a workflow makes its registrations `inactive`; redeploying reactivates them. Results are capped at 2,000 tools: `nextCursor` is always null, and `truncated` marks an incomplete inventory that cannot be paginated. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "mcp_servers.workflow_deployments.list_tools",
         "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
@@ -4674,7 +4674,7 @@
       "get": {
         "operationId": "listConnectorTypes",
         "summary": "List Connector Types",
-        "description": "List knowledge-base connector types with opaque cursor pagination, 25 to a page by default. Each item is a summary — identifier, name, description, and auth mode — unless `detail=full` is sent, which adds the source configuration each type accepts. Two properties of a config field decide how its value is sent and are not inferable from the rest: a field with `multi: true` stores a `string[]` rather than a `string`, and a `canonicalParamId` links a picker field to a manual-entry field that write the SAME configuration key — send exactly one of the pair, keyed by `canonicalParamId` rather than by the field's own `id`.\n\nOAuth scope: `api:read`.",
+        "description": "List knowledge-base connector types with opaque cursors, defaulting to 25 summaries per page: identifier, name, description, and auth mode. `detail=full` adds accepted source configuration fields. Fields with `multi: true` accept `string[]` instead of `string`. A `canonicalParamId` pairs a picker with manual entry for the same configuration key: send exactly one value, keyed by `canonicalParamId` rather than the field’s `id`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "catalog.connector_types.list",
         "x-oauth-scope": "api:read",
         "tags": ["Catalog"],

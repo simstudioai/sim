@@ -60,7 +60,8 @@ import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-enve
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useAddressedWorkspaceFileRecord, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { createWorkspaceFileContentSource } from '@/hooks/use-file-content-source'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -626,17 +627,18 @@ function EmbeddedFileActions({
   downloadSourceRef,
 }: EmbeddedFileActionsProps) {
   const router = useRouter()
-  const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
-    () =>
-      files.find(
-        (f) =>
-          f.id === fileId ||
-          (filePath &&
-            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
-      ),
-    [files, fileId, filePath]
+  const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
+  const listedFile = files.find(
+    (file) =>
+      file.id === fileId ||
+      (filePath &&
+        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === filePath)
   )
+  const detail = useAddressedWorkspaceFileRecord(workspaceId, fileId, {
+    enabled: !listedFile && !listLoading,
+  })
+  const file = listedFile ?? detail.data
+  const isUpload = file?.vfsNamespace === 'uploads'
 
   const handleDownload = async () => {
     if (!file) return
@@ -653,21 +655,23 @@ function EmbeddedFileActions({
 
   return (
     <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenInFiles}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open in files'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open in files</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      {file && !isUpload && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='subtle'
+              onClick={handleOpenInFiles}
+              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+              aria-label='Open in files'
+            >
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open in files</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button
@@ -811,19 +815,27 @@ function EmbeddedFile({
   previewContextKey,
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
-  const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(
+  const { data: files = [], isLoading: listLoading } = useWorkspaceFiles(workspaceId)
+  const listedFile = files.find(
+    (file) =>
+      file.id === fileId ||
+      (filePath &&
+        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) === filePath)
+  )
+  const detail = useAddressedWorkspaceFileRecord(workspaceId, fileId, {
+    enabled: !listedFile && !listLoading,
+  })
+  const file = listedFile ?? detail.data
+  const isUpload = file?.vfsNamespace === 'uploads'
+  const contentSource = useMemo(
     () =>
-      files.find(
-        (f) =>
-          f.id === fileId ||
-          (filePath &&
-            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
-      ),
-    [files, fileId, filePath]
+      isUpload
+        ? createWorkspaceFileContentSource(workspaceId, undefined, file?.storageContext)
+        : undefined,
+    [isUpload, workspaceId, file?.storageContext]
   )
 
-  if (isLoading || (isFetching && !file)) return LOADING_SKELETON
+  if (!file && (listLoading || detail.isFetching)) return LOADING_SKELETON
 
   if (!file) {
     return (
@@ -846,7 +858,9 @@ function EmbeddedFile({
         file={file}
         downloadSourceRef={downloadSourceRef}
         workspaceId={workspaceId}
-        canEdit={canEdit}
+        canEdit={canEdit && !isUpload}
+        readOnly={isUpload}
+        contentSource={contentSource}
         previewMode={previewMode}
         streamingContent={streamingContent}
         isAgentEditing={isAgentEditing}
@@ -854,7 +868,7 @@ function EmbeddedFile({
         streamOperation={streamOperation}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
-        collaborative
+        collaborative={!isUpload}
         enableFind
       />
     </div>

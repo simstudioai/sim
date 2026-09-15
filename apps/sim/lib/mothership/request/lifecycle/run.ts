@@ -13,7 +13,6 @@ import {
   checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
 } from '@/lib/billing/core/billing-attribution'
-import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
@@ -29,7 +28,7 @@ import {
   MothershipStreamV1RunKind,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { StreamResponseReceipt } from '@/lib/mothership/generated/protocol'
+import type { ResumeRequest, StreamResponseReceipt } from '@/lib/mothership/generated/protocol'
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permission/auto-allow'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
@@ -60,7 +59,7 @@ import {
   failPendingToolCall,
   pendingToolWaitBudgetMs,
 } from '@/lib/mothership/request/tools/executor'
-import { type TraceCollector, RequestTraceV1SpanStatus } from '@/lib/mothership/request/trace'
+import { RequestTraceV1SpanStatus, type TraceCollector } from '@/lib/mothership/request/trace'
 import type {
   ExecutionContext,
   OrchestratorOptions,
@@ -272,7 +271,21 @@ export async function runCopilotLifecycle(
     runId,
     goRoute = '/api/copilot',
   } = options
-  if (organizationId && (workspaceId || workflowId || requestPayload.mode !== 'assistant')) {
+  const isContinuation = Boolean(options.recovery) || goRoute === '/api/tools/resume'
+  const payloadMode = nonBlankString(requestPayload.mode)
+  const requestMode = options.recovery
+    ? payloadMode
+    : goRoute === '/api/tools/resume'
+      ? (options.executionContext?.requestMode ?? payloadMode)
+      : payloadMode
+  if (
+    (options.recovery?.requestMode !== undefined &&
+      (options.recovery.requestMode === 'assistant') !== (payloadMode === 'assistant')) ||
+    (isContinuation && requestPayload.mode !== undefined && requestPayload.mode !== requestMode)
+  ) {
+    throw new Error('Recovered execution mode does not match its saved request')
+  }
+  if (organizationId && (workspaceId || workflowId || requestMode !== 'assistant')) {
     throw new Error(
       'Organization conversations require Assistant mode without workspace or workflow scope'
     )
@@ -285,6 +298,7 @@ export async function runCopilotLifecycle(
     userId,
     workflowId,
     workspaceId,
+    organizationId,
     chatId,
     executionId,
     runId,
@@ -329,28 +343,38 @@ export async function runCopilotLifecycle(
 
     const execContext =
       lifecycleOptions.executionContext ??
-      (await buildExecutionContext(requestPayload, {
-        userId,
-        workflowId,
-        workspaceId,
-        organizationId,
-        chatId,
-        executionId: resolvedExecutionId,
-        runId: resolvedRunId,
-        abortSignal: lifecycleOptions.abortSignal,
-        billingAttribution: lifecycleOptions.billingAttribution,
-        resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
-        environmentContext: lifecycleOptions.environmentContext,
-        userPermission: lifecycleOptions.userPermission,
-        secretMountPolicy: lifecycleOptions.secretMountPolicy,
-        secretActorUserId: lifecycleOptions.secretActorUserId,
-      }))
+      (await buildExecutionContext(
+        { ...requestPayload, ...(requestMode ? { mode: requestMode } : {}) },
+        {
+          userId,
+          workflowId,
+          workspaceId,
+          organizationId,
+          chatId,
+          executionId: resolvedExecutionId,
+          runId: resolvedRunId,
+          abortSignal: lifecycleOptions.abortSignal,
+          billingAttribution: lifecycleOptions.billingAttribution,
+          resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
+          environmentContext: lifecycleOptions.environmentContext,
+          userPermission: lifecycleOptions.userPermission,
+          secretMountPolicy: lifecycleOptions.secretMountPolicy,
+          secretActorUserId: lifecycleOptions.secretActorUserId,
+        }
+      ))
+    if (
+      organizationId &&
+      (execContext.userId !== userId ||
+        execContext.organizationId !== organizationId ||
+        execContext.workspaceId ||
+        execContext.workflowId ||
+        execContext.chatId !== chatId)
+    ) {
+      throw new Error('Organization execution context does not match its authenticated scope')
+    }
     execContext.messageId = payloadMsgId
     if (options.recovery?.userTimezone) execContext.userTimezone = options.recovery.userTimezone
-    if (options.recovery?.requestMode) execContext.requestMode = options.recovery.requestMode
-    if (!options.recovery?.requestMode && typeof requestPayload.mode === 'string') {
-      execContext.requestMode = requestPayload.mode
-    }
+    execContext.requestMode = requestMode
     execContext.searchSurface = lifecycleOptions.searchSurface ?? 'copilot'
     if (lifecycleOptions.mcpBlockId) {
       execContext.mcpBlockId = lifecycleOptions.mcpBlockId
@@ -358,9 +382,12 @@ export async function runCopilotLifecycle(
     }
     if (execContext.requestMode === 'assistant') {
       execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
-        requestPayload.assistantSearch ?? execContext.assistantSearch ?? {}
+        isContinuation
+          ? (execContext.assistantSearch ?? requestPayload.assistantSearch ?? {})
+          : (requestPayload.assistantSearch ?? {})
       )
       execContext.secretActorUserId = null
+      execContext.secretMountPolicy = { secretScope: 'selected', mountedSecrets: [] }
     }
     execContext.copilotInteractionMode =
       lifecycleOptions.interactive === true ? 'interactive' : 'headless'
@@ -427,19 +454,6 @@ export async function runCopilotLifecycle(
         await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
       } else {
         await ensureModelEgressRegistry(execContext, lifecycleOptions)
-        if (organizationId && goRoute !== '/api/tools/resume') {
-          if (!chatId) throw new Error('Search integration context requires a private chat ID')
-          requestPayload = {
-            ...requestPayload,
-            workspaceContext: await loadCopilotSearchIntegrations({
-              userId,
-              organizationId,
-              chatId,
-              messageId: payloadMsgId,
-              signal: lifecycleOptions.abortSignal,
-            }),
-          }
-        }
         const modelSafeRequestPayload = await omitUnsafeInitialCopilotAttachments(
           requestPayload,
           lifecycleOptions.workspaceId
@@ -854,15 +868,9 @@ async function driveOneChildChain(
       `${baseURL}/api/tools/resume`,
       {
         streamId: context.messageId,
-        checkpointId,
-        userId: options.userId,
-        ...(workspaceId ? { workspaceId } : {}),
-        ...(execContext.organizationId
-          ? { organizationId: execContext.organizationId, chatId: execContext.chatId }
-          : {}),
         results,
         ...(byokApiKey ? { byokApiKey } : {}),
-      },
+      } satisfies ResumeRequest,
       leg,
       execContext,
       legOptions,
@@ -1015,12 +1023,12 @@ async function runCheckpointLoop(
     payload = { ...payload, workspaceId: lifecycleWorkspaceId }
   }
 
-  if (lifecycleOrganizationId) {
+  if (lifecycleOrganizationId && initialRoute !== '/api/tools/resume') {
     if (
       lifecycleWorkspaceId ||
       execContext.workspaceId ||
       execContext.workflowId ||
-      payload.mode !== 'assistant' ||
+      execContext.requestMode !== 'assistant' ||
       !execContext.chatId ||
       nonBlankString(payload.workspaceId) ||
       (nonBlankString(payload.organizationId) && payload.organizationId !== lifecycleOrganizationId)
@@ -1409,14 +1417,8 @@ async function runCheckpointLoop(
     route = '/api/tools/resume'
     payload = {
       streamId: context.messageId,
-      checkpointId: continuation.checkpointId,
-      userId: options.userId,
-      ...(lifecycleWorkspaceId ? { workspaceId: lifecycleWorkspaceId } : {}),
-      ...(lifecycleOrganizationId
-        ? { organizationId: lifecycleOrganizationId, chatId: execContext.chatId }
-        : {}),
       results,
-    }
+    } satisfies ResumeRequest
 
     if (isAborted(options, context)) {
       cancelPendingTools(context)
@@ -1527,6 +1529,7 @@ async function ensureHeadlessRunIdentity(input: {
   userId: string
   workflowId?: string
   workspaceId?: string
+  organizationId?: string
   chatId?: string
   executionId?: string
   runId?: string
@@ -1550,6 +1553,7 @@ async function ensureHeadlessRunIdentity(input: {
       userId: input.userId,
       workflowId: input.workflowId,
       workspaceId: input.workspaceId,
+      organizationId: input.organizationId,
       streamId: input.messageId,
       model: typeof input.requestPayload?.model === 'string' ? input.requestPayload.model : null,
       provider:

@@ -134,7 +134,7 @@ const logger = createLogger('AgentCli')
 
 async function principalForDelegation(apiKey: string): Promise<Principal | undefined> {
   try {
-    return (await authenticateV2ApiKey(apiKey)).principal
+    return (await authenticateV2ApiKey({ apiKey, bearer: null })).principal
   } catch (error) {
     logger.warn('Delegation key did not resolve to a principal for the engine', {
       error: getErrorMessage(error),

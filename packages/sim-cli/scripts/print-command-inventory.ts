@@ -22,7 +22,7 @@ import {
 import { V2_OPERATIONS, type V2OperationName } from '#sim-cli/generated/v2-api'
 import { buildProgram } from '#sim-cli/program'
 import { camel, deriveCommandPath } from '#sim-cli/runtime/derive'
-import { flagNameFor } from '#sim-cli/runtime/request'
+import { cursorSlot, flagNameFor } from '#sim-cli/runtime/request'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const HELP_COMMAND = 'help'
@@ -125,7 +125,9 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
           jsonFields.set(variant.property, camel(variant.name))
       }
     }
-    const reference = op ? commandReference(OPENAPI_DOCS, op, jsonFields) : {}
+    const reference = op
+      ? commandReference(OPENAPI_DOCS, op, jsonFields, cursorSlot(op) !== null)
+      : {}
     return {
       path: cmdPath,
       description: command.description(),

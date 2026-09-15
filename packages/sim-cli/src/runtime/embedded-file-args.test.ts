@@ -11,8 +11,8 @@ describe('file arguments in embedded runs', () => {
     await embedStore.run(
       {
         identity: { endpoint: 'http://x', apiKey: 'k' },
-        stdout: [],
-        stderr: [],
+        stdout: new EmbeddedOutput(),
+        stderr: new EmbeddedOutput(),
         readFile: async () => 'x'.repeat(10 * 1024 * 1024 + 1),
       },
       async () => {

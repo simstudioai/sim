@@ -187,7 +187,11 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     const projection = inspectToolResultForCopilot({ success: true, output }, trace, 'sim_cli')
     expect(JSON.stringify(projection.result)).toContain(content)
     expect(trace.isPermanentlyIncomplete()).toBe(false)
-    expect(mocks.authenticate).toHaveBeenCalledWith('fixture')
+    expect(mocks.authenticate).toHaveBeenCalledWith({
+      apiKey: 'fixture',
+      bearer: null,
+      malformedOAuthBearer: false,
+    })
   })
 
   it('keeps exact-empty file contents readable through the actual CLI handler', async () => {

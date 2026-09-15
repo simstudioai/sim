@@ -47,7 +47,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
     })
     const [access, integrationTools, billingAttribution] = await Promise.all([
       checkWorkspaceAccess(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, undefined, undefined, workspaceId),
+      buildIntegrationToolSchemas(userId, undefined, workspaceId),
       resolveBillingAttribution({ actorUserId: userId, workspaceId }),
     ])
     const requestPayload: Record<string, unknown> = {

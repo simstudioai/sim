@@ -900,7 +900,7 @@ describe('useChat remount send recovery', () => {
         supersededStreamId: 'previous-response',
         userMessageId: 'prepared-correction-request',
         message: 'inspect the second invoice instead',
-        requestMode: 'ask',
+        requestMode: 'assistant',
         stopRequired: true,
         requestedAt: Date.now(),
       })
@@ -917,7 +917,7 @@ describe('useChat remount send recovery', () => {
         expect(state.postBodies[0]).toMatchObject({
           userMessageId: 'prepared-correction-request',
           message: 'inspect the second invoice instead',
-          mode: 'ask',
+          mode: 'assistant',
         })
       } else {
         await act(async () => {

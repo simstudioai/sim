@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { encodeSSEComment } from '@/lib/core/utils/sse'
+import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { appendEvents } from './buffer'
 import type { PersistedStreamEventEnvelope } from './contract'
 import type { ChatStreamLease } from './controller-lease'
@@ -77,7 +77,7 @@ export class StreamWriter {
 
   /**
    * The replay buffer stopped accepting writes because this stream exhausted its byte
-   * budget. Live delivery is unaffected; only a resume would come back short.
+   * budget. Leased delivery stops before the refused event; unleased delivery continues.
    */
   get persistenceStopped(): boolean {
     return this._persistenceStopped

@@ -11,11 +11,16 @@ export const SimConnection = z.discriminatedUnion("mode", [
 ]);
 export type SimConnection = z.infer<typeof SimConnection>;
 
-export const SimScope = z.object({
-  userId: z.string().min(1),
-  workspaceId: z.uuid(),
-  chatId: z.uuid(),
-});
+export const SimScope = z
+  .object({
+    userId: z.string().min(1),
+    workspaceId: z.uuid().optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+    chatId: z.uuid(),
+  })
+  .refine((scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId), {
+    message: "Exactly one workspaceId or organizationId is required",
+  });
 export type SimScope = z.infer<typeof SimScope>;
 
 /** Only idempotent controls use the idle channel; tool effects use the run event log. */

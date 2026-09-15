@@ -26,13 +26,13 @@ import { and, desc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'dr
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import {
-  type ListSortOrder,
   type CursorKey,
   encodeKeyset,
   INVALID_CURSOR_MESSAGE,
   type KeysetKey,
   keysetAfter,
   keysetColumns,
+  type ListSortOrder,
   listOrderBy,
   numberKey,
   searchFilter,
@@ -50,8 +50,6 @@ import {
   type PreparedCollabDocState,
   saveCollabDocStateInTx,
 } from '@/lib/collab-doc/collab-state'
-import { normalizeVfsSegment } from '@/lib/mothership/vfs/normalize-segment'
-import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
@@ -65,7 +63,9 @@ import {
   resolveRestoredFolderId,
 } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
-import { mergeEditIntoLiveFileDoc, notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
+import { normalizeVfsSegment } from '@/lib/mothership/vfs/normalize-segment'
+import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/mothership/vfs/path-utils'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {

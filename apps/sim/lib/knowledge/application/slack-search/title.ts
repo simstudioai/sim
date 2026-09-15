@@ -2,8 +2,8 @@ import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, slackSearchTurn } from '@sim/db/schema'
 import { and, asc, eq, isNull } from 'drizzle-orm'
-import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import { resolveSlackSearchChat } from '@/lib/knowledge/application/slack-search/chat'
+import { requestChatTitle } from '@/lib/mothership/request/lifecycle/start'
 import { type SlackSearchJob, slackSearchJobSchema } from '@/lib/slack-search/types'
 
 /** Uses normal chat naming on the original question and preserves concurrent manual renames. */

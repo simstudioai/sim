@@ -350,6 +350,7 @@ describe('mothership private trace provenance transport', () => {
           effort: 'max',
         },
         {
+          'X-Sim-Mcp-Delegation': 'signed-block',
           Authorization: 'Bearer internal',
           'x-sim-billing-attribution': 'billing',
           Accept: 'application/x-ndjson',
@@ -363,6 +364,8 @@ describe('mothership private trace provenance transport', () => {
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line))
+    expect(response.status).toBe(200)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
     expect(events.filter((event) => event.type === 'agent_event')).toEqual([
       { type: 'agent_event', event: { type: 'thinking_delta', text: 'Considering' } },
       { type: 'agent_event', event: { type: 'turn_end', turn: 'intermediate' } },
@@ -390,7 +393,11 @@ describe('mothership private trace provenance transport', () => {
       createMockRequest(
         'POST',
         { ...requestBody, ...selection },
-        { Authorization: 'Bearer internal' },
+        {
+          Authorization: 'Bearer internal',
+          'X-Sim-Mcp-Delegation': 'signed-block',
+          'x-sim-billing-attribution': 'billing',
+        },
         'http://localhost:3000/api/mothership/execute'
       ),
       undefined

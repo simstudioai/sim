@@ -11,20 +11,8 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
 import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { persistCopilotChatTurn } from '@/lib/copilot/chat/messages-store'
-import {
-  buildPersistedAssistantMessage,
-  buildPersistedUserMessage,
-  normalizeMessage,
-  type PersistedMessage,
-  stripToolResultOutput,
-} from '@/lib/copilot/chat/persisted-message'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
-import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
@@ -33,6 +21,19 @@ import {
   type SearchChatCitation,
 } from '@/lib/knowledge/application/chat-citations'
 import { organizationSearchChatOperation } from '@/lib/knowledge/application/chat-operations'
+import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
+import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
+import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
+import {
+  buildPersistedAssistantMessage,
+  buildPersistedUserMessage,
+  normalizeMessage,
+  type PersistedMessage,
+  stripToolResultOutput,
+} from '@/lib/mothership/chat/persisted-message'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import {
   isResolvedSecretModelContentUnchanged,
   projectResolvedSecretModelJsonContent,
@@ -135,7 +136,9 @@ export const organizationSearchChat: OperationUseCase<
           userId,
           organizationId,
           chatId,
-        }).catch(() => logger.warn('Unable to stop Search chat remotely', { chatId }))
+        })
+          .then(() => undefined)
+          .catch(() => logger.warn('Unable to stop Search chat remotely', { chatId }))
       }
     }
     const timeout = setTimeout(abort, SEARCH_CHAT_TIMEOUT_MS)
@@ -145,31 +148,39 @@ export const organizationSearchChat: OperationUseCase<
     try {
       controller.signal.throwIfAborted()
       running = true
-      const result = await runHeadlessCopilotLifecycle(
+      const payload = await buildCopilotRequestPayload(
         {
-          messages: [{ role: 'user', content: query }],
-          messageId,
+          message: query,
+          userMessageId: messageId,
           userId,
           organizationId,
           chatId,
           mode: 'assistant',
+          model: '',
           assistantSearch: filters,
-          isHosted,
+          workspaceContext: await loadCopilotSearchIntegrations({
+            userId,
+            organizationId,
+            chatId,
+            messageId,
+            signal: controller.signal,
+          }),
         },
-        {
-          userId,
-          organizationId,
-          chatId,
-          simRequestId: messageId,
-          goRoute: '/api/mothership/execute',
-          interactive: false,
-          autoExecuteTools: true,
-          secretActorUserId: null,
-          billingAttribution,
-          resolvedSecretTraceRegistry: registry,
-          abortSignal: controller.signal,
-        }
+        { selectedModel: '' }
       )
+      const result = await runHeadlessCopilotLifecycle(payload, {
+        userId,
+        organizationId,
+        chatId,
+        simRequestId: messageId,
+        goRoute: '/api/mothership/execute',
+        interactive: false,
+        autoExecuteTools: true,
+        secretActorUserId: null,
+        billingAttribution,
+        resolvedSecretTraceRegistry: registry,
+        abortSignal: controller.signal,
+      })
       running = false
       controller.signal.throwIfAborted()
       if (!result.success || result.cancelled) {

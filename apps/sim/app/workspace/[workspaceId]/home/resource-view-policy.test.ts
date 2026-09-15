@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import {
   resolveEffectiveResourceId,
   resolveResourceEventPresentation,

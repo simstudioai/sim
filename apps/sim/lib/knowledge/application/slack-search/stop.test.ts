@@ -30,7 +30,7 @@ vi.mock('@/lib/knowledge/application/slack-search/chat', () => ({
   slackSearchChatOperation: { id: 'organization.chats.slack' },
   resolveSlackSearchChatRecord: mocks.chat,
 }))
-vi.mock('@/lib/copilot/request/session/abort', () => ({ abortActiveStream: mocks.abort }))
+vi.mock('@/lib/mothership/request/session/abort', () => ({ abortActiveStream: mocks.abort }))
 vi.mock('@/lib/webhooks/slack-agent-api', () => ({ setSlackAgentSessionStatus: mocks.status }))
 
 import {

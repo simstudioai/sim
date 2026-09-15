@@ -1,4 +1,5 @@
 import { generateId } from '@sim/utils/id'
+import type { ChatRequest } from '@/lib/mothership/generated/protocol'
 import type { RequestTraceV1Outcome as RequestTraceOutcome } from '@/lib/mothership/generated/request-trace-v1'
 import {
   RequestTraceV1Outcome,
@@ -12,7 +13,7 @@ import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 export async function runHeadlessCopilotLifecycle(
-  requestPayload: Record<string, unknown>,
+  requestPayload: ChatRequest | Record<string, unknown>,
   options: CopilotLifecycleOptions
 ): Promise<OrchestratorResult> {
   const simRequestId =
@@ -44,13 +45,16 @@ export async function runHeadlessCopilotLifecycle(
     },
     async (otelContext) => {
       try {
-        result = await runCopilotLifecycle(requestPayload, {
-          ...options,
-          interactive: false,
-          trace,
-          simRequestId,
-          otelContext,
-        })
+        result = await runCopilotLifecycle(
+          { ...requestPayload },
+          {
+            ...options,
+            interactive: false,
+            trace,
+            simRequestId,
+            otelContext,
+          }
+        )
         outcome = result.success
           ? RequestTraceV1Outcome.success
           : options.abortSignal?.aborted || result.cancelled

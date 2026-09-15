@@ -162,6 +162,10 @@ vi.mock('@/lib/credentials/application/personal-credentials', () => ({
 
 vi.mock('@/lib/mothership/entitlements', () => ({ computeWorkspaceEntitlements }))
 
+vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
+  loadCopilotSearchIntegrations: vi.fn().mockResolvedValue('<integrations />'),
+}))
+
 vi.mock('@/lib/mothership/chat/workspace-context', () => ({
   generateWorkspaceSnapshot,
 }))
@@ -412,18 +416,18 @@ describe('handleUnifiedChatPost', () => {
         }),
         expect.anything()
       )
-      expect(appendCopilotChatMessages).toHaveBeenCalledWith(
-        'chat-1',
-        [
-          expect.objectContaining({
-            content: message,
-            fileAttachments: [
-              { id: 'upload-1', key, filename: 'image.png', media_type: 'image/png', size: 5 },
-            ],
+      expect(admitTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            chatId: 'chat-1',
+            message: expect.objectContaining({
+              content: message,
+              fileAttachments: [
+                { id: 'upload-1', key, filename: 'image.png', media_type: 'image/png', size: 5 },
+              ],
+            }),
           }),
-        ],
-        expect.anything(),
-        expect.anything()
+        })
       )
       expect(getUserEntityPermissions).not.toHaveBeenCalled()
       expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
@@ -513,11 +517,17 @@ describe('handleUnifiedChatPost', () => {
     expect(response.status).toBe(200)
     const args = createSSEStream.mock.calls[0][0]
     const owner = { organizationId: 'org-1', userId: 'user-1', workspaceId: undefined }
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith(owner, {
-      chatId: 'chat-1',
-      type: 'started',
-      streamId: args.streamId,
-    })
+    expect(admitTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          chatId: 'chat-1',
+          notifyWorkspaceStatus: true,
+          recovery: expect.objectContaining({
+            request: expect.objectContaining({ organizationId: 'org-1', mode: 'assistant' }),
+          }),
+        }),
+      })
+    )
     await args.orchestrateOptions.onComplete({
       success: true,
       content: 'Answer',
@@ -632,11 +642,13 @@ describe('handleUnifiedChatPost', () => {
         }),
       })
     )
-    expect(appendCopilotChatMessages).toHaveBeenCalledWith(
-      'chat-1',
-      [expect.objectContaining({ requestMode: 'assistant', role: 'user' })],
-      expect.anything(),
-      expect.anything()
+    expect(admitTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          chatId: 'chat-1',
+          message: expect.objectContaining({ requestMode: 'assistant' }),
+        }),
+      })
     )
   })
 
@@ -695,18 +707,20 @@ describe('handleUnifiedChatPost', () => {
         }),
       })
     )
-    expect(appendCopilotChatMessages).toHaveBeenCalledWith(
-      'chat-1',
-      [expect.objectContaining({ role: 'user', requestMode: mode })],
-      expect.anything(),
-      expect.anything()
+    expect(admitTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          chatId: 'chat-1',
+          message: expect.objectContaining({ requestMode: mode }),
+        }),
+      })
     )
     if (mode === 'assistant') {
       expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
       expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
       expect(listPersonal).toHaveBeenCalledOnce()
     } else {
-      expect(generateWorkspaceSnapshot).toHaveBeenCalledOnce()
+      expect(generateWorkspaceSnapshot).not.toHaveBeenCalled()
       expect(getEffectiveEnvironmentSnapshot).toHaveBeenCalledOnce()
       expect(listPersonal).not.toHaveBeenCalled()
     }
@@ -811,7 +825,7 @@ describe('handleUnifiedChatPost', () => {
       { selectedModel: '' }
     )
     const workspaceParams = buildCopilotRequestPayload.mock.calls[0]![0] as Record<string, unknown>
-    expect(workspaceParams).not.toHaveProperty('workspaceContext')
+    expect(workspaceParams.workspaceContext).toBeUndefined()
     expect(workspaceParams).not.toHaveProperty('vfs')
     expect(createSSEStream).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1133,7 +1147,9 @@ describe('handleUnifiedChatPost', () => {
       'slack',
       'ws-1',
       'user-1',
-      expect.any(String)
+      'chat-1',
+      undefined,
+      undefined
     )
   })
 

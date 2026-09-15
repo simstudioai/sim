@@ -196,9 +196,13 @@ describe('tasks query boundary parsing', () => {
       '/api/mothership/chat/resources',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ chatId: 'chat-1', resource }),
+        body: expect.any(String),
       })
     )
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual({
+      chatId: 'chat-1',
+      resource,
+    })
   })
 
   it('rejects invalid fallback chat history responses', async () => {

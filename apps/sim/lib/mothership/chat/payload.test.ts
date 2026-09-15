@@ -3,6 +3,7 @@
  */
 import { envFlagsMockFns, resetEnvFlagsMock, workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 
 const {
   mockCreateUserToolSchema,
@@ -45,7 +46,7 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
   ),
 }))
 
-vi.mock('@/lib/copilot/mcp-tools', () => ({
+vi.mock('@/lib/mothership/mcp-tools', () => ({
   buildTaggedMcpToolSchemas: vi.fn(async () => []),
 }))
 
@@ -171,7 +172,7 @@ import {
   buildCopilotRequestPayload,
   buildIntegrationToolSchemas,
   clearIntegrationToolSchemaCacheForTests,
-} from '@/lib/copilot/chat/payload'
+} from '@/lib/mothership/chat/payload'
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
@@ -408,6 +409,53 @@ describe('buildCopilotRequestPayload', () => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
   })
 
+  it.each(['workspace', 'organization'] as const)(
+    'emits contract-valid %s Assistant context with no Build inventory or desktop declaration',
+    async (owner) => {
+      const payload = await buildCopilotRequestPayload(
+        {
+          message: 'Find the document',
+          userId: 'actor',
+          userMessageId: '11111111-1111-4111-8111-111111111111',
+          chatId: '22222222-2222-4222-8222-222222222222',
+          mode: 'assistant',
+          model: 'legacy-ui-model',
+          ...(owner === 'organization'
+            ? { organizationId: 'org-1' }
+            : { workspaceId: '33333333-3333-4333-8333-333333333333' }),
+          workflowId: 'ignored-workflow',
+          workflowName: 'ignored-name',
+          provider: 'legacy-provider',
+          workspaceContext: '{"credentials":[]}',
+          contexts: [{ type: 'workflow', content: 'ignored-context' }],
+          browser: true,
+          terminalCapable: true,
+          mcpServerIds: ['mcp-1'],
+        },
+        { selectedModel: 'legacy-ui-model' }
+      )
+      expect(ChatPayloadSchema.safeParse(payload).success).toBe(true)
+      expect(payload.context).toEqual([
+        {
+          type: owner === 'organization' ? 'search_integrations' : 'connected_accounts',
+          content: '{"credentials":[]}',
+        },
+      ])
+      for (const key of [
+        'workflowId',
+        'workflowName',
+        'provider',
+        'model',
+        'inventory',
+        'desktop',
+        'mothershipTools',
+      ])
+        expect(payload).not.toHaveProperty(key)
+      expect(payload.clientCapabilities).toEqual([])
+      if (owner === 'organization') expect(payload).not.toHaveProperty('integrationTools')
+    }
+  )
+
   describe('file attachment tracking', () => {
     const attachmentParams = {
       message: 'hi',
@@ -599,7 +647,7 @@ describe('Assistant payload', () => {
       { selectedModel: '' }
     )
     expect(payload.message).toBe('')
-    expect(payload.fileAttachments).toEqual([image])
+    expect(payload.assistantImages).toEqual([image])
     expect(payload).not.toHaveProperty('context')
     expect(payload).not.toHaveProperty('workspaceId')
     expect(mockTrackChatUpload).not.toHaveBeenCalled()
@@ -647,7 +695,8 @@ describe('Assistant payload', () => {
       },
       { selectedModel: '' }
     )
-    expect(payload.desktopCapabilities).toEqual({ browser: true, terminal: true })
+    expect(payload).not.toHaveProperty('desktop')
+    expect(payload.clientCapabilities).toEqual([])
     expect(payload.mode).toBe('assistant')
     expect(payload.assistantSearch).toEqual({ source: 'slack', documentIds: ['document-1'] })
     for (const field of ['context', 'commands', 'mothershipTools', 'workflowId']) {

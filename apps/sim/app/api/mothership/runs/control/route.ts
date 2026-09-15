@@ -13,7 +13,7 @@ import {
 
 export const POST = defineInternalJsonRoute({
   contract: readRunControlContract,
-  auth: internalCopilotAuth(RUN_CONTROL_AUDIENCE),
+  auth: internalCopilotAuth(RUN_CONTROL_AUDIENCE, { organization: true }),
   operation: readRunControlOperation,
   rateLimit: internalRateLimits.none({
     reason: 'Worker reconciles durable cancellation for its own run.',

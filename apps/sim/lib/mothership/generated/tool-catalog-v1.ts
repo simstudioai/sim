@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
-// Generated from copilot/contracts/tool-catalog-v1.json
+// Generated from copilot/contracts/tool-catalog-v1.json with Sim-owned Assistant input contracts
 //
 
 export interface ToolCatalogEntry {
@@ -4155,17 +4155,19 @@ export const OauthGetAuthLink: ToolCatalogEntry = {
   route: 'sim',
   mode: 'async',
   parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
     type: 'object',
     properties: {
-      credentialId: {
-        type: 'string',
-        description:
-          'Optional. The id of an EXISTING credential (from environment/credentials.json) to reconnect/re-authorize in place. Only when the user explicitly asks to reconnect or repair that credential — never for adding another account.',
-      },
       providerName: {
         type: 'string',
+        minLength: 1,
         description:
-          "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`); the service display name or providerId resolves case-insensitively/fuzzily, so avoid bare base providers like `google`.",
+          'Integration provider value (for example google-email or slack), or its service display name. Avoid ambiguous base providers such as google.',
+      },
+      credentialId: {
+        description:
+          'Existing owned credential ID, only when the user requests reconnect or repair. Omit when adding another account.',
+        type: 'string',
       },
     },
     required: ['providerName'],
@@ -4750,36 +4752,39 @@ export const ReadDocument: ToolCatalogEntry = {
   route: 'sim',
   mode: 'async',
   parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
     properties: {
       documentId: {
-        description: 'Canonical document ID returned by search or the selected document context.',
         type: 'string',
+        minLength: 1,
+        maxLength: 200,
+        description: 'Canonical document ID returned by search or selected document context.',
       },
       limit: {
         default: 3,
         description:
-          'Maximum chunks to read; the server may return fewer to fit its text budget. Follow next when more context is needed.',
-        maximum: 8,
-        minimum: 1,
+          'Maximum chunks; the server may return fewer to fit its text budget. Follow next for more context.',
         type: 'integer',
+        minimum: 1,
+        maximum: 8,
       },
       startChunkIndex: {
         description:
-          "Inclusive chunk index from search or a previous read's next object. Gaps from disabled chunks are skipped.",
-        maximum: 2147483647,
-        minimum: 0,
+          'Inclusive chunk index from search or a prior read next object. Disabled chunk gaps are skipped.',
         type: 'integer',
+        minimum: 0,
+        maximum: 2147483647,
       },
       startOffset: {
         description:
-          'UTF-16 character offset within startChunkIndex. Omit to read the chunk from its start, or copy next.startOffset to continue a partial chunk.',
-        maximum: 2147483647,
-        minimum: 0,
+          'UTF-16 character offset within startChunkIndex. Copy next.startOffset to continue a partial chunk.',
         type: 'integer',
+        minimum: 0,
+        maximum: 2147483647,
       },
     },
     required: ['documentId'],
-    type: 'object',
   },
 }
 
@@ -5602,43 +5607,46 @@ export const SearchWorkspace: ToolCatalogEntry = {
   route: 'sim',
   mode: 'async',
   parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
     properties: {
-      documentIds: {
-        description:
-          'Optional document IDs returned by search or selected by the user; narrows retrieval to these documents.',
-        items: { type: 'string' },
-        maxItems: 20,
-        minItems: 1,
-        type: 'array',
+      source: {
+        description: 'Connector type or upload source; narrows the selected search scope.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 100,
       },
       modifiedAfter: {
-        description:
-          'Optional ISO datetime; restrict results to documents modified after this time.',
-        format: 'date-time',
+        description: 'ISO datetime; restricts results to documents modified after this time.',
         type: 'string',
+        format: 'date-time',
+        pattern:
+          '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$',
+      },
+      documentIds: {
+        description:
+          'Document IDs returned by search or selected by the user; narrows retrieval to these documents.',
+        minItems: 1,
+        maxItems: 20,
+        type: 'array',
+        items: { type: 'string', minLength: 1, maxLength: 200 },
       },
       query: {
-        description: 'Search query describing the information needed.',
-        maxLength: 2000,
+        type: 'string',
         minLength: 1,
-        type: 'string',
-      },
-      source: {
-        description:
-          'Optional connector type or upload source; can narrow the selected search scope.',
-        type: 'string',
+        maxLength: 2000,
+        description: 'Search query describing the information needed.',
       },
       topK: {
         default: 20,
         description:
-          'Maximum number of matching passage previews to return. Retrieval ranking is independent of preview length.',
-        maximum: 50,
-        minimum: 1,
+          'Maximum matching passage previews; retrieval ranking is independent of preview length.',
         type: 'integer',
+        minimum: 1,
+        maximum: 50,
       },
     },
     required: ['query'],
-    type: 'object',
   },
 }
 

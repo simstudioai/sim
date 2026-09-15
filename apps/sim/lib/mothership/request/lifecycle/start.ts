@@ -253,6 +253,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                       ? requestPayload.workflowId
                       : null,
                   workspaceId,
+                  organizationId,
                   streamId,
                   model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
                   provider:
@@ -635,7 +636,6 @@ export async function requestChatTitle(params: {
       body: JSON.stringify({
         message,
         model,
-        ...(provider ? { provider } : {}),
         ...(workspaceId ? { workspaceId } : {}),
         ...(organizationId ? { organizationId, chatId } : {}),
         ...(userId ? { userId } : {}),
