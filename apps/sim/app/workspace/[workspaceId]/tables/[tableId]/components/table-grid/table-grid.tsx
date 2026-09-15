@@ -27,6 +27,7 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { isEmptyCellValue } from '@/lib/table/deps'
 import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'
@@ -208,6 +209,8 @@ interface TableGridProps {
   onOpenEnrichmentDetails: (rowId: string, groupId: string) => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
+  /** Opens the add-row form, which inserts a complete row in one request. */
+  onOpenAddRowModal: () => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
   onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
   /**
@@ -450,6 +453,7 @@ export function TableGrid({
   onOpenExecutionDetails,
   onOpenEnrichmentDetails,
   onOpenRowModal,
+  onOpenAddRowModal,
   onRequestDeleteRows,
   onRequestDeleteAllByFilter,
   onRequestDeleteColumns,
@@ -705,9 +709,9 @@ export function TableGrid({
   // Manual grid entry is "add an empty row, then type into its cells" — the
   // typing is an update. So a *useful* manual add needs BOTH insert and update
   // unlocked; on an append-only table (update locked) it would leave a blank
-  // row the user can't fill. The control stays visible and explains itself in
-  // a tooltip. Full-row inserts still flow through CSV import / API /
-  // blocks / Mothership, which the insert lock alone governs server-side.
+  // row the user can't fill, so New row opens the add-row form instead, which
+  // inserts the complete row in one request. Full-row inserts (the form, CSV
+  // import, API, blocks, Mothership) need only the insert lock off server-side.
   const canManualAddRow = userPermissions.canEdit && !locks?.insertLocked && !locks?.updateLocked
   const canEditCellRef = useRef(canEditCell)
   canEditCellRef.current = canEditCell
@@ -715,8 +719,8 @@ export function TableGrid({
   canManualAddRowRef.current = canManualAddRow
   const canInsertFullRowRef = useRef(canInsertFullRow)
   canInsertFullRowRef.current = canInsertFullRow
-  // Read by the closure-free double-click handler to tell "locked" apart from
-  // "no write permission" — only the former gets the explanation modal.
+  // Read by the closure-free save and keyboard handlers to tell "locked" apart
+  // from "no write permission" — only the former gets the explanation toast.
   const updateLockedRef = useRef(locks?.updateLocked)
   updateLockedRef.current = locks?.updateLocked
   const onBlockedActionRef = useRef(onBlockedAction)
@@ -727,6 +731,8 @@ export function TableGrid({
   // Refs for callback props read inside effects with stable empty deps.
   const onOpenRowModalRef = useRef(onOpenRowModal)
   onOpenRowModalRef.current = onOpenRowModal
+  const onOpenAddRowModalRef = useRef(onOpenAddRowModal)
+  onOpenAddRowModalRef.current = onOpenAddRowModal
 
   const {
     contextMenu,
@@ -1756,6 +1762,10 @@ export function TableGrid({
   // Stable identity so <AddRowButton>'s React.memo still bails out; lock state
   // is read from refs instead of being closed over.
   const handleAddRowClick = useCallback(() => {
+    if (canInsertFullRowRef.current && updateLockedRef.current) {
+      onOpenAddRowModalRef.current()
+      return
+    }
     if (!canManualAddRowRef.current) {
       onBlockedActionRef.current('add-row')
       return
@@ -2741,23 +2751,24 @@ export function TableGrid({
     (rowId: string, columnName: string, columnKey: string) => {
       const column = columnsRef.current.find((c) => c.key === columnKey)
       if (column && columnTypeOf(column).editor === 'toggle') return
-
-      // Double-click means "edit this cell". On an update-locked table, say so
-      // rather than opening the expanded viewer — which looks like an editor
-      // that silently refuses to save. Only for users who could otherwise edit:
-      // without write access the lock isn't why they can't, and they still get
-      // the read-only expanded viewer below.
-      if (canEditRef.current && updateLockedRef.current) {
-        onBlockedActionRef.current('edit-cell')
+      // A read-only view of an empty cell has nothing to show or copy.
+      if (
+        !canEditCellRef.current &&
+        isEmptyCellValue(rowsRef.current.find((r) => r.id === rowId)?.data[columnName])
+      ) {
         return
       }
 
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
-      // Types with a bounded value edit in place (calendar picker, numeric
-      // input); only free-form prose opens the big expanded popover.
-      if (column && !columnTypeOf(column).expandable && canEditCellRef.current) {
+      // Editors open for anyone with write access. On an update-locked table
+      // they open read-only, so the value can still be selected and copied;
+      // `handleInlineSave` stays as a backstop that refuses any change with the
+      // lock explanation. Types with a bounded value edit in place (calendar
+      // picker, numeric input); only free-form prose opens the big expanded
+      // popover.
+      if (column && !columnTypeOf(column).expandable && canEditRef.current) {
         setEditingCell({ rowId, columnName })
         setInitialCharacter(null)
         return
@@ -2997,23 +3008,24 @@ export function TableGrid({
       if (e.key === 'Enter' || e.key === 'F2') {
         if (!canEditRef.current) return
         e.preventDefault()
-        // The primary keyboard edit path — same lock notice as double-click and
-        // Space, rather than a keypress that silently does nothing.
-        if (updateLockedRef.current) {
-          onBlockedActionRef.current('edit-cell')
-          return
-        }
-        if (!canEditCellRef.current) return
         const col = cols[anchor.colIndex]
         if (!col) return
 
         const row = currentRows[anchor.rowIndex]
         if (!row) return
 
+        // The keyboard twin of double-click: the editor opens read-only on an
+        // update-locked table. A toggle writes on the keypress itself, so it
+        // explains the lock here instead.
         if (columnTypeOf(col).editor === 'toggle') {
+          if (updateLockedRef.current) {
+            onBlockedActionRef.current('edit-cell')
+            return
+          }
           toggleBooleanCellRef.current(row.id, col.key, row.data[col.key])
           return
         }
+        if (!canEditCellRef.current && isEmptyCellValue(row.data[col.key])) return
         setEditingCell({ rowId: row.id, columnName: col.key })
         setInitialCharacter(null)
         return
@@ -3022,8 +3034,8 @@ export function TableGrid({
       if (e.key === ' ' && !e.shiftKey) {
         if (!canEditRef.current) return
         e.preventDefault()
-        // Space opens the same row editor as double-click, so it follows the
-        // update lock too — otherwise the form fills in and only 423s on save.
+        // Space opens the whole-row editor, which explains the update lock up
+        // front — otherwise the form fills in and only 423s on save.
         if (updateLockedRef.current) {
           onBlockedActionRef.current('edit-cell')
           return
@@ -3845,6 +3857,14 @@ export function TableGrid({
         }
       }
       const changed = !cellValuesEqual(oldValue, normalizedValue, column)
+
+      if (changed && updateLockedRef.current) {
+        onBlockedActionRef.current('edit-cell')
+        setEditingCell(null)
+        setInitialCharacter(null)
+        scrollRef.current?.focus({ preventScroll: true })
+        return
+      }
 
       if (changed) {
         pushUndoRef.current({
@@ -4963,6 +4983,7 @@ export function TableGrid({
                                 initialCharacter={
                                   editingCell?.rowId === row.id ? initialCharacter : null
                                 }
+                                editorsReadOnly={Boolean(locks?.updateLocked)}
                                 pendingCellValue={
                                   pendingUpdate && pendingUpdate.rowId === row.id
                                     ? pendingUpdate.data
@@ -5054,11 +5075,7 @@ export function TableGrid({
             <AddRowButton
               onClick={handleAddRowClick}
               blockedReason={
-                locks?.insertLocked
-                  ? 'Inserting rows is disabled in Table Security.'
-                  : locks?.updateLocked
-                    ? 'Updating rows is disabled in Table Security, so rows cannot be entered in the grid. Import a CSV, or add complete rows through the API, a workflow, or Sim.'
-                    : undefined
+                locks?.insertLocked ? 'Inserting rows is disabled in Table Security.' : undefined
               }
             />
           )}
@@ -5118,7 +5135,10 @@ export function TableGrid({
         rows={rows}
         columns={displayColumns}
         onSave={handleInlineSave}
-        canEdit={canEditCell}
+        canEdit={userPermissions.canEdit}
+        saveBlockedReason={
+          locks?.updateLocked ? 'Updating rows is disabled in Table Security.' : undefined
+        }
         scrollContainer={scrollRef.current}
       />
     </div>

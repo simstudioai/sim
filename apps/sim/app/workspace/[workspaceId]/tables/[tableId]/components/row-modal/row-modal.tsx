@@ -12,7 +12,6 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  ChipTimePicker,
   Label,
   toast,
 } from '@sim/emcn'
@@ -20,17 +19,24 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { resolveCurrencyCode } from '@/lib/table/currency'
 import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import { type TimezoneState, useTimezoneState } from '@/hooks/queries/general-settings'
-import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
+import {
+  useCreateTableRow,
+  useDeleteTableRow,
+  useDeleteTableRows,
+  useUpdateTableRow,
+} from '@/hooks/queries/tables'
 import {
   cleanCellValue,
   dateValueToLocalParts,
   formatValueForInput,
   localPartsToDateValue,
+  storageToDisplay,
   todayLocalCalendarDate,
 } from '../../utils'
 import { SelectValueEditor } from '../select-field'
@@ -38,7 +44,7 @@ import { SelectValueEditor } from '../select-field'
 const logger = createLogger('RowModal')
 
 export interface RowModalProps {
-  mode: 'edit' | 'delete'
+  mode: 'add' | 'edit' | 'delete'
   isOpen: boolean
   onClose: () => void
   table: TableInfo
@@ -56,12 +62,13 @@ function cleanRowData(
   const cleanData: Record<string, unknown> = {}
 
   columns.forEach((col) => {
-    const value = rowData[col.name]
+    const columnId = getColumnId(col)
+    const value = rowData[columnId]
     if (columnTypeOf(col).editor === 'date' && !dateEditorsReady) {
       return
     }
     try {
-      cleanData[col.name] = cleanCellValue(value, col, timeZone)
+      cleanData[columnId] = cleanCellValue(value, col, timeZone)
     } catch {
       throw new Error(`Invalid JSON for field: ${col.name}`)
     }
@@ -71,10 +78,12 @@ function cleanRowData(
 }
 
 /**
- * Modal for editing a row's values or confirming row deletion.
+ * Modal for adding a complete row, editing a row's values, or confirming row
+ * deletion. Adding inserts every value in one request, so it works on a table
+ * whose update lock blocks filling in a blank row from the grid.
  *
- * `rowData` is initialized from the `row` prop at mount time only. Both call-sites
- * conditionally mount this component per open, so each open gets fresh state. If a
+ * `rowData` is initialized from the `row` prop at mount time only. Every call-site
+ * conditionally mounts this component per open, so each open gets fresh state. If a
  * call-site ever keeps it mounted across target-row changes, it must supply a `key`
  * prop (e.g. the row id) so React remounts with the new row's values.
  */
@@ -97,11 +106,16 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     mode === 'edit' && row ? row.data : {}
   )
   const [error, setError] = useState<string | null>(null)
+  const createRowMutation = useCreateTableRow({ workspaceId, tableId })
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const deleteRowMutation = useDeleteTableRow({ workspaceId, tableId })
   const deleteRowsMutation = useDeleteTableRows({ workspaceId, tableId })
   const isSubmitting =
-    updateRowMutation.isPending || deleteRowMutation.isPending || deleteRowsMutation.isPending
+    createRowMutation.isPending ||
+    updateRowMutation.isPending ||
+    deleteRowMutation.isPending ||
+    deleteRowsMutation.isPending
+  const isAddMode = mode === 'add'
 
   const timezoneBlockedMessage = getTimezoneEditBlockedMessage(timezoneState)
   const hasEditableColumn = columns.some(
@@ -116,14 +130,17 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     try {
       const cleanData = cleanRowData(columns, rowData, timeZone, dateEditorsReady)
 
-      if (row) {
+      if (isAddMode) {
+        await createRowMutation.mutateAsync({ data: cleanData })
+      } else if (row) {
         await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
       }
 
       onSuccess()
     } catch (err) {
-      logger.error('Failed to edit row:', err)
-      setError(getErrorMessage(err, 'Failed to edit row'))
+      const action = isAddMode ? 'add' : 'edit'
+      logger.error(`Failed to ${action} row:`, err)
+      setError(getErrorMessage(err, `Failed to ${action} row`))
     }
   }
 
@@ -182,20 +199,25 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   }
 
   return (
-    <ChipModal open={isOpen} onOpenChange={handleClose} srTitle='Edit Row' size='lg'>
-      <ChipModalHeader onClose={handleClose}>Edit Row</ChipModalHeader>
+    <ChipModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      srTitle={isAddMode ? 'Add Row' : 'Edit Row'}
+      size='lg'
+    >
+      <ChipModalHeader onClose={handleClose}>{isAddMode ? 'Add Row' : 'Edit Row'}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-tertiary)] text-small'>
-          Update values for {table?.name ?? 'table'}
+          {isAddMode ? 'Fill in values for' : 'Update values for'} {table?.name ?? 'table'}
         </p>
         <form onSubmit={handleFormSubmit} className='contents'>
           <button type='submit' hidden disabled={isSubmitting || !hasEditableColumn} />
           {columns.map((column) =>
             columnTypeOf(column).editor === 'date' && !dateEditorsReady ? (
               <TimezoneBlockedColumnField
-                key={column.name}
+                key={getColumnId(column)}
                 column={column}
-                value={rowData[column.name]}
+                value={rowData[getColumnId(column)]}
                 status={timezoneState.status}
                 onAttemptEdit={() => {
                   if (timezoneBlockedMessage) toast.error(timezoneBlockedMessage)
@@ -203,11 +225,13 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
               />
             ) : (
               <ColumnField
-                key={column.name}
+                key={getColumnId(column)}
                 column={column}
-                value={rowData[column.name]}
+                value={rowData[getColumnId(column)]}
                 timeZone={timeZone}
-                onChange={(value) => setRowData((prev) => ({ ...prev, [column.name]: value }))}
+                onChange={(value) =>
+                  setRowData((prev) => ({ ...prev, [getColumnId(column)]: value }))
+                }
               />
             )
           )}
@@ -218,7 +242,13 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         onCancel={handleClose}
         cancelDisabled={isSubmitting}
         primaryAction={{
-          label: isSubmitting ? 'Updating...' : 'Update Row',
+          label: isAddMode
+            ? isSubmitting
+              ? 'Adding...'
+              : 'Add Row'
+            : isSubmitting
+              ? 'Updating...'
+              : 'Update Row',
           onClick: () => handleFormSubmit(),
           disabled: isSubmitting || !hasEditableColumn,
         }}
@@ -355,24 +385,25 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
         : localPartsToDateValue(day, time, timeZone)
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
-        <div className='flex items-center gap-2'>
-          <ChipDatePicker
-            value={parts.day ?? undefined}
-            today={pickerToday}
-            onChange={(day) => onChange(valueFromParts(day, parts.time))}
-            placeholder='Select date'
-            className='flex-1'
-          />
-          <ChipTimePicker
-            value={parts.time?.slice(0, 5)}
-            onChange={(time) => onChange(valueFromParts(parts.day ?? pickerToday, time))}
-            placeholder='Add time'
-            className='w-[110px]'
-          />
-          {offsetParts && (
-            <span className='text-[var(--text-tertiary)] text-small'>{offsetParts.offset}</span>
-          )}
-        </div>
+        <ChipDatePicker
+          value={parts.day ? (parts.time ? `${parts.day}T${parts.time}` : parts.day) : undefined}
+          label={
+            storedValue
+              ? offsetParts
+                ? storedValue
+                : storageToDisplay(storedValue, { seconds: true })
+              : undefined
+          }
+          today={pickerToday}
+          showTime
+          timeLabel={offsetParts ? `Time (${offsetParts.offset})` : undefined}
+          onChange={(picked) => {
+            const [day, time] = picked.split('T')
+            onChange(valueFromParts(day, time ?? null))
+          }}
+          placeholder='Select date'
+          fullWidth
+        />
       </ChipModalField>
     )
   }

@@ -33,6 +33,8 @@ export interface DataRowProps {
   isFirstRow: boolean
   editingColumnName: string | null
   initialCharacter: string | null
+  /** Opens cell editors read-only, e.g. on an update-locked table. */
+  editorsReadOnly: boolean
   pendingCellValue: Record<string, unknown> | null
   normalizedSelection: NormalizedSelection | null
   onClick: (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => void
@@ -121,6 +123,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
+    prev.editorsReadOnly !== next.editorsReadOnly ||
     prev.pendingCellValue !== next.pendingCellValue ||
     prev.onClick !== next.onClick ||
     prev.onDoubleClick !== next.onDoubleClick ||
@@ -170,6 +173,7 @@ export const DataRow = React.memo(function DataRow({
   isFirstRow,
   editingColumnName,
   initialCharacter,
+  editorsReadOnly,
   pendingCellValue,
   normalizedSelection,
   isRowChecked,
@@ -417,6 +421,7 @@ export const DataRow = React.memo(function DataRow({
                 column={column}
                 isEditing={isEditing}
                 initialCharacter={isEditing ? initialCharacter : undefined}
+                readOnly={editorsReadOnly}
                 onSave={(value, reason) => onSave(row.id, column.key, value, reason)}
                 onCancel={onCancel}
                 waitingOnLabels={

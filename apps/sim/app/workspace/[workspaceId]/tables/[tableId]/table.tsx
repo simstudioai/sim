@@ -226,6 +226,7 @@ export function Table({
   const blockedToastIdRef = useRef<string | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
+  const [isAddingRow, setIsAddingRow] = useState(false)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [deletingAll, setDeletingAll] = useState<{
     excludeRowIds: string[]
@@ -295,6 +296,7 @@ export function Table({
   }, [])
   const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
   const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
+  const onOpenAddRowModal = () => setIsAddingRow(true)
   // useCallback because <Resource.Header> is memo-wrapped — these flow into
   // the breadcrumbs / headerActions memos, whose identity drives that re-render.
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
@@ -1609,6 +1611,7 @@ export function Table({
         onOpenExecutionDetails={onOpenExecutionDetails}
         onOpenEnrichmentDetails={onOpenEnrichmentDetails}
         onOpenRowModal={onOpenRowModal}
+        onOpenAddRowModal={onOpenAddRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteAllByFilter={onRequestDeleteAllByFilter}
         onRequestDeleteColumns={onRequestDeleteColumns}
@@ -1751,6 +1754,15 @@ export function Table({
           onOpenChange={setIsImportCsvOpen}
           workspaceId={workspaceId}
           table={tableData}
+        />
+      )}
+      {isAddingRow && tableData && (
+        <RowModal
+          mode='add'
+          isOpen={true}
+          onClose={() => setIsAddingRow(false)}
+          table={tableData}
+          onSuccess={() => setIsAddingRow(false)}
         />
       )}
       {editingRow && tableData && (

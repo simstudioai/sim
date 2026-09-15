@@ -79,7 +79,7 @@ export function describeBlockedAction(
       }
       return {
         title: 'This table is append-only',
-        text: 'Rows can’t be edited once added, so typing one into the grid is unavailable. Import a CSV, or add rows from the API, a workflow, or Sim.',
+        text: 'Rows can’t be edited once added, so typing one into the grid is unavailable. Use New row to fill in a complete row, import a CSV, or add rows from the API, a workflow, or Sim.',
       }
     case 'add-column':
       return {
