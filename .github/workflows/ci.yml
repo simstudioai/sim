@@ -103,7 +103,7 @@ jobs:
             echo "ℹ️ No comparable base commit; skipping desktop prerelease"
             exit 0
           fi
-          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(apps/desktop/|packages/desktop-bridge/|packages/browser-protocol/)'; then
+          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(apps/desktop/|packages/desktop-bridge/|packages/browser-protocol/|\.github/workflows/(ci|desktop-release)\.yml$)'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "✅ Desktop shell code changed"
           else
@@ -1311,24 +1311,30 @@ jobs:
     name: Prune Desktop Prereleases
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
-    needs: [publish-desktop-prerelease]
+    needs: [create-desktop-prerelease, publish-desktop-prerelease]
     permissions:
       contents: read
     env:
       GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
       GH_REPO: simstudioai/sim-desktop-releases
+      CURRENT_TAG: ${{ needs.create-desktop-prerelease.outputs.version }}
     steps:
       - name: Delete stale prereleases
         run: |
+          set -euo pipefail
+          : "${CURRENT_TAG:?Current publication tag is required before pruning}"
           if [ -z "$GH_TOKEN" ]; then
             echo "::error::DESKTOP_RELEASE_TOKEN is required to prune desktop prereleases."
             exit 1
           fi
           if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNELS='(dev|alpha)'; else CHANNELS='(staging|beta)'; fi
-          gh release list --limit 100 --json tagName,isPrerelease,isDraft,createdAt \
-            --jq "[.[] | select(.isPrerelease and (.isDraft | not) and (.tagName | test(\"-${CHANNELS}\\\\.\")))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName" |
+          # createdAt follows the tag's commit: published releases in the release-only
+          # repository can all share it. Retain by publication time, with deterministic ties.
+          gh release list --limit 100 --json tagName,isPrerelease,isDraft,publishedAt \
+            --jq "[.[] | select(.isPrerelease and (.isDraft | not) and (.tagName | test(\"-${CHANNELS}\\\\.\")))] | sort_by(.publishedAt, .tagName) | reverse | .[5:] | .[].tagName" |
           while read -r TAG; do
             [ -n "$TAG" ] || continue
+            [ "$TAG" != "$CURRENT_TAG" ] || continue
             echo "Deleting stale prerelease $TAG"
             gh release delete "$TAG" --cleanup-tag --yes
           done
