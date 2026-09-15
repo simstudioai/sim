@@ -82,6 +82,13 @@ function declaredAgentName(value: string | undefined): string | undefined {
 }
 
 /**
+ * What the CLI reports when no agent is detected: a person at a terminal, or a
+ * script. Sent explicitly so that an absent value means only that the client
+ * did not report one — an older release, or reporting turned off.
+ */
+export const NO_CODING_AGENT = 'none'
+
+/**
  * The agent driving this shell, or `undefined` for a person at a terminal.
  *
  * `AI_AGENT` and `AGENT` are the two generic conventions agents have converged

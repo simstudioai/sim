@@ -318,6 +318,7 @@ const requestContextMetadata = (context: RequestContext): LoggerMetadata => {
   if (context.client) {
     metadata.surface = context.client.surface
     if (context.client.version) metadata.clientVersion = context.client.version
+    if (context.client.name) metadata.clientName = context.client.name
     if (context.client.agent) metadata.codingAgent = context.client.agent
   }
   if (context.auth) {
@@ -543,7 +544,7 @@ export function createLogger(module: string, config?: LoggerConfig): Logger {
   return new Logger(module, config)
 }
 
-export type { RequestAuth, RequestContext } from './request-context'
+export type { RequestAuth, RequestContext, SetRequestAuthOptions } from './request-context'
 export {
   getRequestContext,
   runWithRequestContext,

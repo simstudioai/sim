@@ -1,5 +1,5 @@
-import { describePrincipalAuth, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
-import { createLogger, setRequestAuth } from '@sim/logger'
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
@@ -83,7 +83,7 @@ function resolveUserFromJwt(
  * @param options - Optional configuration
  * @param options.requireWorkflowId - Whether workflowId/userId is required (default: true)
  */
-async function resolveInternalAuth(
+export async function checkInternalAuth(
   request: NextRequest,
   options: { requireWorkflowId?: boolean } = {}
 ): Promise<AuthResult> {
@@ -131,7 +131,7 @@ async function resolveInternalAuth(
  * @param options - Optional configuration
  * @param options.requireWorkflowId - Whether workflowId/userId is required for JWT (default: true)
  */
-async function resolveSessionOrInternalAuth(
+export async function checkSessionOrInternalAuth(
   request: NextRequest,
   options: { requireWorkflowId?: boolean } = {}
 ): Promise<AuthResult> {
@@ -195,7 +195,7 @@ async function resolveSessionOrInternalAuth(
  *
  * For internal JWT calls, requires workflowId to determine user context
  */
-async function resolveHybridAuth(
+export async function checkHybridAuth(
   request: NextRequest,
   options: { requireWorkflowId?: boolean } = {}
 ): Promise<AuthResult> {
@@ -277,36 +277,3 @@ async function resolveHybridAuth(
     }
   }
 }
-
-type AuthCheck = (
-  request: NextRequest,
-  options?: { requireWorkflowId?: boolean }
-) => Promise<AuthResult>
-
-/**
- * Records how a request authenticated on the request context, so the logs and
- * analytics of a route that authenticates through these helpers rather than a
- * route builder carry the same `auth` attribution. A principal describes
- * itself; an internal JWT that produced none is recorded by its auth type.
- */
-function recordingAuth(resolve: AuthCheck): AuthCheck {
-  return async (request, options) => {
-    const result = await resolve(request, options)
-    if (!result.success) return result
-    if (result.principal) {
-      setRequestAuth(describePrincipalAuth(result.principal))
-    } else if (result.authType) {
-      setRequestAuth({ kind: result.authType })
-    }
-    return result
-  }
-}
-
-/** Internal JWT authentication only. See {@link resolveInternalAuth}. */
-export const checkInternalAuth = recordingAuth(resolveInternalAuth)
-
-/** Session or internal JWT authentication, never an API key. See {@link resolveSessionOrInternalAuth}. */
-export const checkSessionOrInternalAuth = recordingAuth(resolveSessionOrInternalAuth)
-
-/** Any of the three supported credentials. See {@link resolveHybridAuth}. */
-export const checkHybridAuth = recordingAuth(resolveHybridAuth)

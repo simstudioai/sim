@@ -209,6 +209,15 @@ describe('command telemetry', () => {
     expect(sentBy(send).properties.coding_agent).toBe('claude-code')
   })
 
+  it('reports none when no coding agent drives the shell', async () => {
+    const { telemetry, program, send } = harness()
+
+    await run(program, ['workflows', 'list'])
+    telemetry.complete({ exitCode: 0 })
+
+    expect(sentBy(send).properties.coding_agent).toBe('none')
+  })
+
   it('shows the first-run notice on a terminal and does not report that run', async () => {
     const { telemetry, program, send, write } = harness({ stderrIsTty: true })
 
