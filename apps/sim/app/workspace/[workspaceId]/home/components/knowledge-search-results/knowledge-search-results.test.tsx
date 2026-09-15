@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   search: vi.fn(),
   retry: vi.fn(),
 }))
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'reader' } } }),
+}))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useSearchIndex: mocks.index,
   useSearchSourceOverview: mocks.overview,
@@ -69,7 +72,8 @@ describe('source indexing context in search results', () => {
     await render()
     expect(mocks.overview).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'workspace' })
     expect(container.textContent).toContain('Google Drive')
-    expect(container.textContent).not.toContain('Slack')
+    expect(container.textContent).toContain('Slack')
+    expect(container.textContent).toContain('Still indexing Google Drive;')
   })
   it('does not invent indexing progress while the overview is unavailable', async () => {
     mocks.overview.mockReturnValue({ data: undefined })
@@ -81,7 +85,7 @@ describe('source indexing context in search results', () => {
 
 describe('incomplete search coverage', () => {
   it.each([false, true])(
-    'shows matches without timeout copy or retry controls (hasResults=%s)',
+    'distinguishes incomplete retrieval and permits retry (hasResults=%s)',
     async (hasResults) => {
       mocks.search.mockReturnValue({
         data: {
@@ -113,17 +117,17 @@ describe('incomplete search coverage', () => {
       await render()
       expect(container.textContent).not.toContain('Search couldn’t run')
       expect(container.textContent).not.toContain('No documents')
-      expect(container.textContent).not.toContain('Some results may be missing.')
-      expect(container.textContent).not.toContain('Search is incomplete.')
       expect(container.textContent).toContain(
-        hasResults ? '1 document' : 'Search found no results.'
+        hasResults ? '1 document · some results may be missing.' : 'Search didn’t finish.'
       )
+      expect(container.textContent).not.toContain('Search found no results.')
       if (hasResults) expect(container.textContent).toContain('Release plan')
       const retry = [...container.querySelectorAll('button')].find(
         (button) => button.textContent === 'Try again'
       )
-      expect(retry).toBeUndefined()
-      expect(mocks.retry).not.toHaveBeenCalled()
+      expect(retry).toBeDefined()
+      await act(async () => retry?.click())
+      expect(mocks.retry).toHaveBeenCalledOnce()
     }
   )
 })
