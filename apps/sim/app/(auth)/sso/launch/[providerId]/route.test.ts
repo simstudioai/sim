@@ -101,12 +101,18 @@ describe('GET /sso/launch/[providerId]', () => {
     expect(mockSignInSSO).not.toHaveBeenCalled()
   })
 
-  it("falls back to the provider's sign-in link when sign-in cannot start", async () => {
-    mockSignInSSO.mockResolvedValue(new Response('{}', { status: 400 }))
+  it.each([
+    ['refuses', () => mockSignInSSO.mockResolvedValue(new Response('{}', { status: 400 }))],
+    ['throws', () => mockSignInSSO.mockRejectedValue(new Error('network'))],
+  ])("reports the failure on the provider's sign-in link when sign-in %s", async (_l, arrange) => {
+    arrange()
 
     const response = await open()
 
-    expect(response.headers.get('location')).toBe(SIGN_IN_LINK)
+    const failure = new URL(response.headers.get('location') ?? '')
+    expect(failure.pathname).toBe('/sso')
+    expect(failure.searchParams.get('error')).toBe('sso_failed')
+    expect(failure.searchParams.get('provider')).toBe('acme-okta')
   })
 
   it('sends a rate-limited visitor to the sign-in link before any lookup', async () => {

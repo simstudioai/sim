@@ -57,18 +57,25 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RouteC
     `/sso?error=sso_failed&provider=${encodeURIComponent(providerId)}&callbackUrl=${encodeURIComponent(DEFAULT_POST_AUTH_ROUTE)}`,
     getBaseUrl()
   ).toString()
-  const signIn = await auth.api.signInSSO({
-    body: { providerId, callbackURL: DEFAULT_POST_AUTH_ROUTE, errorCallbackURL },
-    headers: request.headers,
-    asResponse: true,
-  })
+  /** A sign-in that never starts is a failure, so it carries the error rather than a blank form. */
+  let signIn: Response
+  try {
+    signIn = await auth.api.signInSSO({
+      body: { providerId, callbackURL: DEFAULT_POST_AUTH_ROUTE, errorCallbackURL },
+      headers: request.headers,
+      asResponse: true,
+    })
+  } catch (error) {
+    logger.error('SSO sign-in could not be started', { providerId, error })
+    return NextResponse.redirect(errorCallbackURL)
+  }
   const payload = (await signIn.json().catch(() => null)) as { url?: string } | null
   if (!signIn.ok || !payload?.url) {
     logger.error('SSO sign-in did not return an authorization URL', {
       providerId,
       status: signIn.status,
     })
-    return NextResponse.redirect(signInLink)
+    return NextResponse.redirect(errorCallbackURL)
   }
 
   const response = NextResponse.redirect(payload.url)
