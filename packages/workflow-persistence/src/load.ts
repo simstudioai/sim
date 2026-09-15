@@ -204,6 +204,11 @@ export async function loadWorkflowFromNormalizedTablesRaw(
             ...block,
             data: {
               ...block.data,
+              /** Repair legacy values without changing valid counts used by serialization. */
+              count:
+                block.data?.count === undefined || typeof block.data.count === 'number'
+                  ? block.data?.count
+                  : loop.iterations,
               collection: loop.forEachItems ?? block.data?.collection ?? '',
               whileCondition: loop.whileCondition ?? block.data?.whileCondition ?? '',
               doWhileCondition: loop.doWhileCondition ?? block.data?.doWhileCondition ?? '',
