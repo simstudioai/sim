@@ -15,13 +15,16 @@
  * which cannot express a subquery), and `@sim/db` is a `drizzle-orm/pg-proxy`
  * client whose driver captures the compiled statement and replays the rows
  * Postgres would return for the scenario under test.
+ *
+ * Credential-reference scans also use the real query builder to verify that
+ * workspace filtering stays inside a materialized boundary before JSON search.
  */
 import { drizzle } from 'drizzle-orm/pg-proxy'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { capturedQueries, driverRows, mockLogger } = vi.hoisted(() => ({
   capturedQueries: [] as { sql: string; params: unknown[] }[],
-  driverRows: { value: [] as unknown[] },
+  driverRows: { value: [] as unknown[], error: null as Error | null },
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -38,11 +41,12 @@ vi.mock('@sim/logger', () => ({ createLogger: () => mockLogger }))
 vi.mock('@sim/db', () => ({
   db: drizzle(async (sql: string, params: unknown[]) => {
     capturedQueries.push({ sql, params })
+    if (driverRows.error) throw driverRows.error
     return { rows: driverRows.value }
   }),
 }))
 
-import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
+import { clearCredentialRefs, deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
 
 const ACCOUNT_ID = 'acct-bob-google'
 
@@ -64,13 +68,14 @@ function guardSubquery(sql: string): string {
   return match[1]
 }
 
-describe('deleteOrphanedOAuthAccount', () => {
-  beforeEach(() => {
-    capturedQueries.length = 0
-    driverRows.value = []
-    vi.clearAllMocks()
-  })
+beforeEach(() => {
+  capturedQueries.length = 0
+  driverRows.value = []
+  driverRows.error = null
+  vi.clearAllMocks()
+})
 
+describe('deleteOrphanedOAuthAccount', () => {
   it('guards the account delete with a reference check against the credential table', async () => {
     await deleteOrphanedOAuthAccount(ACCOUNT_ID)
 
@@ -135,5 +140,67 @@ describe('deleteOrphanedOAuthAccount', () => {
     const { sql } = onlyQuery()
     expect(sql).not.toContain('user_id')
     expect(sql).not.toContain('provider_id')
+  })
+})
+
+describe('clearCredentialRefs', () => {
+  const sources = [
+    ['workflow_blocks', 'sub_blocks'],
+    ['workflow_deployment_version', 'state'],
+    ['paused_executions', 'execution_snapshot'],
+    ['workflow_checkpoints', 'workflow_state'],
+  ] as const
+
+  it('scopes every snapshot scan before converting JSON to text, including archived workflows', async () => {
+    await clearCredentialRefs('credential-target', 'workspace-target')
+
+    const reads = capturedQueries.filter((query) => normalizeSql(query.sql).startsWith('WITH'))
+    expect(reads).toHaveLength(sources.length)
+    for (const [table, column] of sources) {
+      const query = reads.find((query) => query.sql.includes(`FROM "${table}"`))
+      expect(query).toBeDefined()
+      const statement = normalizeSql(query!.sql)
+      expect(statement).toContain(
+        `WITH workspace_credential_refs AS MATERIALIZED ( SELECT "${table}"."id" AS id, "${table}"."${column}" AS value FROM "${table}" INNER JOIN "workflow" ON "workflow"."id" = "${table}"."workflow_id" WHERE "workflow"."workspace_id" = $1 ) SELECT id, value FROM workspace_credential_refs WHERE value::text LIKE $2`
+      )
+      expect(statement).not.toContain('deleted_at')
+      expect(query!.params).toEqual(['workspace-target', '%credential-target%'])
+    }
+  })
+
+  it('clears matching references returned by every raw scan and preserves other values', async () => {
+    driverRows.value = [
+      {
+        id: 'snapshot-target',
+        value: {
+          blocks: [{ id: 'credential', value: 'credential-target' }],
+          params: { credential: 'credential-target', other: 'credential-other' },
+          name: 'credential-target',
+        },
+      },
+      { id: 'substring-only', value: { name: 'credential-target' } },
+    ]
+
+    await clearCredentialRefs('credential-target', 'workspace-target')
+
+    for (const [table] of sources) {
+      const updates = capturedQueries.filter((query) => query.sql.startsWith(`update "${table}"`))
+      expect(updates).toHaveLength(1)
+      expect(JSON.parse(updates[0].params[0] as string)).toEqual({
+        blocks: [{ id: 'credential', value: '' }],
+        params: { credential: '', other: 'credential-other' },
+        name: 'credential-target',
+      })
+      expect(updates[0].params.at(-1)).toBe('snapshot-target')
+    }
+  })
+
+  it('propagates database failures', async () => {
+    driverRows.error = new Error('database unavailable')
+    await expect(
+      clearCredentialRefs('credential-target', 'workspace-target')
+    ).rejects.toMatchObject({
+      cause: driverRows.error,
+    })
   })
 })

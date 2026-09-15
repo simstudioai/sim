@@ -28,7 +28,20 @@ describe('table row TTL availability', () => {
 
     await expect(assertTableRowTtlEnabled()).rejects.toMatchObject({
       code: 'validation',
-      message: 'Expiration columns are not enabled',
+      detailCode: 'TABLE_ROW_TTL_DISABLED',
     })
+  })
+
+  it('allows TTL column creation while the flag is enabled', async () => {
+    mockIsFeatureEnabled.mockResolvedValue(true)
+
+    await expect(assertTableRowTtlEnabled()).resolves.toBeUndefined()
+  })
+
+  it('propagates flag lookup failures instead of reporting the feature as disabled', async () => {
+    const error = new Error('flag service unavailable')
+    mockIsFeatureEnabled.mockRejectedValue(error)
+
+    await expect(assertTableRowTtlEnabled()).rejects.toBe(error)
   })
 })
