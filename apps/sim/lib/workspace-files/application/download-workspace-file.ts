@@ -14,6 +14,10 @@ import {
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { MAX_RENDERED_DOCUMENT_BYTES, needsRenderedArtifact } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import {
+  hasWorkspaceFileDeliveryObserver,
+  reportWorkspaceFileDelivery,
+} from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -100,14 +104,16 @@ async function executeDownloadWorkspaceFileStream({
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  const secretProvenance = input.includeSecretProvenance
-    ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
-        fileId: file.id,
-        key: file.key,
-        context: file.storageContext ?? 'workspace',
-        contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-      })
-    : undefined
+  const secretProvenance =
+    input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
+      ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+          fileId: file.id,
+          key: file.key,
+          context: file.storageContext ?? 'workspace',
+          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+        })
+      : undefined
+  await reportWorkspaceFileDelivery(secretProvenance)
   return streamWorkspaceFileRecord(file, principal, secretProvenance)
 }
 
@@ -143,7 +149,7 @@ export async function streamWorkspaceFileRecord(
       }),
       contentLength: buffer.length,
       contentType,
-      ...(secretProvenance ? { secretProvenance } : {}),
+      ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
     }
   }
 
@@ -156,7 +162,7 @@ export async function streamWorkspaceFileRecord(
     stream: nodeReadableToWebStream(stream),
     contentLength: file.size,
     contentType: file.type || 'application/octet-stream',
-    ...(secretProvenance ? { secretProvenance } : {}),
+    ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
   }
 }
 

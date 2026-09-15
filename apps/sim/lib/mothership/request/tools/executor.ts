@@ -22,6 +22,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { ArtifactObservations } from '@/lib/mothership/generated/observations'
 import {
   ApplyFileEdit,
   CreateWorkflow,
@@ -88,6 +89,17 @@ const logger = createLogger('CopilotSseToolExecution')
 
 function hasOutputValue(result: { output?: unknown } | undefined): result is { output: unknown } {
   return result !== undefined && Object.hasOwn(result, 'output')
+}
+
+/** Visual bytes reach the model through durable tool results, not the bounded UI replay stream. */
+function toolStatusOutput(output: unknown): unknown {
+  if (!isRecordLike(output)) return output
+  const observations = ArtifactObservations.safeParse(output.observations)
+  if (!observations.success) return output
+  return {
+    ...output,
+    observations: observations.data.map(({ data: _data, ...metadata }) => metadata),
+  }
 }
 
 interface ToolResultSpanSummary {
@@ -970,7 +982,7 @@ async function executeToolAndReportInner(
       const clientEventOutput =
         toolCall.name === GenerateApiKey.id && modelSucceeded && hasOutputValue(copilotResult)
           ? copilotResult.output
-          : terminalData
+          : toolStatusOutput(terminalData)
       const resultEvent: StreamEvent = {
         type: MothershipStreamV1EventType.tool,
         payload: {

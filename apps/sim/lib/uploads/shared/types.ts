@@ -128,6 +128,8 @@ export interface UploadFileOptions {
    * Disable when a caller finalizes metadata in its own database transaction.
    */
   persistMetadata?: boolean
+  /** Atomically refuse an existing object key, including metadata-free private snapshots. */
+  createOnly?: boolean
   /** Only for newly allocated, unique execution or Copilot keys; never enable for replacements. */
   cleanupOnMetadataFailure?: boolean
   /** Internal create-only upload identity when metadata and cleanup were reserved before writing bytes. */

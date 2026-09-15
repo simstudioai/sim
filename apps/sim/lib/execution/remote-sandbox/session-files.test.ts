@@ -440,3 +440,8 @@ describe('workbench file cancellation', () => {
     }
   })
 })
+
+vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
+  initializeSessionFileProvenance: vi.fn(),
+  recordSessionFileInput: vi.fn(),
+}))

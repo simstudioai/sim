@@ -235,6 +235,20 @@ describe('File Serve API Route', () => {
     })
   })
 
+  it.each(['', 's3/', 'blob/'])(
+    'denies private chat images through generic %s serving',
+    async (prefix) => {
+      const key = `${prefix}chat-images/chat/request/image.webp`
+      const response = await GET(
+        new NextRequest(`http://localhost/api/files/serve/${key}?context=profile-pictures`),
+        { params: Promise.resolve({ path: key.split('/') }) }
+      )
+      expect(response.status).toBe(404)
+      expect(mockReadOrganizationAssistantImage).not.toHaveBeenCalled()
+      expect(mockCreateFileResponse).not.toHaveBeenCalled()
+    }
+  )
+
   it('serves private Assistant images through session authorization and disables caching', async () => {
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },

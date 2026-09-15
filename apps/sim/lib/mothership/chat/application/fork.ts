@@ -18,6 +18,7 @@ import {
   persistChatFileCopies,
   planChatFileCopies,
 } from '@/lib/mothership/chat/fork-chat-files'
+import { planForkInlineImages } from '@/lib/mothership/chat/fork-inline-images'
 import { copyWorkerConversation } from '@/lib/mothership/chat/fork-worker'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
@@ -117,8 +118,8 @@ export const forkChat = defineAuthorizedChatUseCase({
       const now = new Date()
 
       const plan = planChatFileCopies({ rows: sourceFiles, newChatId: newId, userId, now })
-      preparedBlobs = plan.blobTasks
-      const { failed, failedCopyIds } = await executeChatFileBlobCopies(plan.blobTasks)
+      preparedBlobs = [...plan.blobTasks, ...planForkInlineImages(forkedMessages, chatId, newId)]
+      const { failed, failedCopyIds } = await executeChatFileBlobCopies(preparedBlobs)
       const failedIds = new Set(failedCopyIds)
       const maps = { fileIds: plan.idMap, fileKeys: plan.keyMap }
       const newChatResources = rewriteResourceFileRefs(

@@ -20,6 +20,10 @@ import {
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import {
+  hasWorkspaceFileDeliveryObserver,
+  reportWorkspaceFileDelivery,
+} from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
@@ -155,14 +159,16 @@ export async function extractWorkspaceFileRecordText(
     : await readSourceBuffer(file, maxBytes, signal)
   const parsed = await parseFileText(content, extension, file.name, signal)
   const metadata = parsed.metadata ?? {}
-  const secretProvenance = input.includeSecretProvenance
-    ? await getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
-        fileId: file.id,
-        key: file.key,
-        context: file.storageContext ?? 'workspace',
-        contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-      })
-    : undefined
+  const secretProvenance =
+    input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
+      ? await getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
+          fileId: file.id,
+          key: file.key,
+          context: file.storageContext ?? 'workspace',
+          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+        })
+      : undefined
+  await reportWorkspaceFileDelivery(secretProvenance)
 
   const truncated = metadata.truncated === true
   const { text, lineRange } = sliceFileTextLines(
@@ -179,7 +185,7 @@ export async function extractWorkspaceFileRecordText(
     degraded: metadata.degraded === true,
     degradedReason: metadata.degraded === true ? (metadata.warning ?? null) : null,
     byteCount: content.byteLength,
-    ...(secretProvenance ? { secretProvenance } : {}),
+    ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
     ...(lineRange ? { lineRange } : {}),
   }
 }
@@ -199,7 +205,7 @@ export async function extractWorkspaceFileRecordText(
  * well formed, it is the stored bytes that cannot become the representation
  * being asked for, and the caller needs to know that retrying will not help.
  */
-async function parseFileText(
+export async function parseFileText(
   content: Buffer,
   extension: string,
   fileName: string,

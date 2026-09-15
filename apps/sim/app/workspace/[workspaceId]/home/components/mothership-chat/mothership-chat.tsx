@@ -315,6 +315,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     <div className={cn(rowClassName, showsInteractionCard && 'pb-3')}>
       <MessageContent
         messageId={message.id}
+        imageRequestId={message.requestId}
         requestMode={message.requestMode ?? requestMode}
         blocks={blocks}
         fallbackContent={message.content}
