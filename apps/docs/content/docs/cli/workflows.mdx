@@ -62,7 +62,7 @@ Apply Workflow Operations (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
 | `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
@@ -677,7 +677,7 @@ Replace Workflow State (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
 | `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
 | `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |

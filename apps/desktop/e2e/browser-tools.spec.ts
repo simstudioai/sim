@@ -713,7 +713,7 @@ test.describe('browser tools', () => {
     await window.evaluate(async (scope) => {
       const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
       await api.terminal.activateScope(scope)
-      await api.terminal.start({ cols: 100, rows: 30 }, scope)
+      await api.terminal.openTerminal(undefined, scope)
     }, SCOPE)
     calls.set('local-cwd', {
       chatId: SCOPE,
