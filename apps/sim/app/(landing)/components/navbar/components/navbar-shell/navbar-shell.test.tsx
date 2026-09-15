@@ -90,6 +90,19 @@ function click(label: string) {
   act(() => button.dispatchEvent(new MouseEvent('click', { bubbles: true })))
 }
 
+function announcement(): HTMLElement {
+  const element = host.querySelector<HTMLElement>('[data-test-announcement]')?.parentElement
+  if (!element) throw new Error('Missing announcement')
+  return element
+}
+
+function scrollTo(position: number) {
+  act(() => {
+    host.scrollTop = position
+    host.dispatchEvent(new Event('scroll'))
+  })
+}
+
 function unmount() {
   act(() => root.unmount())
   mounted = false
@@ -103,8 +116,10 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', ControlledResizeObserver)
   vi.stubGlobal('IntersectionObserver', ControlledIntersectionObserver)
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
-    return new DOMRect(0, 0, 1440, this.tagName === 'HEADER' ? headerHeight : 0)
+    const height = this.tagName === 'HEADER' ? headerHeight : 32
+    return new DOMRect(0, 0, 1440, height)
   })
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(32)
 
   host = document.createElement('div')
   host.style.overflowY = 'scroll'
@@ -114,13 +129,21 @@ beforeEach(() => {
   Object.defineProperties(host, {
     offsetWidth: { value: 1440 },
     clientWidth: { value: 1420 },
+    scrollHeight: { value: 2000 },
+    clientHeight: { value: 800 },
   })
   document.body.append(host)
   root = createRoot(host)
   mounted = true
   act(() => {
     root.render(
-      <NavbarShell>
+      <NavbarShell
+        announcement={
+          <a href='/blog/update' data-test-announcement>
+            Read update
+          </a>
+        }
+      >
         <MenuControls />
       </NavbarShell>
     )
@@ -136,7 +159,9 @@ afterEach(() => {
 
 describe('NavbarShell menu positioning and scroll containment', () => {
   it('publishes the current header height before a resize and updates it when header content changes', () => {
-    expect(header().style.getPropertyValue('--landing-header-height')).toBe('104px')
+    expect(header().style.getPropertyValue('--landing-header-height')).toBe(
+      'calc(104px - var(--landing-announcement-offset, 0px))'
+    )
     expect(host.style.scrollPaddingTop).toBe('104px')
     expect(resizeObservers).toHaveLength(1)
     expect(resizeObservers[0].observe).toHaveBeenCalledWith(header())
@@ -144,7 +169,9 @@ describe('NavbarShell menu positioning and scroll containment', () => {
     headerHeight = 76
     act(() => resizeObservers[0].resize(header()))
 
-    expect(header().style.getPropertyValue('--landing-header-height')).toBe('76px')
+    expect(header().style.getPropertyValue('--landing-header-height')).toBe(
+      'calc(76px - var(--landing-announcement-offset, 0px))'
+    )
     expect(host.style.scrollPaddingTop).toBe('76px')
     expect(host.scrollTop).toBe(320)
   })
@@ -194,5 +221,84 @@ describe('NavbarShell menu positioning and scroll containment', () => {
 
     expect(host.style.overflowY).toBe('scroll')
     expect(host.style.paddingRight).toBe('12px')
+  })
+})
+
+describe('NavbarShell announcement scroll behavior', () => {
+  it('hides on downward scroll and restores on upward scroll without changing the scroll position', () => {
+    expect(announcement().hasAttribute('inert')).toBe(false)
+
+    scrollTo(400)
+
+    expect(announcement().hasAttribute('inert')).toBe(true)
+    expect(announcement().getAttribute('aria-hidden')).toBe('true')
+    expect(host.style.scrollPaddingTop).toBe('104px')
+    expect(host.scrollTop).toBe(400)
+
+    scrollTo(380)
+
+    expect(announcement().hasAttribute('inert')).toBe(false)
+    expect(host.style.scrollPaddingTop).toBe('104px')
+    expect(host.scrollTop).toBe(380)
+  })
+
+  it('ignores small direction changes but accumulates slow scrolling', () => {
+    scrollTo(324)
+    expect(announcement().hasAttribute('inert')).toBe(false)
+    scrollTo(329)
+    expect(announcement().hasAttribute('inert')).toBe(true)
+    scrollTo(326)
+    expect(announcement().hasAttribute('inert')).toBe(true)
+    scrollTo(320)
+    expect(announcement().hasAttribute('inert')).toBe(false)
+  })
+
+  it('keeps the banner visible near the top and ignores overscroll bounce at both ends', () => {
+    scrollTo(400)
+    scrollTo(-30)
+    expect(announcement().hasAttribute('inert')).toBe(false)
+    scrollTo(10)
+    expect(announcement().hasAttribute('inert')).toBe(false)
+
+    scrollTo(1200)
+    scrollTo(1250)
+    scrollTo(1200)
+    expect(announcement().hasAttribute('inert')).toBe(true)
+    scrollTo(1180)
+    expect(announcement().hasAttribute('inert')).toBe(false)
+  })
+
+  it('keeps the header stationary while a navigation menu is open', () => {
+    scrollTo(400)
+    click('Open mobile')
+    scrollTo(300)
+    expect(announcement().hasAttribute('inert')).toBe(true)
+    expect(host.style.scrollPaddingTop).toBe('104px')
+
+    click('Close mobile')
+    scrollTo(280)
+    expect(announcement().hasAttribute('inert')).toBe(false)
+  })
+
+  it('does not hide a focused announcement link', () => {
+    host.querySelector<HTMLElement>('[data-test-announcement]')?.focus()
+    scrollTo(400)
+    expect(announcement().hasAttribute('inert')).toBe(false)
+  })
+
+  it('restores the full header if native focus scrolling reaches the top while a menu is open', () => {
+    scrollTo(400)
+    click('Open mobile')
+    scrollTo(0)
+
+    expect(announcement().hasAttribute('inert')).toBe(false)
+    expect(host.style.scrollPaddingTop).toBe('104px')
+    expect(host.style.overflowY).toBe('hidden')
+  })
+
+  it('removes the scroll listener when the shell unmounts', () => {
+    const removeListener = vi.spyOn(host, 'removeEventListener')
+    unmount()
+    expect(removeListener).toHaveBeenCalledWith('scroll', expect.any(Function))
   })
 })

@@ -228,6 +228,35 @@ describe('registry store loadWorkflowState (collapsed cache)', () => {
     expect(mockRequestJson).toHaveBeenCalledTimes(2)
   })
 
+  it('exposes a failed load and recovers when the user retries the same workflow', async () => {
+    mockRequestJson.mockRejectedValueOnce(new Error('Unable to fetch workflow'))
+
+    await expect(useWorkflowRegistry.getState().setActiveWorkflow('wf-1')).rejects.toThrow(
+      'Unable to fetch workflow'
+    )
+    expect(useWorkflowRegistry.getState().hydration).toMatchObject({
+      phase: 'error',
+      workflowId: 'wf-1',
+      error: 'Unable to fetch workflow',
+    })
+    expect(replaceWorkflowState).not.toHaveBeenCalled()
+
+    mockRequestJson.mockResolvedValueOnce({ data: makeEnvelope() })
+    const retry = useWorkflowRegistry.getState().setActiveWorkflow('wf-1')
+    expect(useWorkflowRegistry.getState().hydration).toMatchObject({
+      phase: 'state-loading',
+      error: null,
+    })
+    await retry
+
+    expect(mockRequestJson).toHaveBeenCalledTimes(2)
+    expect(useWorkflowRegistry.getState().hydration).toMatchObject({
+      phase: 'ready',
+      workflowId: 'wf-1',
+      error: null,
+    })
+  })
+
   it('discards a superseded response via the staleness guard', async () => {
     // First load (wf-1) is in-flight; a second load (wf-2) supersedes the
     // hydration workflowId, then wf-1 finally resolves. The guard compares the
@@ -255,5 +284,27 @@ describe('registry store loadWorkflowState (collapsed cache)', () => {
     // The stale wf-1 result must not project again — hydration is now wf-2.
     expect(replaceWorkflowState.mock.calls.length).toBe(projectionsAfterSecond)
     expect(useWorkflowRegistry.getState().activeWorkflowId).toBe('wf-2')
+  })
+
+  it('does not show a stale load error after switching to another workflow', async () => {
+    let rejectFirst: (reason: Error) => void = () => {}
+    const firstPending = new Promise<never>((_resolve, reject) => {
+      rejectFirst = reject
+    })
+    mockRequestJson
+      .mockImplementationOnce(() => firstPending)
+      .mockResolvedValueOnce({ data: makeEnvelope({ id: 'wf-2' }) })
+
+    const firstLoad = useWorkflowRegistry.getState().setActiveWorkflow('wf-1')
+    await useWorkflowRegistry.getState().setActiveWorkflow('wf-2')
+    rejectFirst(new Error('Previous workflow failed to load'))
+    await firstLoad
+
+    expect(useWorkflowRegistry.getState().activeWorkflowId).toBe('wf-2')
+    expect(useWorkflowRegistry.getState().hydration).toMatchObject({
+      phase: 'ready',
+      workflowId: 'wf-2',
+      error: null,
+    })
   })
 })

@@ -16,7 +16,7 @@ import {
 const MB = 1024 * 1024
 const SCOPE = { executionId: 'exec-1' }
 
-function makeRef(id: string, size: number): LargeValueRef {
+function makeRef(id: string, size: number, overrides: Partial<LargeValueRef> = {}): LargeValueRef {
   return {
     __simLargeValueRef: true,
     version: LARGE_VALUE_REF_VERSION,
@@ -24,6 +24,7 @@ function makeRef(id: string, size: number): LargeValueRef {
     kind: 'object',
     size,
     executionId: 'exec-1',
+    ...overrides,
   }
 }
 
@@ -129,5 +130,50 @@ describe('large value cache retention policy', () => {
       name: 'sole-copy',
     })
     expect(getLargeValueCacheStats()).toEqual({ entries: 1, trackedBytes: 200 * MB })
+  })
+})
+
+describe('exact-key access to a cached large value', () => {
+  const key = 'execution/ws-1/wf-1/exec-source/large-value-lv_keyed.json'
+  const keyedRef = makeRef('lv_keyed', 16, { key, executionId: 'exec-source' })
+
+  beforeEach(() => {
+    clearLargeValueCacheForTests()
+    cacheLargeValue('lv_keyed', { secret: 'value' }, 16, {
+      workspaceId: 'ws-1',
+      workflowId: 'wf-1',
+      executionId: 'exec-source',
+    })
+  })
+
+  afterEach(() => {
+    clearLargeValueCacheForTests()
+  })
+
+  it('serves a key granted to another execution of the same workflow', () => {
+    expect(
+      materializeLargeValueRefSync(keyedRef, {
+        workspaceId: 'ws-1',
+        workflowId: 'wf-1',
+        executionId: 'exec-reader',
+        largeValueKeys: [key],
+      })
+    ).toEqual({ secret: 'value' })
+  })
+
+  it('refuses a granted key that belongs to another workspace or workflow', () => {
+    for (const scope of [
+      { workspaceId: 'ws-2', workflowId: 'wf-1' },
+      { workspaceId: 'ws-1', workflowId: 'wf-2' },
+      { workspaceId: undefined, workflowId: undefined },
+    ]) {
+      expect(
+        materializeLargeValueRefSync(keyedRef, {
+          ...scope,
+          executionId: 'exec-reader',
+          largeValueKeys: [key],
+        })
+      ).toBeUndefined()
+    }
   })
 })

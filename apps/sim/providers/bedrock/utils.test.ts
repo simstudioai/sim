@@ -26,6 +26,34 @@ describe('getBedrockInferenceProfileId', () => {
     )
   })
 
+  it.each([
+    'arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/MyProfile',
+    'arn:aws:bedrock:us-east-1:123456789012:custom-model-deployment/MyDeployment',
+    'MyCustomProfile',
+    'future.vendor-model-v1:0',
+    'global.anthropic.claude-opus-5',
+  ])('preserves caller-supplied model ID %s', (model) => {
+    expect(getBedrockInferenceProfileId(`BEDROCK/${model}`, 'us-east-1')).toBe(model)
+  })
+
+  it.concurrent('uses only published geographic prefixes for new catalog models', () => {
+    expect(getBedrockInferenceProfileId('bedrock/anthropic.claude-opus-5', 'us-east-1')).toBe(
+      'us.anthropic.claude-opus-5'
+    )
+    expect(getBedrockInferenceProfileId('bedrock/anthropic.claude-opus-5', 'ap-southeast-2')).toBe(
+      'au.anthropic.claude-opus-5'
+    )
+    expect(getBedrockInferenceProfileId('bedrock/openai.gpt-5.6-sol', 'us-east-1')).toBe(
+      'us.openai.gpt-5.6-sol'
+    )
+    expect(() => getBedrockInferenceProfileId('bedrock/openai.gpt-5.6-sol', 'eu-west-1')).toThrow(
+      'Supply an explicit bedrock/global.'
+    )
+    expect(getBedrockInferenceProfileId('bedrock/openai.gpt-oss-120b-1:0', 'us-east-1')).toBe(
+      'openai.gpt-oss-120b-1:0'
+    )
+  })
+
   it.concurrent('returns the bare model ID for models without geo profile support', () => {
     expect(
       getBedrockInferenceProfileId('bedrock/mistral.mistral-large-3-675b-instruct', 'us-east-1')

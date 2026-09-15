@@ -79,7 +79,7 @@ export const groqProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: request.model.replace('groq/', ''),
+      model: request.model.replace(/^groq\//i, ''),
       messages: formattedMessages,
     }
 
@@ -101,6 +101,9 @@ export const groqProvider: ProviderConfig = {
     if (isGptOss && (hasExplicitEffort || hasThinkingLevel)) {
       payload.include_reasoning = true
       payload.reasoning_effort = hasExplicitEffort ? request.reasoningEffort : 'medium'
+    } else if (isQwenReasoning && hasExplicitEffort) {
+      payload.reasoning_effort = request.reasoningEffort
+      if (request.reasoningEffort !== 'none') payload.reasoning_format = 'parsed'
     } else if (isQwenReasoning && hasThinkingLevel) {
       payload.reasoning_format = 'parsed'
     } else if (isQwenReasoning && request.thinkingLevel === 'none') {

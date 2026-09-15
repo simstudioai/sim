@@ -110,6 +110,17 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
     expect(buildClientOptions().defaultHeaders).not.toHaveProperty('anthropic-beta')
   })
 
+  it('preserves custom deployment casing when removing an uppercase routing prefix', async () => {
+    setEnv({ AZURE_ANTHROPIC_ENDPOINT: 'https://custom.services.ai.azure.com' })
+    const providerRequest = request({ model: 'AZURE-ANTHROPIC/Team-Claude-Deployment' })
+
+    await azureAnthropicProvider.executeRequest(providerRequest)
+
+    const [forwardedRequest, config] = mockExecuteAnthropic.mock.calls[0]
+    expect(forwardedRequest.model).toBe('AZURE-ANTHROPIC/Team-Claude-Deployment')
+    expect(config.resolveWireModel(forwardedRequest)).toBe('Team-Claude-Deployment')
+  })
+
   it('throws and never builds a client when validation blocks the endpoint', async () => {
     mockValidate.mockResolvedValue({ isValid: false, error: 'resolves to a blocked IP address' })
 

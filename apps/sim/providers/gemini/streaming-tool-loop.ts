@@ -339,7 +339,7 @@ export function createGeminiStreamingToolLoopStream(
             tokens.cacheRead += split.cacheRead
             tokens.total += drained.usage.totalTokenCount
 
-            const turnCost = priceGeminiTokens(model, split)
+            const turnCost = priceGeminiTokens(request.model, split)
             costInput += turnCost.input
             costOutput += turnCost.output
             costTotal += turnCost.total

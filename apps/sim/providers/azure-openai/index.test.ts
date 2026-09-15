@@ -163,6 +163,20 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect(responsesConfig().fetch).toBeUndefined()
     })
 
+    it.each([false, true])(
+      'preserves a custom deployment name through Responses routing (full endpoint: %s)',
+      async (fullEndpoint) => {
+        mockIsResponsesEndpoint.mockReturnValue(fullEndpoint)
+        setEnv({ AZURE_OPENAI_ENDPOINT: 'https://custom.openai.azure.com' })
+        const providerRequest = request({ model: 'AZURE/Team-GPT-Deployment' })
+
+        await azureOpenAIProvider.executeRequest(providerRequest)
+
+        expect(mockExecuteResponses.mock.calls[0][0].model).toBe('AZURE/Team-GPT-Deployment')
+        expect(responsesConfig().modelName).toBe('Team-GPT-Deployment')
+      }
+    )
+
     it('throws and never reaches the Responses core when validation blocks the endpoint', async () => {
       mockValidate.mockResolvedValue({ isValid: false, error: 'resolves to a blocked IP address' })
 
@@ -213,6 +227,21 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
 
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
       expect(azureOpenAIArgs[0]).not.toHaveProperty('fetch')
+    })
+
+    it('preserves a custom deployment name through Chat Completions routing', async () => {
+      mockIsChatCompletionsEndpoint.mockReturnValue(true)
+      setEnv({
+        AZURE_OPENAI_ENDPOINT: 'https://custom.openai.azure.com/openai/v1/chat/completions',
+      })
+      mockChatCreate.mockResolvedValue({
+        choices: [{ message: { content: 'hi' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      })
+
+      await azureOpenAIProvider.executeRequest(request({ model: 'AZURE/Team-GPT-Deployment' }))
+
+      expect(mockChatCreate.mock.calls[0][0].model).toBe('Team-GPT-Deployment')
     })
 
     it('projects the settled tool-loop answer without a final streaming request', async () => {

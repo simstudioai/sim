@@ -48,17 +48,20 @@ export const ollamaProvider: ProviderConfig = {
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
-    return executeOllamaProviderRequest(request, {
-      providerId: 'ollama',
-      providerLabel: 'Ollama',
-      createClient: () =>
-        new OpenAI({
-          ...openAICompatTransport(),
-          apiKey: 'empty',
-          baseURL: `${OLLAMA_HOST}/v1`,
-        }),
-      createStream: createReadableStreamFromOllamaStream,
-      logger,
-    })
+    return executeOllamaProviderRequest(
+      { ...request, model: request.model.replace(/^ollama\//i, '') },
+      {
+        providerId: 'ollama',
+        providerLabel: 'Ollama',
+        createClient: () =>
+          new OpenAI({
+            ...openAICompatTransport(),
+            apiKey: 'empty',
+            baseURL: `${OLLAMA_HOST}/v1`,
+          }),
+        createStream: createReadableStreamFromOllamaStream,
+        logger,
+      }
+    )
   },
 }

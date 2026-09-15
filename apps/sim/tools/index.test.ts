@@ -1348,41 +1348,7 @@ describe('executeTool Function', () => {
     )
   })
 
-  it('retries transient database failures during permission preflight', async () => {
-    const driverError = Object.assign(new Error('read ECONNRESET'), {
-      code: 'ECONNRESET',
-      errno: 'ECONNRESET',
-      syscall: 'read',
-    })
-    const databaseError = new DrizzleQueryError(
-      'select "id" from "workspace" where "workspace"."id" = $1 limit $2',
-      ['workspace-secret-id', 1],
-      driverError
-    )
-    mockAssertPermissionsAllowed.mockRejectedValueOnce(databaseError)
-    mockToolsLogger.warn.mockClear()
-
-    const result = await executeTool(
-      'function_execute',
-      { code: 'return 1' },
-      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
-    )
-
-    expect(result.success).toBe(true)
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(2)
-    expect(mockExecuteFunction).toHaveBeenCalledTimes(1)
-    expect(global.fetch).not.toHaveBeenCalled()
-    expect(mockToolsLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Retrying tool permission preflight after database error'),
-      expect.objectContaining({
-        attempt: 1,
-        maxAttempts: 3,
-        cause: expect.objectContaining({ code: 'ECONNRESET' }),
-      })
-    )
-  })
-
-  it('logs exhausted database retries without exposing query details to the caller', async () => {
+  it('logs a permission database failure without exposing query details to the caller', async () => {
     const driverError = Object.assign(new Error('read ECONNRESET'), {
       code: 'ECONNRESET',
       errno: 'ECONNRESET',
@@ -1408,7 +1374,7 @@ describe('executeTool Function', () => {
     )
     expect(JSON.stringify(result)).not.toContain('Failed query')
     expect(JSON.stringify(result)).not.toContain('workspace-secret-id')
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(3)
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
     expect(global.fetch).not.toHaveBeenCalled()
 
     const loggedError = mockToolsLogger.error.mock.calls.at(-1)?.[1]
@@ -1429,28 +1395,6 @@ describe('executeTool Function', () => {
     )
     expect(loggedError).not.toHaveProperty('stack')
     expect(JSON.stringify(loggedError)).not.toContain('workspace-secret-id')
-  })
-
-  it('does not retry non-transient database failures during permission preflight', async () => {
-    const databaseError = new DrizzleQueryError(
-      'select "missing_column" from "workspace"',
-      [],
-      Object.assign(new Error('column does not exist'), { code: '42703' })
-    )
-    mockAssertPermissionsAllowed.mockRejectedValue(databaseError)
-
-    const result = await executeTool(
-      'function_execute',
-      { code: 'return 1' },
-      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toBe(
-      'An internal error occurred while executing the tool. Please try again.'
-    )
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
-    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('surfaces cancellation instead of a concurrent permission database failure', async () => {

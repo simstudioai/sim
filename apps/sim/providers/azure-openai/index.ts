@@ -703,7 +703,7 @@ export const azureOpenAIProvider: ProviderConfig = {
 
       // Try to extract deployment from URL, fall back to model name
       const urlDeployment = extractDeploymentFromUrl(azureEndpoint)
-      const deploymentName = urlDeployment || request.model.replace('azure/', '')
+      const deploymentName = urlDeployment || request.model.replace(/^azure\//i, '')
 
       // Try to extract api-version from URL, fall back to request param or env or default
       const urlApiVersion = extractApiVersionFromUrl(azureEndpoint)
@@ -733,7 +733,7 @@ export const azureOpenAIProvider: ProviderConfig = {
     if (isResponsesEndpoint(azureEndpoint)) {
       logger.info('Detected full responses endpoint URL, using it directly')
 
-      const deploymentName = request.model.replace('azure/', '')
+      const deploymentName = request.model.replace(/^azure\//i, '')
 
       // Use the URL as-is since it's already complete
       return executeResponsesProviderRequest(
@@ -758,7 +758,7 @@ export const azureOpenAIProvider: ProviderConfig = {
     logger.info('Using base endpoint, constructing Responses API URL')
     const azureApiVersion =
       request.azureApiVersion || env.AZURE_OPENAI_API_VERSION || '2024-07-01-preview'
-    const deploymentName = request.model.replace('azure/', '')
+    const deploymentName = request.model.replace(/^azure\//i, '')
     const apiUrl = `${azureEndpoint.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
 
     return executeResponsesProviderRequest(

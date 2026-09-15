@@ -6,6 +6,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   getLargeValueMaterializationError,
+  isGrantedLargeValueKey,
   isLargeValueRef,
   isLargeValueStorageKey,
   type LargeValueRef,
@@ -107,7 +108,6 @@ export function assertLargeValueRefAccess(
     context.executionId,
     ...(context.largeValueExecutionIds ?? []),
   ])
-  const allowedKeys = new Set(context.largeValueKeys ?? [])
 
   const parts = ref.key?.split('/') ?? []
   const [, workspaceId, workflowId, executionId] = parts
@@ -131,7 +131,7 @@ export function assertLargeValueRefAccess(
   if (context.workflowId && workflowId !== context.workflowId) {
     throw new Error('Large execution value is not available in this execution.')
   }
-  if (allowedKeys.has(ref.key)) {
+  if (isGrantedLargeValueKey(ref.key, context)) {
     return
   }
   if (ref.executionId && !allowedExecutionIds.has(ref.executionId) && !workflowScopeAllowed) {

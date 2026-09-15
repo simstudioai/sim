@@ -28,7 +28,7 @@ export const ollamaCloudProvider: ProviderConfig = {
       throw new Error('API key is required for Ollama Cloud')
     }
 
-    const requestedModel = request.model.replace(/^ollama-cloud\//, '')
+    const requestedModel = request.model.replace(/^ollama-cloud\//i, '')
 
     return executeOllamaProviderRequest(
       { ...request, model: requestedModel },

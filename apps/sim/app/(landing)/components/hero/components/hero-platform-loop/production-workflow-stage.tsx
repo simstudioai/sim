@@ -67,6 +67,8 @@ const FIT_MAX_ZOOM = 1
  * just fits a 1750px frame and only overflows on narrower ones.
  */
 const FIT_MIN_ZOOM = 0.64
+/** Static overviews must fit on phones, where cropping can leave no visible cards. */
+const REDUCED_MOTION_FIT_MIN_ZOOM = 0.05
 const FIT_DURATION_MS = 600
 const EMPTY_IDS: ReadonlySet<string> = new Set()
 
@@ -616,7 +618,7 @@ function ProductionWorkflowCanvas({
       const zoom = Math.min(
         FIT_MAX_ZOOM,
         Math.max(
-          FIT_MIN_ZOOM,
+          reducedMotion ? REDUCED_MOTION_FIT_MIN_ZOOM : FIT_MIN_ZOOM,
           Math.min(
             (width - 2 * FIT_PADDING_PX) / bounds.width,
             (height - 2 * FIT_PADDING_PX) / bounds.height
@@ -747,7 +749,7 @@ function ProductionWorkflowCanvas({
         onNodesChange={handleNodesChange}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
-        minZoom={MIN_ZOOM}
+        minZoom={scripted && reducedMotion ? REDUCED_MOTION_FIT_MIN_ZOOM : MIN_ZOOM}
         maxZoom={MAX_ZOOM}
         defaultViewport={{ x: 0, y: 48, zoom: FOCUSED_NODE_MIN_ZOOM }}
         panOnDrag={interactive}

@@ -92,7 +92,7 @@ export const basetenProvider: ProviderConfig = {
       baseURL: 'https://inference.baseten.co/v1',
     })
 
-    const requestedModel = request.model.replace(/^baseten\//, '')
+    const requestedModel = request.model.replace(/^baseten\//i, '')
 
     logger.info('Preparing Baseten request', {
       model: requestedModel,

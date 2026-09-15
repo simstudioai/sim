@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn, Lightbox } from '@sim/emcn'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -57,9 +57,15 @@ export function ChatMessageAttachments(props: {
           )
         }
         return (
-          <div key={att.id} className='size-[56px] overflow-hidden rounded-lg'>
-            <img src={att.previewUrl} alt={att.filename} className='size-full object-cover' />
-          </div>
+          <Lightbox key={att.id} src={att.previewUrl} alt={att.filename}>
+            <button
+              type='button'
+              aria-label={`Preview ${att.filename}`}
+              className='size-[56px] cursor-pointer overflow-hidden rounded-lg'
+            >
+              <img src={att.previewUrl} alt={att.filename} className='size-full object-cover' />
+            </button>
+          </Lightbox>
         )
       })}
     </div>

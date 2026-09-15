@@ -405,6 +405,10 @@ export interface ExecutionContext {
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  /**
+   * Exact large-value and file keys this run may read. Seeded by the executor so every block's
+   * shallow context copy appends to one run-wide list; an executor not handed lists starts empty.
+   */
   largeValueKeys?: string[]
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
@@ -421,8 +425,11 @@ export interface ExecutionContext {
   /** In-flight block-output PII redaction policy (resolved `blockOutputs` stage). */
   piiBlockOutputRedaction?: PiiBlockOutputRedaction
 
-  permissionConfig?: PermissionGroupConfig | null
-  permissionConfigLoaded?: boolean
+  /**
+   * Per-run memo of permission config loads, keyed by subject and workspace. A Map so the per-block
+   * shallow copies of this context share it; never inherited by a child workflow's context.
+   */
+  permissionConfigCache?: Map<string, Promise<PermissionGroupConfig | null>>
 
   /**
    * Resolved display names for the resources an agent tool is bound to, keyed `${kind}:${id}`,
@@ -444,8 +451,9 @@ export interface ExecutionContext {
    * in any block state or workspace row, so nothing else can resolve it. The
    * index only *selects*; every read is still authorized on its own.
    *
-   * A Map for the same reason as {@link toolBindingLabelCache}: `blockCtx` is a
-   * shallow clone per block execution, so only a shared reference survives.
+   * Built lazily on the block's context from the current block states, so it lives
+   * for one block: shared by that block's agent turns and tool calls, rebuilt by the
+   * next block. Files from earlier blocks reach it through their committed outputs.
    */
   executionFilesById?: Map<string, UserFile>
 

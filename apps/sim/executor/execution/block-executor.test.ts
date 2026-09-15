@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { loggerMock } from '@sim/testing'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
@@ -9,6 +10,7 @@ import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manif
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { validateBlockType } from '@/ee/access-control/utils/permission-check'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
@@ -750,6 +752,49 @@ describe('BlockExecutor', () => {
     ).toEqual([])
     expect(registry.getActiveMatches()).toEqual([])
     expect(JSON.stringify(ctx.blockLogs)).not.toContain('"x"')
+  })
+
+  it('never surfaces the SQL or bound parameters of a database failure the block raises', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = { canHandle: () => true, execute: vi.fn() }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const ctx = createContext(state)
+    const driverError = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    const databaseError = new DrizzleQueryError(
+      'select "billing_blocked" from "user_stats" where "user_stats"."user_id" = $1 limit $2',
+      ['owner-secret-id', 1],
+      driverError
+    )
+    vi.mocked(validateBlockType).mockRejectedValueOnce(databaseError)
+    const message = 'An internal error occurred while executing the block. Please try again.'
+
+    const thrown = await executor.execute(ctx, createNode(block), block).catch((error) => error)
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect(thrown.message).toBe(`Function: ${message}`)
+    expect(thrown.cause.cause).toBe(databaseError)
+    expect(handler.execute).not.toHaveBeenCalled()
+    expect(state.getBlockOutput(block.id)).toEqual({ error: message })
+    expect(ctx.blockLogs[0]?.error).toBe(message)
+    const surfaced = JSON.stringify([state.getBlockOutput(block.id), ctx.blockLogs])
+    expect(surfaced).not.toContain('Failed query')
+    expect(surfaced).not.toContain('owner-secret-id')
+
+    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
+    const logged = executionLogger.error.mock.calls.at(-1)?.[1]
+    expect(logged).toEqual(
+      expect.objectContaining({ cause: expect.objectContaining({ code: 'ECONNRESET' }) })
+    )
+    expect(JSON.stringify(logged)).not.toContain('owner-secret-id')
   })
 
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {

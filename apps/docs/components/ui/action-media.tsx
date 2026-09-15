@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { Lightbox } from '@sim/emcn'
 import { cn, getAssetUrl } from '@/lib/utils'
-import { Lightbox } from './lightbox'
 
 interface ActionImageProps {
   src: string
@@ -17,10 +17,6 @@ interface ActionVideoProps {
 }
 
 export function ActionImage({ src, alt, enableLightbox = true }: ActionImageProps) {
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
-
-  const openLightbox = () => setIsLightboxOpen(true)
-
   const image = (
     <img
       src={src}
@@ -32,42 +28,28 @@ export function ActionImage({ src, alt, enableLightbox = true }: ActionImageProp
     />
   )
 
+  if (!enableLightbox) return image
+
   return (
-    <>
-      {enableLightbox ? (
-        <button
-          type='button'
-          onClick={openLightbox}
-          aria-label={`Open ${alt} in media viewer`}
-          className='group inline-block cursor-pointer rounded p-0 text-left'
-        >
-          {image}
-        </button>
-      ) : (
-        image
-      )}
-      {enableLightbox && (
-        <Lightbox
-          isOpen={isLightboxOpen}
-          onClose={() => setIsLightboxOpen(false)}
-          src={src}
-          alt={alt}
-          type='image'
-        />
-      )}
-    </>
+    <Lightbox src={src} alt={alt}>
+      <button
+        type='button'
+        aria-label={`Open ${alt} in media viewer`}
+        className='group inline-block cursor-pointer rounded p-0 text-left'
+      >
+        {image}
+      </button>
+    </Lightbox>
   )
 }
 
 export function ActionVideo({ src, alt, enableLightbox = true }: ActionVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const startTimeRef = useRef(0)
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
+  const [startTime, setStartTime] = useState(0)
   const resolvedSrc = getAssetUrl(src)
 
   const openLightbox = () => {
-    startTimeRef.current = videoRef.current?.currentTime ?? 0
-    setIsLightboxOpen(true)
+    setStartTime(videoRef.current?.currentTime ?? 0)
   }
 
   const video = (
@@ -85,30 +67,18 @@ export function ActionVideo({ src, alt, enableLightbox = true }: ActionVideoProp
     />
   )
 
+  if (!enableLightbox) return video
+
   return (
-    <>
-      {enableLightbox ? (
-        <button
-          type='button'
-          onClick={openLightbox}
-          aria-label={`Open ${alt} in media viewer`}
-          className='group inline-block cursor-pointer rounded p-0 text-left'
-        >
-          {video}
-        </button>
-      ) : (
-        video
-      )}
-      {enableLightbox && (
-        <Lightbox
-          isOpen={isLightboxOpen}
-          onClose={() => setIsLightboxOpen(false)}
-          src={src}
-          alt={alt}
-          type='video'
-          startTime={startTimeRef.current}
-        />
-      )}
-    </>
+    <Lightbox src={resolvedSrc} alt={alt} type='video' startTime={startTime}>
+      <button
+        type='button'
+        onClick={openLightbox}
+        aria-label={`Open ${alt} in media viewer`}
+        className='group inline-block cursor-pointer rounded p-0 text-left'
+      >
+        {video}
+      </button>
+    </Lightbox>
   )
 }

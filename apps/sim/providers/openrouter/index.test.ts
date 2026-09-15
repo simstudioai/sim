@@ -174,6 +174,12 @@ describe('openRouterProvider.executeRequest', () => {
     expect(payload.messages.at(-1)).toEqual({ role: 'user', content: 'Hello' })
   })
 
+  it('preserves custom provider paths when stripping an uppercase namespace', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+    await openRouterProvider.executeRequest({ ...baseRequest, model: 'OPENROUTER/Org/CustomModel' })
+    expect(mockCreate.mock.calls[0][0].model).toBe('Org/CustomModel')
+  })
+
   it('inserts context as a user message between system and history', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('ok'))
 

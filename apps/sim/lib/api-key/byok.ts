@@ -10,7 +10,6 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getHostedModels } from '@/providers/models'
 import { PROVIDER_PLACEHOLDER_KEY } from '@/providers/utils'
-import { useProvidersStore } from '@/stores/providers/store'
 import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKKeys')
@@ -183,6 +182,9 @@ export async function getBYOKKey(
 }
 
 /**
+ * Resolves credentials for the provider already selected by model routing.
+ * Discovery lists must not override that provider and select a different key pool.
+ *
  * `scope` is present only when the key came from a stored BYOK pool; a
  * Sim-hosted, env, or caller-supplied key has no scope. Declared rather than
  * dropped so the returned type matches what a BYOK branch actually hands back.
@@ -193,28 +195,19 @@ export async function getApiKeyWithBYOK(
   workspaceId: string | undefined | null,
   userProvidedKey?: string
 ): Promise<{ apiKey: string; isBYOK: boolean; scope?: BYOKKeyScopeName }> {
-  const isOllamaModel =
-    provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
-  if (isOllamaModel) {
+  if (provider === 'ollama') {
     return { apiKey: 'empty', isBYOK: false }
   }
 
-  const isVllmModel =
-    provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
-  if (isVllmModel) {
+  if (provider === 'vllm') {
     return { apiKey: userProvidedKey || env.VLLM_API_KEY || 'empty', isBYOK: false }
   }
 
-  const isLitellmModel =
-    provider === 'litellm' || useProvidersStore.getState().providers.litellm.models.includes(model)
-  if (isLitellmModel) {
+  if (provider === 'litellm') {
     return { apiKey: userProvidedKey || env.LITELLM_API_KEY || 'empty', isBYOK: false }
   }
 
-  const isFireworksModel =
-    provider === 'fireworks' ||
-    useProvidersStore.getState().providers.fireworks.models.includes(model)
-  if (isFireworksModel) {
+  if (provider === 'fireworks') {
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'fireworks')
       if (byokResult) {
@@ -260,10 +253,7 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Fireworks ${model}`)
   }
 
-  const isTogetherModel =
-    provider === 'together' ||
-    useProvidersStore.getState().providers.together.models.includes(model)
-  if (isTogetherModel) {
+  if (provider === 'together') {
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'together')
       if (byokResult) {
@@ -284,9 +274,7 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Together AI ${model}`)
   }
 
-  const isBasetenModel =
-    provider === 'baseten' || useProvidersStore.getState().providers.baseten.models.includes(model)
-  if (isBasetenModel) {
+  if (provider === 'baseten') {
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'baseten')
       if (byokResult) {
@@ -303,10 +291,7 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Baseten ${model}`)
   }
 
-  const isOllamaCloudModel =
-    provider === 'ollama-cloud' ||
-    useProvidersStore.getState().providers['ollama-cloud'].models.includes(model)
-  if (isOllamaCloudModel) {
+  if (provider === 'ollama-cloud') {
     if (workspaceId) {
       const byokResult = await getBYOKKey(workspaceId, 'ollama-cloud')
       if (byokResult) {
@@ -324,8 +309,7 @@ export async function getApiKeyWithBYOK(
     throw new Error(`API key is required for Ollama Cloud ${model}`)
   }
 
-  const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
-  if (isBedrockModel) {
+  if (provider === 'bedrock') {
     return { apiKey: PROVIDER_PLACEHOLDER_KEY, isBYOK: false }
   }
 

@@ -96,11 +96,6 @@ describe('driveFileAcl', () => {
       ).toEqual(['u:alice@corp.com'])
     })
 
-    /**
-     * The deviation from Onyx that matters most: their file path makes an
-     * `anyone` grant public without consulting `allowFileDiscovery`, so a file
-     * anyone ever shared by link becomes fully searchable.
-     */
     it('still refuses a link-only anyone share', () => {
       expect(acl([{ type: 'anyone', allowFileDiscovery: false }], OPEN)).toEqual(['link'])
     })

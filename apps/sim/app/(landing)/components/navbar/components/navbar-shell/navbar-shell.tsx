@@ -22,6 +22,7 @@ interface NavbarFrostContextValue {
 }
 
 const NavbarFrostContext = createContext<NavbarFrostContextValue | null>(null)
+const SCROLL_DIRECTION_THRESHOLD = 8
 
 /** Lets each nav surface report its open state so the shell can coordinate shared effects. */
 export function useNavbarFrost(): NavbarFrostContextValue | null {
@@ -29,6 +30,7 @@ export function useNavbarFrost(): NavbarFrostContextValue | null {
 }
 
 interface NavbarShellProps {
+  announcement?: ReactNode
   children: ReactNode
 }
 
@@ -39,8 +41,7 @@ interface NavbarShellProps {
  * At the very top the bar uses the same solid canvas token as the hero, so it is
  * visually seamless while still preventing route content from painting through
  * the sticky header. A 1px sentinel at the top of the landing shell's internal
- * scroll port is watched by an {@link IntersectionObserver} - no scroll listener
- * and no per-frame work. Past that point the bar gains the shared
+ * scroll port is watched by an {@link IntersectionObserver}. Past that point the bar gains the shared
  * {@link NAVBAR_GLASS_SURFACE} (`--bg` at 92% via `color-mix` plus a strong 40px
  * backdrop blur) - a white/glass surface built entirely from the platform's
  * light tokens, not invented colors.
@@ -51,8 +52,12 @@ interface NavbarShellProps {
  * while the fill still fades, so the frost appears smoothly without the jitter.
  *
  * The measured header height anchors the desktop panel and bounds the mobile
- * sheet, including changes to the announcement strip or text sizing. The same
- * height offsets native page and hash scrolling inside the landing scroll port.
+ * sheet, including changes to the announcement strip or text sizing. Native
+ * page and hash scrolling reserve the full height so changing banner visibility
+ * does not move the scroll anchor and leaves room for the banner to return.
+ * Scrolling down slides the announcement above the viewport; scrolling up
+ * restores it. Moving the sticky inset preserves document flow and scroll
+ * position. Menu offsets use only the visible portion of the header.
  *
  * Both navigation surfaces report open state through {@link NavbarFrostContext}.
  * While either is open, the shell locks its actual scroll port, preserves the
@@ -75,10 +80,12 @@ interface NavbarShellProps {
  * Only this shell hydrates; the nav content is server-rendered and passed through
  * as {@link children}, so the wordmark and links stay zero-hydration and crawlable.
  */
-export function NavbarShell({ children }: NavbarShellProps) {
+export function NavbarShell({ announcement, children }: NavbarShellProps) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLElement>(null)
+  const announcementRef = useRef<HTMLDivElement>(null)
   const [scrolled, setScrolled] = useState(false)
+  const [announcementHidden, setAnnouncementHidden] = useState(false)
   const [menuOpenBySource, setMenuOpenBySource] = useState({ desktop: false, mobile: false })
   const menuOpen = menuOpenBySource.desktop || menuOpenBySource.mobile
 
@@ -88,23 +95,49 @@ export function NavbarShell({ children }: NavbarShellProps) {
     if (!header || !scrollPort) return
 
     const previousScrollPaddingTop = scrollPort.style.scrollPaddingTop
-    let previousHeight = 0
     const updateHeight = () => {
       const height = header.getBoundingClientRect().height
-      if (height === previousHeight) return
-      previousHeight = height
-      header.style.setProperty('--landing-header-height', `${height}px`)
+      const announcementHeight = announcementRef.current?.getBoundingClientRect().height ?? 0
+      header.style.setProperty('--landing-announcement-height', `${announcementHeight}px`)
+      header.style.setProperty(
+        '--landing-header-height',
+        `calc(${height}px - var(--landing-announcement-offset, 0px))`
+      )
       scrollPort.style.scrollPaddingTop = `${height}px`
     }
 
     updateHeight()
     const observer = new ResizeObserver(updateHeight)
     observer.observe(header)
+    if (announcementRef.current) observer.observe(announcementRef.current)
     return () => {
       observer.disconnect()
       scrollPort.style.scrollPaddingTop = previousScrollPaddingTop
     }
   }, [])
+
+  useEffect(() => {
+    const scrollPort = sentinelRef.current?.parentElement
+    const banner = announcementRef.current
+    if (!scrollPort || !banner) return
+
+    const scrollPosition = () =>
+      Math.max(0, Math.min(scrollPort.scrollTop, scrollPort.scrollHeight - scrollPort.clientHeight))
+    let previousPosition = scrollPosition()
+    const onScroll = () => {
+      const position = scrollPosition()
+      const delta = position - previousPosition
+      const nearTop = position <= banner.offsetHeight
+      if (!nearTop && (menuOpen || Math.abs(delta) < SCROLL_DIRECTION_THRESHOLD)) return
+
+      previousPosition = position
+      if (banner.contains(document.activeElement)) return
+      setAnnouncementHidden(!nearTop && delta > 0)
+    }
+
+    scrollPort.addEventListener('scroll', onScroll, { passive: true })
+    return () => scrollPort.removeEventListener('scroll', onScroll)
+  }, [menuOpen])
 
   useEffect(() => {
     const sentinel = sentinelRef.current
@@ -166,7 +199,13 @@ export function NavbarShell({ children }: NavbarShellProps) {
       <header
         ref={headerRef}
         data-landing-header
-        className='sticky top-0 z-50 [--landing-header-height:calc(1.95rem_+_62px)]'
+        className={cn(
+          'sticky z-50 transition-[top] duration-200 ease-out [--landing-announcement-height:1.95rem] [--landing-header-height:calc(1.95rem_+_62px)] motion-reduce:transition-none',
+          announcementHidden
+            ? '-top-[var(--landing-announcement-height)] [--landing-announcement-offset:var(--landing-announcement-height)]'
+            : 'top-0 [--landing-announcement-offset:0px]',
+          menuOpen && 'transition-none'
+        )}
       >
         <div
           aria-hidden='true'
@@ -175,6 +214,11 @@ export function NavbarShell({ children }: NavbarShellProps) {
             scrolled || menuOpen ? NAVBAR_GLASS_SURFACE : 'bg-[var(--bg)]'
           )}
         />
+        {announcement && (
+          <div ref={announcementRef} inert={announcementHidden} aria-hidden={announcementHidden}>
+            {announcement}
+          </div>
+        )}
         {children}
       </header>
       <div
