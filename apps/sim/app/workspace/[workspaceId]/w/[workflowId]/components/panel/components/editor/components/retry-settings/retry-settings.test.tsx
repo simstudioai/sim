@@ -12,17 +12,23 @@ vi.mock(
       config,
       value,
       onChange,
+      onBlur,
       disabled,
+      allowReferences,
     }: {
       config: { id: string }
       value: string
       onChange: (value: string) => void
+      onBlur: () => void
       disabled: boolean
+      allowReferences?: boolean
     }) => (
       <input
         id={config.id}
+        data-allow-references={String(allowReferences ?? true)}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
         disabled={disabled}
       />
     ),
@@ -79,22 +85,31 @@ describe('RetrySettings', () => {
     expect(field('block-retry-max-tries')!.value).toBe('5')
   })
 
-  it('keeps only digits while typing and commits the value on blur', () => {
+  it('commits the normalized value when the field loses focus', () => {
     const { onChange } = renderSettings()
     const maxTries = field('block-retry-max-tries')!
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
 
     act(() => {
-      setValue.call(maxTries, '<2')
+      setValue.call(maxTries, '2.7')
       maxTries.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    expect(field('block-retry-max-tries')!.value).toBe('2')
+    expect(field('block-retry-max-tries')!.value).toBe('2.7')
+    expect(onChange).not.toHaveBeenCalled()
 
     act(() => {
       maxTries.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
     })
 
     expect(onChange).toHaveBeenCalledWith({ ...policy, maxTries: 2 })
+    expect(field('block-retry-max-tries')!.value).toBe('5')
+  })
+
+  it('turns off the reference pickers on the numeric fields', () => {
+    renderSettings()
+
+    expect(field('block-retry-max-tries')!.dataset.allowReferences).toBe('false')
+    expect(field('block-retry-wait')!.dataset.allowReferences).toBe('false')
   })
 
   it('renders only the switch while retry is off', () => {

@@ -47,10 +47,9 @@ const WAIT_CONFIG = {
  *
  * Renders the same `ShortInput` every other sub-block text field uses, so it
  * carries the panel's field chrome. Retry values are plain numbers that never
- * resolve references, so input is restricted to digits; that also keeps the
- * `<` and `{{` reference pickers from opening. Bounds are applied on commit
- * through the same normalizer execution uses, so the field cannot clamp
- * differently from the executor.
+ * resolve references, so the reference pickers are turned off. Bounds are
+ * applied on commit through the same normalizer execution uses, so the field
+ * cannot clamp differently from the executor.
  *
  * The draft exists only while the field is being edited; clearing it on commit
  * lets an external change — a collaborator's edit, or an undo — flow straight
@@ -79,16 +78,16 @@ function RetryNumberField({
       <div className='flex items-center justify-between gap-1.5 pl-0.5'>
         <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>{config.title}</Label>
       </div>
-      <div onBlur={commit}>
-        <ShortInput
-          blockId={blockId}
-          subBlockId={config.id}
-          config={config}
-          value={draft ?? String(value)}
-          onChange={(next) => setDraft(next.replace(/\D/g, ''))}
-          disabled={disabled}
-        />
-      </div>
+      <ShortInput
+        blockId={blockId}
+        subBlockId={config.id}
+        config={config}
+        value={draft ?? String(value)}
+        onChange={setDraft}
+        onBlur={commit}
+        disabled={disabled}
+        allowReferences={false}
+      />
     </div>
   )
 }
