@@ -29,7 +29,7 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
-import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
+import { readStoredWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
@@ -266,7 +266,11 @@ function getVerifiedStorageContext(file: Pick<UserFile, 'key' | 'context'>): Sto
   }
 
   const inferredContext = inferContextFromKey(file.key)
-  if (file.context && file.context !== inferredContext) {
+  if (
+    file.context &&
+    file.context !== inferredContext &&
+    !(inferredContext === 'workspace' && file.context === 'mothership')
+  ) {
     throw new Error('File context does not match its storage key.')
   }
 
@@ -305,7 +309,7 @@ export async function assertUserFileContentAccess(
           })
         : options.principal
     try {
-      await readWorkspaceFileRecordByKey.execute({
+      await readStoredWorkspaceFileRecordByKey.execute({
         principal,
         input: {
           key: file.key,
@@ -315,7 +319,19 @@ export async function assertUserFileContentAccess(
       return
     } catch (error) {
       if (!(error instanceof OrchestrationError && error.code === 'not_found')) throw error
+      /** Legacy storage metadata cannot prove a delegated file or chat identity. */
+      if (
+        options.principal.kind === 'delegated' &&
+        (options.principal.resourceScope?.fileId !== undefined ||
+          options.principal.resourceScope?.chatId !== undefined)
+      ) {
+        throw error
+      }
     }
+  }
+
+  if (context === 'workspace' && file.context === 'mothership') {
+    throw new Error('Chat upload access requires canonical file authorization.')
   }
 
   if (!options.userId) {

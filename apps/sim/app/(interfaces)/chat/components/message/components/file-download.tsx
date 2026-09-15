@@ -68,10 +68,17 @@ function isImageFile(mimeType: string): boolean {
   return mimeType.startsWith('image/')
 }
 
+function getExternalFileUrl(file: ChatFile): string | null {
+  const url = file.url?.trim()
+  return url && isSafeHttpUrl(url) ? url : null
+}
+
 function getFileUrl(file: ChatFile): string {
   if (file.base64) return `data:${file.type};base64,${file.base64}`
-  if (isSafeHttpUrl(file.url)) return file.url
-  return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
+  return (
+    getExternalFileUrl(file) ??
+    `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
+  )
 }
 
 async function triggerDownload(file: ChatFile): Promise<void> {
@@ -88,11 +95,10 @@ async function triggerDownload(file: ChatFile): Promise<void> {
 
   const storageContext = tryInferContextFromKey(file.key)
   const hasStorageKey = storageContext !== null
+  const externalUrl = getExternalFileUrl(file)
   const url = hasStorageKey
     ? `/api/files/serve/${encodeURIComponent(file.key)}?context=${encodeURIComponent(storageContext)}`
-    : isSafeHttpUrl(file.url)
-      ? file.url
-      : null
+    : externalUrl
   if (!url) throw new Error('File has no download URL')
 
   /** The same serve route as execution logs resolves current storage access on each click. */
@@ -103,10 +109,10 @@ async function triggerDownload(file: ChatFile): Promise<void> {
   } else {
     response = await fetchExternalFile(url)
   }
-  if (hasStorageKey && response.status === 401 && isSafeHttpUrl(file.url)) {
+  if (hasStorageKey && response.status === 401 && externalUrl) {
     await response.body?.cancel()
     /** Public chat visitors may only have the file access already delivered in the response. */
-    response = await fetchExternalFile(file.url)
+    response = await fetchExternalFile(externalUrl)
   }
   if (!response.ok) {
     await response.body?.cancel()
