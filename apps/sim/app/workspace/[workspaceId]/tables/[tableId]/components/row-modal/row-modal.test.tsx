@@ -154,6 +154,75 @@ describe('RowModal add mode', () => {
     act(() => root.unmount())
     container.remove()
   })
+
+  it('inserts the row at the requested position', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const props = {
+      mode: 'add' as const,
+      isOpen: true,
+      onClose: vi.fn(),
+      table: {
+        id: 'table-3',
+        name: 'People',
+        schema: {
+          columns: [{ id: 'col_name', name: 'Name', type: 'string' as const, required: true }],
+        },
+      },
+      insertAt: { afterRowId: 'row-1' },
+      onSuccess: vi.fn(),
+    }
+
+    act(() => root.render(createElement(RowModal, props)))
+
+    const nameInput = container.querySelector<HTMLInputElement>('[data-testid="modal-input"]')
+    act(() => changeInput(nameInput as HTMLInputElement, 'Ada'))
+    const submit = container.querySelector<HTMLButtonElement>('[data-testid="submit"]')
+    await act(async () => submit?.click())
+
+    expect(mockCreateRow).toHaveBeenCalledWith({ data: { col_name: 'Ada' }, afterRowId: 'row-1' })
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('keeps Add Row disabled until every required field has a value', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const props = {
+      mode: 'add' as const,
+      isOpen: true,
+      onClose: vi.fn(),
+      table: {
+        id: 'table-3',
+        name: 'People',
+        schema: {
+          columns: [
+            { id: 'col_name', name: 'Name', type: 'string' as const, required: true },
+            { id: 'col_notes', name: 'Notes', type: 'string' as const },
+            { id: 'col_active', name: 'Active', type: 'boolean' as const, required: true },
+          ],
+        },
+      },
+      onSuccess: vi.fn(),
+    }
+
+    act(() => root.render(createElement(RowModal, props)))
+
+    const submit = () => container.querySelector<HTMLButtonElement>('[data-testid="submit"]')
+    const nameInput = container.querySelectorAll<HTMLInputElement>('[data-testid="modal-input"]')[0]
+    expect(submit()?.disabled).toBe(true)
+
+    act(() => changeInput(nameInput, 'Ada'))
+    expect(submit()?.disabled).toBe(false)
+
+    act(() => changeInput(nameInput, ''))
+    expect(submit()?.disabled).toBe(true)
+
+    act(() => root.unmount())
+    container.remove()
+  })
 })
 
 describe('RowModal column ids', () => {

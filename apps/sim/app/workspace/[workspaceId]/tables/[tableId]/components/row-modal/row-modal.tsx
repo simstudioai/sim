@@ -22,8 +22,10 @@ import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { resolveCurrencyCode } from '@/lib/table/currency'
+import { isEmptyCellValue } from '@/lib/table/deps'
 import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
+import type { RowInsertTarget } from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
 import { type TimezoneState, useTimezoneState } from '@/hooks/queries/general-settings'
 import {
   useCreateTableRow,
@@ -50,6 +52,8 @@ export interface RowModalProps {
   table: TableInfo
   row?: TableRow
   rowIds?: string[]
+  /** Where add mode inserts the row; appends when omitted. */
+  insertAt?: RowInsertTarget
   onSuccess: () => void
 }
 
@@ -87,7 +91,16 @@ function cleanRowData(
  * call-site ever keeps it mounted across target-row changes, it must supply a `key`
  * prop (e.g. the row id) so React remounts with the new row's values.
  */
-export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
+export function RowModal({
+  mode,
+  isOpen,
+  onClose,
+  table,
+  row,
+  rowIds,
+  insertAt,
+  onSuccess,
+}: RowModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const tableId = table.id
@@ -121,17 +134,25 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   const hasEditableColumn = columns.some(
     (column) => columnTypeOf(column).editor !== 'date' || dateEditorsReady
   )
+  /** Toggles always save a boolean, so only other required columns can be left empty. */
+  const missingRequiredValue = columns.some(
+    (column) =>
+      column.required &&
+      columnTypeOf(column).editor !== 'toggle' &&
+      isEmptyCellValue(rowData[getColumnId(column)])
+  )
+  const canSubmit = hasEditableColumn && !missingRequiredValue
 
   const handleFormSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setError(null)
-    if (!hasEditableColumn) return
+    if (!canSubmit) return
 
     try {
       const cleanData = cleanRowData(columns, rowData, timeZone, dateEditorsReady)
 
       if (isAddMode) {
-        await createRowMutation.mutateAsync({ data: cleanData })
+        await createRowMutation.mutateAsync({ data: cleanData, ...insertAt })
       } else if (row) {
         await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
       }
@@ -211,7 +232,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           {isAddMode ? 'Fill in values for' : 'Update values for'} {table?.name ?? 'table'}
         </p>
         <form onSubmit={handleFormSubmit} className='contents'>
-          <button type='submit' hidden disabled={isSubmitting || !hasEditableColumn} />
+          <button type='submit' hidden disabled={isSubmitting || !canSubmit} />
           {columns.map((column) =>
             columnTypeOf(column).editor === 'date' && !dateEditorsReady ? (
               <TimezoneBlockedColumnField
@@ -250,7 +271,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
               ? 'Updating...'
               : 'Update Row',
           onClick: () => handleFormSubmit(),
-          disabled: isSubmitting || !hasEditableColumn,
+          disabled: isSubmitting || !canSubmit,
         }}
       />
     </ChipModal>

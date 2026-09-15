@@ -100,7 +100,7 @@ import {
   tableDetailParsers,
   tableDetailUrlKeys,
 } from './search-params'
-import type { QueryOptions } from './types'
+import type { QueryOptions, RowInsertTarget } from './types'
 import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
@@ -226,7 +226,7 @@ export function Table({
   const blockedToastIdRef = useRef<string | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
-  const [isAddingRow, setIsAddingRow] = useState(false)
+  const [addRowTarget, setAddRowTarget] = useState<RowInsertTarget | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [deletingAll, setDeletingAll] = useState<{
     excludeRowIds: string[]
@@ -296,7 +296,7 @@ export function Table({
   }, [])
   const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
   const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
-  const onOpenAddRowModal = () => setIsAddingRow(true)
+  const onOpenAddRowModal = (insertAt: RowInsertTarget = {}) => setAddRowTarget(insertAt)
   // useCallback because <Resource.Header> is memo-wrapped — these flow into
   // the breadcrumbs / headerActions memos, whose identity drives that re-render.
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
@@ -1756,13 +1756,14 @@ export function Table({
           table={tableData}
         />
       )}
-      {isAddingRow && tableData && (
+      {addRowTarget && tableData && (
         <RowModal
           mode='add'
           isOpen={true}
-          onClose={() => setIsAddingRow(false)}
+          onClose={() => setAddRowTarget(null)}
           table={tableData}
-          onSuccess={() => setIsAddingRow(false)}
+          insertAt={addRowTarget}
+          onSuccess={() => setAddRowTarget(null)}
         />
       )}
       {editingRow && tableData && (

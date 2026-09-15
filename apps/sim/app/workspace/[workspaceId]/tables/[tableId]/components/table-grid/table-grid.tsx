@@ -56,7 +56,7 @@ import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useTable } from '../../hooks'
-import type { EditingCell, QueryOptions, SaveReason } from '../../types'
+import type { EditingCell, QueryOptions, RowInsertTarget, SaveReason } from '../../types'
 import { cleanCellValue, generateColumnName as sharedGenerateColumnName } from '../../utils'
 import type { ColumnConfig } from '../column-config-sidebar'
 import { ColumnDropdown } from '../column-dropdown'
@@ -209,8 +209,8 @@ interface TableGridProps {
   onOpenEnrichmentDetails: (rowId: string, groupId: string) => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
-  /** Opens the add-row form, which inserts a complete row in one request. */
-  onOpenAddRowModal: () => void
+  /** Opens the add-row form, which inserts a complete row at `insertAt` (appends when omitted). */
+  onOpenAddRowModal: (insertAt?: RowInsertTarget) => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
   onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
   /**
@@ -371,6 +371,15 @@ function writeLoadedRowsWithChip(opts: {
   attachSelectionContextToClipboard(opts.clipboardData, context, opts.workspaceId)
   toast.success(`Copied ${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`)
   return true
+}
+
+/**
+ * Whether new rows must go through the add-row form instead of a blank grid row.
+ * A blank row only works when the grid can fill it in afterwards: typing into it
+ * is an update, and the server rejects an empty row when any column is required.
+ */
+function needsAddRowForm(updateLocked: boolean | undefined, columns: ColumnDefinition[]): boolean {
+  return Boolean(updateLocked) || columns.some((column) => column.required)
 }
 
 /**
@@ -703,15 +712,14 @@ export function TableGrid({
   // requires the delete lock clear too — mirror that here or the affordance
   // stays live on an append-only table and only fails on click.
   const canDestroyColumn = canMutateSchema && !locks?.deleteLocked
-  // Duplicate inserts a full copied row in one shot, so unlike the blank-row
-  // paths it needs the insert lock only — it is valid on an append-only table.
+  /**
+   * Inserts that carry the whole row in one request (Duplicate, paste-append, the
+   * add-row form) need only the insert lock, so they stay valid on an append-only
+   * table. New row, Shift+Enter, and Insert row fall back to that form whenever
+   * `needsAddRowForm` says a blank row can't work.
+   */
   const canInsertFullRow = userPermissions.canEdit && !locks?.insertLocked
-  // Manual grid entry is "add an empty row, then type into its cells" — the
-  // typing is an update. So a *useful* manual add needs BOTH insert and update
-  // unlocked; on an append-only table (update locked) it would leave a blank
-  // row the user can't fill, so New row opens the add-row form instead, which
-  // inserts the complete row in one request. Full-row inserts (the form, CSV
-  // import, API, blocks, Mothership) need only the insert lock off server-side.
+  /** A blank grid row is filled in by typing, which is an update, so it needs both locks off. */
   const canManualAddRow = userPermissions.canEdit && !locks?.insertLocked && !locks?.updateLocked
   const canEditCellRef = useRef(canEditCell)
   canEditCellRef.current = canEditCell
@@ -1623,6 +1631,11 @@ export function TableGrid({
     const anchorId = contextMenu.row.id
     // Fractional ordering: express intent by neighbor id, not integer position.
     const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
+    if (needsAddRowForm(updateLockedRef.current, schemaColumnsRef.current)) {
+      closeContextMenu()
+      onOpenAddRowModalRef.current(intent)
+      return
+    }
     createRef.current(
       { data: {}, ...intent },
       {
@@ -1762,7 +1775,10 @@ export function TableGrid({
   // Stable identity so <AddRowButton>'s React.memo still bails out; lock state
   // is read from refs instead of being closed over.
   const handleAddRowClick = useCallback(() => {
-    if (canInsertFullRowRef.current && updateLockedRef.current) {
+    if (
+      canInsertFullRowRef.current &&
+      needsAddRowForm(updateLockedRef.current, schemaColumnsRef.current)
+    ) {
       onOpenAddRowModalRef.current()
       return
     }
@@ -2977,14 +2993,22 @@ export function TableGrid({
 
       if (e.shiftKey && e.key === 'Enter') {
         if (!canEditRef.current) return
-        // Same manual-add path as the Add row button, so it owes the same
-        // explanation rather than silently doing nothing on a locked table.
+        const row = currentRows[anchor.rowIndex]
+        // Mirrors handleAddRowClick; keep the two new-row paths in sync.
+        if (
+          row &&
+          canInsertFullRowRef.current &&
+          needsAddRowForm(updateLockedRef.current, schemaColumnsRef.current)
+        ) {
+          e.preventDefault()
+          onOpenAddRowModalRef.current({ afterRowId: row.id })
+          return
+        }
         if (!canManualAddRowRef.current) {
           e.preventDefault()
           onBlockedActionRef.current('add-row')
           return
         }
-        const row = currentRows[anchor.rowIndex]
         if (!row) return
         e.preventDefault()
         const position = row.position + 1
@@ -5119,7 +5143,7 @@ export function TableGrid({
         hasWorkflowColumns={hasWorkflowColumns}
         workflowCellScoped={Boolean(contextMenuGroupId)}
         disableEdit={!canEditCell}
-        disableInsert={!canManualAddRow}
+        disableInsert={!canInsertFullRow}
         disableDuplicate={!canInsertFullRow}
         disableDelete={!canDeleteRow}
         onAddToChat={addToChatRowIds.length > 0 ? handleAddSelectionToChat : undefined}
