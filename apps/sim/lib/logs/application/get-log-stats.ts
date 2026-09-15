@@ -2,6 +2,7 @@ import { and } from 'drizzle-orm'
 import { MAX_STATS_WORKFLOWS } from '@/lib/api/contracts/logs'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { logDelegationAuthorization } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { folderScopeCondition, resolveLogFolderScope } from '@/lib/logs/folder-scope'
 import { buildLogFilters, type LogFilters } from '@/lib/logs/public-filters'
@@ -41,7 +42,7 @@ export const getLogStats = defineAuthorizedWorkspaceUseCase({
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: logDelegationAuthorization(),
   execute: async ({ input, context }): Promise<GetLogStatsResult> => {
     const folderScope = input.folderPaths
       ? await resolveLogFolderScope(context.workspaceId, input.folderPaths)

@@ -302,12 +302,13 @@ class ToolExecutionTimeoutError extends Error {
 
 /** Builds the per-call context from the turn-scoped execution context. */
 export function buildToolExecutionContext(
-  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId' | 'params'>,
+  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId' | 'params' | 'targetWorkspaceId'>,
   execContext: ExecutionContext
 ): ExecutionContext {
   return {
     ...execContext,
     toolCallId: toolCall.id,
+    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
     resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForInputPaths([]),
     ...(toolCall.parentToolCallId ? { parentToolCallId: toolCall.parentToolCallId } : {}),
   }
@@ -346,9 +347,14 @@ async function executeToolWithWatchdog(
     (executableName === RunCode.id || executableName === RunFunction.id) &&
       lifetime.owner &&
       toolContext.chatId &&
-      toolContext.workspaceId
+      (toolContext.workspaceId || toolContext.organizationId)
       ? withSandboxResourceScope(
-          { ...lifetime.owner, chatId: toolContext.chatId, workspaceId: toolContext.workspaceId },
+          {
+            ...lifetime.owner,
+            chatId: toolContext.chatId,
+            workspaceId: toolContext.workspaceId,
+            organizationId: toolContext.organizationId,
+          },
           signal,
           onEvent,
           execute
@@ -537,6 +543,7 @@ export async function executeToolAndReport(
     {
       toolName: toolCall.name,
       toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       agentName: toolCall.agentId ?? 'main',
       runId: context.runId,
       chatId: execContext.chatId,
@@ -632,6 +639,7 @@ async function executeToolAndReportInner(
   await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: toolCall.id,
+    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
     toolName: toolCall.name,
     args: toolCall.params,
   }).catch((err) => {
@@ -691,6 +699,7 @@ async function executeToolAndReportInner(
   const argsPreview = toolCall.params ? JSON.stringify(toolCall.params).slice(0, 200) : undefined
   const toolSpan = context.trace.startSpan(toolCall.name, 'tool.execute', {
     toolCallId: toolCall.id,
+    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
     toolName: toolCall.name,
     argsPreview,
     abortSignalAborted: execContext.abortSignal?.aborted ?? false,
@@ -713,6 +722,7 @@ async function executeToolAndReportInner(
     markToolResultSeen(context, toolCall.id)
     await lifetime.complete({
       toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
       result: { cancelled: true },
       error: message,
@@ -722,6 +732,7 @@ async function executeToolAndReportInner(
     }
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       status: MothershipStreamV1ToolOutcome.cancelled,
       message,
       data: { cancelled: true },
@@ -764,6 +775,7 @@ async function executeToolAndReportInner(
 
   logger.info('Tool execution started', {
     toolCallId: toolCall.id,
+    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
     toolName: toolCall.name,
   })
 
@@ -896,6 +908,7 @@ async function executeToolAndReportInner(
       // or the payload itself was unprojectable — three different fixes.
       logger.warn('Tool result withheld by egress projection', {
         toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
         toolName: toolCall.name,
         runtimeSucceeded: result.success,
         ...describeWithholdingCause(projection.cause),
@@ -923,12 +936,14 @@ async function executeToolAndReportInner(
             : undefined
       logger.info('Tool execution succeeded', {
         toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
         toolName: toolCall.name,
         outputPreview: preview,
       })
     } else {
       logger.warn('Tool execution failed', {
         toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
         toolName: toolCall.name,
         error: copilotResult.error,
         params: toolCall.params,
@@ -950,6 +965,7 @@ async function executeToolAndReportInner(
     markToolResultSeen(context, toolCall.id)
     await commitToolResult({
       toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       status: modelSucceeded
         ? MothershipStreamV1AsyncToolRecordStatus.completed
         : MothershipStreamV1AsyncToolRecordStatus.failed,
@@ -968,6 +984,7 @@ async function executeToolAndReportInner(
     publishResult = async () => {
       publishTerminalToolConfirmation({
         toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
         status: terminalStatus,
         message: terminalMessage,
         ...(terminalData !== undefined ? { data: terminalData } : {}),
@@ -987,6 +1004,7 @@ async function executeToolAndReportInner(
         type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: toolCall.id,
+          ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
           toolName: toolCall.name,
           executor: MothershipStreamV1ToolExecutor.sim,
           mode: MothershipStreamV1ToolMode.async,
@@ -1012,7 +1030,8 @@ async function executeToolAndReportInner(
           copilotResult,
           execContext.chatId,
           options?.onEvent,
-          () => abortRequested(context, execContext, options)
+          () => abortRequested(context, execContext, options),
+          toolCall.targetWorkspaceId ?? execContext.workspaceId
         )
       }
     }
@@ -1048,6 +1067,7 @@ async function executeToolAndReportInner(
     const terminalErrorResult = toolCall.result
     logger.error('Tool execution threw', {
       toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       toolName: toolCall.name,
       error: toolCall.error,
       params: toolCall.params,
@@ -1056,6 +1076,7 @@ async function executeToolAndReportInner(
     markToolResultSeen(context, toolCall.id)
     await commitToolResult({
       toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       status: MothershipStreamV1AsyncToolRecordStatus.failed,
       result: { error: toolCall.error },
       error: toolCall.error,
@@ -1072,6 +1093,7 @@ async function executeToolAndReportInner(
     publishResult = async () => {
       publishTerminalToolConfirmation({
         toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
         status: MothershipStreamV1ToolOutcome.error,
         message: toolCall.error,
         data: { error: toolCall.error },
@@ -1081,6 +1103,7 @@ async function executeToolAndReportInner(
         type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: toolCall.id,
+          ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
           toolName: toolCall.name,
           executor: MothershipStreamV1ToolExecutor.sim,
           mode: MothershipStreamV1ToolMode.async,
@@ -1101,6 +1124,7 @@ async function executeToolAndReportInner(
   } catch (error) {
     logger.warn('Committed tool result could not be published to the stream', {
       toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       error: toError(error).message,
     })
   }

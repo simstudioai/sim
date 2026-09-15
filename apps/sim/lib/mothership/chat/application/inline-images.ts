@@ -2,12 +2,15 @@ import type { Principal } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import {
-  type CopilotChatFileDelegationContext,
-  createCopilotChatFilePrincipal,
-} from '@/lib/mothership/auth/file-delegation'
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
+import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
 import { readChatSandboxFile } from '@/lib/mothership/chat/application/read-sandbox-file'
 import {
   inlineChatImageUrl,
@@ -20,6 +23,7 @@ import {
   normalizeInlineChatImage,
   storeInlineChatImage,
 } from '@/lib/mothership/chat/inline-image-storage'
+import { loadActiveWorkspaceFileContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
@@ -41,18 +45,18 @@ function validateImageInput(input: InlineChatImageInput) {
 
 /** Saved history remains readable after Copilot is disabled; current private ownership still applies. */
 export const readInlineChatImage = defineAuthorizedChatUseCase({
+  /** permission-group-exempt: viewing existing private chat history does not initiate Copilot work. */
   operation: defineWorkspaceOperation({
     id: 'mothership.chats.read_image',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    /** permission-group-exempt: viewing existing private chat history does not initiate Copilot work. */
     capability: 'none',
     principalKinds: ['session'],
   }),
+  /** permission-group-exempt: viewing existing private chat history does not initiate Copilot work. */
   organizationOperation: defineOrganizationOperation({
     id: 'mothership.chats.read_image',
     minimumRole: 'member',
-    /** permission-group-exempt: viewing existing private chat history does not initiate Copilot work. */
     capability: 'none',
     principalKinds: ['session'],
   }),
@@ -86,7 +90,9 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
     id: 'mothership.chats.publish_image',
     minimumRole: 'member',
     capability: 'copilot.use',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'organization_delegated'],
+    delegatedServices: ['copilot'],
+    delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
   }),
   resolveContext({ principal, input }: { principal: Principal; input: InlineChatImageInput }) {
     return resolveOwnedChatContext(principal, input.chatId)
@@ -103,8 +109,6 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
     validateImageInput(input)
     const signal = input.signal ?? request?.signal
     signal?.throwIfAborted()
-    if (!context.workspaceId)
-      throw new OrchestrationError('validation', 'File image references require a workspace chat.')
     const url = inlineChatImageUrl(context.chatId, input.requestId, input.reference)
     try {
       await loadInlineChatImage(context.chatId, input.requestId, input.reference, signal)
@@ -116,6 +120,7 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
     const scope = {
       chatId: context.chatId,
       workspaceId: context.workspaceId,
+      organizationId: context.organizationId,
       maxBytes: MAX_TEXT_EXTRACTION_BYTES,
     }
     let source: Buffer
@@ -127,11 +132,44 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
           request,
         })
       ).buffer
+    } else if (context.organizationId && reference.startsWith('uploads/')) {
+      source = (
+        await readChatAttachment.execute({
+          principal,
+          input: { chatId: context.chatId, reference, signal },
+          request,
+        })
+      ).buffer
     } else {
+      let workspaceId = context.workspaceId
+      let filePrincipal: Principal = principal
+      if (context.organizationId) {
+        const canonical = await loadActiveWorkspaceFileContext(reference)
+        if (!canonical)
+          throw new OrchestrationError(
+            'not_found',
+            'Use the canonical workspace file ID in organization chat image tags.'
+          )
+        await resolveInvocationWorkspace(
+          {
+            userId: context.userId,
+            organizationId: context.organizationId,
+            chatId: context.chatId,
+          },
+          canonical.workspaceId
+        )
+        workspaceId = canonical.workspaceId
+        filePrincipal = createCopilotChatFilePrincipal({
+          userId: context.userId,
+          workspaceId,
+          chatId: context.chatId,
+        })
+      }
+      if (!workspaceId) throw new OrchestrationError('not_found', 'Workspace file not found')
       source = (
         await readWorkspaceFileArtifact.execute({
-          principal,
-          input: { ...scope, reference },
+          principal: filePrincipal,
+          input: { chatId: context.chatId, workspaceId, maxBytes: scope.maxBytes, reference },
           request,
         })
       ).buffer
@@ -146,11 +184,30 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
 
 /** Converts authenticated server ingestion identity into the existing chat-scoped file delegation. */
 export function materializeStreamImage(
-  context: CopilotChatFileDelegationContext & { chatId: string },
+  context: { userId: string; chatId: string } & (
+    | { workspaceId: string; organizationId?: never }
+    | { organizationId: string; workspaceId?: never }
+  ),
   input: { requestId: string; reference: string; signal?: AbortSignal }
 ) {
   return materializeInlineChatImage.execute({
-    principal: createCopilotChatFilePrincipal(context),
+    principal: context.organizationId
+      ? createTrustedOrganizationCopilotPrincipal(
+          {
+            ...context,
+            organizationId: context.organizationId,
+            delegationId: `chat-image:${context.chatId}`,
+          },
+          {
+            audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+            ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
+          }
+        )
+      : createCopilotChatFilePrincipal({
+          userId: context.userId,
+          chatId: context.chatId,
+          workspaceId: context.workspaceId!,
+        }),
     input: { ...input, chatId: context.chatId },
   })
 }

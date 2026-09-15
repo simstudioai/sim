@@ -1,7 +1,7 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import type { SecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
-import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -14,6 +14,8 @@ export interface ToolExecutionContext {
   workflowId: string
   workspaceId?: string
   organizationId?: string
+  chatOrganizationId?: string
+  targetWorkspaceId?: string
   chatId?: string
   messageId?: string
   executionId?: string

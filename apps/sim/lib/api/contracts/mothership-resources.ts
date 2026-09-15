@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { predicateInputSchema, sortSpecSchema } from '@/lib/api/contracts/tables'
 import {
   type MothershipResource,
@@ -12,6 +12,8 @@ const resourceAddressSchema = z
   .object({
     type: z.enum(PERSISTED_RESOURCE_TYPES),
     id: requiredFieldSchema('resource.id cannot be empty'),
+    workspaceId: workspaceIdSchema.optional(),
+    workspaceName: z.string().max(256).optional(),
     path: z.string().optional(),
     viewId: z.string().min(1).optional(),
     executionId: z.string().optional(),

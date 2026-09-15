@@ -29,7 +29,7 @@ import {
   sendBrowserPanelAction,
 } from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
-import { isEphemeralResource } from '@/lib/mothership/resources/types'
+import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
 import { terminalIdFromResourceId, terminalResourceId } from '@/lib/terminal/resource-id'
 import { terminalTabTitle, terminalTooltip } from '@/lib/terminal/tab-label'
@@ -51,11 +51,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import {
-  useAddChatResource,
-  useRemoveChatResource,
-  useReorderChatResources,
-} from '@/hooks/queries/mothership-chats'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -90,7 +85,8 @@ function findNearestId(
   for (let offset = 1; offset < resources.length; offset++) {
     for (const candidate of [idx + offset, idx - offset]) {
       const r = resources[candidate]
-      if (r && (!filter || filter.has(r.id))) return r.id
+      if (r && (!filter || filter.has(getChatResourceSelectionId(r))))
+        return getChatResourceSelectionId(r)
     }
   }
   return undefined
@@ -120,7 +116,9 @@ function buildMultiDragImage(
   } satisfies Partial<CSSStyleDeclaration>)
   let appendedAny = false
   for (const r of selected) {
-    const original = tabList.querySelector<HTMLElement>(tabStripItemSelector(r.id))
+    const original = tabList.querySelector<HTMLElement>(
+      tabStripItemSelector(getChatResourceSelectionId(r))
+    )
     if (!original) continue
     const clone = original.cloneNode(true) as HTMLElement
     clone.style.opacity = '0.95'
@@ -157,12 +155,25 @@ const NO_RESOURCE_NAMES = new Map<string, string>()
  * when there are no tabs to label — a chat with no open resources must not
  * fetch five workspace-wide lists.
  */
-function useResourceNameLookup(workspaceId: string, enabled: boolean): Map<string, string> {
-  const { data: workflows } = useWorkflows(workspaceId, { enabled })
-  const { data: tables } = useTablesList(workspaceId, 'active', { enabled })
-  const { data: files } = useWorkspaceFiles(workspaceId, 'active', { enabled })
-  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId, { enabled })
-  const { data: folders } = useFolders(workspaceId, { enabled })
+function useResourceNameLookup(
+  workspaceId: string | undefined,
+  enabled: boolean
+): Map<string, string> {
+  const { data: workflows } = useWorkflows(workspaceId ?? '', {
+    enabled: enabled && Boolean(workspaceId),
+  })
+  const { data: tables } = useTablesList(workspaceId ?? '', 'active', {
+    enabled: enabled && Boolean(workspaceId),
+  })
+  const { data: files } = useWorkspaceFiles(workspaceId ?? '', 'active', {
+    enabled: enabled && Boolean(workspaceId),
+  })
+  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId ?? '', {
+    enabled: enabled && Boolean(workspaceId),
+  })
+  const { data: folders } = useFolders(workspaceId ?? '', {
+    enabled: enabled && Boolean(workspaceId),
+  })
 
   return useMemo(() => {
     if (!enabled) return NO_RESOURCE_NAMES
@@ -177,7 +188,7 @@ function useResourceNameLookup(workspaceId: string, enabled: boolean): Map<strin
 }
 
 interface ResourceTabsProps {
-  workspaceId: string
+  workspaceId?: string
   desktopScopeId: string
   chatId?: string
   resources: MothershipResource[]
@@ -221,10 +232,6 @@ export function ResourceTabs({
     reorderResources: onReorderResources,
   } = useMothershipResources()
 
-  const addResource = useAddChatResource(chatId)
-  const removeResource = useRemoveChatResource(chatId)
-  const reorderResources = useReorderChatResources(chatId)
-
   const { confirmTerminalClose, confirmationDialog } = useTerminalCloseConfirmation(desktopScopeId)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const anchorIdRef = useRef<string | null>(null)
@@ -266,7 +273,7 @@ export function ResourceTabs({
     return resources.map((resource) => {
       const terminal = resource.type === 'terminal' ? terminalsById.get(resource.id) : undefined
       return {
-        id: resource.id,
+        id: getChatResourceSelectionId(resource),
         title:
           (resource.type === 'browser'
             ? browserTitles.get(resource.id)
@@ -281,9 +288,9 @@ export function ResourceTabs({
           'size-[16px] shrink-0',
           desktopScopeId
         ),
-        active: activeId === resource.id,
-        selected: selectedIds.size > 1 && selectedIds.has(resource.id),
-        attention: activityIds?.has(resource.id) ?? false,
+        active: activeId === getChatResourceSelectionId(resource),
+        selected: selectedIds.size > 1 && selectedIds.has(getChatResourceSelectionId(resource)),
+        attention: activityIds?.has(getChatResourceSelectionId(resource)) ?? false,
       }
     })
   }, [
@@ -321,22 +328,16 @@ export function ResourceTabs({
           .catch(() => toast.error('Could not open a new terminal. Please try again.'))
         return
       }
-      // Opening a resource before the first message is sent is allowed: there
-      // is simply no chat to attach it to yet. `onAddResource` queues it and
-      // persists once the chat exists, so only the server call is conditional.
-      // Synthetic result/preview panels are in-memory only either way.
-      if (chatId && !isEphemeralResource(resource)) {
-        addResource.mutate({ chatId, resource })
-      }
+      // The chat owner handles optimistic state and its single ordered persistence queue.
       onAddResource(resource)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, desktopScopeId, onAddResource, selectResource]
+    [desktopScopeId, onAddResource, selectResource]
   )
 
   const handleSelect = useCallback(
     (id: string, source?: TabStripSelectionSource, e?: ReactMouseEvent<HTMLButtonElement>) => {
-      const idx = resources.findIndex((r) => r.id === id)
+      const idx = resources.findIndex((r) => getChatResourceSelectionId(r) === id)
       const resource = resources[idx]
       if (!resource) return
 
@@ -344,43 +345,45 @@ export function ResourceTabs({
       if (e?.shiftKey) {
         // Fall back to activeId when no explicit anchor exists (e.g. tab opened via sidebar)
         const anchorId = anchorIdRef.current ?? activeId
-        const anchorIdx = anchorId ? resources.findIndex((r) => r.id === anchorId) : -1
+        const anchorIdx = anchorId
+          ? resources.findIndex((r) => getChatResourceSelectionId(r) === anchorId)
+          : -1
         if (anchorIdx !== -1) {
           const start = Math.min(anchorIdx, idx)
           const end = Math.max(anchorIdx, idx)
           const next = new Set<string>()
-          for (let i = start; i <= end; i++) next.add(resources[i].id)
+          for (let i = start; i <= end; i++) next.add(getChatResourceSelectionId(resources[i]))
           setSelectedIds(next)
-          selectResource(resource.id)
+          selectResource(getChatResourceSelectionId(resource))
           return
         }
       }
 
       // Cmd/Ctrl+click: toggle individual tab in/out of selection
       if (e?.metaKey || e?.ctrlKey) {
-        const wasSelected = selectedIds.has(resource.id)
+        const wasSelected = selectedIds.has(getChatResourceSelectionId(resource))
         if (wasSelected) {
           const next = new Set(selectedIds)
-          next.delete(resource.id)
+          next.delete(getChatResourceSelectionId(resource))
           setSelectedIds(next)
           // Only switch active if we just deselected the currently-active tab
-          if (activeId === resource.id) {
+          if (activeId === getChatResourceSelectionId(resource)) {
             const fallback =
               findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
             if (fallback) selectResource(fallback)
           }
         } else {
-          setSelectedIds((prev) => new Set(prev).add(resource.id))
-          selectResource(resource.id)
+          setSelectedIds((prev) => new Set(prev).add(getChatResourceSelectionId(resource)))
+          selectResource(getChatResourceSelectionId(resource))
         }
-        if (!anchorIdRef.current) anchorIdRef.current = resource.id
+        if (!anchorIdRef.current) anchorIdRef.current = getChatResourceSelectionId(resource)
         return
       }
 
       // Plain click: single-select
-      anchorIdRef.current = resource.id
-      setSelectedIds(new Set([resource.id]))
-      selectResource(resource.id)
+      anchorIdRef.current = getChatResourceSelectionId(resource)
+      setSelectedIds(new Set([getChatResourceSelectionId(resource)]))
+      selectResource(getChatResourceSelectionId(resource))
       // A pointer pick of a shell also hands it the keyboard; arrow-key
       // navigation along the strip keeps its own focus.
       if (resource.type === 'terminal' && source !== 'keyboard') {
@@ -392,11 +395,13 @@ export function ResourceTabs({
 
   const handleClose = useCallback(
     async (id: string) => {
-      const index = resources.findIndex((r) => r.id === id)
+      const index = resources.findIndex((r) => getChatResourceSelectionId(r) === id)
       const resource = resources[index]
       if (!resource) return
-      const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
-      const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
+      const isMulti = selectedIds.has(getChatResourceSelectionId(resource)) && selectedIds.size > 1
+      const targets = isMulti
+        ? resources.filter((r) => selectedIds.has(getChatResourceSelectionId(r)))
+        : [resource]
       const terminalIds = targets
         .filter((target) => target.type === 'terminal')
         .map((target) => terminalIdFromResourceId(target.id))
@@ -404,8 +409,10 @@ export function ResourceTabs({
       // Closing the shown tab moves to its neighbour, right then left, so the
       // strip does not fall back to its last tab and jump. For a desktop tab
       // this is also the neighbour the desktop app itself picks.
-      if (!isMulti && activeId === resource.id) {
-        const sameKind = new Set(resources.filter((r) => r.type === resource.type).map((r) => r.id))
+      if (!isMulti && activeId === getChatResourceSelectionId(resource)) {
+        const sameKind = new Set(
+          resources.filter((r) => r.type === resource.type).map(getChatResourceSelectionId)
+        )
         const nextId =
           findNearestId(resources, index, sameKind) ?? findNearestId(resources, index, null)
         if (nextId) selectResource(nextId)
@@ -422,13 +429,13 @@ export function ResourceTabs({
           )
           continue
         }
-        onRemoveResource(r.type, r.id)
+        onRemoveResource(r.type, r.id, r.workspaceId)
         if (r.type === 'browser') {
           sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
         }
       }
       // Clear stale selection and anchor for all removed targets
-      const removedIds = new Set(targets.map((r) => r.id))
+      const removedIds = new Set(targets.map(getChatResourceSelectionId))
       setSelectedIds((prev) => {
         const next = new Set(prev)
         for (const removedId of removedIds) next.delete(removedId)
@@ -436,15 +443,6 @@ export function ResourceTabs({
       })
       if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
         anchorIdRef.current = null
-      }
-      // Mirrors `handleAdd`: a resource opened while composing the first prompt
-      // has to be closable before there is a chat to attach it to. Only the
-      // server call is conditional — the local removal above also drops the
-      // queued write, so nothing resurrects it once the chat exists.
-      if (!chatId) return
-      for (const r of targets) {
-        if (isEphemeralResource(r)) continue
-        removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -466,7 +464,7 @@ export function ResourceTabs({
    */
   const withStripTitle = useCallback(
     (resource: MothershipResource): MothershipResource => {
-      const title = tabs.find((tab) => tab.id === resource.id)?.title
+      const title = tabs.find((tab) => tab.id === getChatResourceSelectionId(resource))?.title
       return title && title !== resource.title ? { ...resource, title } : resource
     },
     [tabs]
@@ -474,10 +472,13 @@ export function ResourceTabs({
 
   const handleTabDragStart = useCallback(
     (e: ReactDragEvent<HTMLDivElement>, id: string, drag: TabStripDragContext) => {
-      const resource = resources.find((r) => r.id === id)
+      const resource = resources.find((r) => getChatResourceSelectionId(r) === id)
       if (!resource) return
-      const selected = resources.filter((r) => selectedIds.has(r.id)).map(withStripTitle)
-      const isMultiDrag = selected.length > 1 && selectedIds.has(resource.id)
+      const selected = resources
+        .filter((r) => selectedIds.has(getChatResourceSelectionId(r)))
+        .map(withStripTitle)
+      const isMultiDrag =
+        selected.length > 1 && selectedIds.has(getChatResourceSelectionId(resource))
       if (isMultiDrag) {
         e.dataTransfer.effectAllowed = 'copy'
         e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(selected))
@@ -500,10 +501,20 @@ export function ResourceTabs({
       // and a drop target asking for `copy` is refused outright unless copying
       // is allowed too.
       e.dataTransfer.effectAllowed = 'copyMove'
-      const { type, id: resourceId, title } = withStripTitle(resource)
+      const {
+        type,
+        id: resourceId,
+        title,
+        workspaceId: resourceWorkspaceId,
+      } = withStripTitle(resource)
       e.dataTransfer.setData(
         SIM_RESOURCE_DRAG_TYPE,
-        JSON.stringify({ type, id: resourceId, title })
+        JSON.stringify({
+          type,
+          id: resourceId,
+          title,
+          ...(resourceWorkspaceId ? { workspaceId: resourceWorkspaceId } : {}),
+        })
       )
     },
     [resources, selectedIds, withStripTitle]
@@ -511,7 +522,7 @@ export function ResourceTabs({
 
   const handleReorder = useCallback(
     (id: string, targetIndex: number) => {
-      const fromIndex = resources.findIndex((r) => r.id === id)
+      const fromIndex = resources.findIndex((r) => getChatResourceSelectionId(r) === id)
       if (fromIndex < 0 || fromIndex === targetIndex) return
       const reordered = [...resources]
       const [moved] = reordered.splice(fromIndex, 1)
@@ -529,12 +540,6 @@ export function ResourceTabs({
           nativeIndex(),
           desktopScopeId
         ).catch(() => toast.error('Could not reorder that terminal. Please try again.'))
-      }
-      if (chatId) {
-        const persistable = reordered.filter((r) => !isEphemeralResource(r))
-        if (persistable.length > 0) {
-          reorderResources.mutate({ chatId, resources: persistable })
-        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -578,15 +583,17 @@ export function ResourceTabs({
           // Offered before the chat exists too: a resource opened while composing
           // the first prompt is context for that prompt, and gating on a chat id
           // meant the panel could be opened but not filled.
-          <div className={cn(resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}>
-            <AddResourceDropdown
-              workspaceId={workspaceId}
-              onAdd={handleAdd}
-              excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
-              onRequestOpen={onRequestAddResourceOpen}
-              onClose={onAddResourceClose}
-            />
-          </div>
+          workspaceId ? (
+            <div className={cn(resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}>
+              <AddResourceDropdown
+                workspaceId={workspaceId}
+                onAdd={handleAdd}
+                excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
+                onRequestOpen={onRequestAddResourceOpen}
+                onClose={onAddResourceClose}
+              />
+            </div>
+          ) : undefined
         }
         // A bare fragment is always truthy, so the empty case has to be `null` or
         // the strip renders an empty trailing cluster.

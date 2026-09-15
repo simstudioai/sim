@@ -61,6 +61,20 @@ describe('executeOAuthGetAuthLink', () => {
     expect(url.searchParams.has('credentialId')).toBe(false)
   })
 
+  it('binds organization credential cards and callback to the selected workspace and owned chat', async () => {
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'gmail' },
+      { ...context, workflowId: '', chatOrganizationId: 'org', requestMode: 'agent' }
+    )
+    expect(result.success).toBe(true)
+    const output = result.output as { oauth_url: string; instructions: string }
+    expect(new URL(output.oauth_url).searchParams.get('callbackURL')).toBe(
+      'https://sim.test/o/org/chat/chat-1'
+    )
+    expect(output.instructions).toContain('"workspaceId":"workspace-1"')
+    expect(output.instructions).toContain('<credential>')
+  })
+
   it('preserves the canonical credential ID for reconnect', async () => {
     mocks.execute.mockResolvedValue({
       serviceName: 'Gmail',

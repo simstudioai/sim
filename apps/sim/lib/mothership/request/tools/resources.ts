@@ -34,7 +34,8 @@ export async function handleResourceSideEffects(
   projectedResult: ToolCallResult,
   chatId: string,
   onEvent: ((event: StreamEvent) => void | Promise<void>) | undefined,
-  isAborted: () => boolean
+  isAborted: () => boolean,
+  workspaceId?: string
 ): Promise<void> {
   // Cheap early exit so we don't emit a span for tools that can never
   // produce resources (most of them). The span only shows up for tools
@@ -59,7 +60,9 @@ export async function handleResourceSideEffects(
       let upsertedCount = 0
 
       if (hasDeleteCapability(toolName)) {
-        const deleted = extractDeletedResourcesFromToolResult(toolName, params, result.output)
+        const deleted = extractDeletedResourcesFromToolResult(toolName, params, result.output).map(
+          (resource) => ({ ...resource, ...(workspaceId ? { workspaceId } : {}) })
+        )
         const projectedDeleted = extractDeletedResourcesFromToolResult(
           toolName,
           params,
@@ -90,6 +93,7 @@ export async function handleResourceSideEffects(
                 resource: {
                   type: resource.type,
                   id: resource.id,
+                  ...(resource.workspaceId ? { workspaceId: resource.workspaceId } : {}),
                   title: projected?.title ?? '',
                 },
               },
@@ -117,6 +121,9 @@ export async function handleResourceSideEffects(
                 ...projectedResources[index],
                 type: resource.type,
                 id: resource.id,
+                ...((resource.workspaceId ?? workspaceId)
+                  ? { workspaceId: resource.workspaceId ?? workspaceId }
+                  : {}),
               }))
             : []
 
@@ -148,10 +155,19 @@ export async function handleResourceSideEffects(
                 kind: 'clear-view',
                 tableId: resource.id,
                 viewId,
+                ...(resource.workspaceId ? { workspaceId: resource.workspaceId } : {}),
               })
               await onEvent?.({
                 type: MothershipStreamV1EventType.resource,
-                payload: { op: 'clear_view', resource: { type: 'table', id: resource.id, viewId } },
+                payload: {
+                  op: 'clear_view',
+                  resource: {
+                    type: 'table',
+                    id: resource.id,
+                    viewId,
+                    ...(resource.workspaceId ? { workspaceId: resource.workspaceId } : {}),
+                  },
+                },
               })
               continue
             }

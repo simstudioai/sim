@@ -70,27 +70,27 @@ export function matchV2Route(pathname: string): MatchedRoute | null {
   return best
 }
 
-function requestUrl(input: RequestInfo | URL): URL {
-  if (typeof input === 'string') return new URL(input)
-  if (input instanceof URL) return input
-  return new URL(input.url)
+/** Dispatches an already-admitted in-process request; transport-specific fallback stays with its caller. */
+export async function dispatchInProcessV2Request(
+  request: NextRequest
+): Promise<Response | undefined> {
+  const url = new URL(request.url)
+  const matched = url.pathname.startsWith('/api/v2/') ? matchV2Route(url.pathname) : null
+  if (!matched) return undefined
+  const module = await matched.load()
+  const handler =
+    Reflect.get(module, request.method) ??
+    (request.method === 'HEAD' ? Reflect.get(module, 'GET') : undefined)
+  if (typeof handler !== 'function') return undefined
+  return (handler as RouteHandler)(request, { params: Promise.resolve(matched.params) })
 }
 
 export function createInProcessTransport(): typeof fetch {
   return async (input, init) => {
-    const url = requestUrl(input)
-    const method = (init?.method ?? 'GET').toUpperCase()
-    const matched = url.pathname.startsWith('/api/v2/') ? matchV2Route(url.pathname) : null
-    if (!matched) return fetch(input, init)
-    const handler = Reflect.get(await matched.load(), method)
-    if (typeof handler !== 'function') return fetch(input, init)
-    const request = new NextRequest(url, {
-      method,
-      headers: init?.headers,
-      body: init?.body ?? null,
-      signal: init?.signal ?? undefined,
-    })
+    const request = new NextRequest(
+      new Request(input instanceof Request ? input.clone() : input, init)
+    )
     markInternalRequest(request)
-    return (handler as RouteHandler)(request, { params: Promise.resolve(matched.params) })
+    return (await dispatchInProcessV2Request(request)) ?? fetch(input, init)
   }
 }

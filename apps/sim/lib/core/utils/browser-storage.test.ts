@@ -208,3 +208,17 @@ describe('MothershipHandoffStorage', () => {
     }
   })
 })
+
+it('preserves explicit org agent recovery and leaves a Search handoff for its own surface', () => {
+  const owner = { organizationId: 'org-1' }
+  MothershipHandoffStorage.store({ message: 'Update workflow', requestMode: 'agent' }, owner)
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'assistant')).toBeNull()
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'agent')).toMatchObject({
+    requestMode: 'agent',
+  })
+  MothershipHandoffStorage.store({ message: 'Search legacy' }, owner)
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'agent')).toBeNull()
+  expect(MothershipHandoffStorage.consume(owner, undefined, 'assistant')).toMatchObject({
+    message: 'Search legacy',
+  })
+})

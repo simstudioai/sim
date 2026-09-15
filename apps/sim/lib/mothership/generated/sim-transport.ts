@@ -28,6 +28,7 @@ export const SimControlOperation = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("run_control"), input: RunControlRequest }),
   z.object({ kind: z.literal("workflow_status"), input: WorkflowWatchRequest }),
   z.object({ kind: z.literal("wake"), input: TaskWakeRequest }),
+  z.object({ kind: z.literal("workspace_context"), input: z.object({ workspaceId: z.uuid() }) }),
 ]);
 export type SimControlOperation = z.infer<typeof SimControlOperation>;
 

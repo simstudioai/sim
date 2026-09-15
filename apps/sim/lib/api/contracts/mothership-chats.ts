@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import {
   mountedSecretNamesSchema,
@@ -44,7 +45,9 @@ export const updateMothershipChatBodySchema = z
     }
   )
 
-export const createMothershipChatBodySchema = mothershipChatOwnerSchema
+export const createMothershipChatBodySchema = mothershipChatOwnerSchema.and(
+  z.object({ mode: z.enum(['agent', 'assistant']).optional() })
+)
 export type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
 
 export const markMothershipChatReadBodySchema = z.object({
@@ -219,6 +222,7 @@ const reorderMothershipChatResourcesBodySchema = z.object({
 })
 
 const removeMothershipChatResourceBodySchema = z.object({
+  workspaceId: workspaceIdSchema.optional(),
   chatId: z.string().min(1),
   resourceType: mothershipResourceSchema.shape.type,
   resourceId: z.string().min(1),
@@ -255,6 +259,7 @@ export const removeMothershipChatResourceContract = defineRouteContract({
 })
 
 export const mothershipChatSchema = z.object({
+  mode: z.enum(['agent', 'assistant']),
   id: z.string(),
   title: z.string().nullable(),
   updatedAt: dateStringSchema,
@@ -376,6 +381,7 @@ export const getMothershipChatResponseSchema = z.object({
     .object({
       id: z.string(),
       title: z.string().nullable(),
+      mode: z.enum(['agent', 'assistant']),
       messages: z.array(z.unknown()),
       activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),

@@ -62,7 +62,6 @@ import {
 } from '@/lib/mothership/tools/workflow-tools'
 import { getBlockByToolName } from '@/blocks/registry'
 import {
-  type ToolScope,
   abortPendingToolIfStreamDead,
   addContentBlock,
   emitSyntheticToolResult,
@@ -76,6 +75,7 @@ import {
   handleClientCompletion,
   inferToolSuccess,
   registerPendingToolPromise,
+  type ToolScope,
 } from './types'
 
 /** The standard error-completion literal, built in one place (it appeared five times). */
@@ -476,6 +476,7 @@ async function handleCallPhase(
   const isGenerating = data.status === TOOL_CALL_STATUS.generating
   const isPartial = data.partial === true || isGenerating
   const existing = context.toolCalls.get(toolCallId)
+  if (existing && data.workspaceId) existing.targetWorkspaceId = data.workspaceId
   const activityDescription = normalizeToolActivityDescription(data.activityDescription)
   if (existing) {
     existing.agentId ??= agentId
@@ -554,6 +555,8 @@ async function handleCallPhase(
     )
   }
 
+  const registered = context.toolCalls.get(toolCallId)
+  if (registered && data.workspaceId) registered.targetWorkspaceId = data.workspaceId
   if (isPartial || data.replay) return
   if (!isSubagent && wasToolResultSeen(context, toolCallId)) return
   if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {

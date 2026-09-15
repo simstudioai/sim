@@ -20,23 +20,25 @@ const visibilityCache = new LRUCache<string, Promise<BlockVisibilityState>>({
 
 async function resolveVisibility(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  organizationId?: string
 ): Promise<BlockVisibilityState> {
   const orgId = workspaceId
     ? (await getWorkspaceWithOwner(workspaceId, { includeArchived: true }))?.organizationId
-    : undefined
+    : organizationId
   return getBlockVisibility({ userId, orgId })
 }
 
 /** The viewer's visibility state, memoized per (userId, workspaceId) for ~30s. */
 export function getBlockVisibilityForCopilot(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  organizationId?: string
 ): Promise<BlockVisibilityState> {
-  const key = `${userId}:${workspaceId ?? ''}`
+  const key = JSON.stringify([userId, workspaceId ?? null, organizationId ?? null])
   let promise = visibilityCache.get(key)
   if (!promise) {
-    promise = resolveVisibility(userId, workspaceId).catch((error) => {
+    promise = resolveVisibility(userId, workspaceId, organizationId).catch((error) => {
       visibilityCache.delete(key)
       throw error
     })

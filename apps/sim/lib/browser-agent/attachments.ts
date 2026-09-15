@@ -13,7 +13,10 @@ import type {
   MothershipTableViewContext,
 } from '@/lib/api/contracts/mothership-resources'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
-import type { MothershipResource } from '@/lib/mothership/resources/types'
+import {
+  getChatResourceSelectionId,
+  type MothershipResource,
+} from '@/lib/mothership/resources/types'
 import { getBrowserSession } from '@/stores/browser-session/store'
 
 export function buildResourceAttachments(
@@ -37,7 +40,7 @@ export function buildResourceAttachments(
           ...(resource.type === 'table' && tableViews?.has(resource.id)
             ? { currentView: tableViews.get(resource.id) }
             : {}),
-          active: resource.id === activeResourceId,
+          active: getChatResourceSelectionId(resource) === activeResourceId,
         },
       ]
     }
@@ -49,7 +52,7 @@ export function buildResourceAttachments(
         type: resource.type,
         id: resource.id,
         title: browserTabTitle(tab),
-        active: resource.id === activeResourceId,
+        active: getChatResourceSelectionId(resource) === activeResourceId,
         url: tab.url,
       },
     ]

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
 import {
+  getChatResourceKey,
+  getChatResourceSelectionId,
   isAddressableResource,
   isDesktopOnlyResource,
   isEphemeralResource,
@@ -274,5 +276,28 @@ describe('reorderStoredChatResources', () => {
     // merged by key can hold one. The client sends its deduplicated list, so a
     // length comparison would reject every reorder for that chat forever.
     expect(reorderStoredChatResources([table, table, file], [file, table])).toEqual([file, table])
+  })
+})
+
+describe('organization resource identity', () => {
+  it('keeps identical aliases in separate workspaces through reorder and selection', () => {
+    const a = resource({ type: 'integration', id: 'slack', workspaceId: 'a', title: 'Slack A' })
+    const b = resource({ ...a, workspaceId: 'b', title: 'Slack B' })
+    expect(getChatResourceKey(a)).not.toBe(getChatResourceKey(b))
+    expect(getChatResourceSelectionId(a)).not.toBe(getChatResourceSelectionId(b))
+    expect(reorderStoredChatResources([a, b], [b, a])).toEqual([b, a])
+    expect(reorderStoredChatResources([a, b], [a, a])).toBeNull()
+  })
+  it('retains canonical UUID deep links and carries the owner across metadata changes', () => {
+    const a = resource({
+      id: '11111111-1111-4111-8111-111111111111',
+      workspaceId: 'a',
+      workspaceName: 'Design',
+    })
+    expect(getChatResourceSelectionId(a)).toBe(a.id)
+    expect(mergeChatResource(a, { ...a, path: 'files/new.png' })).toMatchObject({
+      workspaceId: 'a',
+      workspaceName: 'Design',
+    })
   })
 })

@@ -1,12 +1,19 @@
-import type { WorkspaceDelegationPolicy } from '@/lib/core/application'
-import type { resolveOwnedWorkspaceChatContext } from '@/lib/mothership/chat/application/context'
+import type {
+  WorkspaceAuthorizationContext,
+  WorkspaceDelegationPolicy,
+} from '@/lib/core/application'
+import type { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 
 export const TASK_DELEGATION_AUDIENCE = 'sim:copilot-tasks'
 
-type TaskChatContext = Awaited<ReturnType<typeof resolveOwnedWorkspaceChatContext>>
+type TaskChatContext = Awaited<ReturnType<typeof resolveOwnedChatContext>>
 
-export const taskDelegationPolicy: WorkspaceDelegationPolicy<TaskChatContext> = {
+export const taskDelegationPolicy: WorkspaceDelegationPolicy<
+  TaskChatContext & WorkspaceAuthorizationContext
+> = {
   audience: TASK_DELEGATION_AUDIENCE,
   isWithinScope: (principal, context) =>
-    principal.serviceId === 'copilot' && principal.workspaceId === context.workspaceId,
+    principal.serviceId === 'copilot' &&
+    principal.workspaceId === context.workspaceId &&
+    (!principal.resourceScope?.chatId || principal.resourceScope.chatId === context.chatId),
 }

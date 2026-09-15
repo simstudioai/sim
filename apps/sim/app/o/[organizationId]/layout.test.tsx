@@ -23,6 +23,10 @@ const {
   mockUseMothershipChatEvents: vi.fn(),
 }))
 
+vi.mock('@/lib/table/ttl-availability', () => ({ isTableRowTtlEnabled: async () => false }))
+vi.mock('@/app/workspace/providers/socket-provider', () => ({
+  SocketProvider: ({ children }: { children: import('react').ReactNode }) => children,
+}))
 vi.mock('@/hooks/use-mothership-chat-events', () => ({
   useMothershipChatEvents: mockUseMothershipChatEvents,
 }))

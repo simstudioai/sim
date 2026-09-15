@@ -14,7 +14,10 @@ import {
 } from '@/lib/uploads/upload-session/service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { validateAttachmentFileType } from '@/lib/uploads/utils/validation'
-import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
+import {
+  authorizeWorkspaceFileAccess,
+  WORKSPACE_FILES_DELEGATION_AUDIENCE,
+} from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -266,6 +269,15 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
         return context.billedAccountUserId
       }
     case 'delegated':
+      if (
+        principal.serviceId === 'copilot' &&
+        principal.workspaceId === workspaceId &&
+        principal.audience === WORKSPACE_FILES_DELEGATION_AUDIENCE &&
+        principal.subjectUserId &&
+        principal.resourceScope?.chatId &&
+        principal.expiresAt > new Date()
+      )
+        return principal.subjectUserId
       throw new UploadSessionError('forbidden', 'Delegated principals cannot create uploads')
     case 'system':
       throw new UploadSessionError('forbidden', 'System principals cannot create uploads')

@@ -11,7 +11,7 @@ import { readWatchedWorkflowStatus } from '@/lib/mothership/tasks/application/re
 
 export const POST = defineInternalJsonRoute({
   contract: workflowWatchStatusContract,
-  auth: internalCopilotAuth(TASK_DELEGATION_AUDIENCE),
+  auth: internalCopilotAuth(TASK_DELEGATION_AUDIENCE, { organization: true }),
   operation: taskOperations.readWorkflowStatus,
   rateLimit: internalRateLimits.none({
     reason: 'Authenticated worker reconciles its bounded task inbox.',

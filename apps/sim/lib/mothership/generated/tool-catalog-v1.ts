@@ -5,6 +5,7 @@
 export interface ToolCatalogEntry {
   capabilities?: unknown
   clientExecutable?: boolean
+  description?: 'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.'
   hidden?: boolean
   id:
     | 'apply_file_edit'
@@ -75,6 +76,7 @@ export interface ToolCatalogEntry {
     | 'list_deployment_versions'
     | 'list_integration_tools'
     | 'list_workspace_mcp_servers'
+    | 'list_workspaces'
     | 'load_deployment'
     | 'load_integration_tool'
     | 'load_skill'
@@ -143,8 +145,8 @@ export interface ToolCatalogEntry {
     | 'web_search'
     | 'workflow'
   internal?: boolean
-  mode: 'async' | 'sync'
-  name:
+  mode?: 'async' | 'sync'
+  name?:
     | 'apply_file_edit'
     | 'auth'
     | 'browser'
@@ -7210,6 +7212,39 @@ export const Workflow: ToolCatalogEntry = {
   internal: true,
 }
 
+export const ListWorkspaces: ToolCatalogEntry = {
+  id: 'list_workspaces',
+  description:
+    'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      workspaceId: {
+        description: 'Exact workspace ID to revalidate, when known.',
+        type: 'string',
+        format: 'uuid',
+        pattern:
+          '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+      },
+      query: {
+        description: 'Case-insensitive workspace name filter.',
+        type: 'string',
+        maxLength: 200,
+      },
+      limit: { default: 50, type: 'integer', minimum: 1, maximum: 100 },
+      cursor: {
+        description: 'Copy nextCursor from the preceding page.',
+        type: 'string',
+        format: 'uuid',
+        pattern:
+          '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+      },
+    },
+  },
+}
+
 export const FfmpegOperation = {
   overlayAudio: 'overlay_audio',
   mixAudio: 'mix_audio',
@@ -7775,4 +7810,5 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [WebScrape.id]: WebScrape,
   [WebSearch.id]: WebSearch,
   [Workflow.id]: Workflow,
+  [ListWorkspaces.id]: ListWorkspaces,
 }

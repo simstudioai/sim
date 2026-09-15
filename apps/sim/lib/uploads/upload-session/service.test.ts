@@ -6,6 +6,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 
 const {
   mockAbortProviderUpload,
@@ -253,6 +254,7 @@ describe('upload sessions', () => {
             organizationId: 'org-1',
             userId: 'user-1',
             sessionId: 'session-1',
+            requestMode: 'assistant',
           },
         },
       })
@@ -770,6 +772,44 @@ describe('upload sessions', () => {
       },
     })
   })
+
+  it.each([
+    ['workspace_file', 'sim:workspace-files'],
+    ['knowledge_document', 'sim:knowledge'],
+    ['table_import', 'sim:tables'],
+  ] as const)(
+    'binds %s Copilot uploads to the actual subject/chat/workspace across refreshed calls',
+    (purpose, audience) => {
+      const caller = createCopilotChatPrincipal(
+        { userId: 'actor', workspaceId: WORKSPACE_ID, chatId: 'chat' },
+        audience
+      )
+      const session = sessionRecord({
+        purpose,
+        metadata: {
+          authBinding: createUploadSessionAuthBinding(caller, WORKSPACE_ID, {
+            copilotDelegationAudience: audience,
+          }),
+        },
+      })
+      expect(() =>
+        assertUploadSessionAuthBinding(session, { ...caller, delegationId: 'fresh-turn' })
+      ).not.toThrow()
+      for (const changed of [
+        { ...caller, subjectUserId: 'other' },
+        { ...caller, workspaceId: 'other' },
+        { ...caller, resourceScope: { chatId: 'other' } },
+        { ...caller, audience: 'other' },
+        { ...caller, expiresAt: new Date(0) },
+      ])
+        expect(() => assertUploadSessionAuthBinding(session, changed)).toThrow(
+          'Upload session not found'
+        )
+      expect(() => assertUploadSessionAuthBinding({ ...session, metadata: {} }, caller)).toThrow(
+        'Upload session not found'
+      )
+    }
+  )
 
   it('accepts refreshed executor tokens only for the same immutable upload binding', () => {
     const session = sessionRecord({

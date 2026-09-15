@@ -1,4 +1,5 @@
 import type { V2ConnectorTypeDetail } from '@/lib/api/contracts/v2/catalog'
+import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import { loadCatalogWorkspaceContext } from '@/lib/catalog/application/catalog-context'
 import {
   type CatalogPage,
@@ -44,7 +45,7 @@ export const listCatalogConnectorTypes = defineAuthorizedWorkspaceUseCase({
   operation: catalogOperations.listConnectorTypes,
   resolveContext: ({ input }: { input: ListCatalogConnectorTypesInput }) =>
     loadCatalogWorkspaceContext(input.workspaceId),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ input }): Promise<ListCatalogConnectorTypesResult> => {
     const search = normalizeCatalogSearch(input.search)
     const connectorTypes: Array<CatalogConnectorType | CatalogConnectorTypeSummary> = []

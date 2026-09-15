@@ -10,12 +10,16 @@ import type { useSpeechToText } from '@/hooks/use-speech-to-text'
 
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
+  assistant: vi.fn(),
   urlUpdate: vi.fn(),
   push: vi.fn(),
   speech: vi.fn<typeof useSpeechToText>(),
   toggleListening: vi.fn(),
 }))
 
+vi.mock('@/app/o/[organizationId]/home/organization-home', () => ({
+  OrganizationHome: mocks.assistant,
+}))
 vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'reader' } } }),
@@ -60,6 +64,7 @@ let container: HTMLDivElement
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.assistant.mockReturnValue(<div>Search Assistant composer</div>)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'matchMedia',
@@ -218,5 +223,43 @@ describe('organization Search query navigation', () => {
       searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     )
     expectVisibleQuery('Orion')
+  })
+})
+
+describe('organization Search intent toggle', () => {
+  it('preserves committed query and filters without submitting an Assistant turn', async () => {
+    await render('?q=Orion&source=slack&updated=7d')
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[role="radio"][value="assistant"]')!.click()
+    )
+    expect(mocks.assistant).toHaveBeenLastCalledWith(
+      expect.objectContaining({ requestMode: 'assistant' }),
+      undefined
+    )
+    expect(container.textContent).toContain('Search Assistant composer')
+    await vi.waitFor(() =>
+      expect(mocks.urlUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ queryString: '?q=Orion&source=slack&updated=7d&view=assistant' })
+      )
+    )
+    expect(mocks.push).not.toHaveBeenCalled()
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[role="radio"][value="results"]')!.click()
+    )
+    expect(searchInput().value).toBe('Orion')
+    expect(mocks.search).toHaveBeenLastCalledWith(
+      scope,
+      'Orion',
+      expect.objectContaining({ source: 'slack' })
+    )
+  })
+  it('reopens the Assistant URL without running the raw query', async () => {
+    await render('?q=Orion&view=assistant')
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(mocks.assistant).toHaveBeenLastCalledWith(
+      expect.objectContaining({ requestMode: 'assistant' }),
+      undefined
+    )
+    expect(mocks.urlUpdate).not.toHaveBeenCalled()
   })
 })

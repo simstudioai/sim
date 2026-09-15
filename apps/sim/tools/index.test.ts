@@ -66,6 +66,7 @@ const {
   mockResolveWorkspaceFileReference,
   mockAssertPermissionsAllowed,
   mockExecuteFunction,
+  mockExecuteChatFunction,
   mockCreateExecutorPrincipalFromExecutionContext,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
@@ -88,6 +89,7 @@ const {
   mockResolveWorkspaceFileReference: vi.fn(),
   mockAssertPermissionsAllowed: vi.fn(),
   mockExecuteFunction: vi.fn(),
+  mockExecuteChatFunction: vi.fn(),
   mockCreateExecutorPrincipalFromExecutionContext: vi.fn(),
   mockGetInternalToolOperationHandler: vi.fn(),
   mockExecuteInternalToolOperation: vi.fn(),
@@ -136,6 +138,10 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+vi.mock('@/lib/function-execution/application/execute-chat-function', () => ({
+  executeChatFunction: { execute: mockExecuteChatFunction },
+}))
 
 vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mockExecuteFunction },
@@ -7039,5 +7045,49 @@ describe('Cost Field Handling', () => {
     expect(result.output.cost).toBeUndefined()
 
     Object.assign(tools, originalTools)
+  })
+})
+
+describe('organization scratch internal entrance', () => {
+  it('admits the real function operation with trusted Agent scope and no fake workspace', async () => {
+    mockExecuteChatFunction.mockResolvedValueOnce(
+      Response.json(
+        { success: true, output: { result: 'waited' }, __resolvedSecretNames: [] },
+        { headers: { 'x-sim-private-tool-metadata': 'resolved-secret-names-durable-files-v2' } }
+      )
+    )
+    const result = await executeTool(
+      'function_execute',
+      {
+        code: 'return "waited"',
+        secretScope: 'selected',
+        sandboxSessionKey: 'mothership-chat:org-chat',
+      },
+      {
+        operationContext: {
+          userId: 'actor',
+          organizationId: 'org',
+          chatId: 'org-chat',
+          requestMode: 'agent',
+          copilotToolExecution: true,
+        },
+        internalSandboxProfile: 'mothership',
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+      }
+    )
+    expect(result).toMatchObject({
+      success: true,
+      output: { success: true, output: { result: 'waited' } },
+    })
+    expect(mockExecuteChatFunction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          kind: 'organization_delegated',
+          organizationId: 'org',
+          subjectUserId: 'actor',
+        }),
+        input: expect.objectContaining({ chatId: 'org-chat' }),
+      })
+    )
   })
 })

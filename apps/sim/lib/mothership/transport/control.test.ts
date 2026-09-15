@@ -6,6 +6,10 @@ const handlers = vi.hoisted(() => ({
   status: vi.fn(),
   prepare: vi.fn(),
   wake: vi.fn(),
+  workspace: vi.fn(),
+}))
+vi.mock('@/lib/mothership/chat/application/workspace-context', () => ({
+  readWorkspaceContext: { execute: handlers.workspace },
 }))
 vi.mock('@/lib/mothership/request/application/read-control', () => ({
   RUN_CONTROL_AUDIENCE: 'control',
@@ -65,7 +69,7 @@ describe('outbound control delivery uses the existing authorized operations', ()
     })
   })
 
-  it('binds organization Stop to its private chat and rejects organization workspace controls', async () => {
+  it('binds organization controls to their exact private chat and operation audience', async () => {
     const organizationScope = { userId: 'user', organizationId: 'org-1', chatId: 'chat' }
     const control = request({ kind: 'run_control', input: { chatId: 'chat', streamId: 'stream' } })
     expect((await executeSimControl({ ...control, scope: organizationScope })).status).toBe(200)
@@ -86,12 +90,20 @@ describe('outbound control delivery uses the existing authorized operations', ()
           scope: organizationScope,
           operation: {
             kind: 'workflow_status',
-            input: { chatId: 'chat', executionId: 'execution' },
+            input: { chatId: 'chat', executionId: 'execution', workspaceId: 'target' },
           },
         })
       ).status
-    ).toBe(403)
-    expect(handlers.status).not.toHaveBeenCalled()
+    ).toBe(200)
+    expect(handlers.status).toHaveBeenCalledWith({
+      input: { chatId: 'chat', executionId: 'execution', workspaceId: 'target' },
+      principal: expect.objectContaining({
+        kind: 'organization_delegated',
+        organizationId: 'org-1',
+        audience: 'tasks',
+        resourceScope: { chatId: 'chat' },
+      }),
+    })
     expect(
       (
         await executeSimControl({
@@ -154,5 +166,22 @@ describe('outbound control delivery uses the existing authorized operations', ()
       request({ kind: 'run_control', input: { chatId: 'chat', streamId: 'stream' } })
     )
     expect(result).toEqual({ status: 500, body: '{"error":"Internal server error"}' })
+  })
+})
+
+it('uses the same protected inventory for checkpoint memory preflight', async () => {
+  handlers.workspace.mockResolvedValue({ success: true, workspaces: [], nextCursor: null })
+  const result = await executeSimControl({
+    ...request({ kind: 'workspace_context', input: { workspaceId: 'target' } }),
+    scope: { organizationId: 'org', userId: 'user', chatId: 'chat' },
+  })
+  expect(result.status).toBe(200)
+  expect(handlers.workspace).toHaveBeenCalledWith({
+    input: { workspaceId: 'target' },
+    principal: expect.objectContaining({
+      kind: 'organization_delegated',
+      audience: 'sim:workspaces',
+      resourceScope: { chatId: 'chat' },
+    }),
   })
 })

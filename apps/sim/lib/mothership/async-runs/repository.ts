@@ -840,8 +840,9 @@ export interface WorkbenchRecoveryState {
 
 /** Private sandbox callbacks must still belong to the admitted caller, chat and live tool lease. */
 export async function isActiveSandboxResourceOwner(
-  input: SimToolExecutionOwner & { chatId: string; workspaceId: string }
+  input: SimToolExecutionOwner & { chatId: string; workspaceId?: string; organizationId?: string }
 ): Promise<boolean> {
+  if (Boolean(input.workspaceId) === Boolean(input.organizationId)) return false
   const [owner] = await db
     .select({ id: copilotAsyncToolCalls.id })
     .from(copilotAsyncToolCalls)
@@ -852,9 +853,19 @@ export async function isActiveSandboxResourceOwner(
         eq(copilotRuns.id, input.runId),
         eq(copilotRuns.userId, input.userId),
         eq(copilotRuns.chatId, input.chatId),
-        eq(copilotRuns.workspaceId, input.workspaceId),
+        input.workspaceId
+          ? eq(copilotRuns.workspaceId, input.workspaceId)
+          : isNull(copilotRuns.workspaceId),
+        input.organizationId
+          ? eq(copilotRuns.organizationId, input.organizationId)
+          : isNull(copilotRuns.organizationId),
         eq(copilotChats.userId, input.userId),
-        eq(copilotChats.workspaceId, input.workspaceId),
+        input.workspaceId
+          ? eq(copilotChats.workspaceId, input.workspaceId)
+          : isNull(copilotChats.workspaceId),
+        input.organizationId
+          ? eq(copilotChats.organizationId, input.organizationId)
+          : isNull(copilotChats.organizationId),
         isNull(copilotChats.deletedAt),
         isNull(copilotRuns.toolAdmissionClosedAt),
         notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),

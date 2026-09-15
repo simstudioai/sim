@@ -10,28 +10,12 @@ import {
   useRef,
   useState,
 } from 'react'
-import {
-  Chip,
-  cn,
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItemLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-  Tooltip,
-  toast,
-} from '@sim/emcn'
-import { Check, ChevronDown, Paperclip, Plus, Slash, Zap } from '@sim/emcn/icons'
+import { Chip, cn, Tooltip, toast } from '@sim/emcn'
+import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
-import { MOTHERSHIP_EFFORT_OPTIONS, MOTHERSHIP_MODEL_OPTIONS } from '@/lib/mothership/model-options'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -45,6 +29,7 @@ import {
   SendButton,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
   FileAttachmentForApi,
@@ -58,7 +43,6 @@ import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
@@ -552,12 +536,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     editorRef.current.openResourceMenu({ left: rect.left, top: rect.top })
   }, [])
 
-  const modelSelection = useMothershipEffortStore((state) => state.modelSelection)
-  const setModel = useMothershipEffortStore((state) => state.setModel)
-  const setFastMode = useMothershipEffortStore((state) => state.setFastMode)
-  const effort = useMothershipEffortStore((state) => state.effort)
-  const setEffort = useMothershipEffortStore((state) => state.setEffort)
-
   const handleSlashTriggerClick = useCallback(() => {
     editorRef.current.insertSlashTrigger()
   }, [])
@@ -633,61 +611,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Skills</Tooltip.Content>
           </Tooltip.Root>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Chip
-                aria-label='Model and reasoning effort'
-                leftIcon={modelSelection.fastMode ? Zap : undefined}
-                rightIcon={ChevronDown}
-              >
-                {
-                  MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
-                    ?.label
-                }{' '}
-                <span className='text-[var(--text-muted)]'>
-                  {MOTHERSHIP_EFFORT_OPTIONS.find((option) => option.value === effort)?.label}
-                </span>
-              </Chip>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side='top' align='start'>
-              {MOTHERSHIP_MODEL_OPTIONS.map((model) => (
-                <DropdownMenuSub key={model.value}>
-                  <DropdownMenuSubTrigger>
-                    <DropdownMenuItemLabel label={model.label} />
-                    {modelSelection.model === model.value && <Check className='size-[14px]' />}
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuRadioGroup
-                      value={modelSelection.model === model.value ? effort : ''}
-                      onValueChange={(value) => {
-                        const option = MOTHERSHIP_EFFORT_OPTIONS.find(
-                          (option) => option.value === value
-                        )
-                        if (!option) return
-                        setModel(model.value)
-                        setEffort(option.value)
-                      }}
-                    >
-                      {MOTHERSHIP_EFFORT_OPTIONS.map((option) => (
-                        <DropdownMenuRadioItem key={option.value} value={option.value}>
-                          {option.label}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              ))}
-              {modelSelection.model === 'gpt-6-astra' && (
-                <DropdownMenuCheckboxItem
-                  checked={modelSelection.fastMode}
-                  onCheckedChange={(checked) => setFastMode(checked === true)}
-                >
-                  <Zap className='size-[14px]' />
-                  Fast mode
-                </DropdownMenuCheckboxItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ModelSelector />
         </div>
         <div className='flex items-center gap-1.5'>
           {isSttSupported && (

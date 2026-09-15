@@ -68,6 +68,7 @@ describe('getOrganizationSurfaceContext', () => {
         canUseSearchMcp: true,
       },
       connectedAccountsAvailable: true,
+      mothershipAvailable: true,
       searchAccess: { memberScoped: true, sourceMirrored: false },
       settingsFeatures: expect.objectContaining({
         hosted: true,

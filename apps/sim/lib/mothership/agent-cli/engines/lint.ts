@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { enginePrincipal } from '@/lib/mothership/agent-cli/engine-principal'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
 import { formatWorkflowLintMessage, hasWorkflowLintIssues } from '@/lib/workflows/editing/lint'
@@ -17,7 +18,7 @@ export const workflowLintCommand: AgentCliEngine = {
     }
     try {
       const report = await readWorkflowLint.execute({
-        principal: runtime.principal,
+        principal: enginePrincipal(runtime, readWorkflowLint)!,
         input: { workflowId, signal: runtime.signal },
       })
       const findings = [...report.notes]

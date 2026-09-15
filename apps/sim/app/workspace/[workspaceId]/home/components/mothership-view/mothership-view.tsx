@@ -1,9 +1,10 @@
 'use client'
 
-import { forwardRef, memo, useCallback, useRef, useState } from 'react'
+import { type ComponentProps, forwardRef, memo, useCallback, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
+import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
@@ -15,6 +16,10 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
+import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
+import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
+import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
@@ -22,7 +27,9 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
 
 /**
@@ -79,7 +86,8 @@ function shouldShowStreamingFilePanel(
 }
 
 interface MothershipViewProps {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   chatId?: string
   desktopScopeId: string
   onTableViewContextChange?: (tableId: string, context: MothershipTableViewContext) => void
@@ -99,6 +107,7 @@ export const MothershipView = memo(
   forwardRef<HTMLDivElement, MothershipViewProps>(function MothershipView(
     {
       workspaceId,
+      organizationId,
       chatId,
       desktopScopeId,
       resources,
@@ -114,8 +123,18 @@ export const MothershipView = memo(
     }: MothershipViewProps,
     ref
   ) {
-    const active = resources.find((r) => r.id === activeResourceId) ?? null
-    const { canEdit } = useUserPermissionsContext()
+    const active = resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null
+    const activeWorkspaceId = active?.workspaceId ?? workspaceId
+    const inheritedPermissions = useUserPermissionsContext()
+    const permissions = useWorkspacePermissionsQuery(organizationId ? activeWorkspaceId : undefined)
+    const scopedPermissions = useUserPermissions(
+      permissions.data ?? null,
+      permissions.isPending,
+      permissions.error?.message ?? null
+    )
+    const canEdit = organizationId
+      ? Boolean(activeWorkspaceId) && !permissions.error && scopedPermissions.canEdit
+      : inheritedPermissions.canEdit
     const { removeResource } = useMothershipResources()
     const browserOverlayControllerRef = useRef<BrowserPanelOverlayController | null>(null)
     const fileDownloadSourceRef = useRef<FileDownloadSource | null>(null)
@@ -159,17 +178,22 @@ export const MothershipView = memo(
     const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
     const handleCyclePreview = () => setPreviewMode((m) => PREVIEW_CYCLE[m])
 
-    const [prevActiveId, setPrevActiveId] = useState(active?.id)
-    if (prevActiveId !== active?.id) {
-      setPrevActiveId(active?.id)
+    const activeSelectionId = active ? getChatResourceSelectionId(active) : undefined
+    const [prevActiveId, setPrevActiveId] = useState(activeSelectionId)
+    if (prevActiveId !== activeSelectionId) {
+      setPrevActiveId(activeSelectionId)
       setPreviewMode('preview')
     }
 
     // A large CSV renders read-only (streamed) with no editor, so it must not offer the
     // edit/split/preview toggle. Its size lives on the file record, not the resource tab.
-    const { data: files, isLoading: filesLoading } = useWorkspaceFiles(workspaceId, 'active', {
-      enabled: active?.type === 'file',
-    })
+    const { data: files, isLoading: filesLoading } = useWorkspaceFiles(
+      activeWorkspaceId ?? '',
+      'active',
+      {
+        enabled: Boolean(activeWorkspaceId) && active?.type === 'file',
+      }
+    )
     const activeFile = active?.type === 'file' ? files?.find((f) => f.id === active.id) : undefined
     const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
 
@@ -213,15 +237,22 @@ export const MothershipView = memo(
             desktopScopeId={desktopScopeId}
             chatId={chatId}
             resources={resources}
-            activeId={active?.id ?? null}
+            activeId={active ? getChatResourceSelectionId(active) : null}
             activityIds={activityResourceIds}
             actions={
-              active ? (
-                <ResourceActions
-                  workspaceId={workspaceId}
-                  resource={active}
-                  downloadSourceRef={fileDownloadSourceRef}
-                />
+              active && activeWorkspaceId ? (
+                <ResourceWorkspaceHost
+                  workspaceId={activeWorkspaceId}
+                  organizationId={organizationId}
+                  workflowId={active.type === 'workflow' ? active.id : undefined}
+                  isFileViewer={active.type === 'file'}
+                >
+                  <ResourceActions
+                    workspaceId={activeWorkspaceId}
+                    resource={active}
+                    downloadSourceRef={fileDownloadSourceRef}
+                  />
+                </ResourceWorkspaceHost>
               ) : null
             }
             previewMode={isActivePreviewable ? previewMode : undefined}
@@ -255,8 +286,9 @@ export const MothershipView = memo(
                   observers the panel installs. The explicit flag lets it stand
                   those down while hidden.
                 */}
-                  <ResourceContent
-                    workspaceId={workspaceId}
+                  <ScopedResourceContent
+                    workspaceId={resource.workspaceId ?? workspaceId}
+                    organizationId={organizationId}
                     desktopScopeId={desktopScopeId}
                     resource={resource}
                     visible={panelVisible}
@@ -266,8 +298,9 @@ export const MothershipView = memo(
               )
             })}
             {active && !isPersistentPanel(active) && (
-              <ResourceContent
-                workspaceId={workspaceId}
+              <ScopedResourceContent
+                workspaceId={activeWorkspaceId}
+                organizationId={organizationId}
                 desktopScopeId={desktopScopeId}
                 resource={active}
                 downloadSourceRef={fileDownloadSourceRef}
@@ -277,12 +310,14 @@ export const MothershipView = memo(
                 isAgentResponding={isAgentResponding}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
-                onNotFound={(resourceId) => removeResource('log', resourceId)}
+                onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
               />
             )}
             {!active && (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "+" above to add a resource
+                {workspaceId
+                  ? 'Click "+" above to add a resource'
+                  : 'Open a resource from the conversation'}
               </div>
             )}
           </div>
@@ -291,3 +326,43 @@ export const MothershipView = memo(
     )
   })
 )
+
+function ScopedResourceContent({
+  workspaceId,
+  organizationId,
+  ...props
+}: Omit<ComponentProps<typeof ResourceContent>, 'workspaceId'> & {
+  workspaceId?: string
+  organizationId?: string
+}) {
+  if (!workspaceId) {
+    if (props.resource.type === 'generic')
+      return <GenericResourceContent data={props.genericResourceData ?? { entries: [] }} />
+    if (props.resource.type === 'browser')
+      return (
+        <BrowserSession
+          scopeId={props.desktopScopeId}
+          visible={props.visible ?? true}
+          onOverlayControllerChange={props.onBrowserOverlayControllerChange}
+        />
+      )
+    if (props.resource.type === 'terminal')
+      return <TerminalSession scopeId={props.desktopScopeId} visible={props.visible ?? true} />
+    return (
+      <div role='status' className='p-4 text-[var(--text-muted)] text-sm'>
+        This resource has no workspace address.
+      </div>
+    )
+  }
+  if (!organizationId) return <ResourceContent workspaceId={workspaceId} {...props} />
+  return (
+    <ResourceWorkspaceHost
+      workspaceId={workspaceId}
+      organizationId={organizationId}
+      workflowId={props.resource.type === 'workflow' ? props.resource.id : undefined}
+      isFileViewer={props.resource.type === 'file'}
+    >
+      <ResourceContent workspaceId={workspaceId} {...props} />
+    </ResourceWorkspaceHost>
+  )
+}

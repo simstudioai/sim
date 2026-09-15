@@ -10,7 +10,8 @@ import {
 export function buildUploadedFileContext(
   displayName: string,
   mediaType: string,
-  size: number
+  size: number,
+  attachmentId?: string
 ): ChatContextItem {
   let encodedUploadName = displayName
   try {
@@ -18,7 +19,7 @@ export function buildUploadedFileContext(
   } catch {
     encodedUploadName = displayName
   }
-  if (isArchiveFileName(displayName)) {
+  if (isArchiveFileName(displayName) && !attachmentId) {
     return {
       type: 'uploaded_file',
       content: [
@@ -27,10 +28,10 @@ export function buildUploadedFileContext(
       ].join('\n'),
     }
   }
-  const reference = `uploads/${encodedUploadName}`
+  const reference = `uploads/${attachmentId ?? encodedUploadName}`
   const isImage = resolveEffectiveMimeType(mediaType, displayName).startsWith('image/')
   const lines = [
-    `File "${displayName}" (${mediaType}, ${size} bytes) uploaded to this chat as "uploads/${encodedUploadName}" (a chat upload: readable here, not listed under workspace files/).`,
+    `File "${displayName}" (${mediaType}, ${size} bytes) uploaded to this chat as "${reference}" (a chat upload: readable here, not listed under workspace files/).`,
   ]
   lines.push(`Read it with sim_cli: ${JSON.stringify({ args: ['files', 'read', reference] })}`)
   lines.push(

@@ -50,6 +50,7 @@ export interface OrganizationSurfaceContext {
   organization: OrganizationSurfaceOrganization
   viewer: OrganizationSurfaceViewer
   connectedAccountsAvailable: boolean
+  mothershipAvailable: boolean
   searchAccess: KnowledgeAccessAvailability
   settingsFeatures: OrganizationSettingsFeatures
   deployment: DeploymentShape
@@ -131,6 +132,7 @@ async function resolveOrganizationSurfaceContext(
         !capabilityDeniedBy('oauth_apps.use', config),
     },
     connectedAccountsAvailable,
+    mothershipAvailable: !capabilityDeniedBy('copilot.use', config),
     searchAccess,
     settingsFeatures: getOrganizationSettingsFeatures(
       hasEnterprisePlan,

@@ -9,11 +9,14 @@ import {
   v2ListToolsContract,
 } from '@/lib/api/contracts/v2/catalog'
 import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
+import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
-import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
+import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import {
   readSandboxResourceScope,
@@ -45,15 +48,47 @@ export async function proxySandboxResourceRequest(
   const scope = await readSandboxResourceScope(token, request.headers.get('x-api-key'))
   if (!scope)
     return Response.json({ error: 'Sandbox tool execution is no longer active' }, { status: 403 })
-  const apiKey = await mintDelegationToken({ workspaceId: scope.workspaceId, userId: scope.userId })
-  if (!apiKey)
-    return Response.json({ error: 'Sandbox tool authentication is unavailable' }, { status: 503 })
+  let targetWorkspaceId: string
+  try {
+    const target = await resolveInvocationWorkspace(
+      scope,
+      request.headers.get('x-mothership-workspace-id') ?? undefined
+    )
+    targetWorkspaceId = target.workspaceId
+  } catch (error) {
+    const failure = asOrchestrationError(error)
+    return Response.json(
+      { error: failure?.message ?? 'Workspace authorization failed' },
+      { status: statusForOrchestrationError(failure?.code) }
+    )
+  }
+  return withWorkspaceInvocationScope(
+    { workspaceId: targetWorkspaceId, organizationId: scope.organizationId },
+    () => proxyAuthorizedSandboxRequest(request, token, path, url, scope, targetWorkspaceId)
+  )
+}
+
+async function proxyAuthorizedSandboxRequest(
+  request: Request,
+  token: string,
+  path: string,
+  url: URL,
+  scope: NonNullable<Awaited<ReturnType<typeof readSandboxResourceScope>>>,
+  targetWorkspaceId: string
+): Promise<Response> {
   const endpoint = getInternalApiBaseUrl()
   const target = `${endpoint.replace(/\/$/, '')}${path}${url.search}`
   const headers = new Headers(request.headers)
-  for (const header of ['host', 'cookie', 'authorization', 'connection', 'transfer-encoding'])
+  for (const header of [
+    'host',
+    'cookie',
+    'authorization',
+    'connection',
+    'transfer-encoding',
+    'x-mothership-workspace-id',
+  ])
     headers.delete(header)
-  headers.set('x-api-key', apiKey)
+  headers.delete('x-api-key')
   const init: RequestInit & { duplex: 'half' } = {
     method: request.method,
     headers,
@@ -66,7 +101,7 @@ export async function proxySandboxResourceRequest(
   const effects: ResourceChange[] = []
   let response: Response | undefined
   let dispatched = false
-  /** Invoke the public handler unmarked, preserving API-key auth and both external rate limits. */
+  /** Invoke the same handler with private request identity; the declared use case still authorizes current domain access. */
   const matched = matchV2Route(path)
   if (!matched) return Response.json({ error: 'API route not found' }, { status: 404 })
   const method = request.method === 'HEAD' ? 'GET' : request.method
@@ -74,7 +109,13 @@ export async function proxySandboxResourceRequest(
   if (typeof handler !== 'function')
     return Response.json({ error: 'Method not allowed' }, { status: 405 })
   const dispatch = async () => {
-    const result = await handler(new NextRequest(forwarded), {
+    const privateRequest = new NextRequest(forwarded)
+    markCopilotRequest(privateRequest, {
+      userId: scope.userId,
+      workspaceId: targetWorkspaceId,
+      chatId: scope.chatId,
+    })
+    const result = await handler(privateRequest, {
       params: Promise.resolve(matched.params),
     })
     if (!(result instanceof Response)) throw new Error('Invalid sandbox API response')
@@ -146,10 +187,36 @@ export async function proxySandboxResourceRequest(
   await recordSandboxResourceEffects(
     token,
     scope,
-    effects.map((effect, index) => ({
-      ...effect,
-      effectId: `${scope.runId}:${scope.toolCallId}:${requestId}:${index}`,
-    }))
+    effects.map((effect, index) => {
+      const effectId = `${scope.runId}:${scope.toolCallId}:${requestId}:${index}`
+      if (!scope.organizationId) return { ...effect, effectId }
+      switch (effect.op) {
+        case 'upsert':
+          return {
+            ...effect,
+            effectId,
+            resource: { ...effect.resource, workspaceId: targetWorkspaceId },
+          }
+        case 'remove':
+          return {
+            ...effect,
+            effectId,
+            resource: { ...effect.resource, workspaceId: targetWorkspaceId },
+          }
+        case 'refresh':
+          return {
+            ...effect,
+            effectId,
+            resource: { ...effect.resource, workspaceId: targetWorkspaceId },
+          }
+        case 'clear_view':
+          return {
+            ...effect,
+            effectId,
+            resource: { ...effect.resource, workspaceId: targetWorkspaceId },
+          }
+      }
+    })
   )
   return new Response(request.method === 'HEAD' ? null : response.body, {
     status: response.status,

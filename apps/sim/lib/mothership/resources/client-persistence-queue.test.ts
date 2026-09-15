@@ -324,3 +324,15 @@ describe('ResourcePersistenceQueue', () => {
     expect(secondRemoval.wasPersisted).toBe(true)
   })
 })
+
+it('persists same-named cross-workspace resources independently and deletes only the chosen owner', async () => {
+  const persist = vi.fn().mockResolvedValue({})
+  const queue = new ResourcePersistenceQueue({ persist, onError: vi.fn() })
+  const first = { ...TABLE_RESOURCE, workspaceId: 'a' }
+  const second = { ...TABLE_RESOURCE, workspaceId: 'b' }
+  queue.enqueue(first, undefined, 'pending')
+  queue.enqueue(second, undefined, 'pending')
+  queue.remove(second.type, second.id, 'pending', false, 'b')
+  await queue.flush('chat', 'pending')
+  expect(persist.mock.calls).toEqual([['chat', first]])
+})

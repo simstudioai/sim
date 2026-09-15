@@ -21,7 +21,7 @@ export function bindWorkspaceFileUploadProvenance(
   if (provenance === 'pending') {
     return { version: 1, workspaceId, provenance: { status: 'unknown' }, pending: true }
   }
-  return { version: 1, workspaceId, provenance: parseProvenance(provenance) }
+  return { version: 1, workspaceId, provenance: parseWorkspaceFileSecretProvenance(provenance) }
 }
 
 /** Absence preserves ordinary uploads; a malformed private binding never becomes exact-empty. */
@@ -43,10 +43,10 @@ export function readWorkspaceFileUploadProvenance(session: {
   )
     return { status: 'unknown' }
   if ('pending' in binding) return { status: 'unknown' }
-  return parseProvenance(binding.provenance)
+  return parseWorkspaceFileSecretProvenance(binding.provenance)
 }
 
-function parseProvenance(value: unknown): WorkspaceFileSecretProvenance {
+export function parseWorkspaceFileSecretProvenance(value: unknown): WorkspaceFileSecretProvenance {
   if (!value || typeof value !== 'object' || !('status' in value)) return { status: 'unknown' }
   if (value.status === 'unknown' || value.status === 'unrecorded') return { status: value.status }
   if (value.status !== 'exact' || !('entries' in value)) return { status: 'unknown' }

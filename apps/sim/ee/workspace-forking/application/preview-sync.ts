@@ -54,7 +54,8 @@ export type PreviewSyncParams = Pick<
 export async function previewForkSync(
   params: PreviewSyncParams,
   choices: Record<string, unknown>,
-  principal: Principal
+  principal: Principal,
+  workspacePrincipals?: ReadonlyMap<string, Principal>
 ) {
   const { edge, sourceWorkspaceId, targetWorkspaceId } = params
   const revision = await loadForkPreviewRevision(db, params, choices)
@@ -79,7 +80,7 @@ export async function previewForkSync(
     sourceStates,
     items: plan.items,
     resolve: plan.resolver,
-    principal,
+    principal: workspacePrincipals?.get(targetWorkspaceId) ?? principal,
   })
   const resolveBlockId = buildForkBlockIdResolver(
     sourceWorkspaceId === edge.parentWorkspaceId,
@@ -256,8 +257,20 @@ export async function previewForkSync(
     }
   })
   const validators = new Map([
-    [sourceWorkspaceId, workflowSelectorValidator(principal, sourceWorkspaceId)],
-    [targetWorkspaceId, workflowSelectorValidator(principal, targetWorkspaceId)],
+    [
+      sourceWorkspaceId,
+      workflowSelectorValidator(
+        workspacePrincipals?.get(sourceWorkspaceId) ?? principal,
+        sourceWorkspaceId
+      ),
+    ],
+    [
+      targetWorkspaceId,
+      workflowSelectorValidator(
+        workspacePrincipals?.get(targetWorkspaceId) ?? principal,
+        targetWorkspaceId
+      ),
+    ],
   ])
   for (const field of configuration) {
     if (!field.selectorKey || !field.currentValue) continue

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { handlers } = vi.hoisted(() => ({
@@ -25,6 +25,7 @@ vi.mock('@/lib/api/server/routes/v2-route-table.generated', () => ({
 
 import {
   createInProcessTransport,
+  dispatchInProcessV2Request,
   matchV2Route,
 } from '@/lib/api/server/routes/in-process-transport'
 import { isInternalRequest } from '@/lib/api/server/routes/internal-request'
@@ -67,6 +68,18 @@ describe('in-process transport', () => {
       params: { blockId: 'agent' },
     })
     expect(handlers.listBlocks).not.toHaveBeenCalled()
+  })
+
+  it('dispatches HEAD through GET while retaining HEAD for authorization-only behavior', async () => {
+    handlers.getBlock.mockImplementation(async (request: Request) => {
+      expect(request.method).toBe('HEAD')
+      return new Response(null, { status: 200 })
+    })
+    const response = await dispatchInProcessV2Request(
+      new NextRequest('http://internal/api/v2/blocks/agent', { method: 'HEAD' })
+    )
+    expect(response?.status).toBe(200)
+    expect(handlers.getBlock).toHaveBeenCalledOnce()
   })
 
   it('falls through to fetch for anything outside the v2 table', async () => {

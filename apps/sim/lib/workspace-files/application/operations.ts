@@ -24,9 +24,7 @@ const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot', 'executor'],
 } as const
-const UPLOAD_PRINCIPAL_POLICY = {
-  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
-} as const
+const UPLOAD_PRINCIPAL_POLICY = ALL_COPILOT_PRINCIPAL_POLICY
 
 export const fileOperations = {
   list: defineWorkspaceOperation({
@@ -110,7 +108,7 @@ export const fileOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'files.use',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
   updateContent: defineWorkspaceOperation({
     id: 'files.update_content',

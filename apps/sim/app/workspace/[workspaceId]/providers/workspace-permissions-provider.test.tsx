@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   toast: { error: vi.fn(() => 'toast-1'), dismiss: vi.fn() },
   setQueryData: vi.fn(),
   refetch: vi.fn(),
+  permissionsQuery: vi.fn(),
 }))
 
 vi.mock('@sim/emcn', () => ({ useToast: () => ({ toast: mocks.toast }) }))
@@ -25,12 +26,15 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 vi.mock('@/app/workspace/providers/socket-provider', () => ({ useSocket: () => mocks.socket }))
 vi.mock('@/hooks/queries/workspace', () => ({
-  useWorkspacePermissionsQuery: () => ({
-    data: null,
-    isLoading: false,
-    error: null,
-    refetch: mocks.refetch,
-  }),
+  useWorkspacePermissionsQuery: (workspaceId: string) => {
+    mocks.permissionsQuery(workspaceId)
+    return {
+      data: null,
+      isLoading: false,
+      error: null,
+      refetch: mocks.refetch,
+    }
+  },
   workspaceKeys: { permissions: (id: string) => ['workspace', id, 'permissions'] },
 }))
 vi.mock('@/hooks/use-stable-flag', () => ({ useStableFlag: (value: boolean) => value }))
@@ -57,10 +61,10 @@ describe('workspace reconnect notifications', () => {
   let host: HTMLDivElement
   let root: Root
 
-  function renderProvider() {
+  function renderProvider(workspaceId?: string, isFileViewer?: boolean) {
     act(() =>
       root.render(
-        <WorkspacePermissionsProvider>
+        <WorkspacePermissionsProvider workspaceId={workspaceId} isFileViewer={isFileViewer}>
           <div />
         </WorkspacePermissionsProvider>
       )
@@ -109,5 +113,11 @@ describe('workspace reconnect notifications', () => {
     mocks.hasOperationError = true
     renderProvider()
     expect(mocks.toast.error).toHaveBeenCalledWith('Connection unavailable', expect.any(Object))
+  })
+  it('loads the resource owner permissions on an organization route', () => {
+    mocks.params = { organizationId: 'org-a' }
+    renderProvider('workspace-b', true)
+    expect(mocks.permissionsQuery).toHaveBeenLastCalledWith('workspace-b')
+    expect(mocks.toast.error).not.toHaveBeenCalled()
   })
 })

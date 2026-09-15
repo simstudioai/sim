@@ -1,8 +1,5 @@
-import type { Principal } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
-import { authenticateV2ApiKey } from '@/lib/api/server/routes/v2-api-key-auth'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { AUGMENTATION_ENGINES, runEngine } from '@/lib/mothership/agent-cli/engines'
@@ -10,20 +7,28 @@ import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-tr
 import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
-import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
-import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
+import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createCopilotChatPrincipal,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface AgentCliExecutionContext {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
+  chatOrganizationId?: string
   userId: string
   chatId?: string | undefined
   signal?: AbortSignal | undefined
@@ -41,20 +46,43 @@ export async function executeAgentCliRequest(
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
   context.signal?.throwIfAborted()
-  const apiKey = await withCopilotSpan(TraceSpan.CopilotCliIdentity, undefined, () =>
-    mintDelegationToken({
-      workspaceId: context.workspaceId,
-      userId: context.userId,
-    })
+  const target = await resolveInvocationWorkspace(context, request.workspaceId)
+  return withWorkspaceInvocationScope(
+    {
+      workspaceId: target.workspaceId,
+      organizationId: context.chatOrganizationId ?? context.organizationId,
+    },
+    () =>
+      executeBoundAgentCliRequest(request, {
+        ...context,
+        ...target,
+        chatOrganizationId: context.chatOrganizationId ?? context.organizationId,
+      })
   )
-  if (!apiKey) return agentCliFail('Could not establish workspace credentials for this command.')
+}
+
+async function executeBoundAgentCliRequest(
+  request: AgentCliRequest,
+  context: AgentCliExecutionContext & { workspaceId: string }
+): Promise<AgentCliRawResult> {
+  /** The embedded client's required credential is opaque and never valid on the public API. */
+  const apiKey = 'mothership-in-process'
+  const invocationIdentity = {
+    userId: context.userId,
+    workspaceId: context.workspaceId,
+    chatId: context.chatId,
+  }
   const endpoint = getInternalApiBaseUrl()
   const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
   const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
   const reads = createFileReadTransport({
     endpoint,
-    transport: createTracedCliTransport(endpoint, fetch),
+    transport: createTracedCliTransport(
+      endpoint,
+      createScopedCliTransport(endpoint, invocationIdentity)
+    ),
     userId: context.userId,
+    invocation: invocationIdentity,
     registry: context.resolvedSecretTraceRegistry,
     ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
     ...(files ? { trackDownload: files.trackDownload } : {}),
@@ -71,6 +99,7 @@ export async function executeAgentCliRequest(
             endpoint,
             workspaceId: context.workspaceId,
             userId: context.userId,
+            invocation: invocationIdentity,
             fallback: reads,
             uploadProvenance: files.uploadProvenance,
           })
@@ -98,7 +127,28 @@ export async function executeAgentCliRequest(
           client: createEmbeddedClient(identity),
           workspaceId: context.workspaceId,
           userId: context.userId,
-          principal: await principalForDelegation(apiKey),
+          principal: createCopilotChatPrincipal(
+            invocationIdentity,
+            WORKSPACE_FILES_DELEGATION_AUDIENCE
+          ),
+          invocation: invocationIdentity,
+          ...(context.chatOrganizationId && context.chatId
+            ? {
+                chatOrganizationId: context.chatOrganizationId,
+                chatPrincipal: createTrustedOrganizationCopilotPrincipal(
+                  {
+                    userId: context.userId,
+                    organizationId: context.chatOrganizationId,
+                    chatId: context.chatId,
+                    delegationId: `scratch:${context.chatId}`,
+                  },
+                  {
+                    audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+                    ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
+                  }
+                ),
+              }
+            : {}),
           ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
           signal: context.signal,
         },
@@ -118,27 +168,25 @@ export async function executeAgentCliRequest(
   }
   if (resources.length)
     result = { ...result, resources: [...resources, ...(result.resources ?? [])] }
+  if (context.chatOrganizationId && result.resources?.length)
+    result = {
+      ...result,
+      resources: result.resources.map((effect) => {
+        switch (effect.op) {
+          case 'upsert':
+            return { ...effect, resource: { ...effect.resource, workspaceId: context.workspaceId } }
+          case 'remove':
+            return { ...effect, resource: { ...effect.resource, workspaceId: context.workspaceId } }
+          case 'refresh':
+            return { ...effect, resource: { ...effect.resource, workspaceId: context.workspaceId } }
+          case 'clear_view':
+            return { ...effect, resource: { ...effect.resource, workspaceId: context.workspaceId } }
+        }
+      }),
+    }
   return sink
     ? withCopilotSpan(TraceSpan.CopilotCliSink, undefined, () =>
         applySink(sink, sessionKey, result, context.signal, files?.observeOutput)
       )
     : result
-}
-
-/**
- * The delegation key resolved exactly as the v2 surface resolves it. Null when the key
- * does not authenticate (expired mid-command): the engine then keeps the client path,
- * whose own requests fail the same honest way.
- */
-const logger = createLogger('AgentCli')
-
-async function principalForDelegation(apiKey: string): Promise<Principal | undefined> {
-  try {
-    return (await authenticateV2ApiKey({ apiKey, bearer: null })).principal
-  } catch (error) {
-    logger.warn('Delegation key did not resolve to a principal for the engine', {
-      error: getErrorMessage(error),
-    })
-    return undefined
-  }
 }

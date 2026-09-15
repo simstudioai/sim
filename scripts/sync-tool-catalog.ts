@@ -146,10 +146,13 @@ async function main() {
   const raw = await readFile(inputPath, 'utf8')
   const catalog = JSON.parse(raw) as { version: string; tools: Record<string, unknown>[] }
 
-  /** Retained Assistant inputs come from their actual Sim execution boundary. */
+  /** Sim-owned tools and inputs come from their actual execution boundary. */
   for (const contract of assistantToolContracts) {
-    const entry = catalog.tools.find((tool) => tool.id === contract.id)
-    if (!entry) throw new Error(`Missing retained Assistant catalog entry: ${contract.id}`)
+    let entry = catalog.tools.find((tool) => tool.id === contract.id)
+    if (!entry) {
+      entry = { id: contract.id, description: contract.description }
+      catalog.tools.push(entry)
+    }
     entry.route = contract.route
     entry.parameters = z.toJSONSchema(contract.inputSchema, { target: 'draft-7', io: 'input' })
   }

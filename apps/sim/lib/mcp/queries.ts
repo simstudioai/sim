@@ -72,7 +72,7 @@ export async function listWorkspaceMcpServers(params: {
     .from(mcpServers)
     .where(
       and(
-        eq(mcpServers.workspaceId, params.workspaceId),
+        params.workspaceId ? eq(mcpServers.workspaceId, params.workspaceId) : undefined,
         isNull(mcpServers.deletedAt),
         searchFilter(mcpServers.name, params.search),
         resumeAfter
@@ -85,9 +85,9 @@ export async function listWorkspaceMcpServers(params: {
   return keysetPage(keys, rows, limit)
 }
 
-/** A single live MCP server, or null when it does not exist in this workspace. */
+/** A live server; ID-only reads require canonical owner resolution in the application boundary. */
 export async function getWorkspaceMcpServer(params: {
-  workspaceId: string
+  workspaceId?: string
   serverId: string
 }): Promise<McpServerRow | null> {
   const [row] = await db
@@ -96,7 +96,7 @@ export async function getWorkspaceMcpServer(params: {
     .where(
       and(
         eq(mcpServers.id, params.serverId),
-        eq(mcpServers.workspaceId, params.workspaceId),
+        params.workspaceId ? eq(mcpServers.workspaceId, params.workspaceId) : undefined,
         isNull(mcpServers.deletedAt)
       )
     )

@@ -6,7 +6,20 @@ import {
 } from '@sim/platform-authz/workflow'
 import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
+import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
+import {
+  projectCostTotal,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
+import { toOverview } from '@/lib/logs/log-views'
+import type { TraceSpan } from '@/lib/logs/types'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/mothership/application/execute-knowledge-use-case'
+import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { createCopilotChatTablePrincipal } from '@/lib/mothership/auth/table-delegation'
@@ -21,20 +34,6 @@ import {
 } from '@/lib/mothership/chat/selection-context'
 import { QueryLogs } from '@/lib/mothership/generated/tool-catalog-v1'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
-import {
-  projectCostTotal,
-  projectExecutionData,
-  resolveLogFieldProjection,
-} from '@/lib/logs/log-projection'
-import { toOverview } from '@/lib/logs/log-views'
-import type { TraceSpan } from '@/lib/logs/types'
-import { mcpService } from '@/lib/mcp/service'
-import { createMcpToolId } from '@/lib/mcp/utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import {
@@ -125,7 +124,8 @@ export async function processContextsServer(
   userMessage?: string,
   currentWorkspaceId?: string,
   chatId?: string,
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
+  organizationId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const folderResolver = currentWorkspaceId
@@ -133,14 +133,21 @@ export async function processContextsServer(
     : undefined
   const resolveContext = async (ctx: ChatContext) => {
     try {
-      if (ctx.kind === 'skill' && ctx.skillId && currentWorkspaceId) {
-        return await processSkillFromDb(
+      if (ctx.kind === 'skill' && ctx.skillId) {
+        const target = organizationId
+          ? await resolveInvocationWorkspace({ userId, organizationId, chatId }, ctx.workspaceId)
+          : { workspaceId: currentWorkspaceId }
+        if (!target.workspaceId) return null
+        const skill = await processSkillFromDb(
           ctx.skillId,
-          currentWorkspaceId,
+          target.workspaceId,
           ctx.label ? `@${ctx.label}` : '@',
           userId,
           chatId
         )
+        return skill && organizationId
+          ? { ...skill, content: `Workspace ${target.workspaceId}:\n${skill.content}` }
+          : skill
       }
       if (ctx.kind === 'mcp' && ctx.serverId && currentWorkspaceId) {
         /** The authorized request catalog owns discovery; context identifies the selected service. */
@@ -585,7 +592,13 @@ async function processWorkflowBlockFromDb(
     currentWorkspaceId,
     chatId
   )
-  return context ? { ...context, type: 'workflow_block', content: JSON.stringify({ ...JSON.parse(context.content), blockId }) } : null
+  return context
+    ? {
+        ...context,
+        type: 'workflow_block',
+        content: JSON.stringify({ ...JSON.parse(context.content), blockId }),
+      }
+    : null
 }
 
 /**
@@ -795,7 +808,11 @@ export async function resolveActiveResourceContext(
           resourceType === 'filefolder'
         )
         return path
-          ? { type: 'active_resource', tag: '@active_resource', content: folderReferenceContent(path) }
+          ? {
+              type: 'active_resource',
+              tag: '@active_resource',
+              content: folderReferenceContent(path),
+            }
           : null
       }
       default:
@@ -1052,7 +1069,8 @@ async function resolveTableSelectionResource(
   // and forces the plural. A few characters of unused slack beats overshooting.
   const lines: string[] = []
   let remaining =
-    MAX_TABLE_SELECTION_PREVIEW_LENGTH - describe(sizeClause(selectedRowCount, selectedRowCount)).length
+    MAX_TABLE_SELECTION_PREVIEW_LENGTH -
+    describe(sizeClause(selectedRowCount, selectedRowCount)).length
   for (const row of rows) {
     const line = `| ${renderTableCell(row.id)} | ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
     if (line.length + 1 > remaining) break

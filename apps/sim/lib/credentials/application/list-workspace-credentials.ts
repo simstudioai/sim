@@ -1,7 +1,9 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { NoWorkspaceAccessError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { credentialDelegationPolicy } from '@/lib/credentials/application/authorization'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
   listVisibleWorkspaceCredentials,
@@ -34,7 +36,7 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: { delegation: credentialDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<ListWorkspaceCredentialsResult> => {
     const types: Array<'oauth' | 'service_account'> = input.type
       ? [input.type]
@@ -54,7 +56,10 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
       return { credentials: page.data, nextCursorKeys: page.nextCursorKeys }
     }
 
-    const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, principal.userId)
+    const workspaceAccess = await checkWorkspaceAccess(
+      context.workspaceId,
+      requirePrincipalSubjectUserId(principal)
+    )
     if (!workspaceAccess.hasAccess) {
       /**
        * `hasAccess` is `permission !== null` — the same condition
@@ -67,7 +72,7 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
     }
     const page = await listVisibleWorkspaceCredentials({
       workspaceId: context.workspaceId,
-      userId: principal.userId,
+      userId: requirePrincipalSubjectUserId(principal),
       workspaceAccess,
       types,
       providerId: input.providerId,

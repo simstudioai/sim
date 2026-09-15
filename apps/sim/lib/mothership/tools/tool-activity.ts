@@ -273,6 +273,7 @@ export const TOOL_ACTIVITIES: Readonly<Record<string, ActivityPhrase | Operation
   },
   read: 'read files',
   read_document: 'read documents',
+  list_workspaces: 'listed workspaces',
   redeploy: 'deployed workflows',
   restore_resource: 'restored resources',
   rm: 'deleted resources',

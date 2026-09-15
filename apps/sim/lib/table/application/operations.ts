@@ -27,17 +27,6 @@ const ALL_TABLE_TOOL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 
-const INTERNAL_EXECUTOR_PRINCIPAL_POLICY = {
-  principalKinds: [
-    'session',
-    'personal_api_key',
-    'oauth_access_token',
-    'workspace_api_key',
-    'delegated',
-  ],
-  delegatedServices: ['executor'],
-} as const
-
 function readOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
@@ -94,7 +83,7 @@ function toolReadOperation<const Id extends string>(id: Id) {
   })
 }
 
-function internalExecutorReadOperation<const Id extends string>(
+function stagedReadOperation<const Id extends string>(
   id: Id,
   capability: OperationDeclarableCapability,
   oauthScope: 'api:read' | 'api:write'
@@ -105,18 +94,18 @@ function internalExecutorReadOperation<const Id extends string>(
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability,
-    ...INTERNAL_EXECUTOR_PRINCIPAL_POLICY,
+    ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
   })
 }
 
-function internalExecutorWriteOperation<const Id extends string>(id: Id) {
+function stagedWriteOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
     oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'tables.use',
-    ...INTERNAL_EXECUTOR_PRINCIPAL_POLICY,
+    ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
   })
 }
 
@@ -203,34 +192,26 @@ export const tableOperations = {
   /** Reading the state of a run — including one you started — is a read. */
   readRun: readOperation('tables.runs.read'),
   cancelRuns: writeOperation('tables.runs.cancel'),
-  createImport: internalExecutorWriteOperation('tables.imports.create'),
+  createImport: stagedWriteOperation('tables.imports.create'),
   createFromWorkspaceFile: delegatedWriteOperation(
     'tables.imports.create_from_workspace_file',
     'tables.create'
   ),
   importWorkspaceFile: delegatedWriteOperation('tables.imports.workspace_file', 'tables.use'),
-  readImport: internalExecutorReadOperation('tables.imports.read', 'tables.use', 'api:read'),
-  createImportParts: internalExecutorWriteOperation('tables.imports.create_parts'),
-  completeImport: internalExecutorWriteOperation('tables.imports.complete'),
-  cancelImport: internalExecutorWriteOperation('tables.imports.cancel'),
+  readImport: stagedReadOperation('tables.imports.read', 'tables.use', 'api:read'),
+  createImportParts: stagedWriteOperation('tables.imports.create_parts'),
+  completeImport: stagedWriteOperation('tables.imports.complete'),
+  cancelImport: stagedWriteOperation('tables.imports.cancel'),
   /**
    * Only generating the file and fetching it are extraction. Reading an
    * export's status carries no rows, and cancelling one stops an extraction
    * rather than performing it — gating either would strand a member with an
    * export they can neither watch nor stop after the group changed.
    */
-  createExport: internalExecutorReadOperation(
-    'tables.exports.create',
-    'tables.export',
-    'api:write'
-  ),
-  readExport: internalExecutorReadOperation('tables.exports.read', 'tables.use', 'api:read'),
-  cancelExport: internalExecutorReadOperation('tables.exports.cancel', 'tables.use', 'api:write'),
-  downloadExport: internalExecutorReadOperation(
-    'tables.exports.download',
-    'tables.export',
-    'api:read'
-  ),
+  createExport: stagedReadOperation('tables.exports.create', 'tables.export', 'api:write'),
+  readExport: stagedReadOperation('tables.exports.read', 'tables.use', 'api:read'),
+  cancelExport: stagedReadOperation('tables.exports.cancel', 'tables.use', 'api:write'),
+  downloadExport: stagedReadOperation('tables.exports.download', 'tables.export', 'api:read'),
 } as const
 
 export type TableOperation = (typeof tableOperations)[keyof typeof tableOperations]

@@ -1,14 +1,23 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
-const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint } = vi.hoisted(() => ({
-  readScope: vi.fn(),
-  recordEffects: vi.fn(async () => {}),
-  fetcher: vi.fn(),
-  routeMatcher: vi.fn(),
-  recordInput: vi.fn(),
-  mint: vi.fn(),
+const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint, target } = vi.hoisted(
+  () => ({
+    readScope: vi.fn(),
+    recordEffects: vi.fn(async () => {}),
+    fetcher: vi.fn(),
+    routeMatcher: vi.fn(),
+    recordInput: vi.fn(),
+    mint: vi.fn(),
+    target: vi.fn(),
+  })
+)
+vi.mock('@/lib/mothership/application/workspace-target', () => ({
+  resolveInvocationWorkspace: target,
 }))
 vi.mock('@/lib/api/server/routes/in-process-transport', () => ({ matchV2Route: routeMatcher }))
 vi.mock('@/lib/core/utils/urls', () => ({
@@ -46,6 +55,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   readScope.mockResolvedValue(scope)
   mint.mockResolvedValue('server-only-identity')
+  target.mockResolvedValue({ workspaceId: scope.workspaceId })
   routeMatcher.mockReturnValue({
     params: { tableId: 'table' },
     load: async () => ({ GET: fetcher, POST: fetcher }),
@@ -66,7 +76,8 @@ describe('private sandbox v2 resource transport', () => {
       expect(input.method).toBe('POST')
       expect(isInternalRequest(input)).toBe(false)
       expect(input.redirect).toBe('manual')
-      expect(input.headers.get('x-api-key')).toBe('server-only-identity')
+      expect(input.headers.get('x-api-key')).toBeNull()
+      expect(isCopilotRequest(input)).toBe(true)
       expect(input.headers.get('cookie')).toBeNull()
       expect(input.headers.get('content-length')).toBe(String(body.length))
       expect(await input.text()).toBe(body)
@@ -110,20 +121,51 @@ describe('private sandbox v2 resource transport', () => {
     expect(recordEffects).toHaveBeenCalledWith(token, scope, [])
   })
 
-  it('lets the canonical handler authorize cross-workspace reads under the personal delegation key', async () => {
-    fetcher.mockImplementation(async (input: Request) => {
-      expect(input.url).toBe('http://internal-sim/api/v2/tables?workspaceId=other')
-      expect(input.headers.get('x-api-key')).toBe('server-only-identity')
-      expect(isInternalRequest(input)).toBe(false)
+  it('keeps ID-only resources bound to the canonical invocation target', async () => {
+    fetcher.mockImplementation(async () => {
+      try {
+        assertWorkspaceInvocationScope({ workspaceId: 'other' })
+      } catch {
+        return Response.json({ error: 'Resource not found' }, { status: 404 })
+      }
       return Response.json({ data: [] })
     })
-    const response = await proxySandboxResourceRequest(
-      request('/api/v2/tables?workspaceId=other'),
-      token
-    )
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: [] })
-    expect(fetcher).toHaveBeenCalledTimes(1)
+    const response = await proxySandboxResourceRequest(request('/api/v2/tables/table'), token)
+    expect(response.status).toBe(404)
+    expect(recordEffects).toHaveBeenCalledWith(token, scope, [])
+  })
+
+  it('uses the explicit organization callback target before dispatch and refuses denied targets', async () => {
+    const orgScope = { ...scope, workspaceId: undefined, organizationId: 'org' }
+    readScope.mockResolvedValue(orgScope)
+    target.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Target denied'))
+    expect(
+      (
+        await proxySandboxResourceRequest(
+          request('/api/v2/tools', { headers: { 'x-mothership-workspace-id': 'target' } }),
+          token
+        )
+      ).status
+    ).toBe(403)
+    expect(mint).not.toHaveBeenCalled()
+    expect(fetcher).not.toHaveBeenCalled()
+    target.mockResolvedValueOnce({ workspaceId: 'target' })
+    fetcher.mockImplementation(async (req: Request) => {
+      expect(req.headers.get('x-mothership-workspace-id')).toBeNull()
+      expect(req.headers.get('x-api-key')).toBeNull()
+      expect(isCopilotRequest(req)).toBe(true)
+      return Response.json({ data: [] })
+    })
+    expect(
+      (
+        await proxySandboxResourceRequest(
+          request('/api/v2/tools', { headers: { 'x-mothership-workspace-id': 'target' } }),
+          token
+        )
+      ).status
+    ).toBe(200)
+    expect(target).toHaveBeenLastCalledWith(orgScope, 'target')
+    expect(mint).not.toHaveBeenCalled()
   })
 
   it('rejects stale scopes and non-v2 destinations before dispatch', async () => {
@@ -289,7 +331,7 @@ it('never resolves a real credential for an invalid callback scope', async () =>
 it('keeps the server identity out of callback response headers and body', async () => {
   fetcher.mockResolvedValue(Response.json({ data: [] }))
   const response = await proxySandboxResourceRequest(request('/api/v2/tools'), token)
-  expect(mint).toHaveBeenCalledWith({ workspaceId: scope.workspaceId, userId: scope.userId })
+  expect(mint).not.toHaveBeenCalled()
   expect(JSON.stringify([...response.headers])).not.toContain('server-only-identity')
   expect(await response.text()).not.toContain('server-only-identity')
 })

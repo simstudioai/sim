@@ -92,7 +92,7 @@ describe('organization settings navigation', () => {
     expect(resolveOrganizationSettingsSection('sessions')).toBe('security')
     expect(resolveOrganizationSettingsSection('/o/one/settings/network')).toBeNull()
     expect(resolveOrganizationSettingsSection('skills')).toBeNull()
-    expect(buildOrganizationNavItems('org', true).map(({ id }) => id)).toEqual([
+    expect(buildOrganizationNavItems('org', true, true).map(({ id }) => id)).toEqual([
       'home',
       'search',
       'integrations',
@@ -157,7 +157,7 @@ describe('organization settings navigation', () => {
     expect(sections).not.toContain('integrations')
     expect(sections).toContain('members')
     expect(sections).toContain('general')
-    expect(buildOrganizationNavItems('org', false)).toEqual([])
+    expect(buildOrganizationNavItems('org', false, false)).toEqual([])
   })
   it('exposes Connected accounts before Search is enabled', () => {
     const sections = organizationSettingsNavigation(true, enterprise, {
@@ -176,4 +176,12 @@ describe('organization settings navigation', () => {
     expect(sections).not.toContain('connected-accounts')
     expect(sections).not.toContain('integrations')
   })
+})
+
+it('keeps Home independent of Search availability without exposing Search links', () => {
+  expect(buildOrganizationNavItems('org', false, true).map(({ id }) => id)).toEqual(['home'])
+  expect(buildOrganizationNavItems('org', true, false).map(({ id }) => id)).toEqual([
+    'search',
+    'integrations',
+  ])
 })

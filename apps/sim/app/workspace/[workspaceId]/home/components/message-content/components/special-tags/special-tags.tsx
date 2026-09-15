@@ -6,6 +6,7 @@ import { ArrowRight, Check, ChevronDown, SquareArrowUpRight, TerminalWindow } fr
 import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { MemberLimitRequestAction } from '@/components/access-requests/member-limit-request-action'
+import { getOrganizationSettingsHref } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -31,6 +32,7 @@ import {
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
+import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
@@ -46,10 +48,15 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 import {
+  CredentialWorkspaceHost,
+  useCredentialWorkspaceId,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace'
+import {
   resolveOAuthChipTarget,
   useOAuthChipConnection,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-oauth-chip-connection'
 import { usePersonalCredentialConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-personal-credential-connection'
+import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import type {
   ChatMessageContext,
   MothershipResource,
@@ -59,7 +66,7 @@ import type {
 // ConnectServiceAccountModal, and that edge would pull the modal into this
 // chunk and defeat the lazy() split below.
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
 import {
@@ -138,6 +145,8 @@ export const SECRET_INPUT_SCOPES = ['personal', 'workspace'] as const
 export type SecretInputScope = (typeof SECRET_INPUT_SCOPES)[number]
 
 export interface CredentialItemData {
+  /** Explicit workspace target for organization Agent credential controls. */
+  workspaceId?: string
   value?: string
   type: CredentialTagType
   provider?: string
@@ -320,6 +329,8 @@ export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'file'] as con
 export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
 
 export interface WorkspaceResourceTagData {
+  /** Explicit resource owner in organization chat; omitted on a workspace surface. */
+  workspaceId?: string
   type: WorkspaceResourceTagType
   id?: string
   path?: string
@@ -489,6 +500,13 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
   )
 }
 
+function isOptionalWorkspaceTarget(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (typeof value === 'string' && value.length > 0 && value.length <= 256 && value === value.trim())
+  )
+}
+
 function isCredentialItemData(value: unknown): value is CredentialItemData {
   if (!isRecordLike(value)) return false
   if (
@@ -498,6 +516,7 @@ function isCredentialItemData(value: unknown): value is CredentialItemData {
     return false
   }
   if (value.provider !== undefined && typeof value.provider !== 'string') return false
+  if (!isOptionalWorkspaceTarget(value.workspaceId)) return false
   // secret_input is an empty input the user fills in — it carries a key name to
   // save under, not a value.
   if (value.type === 'secret_input') {
@@ -606,7 +625,7 @@ function isSourceTagData(value: unknown): value is SourceTagData {
 }
 
 function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
-  if (!isRecordLike(value)) return false
+  if (!isRecordLike(value) || !isOptionalWorkspaceTarget(value.workspaceId)) return false
   if (
     typeof value.type !== 'string' ||
     !(WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type)
@@ -1893,14 +1912,41 @@ function toChatMessageContext(data: WorkspaceResourceTagData, label: string): Ch
   }
 }
 
-export function WorkspaceResourceDisplay({
-  data,
-  onSelect,
-}: {
+interface WorkspaceResourceDisplayProps {
   data: WorkspaceResourceTagData
   onSelect?: (resource: WorkspaceResourceRef) => void
-}) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+}
+
+export function WorkspaceResourceDisplay(props: WorkspaceResourceDisplayProps) {
+  const { workspaceId, organizationId } = useParams<{
+    workspaceId?: string
+    organizationId?: string
+  }>()
+  if (organizationId) {
+    const target = props.data.workspaceId
+    if (!target) return <span role='status'>This resource needs an explicit workspace target.</span>
+    return (
+      <ResourceWorkspaceHost
+        key={target}
+        workspaceId={target}
+        organizationId={organizationId}
+        inline
+      >
+        <WorkspaceResourceDisplayContent {...props} workspaceId={target} addressed />
+      </ResourceWorkspaceHost>
+    )
+  }
+  if (!workspaceId || (props.data.workspaceId && props.data.workspaceId !== workspaceId))
+    return <span role='status'>This resource belongs to a different workspace.</span>
+  return <WorkspaceResourceDisplayContent {...props} workspaceId={workspaceId} />
+}
+
+function WorkspaceResourceDisplayContent({
+  data,
+  onSelect,
+  workspaceId,
+  addressed = false,
+}: WorkspaceResourceDisplayProps & { workspaceId: string; addressed?: boolean }) {
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
@@ -1927,11 +1973,23 @@ export function WorkspaceResourceDisplay({
     const id = data.id ?? fileFromPath?.id
     return {
       type: toMothershipResourceType(data.type),
+      ...(addressed ? { workspaceId } : {}),
       ...(id ? { id } : {}),
       title,
       ...(data.type === 'file' && data.path ? { path: data.path } : {}),
     }
-  }, [data.id, data.path, data.title, data.type, files, knowledgeBases, tables, workflows])
+  }, [
+    data.id,
+    data.path,
+    data.title,
+    data.type,
+    files,
+    knowledgeBases,
+    tables,
+    workflows,
+    addressed,
+    workspaceId,
+  ])
 
   const context = toChatMessageContext(data, resource.title)
 
@@ -2033,7 +2091,7 @@ interface CredentialControlProps {
  * secret, so no single row can own a description.
  */
 function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const describedByName = useMemo(() => {
     const entries = new Map<string, string>()
     for (const item of items) {
@@ -2081,7 +2139,7 @@ function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
 }
 
 function SecretInputDisplay({ data, divided = false, onSaved }: CredentialControlProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const secretName = (data.name ?? '').trim()
   const scope: SecretInputScope = data.scope === 'personal' ? 'personal' : 'workspace'
 
@@ -2373,7 +2431,7 @@ function ServiceAccountConnectDisplay({
   divided = false,
   onConnected,
 }: CredentialControlProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const { canEdit } = useUserPermissionsContext()
   const [open, setOpen] = useState(false)
   const [locallyConnected, setLocallyConnected] = useState(false)
@@ -2538,7 +2596,7 @@ function PersonalCredentialLinkDisplay({
   divided = false,
   onConnected,
 }: CredentialControlProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useCredentialWorkspaceId()
   const { canEdit } = useUserPermissionsContext()
   const [tokenModalOpen, setTokenModalOpen] = useState(false)
   const provider = data.provider?.trim() ?? ''
@@ -2832,10 +2890,8 @@ function CredentialInputCard({
   abandoned?: boolean
   onContinue?: (message: string) => void
 }) {
-  const { workspaceId, organizationId } = useParams<{
-    workspaceId: string
-    organizationId?: string
-  }>()
+  const workspaceId = useCredentialWorkspaceId()
+  const { organizationId } = useParams<{ organizationId?: string }>()
   const { data: session } = useSession()
   const { canEdit } = useUserPermissionsContext()
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
@@ -3097,7 +3153,50 @@ function CredentialInputCard({
   )
 }
 
-export function CredentialDisplay({
+/** Workspace credential controls in organization chat require one explicit, authorized target. */
+export function CredentialDisplay(props: Parameters<typeof CredentialDisplayContent>[0]) {
+  const { organizationId, workspaceId } = useParams<{
+    organizationId?: string
+    workspaceId?: string
+  }>()
+  if (props.requestMode === 'assistant') return <CredentialDisplayContent {...props} />
+  const targeted = props.data.filter(
+    (item) =>
+      item.type === 'link' ||
+      item.type === 'service_account' ||
+      item.type === 'sim_key' ||
+      (item.type === 'secret_input' && item.scope !== 'personal')
+  )
+  const targets = new Set(targeted.map((item) => item.workspaceId).filter(Boolean))
+  const target = targets.values().next().value
+  const mismatchedLink =
+    Boolean(organizationId) &&
+    targeted.some((item) => {
+      if (item.type !== 'link' || !item.value) return false
+      try {
+        return new URL(item.value).searchParams.get('workspaceId') !== item.workspaceId
+      } catch {
+        return true
+      }
+    })
+  const invalid =
+    mismatchedLink ||
+    targets.size > 1 ||
+    (organizationId && targeted.some((item) => !item.workspaceId)) ||
+    (!organizationId && target && target !== workspaceId)
+  if (invalid)
+    return <p role='status'>This credential request needs one explicit workspace target.</p>
+  if (organizationId && target) {
+    return (
+      <CredentialWorkspaceHost key={target} workspaceId={target} organizationId={organizationId}>
+        <CredentialDisplayContent {...props} />
+      </CredentialWorkspaceHost>
+    )
+  }
+  return <CredentialDisplayContent {...props} />
+}
+
+function CredentialDisplayContent({
   data,
   requestMode,
   interactionId,
@@ -3173,7 +3272,8 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const { data: session } = useSession()
-  const hostContext = useWorkspaceHostContext()
+  const hostContext = useOptionalWorkspaceHostContext()
+  const organizationContext = useOptionalOrganizationContext()
   const { getSettingsHref } = useSettingsNavigation()
   const { hosted } = useDeploymentShape()
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
@@ -3181,17 +3281,25 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   // Self-hosted plan and limit both live on the hosted account, so local
   // workspace billing roles say nothing about who may change them.
   const href = hosted
-    ? getSettingsHref({ section: 'billing' })
+    ? organizationContext
+      ? getOrganizationSettingsHref(organizationContext.organization.id, 'billing')
+      : getSettingsHref({ section: 'billing' })
     : data.action === 'upgrade_plan'
       ? buildHostedUpgradeUrl()
       : HOSTED_BILLING_SETTINGS_URL
-  const canManageBilling = !hosted || canManageWorkspaceBilling(hostContext, session?.user?.id)
+  const canManageBilling =
+    !hosted ||
+    (organizationContext
+      ? organizationContext.viewer.isAdmin
+      : Boolean(hostContext && canManageWorkspaceBilling(hostContext, session?.user?.id)))
   const usageGate = useWorkspaceUsageGate(
-    data.action === 'increase_limit' && !canManageBilling ? hostContext.workspace.id : undefined
+    data.action === 'increase_limit' && !canManageBilling ? hostContext?.workspace.id : undefined
   )
-  const unavailableMessage = hostContext.hostOrganizationId
-    ? 'Contact an organization admin to manage this workspace’s usage limits.'
-    : 'Only the workspace owner can manage this workspace’s usage limits.'
+  const unavailableMessage = organizationContext
+    ? 'Contact an organization admin to manage usage limits.'
+    : hostContext?.hostOrganizationId
+      ? 'Contact an organization admin to manage this workspace’s usage limits.'
+      : 'Only the workspace owner can manage this workspace’s usage limits.'
 
   return (
     <div className='rounded-2xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
@@ -3232,7 +3340,8 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       ) : (
         <div className='mt-2 flex flex-col items-start gap-2'>
           <p className='text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
-          {usageGate.isSuccess &&
+          {hostContext &&
+            usageGate.isSuccess &&
             usageGate.data.isExceeded &&
             usageGate.data.scope === 'member' && (
               <MemberLimitRequestAction

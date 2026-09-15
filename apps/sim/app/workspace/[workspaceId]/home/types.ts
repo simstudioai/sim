@@ -1,4 +1,5 @@
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
@@ -25,7 +26,7 @@ export interface FileAttachmentForApi {
 }
 
 /** Assistant searches as the signed-in person and uses their connected accounts. */
-export type ChatRequestMode = 'assistant'
+export type ChatRequestMode = MothershipChat['mode']
 
 export interface QueuedMessage {
   id: string

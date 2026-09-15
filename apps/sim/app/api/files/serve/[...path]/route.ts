@@ -17,7 +17,7 @@ import { resolveServableDocBytes } from '@/lib/mothership/tools/server/files/doc
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
-import { readOrganizationAssistantImage } from '@/lib/uploads/contexts/organization-assistant/application'
+import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
@@ -225,7 +225,7 @@ export const GET = withRouteHandler(
 
       if (cloudKey.startsWith('assistant/')) {
         const principal = await internalSessionAuth.authenticate()
-        const image = await readOrganizationAssistantImage({
+        const image = await readOrganizationChatAttachment({
           principal,
           key: cloudKey,
           signal: request.signal,

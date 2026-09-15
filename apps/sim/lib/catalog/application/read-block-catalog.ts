@@ -1,3 +1,4 @@
+import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
   isBlockVisibleToCaller,
   loadCatalogWorkspaceContext,
@@ -21,7 +22,7 @@ export const readBlockCatalog = defineAuthorizedWorkspaceUseCase({
   operation: catalogOperations.readBlock,
   resolveContext: ({ input }: { input: ReadBlockCatalogInput }) =>
     loadCatalogWorkspaceContext(input.workspaceId),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, context }) => {
     const gate = await resolveCatalogGate(principal, context)
     return withCatalogBlockScope(gate, async () => ({

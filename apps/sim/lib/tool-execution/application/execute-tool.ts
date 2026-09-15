@@ -238,7 +238,9 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
   operation: toolExecutionOperations.execute,
   resolveContext: ({ input }: { input: ExecuteToolInput }) =>
     loadCatalogWorkspaceContext(input.workspaceId),
-  authorizationOptions: {},
+  authorizationOptions: {
+    delegation: { audience: 'sim:tool-execution', isWithinScope: () => true },
+  },
   execute: async ({ principal, input, context }): Promise<ExecuteToolResult> => {
     const gate = await resolveCatalogGate(principal, context)
 

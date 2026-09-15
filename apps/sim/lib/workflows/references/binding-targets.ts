@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import {
   credential,
   customBlock,
@@ -19,6 +19,7 @@ import {
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
+import { isCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { credentialProviderMatchesService, getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -195,7 +196,7 @@ export async function validateWorkflowBindingTargets(
 export async function authorizeWorkflowBindingCredentials(
   principal: Principal,
   workspaceId: string,
-  plan: WorkflowImportPlan
+  plan: Pick<WorkflowImportPlan, 'bindings'>
 ): Promise<void> {
   const ids = new Set(
     plan.bindings
@@ -206,7 +207,14 @@ export async function authorizeWorkflowBindingCredentials(
   if (
     principal.kind !== 'session' &&
     principal.kind !== 'personal_api_key' &&
-    principal.kind !== 'oauth_access_token'
+    principal.kind !== 'oauth_access_token' &&
+    !(
+      principal.kind === 'delegated' &&
+      principal.serviceId === 'copilot' &&
+      principal.workspaceId === workspaceId &&
+      isCopilotWorkspaceInvocation(principal) &&
+      ['sim:workflows', 'sim:workspaces'].includes(principal.audience)
+    )
   ) {
     throw new OrchestrationError(
       'forbidden',
@@ -215,7 +223,7 @@ export async function authorizeWorkflowBindingCredentials(
   }
   for (const credentialId of ids) {
     const access = await authorizeCredentialUseForAuth(
-      { success: true, userId: principal.userId },
+      { success: true, userId: requirePrincipalSubjectUserId(principal) },
       { workspaceId, credentialId }
     )
     if (!access.ok || access.workspaceId !== workspaceId)

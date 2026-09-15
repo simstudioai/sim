@@ -19,6 +19,8 @@ export const ResourceType = z.enum([
 ]);
 
 export const ResourceAddress = z.object({
+  workspaceId: z.uuid().optional(),
+  workspaceName: z.string().optional(),
   type: ResourceType,
   id: z.string().regex(/\S/),
   title: z.string().optional(),
@@ -36,13 +38,18 @@ export const ResourceChange = z.discriminatedUnion("op", [
     op: z.literal("clear_view"),
     resource: z.object({
       type: z.literal("table"),
+      workspaceId: z.uuid().optional(),
       id: z.string().regex(/\S/),
       viewId: z.string().regex(/\S/),
     }),
   }),
   z.object({
     op: z.literal("refresh"),
-    resource: z.object({ type: ResourceType, id: z.string().regex(/\S/).optional() }),
+    resource: z.object({
+      type: ResourceType,
+      workspaceId: z.uuid().optional(),
+      id: z.string().regex(/\S/).optional(),
+    }),
   }),
 ]);
 export type ResourceChange = z.infer<typeof ResourceChange>;
