@@ -829,7 +829,8 @@ export const LogDetails = memo(function LogDetails({
             <div className='flex items-center justify-between'>
               <h2 className='text-[var(--text-primary)] text-sm'>Log Details</h2>
               <div className='flex items-center gap-[1px]'>
-                {log.status === 'failed' &&
+                {onRetryExecution &&
+                  log.status === 'failed' &&
                   (log.workflow?.id || log.workflowId) &&
                   log.trigger !== 'mothership' && (
                     <Tooltip.Root>

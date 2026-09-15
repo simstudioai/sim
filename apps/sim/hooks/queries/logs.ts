@@ -24,8 +24,11 @@ import {
   type WorkflowStats,
 } from '@/lib/api/contracts/logs'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import { readSSEEvents } from '@/lib/core/utils/sse'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
+import { resolveRetryTarget } from '@/lib/logs/retry'
+import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
 export type { DashboardStatsResponse, WorkflowStats }
@@ -430,7 +433,7 @@ export function useCancelExecution(workspaceId: string) {
   })
 }
 
-export function useRetryExecution() {
+export function useRetryExecution(workspaceId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
@@ -440,6 +443,12 @@ export function useRetryExecution() {
       workflowId: string
       executionId: string
     }) => {
+      const detail = await fetchLogByExecutionId(workspaceId, executionId)
+      const retryTarget = resolveRetryTarget(detail.executionData)
+      if (!retryTarget.success) {
+        throw new Error(retryTarget.error)
+      }
+
       // boundary-raw-fetch: stream response, body is a ReadableStream consumed one chunk at a time
       const res = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: 'POST',
@@ -448,16 +457,44 @@ export function useRetryExecution() {
           inputFromExecutionId: executionId,
           triggerType: 'manual',
           stream: true,
+          runFromBlock: {
+            startBlockId: retryTarget.startBlockId,
+            executionId,
+          },
         }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Failed to retry execution')
       }
-      const reader = res.body?.getReader()
-      if (reader) {
-        await reader.read()
-        reader.cancel()
+      if (!res.body) {
+        throw new Error('Retry execution did not return a stream')
+      }
+
+      const reader = res.body.getReader()
+      let retryStarted = false
+      try {
+        await readSSEEvents<ExecutionEvent>(reader, {
+          onEvent: (event) => {
+            if (event.type === 'execution:error') {
+              throw new Error(event.data.error)
+            }
+            if (event.type === 'block:started' && event.data.blockId === retryTarget.startBlockId) {
+              retryStarted = true
+              return true
+            }
+            if (event.type === 'execution:completed' || event.type === 'execution:paused') {
+              return true
+            }
+          },
+        })
+      } finally {
+        await reader.cancel().catch(() => undefined)
+        reader.releaseLock()
+      }
+
+      if (!retryStarted) {
+        throw new Error('Retry execution ended before the failed block could start')
       }
       return { started: true }
     },
