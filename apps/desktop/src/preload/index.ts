@@ -196,9 +196,6 @@ const api: SimDesktopApi = {
   },
   browserAgent: {
     supportsAtomicPanelOcclusion: true,
-    registerSitePermissionPromptSupport: (): void => {
-      ipcRenderer.send('browser-agent:register-site-permission-prompt-support')
-    },
     executeTool: (
       toolCallId: string,
       tool: BrowserToolName,

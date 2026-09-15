@@ -77,7 +77,7 @@ describe('executeTool', () => {
   })
 
   it('validates navigation URLs before touching the session', async () => {
-    const grant = vi.spyOn(session, 'grantSiteOriginForAgentNavigation')
+    const prepare = vi.spyOn(session, 'prepareExplicitNavigation')
     const result = await driver.executeTool('chat-test', 'browser_navigate', {
       url: 'file:///etc/passwd',
     })
@@ -85,7 +85,7 @@ describe('executeTool', () => {
       ok: false,
       error: 'URL must be absolute and start with http:// or https://',
     })
-    expect(grant).not.toHaveBeenCalled()
+    expect(prepare).not.toHaveBeenCalled()
   })
 
   it('reports missing required parameters by name', async () => {
@@ -94,8 +94,7 @@ describe('executeTool', () => {
     expect(result.error).toMatch(/Missing required parameter "url"/)
   })
 
-  it('grants only SSRF-checked agent navigation destinations before loading them', async () => {
-    const grant = vi.spyOn(session, 'grantSiteOriginForAgentNavigation')
+  it('loads SSRF-checked agent navigation destinations', async () => {
     const navigations = [
       ['browser_navigate', 'http://127.0.0.1:4011/navigate'],
       ['browser_open_url', 'http://127.0.0.1:4012/open'],
@@ -106,9 +105,9 @@ describe('executeTool', () => {
       await expect(driver.executeTool('chat-test', tool, { url })).resolves.toMatchObject({
         ok: true,
       })
-      expect(grant).toHaveBeenCalledWith(expect.anything(), url)
+      const contents = session.requireAutomationTab().view.webContents
+      expect(contents.loadURL).toHaveBeenCalledWith(url)
     }
-    expect(grant).toHaveBeenCalledTimes(navigations.length)
   })
 
   it('keeps the 400ms hydration grace without rediscovering a completed load', async () => {
@@ -1140,8 +1139,8 @@ describe('executeTool', () => {
     expect(respond).toHaveBeenCalledWith('request-1', true)
   })
 
-  it('routes an exact renderer site decision through the scoped session boundary', async () => {
-    const respond = vi.spyOn(session, 'respondToSitePermission').mockReturnValue(true)
+  it('ignores retired site decisions without changing tab ownership', async () => {
+    const claim = vi.spyOn(session, 'claimActiveTabForUser')
 
     await driver.handlePanelAction('chat-test', {
       action: 'respond-site-permission',
@@ -1153,22 +1152,18 @@ describe('executeTool', () => {
       requestId: 'request-2',
     })
 
-    expect(respond).toHaveBeenCalledOnce()
-    expect(respond).toHaveBeenCalledWith('request-1', true)
+    expect(claim).not.toHaveBeenCalled()
   })
 
-  it('grants only the exact origin entered through the user omnibox', async () => {
+  it('loads the exact URL entered through the user omnibox', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
-    const grant = vi.spyOn(session, 'grantSiteOriginForUserNavigation')
 
     await driver.handlePanelAction('chat-test', {
       action: 'navigate',
       url: 'https://docs.example/private?token=secret',
     })
 
-    expect(grant).toHaveBeenCalledOnce()
-    expect(grant).toHaveBeenCalledWith(contents, 'https://docs.example/private?token=secret')
     expect(contents.loadURL).toHaveBeenCalledWith('https://docs.example/private?token=secret')
   })
 
