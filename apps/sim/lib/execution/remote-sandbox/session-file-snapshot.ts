@@ -14,8 +14,11 @@ const SNAPSHOT_TIMEOUT_MS = 10 * 60_000
 
 /** Copy once on the workbench; metadata and every upload part then refer to these exact bytes. */
 const COPY_FILE = `python3 - <<'SIM_UPLOAD_SNAPSHOT'
-import os, stat
-source = os.environ['SIM_UPLOAD_SOURCE']
+import os, stat, json
+source = os.path.realpath(os.environ['SIM_UPLOAD_SOURCE'])
+roots = json.loads(os.environ.get('SIM_UPLOAD_ALLOWED_ROOTS', '[]'))
+if roots and not any(source.startswith(root + '/') for root in roots):
+    raise ValueError('Scratch file resolves outside the permitted sandbox directories')
 target = os.environ['SIM_UPLOAD_SNAPSHOT']
 limit = int(os.environ['SIM_UPLOAD_MAX_BYTES'])
 fd = os.open(source, os.O_RDONLY | os.O_NONBLOCK)
@@ -42,9 +45,13 @@ export async function openSessionFileSnapshot(
   sessionKey: string,
   path: string,
   abortSignal?: AbortSignal,
-  observe?: SessionFileObserver
+  observe?: SessionFileObserver,
+  options?: { allowedRoots?: readonly string[]; maxBytes?: number }
 ): Promise<EmbeddedFileSnapshot> {
   const source = resolveSessionPath(path)
+  const maxBytes = options?.maxBytes ?? MAX_WORKSPACE_FILE_SIZE
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_WORKSPACE_FILE_SIZE)
+    throw new Error('Invalid workbench snapshot byte limit')
   const stopped = new AbortController()
   const signals = [stopped.signal, AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS)]
   if (abortSignal) signals.push(abortSignal)
@@ -82,8 +89,9 @@ export async function openSessionFileSnapshot(
         const copied = await sandbox.runCommand(COPY_FILE, {
           envs: {
             SIM_UPLOAD_SOURCE: source,
+            SIM_UPLOAD_ALLOWED_ROOTS: JSON.stringify(options?.allowedRoots ?? []),
             SIM_UPLOAD_SNAPSHOT: staged,
-            SIM_UPLOAD_MAX_BYTES: String(MAX_WORKSPACE_FILE_SIZE),
+            SIM_UPLOAD_MAX_BYTES: String(maxBytes),
           },
           signal: accessSignal,
           timeoutMs: SNAPSHOT_TIMEOUT_MS,
@@ -98,7 +106,7 @@ export async function openSessionFileSnapshot(
         }
         const size = await sandbox.getFileSize(staged)
         accessSignal.throwIfAborted()
-        if (!Number.isSafeInteger(size) || size < 0 || size > MAX_WORKSPACE_FILE_SIZE) {
+        if (!Number.isSafeInteger(size) || size < 0 || size > maxBytes) {
           throw new Error('Invalid workbench upload snapshot size')
         }
         snapshot = {

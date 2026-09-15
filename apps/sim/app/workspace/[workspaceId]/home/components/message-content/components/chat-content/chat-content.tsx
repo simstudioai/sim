@@ -10,7 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Streamdown } from 'streamdown'
+import type { Nodes } from 'hast'
+import { defaultRehypePlugins, Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 // prismjs core must load before its language components — they register on the
 // global `Prism` it installs (on `window`/`global`); fixes SSR + client order.
@@ -22,7 +23,12 @@ import 'prismjs/components/prism-markup'
 import '@sim/emcn/components/code/code.css'
 import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } from '@sim/emcn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
+import {
+  inlineChatImageUrl,
+  isInlineFileReference,
+} from '@/lib/mothership/chat/inline-image-reference'
 import { decodeVfsSegmentSafe } from '@/lib/mothership/vfs/path-utils'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   SourceChip,
@@ -455,6 +461,7 @@ const MARKDOWN_COMPONENTS = {
 interface ChatContentProps {
   content: string
   messageId?: string
+  imageRequestId?: string
   requestMode?: 'agent' | 'assistant'
   isStreaming?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
@@ -476,9 +483,33 @@ interface ChatContentProps {
   onPendingTagChange?: (pending: boolean) => void
 }
 
+/** Explicit options keep Streamdown's processor cache scoped to this chat and turn. */
+function privateImageUrls({
+  chatId,
+  imageRequestId,
+}: {
+  chatId?: string | null
+  imageRequestId?: string
+}) {
+  return (tree: Nodes) => {
+    function visit(node: Nodes): void {
+      if (node.type === 'element' && node.tagName === 'img') {
+        const src = node.properties.src
+        if (typeof src === 'string' && isInlineFileReference(src)) {
+          node.properties.src =
+            chatId && imageRequestId ? inlineChatImageUrl(chatId, imageRequestId, src) : ''
+        }
+      }
+      if ('children' in node) node.children.forEach(visit)
+    }
+    visit(tree)
+  }
+}
+
 function ChatContentInner({
   content,
   messageId,
+  imageRequestId,
   requestMode,
   isStreaming = false,
   questionAnswers,
@@ -491,6 +522,13 @@ function ChatContentInner({
   onStreamActivityChange,
   onPendingTagChange,
 }: ChatContentProps) {
+  const { chatId } = useChatSurface()
+  const imageRehypePlugins = useMemo<
+    NonNullable<ComponentPropsWithoutRef<typeof Streamdown>['rehypePlugins']>
+  >(
+    () => [[privateImageUrls, { chatId, imageRequestId }], ...Object.values(defaultRehypePlugins)],
+    [chatId, imageRequestId]
+  )
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
 
@@ -713,6 +751,7 @@ function ChatContentInner({
                   animated={fadeActive ? STREAM_ANIMATION : false}
                   isAnimating={streamingTree}
                   components={MARKDOWN_COMPONENTS}
+                  rehypePlugins={imageRehypePlugins}
                 >
                   {group.markdown}
                 </Streamdown>

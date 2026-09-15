@@ -1,8 +1,9 @@
 /** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { read, mint, fetchBootstrap, baseURL, connection } = vi.hoisted(() => ({
+const { read, mint, fetchBootstrap, baseURL, connection, endpoint } = vi.hoisted(() => ({
   connection: vi.fn(),
+  endpoint: vi.fn(),
   read: vi.fn(),
   mint: vi.fn(),
   fetchBootstrap: vi.fn(),
@@ -30,6 +31,7 @@ describe('deployment-owned workbench tooling', () => {
     vi.resetAllMocks()
     connection.mockReturnValue({ mode: 'direct' })
     mint.mockResolvedValue('test-delegation')
+    endpoint.mockImplementation(async (url) => `${url}/api/mothership/sandbox/owned-token`)
     baseURL.mockResolvedValue('https://worker.test')
     fetchBootstrap.mockImplementation(async () =>
       Response.json({ version: 1, entrypoint: 'private-entry' })
@@ -64,10 +66,13 @@ describe('deployment-owned workbench tooling', () => {
     )
     expect(second.cli?.path).not.toBe(first.cli?.path)
     expect(JSON.stringify(first.cli)).not.toContain('test-delegation')
+    expect(mint).not.toHaveBeenCalled()
+    expect(JSON.stringify(first)).not.toContain('test-delegation')
+    expect(first.envs?.SIM_API_KEY).not.toBe(second.envs?.SIM_API_KEY)
     expect(first.envs).toEqual({
-      SIM_API_KEY: 'test-delegation',
+      SIM_API_KEY: expect.stringMatching(/^mothership-sandbox:[0-9a-f-]{36}$/),
       SIM_WORKSPACE: 'workspace',
-      SIM_ENDPOINT: 'https://sim.test',
+      SIM_ENDPOINT: 'https://sim.test/api/mothership/sandbox/owned-token',
     })
   })
 
@@ -110,4 +115,18 @@ describe('deployment-owned workbench tooling', () => {
       expect(mint).not.toHaveBeenCalled()
     }
   )
+})
+
+vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({ sandboxResourceEndpoint: endpoint }))
+
+it('does not inject authentication when no active scoped callback can be established', async () => {
+  vi.clearAllMocks()
+  connection.mockReturnValue({ mode: 'direct' })
+  baseURL.mockResolvedValue('https://worker.test')
+  fetchBootstrap.mockResolvedValue(Response.json({ version: 1, entrypoint: 'private-entry' }))
+  read.mockResolvedValue('bundle')
+  endpoint.mockImplementation(async (url) => url)
+  expect((await buildMothershipSandboxSession(request)).envs).toBeUndefined()
+  expect(endpoint).toHaveBeenCalledOnce()
+  expect(mint).not.toHaveBeenCalled()
 })

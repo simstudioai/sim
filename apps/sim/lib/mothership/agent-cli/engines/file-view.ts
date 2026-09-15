@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { PDFDocument } from 'pdf-lib'
 import { SimApiError } from 'sim/embed'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -9,18 +8,12 @@ import {
   type AgentCliRuntime,
   agentCliFail,
 } from '@/lib/mothership/agent-cli/types'
-import type { ArtifactObservation } from '@/lib/mothership/generated/observations'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { MAX_TEXT_EXTRACTION_BYTES, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
-import { prepareImageForVision } from '@/lib/workspace-files/prepare-image-for-vision'
-import {
-  renderDocumentForVision,
-  resolveDocumentPages,
-} from '@/lib/workspace-files/render-document-for-vision'
+import { decodeFileVisual } from '@/lib/workspace-files/decode-file-visual'
 
 const logger = createLogger('FileRead')
-const MAX_OBSERVATION_BYTES = 8 * 1024 * 1024
 
 /** Only expected domain failures become user-visible errors. */
 export function fileReadFailure(error: unknown) {
@@ -60,50 +53,19 @@ export async function readFileVisual(
     },
   })
   runtime.signal?.throwIfAborted()
-  const sourceType =
-    resolveEffectiveMimeType(contentType, file.name).split(';')[0]?.trim().toLowerCase() ?? ''
-  let bytes = buffer
-  let mediaType: ArtifactObservation['mediaType']
-  let pages: { first: number; last: number; total: number } | undefined
-  const requestedPages = typeof flags.pages === 'string' ? flags.pages : undefined
-  if (sourceType === 'application/pdf' && flags.render === undefined) {
-    const pdf = await PDFDocument.load(buffer)
-    pages = resolveDocumentPages(pdf.getPageCount(), requestedPages)
-    if (pages.first !== 1 || pages.last !== pages.total) {
-      const selected = await PDFDocument.create()
-      const first = pages.first
-      for (const page of await selected.copyPages(
-        pdf,
-        Array.from({ length: pages.last - pages.first + 1 }, (_, i) => first - 1 + i)
-      ))
-        selected.addPage(page)
-      bytes = Buffer.from(await selected.save())
-    }
-    mediaType = 'application/pdf'
-  } else if (sourceType.startsWith('image/')) {
-    if (flags.pages !== undefined)
-      throw new OrchestrationError('validation', '--pages applies only to documents.')
-    const prepared = await prepareImageForVision(buffer, runtime.signal)
-    bytes = prepared.buffer
-    mediaType = prepared.mediaType
-  } else {
-    const rendered = await renderDocumentForVision(
-      buffer,
-      sourceType,
-      file.name,
-      requestedPages,
-      runtime.signal
-    )
-    bytes = rendered.buffer
-    mediaType = rendered.mediaType
-    pages = { first: rendered.first, last: rendered.last, total: rendered.total }
-  }
-  runtime.signal?.throwIfAborted()
-  if (bytes.length > MAX_OBSERVATION_BYTES)
-    throw new OrchestrationError(
-      'payload_too_large',
-      'The visual result exceeds 8 MiB. Select fewer document pages with --pages.'
-    )
+  const {
+    buffer: bytes,
+    mediaType,
+    pages,
+    truncated,
+  } = await decodeFileVisual({
+    buffer,
+    name: file.name,
+    type: contentType,
+    pages: typeof flags.pages === 'string' ? flags.pages : undefined,
+    render: flags.render === true,
+    signal: runtime.signal,
+  })
   return {
     metadata: {
       fileId: file.id,
@@ -112,7 +74,7 @@ export async function readFileVisual(
       type: file.type,
       mediaType,
       bytes: bytes.length,
-      truncated: pages !== undefined && (pages.first !== 1 || pages.last !== pages.total),
+      truncated,
       ...(pages ? { pages } : {}),
     },
     exitCode: 0,

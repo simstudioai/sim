@@ -5,12 +5,21 @@ import sharp from 'sharp'
 import { SimApiError } from 'sim/embed'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ resolve: vi.fn(), artifact: vi.fn(), request: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  resolve: vi.fn(),
+  artifact: vi.fn(),
+  request: vi.fn(),
+  scratch: vi.fn(),
+}))
 vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
   resolveWorkspaceFileReference: mocks.resolve,
 }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => ({
   readWorkspaceFileArtifact: { execute: mocks.artifact },
+}))
+
+vi.mock('@/lib/mothership/chat/application/read-sandbox-file', () => ({
+  readChatSandboxFile: { execute: mocks.scratch },
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -248,5 +257,38 @@ describe('content-aware files read augmentation', () => {
       (await runEngine('files read', ['image.png'], { ...runtime, signal }, {})).exitCode
     ).toBe(1)
     expect(mocks.resolve).not.toHaveBeenCalled()
+  })
+})
+
+describe('scratch files read and explicit inline publication', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it('reads an authorized scratch PNG with no workspace lookup, persistence or resource', async () => {
+    const buffer = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'blue' } })
+      .png()
+      .toBuffer()
+    mocks.scratch.mockResolvedValue({ buffer, name: 'scratch.png', path: '/tmp/scratch.png' })
+    const result = await runEngine('files read', ['/tmp/scratch.png'], runtime, {})
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      source: 'sandbox',
+      representation: 'visual',
+      path: '/tmp/scratch.png',
+    })
+    expect(ArtifactObservations.parse(result.observations)).toHaveLength(1)
+    expect(result.resources).toBeUndefined()
+    expect(mocks.resolve).not.toHaveBeenCalled()
+  })
+  it('preserves an absolute virtual workspace reference without selecting a sandbox', async () => {
+    mocks.resolve.mockRejectedValue(new OrchestrationError('not_found', 'File missing'))
+    await runEngine('files read', ['/uploads/image.png'], runtime, {})
+    expect(mocks.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ reference: '/uploads/image.png' })
+    )
+    expect(mocks.scratch).not.toHaveBeenCalled()
+  })
+  it('does not fall back to scratch after a missing workspace reference', async () => {
+    mocks.resolve.mockRejectedValue(new OrchestrationError('not_found', 'File missing'))
+    expect((await runEngine('files read', ['files/missing.png'], runtime, {})).exitCode).toBe(1)
+    expect(mocks.scratch).not.toHaveBeenCalled()
   })
 })

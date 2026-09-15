@@ -10,6 +10,7 @@ import {
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
 import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
+import { recordSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import type { SandboxHandle } from '@/lib/execution/remote-sandbox/types'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -106,6 +107,12 @@ export async function writeSessionSandboxFile(
         bootstrapTimeoutMs: 30_000,
       })
       const sandbox = created.sandbox
+      if (!options.observe)
+        await recordSessionFileInput(
+          sessionKey,
+          { providerId: provider.id, sandboxId: sandbox.sandboxId },
+          false
+        )
       await withSandboxFilePublication(
         sandbox,
         resolved,

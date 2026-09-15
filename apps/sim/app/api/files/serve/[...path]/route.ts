@@ -220,6 +220,9 @@ export const GET = withRouteHandler(
       const isCloudPath = isS3Path || isBlobPath || isGcsPath
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
+      /** Chat images are served only through the current private-chat owner boundary. */
+      if (cloudKey.startsWith('chat-images/')) throw new FileNotFoundError('File not found')
+
       if (cloudKey.startsWith('assistant/')) {
         const principal = await internalSessionAuth.authenticate()
         const image = await readOrganizationAssistantImage({

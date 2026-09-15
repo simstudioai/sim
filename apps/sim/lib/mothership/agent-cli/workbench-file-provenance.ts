@@ -4,6 +4,7 @@ import type {
   SessionFileIdentity,
   SessionFileObserver,
 } from '@/lib/execution/remote-sandbox/session-file-observer'
+import { recordSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   type WorkspaceFileSecretProvenance,
@@ -59,18 +60,28 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
   const record =
     (provenance: WorkspaceFileSecretProvenance): SessionFileObserver =>
     (machine, stream) =>
-      hashStream(stream, scope.signal, async (digest) => {
-        const redis = getRedisClient()
-        if (!redis) throw new Error('Workbench file classification storage is unavailable')
-        await redis.eval(
-          RECORD_RECEIPT,
-          1,
-          key(machine, digest),
-          encoded(provenance),
-          unknown,
-          RECEIPT_SECONDS
-        )
-      })
+      hashStream(
+        stream,
+        scope.signal,
+        async (digest) => {
+          const redis = getRedisClient()
+          if (!redis) throw new Error('Workbench file classification storage is unavailable')
+          await redis.eval(
+            RECORD_RECEIPT,
+            1,
+            key(machine, digest),
+            encoded(provenance),
+            unknown,
+            RECEIPT_SECONDS
+          )
+        },
+        () =>
+          recordSessionFileInput(
+            scope.sessionKey,
+            machine,
+            provenance.status === 'exact' && provenance.entries.length === 0
+          )
+      )
   const observeDownload: SessionFileObserver = (machine, stream) =>
     record(downloads.get(stream) ?? { status: 'unknown' })(machine, stream)
   const observeUpload: SessionFileObserver = (machine, stream) => {
@@ -119,11 +130,13 @@ export function createWorkbenchFileProvenance(scope: WorkbenchFileScope) {
 function hashStream(
   stream: ReadableStream<Uint8Array>,
   signal: AbortSignal | undefined,
-  complete: (digest: string) => Promise<void>
+  complete: (digest: string) => Promise<void>,
+  before?: () => Promise<void>
 ): ReadableStream<Uint8Array> {
   const hash = createHash('sha256')
   return stream.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
+      start: before,
       transform(chunk, controller) {
         signal?.throwIfAborted()
         hash.update(chunk)

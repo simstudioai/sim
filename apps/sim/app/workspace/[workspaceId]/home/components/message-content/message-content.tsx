@@ -31,19 +31,19 @@ import {
   hasAgentGroupItemContent,
   hasPendingAgentGroup,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
+import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { getActivityStatusTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { TaskPill } from '@/app/workspace/[workspaceId]/home/components/message-content/components/task-pill'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
+import { useToolResourceTitles } from '@/app/workspace/[workspaceId]/home/hooks/use-tool-resource-titles'
 import type {
   ContentBlock,
   OptionItem,
   ToolCallData,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { SUBAGENT_LABELS } from '@/app/workspace/[workspaceId]/home/types'
-import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import { useToolResourceTitles } from '@/app/workspace/[workspaceId]/home/hooks/use-tool-resource-titles'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { AgentGroupItem } from './components'
 import {
@@ -959,6 +959,7 @@ interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
   messageId?: string
+  imageRequestId?: string
   requestMode?: 'agent' | 'assistant'
   isStreaming: boolean
   /**
@@ -990,6 +991,7 @@ function MessageContentInner({
   blocks,
   fallbackContent,
   messageId,
+  imageRequestId,
   requestMode,
   isStreaming = false,
   isLast = false,
@@ -1127,6 +1129,7 @@ function MessageContentInner({
                   key={segment.id}
                   content={segment.content}
                   messageId={messageId}
+                  imageRequestId={imageRequestId}
                   requestMode={requestMode}
                   isStreaming={shouldSmoothTextSegment({
                     isStreaming,

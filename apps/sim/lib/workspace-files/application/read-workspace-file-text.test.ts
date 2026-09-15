@@ -3,8 +3,10 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 const mocks = vi.hoisted(() => ({
+  provenance: vi.fn(),
   fetchServable: vi.fn(),
   fetchBuffer: vi.fn(),
   parseBuffer: vi.fn(),
@@ -95,6 +97,28 @@ describe('readWorkspaceFileText', () => {
       contentType: 'application/pdf',
     })
     mocks.parseBuffer.mockResolvedValue({ content: 'hello there!', metadata: {} })
+  })
+
+  it('observes canonical private provenance before returning while keeping public results unchanged', async () => {
+    const provenance = { status: 'exact', entries: [] }
+    mocks.provenance.mockResolvedValue(provenance)
+    const observe = vi.fn(async () => {})
+    const result = await observeWorkspaceFileDelivery(observe, () =>
+      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+    )
+    expect(observe).toHaveBeenCalledWith(provenance)
+    expect(result.secretProvenance).toBeUndefined()
+  })
+  it('does not return content if the private delivery observer refuses', async () => {
+    mocks.provenance.mockResolvedValue({ status: 'unknown' })
+    await expect(
+      observeWorkspaceFileDelivery(
+        async () => {
+          throw new Error('no evidence')
+        },
+        () => readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+      )
+    ).rejects.toThrow('no evidence')
   })
 
   it.each(principals)('allows $kind at the read role', async (principal) => {
@@ -425,3 +449,7 @@ describe('readWorkspaceFileText', () => {
     })
   })
 })
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
+}))

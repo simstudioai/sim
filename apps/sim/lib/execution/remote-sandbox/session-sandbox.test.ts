@@ -54,7 +54,14 @@ import {
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
-import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+import {
+  observeSandboxExecution,
+  observeSandboxSessionInputs,
+} from '@/lib/execution/remote-sandbox/execution-observer'
+import {
+  initializeSessionFileProvenance,
+  recordSessionFileInput,
+} from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { writeSessionSandboxFile } from '@/lib/execution/remote-sandbox/session-files'
 
 interface FakeSandboxCalls {
@@ -951,4 +958,33 @@ describe('session sandbox lease', () => {
     expect(calls.runCode).toHaveLength(1)
     expect(mockCreate).not.toHaveBeenCalled()
   })
+})
+
+vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
+  initializeSessionFileProvenance: vi.fn(),
+  recordSessionFileInput: vi.fn(),
+}))
+
+describe('scratch provenance at the actual code boundary', () => {
+  it.each([true, false])(
+    'records trusted input classification %s before any user code',
+    async (safe) => {
+      const { handle } = fakeSandbox('provenance-physical')
+      mockFindSessionSandbox.mockResolvedValue(handle)
+      const original = handle.runCode.bind(handle)
+      handle.runCode = async (code, options) => {
+        expect(recordSessionFileInput).toHaveBeenCalledWith(
+          'history',
+          { providerId: 'e2b', sandboxId: 'provenance-physical' },
+          safe
+        )
+        return original(code, options)
+      }
+      await observeSandboxSessionInputs(
+        () => safe,
+        () => executeInSandbox({ ...CODE_REQUEST, session: { key: 'history' } })
+      )
+      expect(initializeSessionFileProvenance).not.toHaveBeenCalled()
+    }
+  )
 })

@@ -162,6 +162,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     customKey,
     metadata,
     persistMetadata = true,
+    createOnly = false,
     cleanupOnMetadataFailure = false,
     createOnlyUploadId,
     signal,
@@ -198,7 +199,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId),
+      Boolean(uploadId) || createOnly,
       signal
     )
 
@@ -228,7 +229,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId),
+      Boolean(uploadId) || createOnly,
       signal
     )
 
@@ -258,7 +259,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId),
+      Boolean(uploadId) || createOnly,
       signal
     )
 
@@ -305,6 +306,17 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       metadata: objectMetadata ?? {},
       signal,
     })
+  } else if (createOnly) {
+    /** Publish only complete bytes; link is atomic and refuses an existing winner. */
+    const { link, rm } = await import('fs/promises')
+    const temporary = `${filesystemPath}.${generateId()}.tmp`
+    try {
+      await writeFile(temporary, file, { signal, flag: 'wx' })
+      signal?.throwIfAborted()
+      await link(temporary, filesystemPath)
+    } finally {
+      await rm(temporary, { force: true })
+    }
   } else {
     await writeFile(filesystemPath, file, { signal })
   }

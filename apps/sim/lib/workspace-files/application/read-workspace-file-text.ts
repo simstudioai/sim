@@ -17,6 +17,10 @@ import {
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import {
+  hasWorkspaceFileDeliveryObserver,
+  reportWorkspaceFileDelivery,
+} from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import {
@@ -132,14 +136,16 @@ async function executeReadWorkspaceFileText({
     : await readSourceBuffer(file, maxBytes)
   const parsed = await parseFileText(content, extension, file.name)
   const metadata = parsed.metadata ?? {}
-  const secretProvenance = input.includeSecretProvenance
-    ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
-        fileId: file.id,
-        key: file.key,
-        context: file.storageContext ?? 'workspace',
-        contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-      })
-    : undefined
+  const secretProvenance =
+    input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
+      ? await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+          fileId: file.id,
+          key: file.key,
+          context: file.storageContext ?? 'workspace',
+          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+        })
+      : undefined
+  await reportWorkspaceFileDelivery(secretProvenance)
 
   const truncated = metadata.truncated === true
   const { text, lineRange } = sliceTextLines(parsed.content, input.offset, input.limit, truncated)
@@ -151,7 +157,7 @@ async function executeReadWorkspaceFileText({
     degraded: metadata.degraded === true,
     degradedReason: metadata.degraded === true ? (metadata.warning ?? null) : null,
     byteCount: content.byteLength,
-    ...(secretProvenance ? { secretProvenance } : {}),
+    ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
     ...(lineRange ? { lineRange } : {}),
   }
 }
@@ -173,7 +179,7 @@ async function executeReadWorkspaceFileText({
  * The window is rejoined with the line ending the text already used, so a
  * ranged read of a CRLF file stays usable verbatim as exact search text for an edit.
  */
-function sliceTextLines(
+export function sliceTextLines(
   text: string,
   offset: number | undefined,
   limit: number | undefined,
@@ -221,7 +227,7 @@ function sliceTextLines(
  * well formed, it is the stored bytes that cannot become the representation
  * being asked for, and the caller needs to know that retrying will not help.
  */
-async function parseFileText(content: Buffer, extension: string, fileName: string) {
+export async function parseFileText(content: Buffer, extension: string, fileName: string) {
   if (content.byteLength === 0) {
     return { content: '', metadata: {} }
   }
