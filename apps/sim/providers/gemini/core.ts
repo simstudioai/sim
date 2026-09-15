@@ -31,6 +31,7 @@ import {
   mapToThinkingLevel,
   supportsDisablingGemini25Thinking,
 } from '@/providers/google/utils'
+import { getModelCapabilities, isKnownModelId } from '@/providers/models'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -215,6 +216,7 @@ async function executeToolCallsBatch(
     functionResponse: {
       name: r.toolName,
       response: 'modelResultContent' in r ? r.modelResultContent : r.resultContent,
+      ...(r.part.functionCall?.id ? { id: r.part.functionCall.id } : {}),
     },
   }))
 
@@ -966,7 +968,10 @@ export async function executeGeminiRequest(
     if (request.abortSignal) {
       geminiConfig.abortSignal = request.abortSignal
     }
-    if (request.temperature !== undefined) {
+    if (
+      request.temperature !== undefined &&
+      (!isKnownModelId(request.model) || getModelCapabilities(request.model)?.temperature)
+    ) {
       geminiConfig.temperature = request.temperature
     }
     if (request.maxTokens != null) {
@@ -1148,7 +1153,7 @@ export async function executeGeminiRequest(
 
           streamingResult.execution.output.content = content
           streamingResult.execution.output.tokens = { ...split, total: usage.totalTokenCount }
-          streamingResult.execution.output.cost = priceGeminiTokens(model, split)
+          streamingResult.execution.output.cost = priceGeminiTokens(request.model, split)
 
           if (thinking) {
             const segment = streamingResult.execution.output.providerTiming?.timeSegments?.[0]
@@ -1192,11 +1197,11 @@ export async function executeGeminiRequest(
       initialUsage,
       firstResponseTime,
       initialCallTime,
-      model,
+      request.model,
       toolConfig
     )
     enrichLastModelSegmentFromGeminiResponse(state.timeSegments, response, {
-      model,
+      model: request.model,
     })
     const forcedTools = preparedTools?.forcedTools ?? []
 
@@ -1225,12 +1230,12 @@ export async function executeGeminiRequest(
       const finalState = updateStateWithResponse(
         currentState,
         finalResponse,
-        model,
+        request.model,
         finalStartTime,
         Date.now()
       )
       enrichLastModelSegmentFromGeminiResponse(finalState.timeSegments, finalResponse, {
-        model,
+        model: request.model,
       })
       return { state: finalState, response: finalResponse }
     }
@@ -1324,9 +1329,15 @@ export async function executeGeminiRequest(
           contents: state.contents,
           config: nextConfig,
         })
-        state = updateStateWithResponse(state, nextResponse, model, nextModelStartTime, Date.now())
+        state = updateStateWithResponse(
+          state,
+          nextResponse,
+          request.model,
+          nextModelStartTime,
+          Date.now()
+        )
         enrichLastModelSegmentFromGeminiResponse(state.timeSegments, nextResponse, {
-          model,
+          model: request.model,
         })
         currentResponse = nextResponse
 

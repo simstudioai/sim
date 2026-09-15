@@ -24,7 +24,12 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
-import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import {
+  isAutoModel,
+  isCustomModelId,
+  isKnownModelId,
+  suggestModelIdsForUnknownModel,
+} from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
 import {
@@ -680,7 +685,7 @@ export function validateValueForSubBlockType(
         if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
           return { valid: true, value: trimmed.toLowerCase() }
         }
-        if (trimmed !== '' && !isKnownModelId(trimmed)) {
+        if (trimmed !== '' && !isKnownModelId(trimmed) && !isCustomModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
           const suggestionText =
             suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
@@ -691,7 +696,7 @@ export function validateValueForSubBlockType(
               blockType,
               field: fieldName,
               value,
-              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models (Ollama, Ollama Cloud, vLLM, LiteLLM, OpenRouter, Fireworks, Together AI, Baseten), prefix the id with the provider slash, e.g. "ollama/llama3.1:8b" or "ollama-cloud/gpt-oss:120b".${suggestionText}`,
+              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models, use a supported provider namespace, e.g. "azure/my-deployment", "azure-anthropic/my-deployment", "bedrock/my-inference-profile", "vertex/my-model", "ollama/llama3.1:8b", or "openrouter/provider/model".${suggestionText}`,
             },
           }
         }

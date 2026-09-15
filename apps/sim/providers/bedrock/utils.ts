@@ -122,22 +122,49 @@ export function generateToolUseId(toolName: string): string {
 }
 
 /**
- * Models whose AWS model cards state geo/cross-region inference profiles are
- * not supported ("Geo inference ID: Not supported"). These must be invoked
- * with the bare in-region model ID — prefixing them with a geo profile
- * (e.g. us.mistral...) produces an invalid model identifier.
+ * Catalog models with documented geographic inference profiles. Unknown model
+ * IDs and caller-supplied inference profile IDs/ARNs must pass through unchanged.
  */
-const GEO_PROFILE_UNSUPPORTED_MODEL_IDS = new Set([
-  'mistral.mistral-large-3-675b-instruct',
-  'mistral.mistral-large-2407-v1:0',
-  'mistral.magistral-small-2509',
-  'mistral.ministral-3-14b-instruct',
-  'mistral.ministral-3-8b-instruct',
-  'mistral.ministral-3-3b-instruct',
-  'mistral.mixtral-8x7b-instruct-v0:1',
-  'amazon.titan-text-premier-v1:0',
-  'cohere.command-r-v1:0',
-  'cohere.command-r-plus-v1:0',
+const GEO_PROFILE_MODEL_IDS = new Set([
+  'anthropic.claude-opus-4-5-20251101-v1:0',
+  'anthropic.claude-sonnet-4-5-20250929-v1:0',
+  'anthropic.claude-haiku-4-5-20251001-v1:0',
+  'anthropic.claude-opus-4-1-20250805-v1:0',
+  'amazon.nova-2-lite-v1:0',
+  'amazon.nova-premier-v1:0',
+  'amazon.nova-pro-v1:0',
+  'amazon.nova-lite-v1:0',
+  'amazon.nova-micro-v1:0',
+  'meta.llama4-maverick-17b-instruct-v1:0',
+  'meta.llama4-scout-17b-instruct-v1:0',
+  'meta.llama3-3-70b-instruct-v1:0',
+  'meta.llama3-2-90b-instruct-v1:0',
+  'meta.llama3-2-11b-instruct-v1:0',
+  'meta.llama3-2-3b-instruct-v1:0',
+  'meta.llama3-2-1b-instruct-v1:0',
+  'meta.llama3-1-405b-instruct-v1:0',
+  'meta.llama3-1-70b-instruct-v1:0',
+  'meta.llama3-1-8b-instruct-v1:0',
+  'mistral.pixtral-large-2502-v1:0',
+])
+
+/** Current Claude profiles use AU rather than the older APAC geography. */
+const CLAUDE_GEO_PROFILE_MODEL_IDS = new Set([
+  'anthropic.claude-opus-5',
+  'anthropic.claude-sonnet-5',
+  'anthropic.claude-opus-4-8',
+  'anthropic.claude-opus-4-7',
+  'anthropic.claude-opus-4-6-v1',
+  'anthropic.claude-sonnet-4-6',
+])
+
+/** These models currently publish US and global inference profiles only. */
+const US_GEO_PROFILE_MODEL_IDS = new Set([
+  'anthropic.claude-fable-5',
+  'openai.gpt-6-astra',
+  'openai.gpt-5.6-sol',
+  'openai.gpt-5.6-terra',
+  'openai.gpt-5.6-luna',
 ])
 
 /** Cross-region inference profile prefixes Bedrock prepends to a base model ID. */
@@ -147,8 +174,8 @@ const GEO_PROFILE_PREFIX_PATTERN = /^(us-gov|us|eu|apac|au|ca|jp|global)\./
  * Strips Sim's `bedrock/` namespace and any cross-region inference prefix,
  * leaving the bare `<vendor>.<model>` ID that capability checks key off.
  */
-function getBedrockBaseModelId(modelId: string): string {
-  const withoutNamespace = modelId.startsWith('bedrock/') ? modelId.slice(8) : modelId
+export function getBedrockBaseModelId(modelId: string): string {
+  const withoutNamespace = modelId.replace(/^bedrock\//i, '')
   return withoutNamespace.replace(GEO_PROFILE_PREFIX_PATTERN, '')
 }
 
@@ -177,13 +204,33 @@ export function supportsToolResultStatus(modelId: string): boolean {
  * @returns The inference profile ID (e.g., "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
  */
 export function getBedrockInferenceProfileId(modelId: string, region: string): string {
-  const baseModelId = modelId.startsWith('bedrock/') ? modelId.slice(8) : modelId
+  const baseModelId = modelId.replace(/^bedrock\//i, '')
 
   if (GEO_PROFILE_PREFIX_PATTERN.test(baseModelId)) {
     return baseModelId
   }
 
-  if (GEO_PROFILE_UNSUPPORTED_MODEL_IDS.has(baseModelId)) {
+  if (CLAUDE_GEO_PROFILE_MODEL_IDS.has(baseModelId)) {
+    if ((region.startsWith('us-') && !region.startsWith('us-gov-')) || region.startsWith('ca-')) {
+      return `us.${baseModelId}`
+    }
+    if (region.startsWith('eu-')) return `eu.${baseModelId}`
+    if (region === 'ap-southeast-2' || region === 'ap-southeast-4') return `au.${baseModelId}`
+    throw new Error(
+      `No geographic inference profile is configured for ${baseModelId} in ${region}. ` +
+        'Supply an explicit bedrock/global. model ID or an inference profile ARN.'
+    )
+  }
+
+  if (US_GEO_PROFILE_MODEL_IDS.has(baseModelId)) {
+    if (region.startsWith('us-') && !region.startsWith('us-gov-')) return `us.${baseModelId}`
+    throw new Error(
+      `${baseModelId} only has a US geographic inference profile. ` +
+        'Supply an explicit bedrock/global. model ID to use global inference.'
+    )
+  }
+
+  if (!GEO_PROFILE_MODEL_IDS.has(baseModelId)) {
     return baseModelId
   }
 

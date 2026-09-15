@@ -1,8 +1,8 @@
 /**
  * Live Bedrock ConverseStream tool loop.
  *
- * Capability-honest: text + tool_call_start/end only — Sim does not request
- * Bedrock reasoning, so no thinking is invented. Text emits live as `pending`
+ * Text + tool_call_start/end events, with provider reasoning preserved for
+ * subsequent model requests. Text emits live as `pending`
  * deltas and a `turn_end` event classifies each turn, so the pump projects
  * only final-turn text to the answer channel. Abort → cancelled.
  */
@@ -47,7 +47,7 @@ export interface CreateBedrockStreamingToolLoopStreamOptions {
   request: ProviderRequest
   messages: BedrockMessage[]
   system?: SystemContentBlock[]
-  inferenceConfig: { temperature: number; maxTokens?: number }
+  inferenceConfig: { temperature?: number; maxTokens?: number }
   bedrockTools: Tool[]
   toolChoice: ToolConfiguration['toolChoice']
   logger: Logger
@@ -61,6 +61,8 @@ interface AssembledToolUse {
   name: string
   inputJson: string
 }
+
+type DrainedContentBlock = ContentBlock | { pendingToolUseId: string }
 
 type ToolUseInput = NonNullable<ToolUseBlock['input']>
 
@@ -84,12 +86,18 @@ async function drainBedrockTurn(
 ): Promise<{
   text: string
   toolUses: AssembledToolUse[]
+  content: DrainedContentBlock[]
   inputTokens: number
   outputTokens: number
   stopReason?: string
 }> {
   let text = ''
   const toolsByIndex = new Map<number, AssembledToolUse>()
+  const textByIndex = new Map<number, string>()
+  const reasoningByIndex = new Map<
+    number,
+    { text: string; signature: string; redacted: Uint8Array[] }
+  >()
   let currentIndex: number | undefined
   let inputTokens = 0
   let outputTokens = 0
@@ -119,8 +127,23 @@ async function drainBedrockTurn(
     if (event.contentBlockDelta) {
       const idx = event.contentBlockDelta.contentBlockIndex ?? currentIndex
       const delta = event.contentBlockDelta.delta
+      if (delta?.reasoningContent && typeof idx === 'number') {
+        let reasoning = reasoningByIndex.get(idx)
+        if (!reasoning) {
+          reasoning = { text: '', signature: '', redacted: [] }
+          reasoningByIndex.set(idx, reasoning)
+        }
+        reasoning.text += delta.reasoningContent.text ?? ''
+        reasoning.signature += delta.reasoningContent.signature ?? ''
+        if (delta.reasoningContent.redactedContent) {
+          reasoning.redacted.push(delta.reasoningContent.redactedContent)
+        }
+      }
       if (delta?.text) {
         text += delta.text
+        if (typeof idx === 'number') {
+          textByIndex.set(idx, (textByIndex.get(idx) ?? '') + delta.text)
+        }
         // Live pending text: sinks render it now; the pump projects it to the
         // answer only when this turn's turn_end says 'final'.
         controller.enqueue({ type: 'text_delta', text: delta.text, turn: 'pending' })
@@ -145,9 +168,39 @@ async function drainBedrockTurn(
     }
   }
 
+  const contentByIndex = new Map<number, DrainedContentBlock>()
+  for (const [index, blockText] of textByIndex) {
+    if (blockText.trim()) contentByIndex.set(index, { text: blockText })
+  }
+  for (const [index, tool] of toolsByIndex) {
+    contentByIndex.set(index, { pendingToolUseId: tool.toolUseId })
+  }
+  for (const [index, reasoning] of reasoningByIndex) {
+    if (reasoning.redacted.length > 0) {
+      const redactedContent = new Uint8Array(
+        reasoning.redacted.reduce((size, chunk) => size + chunk.length, 0)
+      )
+      let offset = 0
+      for (const chunk of reasoning.redacted) {
+        redactedContent.set(chunk, offset)
+        offset += chunk.length
+      }
+      contentByIndex.set(index, { reasoningContent: { redactedContent } })
+    } else {
+      contentByIndex.set(index, {
+        reasoningContent: {
+          reasoningText: { text: reasoning.text, signature: reasoning.signature },
+        },
+      })
+    }
+  }
+
   return {
     text,
     toolUses: [...toolsByIndex.values()],
+    content: [...contentByIndex.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([, block]) => block),
     inputTokens,
     outputTokens,
     stopReason,
@@ -499,21 +552,17 @@ export function createBedrockStreamingToolLoopStream(
 
           toolsTime += Date.now() - toolsStartTime
 
-          const assistantContent: ContentBlock[] = [
-            // Bedrock rejects a blank text block, and a model can emit only
-            // whitespace before a tool call.
-            ...(drained.text.trim() ? [{ text: drained.text }] : []),
-            ...assembledToolUses.map((toolUse) => ({
-              toolUse: {
-                toolUseId: toolUse.toolUseId,
-                name: toolUse.name,
-                input: toolUse.input,
-              },
-            })),
-          ]
+          const toolUsesById = new Map(
+            assembledToolUses.map((toolUse) => [toolUse.toolUseId, toolUse])
+          )
           currentMessages.push({
             role: 'assistant' as ConversationRole,
-            content: assistantContent,
+            content: drained.content.map((block) => {
+              if (!('pendingToolUseId' in block)) return block
+              const toolUse = toolUsesById.get(block.pendingToolUseId)
+              if (!toolUse) throw new Error('Missing assembled Bedrock tool use')
+              return { toolUse }
+            }),
           })
 
           const toolResultContent: ContentBlock[] = []

@@ -27,6 +27,10 @@ Answer in two sentences, cite the doc you used, and never guess a price.
 
 The model that runs the step. Defaults to `claude-sonnet-4-6`. Type or pick any model from OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Azure, AWS Bedrock, Google Vertex, or OpenRouter, or a local model through Ollama or VLLM.
 
+For a custom cloud deployment, enter its provider prefix and model ID: `azure/my-deployment`, `azure-anthropic/my-deployment`, `bedrock/my-inference-profile`, or `vertex/my-gemini-model`. The prefix selects the provider and shows its credential fields even when the ID is absent from the catalog. Bedrock accepts full inference profile ARNs after `bedrock/`; Vertex uses the Gemini API and accepts Google model resource names. The deployment must support the selected provider's API. Custom IDs have no catalog pricing or token limits.
+
+Ollama Cloud, OpenRouter, Fireworks, Together AI, Baseten, Ollama, vLLM, and LiteLLM load their available models from the configured provider. New models appear through that discovery without a Sim catalog release. You can also enter a namespaced ID directly, such as `ollama-cloud/deepseek-v4.1-flash`, `openrouter/provider/model`, or `ollama/my-local-model`. Provider prefixes are case-insensitive; the model ID after the prefix keeps its original casing.
+
 ### Files
 
 Files for the model to read: images for a vision-capable model, or documents for text. Upload them on the block, or pass a file from an earlier block, such as an upload trigger or an [API](/workflows/blocks/api) response, with a connection tag.
@@ -110,18 +114,19 @@ Live tool-call chips stream for **OpenAI, Anthropic, Azure Anthropic, Google, Ve
 
 | Provider | Streamed thinking | Models |
 |----------|-------------------|--------|
-| OpenAI | Summaries only — Requires OpenAI organization verification; falls back to no summaries. | `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4-pro`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.2-pro`, `gpt-5.2`, `gpt-5.1`, `gpt-5-pro`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `o4-mini`, `o3`, `o3-mini`, `o1` |
+| OpenAI | Summaries only — Requires OpenAI organization verification; falls back to no summaries. | `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4-pro`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.3-codex`, `gpt-5.2-pro`, `gpt-5.2`, `gpt-5.1`, `gpt-5-pro`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `o4-mini`, `o3`, `o3-mini`, `o1` |
 | Anthropic | Summaries only — These generations omit full thinking; Sim requests summarized thinking on streaming runs. | `claude-fable-5-1`, `claude-fable-5`, `claude-sonnet-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
-| Azure OpenAI | Summaries only — Requires OpenAI organization verification; falls back to no summaries. | `azure/gpt-5.4`, `azure/gpt-5.4-mini`, `azure/gpt-5.4-nano`, `azure/gpt-5.2`, `azure/gpt-5.1`, `azure/gpt-5.1-codex`, `azure/gpt-5`, `azure/gpt-5-mini`, `azure/gpt-5-nano`, `azure/o3`, `azure/o4-mini` |
-| Azure Anthropic | Summaries only — These generations omit full thinking; Sim requests summarized thinking on streaming runs. | `azure-anthropic/claude-opus-4-6`, `azure-anthropic/claude-opus-4-5`, `azure-anthropic/claude-sonnet-4-5`, `azure-anthropic/claude-opus-4-1`, `azure-anthropic/claude-haiku-4-5` |
-| Google | Summaries only | `gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`, `gemini-3.5-flash`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` |
-| Vertex AI | Summaries only | `vertex/gemini-3.5-flash`, `vertex/gemini-3.1-pro-preview`, `vertex/gemini-3.1-flash-lite`, `vertex/gemini-3-flash-preview`, `vertex/gemini-2.5-pro`, `vertex/gemini-2.5-flash`, `vertex/gemini-2.5-flash-lite` |
-| DeepSeek | Full thinking deltas | `deepseek-v4-pro`, `deepseek-v4-flash`, `deepseek-reasoner` |
+| Azure OpenAI | Summaries only — Requires OpenAI organization verification; falls back to no summaries. | `azure/gpt-6-astra`, `azure/gpt-5.6-sol`, `azure/gpt-5.6-terra`, `azure/gpt-5.6-luna`, `azure/gpt-5.5`, `azure/gpt-5.4-pro`, `azure/gpt-5.4`, `azure/gpt-5.4-mini`, `azure/gpt-5.4-nano`, `azure/gpt-5.2`, `azure/gpt-5.1`, `azure/gpt-5.1-codex`, `azure/gpt-5`, `azure/gpt-5-mini`, `azure/gpt-5-nano`, `azure/o3`, `azure/o4-mini` |
+| Azure Anthropic | Summaries only — These generations omit full thinking; Sim requests summarized thinking on streaming runs. | `azure-anthropic/claude-fable-5-1`, `azure-anthropic/claude-opus-5`, `azure-anthropic/claude-opus-4-8`, `azure-anthropic/claude-opus-4-7`, `azure-anthropic/claude-opus-4-6`, `azure-anthropic/claude-opus-4-5`, `azure-anthropic/claude-sonnet-5`, `azure-anthropic/claude-sonnet-4-6`, `azure-anthropic/claude-sonnet-4-5`, `azure-anthropic/claude-opus-4-1`, `azure-anthropic/claude-haiku-4-5` |
+| Google | Summaries only | `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`, `gemini-3.5-flash`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` |
+| Vertex AI | Summaries only | `vertex/gemini-3.8-flash`, `vertex/gemini-3.7-flash`, `vertex/gemini-3.6-flash`, `vertex/gemini-3.5-flash-lite`, `vertex/gemini-3.5-flash`, `vertex/gemini-3.1-pro-preview`, `vertex/gemini-3.1-flash-lite`, `vertex/gemini-3-flash-preview`, `vertex/gemini-2.5-pro`, `vertex/gemini-2.5-flash`, `vertex/gemini-2.5-flash-lite` |
+| DeepSeek | Full thinking deltas | `deepseek-v4-pro`, `deepseek-flash`, `deepseek-v4-flash`, `deepseek-reasoner` |
 | xAI | Full thinking deltas | `grok-4.6`, `grok-4.5`, `grok-4.3`, `grok-4.20-multi-agent-0309` |
-| Groq | Full thinking deltas | `groq/openai/gpt-oss-120b`, `groq/openai/gpt-oss-20b`, `groq/openai/gpt-oss-safeguard-20b`, `groq/qwen/qwen3.6-27b` |
+| Cerebras | Full thinking deltas | `cerebras/qwen-3.8-27b` |
+| Groq | Full thinking deltas | `groq/openai/gpt-oss-120b`, `groq/openai/gpt-oss-20b`, `groq/openai/gpt-oss-safeguard-20b`, `groq/qwen/qwen3.8-27b`, `groq/qwen/qwen3.6-27b` |
 | Meta | Not streamed | `muse-spark-1.3`, `muse-spark-1.1` |
-| Kimi | Full thinking deltas | `kimi-k2.6` |
-| Z.ai | Full thinking deltas | `glm-5.3`, `glm-5.2`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, `glm-4.6`, `glm-4.5`, `glm-4.5-air` |
+| Kimi | Full thinking deltas | `kimi-k3`, `kimi-k2.6` |
+| Z.ai | Full thinking deltas | `glm-5.3`, `glm-5.3-flash`, `glm-5.2`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, `glm-4.6`, `glm-4.5`, `glm-4.5-air` |
 
 {/* agent-stream-capabilities:end */}
 

@@ -105,9 +105,9 @@ export const deepseekProvider: ProviderConfig = {
       }
       if (request.reasoningEffort && !['auto', 'none'].includes(request.reasoningEffort)) {
         payload.reasoning_effort =
-          request.reasoningEffort === 'xhigh'
-            ? 'max'
-            : request.reasoningEffort === 'low' || request.reasoningEffort === 'medium'
+          request.reasoningEffort === 'minimal'
+            ? 'low'
+            : request.reasoningEffort === 'xhigh' || request.reasoningEffort === 'medium'
               ? 'high'
               : request.reasoningEffort
       }

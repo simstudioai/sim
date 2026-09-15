@@ -107,7 +107,7 @@ export const openRouterProvider: ProviderConfig = {
       baseURL: 'https://openrouter.ai/api/v1',
     })
 
-    const requestedModel = request.model.replace(/^openrouter\//, '')
+    const requestedModel = request.model.replace(/^openrouter\//i, '')
 
     logger.info('Preparing OpenRouter request', {
       model: requestedModel,

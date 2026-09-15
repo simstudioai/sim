@@ -142,7 +142,7 @@ export const litellmProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: request.model.replace(/^litellm\//, ''),
+      model: request.model.replace(/^litellm\//i, ''),
       messages: formattedMessages,
     }
 

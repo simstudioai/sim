@@ -6,12 +6,14 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import type { SubBlockConfig } from '@/blocks/types'
 import {
+  findProviderFromModel,
   getBaseModelProviders,
   getHostedModels,
   getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
   isAutoModel,
+  isCustomModelId,
   orderModelIdsByReleaseDate,
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
@@ -20,8 +22,6 @@ import type { ProviderId } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
-export const VERTEX_MODELS = getProviderModels('vertex')
-export const BEDROCK_MODELS = getProviderModels('bedrock')
 export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
   ...getProviderModels('azure-anthropic'),
@@ -164,9 +164,15 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   ) {
     return false
   }
-  if (normalizedModel.startsWith('vllm/') || normalizedModel.startsWith('litellm/')) {
+  if (
+    normalizedModel.startsWith('ollama/') ||
+    normalizedModel.startsWith('vllm/') ||
+    normalizedModel.startsWith('litellm/')
+  ) {
     return false
   }
+
+  if (isCustomModelId(normalizedModel)) return true
 
   const storeProvider = getProviderFromStore(normalizedModel)
   if (storeProvider === 'ollama' || storeProvider === 'vllm' || storeProvider === 'litellm')
@@ -272,6 +278,14 @@ export function getCohereRerankerApiKeyCondition() {
   }
 }
 
+function getModelProviderCondition(...providerIds: ProviderId[]) {
+  return (values?: Record<string, unknown>) => {
+    const model = typeof values?.model === 'string' ? values.model : ''
+    const provider = findProviderFromModel(model.trim())
+    return buildModelVisibilityCondition(model, provider !== null && providerIds.includes(provider))
+  }
+}
+
 /**
  * Returns the standard provider credential subblocks used by LLM-based blocks.
  * This includes: Vertex AI OAuth, API Key, Azure (OpenAI + Anthropic), Vertex AI config, and Bedrock config.
@@ -290,10 +304,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       requiredScopes: getScopesForService('vertex-ai'),
       placeholder: 'Select Google Cloud account',
       required: true,
-      condition: {
-        field: 'model',
-        value: VERTEX_MODELS,
-      },
+      condition: getModelProviderCondition('vertex'),
     },
     {
       id: 'vertexManualCredential',
@@ -303,10 +314,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       mode: 'advanced',
       placeholder: 'Enter credential ID',
       required: true,
-      condition: {
-        field: 'model',
-        value: VERTEX_MODELS,
-      },
+      condition: getModelProviderCondition('vertex'),
     },
     {
       id: 'apiKey',
@@ -326,10 +334,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'https://your-resource.services.ai.azure.com',
       connectionDroppable: false,
       hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
-      condition: {
-        field: 'model',
-        value: AZURE_MODELS,
-      },
+      condition: getModelProviderCondition('azure-openai', 'azure-anthropic'),
     },
     {
       id: 'azureApiVersion',
@@ -338,10 +343,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'Enter API version',
       connectionDroppable: false,
       hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
-      condition: {
-        field: 'model',
-        value: AZURE_MODELS,
-      },
+      condition: getModelProviderCondition('azure-openai', 'azure-anthropic'),
     },
     {
       id: 'vertexProject',
@@ -351,10 +353,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'your-gcp-project-id',
       connectionDroppable: false,
       required: true,
-      condition: {
-        field: 'model',
-        value: VERTEX_MODELS,
-      },
+      condition: getModelProviderCondition('vertex'),
     },
     {
       id: 'vertexLocation',
@@ -363,10 +362,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'us-central1',
       connectionDroppable: false,
       required: true,
-      condition: {
-        field: 'model',
-        value: VERTEX_MODELS,
-      },
+      condition: getModelProviderCondition('vertex'),
     },
     {
       id: 'bedrockAccessKeyId',
@@ -377,10 +373,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       connectionDroppable: false,
       required: true,
       hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
-      condition: {
-        field: 'model',
-        value: BEDROCK_MODELS,
-      },
+      condition: getModelProviderCondition('bedrock'),
     },
     {
       id: 'bedrockSecretKey',
@@ -391,10 +384,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       connectionDroppable: false,
       required: true,
       hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
-      condition: {
-        field: 'model',
-        value: BEDROCK_MODELS,
-      },
+      condition: getModelProviderCondition('bedrock'),
     },
     {
       id: 'bedrockRegion',
@@ -402,10 +392,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       type: 'short-input',
       placeholder: 'us-east-1',
       connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: BEDROCK_MODELS,
-      },
+      condition: getModelProviderCondition('bedrock'),
     },
   ]
 }
