@@ -300,9 +300,10 @@ describe('Search OAuth installation', () => {
   })
 })
 
-it('rejects a shared-app callback if the global configuration was disabled or rotated', async () => {
+it('rejects a shared-app callback if organization access was disabled or configuration rotated', async () => {
   m.consume.mockResolvedValue({ ...attempt, sharedApp: { id: 'ASHARED', revision: 'app-rev' } })
   await expect(complete()).rejects.toThrow('configuration changed')
+  expect(m.shared).toHaveBeenCalledWith('org1')
   expect(m.exchange).not.toHaveBeenCalled()
   m.shared.mockResolvedValue({ id: 'ASHARED', revision: 'new-rev' })
   await expect(complete()).rejects.toThrow()
@@ -327,6 +328,24 @@ describe('shared app completion', () => {
     })
   })
 
+  it('only offers and starts shared OAuth for the enabled organization', async () => {
+    m.shared.mockImplementation(async (orgId) => (orgId === 'org1' ? sharedApp : null))
+    const details = { name: 'Sim Search', description: 'Search with sources' }
+    await expect(
+      prepareSlackSearchSetup.execute({ principal, input: { ...details, organizationId: 'org1' } })
+    ).resolves.toHaveProperty('sharedAppId', 'A1')
+    await expect(
+      prepareSlackSearchSetup.execute({ principal, input: { ...details, organizationId: 'org2' } })
+    ).resolves.toHaveProperty('sharedAppId', null)
+    await expect(
+      startSlackSearchSetup.execute({
+        principal,
+        input: { ...details, organizationId: 'org2', mode: 'shared' },
+      })
+    ).rejects.toThrow('unavailable')
+    expect(m.store).not.toHaveBeenCalled()
+  })
+
   it('starts shared OAuth without storing deployment secrets in the attempt', async () => {
     const result = await startSlackSearchSetup.execute({
       principal,
@@ -338,6 +357,7 @@ describe('shared app completion', () => {
       },
     })
     expect(new URL(result.authorizationUrl).searchParams.get('client_id')).toBe('client')
+    expect(m.shared).toHaveBeenCalledWith('org1')
     const stored = m.store.mock.calls[0][0]
     expect(stored.sharedApp).toEqual({ id: 'A1', revision: 'shared-revision' })
     expect(stored).not.toHaveProperty('encryptedClientSecret')
@@ -468,6 +488,7 @@ describe('shared app completion', () => {
       queueTransitionRows()
       m.shared.mockResolvedValueOnce(sharedApp).mockResolvedValueOnce(null)
       await expect(complete()).rejects.toThrow('configuration changed')
+      expect(m.shared.mock.calls).toEqual([['org1'], ['org1']])
       expect(m.update).not.toHaveBeenCalled()
       expect(m.values).not.toHaveBeenCalled()
     })

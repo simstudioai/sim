@@ -70,10 +70,17 @@ describe('organization Slack app references', () => {
       clientSecret: 'current-secret',
     })
   })
-  it.each([true, false])(
-    'resolves environment credentials only for an active shared installation (active=%s)',
-    async (active) => {
+  it.each([
+    [true, true],
+    [false, true],
+    [true, false],
+  ])(
+    'resolves shared credentials only for an active installation and enabled organization (active=%s, enabled=%s)',
+    async (active, enabled) => {
       shared.env.SLACK_SEARCH_APP_ID = 'A1'
+      shared.flag.mockImplementation(
+        async (_flag, context) => enabled && context?.orgId === 'org-1'
+      )
       dbChainMockFns.limit
         .mockResolvedValueOnce([
           {
@@ -96,7 +103,8 @@ describe('organization Slack app references', () => {
         organizationId: 'org-1',
         credentialGroupId: 'group-1',
       })
-      if (active)
+      if (!enabled) await expect(result).rejects.toThrow('unavailable')
+      else if (active)
         await expect(result).resolves.toMatchObject({
           clientId: 'environment-client',
           clientSecret: 'environment-secret',
@@ -104,6 +112,7 @@ describe('organization Slack app references', () => {
           teamId: 'T1',
         })
       else await expect(result).rejects.toThrow('disabled or removed')
+      expect(shared.flag).toHaveBeenCalledWith('slack-search-shared-app', { orgId: 'org-1' })
     }
   )
   it('keeps using the custom app for personal sources after a different native app is installed', async () => {
