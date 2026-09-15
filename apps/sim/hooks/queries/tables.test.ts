@@ -67,6 +67,7 @@ import {
   listTableNamesContract,
   type TableViewWire,
 } from '@/lib/api/contracts/tables'
+import { useReferenceRowPreview } from '@/hooks/queries/table-reference-preview'
 import {
   TABLE_DETAIL_STALE_TIME,
   tableRowsInfiniteOptions,
@@ -75,7 +76,6 @@ import {
   useDeleteColumn,
   useDeleteTableRow,
   useDeleteTableRows,
-  useReferenceRowPreview,
   useRestoreTable,
   useTableNames,
   useUpdateColumn,
@@ -226,10 +226,8 @@ describe('useReferenceRowPreview', () => {
     }
     const referenceTables = [{ id: 'tbl-owners', name: 'Owners' }]
     const signal = new AbortController().signal
-    queryClient.fetchQuery.mockResolvedValueOnce(table)
-    vi.mocked(requestJson)
-      .mockResolvedValueOnce({ data: { row } })
-      .mockResolvedValueOnce({ success: true, data: { tables: referenceTables } })
+    queryClient.fetchQuery.mockResolvedValueOnce(table).mockResolvedValueOnce(referenceTables)
+    vi.mocked(requestJson).mockResolvedValueOnce({ data: { row } })
 
     useReferenceRowPreview({
       workspaceId: WORKSPACE_ID,
@@ -244,10 +242,10 @@ describe('useReferenceRowPreview', () => {
       row,
       referenceTables,
     })
-    expect(requestJson).toHaveBeenNthCalledWith(2, listTableNamesContract, {
-      body: { workspaceId: WORKSPACE_ID, tableIds: ['tbl-owners'] },
-      signal,
-    })
+    expect(queryClient.fetchQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ queryKey: tableKeys.names(WORKSPACE_ID, ['tbl-owners']) })
+    )
   })
 
   it('does not fetch until every referenced-row identity is available', () => {
@@ -381,48 +379,29 @@ describe('useBatchUpdateTableRows', () => {
 
     hook.onSettled?.(undefined, null, { updates }, undefined)
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledOnce()
-    const options = queryClient.invalidateQueries.mock.calls[0]?.[0]
-    expect(options?.queryKey).toEqual(tableKeys.referencePreviewsForTable(TABLE_ID))
-    expect(
-      options?.predicate({
-        queryKey: tableKeys.referencePreview(TABLE_ID, 'row-1', 'source-row', 'account'),
-      })
-    ).toBe(true)
-    expect(
-      options?.predicate({
-        queryKey: tableKeys.referencePreview(TABLE_ID, 'row-3', 'source-row', 'account'),
-      })
-    ).toBe(false)
-    expect(
-      tableKeys
-        .referencePreview('other-table', 'row-1', 'source-row', 'account')
-        .slice(0, options?.queryKey.length)
-    ).not.toEqual(options?.queryKey)
+    expect(queryClient.invalidateQueries.mock.calls.map(([options]) => options?.queryKey)).toEqual([
+      tableKeys.referencePreviewsForRow(TABLE_ID, 'row-1'),
+      tableKeys.referencePreviewsForRow(TABLE_ID, 'row-2'),
+    ])
   })
 })
 
 describe('reference preview invalidation', () => {
   function expectPreviewInvalidation(rowIds: string[]) {
-    const call = queryClient.invalidateQueries.mock.calls.find(
-      ([options]) =>
-        JSON.stringify(options?.queryKey) ===
-        JSON.stringify(tableKeys.referencePreviewsForTable(TABLE_ID))
+    const invalidatedKeys = queryClient.invalidateQueries.mock.calls.map(([options]) =>
+      JSON.stringify(options?.queryKey)
     )
-    expect(call).toBeDefined()
-    const options = call?.[0]
     for (const rowId of rowIds) {
-      expect(
-        options?.predicate({
-          queryKey: tableKeys.referencePreview(TABLE_ID, rowId, 'source-row', 'account'),
-        })
-      ).toBe(true)
+      expect(invalidatedKeys).toContain(
+        JSON.stringify(tableKeys.referencePreviewsForRow(TABLE_ID, rowId))
+      )
     }
-    expect(
-      options?.predicate({
-        queryKey: tableKeys.referencePreview(TABLE_ID, 'untouched-row', 'source-row', 'account'),
-      })
-    ).toBe(false)
+    expect(invalidatedKeys).not.toContain(
+      JSON.stringify(tableKeys.referencePreviewsForRow(TABLE_ID, 'untouched-row'))
+    )
+    expect(invalidatedKeys).not.toContain(
+      JSON.stringify(tableKeys.referencePreviewsForRow('other-table', rowIds[0]))
+    )
   }
 
   it('invalidates a referenced row after an update settles', () => {

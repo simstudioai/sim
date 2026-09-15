@@ -620,21 +620,30 @@ function TablesContent() {
     return selectionLabel(count, firstName)
   }, [selectedTableIds, selectedFolderIds, tables, folderById])
 
-  const deleteFolderIds =
-    isDeleteFolderDialogOpen && activeFolder
-      ? [activeFolder.id]
-      : isBulkDeleteDialogOpen
-        ? selectedFolderIds
-        : []
   /** Tables the open delete confirmation would archive, including every table inside a folder. */
-  const pendingDeleteTableIds = isDeleteDialogOpen
-    ? activeTable
-      ? [activeTable.id]
-      : []
-    : [
-        ...(isBulkDeleteDialogOpen ? selectedTableIds : []),
-        ...tableIdsInFolderSubtrees(tables, deleteFolderIds, descendantFolderIds),
+  const pendingDeleteTableIds = useMemo(() => {
+    if (isDeleteDialogOpen) return activeTable ? [activeTable.id] : []
+    if (isDeleteFolderDialogOpen && activeFolder) {
+      return tableIdsInFolderSubtrees(tables, [activeFolder.id], descendantFolderIds)
+    }
+    if (isBulkDeleteDialogOpen) {
+      return [
+        ...selectedTableIds,
+        ...tableIdsInFolderSubtrees(tables, selectedFolderIds, descendantFolderIds),
       ]
+    }
+    return []
+  }, [
+    isDeleteDialogOpen,
+    isDeleteFolderDialogOpen,
+    isBulkDeleteDialogOpen,
+    activeTable,
+    activeFolder,
+    tables,
+    descendantFolderIds,
+    selectedTableIds,
+    selectedFolderIds,
+  ])
   const referencedByWarning = useReferencedByWarning(workspaceId, pendingDeleteTableIds)
 
   const currentFolderActions: DropdownOption[] | undefined = useMemo(() => {

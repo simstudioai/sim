@@ -31,8 +31,10 @@ export const tableKeys = {
   referencePreviews: () => [...tableKeys.all, 'reference-preview'] as const,
   referencePreviewsForTable: (tableId: string) =>
     [...tableKeys.referencePreviews(), tableId] as const,
+  referencePreviewsForRow: (tableId: string, rowId: string) =>
+    [...tableKeys.referencePreviewsForTable(tableId), rowId] as const,
   referencePreview: (tableId: string, rowId: string, sourceRowId = '', sourceColumnKey = '') =>
-    [...tableKeys.referencePreviewsForTable(tableId), rowId, sourceRowId, sourceColumnKey] as const,
+    [...tableKeys.referencePreviewsForRow(tableId, rowId), sourceRowId, sourceColumnKey] as const,
   /**
    * Prefix covering only the paged row lists. `rowsRoot` is a shared parent — `find`
    * hangs off it holding a different shape — so anything walking the cache for row

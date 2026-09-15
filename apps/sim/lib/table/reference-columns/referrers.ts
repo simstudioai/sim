@@ -1,5 +1,7 @@
-import { columnTypeOf } from '@/lib/table/column-types'
+import { collectColumnReferencedTableIds } from '@/lib/table/column-types'
 import type { TableDefinition } from '@/lib/table/types'
+
+const REFERRER_NAME_COLLATOR = new Intl.Collator('en')
 
 type ReferenceScanTable = Pick<TableDefinition, 'id' | 'name' | 'schema'>
 
@@ -16,11 +18,10 @@ export function findReferencingTables(
   const referencing: Array<Pick<TableDefinition, 'id' | 'name'>> = []
   for (const table of tables) {
     if (deletedTableIds.has(table.id)) continue
-    const referencesDeletedTable = table.schema.columns.some((column) => {
-      const referenceTableId = columnTypeOf(column).referencePreview?.getTableId(column)
-      return referenceTableId !== undefined && deletedTableIds.has(referenceTableId)
-    })
+    const referencesDeletedTable = collectColumnReferencedTableIds(table.schema.columns).some(
+      (referenceTableId) => deletedTableIds.has(referenceTableId)
+    )
     if (referencesDeletedTable) referencing.push({ id: table.id, name: table.name })
   }
-  return referencing.sort((left, right) => left.name.localeCompare(right.name))
+  return referencing.sort((left, right) => REFERRER_NAME_COLLATOR.compare(left.name, right.name))
 }

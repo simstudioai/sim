@@ -6,10 +6,10 @@ import {
   type ReferenceCellAction,
   resolveCellRender,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/cell-render'
+import { InlineEditor } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/inline-editors'
+import type { DisplayColumn } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/types'
+import type { SaveReason } from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
 import type { TimezoneState } from '@/hooks/queries/general-settings'
-import type { SaveReason } from '../../../types'
-import type { DisplayColumn } from '../types'
-import { InlineEditor } from './inline-editors'
 
 interface CellContentProps {
   value: unknown

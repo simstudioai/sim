@@ -83,7 +83,6 @@ export interface TimestampValidation {
 }
 
 export interface ColumnReferencePreviewDefinition {
-  getTableId(column: ColumnDefinition): string | undefined
   getRowId(value: unknown): string | null
 }
 
@@ -155,8 +154,15 @@ export interface ColumnTypeDefinition {
    * bounded, structured value.
    */
   readonly expandable: boolean
-  /** Optional inline referenced-row presentation owned by this column type. */
+  /** Reads the referenced row id out of a stored cell, for types that hold one. */
   readonly referencePreview?: ColumnReferencePreviewDefinition
+  /**
+   * Table IDs named by this column's type-specific metadata. One accessor for
+   * every consumer — schema validation, fork remapping, delete warnings, and
+   * the grid all read table references through it. Omitted by types that do
+   * not reference tables.
+   */
+  readonly referencedTableIds?: (column: ColumnDefinition) => readonly string[]
   /** `inputMode` for the text editor, when the type wants a specific keypad. */
   readonly inputMode?: 'decimal'
   /**

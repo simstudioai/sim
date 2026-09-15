@@ -12,7 +12,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnTypeOf } from '@/lib/table/column-types'
+import { columnReferencedTableIds } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type {
@@ -177,7 +177,7 @@ function resolveReferenceTableName(
   column: ColumnDefinition,
   referenceTableNames: ReadonlyMap<string, string> | undefined
 ): string | undefined {
-  const tableId = columnTypeOf(column).referencePreview?.getTableId(column)
+  const [tableId] = columnReferencedTableIds(column)
   return tableId ? referenceTableNames?.get(tableId) : undefined
 }
 

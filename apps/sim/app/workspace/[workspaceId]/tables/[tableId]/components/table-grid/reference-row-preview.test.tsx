@@ -14,14 +14,8 @@ const { previewQuery } = vi.hoisted(() => ({
 
 vi.mock('@/lib/table/column-types', () => ({
   columnTypeById: () => ({ icon: () => null }),
-  columnTypeOf: (column: { type: string; referenceTableId?: string }) => ({
-    referencePreview:
-      column.type === 'reference'
-        ? {
-            getTableId: () => column.referenceTableId,
-          }
-        : undefined,
-  }),
+  columnReferencedTableIds: (column: { type: string; referenceTableId?: string }) =>
+    column.type === 'reference' && column.referenceTableId ? [column.referenceTableId] : [],
 }))
 
 vi.mock('@sim/emcn/icons', () => ({

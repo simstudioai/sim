@@ -14,7 +14,11 @@
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types/registry'
+import {
+  COLUMN_TYPE_REGISTRY,
+  collectColumnReferencedTableIds,
+  columnReferencedTableIds,
+} from '@/lib/table/column-types/registry'
 import type { ColumnType } from '@/lib/table/column-types/types'
 import type {
   ColumnCellMigration,
@@ -291,28 +295,15 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
   currency: COLUMN_TYPE_REGISTRY.currency,
   reference: {
     ...COLUMN_TYPE_REGISTRY.reference,
-    referencedTableIds: (column) =>
-      typeof column.referenceTableId === 'string' ? [column.referenceTableId] : [],
     remapReferencedTableIds: (column, tableIdMap) => {
-      const referenceTableId = column.referenceTableId
-      if (typeof referenceTableId !== 'string') return column
+      const [referenceTableId] = columnReferencedTableIds(column)
+      if (!referenceTableId) return column
       const remappedTableId = tableIdMap.get(referenceTableId)
       return remappedTableId && remappedTableId !== referenceTableId
         ? { ...column, referenceTableId: remappedTableId }
         : column
     },
   },
-}
-
-/** Every distinct table ID named by the columns' type-specific metadata. */
-export function collectColumnReferencedTableIds(columns: readonly ColumnDefinition[]): string[] {
-  return [
-    ...new Set(
-      columns.flatMap(
-        (column) => COLUMN_TYPE_SERVER_REGISTRY[column.type].referencedTableIds?.(column) ?? []
-      )
-    ),
-  ]
 }
 
 /** Rewrites each column's table references through a source-to-target identity map. */

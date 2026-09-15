@@ -66,8 +66,5 @@ export function remapForkTableReferences(
   schema: TableSchema,
   tableIdMap: ReadonlyMap<string, string>
 ): TableSchema {
-  const columns = remapColumnReferencedTableIds(schema.columns, tableIdMap)
-  return columns.some((column, index) => column !== schema.columns[index])
-    ? { ...schema, columns }
-    : schema
+  return { ...schema, columns: remapColumnReferencedTableIds(schema.columns, tableIdMap) }
 }

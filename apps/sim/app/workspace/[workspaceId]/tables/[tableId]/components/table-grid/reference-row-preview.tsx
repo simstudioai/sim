@@ -22,6 +22,17 @@ export const REFERENCE_ROW_PREVIEW_HEIGHT = 144
 
 const ReferenceIcon = columnTypeById('reference').icon
 
+const NO_MATCHING_ROW = 'No matching row'
+
+/** Centered muted line shared by every state that renders copy instead of the row. */
+function PreviewMessage({ children }: { children: ReactNode }) {
+  return (
+    <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+      {children}
+    </div>
+  )
+}
+
 interface ReferenceRowPreviewBaseProps {
   workspaceId: string
   timezoneStatus: TimezoneState['status']
@@ -109,6 +120,11 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview(
     const previewViewport = previewViewportRef.current
     if (!previewViewport) return
 
+    /**
+     * Only a mostly-horizontal gesture is taken: cancelling a wheel event is all-or-nothing, and
+     * this strip has no vertical overflow of its own, so hijacking a diagonal pan would strand the
+     * grid's own vertical scroll.
+     */
     const handleWheel = (event: WheelEvent) => {
       if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return
       event.preventDefault()
@@ -120,18 +136,8 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview(
   }, [status])
 
   let content: ReactNode
-  if (columns.length === 0 && !row) {
-    content = (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
-        No matching row
-      </div>
-    )
-  } else if (columns.length === 0) {
-    content = (
-      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
-        This table has no columns
-      </div>
-    )
+  if (columns.length === 0) {
+    content = <PreviewMessage>{row ? 'This table has no columns' : NO_MATCHING_ROW}</PreviewMessage>
   } else {
     content = (
       <div role='table' className='grid h-full w-full min-w-max grid-rows-2 text-small'>
@@ -159,7 +165,7 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview(
               role='cell'
               className='flex min-w-full flex-1 items-center justify-center text-[var(--text-muted)]'
             >
-              No matching row
+              {NO_MATCHING_ROW}
             </div>
           ) : (
             <>
@@ -208,9 +214,9 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview(
                 <Loader animate className='size-[14px] text-[var(--text-muted)]' />
               </div>
             ) : status === 'error' || status === 'missing' ? (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+              <PreviewMessage>
                 {status === 'missing' ? 'Table not found' : "Couldn't load reference"}
-              </div>
+              </PreviewMessage>
             ) : (
               <>
                 <div className='flex h-9 shrink-0 items-center gap-1.5 px-3 text-[var(--text-primary)] text-small'>

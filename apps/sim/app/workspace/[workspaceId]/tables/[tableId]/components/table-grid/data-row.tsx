@@ -5,8 +5,18 @@ import { Button, Checkbox, cn, handleKeyboardActivation } from '@sim/emcn'
 import { PlayOutline, Square } from '@sim/emcn/icons'
 import type { ActiveDispatch } from '@/lib/api/contracts/tables'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
-import { columnTypeOf } from '@/lib/table/column-types'
+import { columnReferencedTableIds, columnTypeOf } from '@/lib/table/column-types'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
+import { CellContent } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells'
+import {
+  CELL,
+  CELL_CHECKBOX,
+  CELL_CONTENT,
+  CELL_OVERLAY_INSET,
+  FIND_MATCH_TINT_BG,
+  SELECTION_OVERLAY,
+  SELECTION_TINT_BG,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/constants'
 import type {
   DisplayColumn,
   ReferencePreviewTarget,
@@ -16,18 +26,8 @@ import {
   type NormalizedSelection,
   resolveCellExec,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/utils'
+import type { SaveReason } from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
 import type { TimezoneState } from '@/hooks/queries/general-settings'
-import type { SaveReason } from '../../types'
-import { CellContent } from './cells'
-import {
-  CELL,
-  CELL_CHECKBOX,
-  CELL_CONTENT,
-  CELL_OVERLAY_INSET,
-  FIND_MATCH_TINT_BG,
-  SELECTION_OVERLAY,
-  SELECTION_TINT_BG,
-} from './constants'
 
 export interface DataRowProps {
   row: TableRowType
@@ -331,11 +331,10 @@ export const DataRow = React.memo(function DataRow({
           pendingCellValue && column.key in pendingCellValue
             ? pendingCellValue[column.key]
             : row.data[column.key]
-        const referencePreview = referenceColumnsEnabled
-          ? columnTypeOf(column).referencePreview
-          : undefined
-        const referenceRowId = referencePreview?.getRowId(value) ?? null
-        const referenceTableId = referencePreview?.getTableId(column)
+        const referenceRowId = referenceColumnsEnabled
+          ? (columnTypeOf(column).referencePreview?.getRowId(value) ?? null)
+          : null
+        const [referenceTableId] = referenceColumnsEnabled ? columnReferencedTableIds(column) : []
         const referenceTarget =
           referenceTableId && referenceRowId
             ? {

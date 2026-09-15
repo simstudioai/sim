@@ -16,13 +16,13 @@ export const referenceColumnType: ColumnTypeDefinition = {
   editor: 'text',
   expandable: false,
   referencePreview: {
-    getTableId(column) {
-      return column.referenceTableId
-    },
     getRowId(value) {
       return typeof value === 'string' && value.length > 0 ? value : null
     },
   },
+
+  referencedTableIds: (column) =>
+    typeof column.referenceTableId === 'string' ? [column.referenceTableId] : [],
 
   coerce: stringColumnType.coerce,
 

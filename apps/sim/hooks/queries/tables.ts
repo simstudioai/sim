@@ -59,10 +59,8 @@ import {
   deleteTableViewContract,
   deleteWorkflowGroupContract,
   findTableRowsContract,
-  type GetTableRowResponse,
   getEnrichmentDetailContract,
   getTableContract,
-  getTableRowContract,
   type InsertTableRowBodyInput,
   listActiveDispatchesContract,
   listTableJobsContract,
@@ -111,7 +109,6 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   areGroupDepsSatisfied,
@@ -148,8 +145,6 @@ export const TABLE_FIND_STALE_TIME = 30 * 1000
 export const TABLE_FIND_GC_TIME = 60 * 1000
 export const TABLE_ROWS_STALE_TIME = 30 * 1000
 export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
-export const TABLE_REFERENCE_PREVIEW_STALE_TIME = Number.POSITIVE_INFINITY
-const TABLE_REFERENCE_PREVIEW_GC_TIME = 0
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
   TableIdParamsInput & {
@@ -245,25 +240,6 @@ async function fetchTableRows({
   return { rows, totalCount, nextCursor }
 }
 
-async function fetchTableRow(
-  workspaceId: string,
-  tableId: string,
-  rowId: string,
-  signal?: AbortSignal
-): Promise<GetTableRowResponse['data']['row'] | null> {
-  try {
-    const response = await requestJson(getTableRowContract, {
-      params: { tableId, rowId },
-      query: { workspaceId },
-      signal,
-    })
-    return response.data.row
-  } catch (error) {
-    if (isApiClientError(error) && error.status === 404) return null
-    throw error
-  }
-}
-
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
@@ -275,14 +251,9 @@ function invalidateReferencePreviews(
   tableId: string,
   rowIds: ReadonlySet<string>
 ) {
-  const previewsRoot = tableKeys.referencePreviewsForTable(tableId)
-  queryClient.invalidateQueries({
-    queryKey: previewsRoot,
-    predicate: (query) => {
-      const targetRowId = query.queryKey[previewsRoot.length]
-      return typeof targetRowId === 'string' && rowIds.has(targetRowId)
-    },
-  })
+  for (const rowId of rowIds) {
+    queryClient.invalidateQueries({ queryKey: tableKeys.referencePreviewsForRow(tableId, rowId) })
+  }
 }
 
 function invalidateTableNames(queryClient: ReturnType<typeof useQueryClient>) {
@@ -376,19 +347,28 @@ export function useTablesList(
   })
 }
 
+/**
+ * Shared id→name options so non-component callers — the row preview resolving its own
+ * Reference columns — read the same cache entry the grid fills instead of re-fetching.
+ */
+export function getTableNamesQueryOptions(workspaceId: string, tableIds: readonly string[]) {
+  const normalized = normalizeTableIds(tableIds)
+  return {
+    queryKey: tableKeys.names(workspaceId, normalized),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchTableNames(workspaceId, normalized, signal),
+    staleTime: TABLE_LIST_STALE_TIME,
+  }
+}
+
 export function useTableNames(
   workspaceId: string | undefined,
   referencedTableIds: readonly string[]
 ) {
   const tableIds = normalizeTableIds(referencedTableIds)
   return useQuery({
-    queryKey: tableKeys.names(workspaceId, tableIds),
-    queryFn: async ({ signal }) => {
-      if (!workspaceId) throw new Error('Workspace ID required')
-      return fetchTableNames(workspaceId, tableIds, signal)
-    },
+    ...getTableNamesQueryOptions(workspaceId ?? '', tableIds),
     enabled: Boolean(workspaceId && tableIds.length > 0),
-    staleTime: TABLE_LIST_STALE_TIME,
   })
 }
 
@@ -402,60 +382,6 @@ export function useTable(workspaceId: string | undefined, tableId: string | unde
     queryFn: ({ signal }) => fetchTable(workspaceId as string, tableId as string, signal),
     enabled: Boolean(workspaceId && tableId),
     staleTime: TABLE_DETAIL_STALE_TIME,
-  })
-}
-
-interface ReferenceRowPreviewParams {
-  workspaceId: string | undefined
-  tableId: string | undefined
-  rowId: string | undefined
-  sourceRowId?: string
-  sourceColumnKey?: string
-}
-
-/** Loads a referenced table and row together for an expanded source cell. */
-export function useReferenceRowPreview({
-  workspaceId,
-  tableId,
-  rowId,
-  sourceRowId,
-  sourceColumnKey,
-}: ReferenceRowPreviewParams) {
-  const queryClient = useQueryClient()
-  // rq-lint-allow: tableId is globally unique; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
-  return useQuery({
-    queryKey: tableKeys.referencePreview(tableId ?? '', rowId ?? '', sourceRowId, sourceColumnKey),
-    queryFn: async ({ signal }) => {
-      const [table, row] = await Promise.all([
-        queryClient
-          .fetchQuery({
-            ...getTableDetailQueryOptions(workspaceId as string, tableId as string),
-            retry: (failureCount, error) =>
-              !(isApiClientError(error) && error.status === 404) && failureCount < 1,
-          })
-          .catch((error: unknown) => {
-            if (isApiClientError(error) && error.status === 404) return null
-            throw error
-          }),
-        fetchTableRow(workspaceId as string, tableId as string, rowId as string, signal),
-      ])
-      if (!table) return { table: null, row: null, referenceTables: [] }
-      const referenceTableIds = table.schema.columns.flatMap((column) => {
-        const referenceTableId = columnTypeOf(column).referencePreview?.getTableId(column)
-        return referenceTableId ? [referenceTableId] : []
-      })
-      const referenceTables =
-        referenceTableIds.length === 0
-          ? []
-          : await fetchTableNames(workspaceId as string, referenceTableIds, signal)
-      return { table, row, referenceTables }
-    },
-    enabled: Boolean(workspaceId && tableId && rowId && sourceRowId && sourceColumnKey),
-    staleTime: TABLE_REFERENCE_PREVIEW_STALE_TIME,
-    gcTime: TABLE_REFERENCE_PREVIEW_GC_TIME,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
   })
 }
 

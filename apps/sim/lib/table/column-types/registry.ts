@@ -121,6 +121,16 @@ export function typeMetadataOf(column: ColumnDefinition): Partial<ColumnDefiniti
   return metadata
 }
 
+/** Table IDs one column's type-specific metadata names. */
+export function columnReferencedTableIds(column: ColumnDefinition): readonly string[] {
+  return columnTypeOf(column).referencedTableIds?.(column) ?? []
+}
+
+/** Every distinct table ID named by the columns' type-specific metadata. */
+export function collectColumnReferencedTableIds(columns: readonly ColumnDefinition[]): string[] {
+  return [...new Set(columns.flatMap(columnReferencedTableIds))]
+}
+
 /** Wire operators a column accepts, or `null` for "all operators". */
 export function filterOperatorsFor(column: ColumnDefinition): ReadonlySet<string> | null {
   return columnTypeOf(column).filterOperatorsFor?.(column) ?? null

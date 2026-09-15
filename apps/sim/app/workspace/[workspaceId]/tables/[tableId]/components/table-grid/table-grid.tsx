@@ -25,7 +25,11 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { columnTypeOf } from '@/lib/table/column-types'
+import {
+  collectColumnReferencedTableIds,
+  columnReferencedTableIds,
+  columnTypeOf,
+} from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { isEmptyCellValue } from '@/lib/table/deps'
 import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter'
@@ -45,6 +49,7 @@ import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { LOCK_TOOLTIPS } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezoneState } from '@/hooks/queries/general-settings'
+import { useReferenceRowPreview } from '@/hooks/queries/table-reference-preview'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -53,7 +58,6 @@ import {
   useDeleteColumn,
   useDeleteWorkflowGroup,
   useFindTableRows,
-  useReferenceRowPreview,
   useTableNames,
   useTableRunState,
   useUpdateColumn,
@@ -457,6 +461,14 @@ async function chunkBatchUpdates(
   )
 }
 
+/** The referenced row's load state, as the preview renders it. */
+function resolveReferencePreviewState(query: ReturnType<typeof useReferenceRowPreview>) {
+  if (query.isError) return { status: 'error' } as const
+  if (query.isFetching || !query.data) return { status: 'loading' } as const
+  if (query.data.table === null) return { status: 'missing' } as const
+  return { status: 'ready', table: query.data.table, row: query.data.row } as const
+}
+
 export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
@@ -625,23 +637,14 @@ export function TableGrid({
     filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
   const referencedTableIds = useMemo(
-    () =>
-      referenceColumnsEnabled
-        ? columns.flatMap((column) => {
-            const referenceTableId = columnTypeOf(column).referencePreview?.getTableId(column)
-            return referenceTableId ? [referenceTableId] : []
-          })
-        : [],
+    () => (referenceColumnsEnabled ? collectColumnReferencedTableIds(columns) : []),
     [columns, referenceColumnsEnabled]
   )
   const { data: referencedTables } = useTableNames(workspaceId, referencedTableIds)
-  const referenceTableNames = useMemo(() => {
-    const names = new Map<string, string>()
-    for (const table of referencedTables ?? []) {
-      names.set(table.id, table.name)
-    }
-    return names
-  }, [referencedTables])
+  const referenceTableNames = useMemo(
+    () => new Map((referencedTables ?? []).map((table) => [table.id, table.name])),
+    [referencedTables]
+  )
 
   /** Sort is single-column, so only the first spec entry can be active. */
   const activeSort = queryOptions.sort?.[0]
@@ -946,9 +949,9 @@ export function TableGrid({
     )
     const referencePreview = sourceColumn ? columnTypeOf(sourceColumn).referencePreview : undefined
     if (!sourceRow || !sourceColumn || !referencePreview) return null
+    const [referenceTableId] = columnReferencedTableIds(sourceColumn)
     return referencePreview.getRowId(sourceRow.data[expandedReference.sourceColumnKey]) ===
-      expandedReference.referenceRowId &&
-      referencePreview.getTableId(sourceColumn) === expandedReference.referenceTableId
+      expandedReference.referenceRowId && referenceTableId === expandedReference.referenceTableId
       ? expandedReference
       : null
   }, [displayColumns, rows, expandedReference, referenceColumnsEnabled])
@@ -966,17 +969,7 @@ export function TableGrid({
     }
     return names
   }, [referenceTableNames, referencePreviewQuery.data?.referenceTables])
-  const referencePreviewState = referencePreviewQuery.isError
-    ? ({ status: 'error' } as const)
-    : referencePreviewQuery.isFetching || !referencePreviewQuery.data
-      ? ({ status: 'loading' } as const)
-      : referencePreviewQuery.data.table === null
-        ? ({ status: 'missing' } as const)
-        : ({
-            status: 'ready',
-            table: referencePreviewQuery.data.table,
-            row: referencePreviewQuery.data.row,
-          } as const)
+  const referencePreviewState = resolveReferencePreviewState(referencePreviewQuery)
   const expandedSourceRowId = activeReferenceTarget?.sourceRowId ?? null
 
   const rowVirtualizer = useVirtualizer({

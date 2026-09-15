@@ -58,7 +58,10 @@ import {
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
 import { getColumnId } from '@/lib/table/column-keys'
-import { collectColumnReferencedTableIds } from '@/lib/table/column-types/registry.server'
+import {
+  collectColumnReferencedTableIds,
+  columnReferencedTableIds,
+} from '@/lib/table/column-types/registry'
 import { DEFAULT_TABLE_VIEW_NAME } from '@/lib/table/constants'
 import { generateTableId } from '@/lib/table/ids'
 import { keyBetween } from '@/lib/table/order-key'
@@ -402,6 +405,8 @@ function remapCopiedReferenceCells(
   return remapped ?? data
 }
 
+const TOO_MANY_FORK_TABLES_MESSAGE = `Cannot copy more than ${MAX_FORK_RESOURCE_IDS_PER_TYPE} tables including referenced dependencies`
+
 /**
  * Loads the selected tables plus the transitive closure of tables named by their reference
  * columns. Each layer is workspace-scoped and active-only. A deleted referenced table is not
@@ -416,9 +421,7 @@ async function loadTableDefinitionsWithDependencies(
 ): Promise<Array<typeof userTableDefinitions.$inferSelect>> {
   const orderedIds = [...new Set(selectedTableIds)]
   if (orderedIds.length > MAX_FORK_RESOURCE_IDS_PER_TYPE) {
-    throw new Error(
-      `Cannot copy more than ${MAX_FORK_RESOURCE_IDS_PER_TYPE} tables including referenced dependencies`
-    )
+    throw new Error(TOO_MANY_FORK_TABLES_MESSAGE)
   }
   const scheduledIds = new Set(orderedIds)
   const definitionsById = new Map<string, typeof userTableDefinitions.$inferSelect>()
@@ -450,9 +453,7 @@ async function loadTableDefinitionsWithDependencies(
           )
         }
         if (scheduledIds.size >= MAX_FORK_RESOURCE_IDS_PER_TYPE) {
-          throw new Error(
-            `Cannot copy more than ${MAX_FORK_RESOURCE_IDS_PER_TYPE} tables including referenced dependencies`
-          )
+          throw new Error(TOO_MANY_FORK_TABLES_MESSAGE)
         }
         scheduledIds.add(referencedId)
         orderedIds.push(referencedId)
@@ -847,15 +848,16 @@ export async function copyForkResourceContainers(
           updatedAt: now,
         })
       }
-      const dependsOnChildIds = collectColumnReferencedTableIds(
-        (definition.schema as TableSchema).columns
-      ).flatMap((sourceId) => {
-        const dependencyId = tableIdMap.get(sourceId)
-        return dependencyId && dependencyId !== childTableId ? [dependencyId] : []
-      })
+      const schemaColumns = (definition.schema as TableSchema).columns
+      const dependsOnChildIds = collectColumnReferencedTableIds(schemaColumns).flatMap(
+        (sourceId) => {
+          const dependencyId = tableIdMap.get(sourceId)
+          return dependencyId && dependencyId !== childTableId ? [dependencyId] : []
+        }
+      )
       const referenceColumnTargetTableIds = Object.fromEntries(
-        (definition.schema as TableSchema).columns.flatMap((column) => {
-          const [sourceTargetId] = collectColumnReferencedTableIds([column])
+        schemaColumns.flatMap((column) => {
+          const [sourceTargetId] = columnReferencedTableIds(column)
           const childTargetId = sourceTargetId ? tableIdMap.get(sourceTargetId) : undefined
           return childTargetId ? [[getColumnId(column), childTargetId]] : []
         })
@@ -1462,19 +1464,24 @@ export async function copyForkResourceContent(params: {
   const failedTableIds = new Set(
     failures.flatMap((failure) => (failure.kind === 'table' ? [failure.childId] : []))
   )
-  let foundFailedDependent = true
-  while (foundFailedDependent) {
-    foundFailedDependent = false
-    for (const table of contentPlan.tables) {
+  const dependentsByDependency = new Map<string, ForkContentTableEntry[]>()
+  for (const table of contentPlan.tables) {
+    for (const dependencyId of table.dependsOnChildIds ?? []) {
+      const dependents = dependentsByDependency.get(dependencyId)
+      if (dependents) dependents.push(table)
+      else dependentsByDependency.set(dependencyId, [table])
+    }
+  }
+  const pendingFailedTableIds = [...failedTableIds]
+  while (pendingFailedTableIds.length > 0) {
+    const dependencyId = pendingFailedTableIds.pop() as string
+    for (const table of dependentsByDependency.get(dependencyId) ?? []) {
       if (failedTableIds.has(table.childId)) continue
-      if (!table.dependsOnChildIds?.some((dependencyId) => failedTableIds.has(dependencyId))) {
-        continue
-      }
       failedTableIds.add(table.childId)
+      pendingFailedTableIds.push(table.childId)
       failures.push({ kind: 'table', childId: table.childId })
       copiedResources -= 1
       failedResources += 1
-      foundFailedDependent = true
       logger.warn(`[${requestId}] Failed copied table because a referenced table copy failed`, {
         sourceTableId: table.sourceId,
         childTableId: table.childId,
