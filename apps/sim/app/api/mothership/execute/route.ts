@@ -7,6 +7,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { verifyInternalDelegationToken } from '@/lib/auth/internal'
 import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import {
@@ -15,6 +16,8 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
+import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
+import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
 import {
@@ -31,10 +34,6 @@ import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
-import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import { acceptsMediaType } from '@/lib/core/utils/media-types'
-import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
-import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -259,7 +258,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return [...byName.values()]
     })
     const [integrationTools, mothershipTools, agentContexts] = await Promise.all([
-      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+      buildIntegrationToolSchemas(userId, undefined, workspaceId),
       mothershipToolsPromise,
       processContextsServer(
         nonMcpAgentMentions,

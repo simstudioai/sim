@@ -3,12 +3,14 @@ import {
   CancelWorkflowRun,
   ConnectSlackBot,
   GenerateApiKey,
+  OauthGetAuthLink,
   RunBlock,
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
 } from '@/lib/mothership/generated/tool-catalog-v1'
 import { executeConnectSlackBot } from '@/lib/mothership/tools/handlers/connect-slack-bot'
+import { executeOAuthGetAuthLink } from '@/lib/mothership/tools/handlers/oauth'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/mothership/tools/server/router'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
@@ -40,7 +42,6 @@ export function ensureHandlersRegistered(): void {
  * Bridge: handler implementations accept specific param types while ToolHandler accepts
  * Record<string, unknown>. The params are cast internally by each implementation.
  */
-// biome-ignore lint/suspicious/noExplicitAny: intentional bridge — each handler narrows internally
 function h(fn: (params: any, context: any) => Promise<any>): ToolHandler {
   return fn as ToolHandler
 }
@@ -56,6 +57,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [CancelWorkflowRun.id]: h(executeCancelWorkflowRun),
     [GenerateApiKey.id]: h(executeGenerateApiKey),
     [ConnectSlackBot.id]: executeConnectSlackBot,
+    [OauthGetAuthLink.id]: executeOAuthGetAuthLink,
     [RunWorkflow.id]: h(executeRunWorkflow),
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),

@@ -84,7 +84,7 @@ beforeEach(() => {
   output.format = 'json'
   request.mockReset()
   requestRaw.mockReset()
-  requestRaw.mockResolvedValue(
+  requestRaw.mockImplementation(async () =>
     jsonResponse({
       runId: 'run-1',
       workflowId: WORKFLOW_ID,
@@ -304,13 +304,30 @@ describe('sim workflows run --follow', () => {
   })
 
   it('sends --select-output through the sync path without --follow', async () => {
-    request.mockResolvedValue({ data: { success: true, output: {}, blockOutputs: {} } })
-    vi.spyOn(console, 'log').mockImplementation(() => {})
+    requestRaw.mockResolvedValueOnce(
+      ndjsonResponse({
+        type: 'final',
+        data: {
+          runId: 'run-1',
+          workflowId: WORKFLOW_ID,
+          status: 'completed',
+          output: {},
+          blockOutputs: { 'agent_1.content': 'Selected output' },
+          error: null,
+        },
+      })
+    )
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(WORKFLOW_ID, '--select-output', 'agent_1.content')
 
-    expect(requestRaw).not.toHaveBeenCalled()
-    expect(request.mock.calls[0][1].body).toEqual({ selectedOutputs: ['agent_1.content'] })
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).toHaveBeenCalledOnce()
+    expect(requestRaw.mock.calls[0][1].headers).toEqual({ accept: 'application/x-ndjson' })
+    expect(requestRaw.mock.calls[0][1].body).toEqual({ selectedOutputs: ['agent_1.content'] })
+    expect(JSON.parse(String(stdout.mock.calls[0][0]))).toMatchObject({
+      blockOutputs: { 'agent_1.content': 'Selected output' },
+    })
   })
 
   it('refuses --async --select-output and points at the finished-run read', async () => {
@@ -394,16 +411,17 @@ describe('sim workflows run --follow', () => {
   })
 
   it('lets --trigger and --mock-payload imply --manual', async () => {
-    request.mockResolvedValue({ data: { success: true, output: {} } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(WORKFLOW_ID, '--trigger', 'slack-trigger')
     await run(WORKFLOW_ID, '--mock-payload')
 
-    expect(request.mock.calls[0][1].body).toEqual({
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).toHaveBeenCalledTimes(2)
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
       run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
     })
-    expect(request.mock.calls[1][1].body).toEqual({
+    expect(requestRaw.mock.calls[1][1].body).toEqual({
       run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
     })
   })

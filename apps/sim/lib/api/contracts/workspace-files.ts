@@ -161,6 +161,7 @@ export const workspaceFileRecordSchema = z.object({
   /** Advances only when file bytes change; metadata edits do not invalidate text drafts. */
   contentUpdatedAt: z.coerce.date().nullable().optional(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
+  vfsNamespace: z.literal('uploads').optional(),
   share: shareRecordSchema.nullable().optional(),
 })
 
@@ -204,6 +205,17 @@ export const createWorkspaceFileContract = defineRouteContract({
       file: workspaceFileRecordSchema,
     }),
     status: 201,
+  },
+})
+
+/** Authorized file-by-id reads also admit chat attachments without listing or write access. */
+export const readWorkspaceFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/files/[fileId]',
+  params: workspaceFileParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileSuccessSchema.extend({ file: workspaceFileRecordSchema }),
   },
 })
 

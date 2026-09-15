@@ -16,16 +16,21 @@ export const BillingProtocolHeaders = {
   accountDecision: "x-sim-billing-account-decision",
 } as const;
 
-export const BillingCallbackBody = z.object({
-  userId: z.string().min(1, "User ID is required"),
-  cost: z.number().min(0, "Cost must be a non-negative number"),
-  model: z.string().min(1, "Model is required"),
-  inputTokens: z.number().min(0).default(0),
-  outputTokens: z.number().min(0).default(0),
-  source: z.enum(["copilot", "workspace-chat", "mcp_copilot", "mothership_block"]).default("copilot"),
-  idempotencyKey: z.string().min(1, "Idempotency key is required"),
-  workspaceId: z.string().min(1).optional(),
-});
+export const BillingCallbackBody = z
+  .object({
+    userId: z.string().min(1, "User ID is required"),
+    cost: z.number().min(0, "Cost must be a non-negative number"),
+    model: z.string().min(1, "Model is required"),
+    inputTokens: z.number().min(0).default(0),
+    outputTokens: z.number().min(0).default(0),
+    source: z.enum(["copilot", "workspace-chat", "mcp_copilot", "mothership_block"]).default("copilot"),
+    idempotencyKey: z.string().min(1, "Idempotency key is required"),
+    workspaceId: z.string().min(1).optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+  })
+  .refine((body) => !(body.workspaceId && body.organizationId), {
+    message: "workspaceId and organizationId are mutually exclusive",
+  });
 export type BillingCallbackBody = z.infer<typeof BillingCallbackBody>;
 
 export const BillingCallbackHeaders = z.object({

@@ -84,6 +84,14 @@ describe('/api/v2/workflows/import route definition', () => {
     expect(data).toMatchObject({ id: 'workflow-1', name: 'Imported', folderPath: '/', blocks })
   })
 
+  it('omits an unknown block summary when presenting a legacy receipt replay', async () => {
+    const { blocks: _blocks, ...workflow } = importedWorkflow
+    const body = definition.present({ workflow, replayed: true, folderPath: '/', warnings: [] })
+    const serialized = await Response.json(body).json()
+    expect(serialized.data).not.toHaveProperty('blocks')
+    expect(v2ImportWorkflowContract.response.schema.parse(serialized)).toEqual(serialized)
+  })
+
   /**
    * Export clears workspace bindings, so a round-tripped workflow used to land
    * silently unable to run. The warnings are the response's way of saying which

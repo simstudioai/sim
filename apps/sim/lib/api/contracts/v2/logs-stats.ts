@@ -136,9 +136,13 @@ export const v2LogStatsSchema = z
         end: v2TimestampSchema.describe('ISO 8601 end of the window.'),
       })
       .describe(
-        'Actual bucket window. Supplied bounds are exact. Without `startDate`, the left edge is the oldest match, or 24 hours before the right edge when no run matches. Without `endDate`, the right edge is at least now. `startDate` alone spans through now.'
+        'Actual window; supplied bounds are exact. Without `endDate`, the right edge is the later of now and the newest matching run. Without `startDate`, the left edge is the oldest match, or 24 hours before the right edge when no runs match. With no matches or supplied bounds, this is the trailing 24 hours; `endDate` alone uses the preceding 24 hours, while `startDate` alone spans through now.'
       ),
-    segmentMs: z.number().describe('Width of one bucket in milliseconds.'),
+    segmentMs: z
+      .number()
+      .describe(
+        'Bucket width in milliseconds: `max(60000, floor(windowMs / segmentCount))`. The one-minute minimum applies to bucket width, not window width; when it applies, trailing empty buckets extend past `timeBounds.end` instead of compressing the window.'
+      ),
   })
   .meta({
     id: 'V2LogStats',

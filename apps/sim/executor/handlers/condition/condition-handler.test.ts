@@ -559,6 +559,7 @@ describe('ConditionBlockHandler', () => {
       text: 'hello',
       conditionResult: true,
       selectedOption: 'cond1',
+      selectedTitle: 'if',
       selectedPath: {
         blockId: mockTargetBlock1.id,
         blockType: 'target',
@@ -612,8 +613,9 @@ describe('ConditionBlockHandler', () => {
       })
 
       expect(output).toMatchObject({
-        conditionResult: true,
+        conditionResult: false,
         selectedOption: 'else1',
+        selectedTitle: 'else',
         selectedPath: { blockId: mockTargetBlock2.id },
       })
       expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')

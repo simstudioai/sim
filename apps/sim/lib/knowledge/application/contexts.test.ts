@@ -183,26 +183,35 @@ describe('knowledge application contexts', () => {
   it('resolves a document through its selected base after comparing workspace scope', async () => {
     mocks.getDocument.mockResolvedValueOnce({ id: 'document-1', knowledgeBaseId: knowledgeBase.id })
     await expect(
-      resolveActiveKnowledgeDocumentContext({
-        knowledgeBaseId: knowledgeBase.id,
-        documentId: 'document-1',
-        assertedWorkspaceId: workspace.workspaceId,
-      })
+      resolveActiveKnowledgeDocumentContext(
+        {
+          knowledgeBaseId: knowledgeBase.id,
+          documentId: 'document-1',
+          assertedWorkspaceId: workspace.workspaceId,
+        },
+        principal
+      )
     ).resolves.toMatchObject({
       knowledgeBaseId: knowledgeBase.id,
       documentId: 'document-1',
       workspaceId: workspace.workspaceId,
     })
-    expect(mocks.getDocument).toHaveBeenCalledExactlyOnceWith(knowledgeBase.id, 'document-1')
+    expect(mocks.getDocument).toHaveBeenCalledExactlyOnceWith(knowledgeBase.id, 'document-1', {
+      kind: 'workspace',
+      tokens: ['pub', 'ws'],
+    })
   })
 
   it('does not look up a document in a knowledge base outside the asserted workspace', async () => {
     await expect(
-      resolveActiveKnowledgeDocumentContext({
-        knowledgeBaseId: knowledgeBase.id,
-        documentId: 'document-1',
-        assertedWorkspaceId: 'other-workspace',
-      })
+      resolveActiveKnowledgeDocumentContext(
+        {
+          knowledgeBaseId: knowledgeBase.id,
+          documentId: 'document-1',
+          assertedWorkspaceId: 'other-workspace',
+        },
+        principal
+      )
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.getDocument).not.toHaveBeenCalled()
   })
@@ -210,13 +219,19 @@ describe('knowledge application contexts', () => {
   it('conceals documents absent from the selected knowledge base', async () => {
     mocks.getDocument.mockResolvedValueOnce(null)
     await expect(
-      resolveActiveKnowledgeDocumentContext({
-        knowledgeBaseId: knowledgeBase.id,
-        documentId: 'foreign-document',
-        assertedWorkspaceId: workspace.workspaceId,
-      })
+      resolveActiveKnowledgeDocumentContext(
+        {
+          knowledgeBaseId: knowledgeBase.id,
+          documentId: 'foreign-document',
+          assertedWorkspaceId: workspace.workspaceId,
+        },
+        principal
+      )
     ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.getDocument).toHaveBeenCalledWith(knowledgeBase.id, 'foreign-document')
+    expect(mocks.getDocument).toHaveBeenCalledWith(knowledgeBase.id, 'foreign-document', {
+      kind: 'workspace',
+      tokens: ['pub', 'ws'],
+    })
   })
 
   it('uses the neutral canonical loader when archived workspace authorization is explicit', async () => {

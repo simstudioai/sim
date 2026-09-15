@@ -821,7 +821,7 @@ export const v2UpdateTableColumnDataSchema = v2TableColumnsDataSchema
     unmigrated: z
       .array(v2UnmigratedTableBlockReferenceSchema)
       .describe(
-        'Workflow Table blocks bound to this table whose `filter`, `order`, or `data` still name the column by its previous name. Only populated by a rename; empty otherwise. Workflow state is never rewritten by this endpoint — edit those blocks (`POST /api/v2/workflows/{workflowId}/operations`) or their next run fails on the old name.'
+        'Workflow Table blocks bound to this table whose `filter`, `order`, or `data` still name the column by its previous name. Only populated by a rename; empty otherwise. Workflow state is never rewritten here — edit those blocks with Apply Workflow Operations or their next run fails on the old name.'
       ),
   })
   .meta({

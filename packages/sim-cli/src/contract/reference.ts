@@ -1,3 +1,5 @@
+import { isTruncationField } from '#sim-cli/output/truncation'
+
 export interface ReferenceSchema {
   $ref?: string
   type?: string | string[]
@@ -117,6 +119,33 @@ function payload(doc: ReferenceDocument, schema: ReferenceSchema): ReferenceSche
   return value.properties?.data ? coalescedData(doc, value, value.properties.data) : value
 }
 
+/** Paged machine output retains rows, the continuation cursor and only rendered clipping flags. */
+function pagePayload(doc: ReferenceDocument, schema: ReferenceSchema): ReferenceSchema {
+  const value = resolve(doc, schema)
+  if (value.anyOf) return { anyOf: value.anyOf.map((item) => pagePayload(doc, item)) }
+  if (value.oneOf) return { oneOf: value.oneOf.map((item) => pagePayload(doc, item)) }
+  const fields = value.properties ?? {}
+  if (!fields.data || !fields.nextCursor)
+    throw new Error('Paged CLI response must declare data and nextCursor')
+  const flags = Object.entries(fields).filter(
+    ([name, field]) => isTruncationField(name) && resolve(doc, field).type === 'boolean'
+  )
+  const required = new Set(value.required ?? [])
+  return {
+    type: 'object',
+    properties: {
+      data: fields.data,
+      nextCursor: fields.nextCursor,
+      ...Object.fromEntries(flags),
+    },
+    required: [
+      'data',
+      'nextCursor',
+      ...flags.filter(([name]) => required.has(name)).map(([name]) => name),
+    ],
+  }
+}
+
 /** Scalar flags already describe themselves; retain the JSON-valued fields within every alternative. */
 function request(
   doc: ReferenceDocument,
@@ -139,7 +168,7 @@ function request(
 }
 
 export interface CommandReference {
-  /** JSON stdout, after the CLI's one-envelope projection. */
+  /** JSON stdout after the CLI's paged or resource rendering projection. */
   shape?: string
   /** JSON-valued request fields; unions retain mutually alternative bodies. */
   body?: string
@@ -149,7 +178,8 @@ export interface CommandReference {
 export function commandReference(
   documents: readonly ReferenceDocument[],
   operation: { path: string; method: string },
-  jsonFields: ReadonlyMap<string, string>
+  jsonFields: ReadonlyMap<string, string>,
+  paged = false
 ): CommandReference {
   const path = operation.path.replace(/\[([^\]]+)\]/g, '{$1}')
   for (const doc of documents) {
@@ -159,7 +189,9 @@ export function commandReference(
       .filter(([status]) => /^2\d\d$/.test(status))
       .flatMap(([, response]) => {
         const schema = response.content?.['application/json']?.schema
-        return schema ? [label(doc, payload(doc, schema), 1, true)] : []
+        return schema
+          ? [label(doc, paged ? pagePayload(doc, schema) : payload(doc, schema), 1, true)]
+          : []
       })
     const schema = entry.requestBody?.content?.['application/json']?.schema
     return {

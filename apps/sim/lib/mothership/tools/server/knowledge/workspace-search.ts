@@ -1,13 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
-import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import {
-  executeCopilotKnowledgeUseCase,
-  executeCopilotOrganizationKnowledgeUseCase,
-  messageForCopilotKnowledgeError,
-  requireCopilotKnowledgeScope,
-} from '@/lib/mothership/application/execute-knowledge-use-case'
-import type { BaseServerTool, ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
+  readDocumentInputSchema,
+  searchWorkspaceInputSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
 import {
@@ -25,26 +21,24 @@ import {
 } from '@/lib/knowledge/search/diagnostics'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { matchPassage } from '@/lib/knowledge/search/snippet'
+import {
+  executeCopilotKnowledgeUseCase,
+  executeCopilotOrganizationKnowledgeUseCase,
+  messageForCopilotKnowledgeError,
+  requireCopilotKnowledgeScope,
+} from '@/lib/mothership/application/execute-knowledge-use-case'
+import type { BaseServerTool, ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkspaceSearchTool')
-const searchInputSchema = workspaceSearchFiltersSchema.extend({
-  query: z.string().trim().min(1).max(2000),
-  topK: z.number().int().min(1).max(50).default(20),
-})
-const readInputSchema = z.object({
-  documentId: z.string().min(1).max(200),
-  limit: z.number().int().min(1).max(8).default(3),
-  startChunkIndex: z.number().int().min(0).max(2147483647).optional(),
-  startOffset: z.number().int().min(0).max(2147483647).optional(),
-})
 
 const CITATION_INSTRUCTION =
   'Cite the evidence you use as <source>{"id":"<citationId>"}</source>. Use only IDs returned by these tools.'
 
 export const searchWorkspaceServerTool: BaseServerTool = {
   name: 'search_workspace',
+  inputSchema: searchWorkspaceInputSchema,
   async execute(raw, context?: ServerToolContext) {
     return withSearchDiagnostics(
       {
@@ -57,7 +51,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
         try {
           const inputStarted = performance.now()
           const scope = requireCopilotKnowledgeScope(context)
-          const { query, topK, ...requestedFilters } = searchInputSchema.parse(raw)
+          const { query, topK, ...requestedFilters } = searchWorkspaceInputSchema.parse(raw)
           const registry = context?.resolvedSecretTraceRegistry
           if (!registry) throw new Error('Knowledge result provenance is unavailable')
           const projected = projectResolvedSecretModelContent(query, registry)
@@ -160,6 +154,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
 
 export const readDocumentServerTool: BaseServerTool = {
   name: 'read_document',
+  inputSchema: readDocumentInputSchema,
   async execute(raw, context?: ServerToolContext) {
     return withSearchDiagnostics(
       {
@@ -171,7 +166,7 @@ export const readDocumentServerTool: BaseServerTool = {
       async () => {
         try {
           const scope = requireCopilotKnowledgeScope(context)
-          const input = readInputSchema.parse(raw)
+          const input = readDocumentInputSchema.parse(raw)
           const registry = context?.resolvedSecretTraceRegistry
           if (!registry) throw new Error('Knowledge result provenance is unavailable')
           const readInput = {

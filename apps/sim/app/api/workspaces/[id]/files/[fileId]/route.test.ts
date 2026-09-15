@@ -7,12 +7,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   rename: vi.fn(),
+  read: vi.fn(),
   deleteItems: vi.fn(),
   getUserEntityPermissions: vi.fn(),
   captureServerEvent: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
+
+vi.mock('@/lib/workspace-files/application/read-workspace-file-record', () => ({
+  readWorkspaceFileContentRecord: {
+    operation: { id: 'files.read_content', minimumRole: 'read', workspaceApiKey: 'allow' },
+    execute: mocks.read,
+  },
+}))
 
 vi.mock('@/lib/workspace-files/application/rename-workspace-file', () => ({
   renameWorkspaceFile: {
@@ -38,7 +46,7 @@ import {
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { PATCH } from '@/app/api/workspaces/[id]/files/[fileId]/route'
+import { GET, PATCH } from '@/app/api/workspaces/[id]/files/[fileId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -168,5 +176,44 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
     expect(await response.json()).toEqual({
       error: 'Internal server error',
     })
+  })
+})
+
+describe('GET /api/workspaces/[id]/files/[fileId]', () => {
+  const read = () =>
+    GET(
+      new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}`),
+      context
+    )
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
+    mocks.read.mockResolvedValue({
+      file: { ...fileRecord(), vfsNamespace: 'uploads', storageContext: 'workspace' },
+    })
+  })
+  it('authenticates before resolving file metadata', async () => {
+    mocks.getSession.mockResolvedValue(null)
+    expect((await read()).status).toBe(401)
+    expect(mocks.read).not.toHaveBeenCalled()
+  })
+  it('uses the current read policy and preserves independent namespace and byte context', async () => {
+    const response = await read()
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      success: true,
+      file: { id: FILE_ID, vfsNamespace: 'uploads', storageContext: 'workspace' },
+    })
+    expect(mocks.read).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
+      request: expect.anything(),
+    })
+  })
+  it('conceals inaccessible uploads', async () => {
+    mocks.read.mockRejectedValue(new NoWorkspaceAccessError())
+    const response = await read()
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'File not found' })
   })
 })

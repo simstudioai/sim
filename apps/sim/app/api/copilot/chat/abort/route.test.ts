@@ -69,14 +69,19 @@ vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 
-const { mockChatContext, mockAuthorize, mockWorkspaceContext, mockBannedUsers } = vi.hoisted(
-  () => ({
-    mockChatContext: vi.fn(),
-    mockAuthorize: vi.fn(),
-    mockWorkspaceContext: vi.fn(),
-    mockBannedUsers: vi.fn(),
-  })
-)
+const {
+  mockChatContext,
+  mockAuthorize,
+  mockOrganizationAuthorize,
+  mockWorkspaceContext,
+  mockBannedUsers,
+} = vi.hoisted(() => ({
+  mockChatContext: vi.fn(),
+  mockAuthorize: vi.fn(),
+  mockOrganizationAuthorize: vi.fn(),
+  mockWorkspaceContext: vi.fn(),
+  mockBannedUsers: vi.fn(),
+}))
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   resolveActiveWorkspaceApplicationContext: mockWorkspaceContext,
 }))
@@ -87,6 +92,9 @@ vi.mock('@/lib/mothership/chat/application/context', () => ({
 vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
   ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
   authorizeWorkspaceOperation: mockAuthorize,
+}))
+vi.mock('@/lib/core/application/organization-authorization', () => ({
+  authorizeOrganizationOperation: mockOrganizationAuthorize,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -264,6 +272,35 @@ describe('POST /api/copilot/chat/abort', () => {
     )
     expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
       expect.objectContaining({ chatId: 'chat-1', userId: 'user-1', workspaceId: 'workspace-1' })
+    )
+  })
+
+  it('stops an owned organization stream without borrowing a workspace grant', async () => {
+    mockChatContext.mockResolvedValue({
+      userId: 'user-1',
+      chatId: 'chat-1',
+      organizationId: 'org-1',
+    })
+    const run = { chatId: 'chat-1', workspaceId: null, organizationId: 'org-1' }
+    mockGetLatestRunForStream.mockResolvedValue(run)
+    mockRequestRunStop.mockResolvedValue(run)
+    const response = await POST(
+      createMockRequest('POST', { streamId: 'stream-1', chatId: 'chat-1', organizationId: 'org-1' })
+    )
+    expect(response.status).toBe(200)
+    expect(mockOrganizationAuthorize).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({ id: 'mothership.runs.abort', capability: 'none' }),
+      { organizationId: 'org-1' }
+    )
+    expect(mockAuthorize).not.toHaveBeenCalled()
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        workspaceId: undefined,
+        chatId: 'chat-1',
+        userId: 'user-1',
+      })
     )
   })
 

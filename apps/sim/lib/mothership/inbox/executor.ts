@@ -239,7 +239,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     })
     const [attachmentResult, integrationTools, billingAttribution] = await Promise.all([
       fetchAttachments(),
-      buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
+      buildIntegrationToolSchemas(userId, undefined, ws.id),
       resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
     ])
     const { attachments, context, storedAttachments } = attachmentResult

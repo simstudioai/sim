@@ -13,7 +13,7 @@ import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/fol
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import type {
   ImportWorkflowInput,
-  ImportWorkflowResult,
+  ImportWorkflowOutcome,
 } from '@/lib/workflows/application/import-export'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
@@ -152,22 +152,22 @@ export const previewWorkflowImport = defineAuthorizedWorkflowUseCase({
   },
 })
 
-function receiptResult(
-  report: WorkspaceOperationReport,
-  replayed: boolean
-): Omit<ImportWorkflowResult, 'warnings'> {
+function receiptResult(report: WorkspaceOperationReport, replayed: boolean): ImportWorkflowOutcome {
   const imported = report.importedWorkflow
   if (!imported) throw new OrchestrationError('internal', 'Import receipt is missing its result')
-  return {
-    workflow: {
-      ...imported,
-      createdAt: new Date(imported.createdAt),
-      updatedAt: new Date(imported.updatedAt),
-    },
-    folderPath: imported.folderPath,
-    operation: report,
-    replayed,
+  const { blocks, ...metadata } = imported
+  const workflow = {
+    ...metadata,
+    createdAt: new Date(imported.createdAt),
+    updatedAt: new Date(imported.updatedAt),
   }
+  const result = { folderPath: imported.folderPath, operation: report }
+  if (blocks === undefined) {
+    if (!replayed)
+      throw new OrchestrationError('internal', 'New import receipt is missing its block summary')
+    return { ...result, workflow, replayed: true }
+  }
+  return { ...result, workflow: { ...workflow, blocks }, replayed }
 }
 
 /** Called inside the authorized import operation; every business write shares this transaction. */
@@ -175,7 +175,7 @@ export async function applyMappedWorkflowImport(
   principal: Principal,
   input: ImportWorkflowInput,
   context: ActiveWorkspaceApplicationContext
-): Promise<Omit<ImportWorkflowResult, 'warnings'>> {
+): Promise<ImportWorkflowOutcome> {
   if (!input.requestId || !input.previewFingerprint)
     throw new WorkflowImportError(
       'validation',
@@ -334,6 +334,11 @@ export async function applyMappedWorkflowImport(
             folderPath: workflowFolderPathForId(folderIndex, created.folderId),
             createdAt: created.createdAt.toISOString(),
             updatedAt: created.updatedAt.toISOString(),
+            blocks: Object.values(admitted.state.blocks).map(({ id, type, name }) => ({
+              id,
+              type,
+              name,
+            })),
           },
         }
         await insertWorkspaceOperationReceipt(tx, requestHash, report)

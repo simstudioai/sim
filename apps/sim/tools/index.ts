@@ -1720,7 +1720,9 @@ async function executeToolImplementation(
 
     const scope = resolveToolScope(params, executionContext)
     if (operationContext?.requestMode === 'assistant') {
-      const { assertAssistantIntegrationCall } = await import('@/lib/copilot/assistant/tool-policy')
+      const { assertAssistantIntegrationCall } = await import(
+        '@/lib/mothership/assistant/tool-policy'
+      )
       const { getToolMetadata } = await import('@/tools/metadata')
       const { _context, ...modelParams } = params
       assertAssistantIntegrationCall(getToolMetadata(toolId), modelParams)
@@ -1863,7 +1865,7 @@ async function executeToolImplementation(
         throw new Error('Personal tokens require a trusted workspace execution context')
       }
       const [{ executeCopilotCredentialUseCase }, { resolvePersonalToken }] = await Promise.all([
-        import('@/lib/copilot/application/execute-credential-use-case'),
+        import('@/lib/mothership/application/execute-credential-use-case'),
         import('@/lib/credentials/application/resolve-personal-token'),
       ])
       const token = await executeCopilotCredentialUseCase(operationContext, resolvePersonalToken, {

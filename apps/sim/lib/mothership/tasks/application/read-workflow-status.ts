@@ -1,6 +1,6 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { resolveOwnedWorkspaceChatContext as resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { taskDelegationPolicy } from '@/lib/mothership/tasks/application/context'
 import { taskOperations } from '@/lib/mothership/tasks/application/operations'
 import { resolveActiveWorkflowRunApplicationContext } from '@/lib/workflows/application/context'

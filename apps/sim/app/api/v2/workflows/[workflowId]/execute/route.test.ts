@@ -408,6 +408,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
           workflowId: 'workflow-1',
           status: 'completed',
           output: { result: 'done' },
+          blockOutputs: null,
           error: null,
           startedAt: '2026-07-31T00:00:00.000Z',
           endedAt: '2026-07-31T00:00:01.000Z',

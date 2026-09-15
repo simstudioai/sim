@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   assertLease: vi.fn(),
   events: vi.fn(),
   billing: vi.fn(),
+  organizationBilling: vi.fn(),
+  organizationAuthorize: vi.fn(),
   permission: vi.fn(),
   start: vi.fn(),
 }))
@@ -22,6 +24,9 @@ vi.mock('@/lib/mothership/chat/application/context', () => ({
 vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
   ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
   authorizeWorkspaceOperation: mocks.authorize,
+}))
+vi.mock('@/lib/core/application/organization-authorization', () => ({
+  authorizeOrganizationOperation: mocks.organizationAuthorize,
 }))
 vi.mock('@/lib/mothership/request/session/abort', () => ({
   acquirePendingChatStream: mocks.acquire,
@@ -38,13 +43,14 @@ vi.mock('@/lib/mothership/request/lifecycle/controller-ownership', () => ({
 vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mocks.events }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mocks.billing,
+  resolveOrganizationBillingAttribution: mocks.organizationBilling,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mocks.permission,
 }))
 vi.mock('@/lib/mothership/request/lifecycle/start', () => ({ createSSEStream: mocks.start }))
 
-import { readChatStream } from './recover-stream'
+import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
 
 const principal = { kind: 'session', userId: 'user', sessionId: 'session' } as const
 const input = { streamId: '11111111-1111-4111-8111-111111111111' }
@@ -188,6 +194,64 @@ describe('authorized chat stream recovery', () => {
       actorUserId: 'user',
       workspaceId: '33333333-3333-4333-8333-333333333333',
     })
+  })
+
+  it('restores organization Assistant identity, filters and context without workspace authority', async () => {
+    const organizationId = 'org-1'
+    const { workspaceId, ...workspaceRequest } = run.requestContext.recovery.request
+    const request = {
+      ...workspaceRequest,
+      organizationId,
+      mode: 'assistant',
+      assistantSearch: { source: 'slack', documentIds: ['document-1'] },
+      context: [{ type: 'search_integrations', content: '{"connections":[]}' }],
+    }
+    mocks.run.mockResolvedValue({
+      ...run,
+      workspaceId: null,
+      organizationId,
+      requestContext: {
+        ...run.requestContext,
+        recovery: { ...run.requestContext.recovery, request, requestMode: 'assistant' },
+      },
+    })
+    mocks.chat.mockResolvedValue({ userId: 'user', chatId: run.chatId, organizationId })
+    mocks.organizationBilling.mockResolvedValue({
+      actorUserId: 'user',
+      workspaceId: null,
+      organizationId,
+    })
+    await readChatStream.execute({ principal, input })
+    expect(mocks.organizationAuthorize).toHaveBeenCalledWith(
+      principal,
+      expect.objectContaining({ id: 'mothership.runs.reconnect', capability: 'copilot.use' }),
+      { organizationId }
+    )
+    expect(mocks.permission).not.toHaveBeenCalled()
+    expect(mocks.billing).not.toHaveBeenCalled()
+    expect(mocks.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: undefined,
+        organizationId,
+        requestPayload: expect.objectContaining(request),
+        orchestrateOptions: expect.objectContaining({
+          organizationId,
+          workspaceId: undefined,
+          recovery: expect.objectContaining({ requestMode: 'assistant' }),
+        }),
+      })
+    )
+    mocks.organizationAuthorize.mockRejectedValueOnce(new Error('membership revoked'))
+    mocks.start.mockClear()
+    await expect(readChatStream.execute({ principal, input })).rejects.toThrow('membership revoked')
+    expect(mocks.start).not.toHaveBeenCalled()
+  })
+
+  it('refuses a run from a different organization before taking its controller', async () => {
+    mocks.run.mockResolvedValue({ ...run, workspaceId: null, organizationId: 'org-1' })
+    mocks.chat.mockResolvedValue({ userId: 'user', chatId: run.chatId, organizationId: 'org-2' })
+    await expect(readChatStream.execute({ principal, input })).rejects.toThrow('Stream not found')
+    expect(mocks.acquire).not.toHaveBeenCalled()
   })
 
   it('does not start after losing the database takeover race', async () => {

@@ -65,6 +65,43 @@ describe('outbound control delivery uses the existing authorized operations', ()
     })
   })
 
+  it('binds organization Stop to its private chat and rejects organization workspace controls', async () => {
+    const organizationScope = { userId: 'user', organizationId: 'org-1', chatId: 'chat' }
+    const control = request({ kind: 'run_control', input: { chatId: 'chat', streamId: 'stream' } })
+    expect((await executeSimControl({ ...control, scope: organizationScope })).status).toBe(200)
+    expect(handlers.read).toHaveBeenCalledWith({
+      input: control.operation.input,
+      principal: expect.objectContaining({
+        kind: 'organization_delegated',
+        subjectUserId: 'user',
+        organizationId: 'org-1',
+        resourceScope: { chatId: 'chat' },
+        audience: 'control',
+      }),
+    })
+    expect(
+      (
+        await executeSimControl({
+          ...control,
+          scope: organizationScope,
+          operation: {
+            kind: 'workflow_status',
+            input: { chatId: 'chat', executionId: 'execution' },
+          },
+        })
+      ).status
+    ).toBe(403)
+    expect(handlers.status).not.toHaveBeenCalled()
+    expect(
+      (
+        await executeSimControl({
+          ...control,
+          scope: { ...organizationScope, workspaceId: 'workspace' },
+        })
+      ).status
+    ).toBe(403)
+  })
+
   it('preserves workflow status and permission failure responses', async () => {
     const operation: SimControlOperation = {
       kind: 'workflow_status',

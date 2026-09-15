@@ -14,7 +14,7 @@ vi.mock('next/navigation', () => ({
   },
 }))
 vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({ getAccessibleCopilotChatAuth: mocks.chat }))
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({ getAccessibleCopilotChatAuth: mocks.chat }))
 vi.mock('@/app/o/[organizationId]/search/search', () => ({
   OrganizationSearch: () => <div>Organization Search</div>,
 }))

@@ -14,7 +14,7 @@ vi.mock('@/lib/webhooks/slack-agent-api', () => ({
   stopSlackAgentStream: api.stop,
   setSlackAgentSessionStatus: api.status,
 }))
-vi.mock('@/lib/copilot/chat/sim-key-redaction', () => ({
+vi.mock('@/lib/mothership/chat/sim-key-redaction', () => ({
   redactSensitiveContent: (value: string) => value,
 }))
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
@@ -24,8 +24,8 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
 import type {
   ToolCallStreamEvent,
   ToolResultStreamEvent,
-} from '@/lib/copilot/request/session/contract'
-import type { OrchestratorResult } from '@/lib/copilot/request/types'
+} from '@/lib/mothership/request/session/contract'
+import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { publicSlackAnswer, SlackSearchAssistantStream } from '@/lib/slack-search/assistant-stream'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

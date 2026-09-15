@@ -245,7 +245,7 @@ describe('knowledge document application use cases', () => {
     }
     const result = await readKnowledgeDocument.execute({ principal, input })
     expect(result).toEqual({ document, tagDefinitions: [], workspaceId: context.workspaceId })
-    expect(mocks.resolveDocument).toHaveBeenCalledWith(input)
+    expect(mocks.resolveDocument).toHaveBeenCalledWith(input, principal)
     expect(mocks.resolvePermission).toHaveBeenCalledWith(
       principal.userId,
       context.workspaceId,

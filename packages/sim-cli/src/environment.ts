@@ -44,7 +44,7 @@ export function proxyExecArgv(): string[] {
  */
 export function childProcessEnv(
   strip: readonly string[],
-  extra: NodeJS.ProcessEnv = {}
+  extra: Partial<NodeJS.ProcessEnv> = {}
 ): NodeJS.ProcessEnv {
   const env = { ...process.env }
   const stripped = new Set(strip.map((name) => name.toLowerCase()))

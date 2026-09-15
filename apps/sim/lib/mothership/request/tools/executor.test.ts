@@ -120,6 +120,7 @@ vi.mock('@/lib/core/utils/urls', () => ({
 }))
 
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
+import { SimToolExecutionLeaseLostError } from '@/lib/mothership/async-runs/execution-lease'
 import type { AsyncConfirmationState } from '@/lib/mothership/async-runs/lifecycle'
 import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
 import {
@@ -174,6 +175,8 @@ describe('tool result size diagnostics', () => {
     completeAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
+    claimSimToolExecution.mockResolvedValue({ outcome: 'claimed' })
+    settleSimToolExecution.mockResolvedValue(undefined)
   })
 
   it.each(['é🔎', { content: 'é🔎' }])(
@@ -434,31 +437,72 @@ describe('executeToolAndReport provenance isolation', () => {
     }
   )
 
-  it('returns an interrupted result when ownership rejects a late successful handler receipt', async () => {
+  it.each([new SimToolExecutionLeaseLostError(), new Error('Receipt storage unavailable')])(
+    'returns an interrupted result when a late successful handler receipt is rejected: %s',
+    async (error) => {
+      const tool = buildPendingToolCall()
+      executeTool.mockResolvedValue({ success: true, output: { created: true } })
+      completeAsyncToolCall.mockRejectedValue(error)
+      const completion = await executeToolAndReport(
+        tool.id,
+        buildStreamingContext(tool),
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+        },
+        { onEvent }
+      )
+      expect(executeTool).toHaveBeenCalledOnce()
+      expect(completion.status).toBe('error')
+      expect(completion.message).toContain('outcome is unknown')
+      expect(completion.data).toMatchObject({ outcomeUnknown: true, doNotRetry: true })
+      expect(JSON.stringify(completion)).not.toContain('created')
+      expect(completeAsyncToolCall).toHaveBeenCalledOnce()
+      expect(publishToolConfirmation).not.toHaveBeenCalled()
+      expect(
+        onEvent.mock.calls.some(
+          ([event]) => event.payload?.phase === 'result' && event.payload?.success === true
+        )
+      ).toBe(false)
+    }
+  )
+
+  it('preserves a competing terminal result when the handler receipt is rejected', async () => {
     const tool = buildPendingToolCall()
     executeTool.mockResolvedValue({ success: true, output: { created: true } })
-    completeAsyncToolCall.mockRejectedValue(
-      new Error('Tool outcome is unknown after ownership loss')
-    )
-    const completion = await executeToolAndReport(
-      tool.id,
-      buildStreamingContext(tool),
-      {
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
-      },
-      { onEvent }
-    )
-    expect(executeTool).toHaveBeenCalledOnce()
+    completeAsyncToolCall.mockImplementationOnce(async () => {
+      tool.status = 'error'
+      tool.endTime = Date.now()
+      tool.error = 'Winning watchdog result'
+      tool.result = { success: false, output: { error: tool.error, doNotRetry: true } }
+      throw new SimToolExecutionLeaseLostError()
+    })
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+    expect(completion.status).toBe('error')
+    expect(completion.message).toBe('Winning watchdog result')
+    expect(completion.data).toEqual({ error: 'Winning watchdog result', doNotRetry: true })
+    expect(completeAsyncToolCall).toHaveBeenCalledOnce()
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
+  it('reports an unknown outcome when a thrown handler cannot persist its failure receipt', async () => {
+    const tool = buildPendingToolCall()
+    executeTool.mockRejectedValueOnce(new Error('Handler failed after a partial mutation'))
+    completeAsyncToolCall.mockRejectedValueOnce(new Error('Receipt storage unavailable'))
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
     expect(completion.status).toBe('error')
     expect(completion.message).toContain('outcome is unknown')
-    expect(
-      onEvent.mock.calls.some(
-        ([event]) => event.payload?.phase === 'result' && event.payload?.success === true
-      )
-    ).toBe(false)
+    expect(completion.data).toMatchObject({ outcomeUnknown: true, doNotRetry: true })
+    expect(completeAsyncToolCall).toHaveBeenCalledOnce()
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 
   it.each(['success', 'error', 'cancelled'] as const)(
@@ -1037,7 +1081,7 @@ describe('watchdog completion provenance', () => {
       registry,
       timeoutMs: 1,
     })
-    handleClientCompletion(toolCall, toolCall.id, completion)
+    handleClientCompletion(context, toolCall, toolCall.id, completion)
 
     expect(toolCall.status).toBe('success')
     expect(toolCall.result).toEqual({

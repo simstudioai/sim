@@ -16,6 +16,7 @@
  */
 
 import { z } from "zod";
+import { AssistantImage, AssistantSearch } from "./assistant";
 import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 1;
@@ -122,53 +123,71 @@ export const DesktopContextSchema = z.object({
 });
 export type DesktopContext = z.infer<typeof DesktopContextSchema>;
 
-export const ChatPayloadSchema = z.strictObject({
-  desktop: DesktopContextSchema.optional(),
-  simConnection: SimConnection.optional(),
-  message: z.string().min(1),
-  ...ResponseReceiptSchema.shape,
-  userId: z.string().min(1),
-  /** Bump-gated (S43): when present and mismatched the worker answers 426, never undefined behavior. */
-  protocolVersion: z.number().int().optional(),
-  messageId: z.uuid().optional(),
-  chatId: z.uuid().optional(),
-  /** Required (see contracts ChatRequest): absence used to fabricate a random identity. */
-  workspaceId: z.uuid(),
-  /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
-  workflowId: z.string().optional(),
-  integrationTools: z.array(z.unknown()).default([]),
-  /** User-configured MCP tool schemas — same shape as integrationTools; served by the gateway. */
-  mothershipTools: z.array(z.unknown()).default([]),
-  /** Accepted for wire compatibility with current sim builds; unused — the CLI now
-   * executes on the sim side under sim's own authentication, so no credential crosses. */
-  delegationToken: z.string().optional(),
-  /** Enterprise BYOK: the customer's own Anthropic key. Pins the native backend for the
-   * run; in-memory only — never persisted, logged, or on spans (S27). */
-  byokApiKey: z.string().optional(),
-  /** User attachments / @-mentions the UI packed with the message. */
-  context: z
-    .array(
-      z.object({
-        type: z.string(),
-        content: z.string(),
-        tag: z.string().optional(),
-        path: z.string().optional(),
-      }),
+export const ChatPayloadSchema = z
+  .strictObject({
+    desktop: DesktopContextSchema.optional(),
+    simConnection: SimConnection.optional(),
+    message: z.string().min(1),
+    ...ResponseReceiptSchema.shape,
+    userId: z.string().min(1),
+    /** Bump-gated (S43): when present and mismatched the worker answers 426, never undefined behavior. */
+    protocolVersion: z.number().int().optional(),
+    messageId: z.uuid().optional(),
+    chatId: z.uuid().optional(),
+    /** Every chat has exactly one authoritative workspace or organization owner. */
+    workspaceId: z.uuid().optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+    mode: z.literal("assistant").optional(),
+    assistantSearch: AssistantSearch.optional(),
+    assistantImages: z.array(AssistantImage).max(5).optional(),
+    /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
+    workflowId: z.string().optional(),
+    integrationTools: z.array(z.unknown()).default([]),
+    /** User-configured MCP tool schemas — same shape as integrationTools; served by the gateway. */
+    mothershipTools: z.array(z.unknown()).default([]),
+    /** Accepted for wire compatibility with current sim builds; unused — the CLI now
+     * executes on the sim side under sim's own authentication, so no credential crosses. */
+    delegationToken: z.string().optional(),
+    /** Enterprise BYOK: the customer's own Anthropic key. Pins the native backend for the
+     * run; in-memory only — never persisted, logged, or on spans (S27). */
+    byokApiKey: z.string().optional(),
+    /** User attachments / @-mentions the UI packed with the message. */
+    context: z
+      .array(
+        z.object({
+          type: z.string(),
+          content: z.string(),
+          tag: z.string().optional(),
+          path: z.string().optional(),
+        }),
+      )
+      .default([]),
+    userTimezone: z.string().optional(),
+    /** Explicit client-executor declaration (see contracts ChatRequest.clientCapabilities);
+     * the worker accepts and ignores it — dispatch semantics live on the sim side. */
+    clientCapabilities: z.array(z.string()).default([]),
+    /** "task": sim opened this turn for a background-task notification, not for a typed
+     * message (21-background-tasks.md); recorded on the turn's user_message event. */
+    origin: z.enum(["task"]).optional(),
+    /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
+    effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+    modelSelection: ModelSelectionSchema.optional(),
+    /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
+    inventory: WorkspaceInventorySchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (Boolean(value.workspaceId) === Boolean(value.organizationId))
+      ctx.addIssue({ code: "custom", message: "Exactly one workspaceId or organizationId is required" });
+    if (
+      (value.organizationId && value.mode !== "assistant") ||
+      (value.mode === "assistant" && value.workflowId)
     )
-    .default([]),
-  userTimezone: z.string().optional(),
-  /** Explicit client-executor declaration (see contracts ChatRequest.clientCapabilities);
-   * the worker accepts and ignores it — dispatch semantics live on the sim side. */
-  clientCapabilities: z.array(z.string()).default([]),
-  /** "task": sim opened this turn for a background-task notification, not for a typed
-   * message (21-background-tasks.md); recorded on the turn's user_message event. */
-  origin: z.enum(["task"]).optional(),
-  /** Per-turn effort dial (user-selected in the composer); absent = deployment default. */
-  effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
-  modelSelection: ModelSelectionSchema.optional(),
-  /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
-  inventory: WorkspaceInventorySchema.optional(),
-});
+      ctx.addIssue({ code: "custom", message: "Organization chats require Assistant without a workflow" });
+    if (value.assistantImages?.length && !value.organizationId)
+      ctx.addIssue({ code: "custom", message: "Assistant images require organization scope" });
+    if (value.mode !== "assistant" && (value.assistantSearch || value.assistantImages))
+      ctx.addIssue({ code: "custom", message: "Assistant context requires Assistant mode" });
+  });
 
 /** A pause or terminal acknowledges all preceding activity only after the receiver handles it. */
 export interface StreamActivityCheckpoint {
@@ -202,10 +221,12 @@ export interface ChatRequest extends StreamResponseReceipt {
   protocolVersion?: number | undefined;
   messageId?: string | undefined;
   chatId?: string | undefined;
-  /** Required: memories, analytics, and the chat row all key on it — sim always resolves
-   * it (workspace-scoped directly; workflow-scoped from the workflow). A missing value
-   * used to FABRICATE a random workspace identity per request. */
-  workspaceId: string;
+  /** Exactly one owner is required; organization scope is restricted to Assistant. */
+  workspaceId?: string | undefined;
+  organizationId?: string | undefined;
+  mode?: "assistant" | undefined;
+  assistantSearch?: AssistantSearch | undefined;
+  assistantImages?: AssistantImage[] | undefined;
   /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
   workflowId?: string | undefined;
   /** Connected-service operation schemas served by the integration gateway. */
@@ -303,16 +324,21 @@ export interface SteerRequest {
 }
 
 /** POST /api/chats/fork — copy a selected conversation snapshot, never live execution. */
-export const ForkChatRequest = z.strictObject({
-  sourceChatId: z.uuid(),
-  newChatId: z.uuid(),
-  workspaceId: z.uuid(),
-  userId: z.string().min(1),
-  upToMessageId: z.string().min(1),
-  includeResponse: z.boolean(),
-  fileIds: z.record(z.string().min(1), z.string().min(1)),
-  fileKeys: z.record(z.string().min(1), z.string().min(1)),
-});
+export const ForkChatRequest = z
+  .strictObject({
+    sourceChatId: z.uuid(),
+    newChatId: z.uuid(),
+    workspaceId: z.uuid().optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+    userId: z.string().min(1),
+    upToMessageId: z.string().min(1),
+    includeResponse: z.boolean(),
+    fileIds: z.record(z.string().min(1), z.string().min(1)),
+    fileKeys: z.record(z.string().min(1), z.string().min(1)),
+  })
+  .refine((scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId), {
+    message: "Exactly one workspaceId or organizationId is required",
+  });
 export type ForkChatRequest = z.infer<typeof ForkChatRequest>;
 
 export const ForkChatResponse = z.strictObject({
@@ -330,6 +356,7 @@ export interface TitleRequest {
    * older sim builds keep validating; absent values degrade to synthetic ids. */
   chatId?: string | undefined;
   workspaceId?: string | undefined;
+  organizationId?: string | undefined;
   userId?: string | undefined;
 }
 

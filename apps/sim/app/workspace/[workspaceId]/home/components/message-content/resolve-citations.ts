@@ -1,7 +1,7 @@
 import {
   collectRetrievalCitationEvidence,
   parseCitationRecord as parseRecord,
-} from '@/lib/copilot/chat/citation-evidence'
+} from '@/lib/mothership/chat/citation-evidence'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Source cards use metadata from successful retrieval, never model-authored IDs or URLs. */

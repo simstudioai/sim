@@ -8,6 +8,8 @@ import {
   type ReferenceSchema,
 } from '#sim-cli/contract/reference'
 import { runEmbeddedCli } from '#sim-cli/embed'
+import { V2_OPERATIONS } from '#sim-cli/generated/v2-api'
+import { cursorSlot } from '#sim-cli/runtime/request'
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
 
@@ -55,7 +57,8 @@ describe('CLI reference producer', () => {
     expect(find('workflows operations apply').body).toContain('&')
     expect(find('tables rows query').body).toContain('filter?:')
     expect(find('tables rows query').body).not.toContain('predicate?:')
-    expect(find('workflows list').shape).toMatch(/^\{.*\}\[\]$/)
+    expect(find('workflows list').shape).toContain('{data:')
+    expect(find('workflows list').shape).toContain('nextCursor:string|null')
     expect(find('files get').shape).toBeUndefined()
     expect(find('files share get').shape).toContain('|{data:null}')
   })
@@ -175,4 +178,106 @@ describe('CLI reference producer', () => {
       'string|{data:null}'
     )
   })
+})
+
+describe('paged stdout reference parity', () => {
+  const pageSchema: ReferenceSchema = {
+    type: 'object',
+    required: ['data', 'nextCursor'],
+    properties: {
+      data: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { id: { type: 'string' }, name: { type: 'string' } },
+        },
+      },
+      nextCursor: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+      truncated: { type: 'boolean' },
+      toolNamesTruncated: { type: 'boolean' },
+      scope: { type: 'string' },
+      notTruncated: { type: 'boolean' },
+      isNeverTruncated: { type: 'boolean' },
+      nonBooleanTruncated: { type: 'string' },
+    },
+  }
+
+  it('uses runtime cursor classification and exposes only fields rendered to stdout', () => {
+    expect(cursorSlot(V2_OPERATIONS.listWorkflows)).not.toBeNull()
+    const reference = commandReference(
+      [document(pageSchema)],
+      operation,
+      new Map(),
+      cursorSlot(V2_OPERATIONS.listWorkflows) !== null
+    )
+    expect(reference.shape).toBe(
+      '{data:{id,name}[],nextCursor:string|null,truncated?:boolean,toolNamesTruncated?:boolean}'
+    )
+    expect(commandReference([document(pageSchema)], operation, new Map()).shape).toBe(
+      '{id?:string,name?:string}[]'
+    )
+    const variants = {
+      oneOf: [
+        pageSchema,
+        {
+          ...pageSchema,
+          properties: {
+            ...pageSchema.properties,
+            data: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      ],
+    }
+    expect(commandReference([document(variants)], operation, new Map(), true).shape).toContain(
+      '|{data:string[],nextCursor:string|null'
+    )
+  })
+
+  it.each(['0', '1'])(
+    'matches embedded list stdout at limit %s and retains clipping across pages',
+    async (limit) => {
+      const first = { id: 'workflow-1', name: 'First', truncated: true }
+      const second = { id: 'workflow-2', name: 'Second' }
+      let requests = 0
+      const result = await runEmbeddedCli(
+        ['--output', 'json', 'workflows', 'list', '--limit', limit],
+        {
+          endpoint: 'https://sim.internal.test',
+          apiKey: 'test-key',
+          workspaceId: 'a2e3ab27-2f9d-4b8a-a2f2-3c47a1b0c9d1',
+          transport: async (input) => {
+            requests++
+            const url = new URL(String(input))
+            const later = url.searchParams.get('cursor') === 'next'
+            return Response.json({
+              data: later ? [second] : [first],
+              nextCursor: later ? null : 'next',
+              truncated: false,
+              toolNamesTruncated: !later,
+              scope: 'must not appear on stdout',
+              notTruncated: true,
+              isNeverTruncated: true,
+              nonBooleanTruncated: 'not a boolean',
+            })
+          },
+        }
+      )
+      expect(result.exitCode, result.stderr).toBe(0)
+      expect(requests).toBe(limit === '0' ? 2 : 1)
+      const stdout = JSON.parse(result.stdout)
+      expect(stdout).toEqual({
+        data: limit === '0' ? [first, second] : [first],
+        nextCursor: limit === '0' ? null : 'next',
+        truncated: false,
+        toolNamesTruncated: true,
+      })
+      const shape = commandReference([document(pageSchema)], operation, new Map(), true).shape!
+      for (const key of Object.keys(stdout))
+        expect(shape).toMatch(new RegExp(`(?:\\{|,)${key}\\??:`))
+      for (const hidden of ['scope', 'notTruncated', 'isNeverTruncated', 'nonBooleanTruncated']) {
+        expect(shape).not.toContain(`${hidden}:`)
+        expect(shape).not.toContain(`${hidden}?:`)
+      }
+    }
+  )
 })

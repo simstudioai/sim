@@ -6,6 +6,7 @@ import {
   type CopilotToolPermissionDecision,
   copilotAsyncToolCalls,
   copilotChats,
+  copilotOrganizationRequestStops,
   copilotRequestStops,
   copilotRuns,
 } from '@sim/db/schema'
@@ -25,6 +26,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import {
@@ -33,6 +35,12 @@ import {
   SimToolExecutionLeaseLostError,
   type SimToolExecutionOwner,
 } from '@/lib/mothership/async-runs/execution-lease'
+import {
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionData,
+  type AsyncTerminalStatus,
+  EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+} from '@/lib/mothership/async-runs/lifecycle'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import {
@@ -41,12 +49,6 @@ import {
 } from '@/lib/mothership/observability/database'
 import { markSpanForError } from '@/lib/mothership/request/otel'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import {
-  ASYNC_TOOL_STATUS,
-  type AsyncCompletionData,
-  type AsyncTerminalStatus,
-  EXECUTABLE_TOOL_PERMISSION_DECISIONS,
-} from './lifecycle'
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 const WORKFLOW_EXECUTION_CLAIM_PREFIX = 'workflow:'
@@ -108,6 +110,7 @@ export interface CreateRunSegmentInput {
   userId: string
   workflowId?: string | null
   workspaceId?: string | null
+  organizationId?: string | null
   streamId: string
   agent?: string | null
   model?: string | null
@@ -133,12 +136,31 @@ export async function withRunAdmissionLock<T>(
 }
 
 /** Stop is durable before worker delivery; admission and all later segments share this intent. */
-export async function requestRunStop(input: {
+interface RunStopInput extends ResourceOwner {
   userId: string
-  workspaceId: string
   streamId: string
-  chatId?: string
-}) {
+}
+
+function stopLocation(input: RunStopInput) {
+  const owner = resourceScopeFromOwner(input)
+  const table =
+    owner.kind === 'organization' ? copilotOrganizationRequestStops : copilotRequestStops
+  const ownerMatch =
+    owner.kind === 'organization'
+      ? eq(copilotOrganizationRequestStops.organizationId, owner.organizationId)
+      : eq(copilotRequestStops.workspaceId, owner.workspaceId)
+  return {
+    table,
+    predicate: and(eq(table.userId, input.userId), ownerMatch, eq(table.streamId, input.streamId)),
+  }
+}
+
+export async function requestRunStop(
+  input: RunStopInput & {
+    chatId?: string
+  }
+) {
+  resourceScopeFromOwner(input)
   return withRunAdmissionLock(input.userId, input.streamId, async (tx) => {
     const [run] = await tx
       .select()
@@ -147,14 +169,24 @@ export async function requestRunStop(input: {
       .limit(1)
     if (
       run &&
-      (run.workspaceId !== input.workspaceId || (input.chatId && run.chatId !== input.chatId))
+      ((run.workspaceId ?? null) !== (input.workspaceId ?? null) ||
+        (run.organizationId ?? null) !== (input.organizationId ?? null) ||
+        (input.chatId && run.chatId !== input.chatId))
     )
       return run
-    const { userId, workspaceId, streamId } = input
-    await tx
-      .insert(copilotRequestStops)
-      .values({ userId, workspaceId, streamId })
-      .onConflictDoNothing()
+    const { userId, streamId } = input
+    const owner = resourceScopeFromOwner(input)
+    if (owner.kind === 'organization') {
+      await tx
+        .insert(copilotOrganizationRequestStops)
+        .values({ userId, organizationId: owner.organizationId, streamId })
+        .onConflictDoNothing()
+    } else {
+      await tx
+        .insert(copilotRequestStops)
+        .values({ userId, workspaceId: owner.workspaceId, streamId })
+        .onConflictDoNothing()
+    }
     if (run) {
       await tx
         .update(copilotRuns)
@@ -165,22 +197,9 @@ export async function requestRunStop(input: {
   })
 }
 
-export async function isRunStopRequested(input: {
-  userId: string
-  workspaceId: string
-  streamId: string
-}): Promise<boolean> {
-  const [stop] = await db
-    .select({ streamId: copilotRequestStops.streamId })
-    .from(copilotRequestStops)
-    .where(
-      and(
-        eq(copilotRequestStops.userId, input.userId),
-        eq(copilotRequestStops.workspaceId, input.workspaceId),
-        eq(copilotRequestStops.streamId, input.streamId)
-      )
-    )
-    .limit(1)
+export async function isRunStopRequested(input: RunStopInput): Promise<boolean> {
+  const { table, predicate } = stopLocation(input)
+  const [stop] = await db.select({ streamId: table.streamId }).from(table).where(predicate).limit(1)
   return !!stop
 }
 
@@ -207,25 +226,24 @@ export async function createRunSegment(input: CreateRunSegmentInput) {
 /** Caller holds the Stop/admission lock; its related chat writes commit with this run. */
 export async function insertRunSegment(tx: RunAdmissionTransaction, input: CreateRunSegmentInput) {
   let workspaceId = input.workspaceId
-  if (!workspaceId) {
+  let organizationId = input.organizationId
+  if (!workspaceId && !organizationId) {
     const [chat] = await tx
-      .select({ workspaceId: copilotChats.workspaceId })
+      .select({
+        workspaceId: copilotChats.workspaceId,
+        organizationId: copilotChats.organizationId,
+      })
       .from(copilotChats)
       .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
       .limit(1)
     workspaceId = chat?.workspaceId
+    organizationId = chat?.organizationId
   }
-  if (!workspaceId) throw new Error('Chat workspace is unavailable for run admission')
+  const { table, predicate } = stopLocation({ ...input, workspaceId, organizationId })
   const [stop] = await tx
-    .select()
-    .from(copilotRequestStops)
-    .where(
-      and(
-        eq(copilotRequestStops.userId, input.userId),
-        eq(copilotRequestStops.workspaceId, workspaceId),
-        eq(copilotRequestStops.streamId, input.streamId)
-      )
-    )
+    .select({ stoppedAt: table.stoppedAt })
+    .from(table)
+    .where(predicate)
     .limit(1)
   const [run] = await tx
     .insert(copilotRuns)
@@ -236,7 +254,8 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
       chatId: input.chatId,
       userId: input.userId,
       workflowId: input.workflowId ?? null,
-      workspaceId,
+      workspaceId: workspaceId ?? null,
+      organizationId: organizationId ?? null,
       streamId: input.streamId,
       toolExecutionVersion: SIM_TOOL_EXECUTION_VERSION,
       agent: input.agent ?? null,

@@ -38,11 +38,19 @@ export interface ImportWorkflowInput extends MappedImportOptions {
   workflow: string | Record<string, unknown>
 }
 
-export interface ImportWorkflowResult {
+export type ImportWorkflowOutcome = {
   operation?: WorkspaceOperationReport
-  replayed?: boolean
-  workflow: ImportedWorkflow
   folderPath: string
+} & (
+  | { workflow: ImportedWorkflow; replayed?: boolean }
+  | {
+      /** Older durable receipts did not record the committed block summary. */
+      workflow: Omit<ImportedWorkflow, 'blocks'> & { blocks?: undefined }
+      replayed: true
+    }
+)
+
+export type ImportWorkflowResult = ImportWorkflowOutcome & {
   /** Legacy import warnings; mapped imports validate required bindings before committing. */
   warnings: string[]
 }

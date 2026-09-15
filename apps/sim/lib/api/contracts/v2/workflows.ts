@@ -220,7 +220,7 @@ export const v2WorkflowListItemSchema = z
       .int()
       .nonnegative()
       .describe(
-        'Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the size of `GET /api/v2/workflows/{workflowId}/runs`.'
+        'Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List Workflow Runs.'
       ),
     lastRunAt: z
       .string()
@@ -419,7 +419,7 @@ export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
     webhooks: z
       .array(v2DeployedWebhookSchema)
       .describe(
-        'Public delivery URL of every webhook the live version registered, one per trigger block. Empty while nothing is deployed, and omits trigger blocks that receive events through a shared endpoint with no per-workflow URL.'
+        'Public delivery URL of every webhook the live version registered, one per trigger block. Read URLs here: the editor computes the block URL field, which reads empty through the API. Empty while nothing is deployed; triggers using a shared endpoint without a per-workflow URL are omitted.'
       ),
   })
   .meta({
@@ -1354,7 +1354,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(100)
       .optional()
       .describe(
-        'Block output references to include in the response. Use `<blockName>.<outputPath>` for the executed workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow; block names are normalized workflow reference names, and selecting a child workflow applies to every invocation of it. On a sync request the named outputs come back in `blockOutputs`, keyed by these selector strings exactly as sent; on a stream they shape the streamed envelope. A selector whose block name or id matches no block in the workflow is rejected with `400` naming the available blocks, before the run starts. A selector whose block did not run or whose path is absent is omitted. Rejected when `async` is true — a queued run has produced nothing to select; narrow the finished run via the run resource instead.'
+        'Select `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>` using normalized block reference names. Child selectors cover every invocation. Synchronous results use selector strings verbatim as `blockOutputs` keys; streaming selections shape the envelope. Unknown block names or IDs return `400` with available blocks before execution. Unexecuted blocks and absent paths are omitted. Incompatible with `async`; select outputs from the finished run resource instead.'
       ),
     includeThinking: z
       .boolean()
@@ -2354,8 +2354,9 @@ export const v2ImportWorkflowDataSchema = z
       .meta({ format: 'date-time' }),
     blocks: z
       .array(v2ImportedBlockSchema)
+      .optional()
       .describe(
-        'Blocks the import created, in payload order. A summary only; the workflow state read returns the full graph.'
+        'Blocks the import created, in payload order. Omitted only when replaying an older receipt that did not record this summary. The workflow state read returns the current full graph.'
       ),
     warnings: z
       .array(z.string())
@@ -2373,9 +2374,11 @@ export const v2ImportWorkflowDataSchema = z
 
 export const v2ExportWorkflowQuerySchema = z
   .object({
-    includeReferences: booleanQueryFlagSchema.optional().describe(
-      "Include non-secret resource identifiers and source field occurrences for mapped imports."
-    ),
+    includeReferences: booleanQueryFlagSchema
+      .optional()
+      .describe(
+        'Include non-secret resource identifiers and source field occurrences for mapped imports.'
+      ),
     includeWorkspaceBindings: booleanQueryFlagSchema
       .describe(
         'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.'
@@ -2799,7 +2802,7 @@ const v2WorkflowGraphWriteResultSchema = z
     needsRedeployment: z
       .boolean()
       .describe(
-        'Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it.'
+        'Whether the live deployment differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it. On a dry run, this describes the state before the proposed write.'
       ),
   })
   .meta({
@@ -2932,7 +2935,7 @@ const v2GraphWriteDryRunQuerySchema = z
     dryRun: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.'
+        'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.'
       ),
   })
   .strict()
@@ -3557,7 +3560,7 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
     mintedBlockIds: z
       .record(z.string(), z.string().describe('The id the block was actually given.'))
       .describe(
-        'The id each newly created block was actually given, keyed by the `block_id` you asked for, and present only for the ones that differ. A `block_id` on an `add` or `insert_into_subflow` that is not already a UUID is replaced with a minted one, so this is how you learn what to reference afterwards. Within a single batch you can keep using your own ids — references between operations are remapped for you — but a later request must use the minted id, so send your own UUIDs when you want an id you chose to survive. Always empty on a dry run, which reports its provisional ids under `previewBlockIds` instead.'
+        'Assigned IDs keyed by requested `block_id`, including only changed IDs. `add` and `insert_into_subflow` replace non-UUID labels with minted UUIDs. References within the batch are remapped automatically; later requests must use the minted IDs. Supply UUIDs to preserve your chosen IDs. Empty on dry runs, which return provisional IDs in `previewBlockIds` instead.'
       ),
     previewBlockIds: z
       .record(z.string(), z.string().describe('The provisional id the dry run assigned.'))

@@ -5,6 +5,7 @@
 import {
   copilotAsyncToolCalls,
   copilotChats,
+  copilotOrganizationRequestStops,
   copilotRequestStops,
   copilotRuns,
 } from '@sim/db/schema'
@@ -58,6 +59,51 @@ describe('run admission and early Stop', () => {
           condition.right === scope.userId
       )
     ).toBe(true)
+  })
+
+  it('uses the additive organization Stop table and preserves exact owner on admission', async () => {
+    const organizationScope = {
+      userId: scope.userId,
+      organizationId: 'org-1',
+      streamId: scope.streamId,
+    }
+    expect(await requestRunStop(organizationScope)).toBeNull()
+    expect(dbChainMockFns.insert).toHaveBeenCalledWith(copilotOrganizationRequestStops)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(organizationScope)
+    const stoppedAt = new Date()
+    queueTableRows(copilotOrganizationRequestStops, [{ ...organizationScope, stoppedAt }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'run-1', status: 'cancelled' }])
+    await createRunSegment({ ...input, workspaceId: undefined, organizationId: 'org-1' })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        workspaceId: null,
+        status: 'cancelled',
+        toolAdmissionClosedAt: stoppedAt,
+      })
+    )
+  })
+
+  it('never records organization Stop against a workspace run or another organization', async () => {
+    queueTableRows(copilotRuns, [{ ...input, status: 'active' }])
+    await requestRunStop({
+      userId: scope.userId,
+      streamId: scope.streamId,
+      organizationId: 'org-1',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    queueTableRows(copilotRuns, [
+      { ...input, workspaceId: null, organizationId: 'org-2', status: 'active' },
+    ])
+    await requestRunStop({
+      userId: scope.userId,
+      streamId: scope.streamId,
+      organizationId: 'org-1',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    await expect(requestRunStop({ ...scope, organizationId: 'org-1' })).rejects.toThrow(
+      'exactly one'
+    )
   })
 
   it('durably records Stop and closes tool admission before returning an active run', async () => {
@@ -139,7 +185,7 @@ describe('run admission and early Stop', () => {
 
   it('refuses admission when its canonical workspace cannot be resolved', async () => {
     await expect(createRunSegment({ ...input, workspaceId: undefined })).rejects.toThrow(
-      'Chat workspace is unavailable'
+      'Resource requires exactly one workspace or organization owner'
     )
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })

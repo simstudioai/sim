@@ -6,6 +6,10 @@ import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
+import { isHosted } from '@/lib/core/config/env-flags'
+import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import {
   isAssistantIntegrationParameter,
   isAssistantIntegrationTool,
@@ -15,14 +19,10 @@ import {
   visibilitySignature,
 } from '@/lib/mothership/block-visibility'
 import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-images'
-import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
-import { type BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
-import { isHosted, isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
 import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
+import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import {
   type IntegrationGateConfig,
   integrationGateSignature,
@@ -31,8 +31,6 @@ import {
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
-import { encodeVfsSegment } from '@/lib/mothership/vfs/path-utils'
-import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
@@ -277,21 +275,9 @@ export async function buildCopilotRequestPayload(
     selectedModel: string
   }
 ): Promise<ChatRequest> {
-  const {
-    message,
-    workflowId,
-    userId,
-    userMessageId,
-    mode,
-    contexts,
-    fileAttachments,
-    chatId,
-    provider,
-  } = params
-
-  const { selectedModel } = options
+  const { message, workflowId, userId, userMessageId, mode, contexts, fileAttachments, chatId } =
+    params
   const effectiveMode = mode === 'agent' ? 'build' : mode
-  const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
   const isAssistant = effectiveMode === 'assistant'
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining.
@@ -352,7 +338,16 @@ export async function buildCopilotRequestPayload(
     }
   }
 
-  const allContexts = isAssistant ? [] : [...(contexts ?? []), ...uploadContexts]
+  const allContexts = isAssistant
+    ? params.workspaceContext
+      ? [
+          {
+            type: params.organizationId ? 'search_integrations' : 'connected_accounts',
+            content: params.workspaceContext,
+          },
+        ]
+      : []
+    : [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
   let mothershipTools: ToolSchema[] = []
@@ -373,33 +368,24 @@ export async function buildCopilotRequestPayload(
     )
   }
 
-  // The wire payload IS the shared contract (ChatRequest in lib/mothership/generated/
-  // protocol.ts) — nothing else. The closed model selection is separate from raw model/provider/mode; permissions
-  // are enforced by v2 under the delegation token, not asserted here. Desktop capabilities
-  // enable client execution through the mounted chat. The params also carry internal knowledge (mode
-  // gates which tool schemas get built), but none of it rides the wire.
-  // Orientation for the agent: names and ids per world, under the caller's own principal.
-  // Absent when the surface has no principal to read with (headless callers).
-  const inventory = !isAssistant && params.principal && params.workspaceId
-    ? await buildWorkspaceInventory(params.principal, params.workspaceId)
-    : undefined
+  /** Assistant sends its trusted mode and prepared context; Build may include authorized workspace inventory. */
+  const inventory =
+    !isAssistant && params.principal && params.workspaceId
+      ? await buildWorkspaceInventory(params.principal, params.workspaceId)
+      : undefined
   return {
     message,
     ...(!isAssistant && workflowId ? { workflowId } : {}),
-    ...(!isAssistant && params.workflowName ? { workflowName: params.workflowName } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
     ...(params.organizationId ? { organizationId: params.organizationId } : {}),
     userId,
-    ...(selectedModel ? { model: selectedModel } : {}),
-    ...(provider ? { provider } : {}),
-    mode: transportMode,
+    ...(isAssistant ? { mode: 'assistant' as const } : {}),
     ...(isAssistant && params.assistantSearch ? { assistantSearch: params.assistantSearch } : {}),
     ...(isAssistant && params.organizationId && params.assistantImages?.length
-      ? { fileAttachments: params.assistantImages }
+      ? { assistantImages: params.assistantImages }
       : {}),
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
-    ...(workflowId ? { workflowId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
     ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
@@ -407,7 +393,7 @@ export async function buildCopilotRequestPayload(
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),
     ...(inventory ? { inventory } : {}),
-    ...(params.browser || params.terminalCapable
+    ...(!isAssistant && (params.browser || params.terminalCapable)
       ? {
           desktop: {
             browser: params.browser === true,
@@ -420,6 +406,6 @@ export async function buildCopilotRequestPayload(
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
     // UI declares that capability explicitly; headless callers omit or send [] and the
     // server runs those tools immediately instead of waiting out the pickup grace.
-    clientCapabilities: ['workflow-tool-pickup'],
+    clientCapabilities: isAssistant ? [] : ['workflow-tool-pickup'],
   }
 }

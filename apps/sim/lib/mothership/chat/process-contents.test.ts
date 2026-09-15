@@ -80,7 +80,9 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 vi.mock('@/lib/skills/application/use-cases', () => ({
   getSkillUseCase: { execute: getSkillUseCase },
 }))
-vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
+vi.mock('@/lib/mcp/application/use-cases', () => ({
+  discoverMcpServerToolsUseCase: { execute: discoverServerTools },
+}))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
@@ -181,20 +183,26 @@ describe('processContextsServer - workflow references', () => {
   })
 
   it('resolves a folder through current authorized folder queries', async () => {
-    listWorkflowFolders.mockResolvedValueOnce({ folders: [
-      { id: 'root', name: 'Sales team', parentId: null },
-      { id: 'folder-1', name: 'Leads / new', parentId: 'root' },
-    ] })
-    expect(await resolveActiveResourceContext('folder', 'folder-1', 'workspace-1', 'reader')).toMatchObject({
+    listWorkflowFolders.mockResolvedValueOnce({
+      folders: [
+        { id: 'root', name: 'Sales team', parentId: null },
+        { id: 'folder-1', name: 'Leads / new', parentId: 'root' },
+      ],
+    })
+    expect(
+      await resolveActiveResourceContext('folder', 'folder-1', 'workspace-1', 'reader')
+    ).toMatchObject({
       type: 'active_resource',
-      content: JSON.stringify({ resourceType: 'workflow', folderPath: '/Sales%20team/Leads%20%2F%20new' }),
+      content: JSON.stringify({
+        resourceType: 'workflow',
+        folderPath: '/Sales%20team/Leads%20%2F%20new',
+      }),
     })
     expect(listWorkflowFolders).toHaveBeenCalledWith({
       principal: expect.objectContaining({ subjectUserId: 'reader', workspaceId: 'workspace-1' }),
       input: expect.objectContaining({ workspaceId: 'workspace-1' }),
     })
   })
-
 })
 
 describe('processContextsServer - knowledge contexts', () => {
@@ -546,15 +554,17 @@ describe('processContextsServer - MCP contexts', () => {
   })
 
   it('references the selected service while the request catalog owns tool discovery', async () => {
-    discoverServerTools.mockResolvedValue([
-      {
-        serverId: 'mcp-server-1',
-        serverName: 'Docs',
-        name: 'search',
-        description: 'Search documentation',
-        inputSchema: { type: 'object', properties: {} },
-      },
-    ])
+    discoverServerTools.mockResolvedValue({
+      tools: [
+        {
+          serverId: 'mcp-server-1',
+          serverName: 'Docs',
+          name: 'search',
+          description: 'Search documentation',
+          inputSchema: { type: 'object', properties: {} },
+        },
+      ],
+    })
 
     const result = await processContextsServer(
       [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
@@ -573,7 +583,16 @@ describe('processContextsServer - MCP contexts', () => {
     expect(discoverServerTools).not.toHaveBeenCalled()
     const catalog = await buildTaggedMcpToolSchemas('user-1', 'ws-1', ['mcp-server-1'])
     expect(discoverServerTools).toHaveBeenCalledTimes(1)
-    expect(discoverServerTools).toHaveBeenCalledWith('user-1', 'mcp-server-1', 'ws-1')
+    expect(discoverServerTools).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        serviceId: 'copilot',
+        audience: 'sim:mcp-servers',
+        subjectUserId: 'user-1',
+        workspaceId: 'ws-1',
+      }),
+      input: { workspaceId: 'ws-1', serverId: 'mcp-server-1', requireComplete: true },
+    })
     expect(catalog).toMatchObject([
       { name: 'mcp-server-1-search', service: JSON.parse(result[0].content).service },
     ])
@@ -868,7 +887,9 @@ describe('processContextsServer - logs contexts', () => {
         workflowName: 'My Flow',
       },
     ])
-    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({ allowed: false })
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      allowed: false,
+    })
 
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
@@ -1005,16 +1026,22 @@ describe('processContextsServer - table_selection contexts', () => {
   it('distinguishes which row was selected when visible cell values are identical', async () => {
     readTableUseCase.mockResolvedValue({
       table: {
-        id: 'tbl-1', name: 'Leads', workspaceId: 'ws-1',
+        id: 'tbl-1',
+        name: 'Leads',
+        workspaceId: 'ws-1',
         schema: { columns: [{ id: 'c_status', name: 'Status' }] },
       },
       folderPath: '/',
     })
-    queryTableRows.mockResolvedValueOnce({
-      rows: [{ id: 'row-one', data: { c_status: 'new' } }], totalCount: 1,
-    }).mockResolvedValueOnce({
-      rows: [{ id: 'row-two', data: { c_status: 'new' } }], totalCount: 1,
-    })
+    queryTableRows
+      .mockResolvedValueOnce({
+        rows: [{ id: 'row-one', data: { c_status: 'new' } }],
+        totalCount: 1,
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 'row-two', data: { c_status: 'new' } }],
+        totalCount: 1,
+      })
     const select = (rowId: string) =>
       processContextsServer(
         [
@@ -1320,7 +1347,9 @@ describe('processContextsServer - table_selection contexts', () => {
     )
 
     expect(result).toHaveLength(1)
-    expect(result[0].content.split('\n\n').slice(1).join('\n\n').length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_PREVIEW_LENGTH)
+    expect(result[0].content.split('\n\n').slice(1).join('\n\n').length).toBeLessThanOrEqual(
+      MAX_TABLE_SELECTION_PREVIEW_LENGTH
+    )
     expect(JSON.parse(result[0].content.split('\n\n')[0]!).rowIds).toEqual(['r1'])
     expect(result[0].content).not.toContain(huge)
     expect(result[0].content).toContain('0 rows of 1, 1 omitted for length')
@@ -1408,7 +1437,9 @@ describe('processContextsServer - table_selection contexts', () => {
       '',
       'ws-1'
     )
-    expect(context.content.split('\n\n').slice(1).join('\n\n').length).toBeLessThanOrEqual(MAX_TABLE_SELECTION_PREVIEW_LENGTH)
+    expect(context.content.split('\n\n').slice(1).join('\n\n').length).toBeLessThanOrEqual(
+      MAX_TABLE_SELECTION_PREVIEW_LENGTH
+    )
     expect(context.content).toContain('no cell values were inlined')
   })
 })
@@ -1443,7 +1474,11 @@ describe('workflow resource context consistency', () => {
     )
     expect(contexts.map(({ path }) => path)).toEqual([undefined, undefined, undefined])
     expect(active?.content).toBe(contexts[1].content)
-    expect(JSON.parse(contexts[2].content)).toEqual({ workflowId: 'flow', name: 'Flow 100%', blockId: 'block-1' })
+    expect(JSON.parse(contexts[2].content)).toEqual({
+      workflowId: 'flow',
+      name: 'Flow 100%',
+      blockId: 'block-1',
+    })
     expect(readWorkflowMetadata).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         subjectUserId: 'user-1',
@@ -1510,7 +1545,10 @@ describe('folder and foldered-resource chat pointers', () => {
         'user-1',
         'chat-1'
       )
-      const content = JSON.stringify({ resourceType: _kind === 'knowledge' ? 'knowledge_base' : _kind, folderPath: '/Finance%2FLegal/Q4%20100%25' })
+      const content = JSON.stringify({
+        resourceType: _kind === 'knowledge' ? 'knowledge_base' : _kind,
+        folderPath: '/Finance%2FLegal/Q4%20100%25',
+      })
       expect(mention).toMatchObject({ type: context.kind, tag: '@Chosen folder', content })
       expect(mention.path).toBeUndefined()
       expect(active).toMatchObject({ type: 'active_resource', tag: '@active_resource', content })
@@ -1544,7 +1582,10 @@ describe('folder and foldered-resource chat pointers', () => {
       'chat-1'
     )
     expect(result.path).toBeUndefined()
-    expect(JSON.parse(result.content)).toEqual({ resourceType: 'file', folderPath: '/Finance%2FLegal/Q4%20100%25' })
+    expect(JSON.parse(result.content)).toEqual({
+      resourceType: 'file',
+      folderPath: '/Finance%2FLegal/Q4%20100%25',
+    })
     expect(active).toMatchObject({
       type: 'active_resource',
       tag: '@active_resource',
@@ -1586,7 +1627,10 @@ describe('folder and foldered-resource chat pointers', () => {
       '',
       'ws-1'
     )
-    expect(JSON.parse(result.content)).toEqual({ resourceType: 'table', folderPath: '/Finance%2FLegal/Q4%20100%25' })
+    expect(JSON.parse(result.content)).toEqual({
+      resourceType: 'table',
+      folderPath: '/Finance%2FLegal/Q4%20100%25',
+    })
   })
 
   it.each(['missing', 'deleted', 'other-workspace'])(

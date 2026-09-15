@@ -1,4 +1,6 @@
 /** @vitest-environment node */
+
+import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -49,6 +51,7 @@ vi.mock('@/blocks', () => ({ getBlock: mocks.block }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
+import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/workflows/editing/validation'
 
 const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
 const workspaceId = 'parent-workspace'
@@ -113,6 +116,42 @@ describe('standalone agent-tool reference diagnostics', () => {
     mocks.secrets.mockResolvedValue({ secrets: [{ envKey: 'RESOURCE_ID' }] })
   })
 
+  it('carries a scoped OAuth actor through the same diagnostics and secret read boundary', async () => {
+    setGraph('skill', ['available', '{{RESOURCE_ID}}'])
+    const token: OAuthAccessTokenPrincipal = {
+      kind: 'oauth_access_token',
+      userId: 'user-1',
+      clientId: 'client-1',
+      tokenId: 'token-1',
+      scopes: ['api:read'],
+      expiresAt: new Date('2099-01-01'),
+    }
+    await readWorkflowLint.execute({ principal: token, input: { workflowId: 'parent' } })
+    expect(mocks.skill).toHaveBeenCalledWith(expect.objectContaining({ principal: token }))
+    expect(mocks.secrets).toHaveBeenCalledWith(expect.objectContaining({ principal: token }))
+  })
+
+  it.each(['scope', 'expiry'] as const)(
+    'denies OAuth diagnostics with invalid %s before protected reads',
+    async (invalid) => {
+      setGraph('skill', ['available'])
+      const token: OAuthAccessTokenPrincipal = {
+        kind: 'oauth_access_token',
+        userId: 'user-1',
+        clientId: 'client-1',
+        tokenId: 'token-1',
+        scopes: invalid === 'scope' ? [] : ['api:read'],
+        expiresAt: new Date(invalid === 'expiry' ? '2000-01-01' : '2099-01-01'),
+      }
+      await expect(
+        readWorkflowLint.execute({ principal: token, input: { workflowId: 'parent' } })
+      ).rejects.toThrow()
+      expect(mocks.snapshot).not.toHaveBeenCalled()
+      expect(mocks.secrets).not.toHaveBeenCalled()
+      expect(mocks.skill).not.toHaveBeenCalled()
+    }
+  )
+
   it.each(['custom-tool', 'mcp-tool', 'skill'] as const)(
     'uses the authenticated actor and canonical workspace for %s reads',
     async (kind) => {
@@ -146,7 +185,9 @@ describe('standalone agent-tool reference diagnostics', () => {
       expect(mocks.oldCustomTool).not.toHaveBeenCalled()
       expect(mocks.oldSkill).not.toHaveBeenCalled()
       expect(result.notes).toContain(
-        'Agent references in block "Agent" require runtime resolution and were not checked.'
+        kind === 'mcp-tool'
+          ? UNRESOLVABLE_AT_LINT_NOTE
+          : 'Agent references in block "Agent" require runtime resolution and were not checked.'
       )
       expect(result.undeclaredEnvVars).toEqual([])
     }

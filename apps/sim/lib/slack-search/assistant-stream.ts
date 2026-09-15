@@ -2,21 +2,21 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import {
+  parseSearchConnectionTargets,
+  type SearchConnectionTarget,
+} from '@/lib/knowledge/search/connection-target'
+import {
   collectRetrievalCitationEvidence,
   parseCitationRecord,
   type RetrievalCitationBlock,
-} from '@/lib/copilot/chat/citation-evidence'
-import { redactSensitiveContent } from '@/lib/copilot/chat/sim-key-redaction'
+} from '@/lib/mothership/chat/citation-evidence'
+import { redactSensitiveContent } from '@/lib/mothership/chat/sim-key-redaction'
 import type {
   StreamEvent,
   ToolCallStreamEvent,
   ToolResultStreamEvent,
-} from '@/lib/copilot/request/session/contract'
-import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import {
-  parseSearchConnectionTargets,
-  type SearchConnectionTarget,
-} from '@/lib/knowledge/search/connection-target'
+} from '@/lib/mothership/request/session/contract'
+import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { SLACK_SEARCH_FAILED_ANSWER } from '@/lib/slack-search/constants'
 import {
   appendSlackAgentStream,

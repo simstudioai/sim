@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 import {
   resolvedSecretTraceProvenanceSchema,
   resourceOwnerSchema,
@@ -182,11 +183,8 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
 })
 export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
 
-export const workspaceSearchFiltersSchema = z.object({
-  source: z.string().trim().min(1, 'Source cannot be empty').max(100).optional(),
-  modifiedAfter: z.string().datetime({ offset: true }).optional(),
-  documentIds: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
-})
+export { workspaceSearchFiltersSchema }
+
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
 
 export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema.safeExtend({

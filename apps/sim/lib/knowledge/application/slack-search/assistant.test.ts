@@ -20,6 +20,7 @@ const m = vi.hoisted(() => ({
   terminate: vi.fn(),
   streamOptions: vi.fn(),
   payload: vi.fn(),
+  inventory: vi.fn(),
   outcome: vi.fn(),
   memberAuthorization: vi.fn(),
   lease: vi.fn(),
@@ -75,22 +76,27 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
     actorUserId: 'member1',
   }),
 }))
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
   createRunSegment: m.createRun,
   updateRunStatus: m.updateRun,
 }))
-vi.mock('@/lib/copilot/chat/payload', () => ({ buildCopilotRequestPayload: m.payload }))
-vi.mock('@/lib/copilot/chat/persisted-message', () => ({
+vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
+  loadCopilotSearchIntegrations: m.inventory,
+}))
+vi.mock('@/lib/mothership/chat/payload', () => ({ buildCopilotRequestPayload: m.payload }))
+vi.mock('@/lib/mothership/chat/persisted-message', () => ({
   buildPersistedAssistantMessage: m.buildMessage,
   withStoppedContentBlock: m.stoppedMessage,
   normalizeMessage: (message: unknown) => message,
 }))
-vi.mock('@/lib/copilot/chat/terminal-state', () => ({ finalizeAssistantTurn: m.finalize }))
-vi.mock('@/lib/copilot/environment-context', () => ({
+vi.mock('@/lib/mothership/chat/terminal-state', () => ({ finalizeAssistantTurn: m.finalize }))
+vi.mock('@/lib/mothership/environment-context', () => ({
   prepareCopilotEnvironmentContext: async () => ({ resolvedSecretTraceRegistry: {} }),
 }))
-vi.mock('@/lib/copilot/request/lifecycle/headless', () => ({ runHeadlessCopilotLifecycle: m.run }))
-vi.mock('@/lib/copilot/request/session/abort', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
+  runHeadlessCopilotLifecycle: m.run,
+}))
+vi.mock('@/lib/mothership/request/session/abort', () => ({
   acquirePendingChatStream: m.lock,
   cleanupAbortMarker: vi.fn(),
   getChatStreamLockOwners: m.owners,
@@ -168,6 +174,7 @@ beforeEach(() => {
   m.owners.mockResolvedValue({ status: 'verified', ownersByChatId: new Map([['chat1', 'turn1']]) })
   m.createRun.mockResolvedValue({ id: 'run1' })
   m.payload.mockResolvedValue({ mode: 'assistant' })
+  m.inventory.mockResolvedValue('{"connections":[],"available":[]}')
   m.run.mockResolvedValue({ success: true, content: 'Answer', contentBlocks: [], toolCalls: [] })
   m.finalize.mockResolvedValue({ appendedAssistant: true })
   m.stopped.mockResolvedValue(false)
@@ -194,6 +201,10 @@ describe('organization Assistant from Slack', () => {
     await run()
     expect(m.onboarding).not.toHaveBeenCalled()
     expect(m.run).toHaveBeenCalledOnce()
+    expect(m.payload).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceContext: '{"connections":[],"available":[]}' }),
+      expect.anything()
+    )
     expect(m.createRun).toHaveBeenCalledOnce()
     expect(m.finalize).toHaveBeenCalledWith(
       expect.objectContaining({ assistantMessage: expect.objectContaining({ content: 'Answer' }) })

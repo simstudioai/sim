@@ -592,7 +592,7 @@
       "patch": {
         "operationId": "updateTableColumn",
         "summary": "Update Column",
-        "description": "Update a column by name and return the complete resulting table schema.\n\nA rename follows the column everywhere the table keys by column id — rows, views, workflow-group references. Workflow Table blocks are the exception: their `filter`, `order`, and `data` are authored JSON that names columns by name, and this endpoint never rewrites workflow state. Blocks bound to this table that still name the old column come back in `unmigrated`; edit them (`POST /api/v2/workflows/{workflowId}/operations`) or their next run fails on the old name.\n\nOAuth scope: `api:write`.",
+        "description": "Update a column by name and return the complete schema. Renames update rows, views, and workflow-group references keyed by column ID. Workflow Table blocks keep their authored `filter`, `order`, and `data` JSON unchanged. Bound blocks still referencing the old name appear in `unmigrated`; edit them with Apply Workflow Operations to prevent failures on their next run.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tables.columns.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
@@ -2701,7 +2701,7 @@
       "get": {
         "operationId": "getRowEnrichment",
         "summary": "Get Row Group Run",
-        "description": "Retrieve one workflow or enrichment group's outcome on one row: the run state `includeRunState` reports on the row endpoints (`status`, `error`, `workflowId`, `executionId`, …), the group's output cells keyed by column name, and — for an enrichment group — the provider cascade behind them: every configured provider in cascade order, each one's status, hosted-key cost, and duration, plus which provider produced the match. A row that exists always answers; `runState: null` means the group has never run for it, and `cascade: null` that no provider breakdown was recorded. A `404` means the table, row, or group does not exist.\n\nOAuth scope: `api:read`.",
+        "description": "Read a workflow or enrichment group’s outcome for one row: `runState` (as exposed by `includeRunState`), output cells keyed by column name, and enrichment providers in cascade order with status, hosted-key cost, duration, and the matching provider. Existing rows always answer: `runState: null` means never run; `cascade: null` means no breakdown recorded. Missing tables, rows, or groups return `404`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "tables.rows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
@@ -5885,7 +5885,7 @@
             "items": {
               "$ref": "#/components/schemas/V2UnmigratedTableBlockReference"
             },
-            "description": "Workflow Table blocks bound to this table whose `filter`, `order`, or `data` still name the column by its previous name. Only populated by a rename; empty otherwise. Workflow state is never rewritten by this endpoint — edit those blocks (`POST /api/v2/workflows/{workflowId}/operations`) or their next run fails on the old name."
+            "description": "Workflow Table blocks bound to this table whose `filter`, `order`, or `data` still name the column by its previous name. Only populated by a rename; empty otherwise. Workflow state is never rewritten here — edit those blocks with Apply Workflow Operations or their next run fails on the old name."
           }
         },
         "required": ["columns", "unmigrated"],

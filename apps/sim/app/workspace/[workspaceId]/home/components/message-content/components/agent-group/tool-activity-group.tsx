@@ -1,8 +1,8 @@
 'use client'
 
-import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import {
   getToolActivitySummaryActions,
   readToolActivity,
@@ -98,7 +98,8 @@ export function ToolActivityGroup({
     activity ??
     tools
       .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
-      .findLast((entry) => entry?.completedTitle)
+      .reverse()
+      .find((entry) => entry?.completedTitle)
   const running = tools.filter((tool) => !isToolDone(tool.status))
   const working = running.length > 0
   const complete = !isActive && !working
