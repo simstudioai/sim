@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth, getSession } from '@/lib/auth'
 import { isIdpInitiatedLoginAllowed } from '@/lib/auth/sso/idp-initiated-login'
@@ -66,7 +67,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RouteC
       asResponse: true,
     })
   } catch (error) {
-    logger.error('SSO sign-in could not be started', { providerId, error })
+    logger.error('SSO sign-in could not be started', { providerId, error: toError(error) })
     return NextResponse.redirect(errorCallbackURL)
   }
   const payload = (await signIn.json().catch(() => null)) as { url?: string } | null
