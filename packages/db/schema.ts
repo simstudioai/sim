@@ -27,6 +27,17 @@ import {
 } from 'drizzle-orm/pg-core'
 import { DEFAULT_FREE_CREDITS, TAG_SLOTS } from './constants'
 
+/**
+ * Drizzle push compares index options as JSON, while Postgres introspection
+ * returns strings. Normalize only dev pushes so unchanged HNSW indexes survive
+ * the diff; versioned migration snapshots retain their original numeric values.
+ */
+function hnswIndexOptions() {
+  return process.env.SIM_DEV_DB_PUSH === '1'
+    ? { m: '16', ef_construction: '64' }
+    : { m: 16, ef_construction: 64 }
+}
+
 // Custom tsvector type for full-text search
 export const tsvector = customType<{
   data: string
@@ -3649,22 +3660,22 @@ export const embeddingSearch = pgTable(
       .where(sql`${table.enabled}`),
     vectorIdx: index('embedding_search_cosine_hnsw_idx')
       .using('hnsw', table.vector.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector512Idx: index('embedding_search_512_cosine_hnsw_idx')
       .using('hnsw', table.vector512.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector384Idx: index('embedding_search_384_cosine_hnsw_idx')
       .using('hnsw', table.vector384.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector768Idx: index('embedding_search_768_cosine_hnsw_idx')
       .using('hnsw', table.vector768.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector1024Idx: index('embedding_search_1024_cosine_hnsw_idx')
       .using('hnsw', table.vector1024.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector3072Idx: index('embedding_search_3072_cosine_hnsw_idx')
       .using('hnsw', table.vector3072.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     widthCheck: check(
       'embedding_search_width_check',
       sql`num_nonnulls("binary", "binary_384", "binary_768", "binary_1024", "binary_3072") = 1`
@@ -3741,10 +3752,7 @@ export const docsEmbeddings = pgTable(
     // Vector similarity search indexes (HNSW) - optimized for documentation embeddings
     embeddingVectorHnswIdx: index('docs_embedding_vector_hnsw_idx')
       .using('hnsw', table.embedding.op('vector_cosine_ops'))
-      .with({
-        m: 16,
-        ef_construction: 64,
-      }),
+      .with(hnswIndexOptions()),
 
     // GIN index for JSONB metadata queries
     metadataGinIdx: index('docs_emb_metadata_gin_idx').using('gin', table.metadata),
