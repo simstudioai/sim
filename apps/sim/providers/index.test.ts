@@ -45,7 +45,7 @@ vi.mock('@/tools', () => ({
   executeTool: (...args: unknown[]) => mockExecuteTool(...args),
 }))
 
-import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { executeProviderTool } from '@/providers/runtime-context'
@@ -112,6 +112,28 @@ function makeProviderTool(id: string, credential: string): ProviderToolConfig {
 describe('executeProviderRequest — tool identities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('passes trusted execution context to both attachment authorization stages without serializing it', async () => {
+    const executionContext = {
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+    } as ExecutionContext
+    mockExecuteRequest.mockResolvedValueOnce({ content: 'ready', model: 'test-model' })
+    await executeProviderRequest('anthropic', { model: 'test-model' }, { executionContext })
+    expect(mockAttachLargeFileRemoteUrls).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'test-model' }),
+      'anthropic',
+      executionContext
+    )
+    expect(mockUploadLargeFilesToProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'test-model' }),
+      'anthropic',
+      executionContext
+    )
+    expect(mockExecuteRequest.mock.calls[0][0]).not.toHaveProperty('executionContext')
+    expect(mockExecuteRequest.mock.calls[0][0]).not.toHaveProperty('principal')
   })
 
   it('sends unique opaque ids and projects provider aliases out of the response', async () => {

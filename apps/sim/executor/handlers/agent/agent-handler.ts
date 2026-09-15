@@ -9,6 +9,7 @@ import {
   selectModelSchemaInputPaths,
 } from '@/lib/execution/model-input-provenance'
 import { readAvailableCustomToolByIdOrTitleAsExecutor } from '@/lib/internal/custom-tools/read-available-by-id-or-title'
+import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
 import {
   readWorkflowInputFieldsForTool,
@@ -31,6 +32,7 @@ import {
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   processFilesToUserFiles,
   type RawFileInput,
+  tryInferContextFromKey,
 } from '@/lib/uploads/utils/file-utils'
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
@@ -63,7 +65,7 @@ import type {
   ToolInput,
 } from '@/executor/handlers/agent/types'
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
-import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
+import type { BlockHandler, ExecutionContext, StreamingExecution, UserFile } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -1481,7 +1483,6 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error(`File attachments are not supported for provider "${providerId}"`)
     }
 
-    const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
     const nextMessages = [...messages]
 
     const inlineMaxBytes = getInlineHydrationMaxBytes(providerId)
@@ -1493,36 +1494,46 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const unsafeGeneratedDocumentFiles = new Set<string>()
-      const hydratedFiles = await hydrateUserFilesWithBase64(message.files, {
-        requestId,
-        workspaceId: ctx.workspaceId,
-        workflowId: ctx.workflowId,
-        executionId: ctx.executionId,
-        largeValueExecutionIds: ctx.largeValueExecutionIds,
-        largeValueKeys: ctx.largeValueKeys,
-        fileKeys: ctx.fileKeys,
-        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
-        userId: ctx.userId,
-        principal: ctx.principal,
-        logger,
-        maxBytes: inlineMaxBytes,
-        onServableFileContributors: async (file, contributors) => {
-          if (!ctx.workspaceId) return
-          for (const identity of contributors) {
-            const safe = await importWorkspaceFileSecretProvenanceForModelView({
-              workspaceId: ctx.workspaceId,
-              identity,
-              registry: ctx.resolvedSecretTraceRegistry,
-              view: 'opaque',
-              ...(ctx.userId ? { actorUserId: ctx.userId } : {}),
-            })
-            if (!safe) {
-              unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)
-              return
-            }
-          }
-        },
+      const groups = new Map<boolean, Array<{ file: UserFile; index: number }>>()
+      message.files.forEach((file, index) => {
+        const workspaceFile =
+          ctx.principal?.kind === 'system' && tryInferContextFromKey(file.key) === 'workspace'
+        const group = groups.get(workspaceFile) ?? []
+        group.push({ file, index })
+        groups.set(workspaceFile, group)
       })
+      const hydratedFiles = [...message.files]
+      await Promise.all(
+        [...groups.values()].map(async (group) => {
+          const hydrated = await hydrateUserFilesWithBase64(
+            group.map(({ file }) => file),
+            {
+              ...(await resolveExecutorFileMaterializationContext(ctx, group[0].file)),
+              logger,
+              maxBytes: inlineMaxBytes,
+              onServableFileContributors: async (file, contributors) => {
+                if (!ctx.workspaceId) return
+                for (const identity of contributors) {
+                  const safe = await importWorkspaceFileSecretProvenanceForModelView({
+                    workspaceId: ctx.workspaceId,
+                    identity,
+                    registry: ctx.resolvedSecretTraceRegistry,
+                    view: 'opaque',
+                    ...(ctx.userId ? { actorUserId: ctx.userId } : {}),
+                  })
+                  if (!safe) {
+                    unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)
+                    return
+                  }
+                }
+              },
+            }
+          )
+          group.forEach(({ index }, fileIndex) => {
+            hydratedFiles[index] = hydrated[fileIndex]
+          })
+        })
+      )
 
       const modelSafeHydratedFiles = hydratedFiles.flatMap((file, fileIndex) => {
         if (unsafeGeneratedDocumentFiles.has(`${file.key}:${file.id}`)) return []

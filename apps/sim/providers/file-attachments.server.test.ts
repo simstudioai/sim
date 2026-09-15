@@ -2,9 +2,11 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   buildOpenAIMessageContent,
+  getProviderFileStrategy,
   INLINE_ATTACHMENT_THRESHOLD_BYTES,
   LARGE_FILE_PATH_THRESHOLD_BYTES,
 } from '@/providers/attachments'
@@ -13,6 +15,7 @@ import {
   getInlineHydrationMaxBytes,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderRequest } from '@/providers/types'
 
@@ -21,16 +24,32 @@ const {
   mockGeneratePresignedDownloadUrl,
   mockHasCloudStorage,
   mockVerifyFileAccess,
+  mockCreateExecutorPrincipal,
+  mockAssertUserFileContentAccess,
+  mockGoogleUpload,
 } = vi.hoisted(() => ({
   mockDownloadServableFileFromStorage: vi.fn(),
   mockGeneratePresignedDownloadUrl: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockVerifyFileAccess: vi.fn(),
+  mockCreateExecutorPrincipal: vi.fn(),
+  mockAssertUserFileContentAccess: vi.fn(),
+  mockGoogleUpload: vi.fn(),
+}))
+
+vi.mock('@/lib/internal/principals/executor', () => ({
+  createExecutorPrincipalFromExecutionContext: mockCreateExecutorPrincipal,
+}))
+
+vi.mock('@/lib/execution/payloads/materialization.server', () => ({
+  assertUserFileContentAccess: mockAssertUserFileContentAccess,
 }))
 
 vi.mock('@google/genai', () => ({
   FileState: { PROCESSING: 'PROCESSING', FAILED: 'FAILED' },
-  GoogleGenAI: class {},
+  GoogleGenAI: class {
+    files = { upload: mockGoogleUpload }
+  },
 }))
 
 vi.mock('@/lib/uploads', () => ({
@@ -82,6 +101,17 @@ describe('OpenAI large-file attachment lifecycle', () => {
     vi.clearAllMocks()
     mockHasCloudStorage.mockReturnValue(true)
     mockVerifyFileAccess.mockResolvedValue(true)
+    mockCreateExecutorPrincipal.mockResolvedValue({
+      kind: 'delegated',
+      serviceId: 'executor',
+      workspaceId: 'workspace-1',
+    })
+    mockAssertUserFileContentAccess.mockResolvedValue(undefined)
+    mockGoogleUpload.mockResolvedValue({
+      name: 'files/harness',
+      uri: 'https://generativelanguage.googleapis.com/files/harness',
+      state: 'ACTIVE',
+    })
     mockGeneratePresignedDownloadUrl.mockResolvedValue('https://storage.example.com/signed')
     mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.alloc(CSV_BYTES, 0x61),
@@ -184,5 +214,94 @@ describe('OpenAI large-file attachment lifecycle', () => {
     const file = request.messages?.[0].files?.[0]
     expect(file?.remoteUrl).toBeUndefined()
     expect(file?.providerFileId).toBeUndefined()
+  })
+
+  const executionContext = {
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    executionId: 'execution-1',
+    userId: 'billing-owner',
+    principal: {
+      kind: 'system',
+      serviceId: 'chat',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+    },
+    executorDelegationOrigin: { workflowId: 'workflow-1', executionId: 'execution-1' },
+  } as ExecutionContext
+
+  it.each(Object.keys(PROVIDER_DEFINITIONS))(
+    'preserves %s attachment strategy while authorizing remote bytes as the execution',
+    async (provider) => {
+      const request = makeRequest(INLINE_ATTACHMENT_THRESHOLD_BYTES + 1)
+      await attachLargeFileRemoteUrls(request, provider, executionContext)
+      const largeFile = getProviderFileStrategy(provider) !== 'inline'
+      expect(mockCreateExecutorPrincipal).toHaveBeenCalledTimes(largeFile ? 1 : 0)
+      expect(mockAssertUserFileContentAccess).toHaveBeenCalledTimes(largeFile ? 1 : 0)
+      expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledTimes(largeFile ? 1 : 0)
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+      if (largeFile) {
+        expect(mockCreateExecutorPrincipal).toHaveBeenCalledWith({
+          context: executionContext,
+          audience: 'sim:workspace-files',
+        })
+        expect(mockAssertUserFileContentAccess).toHaveBeenCalledWith(
+          request.messages?.[0].files?.[0],
+          expect.objectContaining({
+            principal: { kind: 'delegated', serviceId: 'executor', workspaceId: 'workspace-1' },
+            userId: undefined,
+            executionId: 'execution-1',
+          })
+        )
+      }
+    }
+  )
+
+  it('rechecks current access before a Files API upload and does not fall back to the billing owner', async () => {
+    const request = makeRequest(CSV_BYTES)
+    await attachLargeFileRemoteUrls(request, 'openai', executionContext)
+    mockAssertUserFileContentAccess.mockRejectedValueOnce(new Error('Access revoked'))
+    await expect(uploadLargeFilesToProvider(request, 'openai', executionContext)).rejects.toThrow(
+      'Access revoked'
+    )
+    expect(mockCreateExecutorPrincipal).toHaveBeenCalledTimes(2)
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each(['openai', 'google'])(
+    'uploads an authorized actorless workspace file through %s',
+    async (provider) => {
+      const request = makeRequest(CSV_BYTES)
+      await attachLargeFileRemoteUrls(request, provider, executionContext)
+      await uploadLargeFilesToProvider(request, provider, executionContext)
+      expect(mockCreateExecutorPrincipal).toHaveBeenCalledTimes(2)
+      expect(mockAssertUserFileContentAccess).toHaveBeenCalledTimes(2)
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+      const file = request.messages?.[0].files?.[0]
+      if (provider === 'openai') expect(file?.providerFileId).toBe('file-abc')
+      else
+        expect(file?.providerFileUri).toBe(
+          'https://generativelanguage.googleapis.com/files/harness'
+        )
+    }
+  )
+
+  it('does not mint a remote URL after execution authorization fails', async () => {
+    mockCreateExecutorPrincipal.mockRejectedValueOnce(new Error('Run no longer active'))
+    await expect(
+      attachLargeFileRemoteUrls(makeRequest(CSV_BYTES), 'openai', executionContext)
+    ).rejects.toThrow('Run no longer active')
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+  })
+
+  it('ignores forged execution authority on an ordinary provider request', async () => {
+    const request = { ...makeRequest(CSV_BYTES), executionContext }
+    mockVerifyFileAccess.mockResolvedValueOnce(false)
+    await expect(attachLargeFileRemoteUrls(request, 'openai')).rejects.toThrow('not accessible')
+    expect(mockCreateExecutorPrincipal).not.toHaveBeenCalled()
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
   })
 })
