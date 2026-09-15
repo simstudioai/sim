@@ -91,17 +91,44 @@ describe('Table Security', () => {
     )
   })
 
-  it('saves the denied actions as locks', () => {
+  it('saves only the rows the admin moved', () => {
     render()
     selectPermission('Inserting Rows', 'Deny')
     selectPermission('Changing Table Schema', 'Deny')
     expect(getSave().disabled).toBe(false)
     save()
 
+    // A partial patch: the untouched rows are absent, so a concurrent change to
+    // one of them survives this save.
     expect(mutateAsync.mock.calls[0][0]).toEqual({
       tableId: 'table-1',
-      locks: { insertLocked: true, updateLocked: false, deleteLocked: false, schemaLocked: true },
+      locks: { insertLocked: true, schemaLocked: true },
     })
+  })
+
+  it('follows a lock changed elsewhere while open without staging it', () => {
+    render()
+    selectPermission('Inserting Rows', 'Deny')
+
+    // Another admin denies updates while this modal is open; the realtime
+    // refetch lands as a new `locks` prop.
+    render({ ...UNLOCKED_TABLE_LOCKS, updateLocked: true })
+    expect(getPermission('Updating Rows', 'Deny').getAttribute('aria-checked')).toBe('true')
+    expect(getPermission('Inserting Rows', 'Deny').getAttribute('aria-checked')).toBe('true')
+
+    save()
+    expect(mutateAsync.mock.calls[0][0]).toEqual({
+      tableId: 'table-1',
+      locks: { insertLocked: true },
+    })
+  })
+
+  it('treats a row already matching the server as nothing to save', () => {
+    render({ ...UNLOCKED_TABLE_LOCKS, deleteLocked: true })
+    selectPermission('Deleting Rows', 'Allow')
+    expect(getSave().disabled).toBe(false)
+    selectPermission('Deleting Rows', 'Deny')
+    expect(getSave().disabled).toBe(true)
   })
 
   it('keeps the modal open when the save fails and discards the draft on reopen', async () => {
