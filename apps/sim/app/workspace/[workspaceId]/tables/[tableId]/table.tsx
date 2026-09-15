@@ -100,7 +100,7 @@ import {
   tableDetailParsers,
   tableDetailUrlKeys,
 } from './search-params'
-import type { QueryOptions } from './types'
+import type { QueryOptions, RowInsertTarget } from './types'
 import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
@@ -226,6 +226,7 @@ export function Table({
   const blockedToastIdRef = useRef<string | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
+  const [addRowTarget, setAddRowTarget] = useState<RowInsertTarget | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [deletingAll, setDeletingAll] = useState<{
     excludeRowIds: string[]
@@ -295,6 +296,7 @@ export function Table({
   }, [])
   const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
   const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
+  const onOpenAddRowModal = (insertAt: RowInsertTarget = {}) => setAddRowTarget(insertAt)
   // useCallback because <Resource.Header> is memo-wrapped — these flow into
   // the breadcrumbs / headerActions memos, whose identity drives that re-render.
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
@@ -1303,7 +1305,7 @@ export function Table({
                   ...(userPermissions.canAdmin
                     ? [
                         {
-                          label: 'Lock settings',
+                          label: 'Table Security',
                           icon: Lock,
                           onClick: () => setShowLockSettings(true),
                         },
@@ -1355,7 +1357,7 @@ export function Table({
         description: text,
         ...(canOpenLockSettings
           ? {
-              action: { label: 'Lock settings', onClick: () => setShowLockSettings(true) },
+              action: { label: 'Table Security', onClick: () => setShowLockSettings(true) },
               // An action would otherwise pin the toast open until dismissed.
               duration: BLOCKED_TOAST_MS,
             }
@@ -1392,7 +1394,7 @@ export function Table({
   )
 
   // A toast's action is captured when it is created, so a viewer who loses
-  // admin access mid-toast would keep a Lock settings button that opens
+  // admin access mid-toast would keep a Table Security button that opens
   // nothing. Dismiss on that transition only — a viewer who never had access
   // has a legitimate action-less notice that must survive.
   const couldOpenLockSettingsRef = useRef(canOpenLockSettings)
@@ -1434,7 +1436,6 @@ export function Table({
       trigger='header'
       disabled={false}
       blocked={!canMutateSchema}
-      onBlocked={() => showBlockedToast('add-column')}
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
       onPickEnrichment={onOpenEnrichments}
@@ -1610,6 +1611,7 @@ export function Table({
         onOpenExecutionDetails={onOpenExecutionDetails}
         onOpenEnrichmentDetails={onOpenEnrichmentDetails}
         onOpenRowModal={onOpenRowModal}
+        onOpenAddRowModal={onOpenAddRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteAllByFilter={onRequestDeleteAllByFilter}
         onRequestDeleteColumns={onRequestDeleteColumns}
@@ -1754,6 +1756,16 @@ export function Table({
           table={tableData}
         />
       )}
+      {addRowTarget && tableData && (
+        <RowModal
+          mode='add'
+          isOpen={true}
+          onClose={() => setAddRowTarget(null)}
+          table={tableData}
+          insertAt={addRowTarget}
+          onSuccess={() => setAddRowTarget(null)}
+        />
+      )}
       {editingRow && tableData && (
         <RowModal
           mode='edit'
@@ -1873,6 +1885,7 @@ export function Table({
       )}
       {tableData && userPermissions.canAdmin && (
         <LockSettingsModal
+          key={tableData.id}
           isOpen={showLockSettings}
           onClose={() => setShowLockSettings(false)}
           workspaceId={workspaceId}

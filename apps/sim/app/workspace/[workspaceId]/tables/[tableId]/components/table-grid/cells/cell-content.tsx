@@ -17,6 +17,8 @@ interface CellContentProps {
   timezoneStatus: TimezoneState['status']
   isEditing: boolean
   initialCharacter?: string | null
+  /** Opens the inline editor read-only; text stays selectable and copyable. */
+  readOnly?: boolean
   onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
   /**
@@ -43,6 +45,7 @@ export function CellContent({
   timezoneStatus,
   isEditing,
   initialCharacter,
+  readOnly,
   onSave,
   onCancel,
   waitingOnLabels,
@@ -66,6 +69,7 @@ export function CellContent({
             value={value}
             column={column}
             initialCharacter={initialCharacter ?? undefined}
+            readOnly={readOnly}
             onSave={onSave}
             onCancel={onCancel}
           />

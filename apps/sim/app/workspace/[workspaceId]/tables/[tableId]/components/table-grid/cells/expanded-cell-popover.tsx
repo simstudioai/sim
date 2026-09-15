@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '@sim/emcn'
+import { Button, Tooltip } from '@sim/emcn'
 import type { TableRow as TableRowType } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { useTimezone } from '@/hooks/queries/general-settings'
@@ -22,6 +22,8 @@ interface ExpandedCellPopoverProps {
   columns: DisplayColumn[]
   onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
   canEdit: boolean
+  /** Opens the editor read-only (text stays selectable) and disables Save, explained in a tooltip. */
+  saveBlockedReason?: string
   scrollContainer: HTMLElement | null
 }
 
@@ -39,6 +41,7 @@ export function ExpandedCellPopover({
   columns,
   onSave,
   canEdit,
+  saveBlockedReason,
   scrollContainer,
 }: ExpandedCellPopoverProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -166,6 +169,7 @@ export function ExpandedCellPopover({
           column={target.column}
           rowId={target.row.id}
           onSave={onSave}
+          saveBlockedReason={saveBlockedReason}
           onClose={onClose}
           textareaRef={textareaRef}
         />
@@ -196,6 +200,7 @@ interface ExpandedCellEditorProps {
   column: DisplayColumn
   rowId: string
   onSave: ExpandedCellPopoverProps['onSave']
+  saveBlockedReason?: string
   onClose: () => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
 }
@@ -210,6 +215,7 @@ function ExpandedCellEditor({
   column,
   rowId,
   onSave,
+  saveBlockedReason,
   onClose,
   textareaRef,
 }: ExpandedCellEditorProps) {
@@ -218,6 +224,7 @@ function ExpandedCellEditor({
   const timeZone = useTimezone()
 
   const handleSave = () => {
+    if (saveBlockedReason) return
     // Untouched draft → close without writing. For dates this also avoids
     // re-stamping the stored offset with this viewer's zone.
     if (draftValue === initialValue) {
@@ -263,6 +270,7 @@ function ExpandedCellEditor({
           setParseError(null)
         }}
         onKeyDown={handleTextareaKeyDown}
+        readOnly={Boolean(saveBlockedReason)}
         className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-hidden placeholder:text-[var(--text-muted)]'
         spellCheck={false}
         autoCorrect='off'
@@ -279,9 +287,22 @@ function ExpandedCellEditor({
           <Button variant='ghost' size='sm' onClick={onClose}>
             Cancel
           </Button>
-          <Button size='sm' variant='primary' onClick={handleSave}>
-            Save
-          </Button>
+          {saveBlockedReason ? (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='inline-flex'>
+                  <Button size='sm' variant='primary' disabled>
+                    Save
+                  </Button>
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Content>{saveBlockedReason}</Tooltip.Content>
+            </Tooltip.Root>
+          ) : (
+            <Button size='sm' variant='primary' onClick={handleSave}>
+              Save
+            </Button>
+          )}
         </div>
       </div>
     </>

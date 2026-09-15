@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Button, Checkbox, cn } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Button, Checkbox, cn, Tooltip } from '@sim/emcn'
+import { Lock, Plus } from '@sim/emcn/icons'
 import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH } from './constants'
 import type { DisplayColumn } from './types'
 
@@ -58,19 +58,42 @@ export const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   )
 })
 
-export const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
+interface AddRowButtonProps {
+  onClick: () => void
+  blockedReason?: string
+}
+
+export const AddRowButton = React.memo(function AddRowButton({
+  onClick,
+  blockedReason,
+}: AddRowButtonProps) {
+  const Icon = blockedReason ? Lock : Plus
+  const button = (
+    <Button
+      type='button'
+      variant='ghost'
+      size='sm'
+      className={cn(
+        'h-[20px] gap-2 p-0 text-[var(--text-body)]',
+        blockedReason && 'cursor-not-allowed opacity-50'
+      )}
+      aria-disabled={blockedReason ? true : undefined}
+      onClick={blockedReason ? undefined : onClick}
+    >
+      <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+      <span className='text-small'>New row</span>
+    </Button>
+  )
   return (
     <div className='px-2 py-[7px]'>
-      <Button
-        type='button'
-        variant='ghost'
-        size='sm'
-        className='h-[20px] gap-2 p-0 text-[var(--text-body)]'
-        onClick={onClick}
-      >
-        <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='text-small'>New row</span>
-      </Button>
+      {blockedReason ? (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>{button}</Tooltip.Trigger>
+          <Tooltip.Content>{blockedReason}</Tooltip.Content>
+        </Tooltip.Root>
+      ) : (
+        button
+      )}
     </div>
   )
 })

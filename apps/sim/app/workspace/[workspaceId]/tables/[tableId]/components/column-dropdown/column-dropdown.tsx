@@ -10,12 +10,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Plus,
   Tooltip,
 } from '@sim/emcn'
-import { Sparkles } from '@sim/emcn/icons'
+import { Lock, Plus, Sparkles } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
-import { type ColumnTypeOption, columnTypeOptionsForTable } from '../column-config-sidebar'
+import {
+  type ColumnTypeOption,
+  columnTypeOptionsForTable,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/column-config-sidebar'
 
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
@@ -30,14 +32,8 @@ interface ColumnDropdownProps {
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
   onPickEnrichment: () => void
-  /**
-   * When true, the trigger stays visible and clickable but opens nothing — it
-   * calls {@link onBlocked} instead. Used when the table is schema-locked:
-   * hiding the control leaves the user guessing, so it stays and explains.
-   * Paired required so `blocked` can never be set without a handler.
-   */
+  /** A schema lock disables the action and explains why on hover or focus. */
   blocked: boolean
-  onBlocked: () => void
 }
 
 interface ColumnTypeMenuItemProps {
@@ -88,37 +84,46 @@ export function ColumnDropdown({
   onPickWorkflow,
   onPickEnrichment,
   blocked,
-  onBlocked,
 }: ColumnDropdownProps) {
+  const Icon = blocked ? Lock : Plus
   const triggerButton =
     trigger === 'header' ? (
       <button
         type='button'
-        className={chipVariants()}
+        className={cn(chipVariants(), blocked && 'cursor-not-allowed opacity-60')}
         disabled={disabled}
-        onClick={blocked ? onBlocked : undefined}
+        aria-disabled={blocked || undefined}
       >
-        <Plus className={chipContentIconClass} />
+        <Icon className={chipContentIconClass} />
         <span className={chipContentLabelClass}>New column</span>
         <ChipChevronDown />
       </button>
     ) : (
       <button
         type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-2 outline-hidden'
+        className={cn(
+          'flex h-[20px] items-center gap-2 outline-hidden',
+          blocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+        )}
         disabled={disabled}
-        onClick={blocked ? onBlocked : undefined}
+        aria-disabled={blocked || undefined}
       >
-        <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+        <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         <span className='text-[var(--text-body)] text-small'>New column</span>
       </button>
     )
 
   if (blocked) {
+    const lockedTrigger = (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>{triggerButton}</Tooltip.Trigger>
+        <Tooltip.Content>Changing the table schema is disabled in Table Security.</Tooltip.Content>
+      </Tooltip.Root>
+    )
     return trigger === 'inline-header' ? (
-      <th className={CELL_HEADER}>{triggerButton}</th>
+      <th className={CELL_HEADER}>{lockedTrigger}</th>
     ) : (
-      triggerButton
+      lockedTrigger
     )
   }
 
