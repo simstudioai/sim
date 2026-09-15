@@ -1,3 +1,15 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+
+/** A disabled TTL feature, distinct from malformed column input. */
+export class TableRowTtlDisabledError extends OrchestrationError {
+  readonly detailCode = 'TABLE_ROW_TTL_DISABLED'
+
+  constructor() {
+    super('validation', 'Expiration columns are not enabled')
+    this.name = 'TableRowTtlDisabledError'
+  }
+}
+
 /**
  * Stable, machine-readable codes for table query failures. SDKs and clients
  * branch on these instead of string-matching human-facing messages.
