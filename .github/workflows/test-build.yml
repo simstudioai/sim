@@ -87,8 +87,9 @@ jobs:
 
       - name: Verify OAuth lifecycle and SCIM membership guards in PostgreSQL
         working-directory: apps/sim
+        # These suites share a schema and install triggers; parallel files can deadlock DDL against cleanup.
         run: >-
-          bunx vitest run
+          bunx vitest run --no-file-parallelism
           lib/auth/oauth-token-family.postgres.test.ts
           lib/auth/oauth-provider-lifecycle.postgres.test.ts
           app/api/auth/oauth2/token/route.postgres.test.ts
