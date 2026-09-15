@@ -18,10 +18,10 @@ function buildProviderAlias(toolId: string, occurrence: number, attempt: number)
 }
 
 /**
- * Gives duplicate configured tools deterministic provider-safe wire ids.
+ * Gives duplicate or overlong configured tools deterministic provider-safe wire ids.
  *
- * The first occurrence and every already-unique tool keep their existing id for backwards
- * compatibility. Later occurrences receive opaque ordinal aliases; resource and credential ids
+ * Unique ids within the provider limit keep their existing id for backwards compatibility.
+ * Overlong ids and later occurrences receive opaque ordinal aliases; resource and credential ids
  * never enter the provider-visible name. Tool objects are updated in place so their instance-bound
  * params and secret provenance remain attached to the exact object selected by provider adapters.
  */
@@ -47,7 +47,7 @@ export function assignProviderToolIdentities(
     occurrences.set(canonicalId, occurrence)
 
     let wireId = canonicalId
-    if (usedWireIds.has(wireId)) {
+    if (wireId.length > MAX_PROVIDER_TOOL_ID_LENGTH || usedWireIds.has(wireId)) {
       let attempt = 0
       do {
         wireId = buildProviderAlias(canonicalId, occurrence, attempt)

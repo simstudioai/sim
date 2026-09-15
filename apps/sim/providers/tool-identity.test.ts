@@ -83,9 +83,38 @@ describe('provider tool identities', () => {
 
     assignProviderToolIdentities(tools)
 
-    expect(tools[0].id).toBe(longId)
+    expect(tools[0].id).toHaveLength(64)
+    expect(tools[0].id).toMatch(/__sim_1$/)
+    expect(tools[0].canonicalId).toBe(longId)
     expect(tools[1].id).toHaveLength(64)
     expect(tools[1].id).toMatch(/__sim_2$/)
+  })
+
+  it('preserves ids at the limit and aliases unique overlong ids without collisions', () => {
+    const prefix = 'a'.repeat(57)
+    const longId = `${prefix}${'b'.repeat(8)}`
+    const otherLongId = `${prefix}${'c'.repeat(8)}`
+    const reservedId = `${prefix}__sim_1`
+    const tools = [
+      providerTool(longId, 'a'),
+      providerTool(otherLongId, 'b'),
+      providerTool(reservedId, 'reserved'),
+      providerTool('d'.repeat(64), 'at-limit'),
+    ]
+
+    const identities = assignProviderToolIdentities(tools)
+    const wireIds = tools.map((tool) => tool.id)
+
+    expect(new Set(wireIds).size).toBe(4)
+    expect(wireIds.every((id) => id.length <= 64)).toBe(true)
+    expect(tools[2].id).toBe(reservedId)
+    expect(tools[3].id).toBe('d'.repeat(64))
+    expect(identities.toolIdByWireId.get(tools[0].id)).toBe(longId)
+    expect(identities.toolIdByWireId.get(tools[1].id)).toBe(otherLongId)
+    expect(tools[0].params.oauthCredential).toBe('a')
+
+    assignProviderToolIdentities(tools)
+    expect(tools.map((tool) => tool.id)).toEqual(wireIds)
   })
 
   it('projects provider response names back to their canonical ids', () => {
