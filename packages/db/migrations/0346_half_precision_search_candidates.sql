@@ -1,4 +1,4 @@
--- New secondary indexes are built after the bulk load in script migration 0016.
+/** New secondary indexes are built after the bulk load in script migration 0016. */
 CREATE TABLE IF NOT EXISTS "embedding_keyword_search" (
 	"id" text PRIMARY KEY NOT NULL,
 	"knowledge_base_id" text NOT NULL,
