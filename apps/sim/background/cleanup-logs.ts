@@ -12,12 +12,16 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { task } from '@trigger.dev/sdk'
 import { and, asc, eq, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
-import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
+import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
   chunkedBatchDelete,
+  consumeRowBudget,
+  type RowBudget,
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
+import type { CleanupBudgets, LimitedCleanupPayload } from '@/lib/cleanup/limits'
+import { retentionCleanupQueue } from '@/lib/cleanup/queue'
 import {
   LIVE_PAUSED_REFERENCE_STATUSES,
   markLargeValuesDeleted,
@@ -43,7 +47,6 @@ const WORKFLOW_LOG_CLEANUP_BATCH_SIZE = 500
 const WORKFLOW_LOG_CLEANUP_MAX_BATCHES = 50
 const WORKFLOW_LOG_CLEANUP_ROW_LIMIT =
   WORKFLOW_LOG_CLEANUP_BATCH_SIZE * WORKFLOW_LOG_CLEANUP_MAX_BATCHES
-const LOG_CLEANUP_CONCURRENCY_LIMIT = 2
 const LARGE_VALUE_CLEANUP_BATCH_SIZE = 500
 const LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT = 5_000
 const LARGE_VALUE_CLEANUP_GRACE_HOURS = 7 * 24
@@ -135,7 +138,8 @@ async function deleteLargeValueKeys(keys: string[]): Promise<{ deleted: number; 
 async function cleanupLargeExecutionValues(
   workspaceIds: string[],
   retentionDate: Date,
-  label: string
+  label: string,
+  budget?: RowBudget
 ): Promise<LargeValueCleanupStats> {
   const stats: LargeValueCleanupStats = {
     largeValuesTotal: 0,
@@ -151,10 +155,11 @@ async function cleanupLargeExecutionValues(
   let attempted = 0
 
   for (const chunkIds of workspaceChunks) {
-    while (attempted < LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT) {
+    while (attempted < LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT && budget?.remaining !== 0) {
       const limit = Math.min(
         LARGE_VALUE_CLEANUP_BATCH_SIZE,
-        LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted
+        LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted,
+        budget?.remaining ?? LARGE_VALUE_CLEANUP_BATCH_SIZE
       )
       const rows = await cleanupDb
         .select({ key: executionLargeValues.key })
@@ -176,19 +181,21 @@ async function cleanupLargeExecutionValues(
 
       if (rows.length === 0) break
 
+      consumeRowBudget(budget, rows.length)
       const keys = rows.map((row) => row.key)
       stats.largeValuesTotal += keys.length
       attempted += keys.length
       const result = await deleteLargeValueKeys(keys)
       stats.largeValuesDeleted += result.deleted
       stats.largeValuesDeleteFailed += result.failed
+      if (budget && result.failed) throw new Error('Large value cleanup failed')
 
       if (result.deleted === 0) {
         break
       }
     }
 
-    if (attempted >= LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT) break
+    if (attempted >= LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT || budget?.remaining === 0) break
   }
 
   logger.info(
@@ -201,7 +208,8 @@ async function cleanupLargeExecutionValues(
 async function cleanupLegacyLargeExecutionValues(
   workspaceIds: string[],
   retentionDate: Date,
-  label: string
+  label: string,
+  budget?: RowBudget
 ): Promise<LargeValueCleanupStats> {
   const stats: LargeValueCleanupStats = {
     largeValuesTotal: 0,
@@ -217,10 +225,11 @@ async function cleanupLegacyLargeExecutionValues(
   let attempted = 0
 
   for (const chunkIds of workspaceChunks) {
-    while (attempted < LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT) {
+    while (attempted < LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT && budget?.remaining !== 0) {
       const limit = Math.min(
         LARGE_VALUE_CLEANUP_BATCH_SIZE,
-        LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted
+        LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT - attempted,
+        budget?.remaining ?? LARGE_VALUE_CLEANUP_BATCH_SIZE
       )
       const rows = await cleanupDb
         .select({ key: workspaceFiles.key })
@@ -329,19 +338,21 @@ async function cleanupLegacyLargeExecutionValues(
 
       if (rows.length === 0) break
 
+      consumeRowBudget(budget, rows.length)
       const keys = rows.map((row) => row.key)
       stats.largeValuesTotal += keys.length
       attempted += keys.length
       const result = await deleteLargeValueKeys(keys)
       stats.largeValuesDeleted += result.deleted
       stats.largeValuesDeleteFailed += result.failed
+      if (budget && result.failed) throw new Error('Large value cleanup failed')
 
       if (result.deleted === 0) {
         break
       }
     }
 
-    if (attempted >= LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT) break
+    if (attempted >= LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT || budget?.remaining === 0) break
   }
 
   logger.info(
@@ -351,7 +362,11 @@ async function cleanupLegacyLargeExecutionValues(
   return stats
 }
 
-async function cleanupLargeValueMetadata(workspaceIds: string[], label: string): Promise<void> {
+async function cleanupLargeValueMetadata(
+  workspaceIds: string[],
+  label: string,
+  budgets?: CleanupBudgets
+): Promise<void> {
   try {
     const tombstonesDeletedBefore = new Date(
       Date.now() - LARGE_VALUE_TOMBSTONE_RETENTION_HOURS * 60 * 60 * 1000
@@ -359,12 +374,14 @@ async function cleanupLargeValueMetadata(workspaceIds: string[], label: string):
     const result = await pruneLargeValueMetadata({
       workspaceIds,
       tombstonesDeletedBefore,
+      budgets,
       dbClient: cleanupDb,
     })
     logger.info(
       `[${label}/execution_large_value_metadata] Pruned ${result.referencesDeleted} stale references, ${result.dependenciesDeleted} dependencies, ${result.tombstonesDeleted} tombstones`
     )
   } catch (error) {
+    if (budgets) throw error
     logger.error(`[${label}/execution_large_value_metadata] Failed to prune metadata`, { error })
   }
 }
@@ -372,7 +389,8 @@ async function cleanupLargeValueMetadata(workspaceIds: string[], label: string):
 async function cleanupWorkflowExecutionLogs(
   workspaceIds: string[],
   retentionDate: Date,
-  label: string
+  label: string,
+  budget?: RowBudget
 ): Promise<TableCleanupResult & FileDeleteStats> {
   const fileStats: FileDeleteStats = {
     filesTotal: 0,
@@ -381,6 +399,7 @@ async function cleanupWorkflowExecutionLogs(
   }
 
   const dbStats = await chunkedBatchDelete({
+    budget,
     tableDef: workflowExecutionLogs,
     workspaceIds,
     tableName: `${label}/workflow_execution_logs`,
@@ -420,17 +439,27 @@ async function cleanupWorkflowExecutionLogs(
   return { ...dbStats, ...fileStats }
 }
 
-async function cleanupFreePlanOrphanedSnapshots(retentionHours: number): Promise<void> {
+async function cleanupFreePlanOrphanedSnapshots(
+  retentionHours: number,
+  budget?: RowBudget
+): Promise<void> {
   try {
     const retentionDays = Math.floor(retentionHours / 24)
-    const snapshotsCleaned = await snapshotService.cleanupOrphanedSnapshots(retentionDays + 1)
+    const snapshotsCleaned = await snapshotService.cleanupOrphanedSnapshots(
+      retentionDays + 1,
+      budget
+    )
     logger.info(`Cleaned up ${snapshotsCleaned} orphaned snapshots`)
   } catch (snapshotError) {
+    if (budget) throw snapshotError
     logger.error('Error cleaning up orphaned snapshots:', { snapshotError })
   }
 }
 
-export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> {
+export async function runCleanupLogs(
+  payload: CleanupJobPayload,
+  budgets?: CleanupBudgets
+): Promise<void> {
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label, plan, runGlobalHousekeeping } = payload
 
@@ -439,7 +468,7 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
   if (workspaceIds.length === 0) {
     logger.info(`[${label}] No workspaces to process`)
     if (runGlobalHousekeeping && plan === 'free') {
-      await cleanupFreePlanOrphanedSnapshots(retentionHours)
+      await cleanupFreePlanOrphanedSnapshots(retentionHours, budgets?.orphanSnapshots)
     }
     return
   }
@@ -448,25 +477,38 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
     `[${label}] Cleaning ${workspaceIds.length} workspaces, cutoff: ${retentionDate.toISOString()}`
   )
 
-  const workflowResults = await cleanupWorkflowExecutionLogs(workspaceIds, retentionDate, label)
+  const workflowResults = await cleanupWorkflowExecutionLogs(
+    workspaceIds,
+    retentionDate,
+    label,
+    budgets?.workflowLogs
+  )
   logger.info(
     `[${label}] workflow_execution_logs files: ${workflowResults.filesDeleted}/${workflowResults.filesTotal} deleted, ${workflowResults.filesDeleteFailed} failed`
   )
-  const largeValueResults = await cleanupLargeExecutionValues(workspaceIds, retentionDate, label)
+  if (budgets && workflowResults.filesDeleteFailed) throw new Error('Log file cleanup failed')
+  const largeValueResults = await cleanupLargeExecutionValues(
+    workspaceIds,
+    retentionDate,
+    label,
+    budgets?.largeValues
+  )
   logger.info(
     `[${label}] execution_large_values: ${largeValueResults.largeValuesDeleted}/${largeValueResults.largeValuesTotal} deleted, ${largeValueResults.largeValuesDeleteFailed} failed`
   )
   const legacyLargeValueResults = await cleanupLegacyLargeExecutionValues(
     workspaceIds,
     retentionDate,
-    label
+    label,
+    budgets?.legacyLargeValues
   )
   logger.info(
     `[${label}] legacy_execution_large_values: ${legacyLargeValueResults.largeValuesDeleted}/${legacyLargeValueResults.largeValuesTotal} deleted, ${legacyLargeValueResults.largeValuesDeleteFailed} failed`
   )
-  await cleanupLargeValueMetadata(workspaceIds, label)
+  await cleanupLargeValueMetadata(workspaceIds, label, budgets)
 
   await batchDeleteByWorkspaceAndTimestamp({
+    budget: budgets?.jobLogs,
     tableDef: jobExecutionLogs,
     workspaceIdCol: jobExecutionLogs.workspaceId,
     timestampCol: jobExecutionLogs.startedAt,
@@ -477,7 +519,7 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
   })
 
   if (runGlobalHousekeeping && plan === 'free') {
-    await cleanupFreePlanOrphanedSnapshots(retentionHours)
+    await cleanupFreePlanOrphanedSnapshots(retentionHours, budgets?.orphanSnapshots)
   }
 
   const timeElapsed = (Date.now() - startTime) / 1000
@@ -487,6 +529,10 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
 export const cleanupLogsTask = task({
   id: 'cleanup-logs',
   machine: 'large-1x',
-  queue: { concurrencyLimit: LOG_CLEANUP_CONCURRENCY_LIMIT },
-  run: runCleanupLogs,
+  queue: retentionCleanupQueue,
+  retry: { maxAttempts: 1 },
+  run: (payload: CleanupJobPayload | LimitedCleanupPayload) =>
+    'limits' in payload
+      ? runCleanupWithLimits('cleanup-logs', payload.limits, runCleanupLogs)
+      : runCleanupLogs(payload),
 })
