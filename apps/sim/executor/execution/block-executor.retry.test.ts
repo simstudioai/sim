@@ -10,10 +10,17 @@ import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
+import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { attachTrustedExecutionCost } from '@/executor/utils/errors'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { executeTool } from '@/tools'
+import { getTool } from '@/tools/utils'
+
+vi.mock('@/blocks/index', () => ({ getBlock: vi.fn() }))
+vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/tools/utils', () => ({ getTool: vi.fn() }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
   validateBlockType: vi.fn(),
@@ -138,6 +145,40 @@ describe('BlockExecutor retry', () => {
     expect(ctx.blockLogs[0]?.success).toBe(true)
     expect(ctx.blockLogs[0]?.tries).toBe(2)
   })
+
+  it.each([
+    { retryable: false, attempts: 1 },
+    { retryable: true, attempts: 3 },
+    { retryable: undefined, attempts: 3 },
+  ])(
+    'executes a generic tool $attempts times when retryable is $retryable',
+    async ({ retryable, attempts }) => {
+      const block = createBlock(enabled)
+      block.config.tool = 'synthetic_write'
+      vi.mocked(getTool).mockReturnValue({
+        id: 'synthetic_write',
+        name: 'Synthetic Write',
+        description: 'A synthetic write for retry testing',
+        version: '1.0',
+        params: {},
+        request: { url: 'https://example.com/write', method: 'POST' },
+      })
+      vi.mocked(executeTool).mockResolvedValue({
+        success: false,
+        error: 'Write outcome is unknown',
+        output: { detail: 'Response was lost' },
+        ...(retryable !== undefined ? { retryable } : {}),
+      })
+      const state = new ExecutionState()
+      const ctx = createContext(state)
+      const executor = buildExecutor(block, new GenericBlockHandler(), state)
+
+      await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+        'Write outcome is unknown'
+      )
+      expect(executeTool).toHaveBeenCalledTimes(attempts)
+    }
+  )
 
   it('adds the trusted cost of failed Function tries to the successful result', async () => {
     const block = createBlock(enabled)
