@@ -30,17 +30,18 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RouteC
   ).toString()
   if (!isSsoEnabled) return NextResponse.redirect(new URL('/login', getBaseUrl()).toString())
 
+  const session = await getSession()
+  if (session?.user) {
+    return NextResponse.redirect(new URL(DEFAULT_POST_AUTH_ROUTE, getBaseUrl()).toString())
+  }
+
+  /** Admitted per address, after the session, so a busy shared address never strands a signed-in visitor. */
   const rateLimited = await enforceIpRateLimit('sso-launch', request, {
     maxTokens: 30,
     refillRate: 30,
     refillIntervalMs: 60_000,
   })
   if (rateLimited) return NextResponse.redirect(signInLink)
-
-  const session = await getSession()
-  if (session?.user) {
-    return NextResponse.redirect(new URL(DEFAULT_POST_AUTH_ROUTE, getBaseUrl()).toString())
-  }
 
   const issuer = request.nextUrl.searchParams.get('iss')
   if (!issuer || !(await isIdpInitiatedLoginAllowed(providerId, issuer))) {

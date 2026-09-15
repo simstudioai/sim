@@ -75,6 +75,16 @@ describe('GET /sso/launch/[providerId]', () => {
     expect(mockSignInSSO).not.toHaveBeenCalled()
   })
 
+  it('keeps sending a signed-in visitor to the app when the address is rate limited', async () => {
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockEnforceIpRateLimit.mockResolvedValue(new Response(null, { status: 429 }))
+
+    const response = await open()
+
+    expect(response.headers.get('location')).toBe('https://test.sim.ai/home')
+    expect(mockEnforceIpRateLimit).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['no issuer', '', () => undefined],
     [
@@ -105,8 +115,8 @@ describe('GET /sso/launch/[providerId]', () => {
     const response = await open()
 
     expect(response.headers.get('location')).toBe(SIGN_IN_LINK)
-    expect(mockGetSession).not.toHaveBeenCalled()
     expect(mockIsAllowed).not.toHaveBeenCalled()
+    expect(mockSignInSSO).not.toHaveBeenCalled()
   })
 
   it('leaves SSO off when the deployment has not enabled it', async () => {
