@@ -1378,7 +1378,7 @@ describe('copyForkResourceContainers table views', () => {
     expect(insert).not.toHaveBeenCalled()
   })
 
-  it('rejects an unavailable referenced-table dependency before inserting copies', async () => {
+  it('copies a table whose referenced table was deleted and keeps the original target', async () => {
     const now = new Date('2026-08-19T00:00:00.000Z')
     const selectedDefinition = {
       id: 'table-orders',
@@ -1409,37 +1409,53 @@ describe('copyForkResourceContainers table views', () => {
       createdAt: now,
       updatedAt: now,
     }
-    const insert = vi.fn()
+    const inserted = new Map<unknown, Array<Record<string, unknown>>>()
     let definitionRead = 0
     const tx = {
       select: () => ({
-        from: () => ({
-          where: () => Promise.resolve(definitionRead++ === 0 ? [selectedDefinition] : []),
+        from: (table: unknown) => ({
+          where: () => {
+            if (table !== userTableDefinitions) return Promise.resolve([])
+            return Promise.resolve(definitionRead++ === 0 ? [selectedDefinition] : [])
+          },
         }),
       }),
-      insert,
+      insert: (table: unknown) => ({
+        values: (values: Array<Record<string, unknown>>) => {
+          inserted.set(table, values)
+          return Promise.resolve()
+        },
+      }),
     }
 
-    await expect(
-      copyForkResourceContainers({
-        tx: tx as unknown as DbOrTx,
-        sourceWorkspaceId: 'src-ws',
-        childWorkspaceId: 'child-ws',
-        userId: 'user-1',
-        now,
-        selection: {
-          customTools: [],
-          skills: [],
-          mcpServers: [],
-          workflowMcpServers: [],
-          tables: ['table-orders'],
-          knowledgeBases: [],
-        },
-        workflowIdMap: new Map(),
-        documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
-      })
-    ).rejects.toThrow('Referenced table table-accounts is unavailable for copy')
-    expect(insert).not.toHaveBeenCalled()
+    const result = await copyForkResourceContainers({
+      tx: tx as unknown as DbOrTx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now,
+      selection: {
+        customTools: [],
+        skills: [],
+        mcpServers: [],
+        workflowMcpServers: [],
+        tables: ['table-orders'],
+        knowledgeBases: [],
+      },
+      workflowIdMap: new Map(),
+      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
+    })
+
+    const tableMap = result.idMap.get('table')
+    expect(tableMap?.size).toBe(1)
+    expect(result.contentPlan.tables).toEqual([
+      { sourceId: 'table-orders', childId: tableMap?.get('table-orders') },
+    ])
+    const copiedDefinitions = inserted.get(userTableDefinitions)
+    expect(copiedDefinitions).toHaveLength(1)
+    expect(copiedDefinitions?.[0]?.schema).toMatchObject({
+      columns: [{ referenceTableId: 'table-accounts' }],
+    })
   })
 
   it('bounds the expanded referenced-table dependency set', async () => {

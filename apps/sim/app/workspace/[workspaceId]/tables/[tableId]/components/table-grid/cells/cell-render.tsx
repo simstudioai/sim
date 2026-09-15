@@ -154,15 +154,17 @@ export function resolveCellRender({
   // (keyed on kind alone) no longer has. Renders as plain text — a currency
   // cell is a number cell with a symbol, so it stays left-aligned like one.
   if (column.type === 'currency') {
-    return { kind: 'text', text: columnTypeOf(column).formatForDisplay(value, column) }
+    return { kind: 'text', text: typeDefinition.formatForDisplay(value, column) }
   }
   if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
-  const definition = columnTypeOf(column)
-  if (definition.editor === 'date') {
+  if (typeDefinition.editor === 'date') {
     if (timezoneStatus !== undefined && timezoneStatus !== 'ready') {
       return { kind: 'date', text: stringifyValue(value), raw: true }
     }
-    return { kind: 'date', text: definition.formatForInput(value, column, { timezone: timeZone }) }
+    return {
+      kind: 'date',
+      text: typeDefinition.formatForInput(value, column, { timezone: timeZone }),
+    }
   }
   if (column.type === 'string') {
     const text = stringifyValue(value)

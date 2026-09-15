@@ -35,8 +35,6 @@ export interface FolderSelectionPlan {
    * acted on a second time.
    */
   covered: Set<string>
-  /** The covered subtree for each top-level selected folder, used for per-folder preflight. */
-  coveredBySelected: Map<string, Set<string>>
 }
 
 /**
@@ -54,13 +52,7 @@ export async function planFolderSelection(
   folderIds: readonly string[]
 ): Promise<FolderSelectionPlan> {
   if (folderIds.length === 0) {
-    return {
-      selected: [],
-      notFound: [],
-      contained: [],
-      covered: new Set(),
-      coveredBySelected: new Map(),
-    }
+    return { selected: [], notFound: [], contained: [], covered: new Set() }
   }
 
   const rows = await listActiveFolderRows(workspaceId, resourceType, {
@@ -72,7 +64,6 @@ export async function planFolderSelection(
   const notFound: string[] = []
   const contained: BulkFolderAffected[] = []
   const covered = new Set<string>()
-  const coveredBySelected = new Map<string, Set<string>>()
 
   const requested = new Set<string>()
   for (const folderId of folderIds) {
@@ -120,9 +111,8 @@ export async function planFolderSelection(
     }
     if (covered.has(folderId)) continue
     selected.push(entry)
-    const selectedCoverage = new Set([folderId, ...(descendantsOf.get(folderId) ?? [])])
-    coveredBySelected.set(folderId, selectedCoverage)
-    for (const coveredId of selectedCoverage) covered.add(coveredId)
+    covered.add(folderId)
+    for (const descendantId of descendantsOf.get(folderId) ?? []) covered.add(descendantId)
   }
 
   /**
@@ -136,7 +126,7 @@ export async function planFolderSelection(
     for (const descendantId of descendantsOf.get(folder.id) ?? []) covered.add(descendantId)
   }
 
-  return { selected, notFound, contained, covered, coveredBySelected }
+  return { selected, notFound, contained, covered }
 }
 
 /**
@@ -244,10 +234,6 @@ export async function bulkMoveFolders(params: {
  * notification replaces a per-folder storm of identical invalidations, and it
  * fires from a `finally` so a batch cut short by an internal fault still
  * announces the folders it did archive.
- *
- * A reference conflict is retried only after another folder succeeds. This
- * resolves cross-folder dependency chains without relying on request order,
- * while a cycle makes no progress and terminates after one wave.
  */
 export async function bulkDeleteFolders(params: {
   workspaceId: string
@@ -255,8 +241,6 @@ export async function bulkDeleteFolders(params: {
   userId: string
   folders: readonly BulkFolderAffected[]
   countKey: 'tables' | 'knowledgeBases'
-  /** Reuse a reference scan completed for this batch while retaining each folder's lock guard. */
-  referenceCheckCompleted?: boolean
 }): Promise<BulkFolderDeleteOutcome> {
   const succeeded: BulkFolderAffected[] = []
   const failed: BulkFolderFailure[] = []
@@ -264,55 +248,26 @@ export async function bulkDeleteFolders(params: {
   let resourceCount = 0
 
   try {
-    let pending = [...params.folders]
-    while (pending.length > 0) {
-      const retryable: BulkFolderAffected[] = []
-      const retryReasons = new Map<string, string>()
-      let completedInWave = 0
-
-      for (const folder of pending) {
-        const result = await deleteFolder(
-          {
-            resourceType: params.resourceType,
-            folderId: folder.id,
-            workspaceId: params.workspaceId,
-            userId: params.userId,
-            folderName: folder.name,
-          },
-          {
-            projectAudit: false,
-            notify: false,
-            referenceCheckCompleted: params.referenceCheckCompleted,
-          }
-        )
-        if (result.success) {
-          succeeded.push(folder)
-          folderCount += result.deletedItems?.folders ?? 0
-          resourceCount += result.deletedItems?.[params.countKey] ?? 0
-          completedInWave += 1
-          continue
-        }
-        if (result.errorCode === 'internal') {
-          throw new Error(result.error ?? 'Failed to delete folder')
-        }
-        if (result.errorCode === 'conflict') {
-          retryable.push(folder)
-          retryReasons.set(folder.id, result.error ?? 'Failed to delete folder')
-          continue
-        }
-        failed.push({ ...folder, reason: result.error ?? 'Failed to delete folder' })
+    for (const folder of params.folders) {
+      const result = await deleteFolder(
+        {
+          resourceType: params.resourceType,
+          folderId: folder.id,
+          workspaceId: params.workspaceId,
+          userId: params.userId,
+          folderName: folder.name,
+        },
+        { projectAudit: false, notify: false }
+      )
+      if (result.success) {
+        succeeded.push(folder)
+        folderCount += result.deletedItems?.folders ?? 0
+        resourceCount += result.deletedItems?.[params.countKey] ?? 0
+        continue
       }
-
-      if (completedInWave === 0) {
-        for (const folder of retryable) {
-          failed.push({
-            ...folder,
-            reason: retryReasons.get(folder.id) ?? 'Failed to delete folder',
-          })
-        }
-        break
-      }
-      pending = retryable
+      if (result.errorCode === 'internal')
+        throw new Error(result.error ?? 'Failed to delete folder')
+      failed.push({ ...folder, reason: result.error ?? 'Failed to delete folder' })
     }
   } finally {
     if (succeeded.length > 0) {

@@ -401,8 +401,9 @@ function remapCopiedReferenceCells(
 
 /**
  * Loads the selected tables plus the transitive closure of tables named by their reference
- * columns. Each layer is workspace-scoped and active-only; an unavailable dependency fails the
- * copy instead of persisting a source-workspace table id into the child schema.
+ * columns. Each layer is workspace-scoped and active-only. A deleted referenced table is not
+ * copied: the copied column keeps its original target, which resolves as not found, the same
+ * way the source workspace renders a reference to a deleted table.
  */
 async function loadTableDefinitionsWithDependencies(
   tx: DbOrTx,
@@ -417,7 +418,6 @@ async function loadTableDefinitionsWithDependencies(
     )
   }
   const scheduledIds = new Set(orderedIds)
-  const dependencyIds = new Set<string>()
   const definitionsById = new Map<string, typeof userTableDefinitions.$inferSelect>()
   let pendingIds = [...orderedIds]
 
@@ -439,7 +439,6 @@ async function loadTableDefinitionsWithDependencies(
       definitionsById.set(row.id, row)
       const referencedIds = collectColumnReferencedTableIds((row.schema as TableSchema).columns)
       for (const referencedId of referencedIds) {
-        dependencyIds.add(referencedId)
         if (scheduledIds.has(referencedId)) continue
         const mappedTableId = resolveMappedTableReference?.(referencedId)
         if (mappedTableId) {
@@ -456,13 +455,6 @@ async function loadTableDefinitionsWithDependencies(
         orderedIds.push(referencedId)
         pendingIds.push(referencedId)
       }
-    }
-
-    const missingDependencyId = batchIds.find(
-      (id) => dependencyIds.has(id) && !definitionsById.has(id)
-    )
-    if (missingDependencyId) {
-      throw new Error(`Referenced table ${missingDependencyId} is unavailable for copy`)
     }
   }
 

@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   bulkDeleteFolders: vi.fn(),
   bulkMoveFolders: vi.fn(),
-  deleteTables: vi.fn(),
+  deleteTable: vi.fn(),
   findActiveFolder: vi.fn(),
   moveTableToFolder: vi.fn(),
   planFolderSelection: vi.fn(),
@@ -17,7 +17,6 @@ const mocks = vi.hoisted(() => ({
   resolveWorkspaceContext: vi.fn(),
   signal: vi.fn(),
   notifyTables: vi.fn(),
-  findReferenceBlockers: vi.fn(),
   resolveFolderPathFromIndex: vi.fn(),
   resolveTableFolderPath: vi.fn(),
 }))
@@ -69,7 +68,7 @@ vi.mock('@/lib/table/application/folder-paths', () => ({
   resolveTableFolderPath: mocks.resolveTableFolderPath,
 }))
 vi.mock('@/lib/table', () => ({
-  deleteTables: mocks.deleteTables,
+  deleteTable: mocks.deleteTable,
   moveTableToFolder: mocks.moveTableToFolder,
 }))
 vi.mock('@/lib/table/application/context', () => ({
@@ -77,11 +76,6 @@ vi.mock('@/lib/table/application/context', () => ({
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
-vi.mock('@/lib/table/column-types/registry.server', () => ({
-  findActiveTableReferenceBlockers: mocks.findReferenceBlockers,
-  tableReferenceBlockerMessage: (target: string, blockers: string[]) =>
-    `Cannot delete table "${target}" because it is referenced by table "${blockers[0]}". Remove the reference column first.`,
-}))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { bulkDeleteTables, bulkMoveTables } from '@/lib/table/application/bulk'
@@ -101,14 +95,6 @@ function tableContext(id: string, folderId: string | null = null) {
     ...workspaceContext,
     tableId: id,
     table: { id, name: `Table ${id}`, workspaceId: 'workspace-1', folderId },
-  }
-}
-
-function successfulTableDeleteBatch(tableIds: readonly string[]) {
-  return {
-    archived: tableIds.map((id) => ({ id, name: 'Archived', workspaceId: 'workspace-1' })),
-    failed: [],
-    notFound: [],
   }
 }
 
@@ -132,11 +118,12 @@ describe('table bulk application use cases', () => {
     mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
-    mocks.findReferenceBlockers.mockResolvedValue([])
     mocks.findActiveFolder.mockResolvedValue({ id: 'folder-1' })
     mocks.resolveTableContext.mockImplementation(async (tableId: string) => tableContext(tableId))
     mocks.moveTableToFolder.mockResolvedValue({ name: 'Moved' })
-    mocks.deleteTables.mockImplementation(successfulTableDeleteBatch)
+    mocks.deleteTable.mockResolvedValue({
+      archived: { name: 'Archived', workspaceId: 'workspace-1' },
+    })
     mocks.bulkMoveFolders.mockResolvedValue({ succeeded: [], failed: [] })
     mocks.bulkDeleteFolders.mockResolvedValue({
       succeeded: [],
@@ -164,7 +151,7 @@ describe('table bulk application use cases', () => {
     ).rejects.toMatchObject({ code: 'validation' })
 
     expect(mocks.resolveWorkspaceContext).not.toHaveBeenCalled()
-    expect(mocks.deleteTables).not.toHaveBeenCalled()
+    expect(mocks.deleteTable).not.toHaveBeenCalled()
   })
 
   it('bounds tables and folders against one combined cap', async () => {
@@ -221,63 +208,6 @@ describe('table bulk application use cases', () => {
     )
   })
 
-  it('retries an explicit target after its selected-folder referrer is archived', async () => {
-    mocks.planFolderSelection.mockResolvedValue({
-      selected: [{ id: 'folder-1', name: 'Reports' }],
-      notFound: [],
-      contained: [],
-      covered: new Set(['folder-1']),
-      coveredBySelected: new Map([['folder-1', new Set(['folder-1'])]]),
-    })
-    mocks.deleteTables
-      .mockResolvedValueOnce({
-        archived: [],
-        failed: [
-          {
-            id: 'table-target',
-            name: 'Target',
-            reason: 'Target is referenced by Referrer',
-            code: 'reference',
-          },
-        ],
-        notFound: [],
-      })
-      .mockResolvedValueOnce(successfulTableDeleteBatch(['table-target']))
-    mocks.bulkDeleteFolders.mockResolvedValue({
-      succeeded: [{ id: 'folder-1', name: 'Reports' }],
-      failed: [],
-      folderCount: 1,
-      resourceCount: 1,
-    })
-
-    const result = await bulkDeleteTables.execute({
-      principal,
-      input: {
-        assertedWorkspaceId: 'workspace-1',
-        tableIds: ['table-target'],
-        folderKeying: 'ids' as const,
-        folders: ['folder-1'],
-      },
-    })
-
-    expect(result.deleted).toEqual([
-      { kind: 'folder', id: 'folder-1', name: 'Reports' },
-      { kind: 'table', id: 'table-target', name: 'Archived' },
-    ])
-    expect(result.failed).toEqual([])
-    expect(result.deletedItems).toEqual({ tables: 2, folders: 1 })
-    expect(mocks.deleteTables).toHaveBeenCalledTimes(2)
-    expect(mocks.deleteTables).toHaveBeenLastCalledWith(
-      ['table-target'],
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.findReferenceBlockers).toHaveBeenCalledOnce()
-    expect(mocks.bulkDeleteFolders).toHaveBeenCalledWith(
-      expect.objectContaining({ referenceCheckCompleted: true })
-    )
-  })
-
   /**
    * The whole point of taking both id lists in one request: a table that is
    * also inside a selected folder must be archived exactly once, under the
@@ -305,23 +235,16 @@ describe('table bulk application use cases', () => {
     })
 
     expect(result.skipped).toEqual([{ kind: 'table', id: 'table-1', name: 'Table table-1' }])
-    expect(mocks.deleteTables).toHaveBeenCalledWith([], 'request-1', expect.anything())
+    expect(mocks.deleteTable).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalledWith(
       expect.objectContaining({ action: 'table.deleted' })
     )
   })
 
   it('reports a locked table as a per-item failure without stranding the rest', async () => {
-    mocks.deleteTables.mockResolvedValueOnce({
-      archived: [{ id: 'table-2', name: 'Archived', workspaceId: 'workspace-1' }],
-      failed: [
-        {
-          id: 'table-locked',
-          name: 'Table table-locked',
-          reason: new TableLockedError('delete').message,
-        },
-      ],
-      notFound: [],
+    mocks.deleteTable.mockImplementation(async (tableId: string) => {
+      if (tableId === 'table-locked') throw new TableLockedError('delete')
+      return { archived: { name: 'Archived', workspaceId: 'workspace-1' } }
     })
 
     const result = await bulkDeleteTables.execute({
@@ -337,70 +260,6 @@ describe('table bulk application use cases', () => {
     expect(result.failed).toHaveLength(1)
     expect(result.failed[0]).toMatchObject({ kind: 'table', id: 'table-locked' })
     expect(result.deleted).toEqual([{ kind: 'table', id: 'table-2', name: 'Archived' }])
-  })
-
-  it('passes the complete authorized table selection to grouped deletion', async () => {
-    const result = await bulkDeleteTables.execute({
-      principal,
-      input: {
-        assertedWorkspaceId: 'workspace-1',
-        tableIds: ['orders', 'customers'],
-        folderKeying: 'ids' as const,
-        folders: [],
-      },
-    })
-
-    expect(result.deleted).toEqual([
-      { kind: 'table', id: 'orders', name: 'Archived' },
-      { kind: 'table', id: 'customers', name: 'Archived' },
-    ])
-    expect(result.failed).toEqual([])
-    expect(mocks.deleteTables).toHaveBeenCalledExactlyOnceWith(
-      ['orders', 'customers'],
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.findReferenceBlockers).not.toHaveBeenCalled()
-  })
-
-  it('blocks a selected folder when it contains a referenced table', async () => {
-    mocks.planFolderSelection.mockResolvedValueOnce({
-      selected: [{ id: 'folder-1', name: 'Sales' }],
-      notFound: [],
-      contained: [],
-      covered: new Set(['folder-1', 'folder-child']),
-      coveredBySelected: new Map([['folder-1', new Set(['folder-1', 'folder-child'])]]),
-    })
-    mocks.findReferenceBlockers.mockResolvedValueOnce([
-      {
-        targetTableId: 'customers',
-        targetTableName: 'Customers',
-        targetFolderId: 'folder-child',
-        referencingTableName: 'Orders',
-      },
-    ])
-
-    const result = await bulkDeleteTables.execute({
-      principal,
-      input: {
-        assertedWorkspaceId: 'workspace-1',
-        tableIds: [],
-        folderKeying: 'ids' as const,
-        folders: ['folder-1'],
-      },
-    })
-
-    expect(result.deleted).toEqual([])
-    expect(result.failed).toEqual([
-      {
-        kind: 'folder',
-        id: 'folder-1',
-        name: 'Sales',
-        reason:
-          'Cannot delete table "Customers" because it is referenced by table "Orders". Remove the reference column first.',
-      },
-    ])
-    expect(mocks.bulkDeleteFolders).not.toHaveBeenCalled()
   })
 
   it('conceals an inaccessible table as not-found rather than naming it', async () => {
@@ -586,9 +445,9 @@ describe('table bulk application use cases', () => {
   })
 
   it('still notifies for the prefix a batch committed before it failed', async () => {
-    mocks.deleteTables.mockResolvedValueOnce({
-      ...successfulTableDeleteBatch(['table-1']),
-      terminalError: new Error('archive statement failed'),
+    mocks.deleteTable.mockImplementation(async (tableId: string) => {
+      if (tableId === 'table-2') throw new Error('connection reset')
+      return { archived: { name: 'Archived', workspaceId: 'workspace-1' } }
     })
 
     await expect(
@@ -601,7 +460,7 @@ describe('table bulk application use cases', () => {
           folders: [],
         },
       })
-    ).rejects.toThrow('archive statement failed')
+    ).rejects.toThrow('connection reset')
 
     expect(mocks.notifyTables).toHaveBeenCalledExactlyOnceWith('workspace-1')
   })
@@ -624,10 +483,10 @@ describe('table bulk application use cases', () => {
     expect(mocks.notifyTables).not.toHaveBeenCalled()
   })
 
-  it('records audit for the committed prefix before rethrowing an archive statement failure', async () => {
-    mocks.deleteTables.mockResolvedValueOnce({
-      ...successfulTableDeleteBatch(['table-1']),
-      terminalError: new Error('archive statement failed'),
+  it('records audit for the committed prefix before rethrowing an infrastructure failure', async () => {
+    mocks.deleteTable.mockImplementation(async (tableId: string) => {
+      if (tableId === 'table-2') throw new Error('connection reset')
+      return { archived: { name: 'Archived', workspaceId: 'workspace-1' } }
     })
 
     await expect(
@@ -640,43 +499,11 @@ describe('table bulk application use cases', () => {
           folders: [],
         },
       })
-    ).rejects.toThrow('archive statement failed')
+    ).rejects.toThrow('connection reset')
 
     expect(mocks.audit).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ action: 'table.deleted', resourceId: 'table-1' })
     )
-    expect(mocks.bulkDeleteFolders).not.toHaveBeenCalled()
-  })
-
-  it('preserves an explicit-table prefix when a selected folder is still pending', async () => {
-    mocks.planFolderSelection.mockResolvedValue({
-      selected: [{ id: 'folder-1', name: 'Sales' }],
-      notFound: [],
-      contained: [],
-      covered: new Set(['folder-1']),
-    })
-    mocks.deleteTables.mockResolvedValueOnce({
-      ...successfulTableDeleteBatch(['table-1']),
-      terminalError: new Error('archive statement failed'),
-    })
-
-    await expect(
-      bulkDeleteTables.execute({
-        principal,
-        input: {
-          assertedWorkspaceId: 'workspace-1',
-          tableIds: ['table-1', 'table-2'],
-          folderKeying: 'ids' as const,
-          folders: ['folder-1'],
-        },
-      })
-    ).rejects.toThrow('archive statement failed')
-
-    expect(mocks.audit).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ action: 'table.deleted', resourceId: 'table-1' })
-    )
-    expect(mocks.notifyTables).toHaveBeenCalledExactlyOnceWith('workspace-1')
-    expect(mocks.findReferenceBlockers).not.toHaveBeenCalled()
     expect(mocks.bulkDeleteFolders).not.toHaveBeenCalled()
   })
 })
@@ -693,11 +520,12 @@ describe('path-keyed bulk table selections', () => {
     mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
-    mocks.findReferenceBlockers.mockResolvedValue([])
     mocks.findActiveFolder.mockResolvedValue({ id: 'folder-1' })
     mocks.resolveTableContext.mockImplementation(async (tableId: string) => tableContext(tableId))
     mocks.moveTableToFolder.mockResolvedValue({ name: 'Moved' })
-    mocks.deleteTables.mockImplementation(successfulTableDeleteBatch)
+    mocks.deleteTable.mockResolvedValue({
+      archived: { name: 'Archived', workspaceId: 'workspace-1' },
+    })
     mocks.bulkMoveFolders.mockResolvedValue({ succeeded: [], failed: [] })
     mocks.bulkDeleteFolders.mockResolvedValue({
       succeeded: [],

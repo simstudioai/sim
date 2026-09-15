@@ -305,6 +305,50 @@ describe('useReferenceRowPreview', () => {
     )
   })
 
+  it('returns a not-found preview when the referenced table no longer exists', async () => {
+    queryClient.fetchQuery.mockRejectedValueOnce({ status: 404 })
+    vi.mocked(requestJson).mockRejectedValueOnce({ status: 404 })
+    vi.mocked(isApiClientError).mockReturnValueOnce(true).mockReturnValueOnce(true)
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: 'row-1',
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+
+    await expect(
+      getQueryOptions().queryFn({ signal: new AbortController().signal })
+    ).resolves.toEqual({
+      table: null,
+      row: null,
+      referenceTables: [],
+    })
+    expect(requestJson).not.toHaveBeenCalledWith(listTableNamesContract, expect.anything())
+  })
+
+  it('propagates non-not-found table errors', async () => {
+    const error = new Error('Failed to load table')
+    queryClient.fetchQuery.mockRejectedValueOnce(error)
+    vi.mocked(requestJson).mockResolvedValueOnce({
+      success: true,
+      data: { row: { id: 'row-1', data: {} } },
+    })
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: 'row-1',
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+
+    await expect(getQueryOptions().queryFn({ signal: new AbortController().signal })).rejects.toBe(
+      error
+    )
+  })
+
   it('uses the source cell to identify each preview opening', () => {
     useReferenceRowPreview({
       workspaceId: WORKSPACE_ID,
@@ -339,7 +383,7 @@ describe('useBatchUpdateTableRows', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledOnce()
     const options = queryClient.invalidateQueries.mock.calls[0]?.[0]
-    expect(options?.queryKey).toEqual(tableKeys.referencePreviews())
+    expect(options?.queryKey).toEqual(tableKeys.referencePreviewsForTable(TABLE_ID))
     expect(
       options?.predicate({
         queryKey: tableKeys.referencePreview(TABLE_ID, 'row-1', 'source-row', 'account'),
@@ -351,10 +395,10 @@ describe('useBatchUpdateTableRows', () => {
       })
     ).toBe(false)
     expect(
-      options?.predicate({
-        queryKey: tableKeys.referencePreview('other-table', 'row-1', 'source-row', 'account'),
-      })
-    ).toBe(false)
+      tableKeys
+        .referencePreview('other-table', 'row-1', 'source-row', 'account')
+        .slice(0, options?.queryKey.length)
+    ).not.toEqual(options?.queryKey)
   })
 })
 
@@ -362,7 +406,8 @@ describe('reference preview invalidation', () => {
   function expectPreviewInvalidation(rowIds: string[]) {
     const call = queryClient.invalidateQueries.mock.calls.find(
       ([options]) =>
-        JSON.stringify(options?.queryKey) === JSON.stringify(tableKeys.referencePreviews())
+        JSON.stringify(options?.queryKey) ===
+        JSON.stringify(tableKeys.referencePreviewsForTable(TABLE_ID))
     )
     expect(call).toBeDefined()
     const options = call?.[0]
