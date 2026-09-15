@@ -341,7 +341,7 @@ describe('AgentGroup inline main activity', () => {
         act(() => vi.advanceTimersByTime(1000))
         return container.textContent
       }
-      expect(render({}, 'executing')).toBe('Preparing tool call…')
+      expect(render({}, 'executing')).toBe('Working…')
       const params = { code: '1', activity: { id: 'check', completedTitle: 'Checked inputs' } }
       expect(render(params, 'executing')).toBe('Running checks')
       expect(render(params, 'success')).toBe('Ran checks')
