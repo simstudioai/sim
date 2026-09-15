@@ -8,7 +8,7 @@ import {
 } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 
 interface FilesMenuPreviewProps {
-  layout?: 'menu' | 'hero'
+  layout?: 'menu' | 'hero' | 'feature'
 }
 
 const FILES = [

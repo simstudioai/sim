@@ -11,6 +11,7 @@ export type NavMenuPreviewKind =
   | 'knowledge'
   | 'logs'
   | 'resource'
+  | 'search'
   | 'tables'
   | 'team'
   | 'workflows'

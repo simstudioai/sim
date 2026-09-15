@@ -16,7 +16,7 @@ export function ProductFeature({ feature }: ProductFeatureProps) {
     >
       <div
         aria-hidden='true'
-        inert
+        inert={!feature.allowPreviewHover}
         data-product-feature-visual={feature.id}
         className='pointer-events-none relative isolate h-[460px] select-none overflow-hidden [container-type:inline-size] max-sm:h-[380px] max-xl:h-[420px]'
       >
