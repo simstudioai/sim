@@ -7,8 +7,9 @@
  * of the way otherwise, and — unlike the zooming variant — leave ctrl/cmd+wheel to the browser
  * so page zoom still works over a table.
  */
+
+import { bindPreviewHorizontalWheel } from '@sim/emcn'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { bindPreviewHorizontalWheel } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
 
 /** jsdom does no layout, so scrollWidth/clientWidth are stubbed to model an overflowing container. */
 function makeContainer({ scrollWidth = 2000, clientWidth = 1000 } = {}): HTMLElement {
