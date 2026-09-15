@@ -11,7 +11,6 @@ import {
 import { eq, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   FOLDER_RESOURCE_LABELS,
   FOLDER_RESOURCE_SUPPORTS_LOCKING,
@@ -147,8 +146,6 @@ export interface FolderResourceConfig {
   guardDelete?: (context: {
     workspaceId: string
     folderIds: string[]
-    /** The caller already checked active references for this exact folder selection. */
-    referenceCheckCompleted?: boolean
   }) => Promise<FolderDeleteRejection | null>
 }
 
@@ -340,109 +337,63 @@ async function restoreKnowledgeBaseChildren(context: CascadeChildrenContext): Pr
 
 /**
  * Archives the tables in a folder subtree through the canonical table delete, so the
- * `deleteLocked` and inbound-reference guards still apply. {@link guardTableDeletion} has
- * already refused the whole folder if any table cannot be deleted, so this should not
- * encounter a partial cascade.
+ * `deleteLocked` guard in its WHERE clause still applies. {@link guardLockedTables} has
+ * already refused the whole folder if any table is locked, so this should not encounter one.
  */
 async function archiveTableChildren(context: CascadeChildrenContext): Promise<number> {
-  const { deleteTables } = await import('@/lib/table/service')
+  const { deleteTable } = await import('@/lib/table/service')
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'active')
-  const result = await deleteTables(ids, `folder-cascade-${context.folderIds[0]}`, {
-    expectedWorkspaceId: context.workspaceId,
-    archivedAt: context.timestamp,
-    // deleteFolder fires one folder-level live-list notify for the whole subtree.
-    skipNotify: true,
-    archiveAsCohort: true,
-  })
-  if (result.terminalError) throw result.terminalError
-  if (result.failed[0]) {
-    throw new OrchestrationError(
-      result.failed[0].code === 'locked' ? 'locked' : 'conflict',
-      result.failed[0].reason
-    )
-  }
-  if (result.notFound.length > 0 || result.archived.length !== ids.length) {
-    throw new OrchestrationError(
-      'conflict',
-      'One or more tables changed while their folder was being deleted'
-    )
-  }
 
-  return result.archived.length
-}
-
-/**
- * Restores the tables this cascade archived, through the canonical table restore so a table
- * whose name was taken while it was gone is renamed instead of tripping the active-name
- * unique index. If a later member fails, the successful prefix is re-archived under the
- * original timestamp so no active referrer can point at a still-archived cohort target.
- */
-async function restoreTableChildren(context: CascadeChildrenContext): Promise<number> {
-  const { deleteTables, restoreTable } = await import('@/lib/table/service')
-  const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'archived')
-  const restoringFolderIds = new Set(context.folderIds)
-  const restoringTableIds = new Set(ids)
-  const restoredIds: string[] = []
-
-  try {
-    for (const id of ids) {
-      // restoreFolder fires one folder-level live-list notify for the whole subtree.
-      await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, {
-        restoringFolderIds,
-        restoringTableIds,
-        skipNotify: true,
-      })
-      restoredIds.push(id)
-    }
-  } catch (error) {
-    const rollback = await deleteTables(
-      restoredIds,
-      `folder-restore-rollback-${context.folderIds[0]}`,
-      {
-        expectedWorkspaceId: context.workspaceId,
-        archivedAt: context.timestamp,
-        skipNotify: true,
-        archiveAsCohort: true,
-      }
-    )
-    if (rollback.terminalError) throw rollback.terminalError
-    if (
-      rollback.failed.length > 0 ||
-      rollback.notFound.length > 0 ||
-      rollback.archived.length !== restoredIds.length
-    ) {
-      throw new OrchestrationError('internal', 'Failed to roll back the table restore cohort')
-    }
-    throw error
+  for (const id of ids) {
+    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, {
+      archivedAt: context.timestamp,
+      // deleteFolder fires one folder-level live-list notify for the whole subtree.
+      skipNotify: true,
+    })
   }
 
   return ids.length
 }
 
 /**
- * Refuses to delete a folder containing a table that cannot be deleted.
- *
- * `deleteTable` gates archiving on both `deleteLocked` and active inbound references. Deleting
- * the folder around a table must not become a way to bypass either control. Checked across the
- * whole subtree up front so the cascade never archives half the tables and then stops.
+ * Restores the tables this cascade archived, through the canonical table restore so a table
+ * whose name was taken while it was gone is renamed instead of tripping the active-name
+ * unique index.
  */
-async function guardTableDeletion({
+async function restoreTableChildren(context: CascadeChildrenContext): Promise<number> {
+  const { restoreTable } = await import('@/lib/table/service')
+  const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'archived')
+  const restoringFolderIds = new Set(context.folderIds)
+
+  for (const id of ids) {
+    // restoreFolder fires one folder-level live-list notify for the whole subtree.
+    await restoreTable(id, `folder-cascade-${context.folderIds[0]}`, {
+      restoringFolderIds,
+      skipNotify: true,
+    })
+  }
+
+  return ids.length
+}
+
+/**
+ * Refuses to delete a folder containing a delete-locked table.
+ *
+ * `deleteTable` gates archiving on `deleteLocked` because archiving destroys access to every
+ * row. Deleting the folder around it must not become a way to bypass that control. Checked
+ * across the whole subtree up front so the cascade never archives half the tables and then
+ * stops at a locked one.
+ */
+async function guardLockedTables({
   workspaceId,
   folderIds,
-  referenceCheckCompleted,
 }: {
   workspaceId: string
   folderIds: string[]
-  referenceCheckCompleted?: boolean
 }): Promise<FolderDeleteRejection | null> {
-  const [
-    { db },
-    { and, eq: eqOp, inArray, isNull },
-    { findActiveTableReferenceBlockers, tableReferenceBlockerMessage },
-  ] = await Promise.all([
+  const [{ db }, { and, eq: eqOp, inArray, isNull }] = await Promise.all([
     import('@sim/db'),
     import('drizzle-orm'),
-    import('@/lib/table/column-types/registry.server'),
   ])
 
   const locked = await db
@@ -457,24 +408,12 @@ async function guardTableDeletion({
       )
     )
 
-  if (locked.length > 0) {
-    const names = locked.map((row) => row.name).join(', ')
-    return {
-      error: `Cannot delete folder: ${locked.length === 1 ? 'table' : 'tables'} ${names} ${locked.length === 1 ? 'is' : 'are'} delete-locked`,
-      errorCode: 'locked',
-    }
-  }
+  if (locked.length === 0) return null
 
-  if (referenceCheckCompleted) return null
-
-  const [blocker] = await findActiveTableReferenceBlockers(db, workspaceId, {
-    folderIds: new Set(folderIds),
-  })
-  if (!blocker) return null
-
+  const names = locked.map((row) => row.name).join(', ')
   return {
-    error: tableReferenceBlockerMessage(blocker.targetTableName, [blocker.referencingTableName]),
-    errorCode: 'conflict',
+    error: `Cannot delete folder: ${locked.length === 1 ? 'table' : 'tables'} ${names} ${locked.length === 1 ? 'is' : 'are'} delete-locked`,
+    errorCode: 'locked',
   }
 }
 
@@ -609,7 +548,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
       >,
     archiveChildren: archiveTableChildren,
     restoreChildren: restoreTableChildren,
-    guardDelete: guardTableDeletion,
+    guardDelete: guardLockedTables,
   },
 }
 

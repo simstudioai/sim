@@ -72,6 +72,7 @@ import {
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
+import { useReferencedByWarning } from '@/app/workspace/[workspaceId]/tables/hooks/use-referenced-by-warning'
 import { useWorkspaceTablesRoom } from '@/app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room'
 import TablesLoading from '@/app/workspace/[workspaceId]/tables/loading'
 import {
@@ -127,6 +128,21 @@ const TABLE_ROW_DRAG_MIME = 'application/x-sim-workspace-table-rows'
 const ROOT_LABEL = FOLDERED_RESOURCE_HEADERS.table.rootLabel
 
 const EMPTY_TABLES: TableDefinition[] = []
+
+/** Tables inside `folderIds` or any folder nested beneath them. */
+function tableIdsInFolderSubtrees(
+  tables: readonly TableDefinition[],
+  folderIds: readonly string[],
+  descendantFolderIds: ReadonlyMap<string, ReadonlySet<string>>
+): string[] {
+  if (folderIds.length === 0) return []
+  const coveredFolderIds = new Set(
+    folderIds.flatMap((folderId) => [folderId, ...(descendantFolderIds.get(folderId) ?? [])])
+  )
+  return tables.flatMap((table) =>
+    table.folderId && coveredFolderIds.has(table.folderId) ? [table.id] : []
+  )
+}
 
 /** A list row (and the right-clicked row), resolved to the entity it refers to. */
 type TableResourceItem =
@@ -603,6 +619,23 @@ function TablesContent() {
         : folderById.get(selectedFolderIds[0])?.name
     return selectionLabel(count, firstName)
   }, [selectedTableIds, selectedFolderIds, tables, folderById])
+
+  const deleteFolderIds =
+    isDeleteFolderDialogOpen && activeFolder
+      ? [activeFolder.id]
+      : isBulkDeleteDialogOpen
+        ? selectedFolderIds
+        : []
+  /** Tables the open delete confirmation would archive, including every table inside a folder. */
+  const pendingDeleteTableIds = isDeleteDialogOpen
+    ? activeTable
+      ? [activeTable.id]
+      : []
+    : [
+        ...(isBulkDeleteDialogOpen ? selectedTableIds : []),
+        ...tableIdsInFolderSubtrees(tables, deleteFolderIds, descendantFolderIds),
+      ]
+  const referencedByWarning = useReferencedByWarning(workspaceId, pendingDeleteTableIds)
 
   const currentFolderActions: DropdownOption[] | undefined = useMemo(() => {
     if (!currentFolderId) return undefined
@@ -1489,6 +1522,7 @@ function TablesContent() {
           { text: activeTable?.name ?? 'this table', bold: true },
           '? ',
           { text: `All ${activeTable?.rowCount ?? 0} rows will be removed.`, error: true },
+          ...referencedByWarning,
           ' You can restore it from Recently Deleted in Settings.',
         ]}
         confirm={{
@@ -1512,6 +1546,7 @@ function TablesContent() {
           { text: activeFolder?.name ?? 'this folder', bold: true },
           '? ',
           { text: 'Every table and subfolder inside it will be deleted too.', error: true },
+          ...referencedByWarning,
           ' You can restore those tables from Recently Deleted in Settings.',
         ]}
         confirm={{
@@ -1538,6 +1573,7 @@ function TablesContent() {
                 : 'All of their rows will be removed.',
             error: true,
           },
+          ...referencedByWarning,
           ' You can restore those tables from Recently Deleted in Settings.',
         ]}
         confirm={{

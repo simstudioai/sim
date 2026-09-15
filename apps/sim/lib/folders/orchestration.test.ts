@@ -11,7 +11,6 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { folderMutationStatus } from '@/lib/folders/status'
 
@@ -771,30 +770,6 @@ describe('deleteFolder', () => {
     expect(mockArchiveFolderCascade).not.toHaveBeenCalled()
   })
 
-  it('returns a classified failure when a table lock appears after the guard', async () => {
-    queueTableRows(schemaMock.folder, [{ deletedAt: null }])
-    mockArchiveFolderCascade.mockRejectedValueOnce(
-      new OrchestrationError('locked', 'Table deletion is locked')
-    )
-
-    const result = await deleteFolder(baseDelete)
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Table deletion is locked',
-      errorCode: 'locked',
-    })
-    const archiveTimestamp = mockArchiveFolderCascade.mock.calls[0][4]
-    expect(mockRestoreFolderRows).toHaveBeenCalledWith(
-      dbChainMock.db,
-      resourceConfig.current,
-      'ws-1',
-      ['folder-1'],
-      archiveTimestamp,
-      expect.any(Date)
-    )
-  })
-
   it('hands the guard the whole resolved subtree, not just the root', async () => {
     setConfig({ guardDelete: mockGuardDelete })
     mockGuardDelete.mockResolvedValueOnce(null)
@@ -806,20 +781,6 @@ describe('deleteFolder', () => {
     expect(mockGuardDelete).toHaveBeenCalledWith({
       workspaceId: 'ws-1',
       folderIds: ['folder-1', 'sub-1'],
-    })
-  })
-
-  it('passes a completed reference preflight through to the table guard', async () => {
-    setConfig({ guardDelete: mockGuardDelete })
-    mockGuardDelete.mockResolvedValueOnce(null)
-    queueTableRows(schemaMock.folder, [{ deletedAt: null }])
-
-    await deleteFolder(baseDelete, { referenceCheckCompleted: true })
-
-    expect(mockGuardDelete).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      folderIds: ['folder-1'],
-      referenceCheckCompleted: true,
     })
   })
 

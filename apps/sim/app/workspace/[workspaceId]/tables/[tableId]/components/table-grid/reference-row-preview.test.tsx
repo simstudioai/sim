@@ -50,7 +50,7 @@ import {
 let container: HTMLDivElement
 let root: Root
 let previewTable: ReturnType<typeof createTableDefinition> | undefined
-let previewStatus: 'loading' | 'error' | 'ready'
+let previewStatus: 'loading' | 'error' | 'missing' | 'ready'
 const REFERENCE_TABLE_NAMES = new Map([
   ['table-accounts', 'Accounts'],
   ['table-owners', 'Owners'],
@@ -401,6 +401,19 @@ describe('ReferenceRowPreview', () => {
     expect(container.textContent).toContain("Couldn't load reference")
     expect(container.textContent).not.toContain('No matching row')
     expect(container.querySelector('[data-testid="reference-preview-loader"]')).toBeNull()
+  })
+
+  it('shows a not-found state when the referenced table no longer exists', () => {
+    previewStatus = 'missing'
+    previewTable = undefined
+    previewQuery.data = undefined
+
+    renderPreview()
+
+    expect(container.textContent).toContain('Table not found')
+    expect(container.textContent).not.toContain("Couldn't load reference")
+    expect(container.querySelector('[role="table"]')).toBeNull()
+    expect(container.querySelector('a[aria-label="Go to table"]')).toBeNull()
   })
 
   it('shows an empty-schema state when the referenced table has no columns', () => {

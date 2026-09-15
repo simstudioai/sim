@@ -792,11 +792,8 @@ export async function deleteFolder(
    *
    * `notify: false` for a caller deleting several folders in one gesture that
    * sends a single batch notification of its own — see {@link bulkDeleteFolders}.
-   * `referenceCheckCompleted: true` reuses that batch's reference scan; the
-   * table guard still checks deletion locks, and the table service rechecks
-   * references under its own transaction locks before archiving the cohort.
    */
-  options?: { projectAudit?: boolean; notify?: boolean; referenceCheckCompleted?: boolean }
+  options?: { projectAudit?: boolean; notify?: boolean }
 ): Promise<DeleteFolderResult> {
   const existing = await withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
     const [row] = await tx
@@ -820,14 +817,13 @@ export async function deleteFolder(
   return deleteFolderWithoutTreeLock(params, existing.deletedAt, {
     projectAudit: options?.projectAudit ?? true,
     notify: options?.notify ?? true,
-    referenceCheckCompleted: options?.referenceCheckCompleted,
   })
 }
 
 async function deleteFolderWithoutTreeLock(
   params: DeleteFolderParams,
   deletedAt: Date | null,
-  options: { projectAudit: boolean; notify: boolean; referenceCheckCompleted?: boolean }
+  options: { projectAudit: boolean; notify: boolean }
 ): Promise<DeleteFolderResult> {
   const { resourceType, folderId, workspaceId, userId, folderName, folderPath } = params
   const config = folderResourceConfig(resourceType)
@@ -848,26 +844,12 @@ async function deleteFolderWithoutTreeLock(
           params.maxFolderRows
         )
 
-  const rejection = await config.guardDelete?.({
-    workspaceId,
-    folderIds,
-    ...(options.referenceCheckCompleted ? { referenceCheckCompleted: true } : {}),
-  })
+  const rejection = await config.guardDelete?.({ workspaceId, folderIds })
   if (rejection) {
     return { success: false, error: rejection.error, errorCode: rejection.errorCode }
   }
 
-  let counts: Awaited<ReturnType<typeof archiveFolderCascade>>
-  try {
-    counts = await archiveFolderCascade(db, config, workspaceId, folderIds, timestamp)
-  } catch (error) {
-    const classified = asOrchestrationError(error)
-    if (classified?.code === 'locked' || classified?.code === 'conflict') {
-      await restoreFolderRows(db, config, workspaceId, folderIds, timestamp, new Date())
-      return { success: false, error: classified.message, errorCode: classified.code }
-    }
-    throw error
-  }
+  const counts = await archiveFolderCascade(db, config, workspaceId, folderIds, timestamp)
 
   logger.info('Deleted folder and all contents', { folderId, resourceType, counts })
 

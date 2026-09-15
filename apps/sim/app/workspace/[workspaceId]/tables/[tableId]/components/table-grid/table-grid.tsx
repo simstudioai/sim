@@ -970,11 +970,13 @@ export function TableGrid({
     ? ({ status: 'error' } as const)
     : referencePreviewQuery.isFetching || !referencePreviewQuery.data
       ? ({ status: 'loading' } as const)
-      : ({
-          status: 'ready',
-          table: referencePreviewQuery.data.table,
-          row: referencePreviewQuery.data.row,
-        } as const)
+      : referencePreviewQuery.data.table === null
+        ? ({ status: 'missing' } as const)
+        : ({
+            status: 'ready',
+            table: referencePreviewQuery.data.table,
+            row: referencePreviewQuery.data.row,
+          } as const)
   const expandedSourceRowId = activeReferenceTarget?.sourceRowId ?? null
 
   const rowVirtualizer = useVirtualizer({

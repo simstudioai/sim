@@ -52,6 +52,7 @@ import {
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
+import { useReferencedByWarning } from '@/app/workspace/[workspaceId]/tables/hooks/use-referenced-by-warning'
 import { useWorkspaceTablesRoom } from '@/app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
@@ -1462,6 +1463,8 @@ export function Table({
         : 0
 
   const deleteTableMutation = useDeleteTable(workspaceId)
+  const pendingDeleteTableIds = showDeleteTableConfirm ? [tableId] : []
+  const referencedByWarning = useReferencedByWarning(workspaceId, pendingDeleteTableIds)
   const deleteRowsAsyncMutation = useDeleteTableRowsAsync({ workspaceId, tableId })
   const exportTableAsync = useExportTable({ workspaceId, tableId })
   const handleDeleteTable = async () => {
@@ -1892,6 +1895,7 @@ export function Table({
             { text: tableData?.name ?? 'this table', bold: true },
             '? ',
             { text: `All ${tableData?.rowCount ?? 0} rows will be removed.`, error: true },
+            ...referencedByWarning,
             ' You can restore it from Recently Deleted in Settings.',
           ]}
           confirm={{

@@ -33,7 +33,7 @@ interface ReferenceRowPreviewBaseProps {
 
 type ReferenceRowPreviewProps = ReferenceRowPreviewBaseProps &
   (
-    | { status: 'loading' | 'error' }
+    | { status: 'loading' | 'error' | 'missing' }
     | {
         status: 'ready'
         table: TableDefinition
@@ -207,9 +207,9 @@ export const ReferenceRowPreview = memo(function ReferenceRowPreview(
               <div className='flex h-full items-center justify-center'>
                 <Loader animate className='size-[14px] text-[var(--text-muted)]' />
               </div>
-            ) : status === 'error' ? (
+            ) : status === 'error' || status === 'missing' ? (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
-                Couldn&apos;t load reference
+                {status === 'missing' ? 'Table not found' : "Couldn't load reference"}
               </div>
             ) : (
               <>

@@ -148,7 +148,7 @@ export const TABLE_FIND_STALE_TIME = 30 * 1000
 export const TABLE_FIND_GC_TIME = 60 * 1000
 export const TABLE_ROWS_STALE_TIME = 30 * 1000
 export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
-const TABLE_REFERENCE_PREVIEW_STALE_TIME = Number.POSITIVE_INFINITY
+export const TABLE_REFERENCE_PREVIEW_STALE_TIME = Number.POSITIVE_INFINITY
 const TABLE_REFERENCE_PREVIEW_GC_TIME = 0
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
@@ -275,13 +275,12 @@ function invalidateReferencePreviews(
   tableId: string,
   rowIds: ReadonlySet<string>
 ) {
-  const previewsRoot = tableKeys.referencePreviews()
+  const previewsRoot = tableKeys.referencePreviewsForTable(tableId)
   queryClient.invalidateQueries({
     queryKey: previewsRoot,
     predicate: (query) => {
-      const targetTableId = query.queryKey[previewsRoot.length]
-      const targetRowId = query.queryKey[previewsRoot.length + 1]
-      return targetTableId === tableId && typeof targetRowId === 'string' && rowIds.has(targetRowId)
+      const targetRowId = query.queryKey[previewsRoot.length]
+      return typeof targetRowId === 'string' && rowIds.has(targetRowId)
     },
   })
 }
@@ -428,11 +427,19 @@ export function useReferenceRowPreview({
     queryKey: tableKeys.referencePreview(tableId ?? '', rowId ?? '', sourceRowId, sourceColumnKey),
     queryFn: async ({ signal }) => {
       const [table, row] = await Promise.all([
-        queryClient.fetchQuery(
-          getTableDetailQueryOptions(workspaceId as string, tableId as string)
-        ),
+        queryClient
+          .fetchQuery({
+            ...getTableDetailQueryOptions(workspaceId as string, tableId as string),
+            retry: (failureCount, error) =>
+              !(isApiClientError(error) && error.status === 404) && failureCount < 1,
+          })
+          .catch((error: unknown) => {
+            if (isApiClientError(error) && error.status === 404) return null
+            throw error
+          }),
         fetchTableRow(workspaceId as string, tableId as string, rowId as string, signal),
       ])
+      if (!table) return { table: null, row: null, referenceTables: [] }
       const referenceTableIds = table.schema.columns.flatMap((column) => {
         const referenceTableId = columnTypeOf(column).referencePreview?.getTableId(column)
         return referenceTableId ? [referenceTableId] : []
