@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   detail: vi.fn(),
   integrations: vi.fn(),
   push: vi.fn(),
+  replace: vi.fn(),
   documents: vi.fn(),
   actions: vi.fn(),
   recovery: vi.fn(),
@@ -23,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
 }))
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mocks.push }),
+  useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
   usePathname: () => '/o/org-one/settings/integrations/sources/source-one',
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
@@ -185,6 +186,17 @@ describe('organization source detail navigation', () => {
     expect(button, `Missing ${text}`).toBeTruthy()
     await act(async () => button!.click())
   }
+  it.each(['documents', 'settings', 'history'])(
+    'replaces the removed connection with Sources from the %s view',
+    async (view) => {
+      await render(`?view=${view}`)
+      const options: ConnectorActionsOptions = mocks.actions.mock.lastCall![0]
+      act(() => options.onRemoved?.())
+      expect(mocks.replace).toHaveBeenCalledWith('/o/org-one/settings/integrations')
+      expect(mocks.push).not.toHaveBeenCalled()
+    }
+  )
+
   it('opens documents by default and uses the exact canonical search index', async () => {
     await render()
     expect(mocks.detail).toHaveBeenLastCalledWith('index-one', 'source-one')

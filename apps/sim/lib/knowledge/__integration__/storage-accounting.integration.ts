@@ -5,20 +5,33 @@ import { promisify } from 'node:util'
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   organization,
+  outboxEvent,
   user,
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { processOutboxEventById } from '@/lib/core/outbox/service'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { createSingleDocument, hardDeleteDocuments } from '@/lib/knowledge/documents/service'
+import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
+import { KNOWLEDGE_CONNECTOR_CLEANUP_EVENT } from '@/lib/knowledge/connectors/deletion'
+import { createContentSyncLease, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
+import { persistSkippedDocuments } from '@/lib/knowledge/connectors/sync-persistence'
+import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
+import {
+  createSingleDocument,
+  getKnowledgeDocument,
+  hardDeleteDocuments,
+} from '@/lib/knowledge/documents/service'
 import { performDeleteKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 
 type Fixture = ReturnType<typeof createKnowledgeAclFixtureIds>
@@ -93,6 +106,14 @@ function disconnect(ids: Fixture, deleteDocuments = false) {
 
 afterAll(async () => {
   for (const ids of fixtures) {
+    await db
+      .delete(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, KNOWLEDGE_CONNECTOR_CLEANUP_EVENT),
+          sql`${outboxEvent.payload}->>'knowledgeBaseId' = ${ids.knowledgeBaseId}`
+        )
+      )
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
@@ -176,25 +197,142 @@ describe('knowledge document storage ledgers', () => {
     expect(await ledger(ids)).toEqual({ workspaceBytes: 0, payerBytes: 0 })
   })
 
-  it('deletes a paginated source including archived documents without debiting manual storage', async () => {
+  it('hides a source immediately and cleans bounded batches without debiting manual storage', async () => {
     const ids = await seed()
     await manualDocument(ids, 31)
     const rows = Array.from({ length: 501 }, (_, index) =>
       sourceDocument(ids, index + 1, index % 2 ? { archivedAt: new Date() } : {})
     )
     await db.insert(document).values(rows)
+    await db.insert(embedding).values(
+      Array.from({ length: 1_001 }, (_, chunkIndex) => ({
+        id: generateId(),
+        knowledgeBaseId: ids.knowledgeBaseId,
+        documentId: rows[0].id,
+        chunkIndex,
+        chunkHash: `hash-${chunkIndex}`,
+        content: 'test chunk',
+        contentLength: 10,
+        tokenCount: 2,
+        startOffset: 0,
+        endOffset: 10,
+        embedding384: Array(384).fill(0.1),
+      }))
+    )
 
     expect(await disconnect(ids, true)).toEqual({
       success: true,
       documentsKept: 0,
       documentsDeleted: 501,
     })
+    const [tombstone] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, ids.connectorId))
+    expect(tombstone.deletedAt).toBeInstanceOf(Date)
+    expect(tombstone.status).toBe('disabled')
+    expect(tombstone.syncLockToken).toBeNull()
+    const [retained] = await db
+      .select({ count: sql<number>`COUNT(*)::integer` })
+      .from(document)
+      .where(eq(document.connectorId, ids.connectorId))
+    expect(retained.count).toBe(501)
+    for (const access of [SYSTEM_ACCESS_SCOPE, WORKSPACE_ACCESS_SCOPE]) {
+      expect(await getKnowledgeDocument(ids.knowledgeBaseId, rows[0].id, access)).toBeNull()
+    }
+    const [job] = await db
+      .select()
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, KNOWLEDGE_CONNECTOR_CLEANUP_EVENT),
+          sql`${outboxEvent.payload}->>'connectorId' = ${ids.connectorId}`
+        )
+      )
+      .limit(1)
+    expect(job).toBeDefined()
+    await expect(
+      persistSkippedDocuments(
+        ids.knowledgeBaseId,
+        ids.connectorId,
+        'confluence',
+        [
+          {
+            type: 'skip',
+            extDoc: {
+              externalId: generateId(),
+              title: 'Late source write',
+              content: '',
+              mimeType: 'text/plain',
+              contentHash: 'late-source',
+              skippedReason: 'Too large',
+            },
+          },
+        ],
+        undefined,
+        'workspace',
+        createContentSyncLease(ids.connectorId, ids.lockId)
+      )
+    ).rejects.toBeInstanceOf(SyncLockLostException)
+    const handlers = knowledgeDocumentProcessingOutboxHandlers
+    let status = await processOutboxEventById(job.id, handlers)
+    expect(status).toBe('pending')
+    for (let attempt = 0; status === 'pending' && attempt < 5; attempt++) {
+      await db
+        .update(outboxEvent)
+        .set({ availableAt: new Date() })
+        .where(eq(outboxEvent.id, job.id))
+      status = await processOutboxEventById(job.id, handlers)
+    }
+    expect(status).toBe('completed')
+    expect(
+      await db
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+    ).toHaveLength(0)
     const [remaining] = await db
       .select({ count: sql<number>`COUNT(*)::integer` })
       .from(document)
       .where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
     expect(remaining.count).toBe(1)
     expect(await ledger(ids)).toEqual({ workspaceBytes: 31, payerBytes: 31 })
+  })
+
+  it('rolls back both the source tombstone and cleanup intent on a failed commit', async () => {
+    const ids = await seed()
+    const row = sourceDocument(ids, 10)
+    await db.insert(document).values(row)
+    const transaction = db.transaction.bind(db)
+    const failure = vi.spyOn(db, 'transaction').mockImplementationOnce((callback, config) =>
+      transaction(async (tx) => {
+        await callback(tx)
+        throw new Error('Removal transaction failed')
+      }, config)
+    )
+    try {
+      expect(await disconnect(ids, true)).toMatchObject({ success: false })
+    } finally {
+      failure.mockRestore()
+    }
+    const [source] = await db
+      .select({ deletedAt: knowledgeConnector.deletedAt })
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, ids.connectorId))
+    expect(source.deletedAt).toBeNull()
+    expect(
+      await getKnowledgeDocument(ids.knowledgeBaseId, row.id, WORKSPACE_ACCESS_SCOPE)
+    ).not.toBeNull()
+    const events = await db
+      .select({ id: outboxEvent.id })
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, KNOWLEDGE_CONNECTOR_CLEANUP_EVENT),
+          sql`${outboxEvent.payload}->>'connectorId' = ${ids.connectorId}`
+        )
+      )
+    expect(events).toHaveLength(0)
   })
 
   it('keeps the source and every document attached when detachment exceeds the quota', async () => {

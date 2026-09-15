@@ -563,17 +563,20 @@ export async function getTagDefinitionById(
  */
 export async function cleanupUnusedTagDefinitions(
   knowledgeBaseId: string,
-  requestId: string
+  requestId: string,
+  options?: { executor: DbOrTx; signal: AbortSignal }
 ): Promise<number> {
-  const definitions = await getDocumentTagDefinitions(knowledgeBaseId)
+  const executor = options?.executor ?? db
+  const definitions = await getDocumentTagDefinitions(knowledgeBaseId, executor)
   let cleanedUp = 0
 
   for (const def of definitions) {
+    options?.signal.throwIfAborted()
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
-    const docCountResult = await db
-      .select({ count: sql<number>`count(*)` })
+    const [taggedDocument] = await executor
+      .select({ id: document.id })
       .from(document)
       .where(
         and(
@@ -583,9 +586,12 @@ export async function cleanupUnusedTagDefinitions(
           sql`${sql.raw(tagSlot)} IS NOT NULL`
         )
       )
+      .limit(1)
+    if (taggedDocument) continue
 
-    const chunkCountResult = await db
-      .select({ count: sql<number>`count(*)` })
+    options?.signal.throwIfAborted()
+    const [taggedChunk] = await executor
+      .select({ id: embedding.id })
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
@@ -596,12 +602,13 @@ export async function cleanupUnusedTagDefinitions(
           sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
         )
       )
+      .limit(1)
 
-    const docCount = Number(docCountResult[0]?.count || 0)
-    const chunkCount = Number(chunkCountResult[0]?.count || 0)
-
-    if (docCount === 0 && chunkCount === 0) {
-      await db.delete(knowledgeBaseTagDefinitions).where(eq(knowledgeBaseTagDefinitions.id, def.id))
+    if (!taggedChunk) {
+      options?.signal.throwIfAborted()
+      await executor
+        .delete(knowledgeBaseTagDefinitions)
+        .where(eq(knowledgeBaseTagDefinitions.id, def.id))
 
       cleanedUp++
       logger.info(

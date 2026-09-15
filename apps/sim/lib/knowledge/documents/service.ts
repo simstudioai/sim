@@ -81,6 +81,7 @@ import {
   SYSTEM_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/types'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
+import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
 import {
   assertDocumentChunkCountWithinLimit,
   getOcrRequestRejection,
@@ -1506,6 +1507,7 @@ export async function processDocumentAsync(
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt),
+          documentConnectorIsActive(),
           isNull(knowledgeBase.deletedAt)
         )
       )
@@ -1533,7 +1535,8 @@ export async function processDocumentAsync(
             ...queueGenerationConditions(attemptContext),
             eq(document.userExcluded, false),
             isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            isNull(document.deletedAt),
+            documentConnectorIsActive()
           )
         )
       return
@@ -1601,7 +1604,8 @@ export async function processDocumentAsync(
               : queueGenerationConditions(attemptContext)),
             eq(document.userExcluded, false),
             isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            isNull(document.deletedAt),
+            documentConnectorIsActive()
           )
         )
         .returning({ id: document.id })
@@ -1861,6 +1865,7 @@ export async function processDocumentAsync(
                       eq(document.userExcluded, false),
                       isNull(document.archivedAt),
                       isNull(document.deletedAt),
+                      documentConnectorIsActive(),
                       isNull(knowledgeBase.deletedAt)
                     )
                   )
@@ -1930,7 +1935,8 @@ export async function processDocumentAsync(
                       ...queueGenerationConditions(attemptContext),
                       eq(document.userExcluded, false),
                       isNull(document.archivedAt),
-                      isNull(document.deletedAt)
+                      isNull(document.deletedAt),
+                      documentConnectorIsActive()
                     )
                   )
                 signal.throwIfAborted()
@@ -2124,7 +2130,8 @@ export async function processDocumentAsync(
           ...queueGenerationConditions(attemptContext),
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
-          isNull(document.deletedAt)
+          isNull(document.deletedAt),
+          documentConnectorIsActive()
         )
       )
 

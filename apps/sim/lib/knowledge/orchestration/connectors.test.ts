@@ -25,6 +25,7 @@ const {
   mockResolveStorageBillingContext,
   mockIncrementStorage,
   mockNotifyStorage,
+  mockEnqueueConnectorDeletion,
 } = vi.hoisted(() => ({
   mockCaptureServerEvent: vi.fn(),
   mockDispatchSync: vi.fn(),
@@ -38,6 +39,7 @@ const {
   mockResolveStorageBillingContext: vi.fn(),
   mockIncrementStorage: vi.fn(),
   mockNotifyStorage: vi.fn(),
+  mockEnqueueConnectorDeletion: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -62,6 +64,9 @@ vi.mock('@/lib/billing/storage', () => ({
 }))
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   enqueueKnowledgeStorageCleanup: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@/lib/knowledge/connectors/deletion', () => ({
+  enqueueConnectorDeletion: mockEnqueueConnectorDeletion,
 }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
 vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
@@ -296,11 +301,11 @@ const STORAGE_CONTEXT = {
   customStorageLimitGB: null,
 }
 
-function queueConnectorDeletionOwnerAndLock(accessMode = 'workspace') {
+function queueConnectorDeletionOwnerAndLock(accessMode = 'workspace', credentialGroupId?: string) {
   const owner = { id: 'kb-1', workspaceId: 'ws-1', organizationId: null, userId: 'user-1' }
   queueTableRows(schemaMock.knowledgeBase, [owner])
   queueTableRows(schemaMock.knowledgeBase, [owner])
-  queueTableRows(schemaMock.knowledgeConnector, [{ accessMode }])
+  queueTableRows(schemaMock.knowledgeConnector, [{ accessMode, credentialGroupId }])
 }
 
 describe('performDeleteKnowledgeConnector', () => {
@@ -340,11 +345,11 @@ describe('performDeleteKnowledgeConnector', () => {
     )
   })
 
-  it('reports the documents it deleted when asked to delete them', async () => {
+  it('hides the connector and queues cleanup without deleting documents in the request', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
     ])
-    queueTableRows(document, [{ id: 'doc-1', fileUrl: '/a.txt' }])
+    queueTableRows(document, [{ count: 501 }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 
     const outcome = await performDeleteKnowledgeConnector({
@@ -354,8 +359,66 @@ describe('performDeleteKnowledgeConnector', () => {
       deleteDocuments: true,
     })
 
-    expect(outcome).toMatchObject({ success: true, documentsDeleted: 1, documentsKept: 0 })
+    expect(outcome).toMatchObject({ success: true, documentsDeleted: 501, documentsKept: 0 })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(document)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deletedAt: expect.any(Date),
+        status: 'disabled',
+        memberSyncStatus: 'disabled',
+        syncLockToken: null,
+        memberSyncLockToken: null,
+      })
+    )
+    expect(mockEnqueueConnectorDeletion).toHaveBeenCalledWith(expect.anything(), {
+      knowledgeBaseId: KB.id,
+      connectorId: 'conn-1',
+      deletedAt: expect.any(String),
+    })
   })
+
+  it('fails the transaction without auditing success when cleanup cannot be queued', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
+    queueTableRows(document, [{ count: 2 }])
+    mockEnqueueConnectorDeletion.mockRejectedValueOnce(new Error('Queue unavailable'))
+    const outcome = await performDeleteKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      deleteDocuments: true,
+    })
+    expect(outcome).toMatchObject({ success: false })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it.each(['55P03', '57014', '40P01'])(
+    'returns a retryable message for transaction contention %s',
+    async (code) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+      ])
+      dbChainMockFns.transaction.mockRejectedValueOnce(
+        Object.assign(new Error('Database detail'), { code })
+      )
+      expect(
+        await performDeleteKnowledgeConnector({
+          ...ACTOR,
+          knowledgeBase: KB,
+          connectorId: 'conn-1',
+          deleteDocuments: true,
+        })
+      ).toMatchObject({
+        success: false,
+        errorCode: 'conflict',
+        error: 'Connection is busy. Try removing it again in a moment.',
+      })
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+    }
+  )
 
   it('reports a missing connector as not found', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
@@ -1256,9 +1319,9 @@ describe('members-mode connectors', () => {
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
-  it('revokes the credential grant once the connector and its documents are gone', async () => {
+  it('defers credential grant cleanup with the connector deletion', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
-    queueConnectorDeletionOwnerAndLock('members')
+    queueConnectorDeletionOwnerAndLock('members', 'group-1')
     queueTableRows(schemaMock.document, [])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -1270,9 +1333,17 @@ describe('members-mode connectors', () => {
     })
 
     expect(outcome).toMatchObject({ success: true })
-    expect(mockRevoke).toHaveBeenCalledWith(
-      { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: 'c-1' },
-      'user-1'
+    expect(mockRevoke).not.toHaveBeenCalled()
+    expect(mockEnqueueConnectorDeletion).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        connectorId: 'c-1',
+        credentialAccess: {
+          workspaceId: 'ws-1',
+          credentialGroupId: 'group-1',
+          actorUserId: ACTOR.userId,
+        },
+      })
     )
   })
 

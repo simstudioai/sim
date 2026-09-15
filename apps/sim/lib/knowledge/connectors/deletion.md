@@ -1,0 +1,13 @@
+# Connection removal
+
+All existing UI, API, and Copilot callers still enter `knowledge.connectors.delete` through its authorized application use case. Roles, scope checks, response shapes, audit attribution, and the workspace-only option to retain documents are unchanged.
+
+When documents are removed, a transaction locks the canonical knowledge base and connector, counts the attached documents, marks the connector deleted, invalidates both sync leases, disables scheduling, and inserts one `knowledge.connector.cleanup` outbox event. Failure rolls back both the deletion and the event. Returned deletion counts describe documents logically removed from Sim; physical deletion follows asynchronously. The keep-documents path still performs its storage quota check and detachment atomically.
+
+The shared document access predicate excludes deleted connectors, including public and workspace access and internal indexing reads. Ingestion also checks connector liveness before claiming or committing document processing. Existing source-write leases reject late sync writes. Documents keep their connector reference until physical deletion, so they cannot become standalone readable or billable documents during cleanup. Restoring a knowledge base does not restore a directly deleted connector.
+
+The existing outbox worker runs cleanup, with 48 failure attempts and bounded continuations that do not consume that retry budget. Each transaction removes at most 1,000 chunks, 250 documents, or 1,000 sync-history/member rows. A run does at most four batches and yields after its time budget. Transactions use lock and statement timeouts. The worker verifies the connector's deletion timestamp, locks documents against late indexing commits, and commits storage cleanup intents before deleting those documents. It resolves storage ownership from the currently locked knowledge base. Already committed batches survive worker restarts. Failures remain retryable; exhausted events remain as dead letters while the source stays inaccessible.
+
+After document and connector cleanup, credential grant revocation and unused-tag cleanup are retried as needed. Tag cleanup checks for existence rather than counting the entire remaining corpus. No provider credentials or document contents enter the connector cleanup payload.
+
+The mutation's success handler navigates before cache invalidation and survives the source component unmounting. Source detail replaces its history entry with the Sources page from Documents, Settings, or Sync history; failed removal stays on the current page with the error.
