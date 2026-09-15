@@ -1,3 +1,4 @@
+import { resolveMigrationDatabaseUrl } from '@sim/db/script-migrations/database-url'
 import type { ScriptMigration } from '@sim/db/script-migrations/types'
 import { createLogger } from '@sim/logger'
 import postgres, { type Sql } from 'postgres'
@@ -94,7 +95,7 @@ export const backfillEmbeddingSearchMigration: ScriptMigration = {
 
 /** db:push also installs database behavior that Drizzle's schema cannot express. */
 if (import.meta.main) {
-  const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
+  const url = resolveMigrationDatabaseUrl()
   if (!url) throw new Error('DATABASE_URL is required to initialize embedding search')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {
