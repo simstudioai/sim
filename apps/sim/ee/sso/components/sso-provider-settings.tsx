@@ -603,7 +603,7 @@ export function SsoProviderSettings({
                   copyLabel='Copy initiate login URL'
                 />
                 <p className='text-[var(--text-muted)] text-caption'>
-                  Set this in your identity provider to open Sim from its app dashboard
+                  Configure this in your identity provider to open Sim from its app dashboard
                 </p>
               </SettingRow>
             )}

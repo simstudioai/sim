@@ -5,9 +5,12 @@ import type { ReactElement } from 'react'
 import { setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveLaunchProvider } = vi.hoisted(() => ({
+const { mockResolveLaunchProvider, mockGetSession } = vi.hoisted(() => ({
   mockResolveLaunchProvider: vi.fn(),
+  mockGetSession: vi.fn(),
 }))
+
+vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 
 vi.mock('@/lib/auth/sso/idp-initiated-login', () => ({
   resolveIdpInitiatedLoginProvider: mockResolveLaunchProvider,
@@ -32,6 +35,15 @@ describe('SSO launch page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isSsoEnabled: true })
+    mockGetSession.mockResolvedValue(null)
+  })
+
+  it('sends someone already signed in to the app without signing in again', async () => {
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    await expect(open('acme-okta', { iss: 'https://acme.okta.test' })).rejects.toThrow(
+      'redirect:/home'
+    )
+    expect(mockResolveLaunchProvider).not.toHaveBeenCalled()
   })
 
   it("starts sign-in when the provider's own identity provider opened it", async () => {
