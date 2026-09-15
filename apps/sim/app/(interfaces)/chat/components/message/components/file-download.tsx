@@ -29,6 +29,7 @@ class DirectDownloadRequiredError extends Error {
 
 async function fetchExternalFile(url: string): Promise<Response> {
   try {
+    // boundary-raw-fetch: external binary download from an already validated HTTP URL
     return await fetch(url, { cache: 'no-store' })
   } catch {
     /** A navigation can download external files whose hosts do not allow CORS reads. */
@@ -95,10 +96,13 @@ async function triggerDownload(file: ChatFile): Promise<void> {
   if (!url) throw new Error('File has no download URL')
 
   /** The same serve route as execution logs resolves current storage access on each click. */
-  let response = hasStorageKey
-    ? // boundary-raw-fetch: binary file download through the authorized serve route
-      await fetch(url, { cache: 'no-store' })
-    : await fetchExternalFile(url)
+  let response: Response
+  if (hasStorageKey) {
+    // boundary-raw-fetch: binary file download through the authorized serve route
+    response = await fetch(url, { cache: 'no-store' })
+  } else {
+    response = await fetchExternalFile(url)
+  }
   if (hasStorageKey && response.status === 401 && isSafeHttpUrl(file.url)) {
     await response.body?.cancel()
     /** Public chat visitors may only have the file access already delivered in the response. */
