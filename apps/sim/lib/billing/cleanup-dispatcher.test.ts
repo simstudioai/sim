@@ -42,6 +42,8 @@ import {
   dispatchCleanupJobs,
   runCleanupWithLimits,
 } from '@/lib/billing/cleanup-dispatcher'
+import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
+import { isOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 afterAll(resetEnvFlagsMock)
 
@@ -234,6 +236,9 @@ describe('cleanup limits', () => {
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: false, isDataRetentionEnabled: true })
     mockIsTriggerAvailable.mockReturnValue(true)
+    vi.mocked(getHighestPriorityPersonalSubscription).mockReset()
+    mockGetOrganizationSubscription.mockReset()
+    vi.mocked(isOrganizationWorkspace).mockReset()
   })
 
   it('enqueues one job without querying owners or dispatching child jobs', async () => {
@@ -279,6 +284,38 @@ describe('cleanup limits', () => {
     ).rejects.toThrow()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
+
+  it.each(['personal', 'organization-workspace', 'organization'] as const)(
+    'fails a manual job when %s subscription lookup fails',
+    async (kind) => {
+      setEnvFlags({ isBillingEnabled: true })
+      const error = new Error('subscription lookup unavailable')
+      vi.mocked(getHighestPriorityPersonalSubscription).mockRejectedValueOnce(error)
+      mockGetOrganizationSubscription.mockRejectedValueOnce(error)
+      vi.mocked(isOrganizationWorkspace).mockReturnValue(true)
+      queueTableRows(
+        schemaMock.workspace,
+        kind === 'organization'
+          ? []
+          : [
+              {
+                id: 'workspace',
+                billedAccountUserId: 'user',
+                organizationId: 'organization',
+                workspaceMode: kind === 'personal' ? 'personal' : 'organization',
+                organizationSettings: null,
+              },
+            ]
+      )
+      if (kind === 'organization')
+        queueTableRows(schemaMock.organization, [{ id: 'organization', settings: null }])
+      const runScope = vi.fn()
+      await expect(
+        runCleanupWithLimits('cleanup-soft-deletes', { files: 1 }, runScope)
+      ).rejects.toBe(error)
+      expect(runScope).not.toHaveBeenCalled()
+    }
+  )
 
   it('requires queued execution and respects the retention switch', async () => {
     mockIsTriggerAvailable.mockReturnValue(false)

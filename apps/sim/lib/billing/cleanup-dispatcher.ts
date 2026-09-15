@@ -116,7 +116,8 @@ async function listActiveWorkspaceCleanupScopeRowsPage(
 }
 
 async function resolvePersonalPlanTypesByBilledUserId(
-  rows: WorkspaceCleanupScopeRow[]
+  rows: WorkspaceCleanupScopeRow[],
+  failOnLookupError: boolean
 ): Promise<Map<string, PlanCategory>> {
   const billedUserIds = Array.from(new Set(rows.map((row) => row.billedAccountUserId)))
   const entries = await Promise.all(
@@ -127,6 +128,7 @@ async function resolvePersonalPlanTypesByBilledUserId(
         })
         return [userId, getPlanType(subscription?.plan)] as const
       } catch (error) {
+        if (failOnLookupError) throw error
         logger.error('Skipping cleanup for billed user after plan lookup failed', {
           userId,
           error,
@@ -140,7 +142,8 @@ async function resolvePersonalPlanTypesByBilledUserId(
 }
 
 async function resolvePlanTypesByWorkspaceId(
-  rows: WorkspaceCleanupScopeRow[]
+  rows: WorkspaceCleanupScopeRow[],
+  failOnLookupError: boolean
 ): Promise<Map<string, PlanCategory>> {
   /**
    * Without billing there are no subscription rows to read, and the per-plan
@@ -159,12 +162,16 @@ async function resolvePlanTypesByWorkspaceId(
   }
 
   const userScopedRows = rows.filter((row) => row.workspaceMode !== WORKSPACE_MODE.ORGANIZATION)
-  const userPlanByBilledUserId = await resolvePersonalPlanTypesByBilledUserId(userScopedRows)
+  const userPlanByBilledUserId = await resolvePersonalPlanTypesByBilledUserId(
+    userScopedRows,
+    failOnLookupError
+  )
   const entries = await Promise.all(
     rows.map(async (row) => {
       if (row.workspaceMode === WORKSPACE_MODE.ORGANIZATION) {
         const organizationId = isOrganizationWorkspace(row) ? row.organizationId : null
         if (!organizationId) {
+          if (failOnLookupError) throw new Error('Malformed organization workspace')
           logger.error('Skipping cleanup for malformed organization workspace', {
             workspaceId: row.id,
             organizationId: row.organizationId,
@@ -186,6 +193,7 @@ async function resolvePlanTypesByWorkspaceId(
 
           return [row.id, getPlanType(subscription?.plan)] as const
         } catch (error) {
+          if (failOnLookupError) throw error
           logger.error('Skipping cleanup for organization workspace after plan lookup failed', {
             workspaceId: row.id,
             organizationId,
@@ -229,8 +237,15 @@ const GLOBAL_HOUSEKEEPING_PLAN: Partial<Record<CleanupJobType, PlanCategory>> = 
 async function forEachCleanupChunk(
   jobType: CleanupJobType,
   onChunk: (payload: CleanupJobPayload) => Promise<void>,
-  shouldStop: () => boolean = () => false,
-  pageSize = WORKSPACE_SCOPE_PAGE_SIZE
+  {
+    shouldStop = () => false,
+    pageSize = WORKSPACE_SCOPE_PAGE_SIZE,
+    failOnLookupError = false,
+  }: {
+    shouldStop?: () => boolean
+    pageSize?: number
+    failOnLookupError?: boolean
+  } = {}
 ): Promise<{ chunkCount: number; workspaceCount: number }> {
   const config = CLEANUP_CONFIG[jobType]
   const chunkCountByPlan: Partial<Record<NonEnterprisePlan, number>> = {}
@@ -255,7 +270,7 @@ async function forEachCleanupChunk(
     if (rows.length === 0) break
 
     afterId = rows[rows.length - 1].id
-    const planByWorkspaceId = await resolvePlanTypesByWorkspaceId(rows)
+    const planByWorkspaceId = await resolvePlanTypesByWorkspaceId(rows, failOnLookupError)
 
     for (const plan of NON_ENTERPRISE_PLANS) {
       const retentionHours = config.defaults[plan]
@@ -318,6 +333,7 @@ async function forEachCleanupChunk(
             if (!subscription) continue
             plan = getPlanType(subscription.plan)
           } catch (error) {
+            if (failOnLookupError) throw error
             logger.error('Skipping organization cleanup after plan lookup failed', {
               organizationId: row.id,
               error,
@@ -499,10 +515,9 @@ export async function runCleanupWithLimits(
   const limits = validateCleanupLimits(jobType, input)
   if (!isBillingEnabled && !isDataRetentionEnabled) throw new Error('Data retention is disabled')
   const budgets = createCleanupBudgets(limits)
-  await forEachCleanupChunk(
-    jobType,
-    (scope) => runScope(scope, budgets),
-    () => Object.values(budgets).every((budget) => budget.remaining === 0),
-    25
-  )
+  await forEachCleanupChunk(jobType, (scope) => runScope(scope, budgets), {
+    shouldStop: () => Object.values(budgets).every((budget) => budget.remaining === 0),
+    pageSize: 25,
+    failOnLookupError: true,
+  })
 }
