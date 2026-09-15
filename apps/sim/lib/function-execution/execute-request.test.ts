@@ -71,11 +71,6 @@ const {
   mockRenderedMountContributors: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  registerLargeValueOwner: vi.fn().mockResolvedValue(true),
-  addLargeValueReference: vi.fn().mockResolvedValue(undefined),
-}))
-
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
   encryptSecret: mockEncryptSecret,

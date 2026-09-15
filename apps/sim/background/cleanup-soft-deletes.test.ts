@@ -48,13 +48,20 @@ const {
   mockSelectRowsByIdChunks: vi.fn(async () => [] as unknown[]),
 }))
 
+vi.mock('@/lib/billing/cleanup-dispatcher', () => ({ runCleanupWithLimits: vi.fn() }))
+
 vi.mock('@/lib/cleanup/batch-delete', () => ({
+  consumeRowBudget: vi.fn(),
   batchDeleteByWorkspaceAndTimestamp: mockBatchDeleteByWorkspaceAndTimestamp,
   chunkedBatchDelete: mockChunkedBatchDelete,
   chunkedBatchDeleteByScope: mockScopedChunkedBatchDelete,
   DEFAULT_DELETE_CHUNK_SIZE: 1000,
   deleteRowsById: mockDeleteRowsById,
   selectRowsByIdChunks: mockSelectRowsByIdChunks,
+}))
+
+vi.mock('@/lib/cleanup/queue', () => ({
+  retentionCleanupQueue: { name: 'retention-cleanup', concurrencyLimit: 1 },
 }))
 
 vi.mock('@/lib/cleanup/chat-cleanup', () => ({ prepareChatCleanup: mockPrepareChatCleanup }))
@@ -429,12 +436,7 @@ describe('folder cleanup target', () => {
 
       await onBatch([{ id: 'folder-1' }])
 
-      expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledWith(
-        'ws-1',
-        'report.pdf',
-        null,
-        undefined
-      )
+      expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledWith('ws-1', 'report.pdf', null)
       expect(dbChainMockFns.set).toHaveBeenCalledWith({
         folderId: null,
         originalName: 'report (2).pdf',

@@ -9,7 +9,6 @@ import { enterpriseOwnerClaimOutboxHandlers } from '@/lib/billing/enterprise-own
 import { enterpriseIssuanceOutboxHandlers } from '@/lib/billing/enterprise-provisioning'
 import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
-import { retentionStorageOutboxHandlers } from '@/lib/cleanup/storage-outbox'
 import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { DeadlineExceededError } from '@/lib/core/utils/deadline'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -34,7 +33,6 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 800
 
 const handlers = {
-  ...retentionStorageOutboxHandlers,
   ...slackSearchOutboxHandlers,
   ...adminInvitationOperationOutboxHandlers,
   ...adminMemberOperationOutboxHandlers,

@@ -11,25 +11,10 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockIsTriggerAvailable,
-  mockGetOrganizationSubscription,
-  mockEnqueue,
-  mockTrigger,
-  mockRetrieve,
-  mockBatchTrigger,
-} = vi.hoisted(() => ({
-  mockTrigger: vi.fn(),
-  mockRetrieve: vi.fn(),
-  mockBatchTrigger: vi.fn(),
+const { mockIsTriggerAvailable, mockGetOrganizationSubscription, mockEnqueue } = vi.hoisted(() => ({
   mockIsTriggerAvailable: vi.fn(),
   mockGetOrganizationSubscription: vi.fn(),
   mockEnqueue: vi.fn(),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  tasks: { trigger: mockTrigger, batchTrigger: mockBatchTrigger },
-  runs: { retrieve: mockRetrieve },
 }))
 
 vi.mock('@/lib/billing/core/billing', () => ({
@@ -51,10 +36,11 @@ vi.mock('@/lib/workspaces/policy', () => ({
   isOrganizationWorkspace: vi.fn(),
 }))
 
+import { tasks } from '@trigger.dev/sdk'
 import {
   dispatchBoundedCleanup,
   dispatchCleanupJobs,
-  forEachCleanupChunk,
+  runCleanupWithLimits,
 } from '@/lib/billing/cleanup-dispatcher'
 
 afterAll(resetEnvFlagsMock)
@@ -242,101 +228,67 @@ describe('organization-owned Search retention dispatch', () => {
   })
 })
 
-describe('bounded dispatch', () => {
-  const options = {
-    limits: { workflowLogs: 7 },
-    batchSize: 2,
-    dryRun: false,
-    requestId: 'wave-one',
-  }
+describe('cleanup limits', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: false, isDataRetentionEnabled: true })
     mockIsTriggerAvailable.mockReturnValue(true)
-    mockTrigger.mockResolvedValue({ id: 'run-one' })
-    mockRetrieve.mockResolvedValue({ payload: { mode: 'bounded', options } })
   })
-  it('enqueues one run with seven-day idempotency, no retries, and a hard deadline', async () => {
-    const result = await dispatchBoundedCleanup('cleanup-logs', options)
-    expect(result).toMatchObject({ runId: 'run-one', limits: { workflowLogs: 7 } })
-    expect(mockTrigger).toHaveBeenCalledTimes(1)
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'cleanup-logs',
-      expect.objectContaining({ mode: 'bounded' }),
-      expect.objectContaining({
-        idempotencyKey: 'cleanup-logs:wave-one',
-        idempotencyKeyTTL: '7d',
-        maxAttempts: 1,
-        maxDuration: 180,
-      })
-    )
-    expect(mockTrigger.mock.calls[0][2]).not.toHaveProperty('concurrencyKey')
-    expect(mockBatchTrigger).not.toHaveBeenCalled()
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('returns original budgets when the same request ID is retried with changed options', async () => {
-    const result = await dispatchBoundedCleanup('cleanup-logs', {
-      ...options,
-      limits: { workflowLogs: 50 },
+
+  it('enqueues one job without querying owners or dispatching child jobs', async () => {
+    vi.mocked(tasks.trigger).mockResolvedValueOnce({ id: 'run-limited' } as never)
+    expect(await dispatchBoundedCleanup('cleanup-logs', { workflowLogs: 3 })).toEqual({
+      triggered: true,
+      runId: 'run-limited',
+      limits: { workflowLogs: 3 },
     })
-    expect(result.limits.workflowLogs).toBe(7)
-    expect(mockRetrieve).toHaveBeenCalledWith('run-one')
-  })
-  it('fails without a fallback when Trigger is unavailable', async () => {
-    mockIsTriggerAvailable.mockReturnValue(false)
-    await expect(dispatchBoundedCleanup('cleanup-logs', options)).rejects.toThrow(
-      'requires Trigger'
+    expect(tasks.trigger).toHaveBeenCalledWith(
+      'cleanup-logs',
+      { limits: { workflowLogs: 3 } },
+      expect.objectContaining({ maxAttempts: 1 })
     )
-    expect(mockEnqueue).not.toHaveBeenCalled()
-    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(tasks.batchTrigger).not.toHaveBeenCalled()
   })
-  it('preserves the data retention feature gate', async () => {
-    setEnvFlags({ isDataRetentionEnabled: false })
-    await expect(dispatchBoundedCleanup('cleanup-logs', options)).rejects.toThrow('disabled')
-    expect(mockTrigger).not.toHaveBeenCalled()
-  })
-  it('stops scope enumeration before another owner when the budget is exhausted', async () => {
+
+  it('shares budgets across owners and stops before the next page', async () => {
     queueTableRows(
       schemaMock.workspace,
-      ['one', 'two'].map((id) => ({ id, organizationSettings: { logRetentionHours: 48 } }))
+      ['a', 'b', 'c'].map((id) => ({
+        id,
+        billedAccountUserId: 'user',
+        organizationId: null,
+        workspaceMode: 'personal',
+        organizationSettings: { logRetentionHours: 24 },
+      }))
     )
-    let calls = 0
-    await forEachCleanupChunk(
-      'cleanup-logs',
-      async () => {
-        calls++
-      },
-      { strict: true, shouldStop: () => calls === 1 }
-    )
-    expect(calls).toBe(1)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    const seen: number[] = []
+    await runCleanupWithLimits('cleanup-logs', { workflowLogs: 2 }, async (_scope, budgets) => {
+      seen.push(budgets.workflowLogs.remaining)
+      expect(budgets.jobLogs.remaining).toBe(0)
+      budgets.workflowLogs.remaining--
+    })
+    expect(seen).toEqual([2, 1])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
   })
-  it('propagates bounded organization plan failures', async () => {
-    setEnvFlags({ isBillingEnabled: true })
-    queueTableRows(schemaMock.workspace, [])
-    queueTableRows(schemaMock.organization, [
-      { id: 'org-one', settings: { softDeleteRetentionHours: 24 } },
-    ])
-    mockGetOrganizationSubscription.mockRejectedValue(new Error('payer lookup failed'))
+
+  it('rejects invalid direct task input before querying', async () => {
     await expect(
-      forEachCleanupChunk('cleanup-soft-deletes', async () => {}, { strict: true })
-    ).rejects.toThrow('payer lookup failed')
+      runCleanupWithLimits('cleanup-logs', { workflowLogs: -1 }, vi.fn())
+    ).rejects.toThrow()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
-  it('does not create separate queues for scheduled logs and soft deletes', async () => {
-    mockBatchTrigger.mockResolvedValue({ batchId: 'batch-one' })
-    for (const jobType of ['cleanup-logs', 'cleanup-soft-deletes'] as const) {
-      queueTableRows(schemaMock.workspace, [
-        {
-          id: 'one',
-          organizationSettings: { logRetentionHours: 24, softDeleteRetentionHours: 24 },
-        },
-      ])
-      queueTableRows(schemaMock.workspace, [])
-      await dispatchCleanupJobs(jobType)
-    }
-    expect(mockBatchTrigger).toHaveBeenCalledTimes(2)
-    for (const [, jobs] of mockBatchTrigger.mock.calls)
-      expect(jobs[0].options.concurrencyKey).toBeUndefined()
+
+  it('requires queued execution and respects the retention switch', async () => {
+    mockIsTriggerAvailable.mockReturnValue(false)
+    await expect(dispatchBoundedCleanup('cleanup-logs', { workflowLogs: 1 })).rejects.toThrow(
+      'requires Trigger.dev'
+    )
+    setEnvFlags({ isDataRetentionEnabled: false })
+    await expect(
+      runCleanupWithLimits('cleanup-logs', { workflowLogs: 1 }, vi.fn())
+    ).rejects.toThrow('retention is disabled')
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

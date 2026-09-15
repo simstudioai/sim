@@ -104,7 +104,6 @@ export interface ResolveBillingAttributionParams {
 }
 
 export interface ResolveWorkspaceBillingPayerOptions {
-  executor?: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
   onMissing?: 'throw' | 'return-null'
 }
 
@@ -656,8 +655,7 @@ export async function resolveWorkspaceBillingPayer(
   workspaceId: string,
   options: ResolveWorkspaceBillingPayerOptions = {}
 ) {
-  const executor = options.executor ?? db
-  const [workspacePayer] = await executor
+  const [workspacePayer] = await db
     .select({
       billedAccountUserId: workspace.billedAccountUserId,
       organizationId: workspace.organizationId,
@@ -672,10 +670,9 @@ export async function resolveWorkspaceBillingPayer(
   }
 
   const { billedAccountUserId, organizationId } = workspacePayer
-  const readOptions = { onError: 'throw' as const, ...(options.executor ? { executor } : {}) }
   const payerSubscription = organizationId
-    ? await getOrganizationSubscription(organizationId, readOptions)
-    : await getHighestPriorityPersonalSubscription(billedAccountUserId, readOptions)
+    ? await getOrganizationSubscription(organizationId, { onError: 'throw' })
+    : await getHighestPriorityPersonalSubscription(billedAccountUserId, { onError: 'throw' })
 
   const expectedReferenceId = organizationId ?? billedAccountUserId
   if (payerSubscription && payerSubscription.referenceId !== expectedReferenceId) {

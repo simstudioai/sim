@@ -13,11 +13,6 @@ const { mockUploadFile } = vi.hoisted(() => ({
   mockUploadFile: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  registerLargeValueOwner: vi.fn().mockResolvedValue(true),
-  addLargeValueReference: vi.fn().mockResolvedValue(undefined),
-}))
-
 vi.mock('@/lib/uploads', () => ({
   StorageService: {
     uploadFile: mockUploadFile,

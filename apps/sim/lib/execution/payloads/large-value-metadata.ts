@@ -9,8 +9,9 @@ import {
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import { consumeRowBudget } from '@/lib/cleanup/batch-delete'
+import type { CleanupBudgets } from '@/lib/cleanup/limits'
 import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
-import { lockLargeValueKeysForReference } from '@/lib/execution/payloads/large-value-lock'
 
 const logger = createLogger('LargeValueMetadata')
 
@@ -51,6 +52,7 @@ export interface LargeValueMetadataPruneResult {
 }
 
 interface PruneLargeValueMetadataOptions {
+  budgets?: CleanupBudgets
   workspaceIds: string[]
   tombstonesDeletedBefore: Date
   batchSize?: number
@@ -207,7 +209,6 @@ export async function registerLargeValueOwner(
       owner.workspaceId,
       referencedKeys
     )
-    await lockLargeValueKeysForReference(tx, [owner.key, ...dependencyKeys])
     if (dependencyKeys.length === 0) {
       return
     }
@@ -247,37 +248,34 @@ export async function replaceLargeValueReferenceKeysWithClient(
     'Large value reference set'
   )
 
-  await client.transaction(async (tx) => {
-    await lockLargeValueKeysForReference(tx, keys)
-    await tx
-      .delete(executionLargeValueReferences)
-      .where(
-        and(
-          eq(executionLargeValueReferences.workspaceId, workspaceId),
-          eq(executionLargeValueReferences.executionId, executionId),
-          eq(executionLargeValueReferences.source, source)
-        )
+  await client
+    .delete(executionLargeValueReferences)
+    .where(
+      and(
+        eq(executionLargeValueReferences.workspaceId, workspaceId),
+        eq(executionLargeValueReferences.executionId, executionId),
+        eq(executionLargeValueReferences.source, source)
       )
+    )
 
-    if (keys.length === 0) {
-      return
-    }
+  if (keys.length === 0) {
+    return
+  }
 
-    for (const keyChunk of chunkArray(keys, LARGE_VALUE_METADATA_WRITE_CHUNK_SIZE)) {
-      await tx
-        .insert(executionLargeValueReferences)
-        .values(
-          keyChunk.map((key) => ({
-            key,
-            workspaceId,
-            workflowId: workflowId ?? null,
-            executionId,
-            source,
-          }))
-        )
-        .onConflictDoNothing()
-    }
-  })
+  for (const keyChunk of chunkArray(keys, LARGE_VALUE_METADATA_WRITE_CHUNK_SIZE)) {
+    await client
+      .insert(executionLargeValueReferences)
+      .values(
+        keyChunk.map((key) => ({
+          key,
+          workspaceId,
+          workflowId: workflowId ?? null,
+          executionId,
+          source,
+        }))
+      )
+      .onConflictDoNothing()
+  }
 }
 
 export async function addLargeValueReference(
@@ -300,54 +298,52 @@ export async function addLargeValueReference(
     return
   }
 
-  await dbFor('exec').transaction(async (tx) => {
-    await lockLargeValueKeysForReference(tx, [boundedKey])
-    const [existingRef] = await tx
-      .select({ key: executionLargeValueReferences.key })
-      .from(executionLargeValueReferences)
-      .where(
-        and(
-          eq(executionLargeValueReferences.workspaceId, workspaceId),
-          eq(executionLargeValueReferences.executionId, executionId),
-          eq(executionLargeValueReferences.source, source),
-          eq(executionLargeValueReferences.key, boundedKey)
-        )
+  const execDb = dbFor('exec')
+  const [existingRef] = await execDb
+    .select({ key: executionLargeValueReferences.key })
+    .from(executionLargeValueReferences)
+    .where(
+      and(
+        eq(executionLargeValueReferences.workspaceId, workspaceId),
+        eq(executionLargeValueReferences.executionId, executionId),
+        eq(executionLargeValueReferences.source, source),
+        eq(executionLargeValueReferences.key, boundedKey)
       )
-      .limit(1)
+    )
+    .limit(1)
 
-    if (existingRef) {
-      return
-    }
+  if (existingRef) {
+    return
+  }
 
-    const existingRefs = await tx
-      .select({ key: executionLargeValueReferences.key })
-      .from(executionLargeValueReferences)
-      .where(
-        and(
-          eq(executionLargeValueReferences.workspaceId, workspaceId),
-          eq(executionLargeValueReferences.executionId, executionId),
-          eq(executionLargeValueReferences.source, source)
-        )
+  const existingRefs = await execDb
+    .select({ key: executionLargeValueReferences.key })
+    .from(executionLargeValueReferences)
+    .where(
+      and(
+        eq(executionLargeValueReferences.workspaceId, workspaceId),
+        eq(executionLargeValueReferences.executionId, executionId),
+        eq(executionLargeValueReferences.source, source)
       )
-      .limit(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE + 1)
+    )
+    .limit(MAX_LARGE_VALUE_REFERENCES_PER_SCOPE + 1)
 
-    if (existingRefs.length >= MAX_LARGE_VALUE_REFERENCES_PER_SCOPE) {
-      throw new Error(
-        `Large value reference set contains at least ${existingRefs.length} references, exceeding the limit of ${MAX_LARGE_VALUE_REFERENCES_PER_SCOPE}`
-      )
-    }
+  if (existingRefs.length >= MAX_LARGE_VALUE_REFERENCES_PER_SCOPE) {
+    throw new Error(
+      `Large value reference set contains at least ${existingRefs.length} references, exceeding the limit of ${MAX_LARGE_VALUE_REFERENCES_PER_SCOPE}`
+    )
+  }
 
-    await tx
-      .insert(executionLargeValueReferences)
-      .values({
-        key: boundedKey,
-        workspaceId,
-        workflowId: workflowId ?? null,
-        executionId,
-        source,
-      })
-      .onConflictDoNothing()
-  })
+  await execDb
+    .insert(executionLargeValueReferences)
+    .values({
+      key: boundedKey,
+      workspaceId,
+      workflowId: workflowId ?? null,
+      executionId,
+      source,
+    })
+    .onConflictDoNothing()
 }
 
 export async function markLargeValuesDeleted(
@@ -379,7 +375,26 @@ async function pruneStaleReferences(
         SELECT ref.ctid
         FROM ${executionLargeValueReferences} AS ref
         WHERE ref.workspace_id IN ${workspaceIds}
-          AND ${staleLargeValueReferencePredicate()}
+          AND (
+            (
+              ref.source = 'execution_log'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM ${workflowExecutionLogs} AS wel
+                WHERE wel.execution_id = ref.execution_id
+              )
+            )
+            OR (
+              ref.source = 'paused_snapshot'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM ${pausedExecutions} AS pe
+                WHERE pe.execution_id = ref.execution_id
+                  AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
+              )
+            )
+            OR ref.source NOT IN ('execution_log', 'paused_snapshot')
+          )
         LIMIT ${batchSize}
       )
       RETURNING ref.key
@@ -404,7 +419,19 @@ async function pruneDeletedParentDependencies(
         SELECT dependency.ctid
         FROM ${executionLargeValueDependencies} AS dependency
         WHERE dependency.workspace_id IN ${workspaceIds}
-          AND ${staleLargeValueDependencyPredicate()}
+          AND (
+            EXISTS (
+              SELECT 1
+              FROM ${executionLargeValues} AS parent_value
+              WHERE parent_value.key = dependency.parent_key
+                AND parent_value.deleted_at IS NOT NULL
+            )
+            OR NOT EXISTS (
+              SELECT 1
+              FROM ${executionLargeValues} AS parent_value
+              WHERE parent_value.key = dependency.parent_key
+            )
+          )
         LIMIT ${batchSize}
       )
       RETURNING dependency.parent_key
@@ -430,7 +457,13 @@ async function pruneDeletedLargeValueTombstones(
         SELECT value.ctid
         FROM ${executionLargeValues} AS value
         WHERE value.workspace_id IN ${workspaceIds}
-          AND ${largeValueTombstonePredicate(deletedBefore)}
+          AND value.deleted_at IS NOT NULL
+          AND value.deleted_at < ${sql.param(deletedBefore, executionLargeValues.deletedAt)}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ${executionLargeValueDependencies} AS dependency
+            WHERE dependency.parent_key = value.key
+          )
         LIMIT ${batchSize}
       )
       RETURNING value.key
@@ -443,6 +476,7 @@ async function pruneDeletedLargeValueTombstones(
 export async function pruneLargeValueMetadata({
   workspaceIds,
   tombstonesDeletedBefore,
+  budgets,
   batchSize = LARGE_VALUE_METADATA_PRUNE_BATCH_SIZE,
   maxRowsPerTable = LARGE_VALUE_METADATA_PRUNE_MAX_ROWS_PER_TABLE,
   dbClient = db,
@@ -458,32 +492,47 @@ export async function pruneLargeValueMetadata({
     workspaceIds,
     LARGE_VALUE_METADATA_WORKSPACE_CHUNK_SIZE
   )) {
-    const referencesRemaining = maxRowsPerTable - result.referencesDeleted
+    const referencesRemaining = Math.min(
+      maxRowsPerTable - result.referencesDeleted,
+      budgets?.staleReferences.remaining ?? maxRowsPerTable
+    )
     if (referencesRemaining > 0) {
-      result.referencesDeleted += await pruneStaleReferences(
+      const deleted = await pruneStaleReferences(
         workspaceChunk,
         Math.min(batchSize, referencesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.staleReferences, deleted)
+      result.referencesDeleted += deleted
     }
 
-    const dependenciesRemaining = maxRowsPerTable - result.dependenciesDeleted
+    const dependenciesRemaining = Math.min(
+      maxRowsPerTable - result.dependenciesDeleted,
+      budgets?.staleDependencies.remaining ?? maxRowsPerTable
+    )
     if (dependenciesRemaining > 0) {
-      result.dependenciesDeleted += await pruneDeletedParentDependencies(
+      const deleted = await pruneDeletedParentDependencies(
         workspaceChunk,
         Math.min(batchSize, dependenciesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.staleDependencies, deleted)
+      result.dependenciesDeleted += deleted
     }
 
-    const tombstonesRemaining = maxRowsPerTable - result.tombstonesDeleted
+    const tombstonesRemaining = Math.min(
+      maxRowsPerTable - result.tombstonesDeleted,
+      budgets?.largeValueTombstones.remaining ?? maxRowsPerTable
+    )
     if (tombstonesRemaining > 0) {
-      result.tombstonesDeleted += await pruneDeletedLargeValueTombstones(
+      const deleted = await pruneDeletedLargeValueTombstones(
         workspaceChunk,
         tombstonesDeletedBefore,
         Math.min(batchSize, tombstonesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.largeValueTombstones, deleted)
+      result.tombstonesDeleted += deleted
     }
 
     if (
@@ -582,56 +631,4 @@ export function unreferencedLargeValuePredicate() {
         )
     )
   `
-}
-
-/** Eligibility shared by bounded maintenance and scheduled pruning. SQL alias: ref. */
-export function staleLargeValueReferencePredicate() {
-  return sql`(
-            (
-              ref.source = 'execution_log'
-              AND NOT EXISTS (
-                SELECT 1
-                FROM ${workflowExecutionLogs} AS wel
-                WHERE wel.execution_id = ref.execution_id
-              )
-            )
-            OR (
-              ref.source = 'paused_snapshot'
-              AND NOT EXISTS (
-                SELECT 1
-                FROM ${pausedExecutions} AS pe
-                WHERE pe.execution_id = ref.execution_id
-                  AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
-              )
-            )
-            OR ref.source NOT IN ('execution_log', 'paused_snapshot')
-          )`
-}
-
-/** Eligibility shared by bounded maintenance and scheduled pruning. SQL alias: dependency. */
-export function staleLargeValueDependencyPredicate() {
-  return sql`(
-            EXISTS (
-              SELECT 1
-              FROM ${executionLargeValues} AS parent_value
-              WHERE parent_value.key = dependency.parent_key
-                AND parent_value.deleted_at IS NOT NULL
-            )
-            OR NOT EXISTS (
-              SELECT 1
-              FROM ${executionLargeValues} AS parent_value
-              WHERE parent_value.key = dependency.parent_key
-            )
-          )`
-}
-
-/** Eligibility shared by bounded maintenance and scheduled pruning. SQL alias: value. */
-export function largeValueTombstonePredicate(deletedBefore: Date) {
-  return sql`value.deleted_at IS NOT NULL
-          AND value.deleted_at < ${sql.param(deletedBefore, executionLargeValues.deletedAt)}
-          AND NOT EXISTS (
-            SELECT 1
-            FROM ${executionLargeValueDependencies} AS dependency
-            WHERE dependency.parent_key = value.key
-          )`
 }

@@ -1,8 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import {
-  type ResolveWorkspaceBillingPayerOptions,
-  resolveWorkspaceBillingPayer,
-} from '@/lib/billing/core/billing-attribution'
+import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 
 /**
@@ -28,10 +25,9 @@ function readCustomStorageLimitGB(metadata: unknown): number | null {
  * the uploader's subscriptions or organization memberships.
  */
 export async function resolveStorageBillingContext(
-  workspaceId: string,
-  options: ResolveWorkspaceBillingPayerOptions = {}
+  workspaceId: string
 ): Promise<StorageBillingContext> {
-  const payer = await resolveWorkspaceBillingPayer(workspaceId, options)
+  const payer = await resolveWorkspaceBillingPayer(workspaceId)
   if (!payer) {
     throw new Error(`Unable to resolve storage payer for workspace ${workspaceId}`)
   }

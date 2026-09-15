@@ -49,13 +49,6 @@ async function renderPruneStatements(workspaceIds: string[]): Promise<RenderedQu
 }
 
 describe('pruneLargeValueMetadata SQL', () => {
-  it('uses source-specific liveness when pruning stale references', async () => {
-    const [references] = await renderPruneStatements(['ws-1'])
-
-    expect(references.sql).toContain("ref.source = 'execution_log'")
-    expect(references.sql).toContain("ref.source = 'paused_snapshot'")
-  })
-
   for (const [label, ids] of [
     ['multiple workspace ids', ['ws-1', 'ws-2']],
     ['a single workspace id', ['ws-only']],

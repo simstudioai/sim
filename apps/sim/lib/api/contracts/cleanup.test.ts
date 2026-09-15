@@ -1,33 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { logsCleanupQuerySchema, softDeletesCleanupQuerySchema } from '@/lib/api/contracts/cleanup'
 
-describe('bounded cleanup contract', () => {
-  it('keeps an empty query in scheduled mode', () => {
+describe('cleanup query limits', () => {
+  it('preserves scheduled calls without parameters', () => {
     expect(logsCleanupQuerySchema.parse({})).toBeUndefined()
-    expect(softDeletesCleanupQuerySchema.parse({})).toBeUndefined()
   })
-  it('defaults omitted budgets to zero and batches to 25', () => {
-    expect(logsCleanupQuerySchema.parse({ workflowLogs: '5', requestId: 'wave_1' })).toMatchObject({
-      limits: { workflowLogs: 5, jobLogs: 0, orphanSnapshots: 0 },
-      batchSize: 25,
-      dryRun: false,
+  it('parses per-type counts', () => {
+    expect(logsCleanupQuerySchema.parse({ workflowLogs: '25', jobLogs: '0' })).toEqual({
+      workflowLogs: 25,
+      jobLogs: 0,
     })
+    expect(softDeletesCleanupQuerySchema.parse({ files: '1' })).toEqual({ files: 1 })
   })
-  it.each([
-    { workflowLogs: '-1', requestId: 'r' },
-    { workflowLogs: '1.5', requestId: 'r' },
-    { workflowLogs: '5001', requestId: 'r' },
-    { workflowLogs: '1e2', requestId: 'r' },
-    { workflowLogs: '', requestId: 'r' },
-    { workflowLogs: '1' },
-    { workflowLogs: '1', requestId: 'r', batchSize: '501' },
-    { workflowLogs: '1', requestId: 'r', batchSize: '0' },
-    { workflowLogs: '1', requestId: 'r', dryRun: 'yes' },
-    { workflowLogs: '1', requestId: 'r', workflows: '1' },
-    { workflowLogs: ['1', '2'], requestId: 'r' },
-    { requestId: 'r', dryRun: 'true' },
-    { workflowLogs: '0', requestId: 'r' },
-  ])('rejects malformed or ineffective requests: %j', (query) => {
-    expect(logsCleanupQuerySchema.safeParse(query).success).toBe(false)
+  it.each(['', '-1', '1.5', '5001', 'abc', '0'])('rejects invalid count %s', (value) => {
+    expect(logsCleanupQuerySchema.safeParse({ workflowLogs: value }).success).toBe(false)
+  })
+  it('rejects unknown or wrong-endpoint types', () => {
+    expect(logsCleanupQuerySchema.safeParse({ files: '1' }).success).toBe(false)
+    expect(softDeletesCleanupQuerySchema.safeParse({ workflowLogs: '1' }).success).toBe(false)
   })
 })

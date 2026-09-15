@@ -23,7 +23,7 @@ for (const [path, GET, type, limit] of [
     beforeEach(() => {
       vi.clearAllMocks()
       auth.mockReturnValue(null)
-      bounded.mockResolvedValue({ runId: 'run-one', mode: 'bounded' })
+      bounded.mockResolvedValue({ triggered: true, runId: 'run-one', limits: { [limit]: 2 } })
       scheduled.mockResolvedValue({
         jobIds: ['batch-one'],
         jobCount: 1,
@@ -46,20 +46,17 @@ for (const [path, GET, type, limit] of [
       expect(bounded).not.toHaveBeenCalled()
     })
     it('accepts one bounded run', async () => {
-      const response = await GET(request(`?${limit}=2&requestId=wave-1&dryRun=true`))
+      const response = await GET(request(`?${limit}=2`))
       expect(response.status).toBe(202)
-      expect(bounded).toHaveBeenCalledWith(
-        type,
-        expect.objectContaining({
-          limits: expect.objectContaining({ [limit]: 2 }),
-          requestId: 'wave-1',
-          dryRun: true,
-          batchSize: 25,
-        })
-      )
+      expect(bounded).toHaveBeenCalledWith(type, { [limit]: 2 })
+      expect(await response.json()).toEqual({
+        triggered: true,
+        runId: 'run-one',
+        limits: { [limit]: 2 },
+      })
       expect(scheduled).not.toHaveBeenCalled()
     })
-    it.each(['?dryRun=true', '?unknown=1', '?batchSize=3', `?${limit}=2&${limit}=3&requestId=r`])(
+    it.each(['?dryRun=true', '?unknown=1', '?batchSize=3', `?${limit}=2&${limit}=3`])(
       'rejects invalid query %s',
       async (query) => {
         expect((await GET(request(query))).status).toBe(400)
@@ -69,7 +66,7 @@ for (const [path, GET, type, limit] of [
     )
     it('reports a dispatch failure', async () => {
       bounded.mockRejectedValue(new Error('Trigger unavailable'))
-      expect((await GET(request(`?${limit}=2&requestId=r`))).status).toBe(500)
+      expect((await GET(request(`?${limit}=2`))).status).toBe(500)
     })
   })
 }

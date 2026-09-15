@@ -1,2 +1,2 @@
-/** Logs and soft deletes share one lane, including legacy scheduled runs. */
-export const retentionCleanupQueue = { name: 'retention-cleanup', concurrencyLimit: 1 }
+import { queue } from '@trigger.dev/sdk'
+export const retentionCleanupQueue = queue({ name: 'retention-cleanup', concurrencyLimit: 1 })

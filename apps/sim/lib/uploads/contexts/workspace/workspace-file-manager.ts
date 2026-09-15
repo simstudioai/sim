@@ -383,15 +383,14 @@ function withCopySuffix(fileName: string, n: number): string {
 export async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
   baseName: string,
-  folderId?: string | null,
-  exists: typeof fileExistsInWorkspace = fileExistsInWorkspace
+  folderId?: string | null
 ): Promise<string> {
-  if (!(await exists(workspaceId, baseName, folderId))) {
+  if (!(await fileExistsInWorkspace(workspaceId, baseName, folderId))) {
     return baseName
   }
   for (let n = 1; n <= MAX_COPY_SUFFIX; n++) {
     const candidate = withCopySuffix(baseName, n)
-    if (!(await exists(workspaceId, candidate, folderId))) {
+    if (!(await fileExistsInWorkspace(workspaceId, candidate, folderId))) {
       return candidate
     }
   }

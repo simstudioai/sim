@@ -1,9 +1,3 @@
-import type { BoundedCleanup } from '@/lib/cleanup/bounded'
-import { deleteBoundedStorage } from '@/lib/cleanup/bounded-storage'
-import type { CleanupType } from '@/lib/cleanup/bounded-types'
-
-type BoundedChatCleanup = { control: BoundedCleanup; type: CleanupType }
-
 import { dbFor } from '@sim/db'
 import { copilotChats, copilotMessages, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -43,47 +37,35 @@ interface FileRef {
  * 1. workspaceFiles rows with chatId FK (chat-scoped contexts only)
  * 2. fileAttachments[].key inside each copilot_messages.content
  */
-export async function collectChatFiles(
-  chatIds: string[],
-  bounded?: BoundedChatCleanup
-): Promise<FileRef[]> {
+export async function collectChatFiles(chatIds: string[]): Promise<FileRef[]> {
   const files: FileRef[] = []
   if (chatIds.length === 0) return files
 
   const seen = new Set<string>()
 
-  for (const chunk of chunkArray(
-    chatIds,
-    bounded?.control.options.batchSize ?? CHAT_FILE_COLLECT_CHUNK_SIZE
-  )) {
-    bounded?.control.assertTimeRemaining()
-    const selectFiles = async (executor: Pick<typeof cleanupDb, 'select'>) =>
-      Promise.all([
-        executor
-          .select({
-            key: workspaceFiles.key,
-            context: workspaceFiles.context,
-            chatId: workspaceFiles.chatId,
-          })
-          .from(workspaceFiles)
-          .where(
-            and(
-              inArray(workspaceFiles.chatId, chunk),
-              isNull(workspaceFiles.deletedAt),
-              inArray(workspaceFiles.context, [...CHAT_SCOPED_CONTEXTS])
-            )
-          ),
-        // Scan every message row for the chat (no deleted_at filter): this is a
-        // deletion path collecting blob keys, so attachments on any row count.
-        executor
-          .select({ content: copilotMessages.content, chatId: copilotMessages.chatId })
-          .from(copilotMessages)
-          .where(inArray(copilotMessages.chatId, chunk)),
-      ])
-
-    const [linkedFiles, messageRows] = await (bounded
-      ? bounded.control.query(selectFiles)
-      : selectFiles(cleanupDb))
+  for (const chunk of chunkArray(chatIds, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
+    const [linkedFiles, messageRows] = await Promise.all([
+      cleanupDb
+        .select({
+          key: workspaceFiles.key,
+          context: workspaceFiles.context,
+          chatId: workspaceFiles.chatId,
+        })
+        .from(workspaceFiles)
+        .where(
+          and(
+            inArray(workspaceFiles.chatId, chunk),
+            isNull(workspaceFiles.deletedAt),
+            inArray(workspaceFiles.context, [...CHAT_SCOPED_CONTEXTS])
+          )
+        ),
+      // Scan every message row for the chat (no deleted_at filter): this is a
+      // deletion path collecting blob keys, so attachments on any row count.
+      cleanupDb
+        .select({ content: copilotMessages.content, chatId: copilotMessages.chatId })
+        .from(copilotMessages)
+        .where(inArray(copilotMessages.chatId, chunk)),
+    ])
 
     for (const f of linkedFiles) {
       if (f.chatId && !seen.has(f.key)) {
@@ -151,13 +133,10 @@ export async function deleteStorageFiles(
  */
 export async function cleanupCopilotBackend(
   chatIds: string[],
-  label: string,
-  bounded?: BoundedChatCleanup
+  label: string
 ): Promise<{ deleted: number; failed: number }> {
   const stats = { deleted: 0, failed: 0 }
 
-  if (bounded && chatIds.length > 0 && !env.COPILOT_API_KEY)
-    throw new Error('COPILOT_API_KEY is required for bounded chat cleanup')
   if (chatIds.length === 0 || !env.COPILOT_API_KEY) {
     if (!env.COPILOT_API_KEY) {
       logger.warn(`[${label}] COPILOT_API_KEY not set, skipping copilot backend cleanup`)
@@ -165,13 +144,11 @@ export async function cleanupCopilotBackend(
     return stats
   }
 
-  const batchSize = bounded?.control.options.batchSize ?? COPILOT_CLEANUP_BATCH_SIZE
-  for (let i = 0; i < chatIds.length; i += batchSize) {
-    const chunk = chatIds.slice(i, i + batchSize)
+  for (let i = 0; i < chatIds.length; i += COPILOT_CLEANUP_BATCH_SIZE) {
+    const chunk = chatIds.slice(i, i + COPILOT_CLEANUP_BATCH_SIZE)
     try {
       const response = await fetch(`${SIM_AGENT_API_URL}/api/tasks/cleanup`, {
         method: 'POST',
-        ...(bounded ? { signal: AbortSignal.timeout(10_000) } : {}),
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': env.COPILOT_API_KEY,
@@ -180,7 +157,6 @@ export async function cleanupCopilotBackend(
       })
 
       if (!response.ok) {
-        if (bounded) throw new Error(`Copilot backend cleanup failed: ${response.status}`)
         const errorBody = await response.text().catch(() => '')
         logger.error(`[${label}] Copilot backend cleanup failed: ${response.status}`, {
           errorBody,
@@ -191,17 +167,11 @@ export async function cleanupCopilotBackend(
       }
 
       const result = await response.json()
-      if (
-        bounded &&
-        (!Number.isInteger(result.deleted) || result.deleted < 0 || (result.failed ?? 0) > 0)
-      )
-        throw new Error('Invalid or failed Copilot backend cleanup result')
       stats.deleted += result.deleted ?? 0
       logger.info(
         `[${label}] Copilot backend cleanup: ${result.deleted} chats deleted (batch ${Math.floor(i / COPILOT_CLEANUP_BATCH_SIZE) + 1})`
       )
     } catch (error) {
-      if (bounded) throw error
       stats.failed += chunk.length
       logger.error(`[${label}] Copilot backend cleanup request failed:`, { error })
     }
@@ -221,13 +191,10 @@ export async function cleanupCopilotBackend(
  */
 export async function prepareChatCleanup(
   chatIds: string[],
-  label: string,
-  bounded?: BoundedChatCleanup
+  label: string
 ): Promise<{ execute: () => Promise<void> }> {
   // Collect file refs BEFORE DB deletion (keys + context are lost after cascade)
-  if (bounded && chatIds.length > 0 && !env.COPILOT_API_KEY)
-    throw new Error('COPILOT_API_KEY is required for bounded chat cleanup')
-  const files = await collectChatFiles(chatIds, bounded)
+  const files = await collectChatFiles(chatIds)
   if (files.length > 0) {
     logger.info(`[${label}] Collected ${files.length} files for cleanup`, {
       files: files.map((f) => ({ key: f.key, context: f.context })),
@@ -240,18 +207,11 @@ export async function prepareChatCleanup(
       // the caller's row delete. Purge backend data and files only for chats
       // whose rows are actually gone, so a surviving row never loses its data.
       const survivors = new Set<string>()
-      for (const chunk of chunkArray(
-        chatIds,
-        bounded?.control.options.batchSize ?? CHAT_FILE_COLLECT_CHUNK_SIZE
-      )) {
-        const selectSurvivors = async (executor: Pick<typeof cleanupDb, 'select'>) =>
-          executor
-            .select({ id: copilotChats.id })
-            .from(copilotChats)
-            .where(inArray(copilotChats.id, chunk))
-        const rows = await (bounded
-          ? bounded.control.query(selectSurvivors)
-          : selectSurvivors(cleanupDb))
+      for (const chunk of chunkArray(chatIds, CHAT_FILE_COLLECT_CHUNK_SIZE)) {
+        const rows = await cleanupDb
+          .select({ id: copilotChats.id })
+          .from(copilotChats)
+          .where(inArray(copilotChats.id, chunk))
         for (const row of rows) survivors.add(row.id)
       }
       if (survivors.size > 0) {
@@ -264,7 +224,7 @@ export async function prepareChatCleanup(
 
       // Call copilot backend
       if (confirmedChatIds.length > 0) {
-        const copilotResult = await cleanupCopilotBackend(confirmedChatIds, label, bounded)
+        const copilotResult = await cleanupCopilotBackend(confirmedChatIds, label)
         logger.info(
           `[${label}] Copilot backend: ${copilotResult.deleted} deleted, ${copilotResult.failed} failed`
         )
@@ -272,17 +232,6 @@ export async function prepareChatCleanup(
 
       // Delete storage files with correct context per file
       if (confirmedFiles.length > 0) {
-        if (bounded) {
-          for (const context of CHAT_SCOPED_CONTEXTS) {
-            await deleteBoundedStorage(
-              bounded.control,
-              bounded.type,
-              confirmedFiles.filter((file) => file.context === context).map((file) => file.key),
-              context
-            )
-          }
-          return
-        }
         const fileStats = await deleteStorageFiles(confirmedFiles, label)
         logger.info(
           `[${label}] Storage cleanup: ${fileStats.filesDeleted} deleted, ${fileStats.filesFailed} failed`

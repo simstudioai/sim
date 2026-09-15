@@ -22,11 +22,6 @@ const mockLogger =
     vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'LoopOrchestrator')
   ].value
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  registerLargeValueOwner: vi.fn().mockResolvedValue(true),
-  addLargeValueReference: vi.fn().mockResolvedValue(undefined),
-}))
-
 vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))

@@ -16,10 +16,6 @@ import {
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
 
-vi.mock('@/lib/execution/payloads/large-value-lock', () => ({
-  lockLargeValueKeysForReference: vi.fn(),
-}))
-
 function largeValueKey(id: string, executionId = 'source-execution'): string {
   return `execution/workspace-1/workflow-1/${executionId}/large-value-lv_${id}.json`
 }
@@ -326,5 +322,19 @@ describe('large value metadata', () => {
       dependenciesDeleted: 3,
       tombstonesDeleted: 4,
     })
+  })
+
+  it('uses source-specific liveness when pruning stale references', async () => {
+    await pruneLargeValueMetadata({
+      workspaceIds: ['workspace-1'],
+      tombstonesDeletedBefore: new Date('2026-01-01T00:00:00Z'),
+      batchSize: 10,
+      maxRowsPerTable: 100,
+    })
+
+    const [query] = dbChainMockFns.execute.mock.calls[0] ?? []
+    const sqlText = Array.isArray(query?.strings) ? query.strings.join(' ') : ''
+    expect(sqlText).toContain("ref.source = 'execution_log'")
+    expect(sqlText).toContain("ref.source = 'paused_snapshot'")
   })
 })
