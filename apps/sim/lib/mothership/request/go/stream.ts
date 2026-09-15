@@ -15,13 +15,14 @@ import {
   extractEditContent,
   processFilePreviewStreamEvent,
 } from '@/lib/mothership/request/go/file-preview-adapter'
+import { prepareStreamImages } from '@/lib/mothership/request/go/inline-images'
 import {
   FatalSseEventError,
   processSSEStream,
   StreamContinuityError,
 } from '@/lib/mothership/request/go/parser'
-import { scopeProviderToolCallEvent } from '@/lib/mothership/request/go/tool-call-identity'
 import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
+import { scopeProviderToolCallEvent } from '@/lib/mothership/request/go/tool-call-identity'
 import {
   applyStreamEvent,
   prePersistClientExecutableToolCall,
@@ -128,6 +129,7 @@ export async function runStreamLoop(
   const timeoutSignal = AbortSignal.timeout(Math.ceil(timeout))
   const requestSignal = abortSignal ? AbortSignal.any([abortSignal, timeoutSignal]) : timeoutSignal
   const filePreviewAdapterState = createFilePreviewAdapterState()
+  const attemptedInlineImages = new Set<string>()
 
   const pathname = new URL(fetchUrl).pathname
   const requestBodyBytes = estimateBodyBytes(fetchOptions.body)
@@ -311,10 +313,7 @@ export async function runStreamLoop(
         } catch (error) {
           throw new FatalSseEventError(getErrorMessage(error))
         }
-        const streamEvent = reconcileTextEvent(
-          scopedEvent,
-          context.accumulatedContent
-        )
+        const streamEvent = reconcileTextEvent(scopedEvent, context.accumulatedContent)
         if (!streamEvent) return
         if (envelope.trace?.requestId) {
           const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
@@ -381,6 +380,14 @@ export async function runStreamLoop(
         }
 
         await prePersistClientExecutableToolCall(streamEvent, context, options, execContext)
+
+        await prepareStreamImages(
+          streamEvent,
+          context,
+          execContext,
+          attemptedInlineImages,
+          requestSignal
+        )
 
         if (streamEvent.type === MothershipStreamV1EventType.resource) {
           try {

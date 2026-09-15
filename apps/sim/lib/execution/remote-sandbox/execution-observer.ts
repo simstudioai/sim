@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 
 interface SandboxExecutionObserver {
+  sessionInputsSafe?(): boolean
   hold(work: Promise<unknown>): void
   unsettled(processId?: string): void
   claimProcess?(process: SessionProcessIdentity): Promise<void>
@@ -45,4 +46,23 @@ export async function prepareSandboxSessionAccess(
   signal.throwIfAborted()
   await executionObserver.getStore()?.sessionAccess?.(sessionKey, signal)
   signal.throwIfAborted()
+}
+
+/** The trusted tool adapter supplies current input evidence while preserving execution ownership. */
+export function observeSandboxSessionInputs<T>(safe: () => boolean, execute: () => T): T {
+  const current = executionObserver.getStore()
+  return executionObserver.run(
+    {
+      hold: (work) => current?.hold(work),
+      unsettled: (id) => current?.unsettled(id),
+      ...current,
+      sessionInputsSafe: safe,
+    },
+    execute
+  )
+}
+
+/** Unobserved arbitrary code cannot certify scratch files as safe. */
+export function sandboxSessionInputsSafe(): boolean {
+  return executionObserver.getStore()?.sessionInputsSafe?.() === true
 }

@@ -31,6 +31,11 @@ vi.mock('@/lib/mothership/request/session', async () => {
 const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
 const listAllWorkspaceFilesMock = vi.hoisted(() => vi.fn())
 const changeStoredChatResourcesMock = vi.hoisted(() => vi.fn())
+const materializeStreamImageMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/mothership/chat/application/inline-images', () => ({
+  materializeStreamImage: materializeStreamImageMock,
+}))
 
 vi.mock('@/lib/mothership/resources/store', () => ({
   changeStoredChatResources: changeStoredChatResourcesMock,
@@ -190,10 +195,77 @@ describe('copilot go stream helpers', () => {
     listAllWorkspaceFilesMock.mockResolvedValue({ files: [] })
     changeStoredChatResourcesMock.mockReset()
     changeStoredChatResourcesMock.mockResolvedValue([])
+    materializeStreamImageMock.mockReset().mockResolvedValue({ url: '/private-image' })
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('prepares inline images before delivery without changing text offsets or final receipt length', async () => {
+    const context = createStreamingContext()
+    context.chatId = 'chat-images'
+    context.requestId = 'sim-image-request'
+    const prefix = 'See ![Diagram](/tmp/page.png'
+    const suffix = ') and details.'
+    const completeText = prefix + suffix
+    let prepared = false
+    materializeStreamImageMock.mockImplementation(async () => {
+      prepared = true
+      return { url: '/private-image' }
+    })
+    vi.mocked(fetch).mockResolvedValueOnce(
+      createSseResponse([
+        createEvent({
+          streamId: 'image-stream',
+          cursor: '1',
+          seq: 1,
+          requestId: 'worker-image-request',
+          type: 'text',
+          payload: { channel: 'assistant', text: prefix, textOffset: 0 },
+        }),
+        createEvent({
+          streamId: 'image-stream',
+          cursor: '2',
+          seq: 2,
+          requestId: 'worker-image-request',
+          type: 'text',
+          payload: { channel: 'assistant', text: suffix, textOffset: prefix.length },
+        }),
+        createEvent({
+          streamId: 'image-stream',
+          cursor: '3',
+          seq: 3,
+          requestId: 'worker-image-request',
+          type: 'complete',
+          payload: { status: 'complete', textLength: completeText.length },
+        }),
+      ])
+    )
+    const delivered: string[] = []
+    await runStreamLoop(
+      'https://example.com/mothership/stream',
+      {},
+      context,
+      turnScopedExecContext(),
+      {
+        flushAfterEvent: false,
+        onEvent(event) {
+          if (event.type !== 'text') return
+          if (event.payload.text === suffix) expect(prepared).toBe(true)
+          delivered.push(event.payload.text)
+        },
+      }
+    )
+    expect(delivered.join('')).toBe(completeText)
+    expect(context.accumulatedContent).toBe(completeText)
+    expect(context.finalAssistantContent).toBe(completeText)
+    expect(materializeStreamImageMock).toHaveBeenCalledTimes(1)
+    expect(materializeStreamImageMock.mock.calls[0][1]).toMatchObject({
+      requestId: 'sim-image-request',
+      reference: '/tmp/page.png',
+    })
+    expect(context.streamComplete).toBe(true)
   })
 
   it('terminates the stream on an exhausted identity budget before forwarding later events', async () => {

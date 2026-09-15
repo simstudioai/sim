@@ -1,5 +1,6 @@
 import { v2ReadFileTextContract, v2ReadFileTextQuerySchema } from '@/lib/api/contracts/v2/files'
 import { fileReadFailure, readFileVisual } from '@/lib/mothership/agent-cli/engines/file-view'
+import { readScratchFile } from '@/lib/mothership/agent-cli/engines/scratch-file-read'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
@@ -17,12 +18,19 @@ export const fileReadCommand: AgentCliEngine = {
   openReadResources: true,
   async execute(positionals, runtime, flags) {
     const reference = positionals[0]
-    if (!reference) return agentCliFail('files read requires a workspace file reference.')
+    if (!reference)
+      return agentCliFail(
+        'files read requires a workspace file reference or absolute sandbox path.'
+      )
     if (!runtime.principal)
       return agentCliFail('Workspace authentication is unavailable. Retry the read.')
     for (const key of ['max-bytes', 'offset', 'limit']) {
       if (flags[key] === true) return agentCliFail(`--${key} requires a value.`)
     }
+    if (flags.render !== undefined && flags.render !== true)
+      return agentCliFail('--render is a flag without a value.')
+    if (flags.pages !== undefined && (typeof flags.pages !== 'string' || !flags.pages.trim()))
+      return agentCliFail('--pages requires a page number or range.')
     const textRange = flags.offset !== undefined || flags.limit !== undefined
     const visual = flags.render !== undefined || flags.pages !== undefined
     if (textRange && visual)
@@ -37,6 +45,8 @@ export const fileReadCommand: AgentCliEngine = {
       return agentCliFail(query.error.issues.map((issue) => issue.message).join('; '))
     runtime.signal?.throwIfAborted()
     try {
+      if (reference.startsWith('/tmp/') || reference.startsWith('/home/user/'))
+        return await readScratchFile(reference, runtime, flags, query.data)
       const file = await resolveWorkspaceFileReference({
         principal: runtime.principal,
         operation: fileOperations.readContent,

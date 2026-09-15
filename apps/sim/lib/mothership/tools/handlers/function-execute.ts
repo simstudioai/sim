@@ -9,6 +9,7 @@ import {
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
+import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/execution-observer'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import {
   createSandboxMountBudget,
@@ -555,25 +556,39 @@ export async function executeFunctionExecute(
        * without renaming the registry breaks every copilot sandbox call with
        * "An internal sandbox profile may only be used with function_execute".
        */
-      const result = await executeAppTool('function_execute', enrichedParams, {
-        resolvedSecretTraceRegistry: mountedRegistry,
-        operationContext: {
-          userId: context.userId,
-          workflowId: context.workflowId,
-          workspaceId: context.workspaceId,
-          executionId: context.executionId,
-          executorDelegationOrigin: {
-            subjectUserId: context.userId,
-            workflowId: context.workflowId,
-            ...(context.executionId ? { executionId: context.executionId } : {}),
-          },
-          copilotToolExecution: context.copilotToolExecution,
-          billingAttribution: context.billingAttribution,
-          resolvedSecretTraceRegistry: mountedRegistry,
+      const result = await observeSandboxSessionInputs(
+        () => {
+          const mounted = mountedRegistry?.exportProvenance()
+          const code =
+            context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(params)
+          return (
+            mounted?.complete === true &&
+            mounted.entries.length === 0 &&
+            code?.complete === true &&
+            code.entries.length === 0
+          )
         },
-        ...(context.abortSignal ? { signal: context.abortSignal } : {}),
-        internalSandboxProfile: 'mothership',
-      })
+        () =>
+          executeAppTool('function_execute', enrichedParams, {
+            resolvedSecretTraceRegistry: mountedRegistry,
+            operationContext: {
+              userId: context.userId,
+              workflowId: context.workflowId,
+              workspaceId: context.workspaceId,
+              executionId: context.executionId,
+              executorDelegationOrigin: {
+                subjectUserId: context.userId,
+                workflowId: context.workflowId,
+                ...(context.executionId ? { executionId: context.executionId } : {}),
+              },
+              copilotToolExecution: context.copilotToolExecution,
+              billingAttribution: context.billingAttribution,
+              resolvedSecretTraceRegistry: mountedRegistry,
+            },
+            ...(context.abortSignal ? { signal: context.abortSignal } : {}),
+            internalSandboxProfile: 'mothership',
+          })
+      )
       crossingValue = result
       return result
     } catch (error) {

@@ -2,6 +2,7 @@ import { createSandboxPricing } from '@/lib/billing/sandbox-pricing'
 import { type CreatedSandbox, createSelectedSandbox } from '@/lib/execution/remote-sandbox/create'
 import type { ResolvedSandbox } from '@/lib/execution/remote-sandbox/resolve'
 import { ensureSessionCli } from '@/lib/execution/remote-sandbox/session-cli'
+import { initializeSessionFileProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import type {
   CreateSandboxOptions,
   SandboxKind,
@@ -55,6 +56,11 @@ export async function ensureSessionSandbox(args: {
         provider
       )
   signal.throwIfAborted()
+  if (!existing)
+    await initializeSessionFileProvenance(session.key, {
+      providerId: provider.id,
+      sandboxId: created.sandbox.sandboxId,
+    })
   await created.sandbox.extendLifetime?.(lifetimeMs)
   signal.throwIfAborted()
   if (session.cli) {

@@ -3,10 +3,10 @@ import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { SandboxSessionRequest } from '@/lib/execution/remote-sandbox/types'
-import { mintDelegationToken } from '@/lib/mothership/chat/delegation'
 import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
@@ -60,9 +60,9 @@ async function workbenchCli(
  * Builds the session request for a Mothership chat's persistent sandbox: the
  * per-chat identity, the sim-CLI bootstrap, and the CLI's headless auth
  * environment (`SIM_API_KEY`/`SIM_WORKSPACE`/`SIM_ENDPOINT`, the CLI's
- * documented CI path). The token is minted sim-side per execution and injected
- * per exec instead of writing a CLI profile. Code in the workbench can access
- * its process environment; this is not a credential-isolation boundary.
+ * documented CI path). Only an opaque callback credential enters the workbench;
+ * the active tool lease resolves the real user credential on the server. The
+ * opaque credential cannot authenticate directly to ordinary v2 routes.
  *
  * Both failure modes degrade rather than fail the execution: without a token or
  * a reachable endpoint the sandbox still persists — only `sim` inside it is
@@ -79,16 +79,14 @@ export async function buildMothershipSandboxSession(args: {
   const cli = await workbenchCli(args.userId, args.signal)
   let cliEnvs: Record<string, string> | undefined
   try {
-    const apiKey = await mintDelegationToken({
-      workspaceId: args.workspaceId,
-      userId: args.userId,
-    })
+    const apiKey = `mothership-sandbox:${generateId()}`
     const endpoint = env.MOTHERSHIP_SANDBOX_CLI_ENDPOINT?.trim() || getBaseUrl()
-    if (apiKey) {
+    const scopedEndpoint = await sandboxResourceEndpoint(endpoint, args, apiKey)
+    if (scopedEndpoint !== endpoint) {
       cliEnvs = {
         SIM_API_KEY: apiKey,
         SIM_WORKSPACE: args.workspaceId,
-        SIM_ENDPOINT: await sandboxResourceEndpoint(endpoint, args, apiKey),
+        SIM_ENDPOINT: scopedEndpoint,
       }
     }
   } catch (error) {

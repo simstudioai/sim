@@ -20,6 +20,7 @@ import {
   prepareSandboxSessionAccess,
   reportUnsettledSandboxProcess,
   retainSandboxExecution,
+  sandboxSessionInputsSafe,
 } from '@/lib/execution/remote-sandbox/execution-observer'
 import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
 import {
@@ -54,6 +55,7 @@ import {
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
 import { sessionCommandPath } from '@/lib/execution/remote-sandbox/session-cli'
+import { recordSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import type {
   CreateSandboxOptions,
@@ -885,6 +887,12 @@ async function executeInSandboxWithinBudget(
     // the finally below. Dependencies land before the inputs so user code and its
     // mounts always see a complete environment.
     //
+    if (req.session)
+      await recordSessionFileInput(
+        req.session.key,
+        { providerId: created.providerId, sandboxId },
+        sandboxSessionInputsSafe() && !Object.keys(selected?.envs ?? {}).length
+      )
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {
       signal,
@@ -1066,6 +1074,12 @@ async function executeShellInSandboxWithinBudget(
     // Inside the try so a failed install or mount still releases the sandbox via
     // the finally below. The install shares the caller's budget rather than adding
     // to it — see the note in `executeInSandbox`.
+    if (req.session)
+      await recordSessionFileInput(
+        req.session.key,
+        { providerId: created.providerId, sandboxId },
+        sandboxSessionInputsSafe() && !Object.keys(selected?.envs ?? {}).length
+      )
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {
       rootUser: !lease.session,

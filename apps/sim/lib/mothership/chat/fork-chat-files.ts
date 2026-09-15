@@ -40,6 +40,8 @@ export interface ChatBlobCopyTask {
   context: StorageContext
   fileName: string
   contentType: string
+  maxBytes?: number
+  persistMetadata?: boolean
 }
 
 export interface PlanChatFileCopiesResult {
@@ -190,7 +192,7 @@ export async function executeChatFileBlobCopies(
       const buffer = await downloadFile({
         key: task.sourceKey,
         context: task.context,
-        maxBytes: MAX_FILE_SIZE,
+        maxBytes: task.maxBytes ?? MAX_FILE_SIZE,
       })
       /** Metadata is published with the chat only after preparation succeeds. */
       await uploadFile({
@@ -200,6 +202,7 @@ export async function executeChatFileBlobCopies(
         context: task.context,
         customKey: task.targetKey,
         preserveKey: true,
+        persistMetadata: task.persistMetadata,
       })
       copied += 1
     } catch (error) {
