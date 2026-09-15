@@ -953,6 +953,52 @@ describe('AgentBlockHandler', () => {
       expect(inputs).toEqual(rawInputs)
     })
 
+    it.each([
+      'url/https://example.com/image.png',
+      '',
+      'provider-file-id',
+      'profile-pictures/avatar.png',
+    ])('preserves inline bytes for an actorless request with key %s', async (key) => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      await handler.execute(
+        {
+          ...mockContext,
+          principal: {
+            kind: 'system',
+            serviceId: 'chat',
+            workspaceId: 'test-workspace',
+            workflowId: 'test-workflow',
+          },
+          executorDelegationOrigin: undefined,
+        },
+        mockBlock,
+        {
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: 'Analyze this image',
+              files: [
+                {
+                  id: 'file-1',
+                  key,
+                  name: 'image.png',
+                  url: 'https://example.com/image.png',
+                  size: 5,
+                  type: 'image/png',
+                  base64: 'aW1hZ2U=',
+                },
+              ],
+            },
+          ],
+          apiKey: 'test-api-key',
+        }
+      )
+      expect(mockExecuteProviderRequest.mock.calls[0][1].messages[0].files).toEqual([
+        expect.objectContaining({ base64: 'aW1hZ2U=' }),
+      ])
+    })
+
     it('normalizes the persisted workspace-picker shape before provider execution', async () => {
       const key = 'workspace/ws-1/example.png'
       const hydrationSpy = vi

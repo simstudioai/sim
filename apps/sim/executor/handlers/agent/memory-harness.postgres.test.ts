@@ -64,13 +64,22 @@ vi.mock('@/lib/api-key/byok', () => ({
 import {
   memory,
   memorySecretProvenance,
+  resumeQueue,
+  workflow,
+  workflowExecutionLogs,
+  workspace,
   workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
-import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
+import {
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+  initializeWorkspaceFileSecretProvenanceInTx,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
+import { insertImmutableFileMetadata } from '@/lib/uploads/server/metadata'
+import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, StreamingExecution, UserFile } from '@/executor/types'
@@ -176,7 +185,7 @@ async function executeTurn(ctx: ExecutionContext, inputs: AgentInputs): Promise<
   return drained.answerText
 }
 
-/** Generate only the four production tables exercised here; unrelated application FKs are omitted. */
+/** Generate the production tables exercised here; unrelated application FKs are omitted. */
 async function createTable(table: PgTable): Promise<void> {
   if (!connection) throw new Error('Missing harness database')
   const dialect = new PgDialect()
@@ -190,7 +199,9 @@ async function createTable(table: PgTable): Promise<void> {
       column.default === undefined
         ? ''
         : ` DEFAULT ${dialect.sqlToQuery(defaultValue.inlineParams()).sql}`
-    return `"${column.name}" ${column.getSQLType()}${column.primary ? ' PRIMARY KEY' : ''}${column.notNull ? ' NOT NULL' : ''}${defaultSql}`
+    const type =
+      'enumValues' in column && Array.isArray(column.enumValues) ? 'text' : column.getSQLType()
+    return `"${column.name}" ${type}${column.primary ? ' PRIMARY KEY' : ''}${column.notNull ? ' NOT NULL' : ''}${defaultSql}`
   })
   await connection.unsafe(`CREATE TABLE "${config.name}" (${columns.join(', ')})`)
 }
@@ -318,8 +329,27 @@ describe.skipIf(!databaseUrl)(
         memorySecretProvenance,
         workspaceFiles,
         workspaceFileSecretProvenance,
+        workspace,
+        workflow,
+        workflowExecutionLogs,
+        resumeQueue,
       ])
         await createTable(table)
+      await fixture.database.insert(workspace).values({
+        id: scope.workspaceId,
+        name: 'Attachment harness',
+        ownerId: scope.userId,
+        billedAccountUserId: scope.userId,
+      })
+      await fixture.database.insert(workflow).values({
+        id: scope.workflowId,
+        workspaceId: scope.workspaceId,
+        userId: scope.userId,
+        name: 'Attachment harness',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastSynced: new Date(),
+      })
       await connection.unsafe(
         `CREATE UNIQUE INDEX memory_workspace_key_idx ON memory(workspace_id, key)`
       )
@@ -350,6 +380,170 @@ describe.skipIf(!databaseUrl)(
         vi.unstubAllGlobals()
       }
     })
+
+    it.each(
+      (['openai', 'anthropic'] as const).flatMap((provider) =>
+        [false, true].map((streaming) => ({ provider, streaming }))
+      )
+    )(
+      'deployed chat reads remembered workspace files with $provider, streaming=$streaming',
+      async ({ provider, streaming }) => {
+        if (!fixture.database || !connection) throw new Error('Missing harness database')
+        vi.stubGlobal('fetch', interceptFetch)
+        outbound = []
+        const conversationId = generateId()
+        const pdf = await PDFDocument.create()
+        pdf
+          .addPage()
+          .drawText('A workspace image-edit result can be recalled without a new upload.')
+        const buffer = Buffer.from(await pdf.save())
+        const key = `workspace/${scope.workspaceId}/${generateId()}/result.pdf`
+        await uploadFile({
+          file: buffer,
+          fileName: 'result.pdf',
+          contentType: 'application/pdf',
+          context: 'workspace',
+          preserveKey: true,
+          customKey: key,
+          persistMetadata: false,
+        })
+        const record = await fixture.database.transaction(async (tx) => {
+          const record = await insertImmutableFileMetadata(
+            {
+              id: generateId(),
+              key,
+              userId: scope.userId,
+              workspaceId: scope.workspaceId,
+              context: 'workspace',
+              originalName: 'result.pdf',
+              contentType: 'application/pdf',
+              size: buffer.length,
+            },
+            tx
+          )
+          await initializeWorkspaceFileSecretProvenanceInTx(
+            tx,
+            record.id,
+            record.contentUpdatedAt,
+            EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+          )
+          return record
+        })
+        const file: UserFile = {
+          id: record.id,
+          name: 'result.pdf',
+          key,
+          url: '',
+          size: buffer.length,
+          type: 'application/pdf',
+          context: 'workspace',
+        }
+        const createChatContext = async () => {
+          const ctx = context(streaming)
+          ctx.principal = {
+            kind: 'system',
+            serviceId: 'chat',
+            workspaceId: scope.workspaceId,
+            workflowId: scope.workflowId,
+          }
+          const deploymentVersionId = generateId()
+          ctx.executorDelegationOrigin = {
+            workflowId: scope.workflowId,
+            executionId: ctx.executionId,
+            principal: ctx.principal,
+            currentWorkflow: {
+              workflowId: scope.workflowId,
+              mode: 'deployment',
+              deploymentVersionId,
+            },
+          }
+          await fixture.database!.insert(workflowExecutionLogs).values({
+            id: generateId(),
+            workflowId: scope.workflowId,
+            workspaceId: scope.workspaceId,
+            executionId: ctx.executionId!,
+            deploymentVersionId,
+            stateSnapshotId: generateId(),
+            level: 'info',
+            status: 'running',
+            trigger: 'chat',
+            startedAt: new Date(),
+          })
+          return ctx
+        }
+        const inputs: AgentInputs = {
+          model: models[provider],
+          apiKey: apiKey(provider),
+          maxTokens: '128',
+          memoryType: 'conversation',
+          conversationId,
+          userPrompt: 'Read the attached PDF and reply exactly READY.',
+        }
+        transportReply = 'READY'
+        const firstContext = await createChatContext()
+        await expect(
+          readWorkspaceFileRecordByKey.execute({
+            principal: firstContext.principal!,
+            input: { key, assertedWorkspaceId: scope.workspaceId },
+          })
+        ).rejects.toThrow('Principal kind system')
+        expect(await executeTurn(firstContext, { ...inputs, files: [file] })).toBe('READY')
+        expect(requestFiles(outbound[0])).toEqual([buffer.toString('base64')])
+        const stored = await readConversation(conversationId)
+        expect(stored.data[0].files).toEqual([file])
+        expect(JSON.stringify(stored)).not.toContain('base64')
+
+        expect(
+          await executeTurn(await createChatContext(), {
+            ...inputs,
+            userPrompt: 'Read the earlier PDF again and reply exactly READY.',
+          })
+        ).toBe('READY')
+        expect(requestFiles(outbound[1])).toEqual([buffer.toString('base64')])
+
+        const missingOrigin = await createChatContext()
+        missingOrigin.executorDelegationOrigin = undefined
+        await expect(executeTurn(missingOrigin, inputs)).rejects.toThrow()
+        const otherWorkspace = await createChatContext()
+        otherWorkspace.workspaceId = generateId()
+        await expect(
+          executeTurn(otherWorkspace, { ...inputs, files: [file], memoryType: 'none' })
+        ).rejects.toThrow('could not be read')
+        const terminalRun = await createChatContext()
+        await connection`UPDATE workflow_execution_logs SET status = 'completed' WHERE execution_id = ${terminalRun.executionId!}`
+        await expect(executeTurn(terminalRun, inputs)).rejects.toThrow('active workflow execution')
+        const mismatchedDeployment = await createChatContext()
+        mismatchedDeployment.executorDelegationOrigin!.currentWorkflow = {
+          workflowId: scope.workflowId,
+          mode: 'deployment',
+          deploymentVersionId: generateId(),
+        }
+        await expect(executeTurn(mismatchedDeployment, inputs)).rejects.toThrow(
+          'active workflow execution'
+        )
+        await connection`UPDATE workspace_files SET deleted_at = NOW() WHERE id = ${file.id}`
+        await expect(executeTurn(await createChatContext(), inputs)).rejects.toThrow(
+          'could not be read'
+        )
+        expect(outbound).toHaveLength(2)
+        report.push({
+          provider,
+          streaming,
+          workspaceAttachment: true,
+          stored,
+          controls: {
+            missingOrigin: 'blocked before HTTP',
+            differentWorkspace: 'blocked before HTTP',
+            terminalRun: 'blocked before HTTP',
+            mismatchedDeployment: 'blocked before HTTP',
+            deletedFile: 'blocked before HTTP',
+          },
+          passed: true,
+        })
+        await deleteFile({ key, context: 'workspace' })
+      },
+      150_000
+    )
 
     it.each(
       (

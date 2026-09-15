@@ -265,8 +265,8 @@ export async function executeProviderRequest(
   }
 
   const response = await runWithProviderRuntimeContext(requestRuntimeContext, async () => {
-    await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
-    await uploadLargeFilesToProvider(modelSafeRequest, providerId)
+    await attachLargeFileRemoteUrls(modelSafeRequest, providerId, runtimeContext?.executionContext)
+    await uploadLargeFilesToProvider(modelSafeRequest, providerId, runtimeContext?.executionContext)
     return provider.executeRequest(modelSafeRequest)
   })
 
