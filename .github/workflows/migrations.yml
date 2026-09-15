@@ -78,7 +78,7 @@ jobs:
             # terminal" but still exits 0, so the job goes green without applying the
             # change. tee keeps the output live in the log; we then fail on drizzle's
             # own TTY error. pipefail also preserves a non-zero db:push exit through tee.
-            bun run db:push --force < /dev/null 2>&1 | tee /tmp/db-push.log
+            SIM_DEV_DB_PUSH=1 bun run db:push --force < /dev/null 2>&1 | tee /tmp/db-push.log
             if grep -q "Interactive prompts require a TTY terminal" /tmp/db-push.log; then
               echo "ERROR: db:push needs an interactive rename decision; land it as a versioned migration instead of relying on push." >&2
               exit 1
