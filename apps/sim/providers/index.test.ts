@@ -1599,6 +1599,30 @@ describe('executeProviderRequest — model level normalization', () => {
     expect(sentRequest().reasoningEffort).toBe('high')
   })
 
+  it.each([
+    ['azure-openai', 'azure/MyDeployment'],
+    ['azure-anthropic', 'azure-anthropic/MyDeployment'],
+    ['bedrock', 'bedrock/custom-inference-profile'],
+    ['vertex', 'vertex/custom-gemini'],
+  ])('preserves tuning levels for a custom %s deployment', async (provider, model) => {
+    await executeProviderRequest(provider, {
+      model,
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+      verbosity: 'low',
+      thinkingLevel: 'high',
+      temperature: 0.7,
+    })
+
+    expect(sentRequest()).toMatchObject({
+      model,
+      reasoningEffort: 'high',
+      verbosity: 'low',
+      thinkingLevel: 'high',
+      temperature: 0.7,
+    })
+  })
+
   it('still drops levels for a dynamic-provider model that does not take them', async () => {
     await executeProviderRequest('ollama', {
       model: 'ollama/llama3',

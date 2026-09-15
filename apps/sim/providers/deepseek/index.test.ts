@@ -108,6 +108,20 @@ describe('deepseekProvider thinking payload', () => {
     expect(payload.thinking).toBeUndefined()
   })
 
+  it.each([
+    ['low', 'low'],
+    ['minimal', 'low'],
+    ['medium', 'high'],
+    ['xhigh', 'high'],
+    ['max', 'max'],
+  ] as const)('maps Flash reasoning effort %s to %s', async (reasoningEffort, expected) => {
+    await deepseekProvider.executeRequest(request({ model: 'deepseek-flash', reasoningEffort }))
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({
+      model: 'deepseek-flash',
+      reasoning_effort: expected,
+    })
+  })
+
   it('selects the live tool loop without a caller flag', async () => {
     mockPrepareToolsWithUsageControl.mockReturnValue({
       tools: [

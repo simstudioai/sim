@@ -31,7 +31,8 @@ const { mockProviders } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/providers/models', () => ({
+vi.mock('@/providers/models', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/providers/models')>()),
   getProviderFileAttachment: vi
     .fn()
     .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
@@ -180,6 +181,16 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
   })
 
   describe('provider store lookup (client-side)', () => {
+    it('requires the cloud key even when a local discovered name uses its namespace', () => {
+      mockProviders.value.ollama.models = ['azure/MyDeployment', 'ollama-cloud/MyModel']
+      expect(evaluateCondition('azure/MyDeployment')).toBe(true)
+      expect(evaluateCondition('ollama-cloud/MyModel')).toBe(true)
+    })
+
+    it('does not require an API key for an undiscovered namespaced Ollama model', () => {
+      expect(evaluateCondition('OLLAMA/Org/CustomModel')).toBe(false)
+    })
+
     it('does not require API key when model is in the Ollama store bucket', () => {
       mockProviders.value.ollama.models = ['llama3:latest', 'mistral:latest']
       expect(evaluateCondition('llama3:latest')).toBe(false)

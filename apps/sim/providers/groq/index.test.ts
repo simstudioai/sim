@@ -140,6 +140,23 @@ describe('groqProvider reasoning payload', () => {
     expect(payload.reasoning_effort).toBe('none')
   })
 
+  it.each(['none', 'low', 'medium', 'high'] as const)(
+    'Qwen 3.8 forwards explicit reasoning effort %s',
+    async (reasoningEffort) => {
+      await groqProvider.executeRequest(
+        request({ model: 'groq/qwen/qwen3.8-27b', reasoningEffort })
+      )
+      const payload = mockCreate.mock.calls[0][0]
+      expect(payload.reasoning_effort).toBe(reasoningEffort)
+      expect(payload.reasoning_format).toBe(reasoningEffort === 'none' ? undefined : 'parsed')
+    }
+  )
+
+  it('strips only the leading routing prefix and preserves custom model case', async () => {
+    await groqProvider.executeRequest(request({ model: 'Groq/Custom/Model-A' }))
+    expect(mockCreate.mock.calls[0][0].model).toBe('Custom/Model-A')
+  })
+
   it('selects the live tool loop without a caller flag', async () => {
     mockPrepareToolsWithUsageControl.mockReturnValue({
       tools: [

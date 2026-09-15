@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  findProviderFromModel,
   getBaseModelProviders,
   getHostedModels,
   getModelCapabilities,
@@ -11,13 +12,99 @@ import {
   getPromptCachingMinimumTokens,
   getProviderModels,
   getThinkingStreamVisibility,
+  isCustomModelId,
+  isKnownModelId,
   isModelDeprecated,
   orderModelIdsByReleaseDate,
   PROVIDER_DEFINITIONS,
   supportsForcedToolUse,
   updateFireworksModels,
+  updateOllamaModels,
 } from '@/providers/models'
 import { supportsPromptCaching } from '@/providers/utils'
+
+describe('custom cloud model routing', () => {
+  it.each([
+    'ollama',
+    'ollama-cloud',
+    'vllm',
+    'litellm',
+    'openrouter',
+    'fireworks',
+    'together',
+    'baseten',
+  ] as const)(
+    'accepts new model IDs in the %s namespace without accepting an empty ID',
+    (provider) => {
+      expect(findProviderFromModel(`${provider.toUpperCase()}/Org/CustomModel`)).toBe(provider)
+      expect(isKnownModelId(`${provider}/Org/CustomModel`)).toBe(true)
+      expect(isKnownModelId(`${provider}/`)).toBe(false)
+      expect(isKnownModelId(`${provider}/ `)).toBe(false)
+    }
+  )
+
+  it('keeps explicit provider namespaces authoritative over discovered local model names', () => {
+    const originalModels = PROVIDER_DEFINITIONS.ollama.models
+    try {
+      updateOllamaModels([
+        'azure/MyDeployment',
+        'bedrock/CustomModel',
+        'vertex/CustomModel',
+        'openrouter/Org/CustomModel',
+        'groq/Org/CustomModel',
+        'cerebras/CustomModel',
+      ])
+      expect(findProviderFromModel('azure/MyDeployment')).toBe('azure-openai')
+      expect(findProviderFromModel('bedrock/CustomModel')).toBe('bedrock')
+      expect(findProviderFromModel('vertex/CustomModel')).toBe('vertex')
+      expect(findProviderFromModel('openrouter/Org/CustomModel')).toBe('openrouter')
+      expect(findProviderFromModel('groq/Org/CustomModel')).toBe('groq')
+      expect(findProviderFromModel('cerebras/CustomModel')).toBe('cerebras')
+    } finally {
+      PROVIDER_DEFINITIONS.ollama.models = originalModels
+    }
+  })
+
+  it.each([
+    ['azure/MyDeployment', 'azure-openai'],
+    ['AZURE/MyDeployment', 'azure-openai'],
+    ['azure-anthropic/MyDeployment', 'azure-anthropic'],
+    ['bedrock/custom-model:0', 'bedrock'],
+    ['BEDROCK/custom-model:0', 'bedrock'],
+    ['vertex/publishers/google/models/custom-gemini', 'vertex'],
+    ['VERTEX/CustomModel', 'vertex'],
+    ['GROQ/Org/CustomModel', 'groq'],
+    ['CEREBRAS/CustomModel', 'cerebras'],
+    ['NVIDIA/CustomModel', 'nvidia'],
+  ])('routes %s without requiring a catalog entry', (model, provider) => {
+    expect(findProviderFromModel(model)).toBe(provider)
+    expect(isCustomModelId(model)).toBe(true)
+    expect(isKnownModelId(model)).toBe(false)
+    expect(getModelPricing(model)).toBeNull()
+    expect(getHostedModels()).not.toContain(model)
+  })
+
+  it.each([
+    'azure/',
+    'azure/ ',
+    'azure-anthropic/',
+    'bedrock/',
+    'vertex/',
+    'groq/',
+    'cerebras/',
+    'nvidia/',
+    'unknown/model',
+    'gpt-100/model',
+    'mistral/model',
+  ])('does not accept an empty or unrecognized namespace as a custom model: %s', (model) => {
+    expect(isCustomModelId(model)).toBe(false)
+  })
+
+  it('keeps catalog name typos distinct from custom reseller IDs', () => {
+    expect(isCustomModelId('claude-sonnet-4.6')).toBe(false)
+    expect(isCustomModelId('gpt-100-ultra')).toBe(false)
+  })
+})
 
 describe('OpenAI provider definition', () => {
   const openai = PROVIDER_DEFINITIONS.openai
@@ -49,6 +136,19 @@ describe('OpenAI provider definition', () => {
 
   it('is included in getHostedModels since Sim provides the OpenAI key server-side', () => {
     expect(getHostedModels()).toContain('gpt-6-astra')
+  })
+})
+
+describe('direct provider catalog additions', () => {
+  it.each([
+    ['chat-latest', 'openai'],
+    ['gpt-5.3-codex', 'openai'],
+    ['gemini-3.7-flash', 'google'],
+  ])('routes %s through its hosted provider %s', (model, provider) => {
+    expect(findProviderFromModel(model)).toBe(provider)
+    expect(isKnownModelId(model)).toBe(true)
+    expect(getHostedModels()).toContain(model)
+    expect(getModelPricing(model)?.input).toBeGreaterThan(0)
   })
 })
 
@@ -292,18 +392,34 @@ describe('sakana provider definition', () => {
     expect(sakana.modelPatterns).toEqual([/^fugu/])
   })
 
-  it('exposes fugu and fugu-ultra with a 1M context window', () => {
-    expect(sakana.models.map((m) => m.id)).toEqual(['fugu', 'fugu-ultra'])
-    for (const model of sakana.models) {
-      expect(model.contextWindow).toBe(1000000)
-    }
+  it('preserves existing aliases and exposes current versioned models', () => {
+    expect(sakana.models.map((model) => model.id)).toEqual(
+      expect.arrayContaining([
+        'fugu',
+        'fugu-ultra',
+        'fugu-ultra-v2.0',
+        'fugu-max',
+        'fugu-max-v1.0',
+        'sakana-namazu',
+        'sakana-namazu-v1.0',
+      ])
+    )
+    expect(sakana.models.find((model) => model.id === 'fugu')?.pricing).toMatchObject({
+      input: 5,
+      output: 30,
+      cachedInput: 0.5,
+      updatedAt: '2026-06-22',
+    })
   })
 
-  it('prices both models at the documented fugu-ultra ceiling', () => {
-    for (const model of sakana.models) {
-      expect(model.pricing.input).toBe(5)
-      expect(model.pricing.output).toBe(30)
-      expect(model.pricing.cachedInput).toBe(0.5)
+  it('keeps current Ultra aliases aligned with the versioned long-context rate', () => {
+    for (const id of ['fugu-ultra', 'fugu-ultra-v2.0']) {
+      expect(sakana.models.find((model) => model.id === id)?.pricing).toMatchObject({
+        input: 5,
+        output: 30,
+        cachedInput: 0.5,
+        tiers: [{ aboveInputTokens: 272000, input: 10, cachedInput: 1, output: 45 }],
+      })
     }
   })
 
@@ -311,6 +427,8 @@ describe('sakana provider definition', () => {
     const baseModels = getBaseModelProviders()
     expect(baseModels.fugu).toBe('sakana')
     expect(baseModels['fugu-ultra']).toBe('sakana')
+    expect(baseModels['fugu-max-v1.0']).toBe('sakana')
+    expect(baseModels['sakana-namazu-v1.0']).toBe('sakana')
   })
 })
 
@@ -318,6 +436,7 @@ describe('nvidia provider definition', () => {
   const nvidia = PROVIDER_DEFINITIONS.nvidia
 
   const expectedModels = [
+    { id: 'nvidia/nemotron-3.5-lightning-30b-a3b', contextWindow: 1000000 },
     { id: 'nvidia/llama-3.1-nemotron-70b-instruct', contextWindow: 128000 },
     { id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1', contextWindow: 131072 },
     { id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5', contextWindow: 131072 },
@@ -333,7 +452,7 @@ describe('nvidia provider definition', () => {
     expect(nvidia.modelPatterns).toEqual([/^nvidia\//])
   })
 
-  it('exposes all six Nemotron models with the documented context windows', () => {
+  it('exposes Nemotron models with the documented context windows', () => {
     expect(nvidia.models.map((m) => m.id)).toEqual(expectedModels.map((m) => m.id))
     for (const expected of expectedModels) {
       const model = nvidia.models.find((m) => m.id === expected.id)

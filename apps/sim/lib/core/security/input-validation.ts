@@ -661,7 +661,7 @@ export function validateAwsRegion(
  * and relocate the request — along with any attached credential — to an
  * attacker-controlled host.
  *
- * Accepts `global` plus the documented `{geography}-{direction}{index}` region
+ * Accepts `global`, the `us` and `eu` multi-regions, and the `{geography}-{direction}{index}` region
  * form (e.g. us-central1, europe-west4, northamerica-northeast1, me-central2).
  *
  * @param value - The location to validate
@@ -677,7 +677,7 @@ export function validateGoogleCloudLocation(
   }
 
   const googleLocationPattern =
-    /^(global|(africa|asia|australia|europe|me|northamerica|southamerica|us)-(central|east|north|northeast|northwest|south|southeast|southwest|west)\d{1,2})$/
+    /^(global|us|eu|(africa|asia|australia|europe|me|northamerica|southamerica|us)-(central|east|north|northeast|northwest|south|southeast|southwest|west)\d{1,2})$/
 
   if (!googleLocationPattern.test(value)) {
     logger.warn('Invalid Google Cloud location format', {

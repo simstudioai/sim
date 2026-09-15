@@ -77,7 +77,7 @@ export async function getOpenRouterModelCapabilities(
     cacheTimestamp = now
   }
 
-  const normalizedId = modelId.replace(/^openrouter\//, '')
+  const normalizedId = modelId.replace(/^openrouter\//i, '')
   return modelCapabilitiesCache.get(normalizedId) ?? null
 }
 

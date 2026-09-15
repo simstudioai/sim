@@ -48,6 +48,16 @@ const THINKING_TOGGLE_MODELS = new Set(
   )
 )
 
+function buildRequiredToolPayload(
+  tools: OpenAI.Chat.Completions.ChatCompletionTool[],
+  name: string
+) {
+  return {
+    tools: tools.filter((tool) => tool.type === 'function' && tool.function.name === name),
+    tool_choice: 'required' as const,
+  }
+}
+
 function buildResponseFormatPayload(
   responseFormat: NonNullable<ProviderRequest['responseFormat']>
 ) {
@@ -78,8 +88,8 @@ function buildResponseFormatPayload(
  *   rejects the object form whenever thinking is enabled ("tool_choice 'specified' is
  *   incompatible with thinking enabled", verified live). On models with a thinking toggle the
  *   adapter therefore sends `thinking: { type: "disabled" }` for the duration of a forced-tool
- *   request; on always-thinking models (kimi-k3, kimi-k2.7-code) it downgrades the forced
- *   choice to `"auto"` with a warning, mirroring the Z.ai adapter's behavior.
+ *   request. K3 supports `required`, so it forces a named tool by offering only that tool;
+ *   K2.7 Code falls back to `auto` because it supports neither forcing mechanism.
  */
 export const kimiProvider: ProviderConfig = {
   id: 'kimi',
@@ -137,6 +147,9 @@ export const kimiProvider: ProviderConfig = {
       }
 
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+      if (request.reasoningEffort && request.reasoningEffort !== 'auto') {
+        payload.reasoning_effort = request.reasoningEffort
+      }
 
       if (
         THINKING_TOGGLE_MODELS.has(request.model) &&
@@ -162,7 +175,12 @@ export const kimiProvider: ProviderConfig = {
           hasActiveTools = true
 
           if (typeof toolChoice === 'object') {
-            if (THINKING_TOGGLE_MODELS.has(request.model)) {
+            if (request.model === 'kimi-k3' && toolChoice.type === 'function') {
+              Object.assign(
+                payload,
+                buildRequiredToolPayload(filteredTools, toolChoice.function.name)
+              )
+            } else if (THINKING_TOGGLE_MODELS.has(request.model)) {
               if (payload.thinking?.type === 'enabled') {
                 logger.warn(
                   'Kimi rejects forced tool_choice while thinking is enabled — disabling thinking for this forced-tool request',
@@ -241,7 +259,8 @@ export const kimiProvider: ProviderConfig = {
       }
 
       const initialCallTime = Date.now()
-      const originalToolChoice = payload.tool_choice
+      const originalToolChoice =
+        request.model === 'kimi-k3' ? preparedTools?.toolChoice : payload.tool_choice
       const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
@@ -457,22 +476,33 @@ export const kimiProvider: ProviderConfig = {
           const nextPayload = {
             ...payload,
             messages: currentMessages,
+            tools: preparedTools?.tools,
           }
+          let nextToolChoice = nextPayload.tool_choice
 
           if (
             typeof originalToolChoice === 'object' &&
-            hasUsedForcedTool &&
+            (hasUsedForcedTool || request.model === 'kimi-k3') &&
             forcedTools.length > 0
           ) {
             const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
             if (remainingTools.length > 0) {
-              nextPayload.tool_choice = {
+              nextToolChoice = {
                 type: 'function',
                 function: { name: remainingTools[0] },
               }
+              if (request.model === 'kimi-k3') {
+                Object.assign(
+                  nextPayload,
+                  buildRequiredToolPayload(preparedTools?.tools || [], remainingTools[0])
+                )
+              } else {
+                nextPayload.tool_choice = nextToolChoice
+              }
               logger.info(`Forcing next tool: ${remainingTools[0]}`)
             } else {
+              nextToolChoice = 'auto'
               nextPayload.tool_choice = 'auto'
               logger.info('All forced tools have been used, switching to auto tool_choice')
             }
@@ -486,10 +516,10 @@ export const kimiProvider: ProviderConfig = {
 
           const toolCallsResponse =
             currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
-          if (typeof nextPayload.tool_choice === 'object' && toolCallsResponse?.length) {
+          if (typeof nextToolChoice === 'object' && toolCallsResponse?.length) {
             const result = trackForcedToolUsage(
               toolCallsResponse,
-              nextPayload.tool_choice,
+              nextToolChoice,
               logger,
               'openai',
               forcedTools,
