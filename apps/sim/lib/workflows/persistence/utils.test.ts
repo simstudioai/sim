@@ -23,10 +23,12 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import type {
   BlockState as AppBlockState,
   WorkflowState as AppWorkflowState,
 } from '@/stores/workflows/workflow/types'
+import { generateLoopBlocks } from '@/stores/workflows/workflow/utils'
 
 /**
  * Type helper for converting test workflow state to app workflow state.
@@ -348,6 +350,110 @@ describe('Database Helpers', () => {
   })
 
   describe('loadWorkflowFromNormalizedTables', () => {
+    it.each(['for', 'forEach', 'while', 'doWhile'] as const)(
+      'preserves valid block counts and expressions for %s loops even when subflow counts differ',
+      async (loopType) => {
+        const data = {
+          count: 9,
+          loopType,
+          collection: '<source.items>',
+          whileCondition: '<source.hasMore>',
+          doWhileCondition: '<source.hasMore>',
+          width: 600,
+          parentId: 'outer-loop',
+          extent: 'parent' as const,
+        }
+        queueLoadFixtures({
+          blocks: [{ ...toDbBlock(createLoopBlock({ id: 'loop-1' }), mockWorkflowId), data }],
+          subflows: [
+            {
+              id: 'loop-1',
+              type: 'loop',
+              config: {
+                nodes: [],
+                loopType,
+                iterations: 3,
+                forEachItems: data.collection,
+                whileCondition: data.whileCondition,
+                doWhileCondition: data.doWhileCondition,
+              },
+            },
+          ],
+        })
+
+        const loaded = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+        const parsed = workflowStateSchema.parse(loaded)
+
+        expect(parsed.blocks['loop-1'].data).toEqual(data)
+        expect(parsed.loops?.['loop-1'].iterations).toBe(3)
+        expect(generateLoopBlocks(loaded!.blocks)['loop-1']).toMatchObject({
+          iterations: 9,
+          loopType,
+          forEachItems: data.collection,
+          whileCondition: data.whileCondition,
+          doWhileCondition: data.doWhileCondition,
+        })
+        expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      }
+    )
+
+    it('keeps an absent block count absent so serialization retains its existing default', async () => {
+      queueLoadFixtures({
+        blocks: [
+          {
+            ...toDbBlock(createLoopBlock({ id: 'loop-1' }), mockWorkflowId),
+            data: { loopType: 'for' },
+          },
+        ],
+        subflows: [
+          { id: 'loop-1', type: 'loop', config: { nodes: [], loopType: 'for', iterations: 3 } },
+        ],
+      })
+
+      const loaded = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+
+      expect(loaded?.blocks['loop-1'].data?.count).toBeUndefined()
+      expect(loaded?.loops['loop-1'].iterations).toBe(3)
+      expect(generateLoopBlocks(loaded!.blocks)['loop-1'].iterations).toBe(5)
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    })
+
+    it('serves a legacy forEach loop with a string count through the workflow read contract', async () => {
+      const collection = '<source.items>'
+      const loopRow = toDbBlock(createLoopBlock({ id: 'loop-1' }), mockWorkflowId)
+      queueLoadFixtures({
+        blocks: [
+          {
+            ...loopRow,
+            data: { ...loopRow.data, loopType: 'forEach', count: collection, collection },
+          },
+        ],
+        subflows: [
+          {
+            id: 'loop-1',
+            type: 'loop',
+            config: {
+              nodes: [],
+              loopType: 'forEach',
+              iterations: collection,
+              forEachItems: collection,
+            },
+          },
+        ],
+      })
+
+      const loaded = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
+      const parsed = workflowStateSchema.parse(loaded)
+
+      expect(parsed.blocks['loop-1'].data).toMatchObject({ count: 1, collection })
+      expect(parsed.loops?.['loop-1']).toMatchObject({
+        loopType: 'forEach',
+        iterations: 1,
+        forEachItems: collection,
+      })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    })
+
     it('should successfully load workflow data from normalized tables', async () => {
       queueLoadFixtures({
         blocks: mockBlocksFromDb,
@@ -401,6 +507,7 @@ describe('Database Helpers', () => {
         whileCondition: '',
         enabled: true,
       })
+      expect(result?.blocks['loop-1'].data?.count).toBe(3)
 
       expect(result?.parallels['parallel-1']).toEqual({
         id: 'parallel-1',
