@@ -57,25 +57,53 @@ export interface RowModalProps {
   onSuccess: () => void
 }
 
+/** Structural equality for a cleaned cell value vs what the row already holds. */
+function cellValueUnchanged(next: unknown, previous: unknown): boolean {
+  if (next === previous) return true
+  const nextEmpty = next === null || next === undefined
+  const previousEmpty = previous === null || previous === undefined
+  if (nextEmpty || previousEmpty) return nextEmpty && previousEmpty
+  if (typeof next === 'object' || typeof previous === 'object') {
+    return JSON.stringify(next) === JSON.stringify(previous)
+  }
+  return false
+}
+
+/**
+ * Builds the write payload. Only fields the user actually touched are sent, so
+ * an untouched empty column is left absent instead of being written as `null` —
+ * and in edit mode a field whose value is unchanged is dropped too, leaving a
+ * no-op save with nothing to write. Toggles are the exception on insert: they
+ * always carry a concrete boolean, so a required checkbox the user never
+ * clicked still has to reach the server as `false`.
+ */
 function cleanRowData(
   columns: ColumnDefinition[],
   rowData: Record<string, unknown>,
   timeZone: string,
-  dateEditorsReady: boolean
+  dateEditorsReady: boolean,
+  options: { mode: 'add' | 'edit'; baseline?: Record<string, unknown> }
 ): Record<string, unknown> {
   const cleanData: Record<string, unknown> = {}
 
   columns.forEach((col) => {
     const columnId = getColumnId(col)
-    const value = rowData[columnId]
-    if (columnTypeOf(col).editor === 'date' && !dateEditorsReady) {
+    const definition = columnTypeOf(col)
+    if (definition.editor === 'date' && !dateEditorsReady) {
       return
     }
+    const touched = columnId in rowData
+    const alwaysSend = options.mode === 'add' && definition.editor === 'toggle'
+    if (!touched && !alwaysSend) return
+    const value = rowData[columnId]
+    let cleaned: unknown
     try {
-      cleanData[columnId] = cleanCellValue(value, col, timeZone)
+      cleaned = cleanCellValue(value, col, timeZone)
     } catch {
       throw new Error(`Invalid JSON for field: ${col.name}`)
     }
+    if (options.baseline && cellValueUnchanged(cleaned, options.baseline[columnId])) return
+    cleanData[columnId] = cleaned
   })
 
   return cleanData
@@ -119,10 +147,13 @@ export function RowModal({
     mode === 'edit' && row ? row.data : {}
   )
   const [error, setError] = useState<string | null>(null)
-  const createRowMutation = useCreateTableRow({ workspaceId, tableId })
-  const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
-  const deleteRowMutation = useDeleteTableRow({ workspaceId, tableId })
-  const deleteRowsMutation = useDeleteTableRows({ workspaceId, tableId })
+  // This modal renders its own failure in `<ChipModalError>`; without the flag
+  // every rejection would also arrive as a toast saying the same sentence.
+  const rowMutationContext = { workspaceId, tableId, suppressErrorToast: true }
+  const createRowMutation = useCreateTableRow(rowMutationContext)
+  const updateRowMutation = useUpdateTableRow(rowMutationContext)
+  const deleteRowMutation = useDeleteTableRow(rowMutationContext)
+  const deleteRowsMutation = useDeleteTableRows(rowMutationContext)
   const isSubmitting =
     createRowMutation.isPending ||
     updateRowMutation.isPending ||
@@ -149,12 +180,18 @@ export function RowModal({
     if (!canSubmit) return
 
     try {
-      const cleanData = cleanRowData(columns, rowData, timeZone, dateEditorsReady)
+      const cleanData = cleanRowData(columns, rowData, timeZone, dateEditorsReady, {
+        mode: isAddMode ? 'add' : 'edit',
+        baseline: isAddMode ? undefined : row?.data,
+      })
 
       if (isAddMode) {
         await createRowMutation.mutateAsync({ data: cleanData, ...insertAt })
       } else if (row) {
-        await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
+        // Nothing changed — close instead of writing an empty patch.
+        if (Object.keys(cleanData).length > 0) {
+          await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
+        }
       }
 
       onSuccess()
