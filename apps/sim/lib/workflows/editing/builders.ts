@@ -24,6 +24,7 @@ import {
   buildDefaultCanonicalModes,
   isCanonicalPair,
 } from '@/lib/workflows/subblocks/visibility'
+import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
@@ -251,6 +252,13 @@ export function createBlockFromParams(
 
     if (validatedInputs) {
       updateCanonicalModesForInputs(blockState, Object.keys(validatedInputs), blockConfig)
+      const tools = blockState.subBlocks.tools?.value
+      if (params.type === 'agent' && Array.isArray(tools)) {
+        blockState.data = {
+          ...blockState.data,
+          canonicalModes: applyAgentToolUsageControlModes(tools, blockState.data?.canonicalModes),
+        }
+      }
     }
   }
 
@@ -321,7 +329,9 @@ export function normalizeTools(tools: any[]): any[] {
         return {
           type: tool.type,
           customToolId: tool.customToolId,
-          usageControl: tool.usageControl || 'auto',
+          usageControl:
+            tool.usageControl || (tool.usageControlExpression === undefined ? 'auto' : undefined),
+          usageControlExpression: tool.usageControlExpression,
           isExpanded: tool.isExpanded ?? true,
         }
       }
