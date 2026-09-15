@@ -1,9 +1,10 @@
 import { z } from 'zod'
-import { hasRecoverableFileKey, type InputFormatFile } from '@/lib/workflows/input-format'
 import type { InputFormatField } from '@/lib/workflows/types'
+import type { UserFile } from '@/executor/types'
+import { isSafeKey } from '@/tools/safe-assign'
 
 /**
- * Uploaded file references accepted by Start inputs. File ownership is checked
+ * Canonical uploaded file references for workflow inputs. File ownership is checked
  * by the executor against the run's workspace, after input-shape validation.
  */
 const workflowInputFileSchema = z
@@ -13,13 +14,11 @@ const workflowInputFileSchema = z
     url: z.string().min(1, 'File url cannot be empty'),
     size: z.number().nonnegative(),
     type: z.string().min(1, 'File MIME type cannot be empty'),
-    key: z.string().optional(),
+    key: z.string().min(1, 'File storage key cannot be empty'),
   })
-  .passthrough()
-  .refine(hasRecoverableFileKey, {
-    message: 'File must include a storage key or an internal file URL with a recoverable key',
-    path: ['key'],
-  }) satisfies z.ZodType<InputFormatFile>
+  .passthrough() satisfies z.ZodType<
+  Pick<UserFile, 'id' | 'name' | 'url' | 'size' | 'type' | 'key'>
+>
 
 function fieldTypeToSchema(type: string | undefined): z.ZodType {
   switch (type) {
@@ -51,6 +50,9 @@ export function generateWorkflowInputShape(inputFormat: InputFormatField[]): z.Z
   for (const field of inputFormat) {
     const name = field.name?.trim()
     if (!name) continue
+    if (!isSafeKey(name)) {
+      throw new Error(`Workflow input name "${name}" is reserved. Rename this input field.`)
+    }
 
     const schema = fieldTypeToSchema(field.type).describe(
       field.description?.trim() ||

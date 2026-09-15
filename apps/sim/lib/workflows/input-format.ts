@@ -84,7 +84,7 @@ export type InputFormatFile = Pick<UserFile, 'id' | 'name' | 'url' | 'size' | 't
  * mirrors `normalizeStartFile` exactly (including the parse, so a malformed
  * internal URL is rejected rather than accepted on the prefix alone).
  */
-export function hasRecoverableFileKey(file: InputFormatFile): boolean {
+function hasRecoverableFileKey(file: InputFormatFile): boolean {
   if (typeof file.key === 'string' && file.key.length > 0) return true
   if (typeof file.url !== 'string' || !isInternalFileUrl(file.url)) return false
   try {

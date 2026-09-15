@@ -102,6 +102,23 @@ describe('file inputs through workflow run options', () => {
     expect(option.mockPayload).toEqual({ files: [file] })
     expect(validateTriggerInput(option, option.mockPayload)).toEqual({ ok: true })
   })
+
+  it('normalizes an editor file URL to canonical metadata in the sample payload', () => {
+    const { key, ...editorFile } = file
+    editorFile.url = `/api/files/serve/s3/${encodeURIComponent(key)}?context=workspace`
+    const [option] = resolveTriggerRunOptions({
+      start: {
+        ...block,
+        subBlocks: {
+          inputFormat: {
+            value: [{ name: 'files', type: 'file[]', value: JSON.stringify([editorFile]) }],
+          },
+        },
+      },
+    })
+    expect(option.mockPayload).toEqual({ files: [{ ...editorFile, key }] })
+    expect(validateTriggerInput(option, option.mockPayload)).toEqual({ ok: true })
+  })
 })
 
 describe('validateTriggerInput', () => {

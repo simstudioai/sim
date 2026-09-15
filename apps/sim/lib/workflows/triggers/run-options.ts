@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { generateToolInputSchema } from '@/lib/mcp/workflow-tool-schema'
+import { parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { normalizeInputFormatValue, parseInputFormatFiles } from '@/lib/workflows/input-format'
 import { generateWorkflowInputShape } from '@/lib/workflows/input-schema'
 import {
@@ -146,7 +147,10 @@ function buildFieldsSample(inputFormat: InputFormatField[]): Record<string, unkn
     const name = field.name?.trim()
     if (!name) continue
     if (field.type === 'file[]') {
-      sample[name] = parseInputFormatFiles(field.value)
+      sample[name] = parseInputFormatFiles(field.value).map((file) => ({
+        ...file,
+        key: file.key || parseInternalFileUrl(file.url).key,
+      }))
       continue
     }
     sample[name] =

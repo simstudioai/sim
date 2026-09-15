@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
 import { generateToolInputSchema } from '@/lib/mcp/workflow-tool-schema'
 import { generateWorkflowInputShape } from '@/lib/workflows/input-schema'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -29,7 +30,7 @@ describe('workflow input schemas', () => {
       type: 'array',
       items: {
         type: 'object',
-        required: ['id', 'name', 'url', 'size', 'type'],
+        required: ['id', 'name', 'url', 'size', 'type', 'key'],
         properties: {
           key: { type: 'string' },
           type: { type: 'string' },
@@ -62,11 +63,33 @@ describe('workflow input schemas', () => {
     expect(schema.safeParse({ files: [invalidFile] }).success).toBe(false)
   })
 
-  it('accepts an internal file URL whose storage key can be recovered', () => {
-    const { key, ...internalFile } = file
-    internalFile.url = `/api/files/serve/s3/${encodeURIComponent(key)}?context=workspace`
-    expect(schema.parse({ files: [internalFile] })).toEqual({ files: [internalFile] })
+  it.each([
+    { value: file, valid: true },
+    { value: { ...file, key: '' }, valid: false },
+    { value: { ...file, key: undefined }, valid: false },
+    {
+      value: {
+        ...file,
+        key: undefined,
+        url: `/api/files/serve/s3/${encodeURIComponent(file.key)}?context=workspace`,
+      },
+      valid: false,
+    },
+  ])('advertises the same storage-key requirement it validates: $valid', ({ value, valid }) => {
+    const validate = compileMcpToolSchema(generateToolInputSchema(inputFormat))
+    const input = { files: [value] }
+    expect(validate(input)).toBe(valid)
+    expect(schema.safeParse(input).success).toBe(valid)
   })
+
+  it.each(['__proto__', 'constructor', 'prototype'])(
+    'rejects reserved input name %s before schema construction',
+    (name) => {
+      const fields: InputFormatField[] = [{ name, type: 'string' }]
+      expect(() => generateWorkflowInputShape(fields)).toThrow('is reserved')
+      expect(() => generateToolInputSchema(fields)).toThrow('is reserved')
+    }
+  )
 
   it('shares required fields, descriptions, and arbitrary array items across schemas', () => {
     const fields: InputFormatField[] = [
