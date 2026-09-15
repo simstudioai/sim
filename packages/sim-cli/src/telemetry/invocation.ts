@@ -3,7 +3,7 @@ import { profileFrom } from '../context'
 import { isCi } from '../environment'
 import { SimApiError } from '../http/client'
 import { CLI_VERSION } from '../version'
-import { detectCodingAgent } from './coding-agent'
+import { detectCodingAgent, NO_CODING_AGENT } from './coding-agent'
 import { telemetryStatus } from './policy'
 import { loadTelemetryState, nextSession, type TelemetryState, writeTelemetryState } from './state'
 import {
@@ -86,8 +86,8 @@ export interface CommandEventProperties {
   /** Whether stdout was a terminal, which separates people from scripts. */
   is_tty: boolean
   is_ci: boolean
-  /** The AI coding agent driving this shell, when one could be detected. */
-  coding_agent?: string
+  /** The AI coding agent driving this shell, or `none` when none was detected. */
+  coding_agent: string
   /** Whether the profile targets Sim's hosted deployment or a self-hosted one; never the address. */
   endpoint_kind?: 'hosted' | 'self_hosted'
 }
@@ -262,11 +262,10 @@ export function createCommandTelemetry(options: CommandTelemetryOptions = {}): C
       arch: process.arch,
       is_tty: stdoutIsTty,
       is_ci: isCi(env),
+      coding_agent: detectCodingAgent(env) ?? NO_CODING_AGENT,
     }
     const kind = endpointKind(invocation.action)
     if (kind) properties.endpoint_kind = kind
-    const agent = detectCodingAgent(env)
-    if (agent) properties.coding_agent = agent
 
     send(target, {
       api_key: target.key,

@@ -20,7 +20,7 @@ One event per command, after the command finishes:
 | Duration | `1432` ms | From process start to completion |
 | CLI, Node, OS, CPU | `2.1.2`, `22.14.0`, `darwin`, `arm64` | |
 | Terminal and CI | `is_tty`, `is_ci` | Whether stdout is a terminal, whether a CI variable is set |
-| Coding agent | `claude-code` | When the CLI runs inside an AI coding agent's shell |
+| Coding agent | `claude-code`, or `none` | The AI coding agent whose shell the CLI runs in, if any |
 | Deployment kind | `hosted` or `self_hosted` | Never the address |
 | Device and session ids | random UUIDs | See below |
 

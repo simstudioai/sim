@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -132,6 +132,10 @@ export async function authenticateApiKeyFromHeader(
     }
 
     logger.debug('API key matched via hash lookup', { keyId: record.id, keyType })
+    setRequestAuth(
+      { kind: keyType === 'personal' ? 'personal_api_key' : 'workspace_api_key' },
+      { preserveExisting: true }
+    )
 
     return {
       success: true,

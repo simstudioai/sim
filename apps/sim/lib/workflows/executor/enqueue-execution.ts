@@ -6,6 +6,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
+import { captureRequestAttribution } from '@/lib/core/utils/request-attribution'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -116,6 +117,7 @@ export async function enqueueWorkflowExecution(
     requestId,
     correlation,
     callChain,
+    attribution: captureRequestAttribution(),
     enforceCredentialAccess,
     isPublicApiAccess,
     executionMode: 'async',
