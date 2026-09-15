@@ -339,7 +339,6 @@ test.describe('desktop shell smoke', () => {
     })
 
     const closed = picker.waitForEvent('close')
-    /** Dismissal can destroy the window before key-up; the close event is the assertion. */
     await picker.keyboard.press('Escape').catch(() => {})
     await closed
     expect(app.windows()).toHaveLength(1)
