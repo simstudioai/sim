@@ -1,7 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
-import { generateToolInputSchema, generateToolZodSchema } from '@/lib/mcp/workflow-tool-schema'
-import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { generateToolInputSchema } from '@/lib/mcp/workflow-tool-schema'
+import { normalizeInputFormatValue, parseInputFormatFiles } from '@/lib/workflows/input-format'
+import { generateWorkflowInputShape } from '@/lib/workflows/input-schema'
 import {
   extractTriggerMockPayload,
   selectBestTrigger,
@@ -134,9 +135,6 @@ function mockValueForType(type: string | undefined, name: string): unknown {
       return []
     case 'object':
       return {}
-    case 'files':
-    case 'file[]':
-      return []
     default:
       return `mock_${name}`
   }
@@ -145,11 +143,16 @@ function mockValueForType(type: string | undefined, name: string): unknown {
 function buildFieldsSample(inputFormat: InputFormatField[]): Record<string, unknown> {
   const sample: Record<string, unknown> = {}
   for (const field of inputFormat) {
-    if (!field.name) continue
-    sample[field.name] =
+    const name = field.name?.trim()
+    if (!name) continue
+    if (field.type === 'file[]') {
+      sample[name] = parseInputFormatFiles(field.value)
+      continue
+    }
+    sample[name] =
       field.value !== undefined && field.value !== null
         ? coerceValue(field.type, field.value)
-        : mockValueForType(field.type, field.name)
+        : mockValueForType(field.type, name)
   }
   return sample
 }
@@ -347,8 +350,8 @@ export function validateTriggerInput(
       return { ok: true }
     }
     default: {
-      const baseShape = generateToolZodSchema(option.inputFormat)
-      if (!baseShape) {
+      const shape = generateWorkflowInputShape(option.inputFormat)
+      if (Object.keys(shape).length === 0) {
         // Trigger declares no input fields — accept an object (including {}).
         if (input === undefined || input === null) return { ok: true }
         if (!isRecordLike(input)) {
@@ -358,17 +361,6 @@ export function validateTriggerInput(
           }
         }
         return { ok: true }
-      }
-
-      // A field with an author-configured default is optional: the executor fills
-      // the default when it's omitted (deriveInputFromFormat), so requiring it
-      // would reject a run the workflow itself accepts.
-      const shape: Record<string, z.ZodTypeAny> = {}
-      for (const [name, baseType] of Object.entries(baseShape)) {
-        const zodType = baseType as z.ZodTypeAny
-        const field = option.inputFormat.find((f) => f.name === name)
-        const hasDefault = field?.value !== undefined && field?.value !== null
-        shape[name] = hasDefault ? zodType.optional() : zodType
       }
 
       // UNIFIED start blocks pass arbitrary keys through to their output, so
