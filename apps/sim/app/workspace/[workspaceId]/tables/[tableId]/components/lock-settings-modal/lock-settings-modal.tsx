@@ -9,19 +9,16 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Switch,
   Tooltip,
 } from '@sim/emcn'
 import { CircleInfo, Lock } from '@sim/emcn/icons'
 import type { TableLocks } from '@/lib/table/types'
 import { LOCK_FIELDS } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useUpdateTableLocks } from '@/hooks/queries/tables'
-import {
-  getTableSecurityLocks,
-  getTableSecuritySettings,
-  tableSecuritySettingsEqual,
-  useTableSecurityStore,
-} from '@/stores/table/security/store'
+
+function locksEqual(a: TableLocks, b: TableLocks): boolean {
+  return LOCK_FIELDS.every((field) => a[field.key] === b[field.key])
+}
 
 interface LockSettingsModalProps {
   isOpen: boolean
@@ -32,10 +29,12 @@ interface LockSettingsModalProps {
 }
 
 /**
- * Admin-only panel that sets a table's four mutation locks. Changes are staged
- * locally and applied on Save (one request); the server re-checks admin and
- * rejects a `write`-only caller with a 403 surfaced as a toast. Gated at the
- * call site on `canAdmin`.
+ * Admin-only panel that sets a table's four mutation locks, one Allow/Deny row
+ * each. The rows mirror the server flags exactly — `Deny` is a set lock — so a
+ * table nobody has configured opens on four `Allow`s and every viewer sees the
+ * same state. Changes are staged locally and applied on Save (one request); the
+ * server re-checks admin and rejects a `write`-only caller with a 403 surfaced
+ * as a toast. Gated at the call site on `canAdmin`.
  */
 export function LockSettingsModal({
   isOpen,
@@ -45,18 +44,16 @@ export function LockSettingsModal({
   locks,
 }: LockSettingsModalProps) {
   const updateLocks = useUpdateTableLocks(workspaceId)
-  const preference = useTableSecurityStore((state) => state.preferences[tableId])
-  const setPreference = useTableSecurityStore((state) => state.setPreference)
-  const settings = getTableSecuritySettings(locks, preference)
 
-  const [draft, setDraft] = useState(settings)
+  // Stage edits locally; reset to the server value each time the modal opens.
+  const [draft, setDraft] = useState<TableLocks>(locks)
   const [prevOpen, setPrevOpen] = useState(isOpen)
   if (prevOpen !== isOpen) {
     setPrevOpen(isOpen)
-    if (isOpen) setDraft(settings)
+    if (isOpen) setDraft(locks)
   }
 
-  const dirty = !tableSecuritySettingsEqual(draft, settings)
+  const dirty = !locksEqual(draft, locks)
 
   const handleSave = async () => {
     if (!dirty) {
@@ -64,11 +61,10 @@ export function LockSettingsModal({
       return
     }
     try {
-      await updateLocks.mutateAsync({ tableId, locks: getTableSecurityLocks(draft) })
+      await updateLocks.mutateAsync({ tableId, locks: draft })
     } catch {
       return
     }
-    setPreference(tableId, draft)
     onClose()
   }
 
@@ -78,59 +74,45 @@ export function LockSettingsModal({
         Table Security
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField
-          type='custom'
-          title='Enable Table Security'
-          className='flex-row items-center justify-between'
-        >
-          <Switch
-            aria-label='Enable Table Security'
-            checked={draft.enabled}
-            disabled={updateLocks.isPending}
-            onCheckedChange={(enabled) => setDraft((prev) => ({ ...prev, enabled }))}
-          />
-        </ChipModalField>
-        {draft.enabled &&
-          LOCK_FIELDS.map((field) => (
-            <ChipModalField
-              key={field.key}
-              type='custom'
-              className='flex-row items-center justify-between'
-              title={
-                <span className='inline-flex items-center gap-1.5'>
-                  {field.label}
-                  <Tooltip.Root>
-                    <Tooltip.Trigger
-                      type='button'
-                      aria-label={`About ${field.label.toLowerCase()}`}
-                      className='inline-flex cursor-help'
-                    >
-                      <CircleInfo className='size-[14px] text-[var(--text-icon)]' />
-                    </Tooltip.Trigger>
-                    <Tooltip.Content>
-                      <p>{field.hint}</p>
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                </span>
+        {LOCK_FIELDS.map((field) => (
+          <ChipModalField
+            key={field.key}
+            type='custom'
+            className='flex-row items-center justify-between'
+            title={
+              <span className='inline-flex items-center gap-1.5'>
+                {field.label}
+                <Tooltip.Root>
+                  {/* Not `asChild`: the hint is each row's only explanation, so
+                      the trigger must be a focusable button for keyboard users. */}
+                  <Tooltip.Trigger
+                    type='button'
+                    aria-label={`About ${field.label.toLowerCase()}`}
+                    className='inline-flex cursor-help'
+                  >
+                    <CircleInfo className='size-[14px] text-[var(--text-icon)]' />
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>
+                    <p>{field.hint}</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </span>
+            }
+          >
+            <ChipButtonGroup
+              aria-label={field.label}
+              className='shrink-0'
+              value={draft[field.key] ? 'deny' : 'allow'}
+              disabled={updateLocks.isPending}
+              onValueChange={(value) =>
+                setDraft((prev) => ({ ...prev, [field.key]: value === 'deny' }))
               }
             >
-              <ChipButtonGroup
-                aria-label={field.label}
-                className='shrink-0'
-                value={draft.allowedActions[field.kind] ? 'allow' : 'deny'}
-                disabled={updateLocks.isPending}
-                onValueChange={(value) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    allowedActions: { ...prev.allowedActions, [field.kind]: value === 'allow' },
-                  }))
-                }
-              >
-                <ChipButtonGroupItem value='deny'>Deny</ChipButtonGroupItem>
-                <ChipButtonGroupItem value='allow'>Allow</ChipButtonGroupItem>
-              </ChipButtonGroup>
-            </ChipModalField>
-          ))}
+              <ChipButtonGroupItem value='deny'>Deny</ChipButtonGroupItem>
+              <ChipButtonGroupItem value='allow'>Allow</ChipButtonGroupItem>
+            </ChipButtonGroup>
+          </ChipModalField>
+        ))}
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
