@@ -1,13 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import {
-  member,
-  organization,
-  organizationColumns,
-  subscription,
-  userStats,
-  userStatsColumns,
-} from '@sim/db/schema'
+import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
@@ -355,7 +348,7 @@ export async function checkAndBillOverageThreshold(
         await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
         const statsRecords = await tx
-          .select(userStatsColumns)
+          .select()
           .from(userStats)
           .where(eq(userStats.userId, userId))
           .for('update')
@@ -710,7 +703,7 @@ async function checkAndBillOrganizationOverageThreshold(
         }
 
         const ownerStatsLock = await tx
-          .select(userStatsColumns)
+          .select()
           .from(userStats)
           .where(eq(userStats.userId, lockedOwnerId))
           .for('update')
@@ -737,7 +730,7 @@ async function checkAndBillOrganizationOverageThreshold(
         }
 
         const orgLock = await tx
-          .select(organizationColumns)
+          .select()
           .from(organization)
           .where(eq(organization.id, organizationId))
           .for('update')

@@ -10,8 +10,8 @@
  * single argless read puts the doomed columns back into live SQL and would fail with
  * 42703 against the already-migrated database for the whole cutover window of the
  * contract deploy. Reads of these tables must name the columns they want.
- * INSERTs must use withInsertColumns(table, liveColumns): omitted values still
- * generate named DEFAULT columns. The supplied map must be a validated schema export.
+ * INSERTs also name omitted columns with DEFAULT values. Remove retired columns
+ * from the application table definition before the contract deploy.
  *
  * The audit derives everything from schema.ts itself and retires when the contract PR
  * deletes the markers:
@@ -246,110 +246,6 @@ function objectKeys(node: unknown): Set<string> | null {
 interface TableBindings {
   locals: Map<string, string>
   namespaces: Set<string>
-  insertHelpers: Set<string>
-  insertHelperNamespaces: Set<string>
-}
-
-/** Live selections already validated against the pending column declarations. */
-function readLiveColumnMaps(pendingTables: Map<string, Set<string>>): Map<string, string> {
-  const { program } = parseSource(SCHEMA_PATH, readFileSync(SCHEMA_PATH, 'utf8'))
-  const selections = new Map<string, string>()
-  const visit = (node: SyntaxNode) => {
-    if (node.type === 'VariableDeclarator') {
-      const name = propertyName(node.id)
-      const init = unwrap(node.init)
-      if (name && init?.type === 'CallExpression' && identifierName(init.callee) === 'omit') {
-        const columns = unwrap(Array.isArray(init.arguments) ? init.arguments[0] : undefined)
-        if (
-          columns?.type === 'CallExpression' &&
-          identifierName(columns.callee) === 'getTableColumns'
-        ) {
-          const table = identifierName(
-            Array.isArray(columns.arguments) ? columns.arguments[0] : undefined
-          )
-          const doomed = table ? pendingTables.get(table) : undefined
-          if (table && doomed && sanctionedOmitMissing(init, doomed)?.length === 0) {
-            selections.set(name, table)
-          }
-        }
-      }
-    }
-    for (const child of getChildNodes(node)) visit(child)
-  }
-  visit(program)
-  return selections
-}
-
-interface ImportBinding {
-  module: string
-  name: string
-}
-
-/**
- * Binds references within this file, without loading dependencies or standard
- * libraries. Initialize lazily: only INSERT helpers need trusted import provenance.
- * TypeScript resolves parameters, block locals, destructuring and hoisted bindings
- * so a shadowed import cannot authorize an arbitrary column map or helper.
- */
-function createImportResolver(file: string, source: string) {
-  let checker: ts.TypeChecker | undefined
-  const identifiers = new Map<number, ts.Identifier>()
-  const resolveIdentifier = (node: SyntaxNode): ImportBinding | null => {
-    if (!checker) {
-      const filename = resolve(file)
-      const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true)
-      const host: ts.CompilerHost = {
-        getSourceFile: (name) => (name === filename ? sourceFile : undefined),
-        getDefaultLibFileName: () => 'lib.d.ts',
-        writeFile: () => {},
-        getCurrentDirectory: () => dirname(filename),
-        getDirectories: () => [],
-        fileExists: (name) => name === filename,
-        readFile: (name) => (name === filename ? source : undefined),
-        getCanonicalFileName: (name) => name,
-        useCaseSensitiveFileNames: () => true,
-        getNewLine: () => '\n',
-      }
-      checker = ts
-        .createProgram([filename], { noLib: true, noResolve: true }, host)
-        .getTypeChecker()
-      const index = (child: ts.Node) => {
-        if (ts.isIdentifier(child)) identifiers.set(child.getStart(sourceFile), child)
-        ts.forEachChild(child, index)
-      }
-      index(sourceFile)
-    }
-    const identifier = typeof node.start === 'number' ? identifiers.get(node.start) : undefined
-    const declarations = identifier
-      ? checker.getSymbolAtLocation(identifier)?.declarations
-      : undefined
-    if (declarations?.length !== 1) return null
-    const declaration = declarations[0]
-    if (!ts.isImportSpecifier(declaration) && !ts.isNamespaceImport(declaration)) return null
-    let parent: ts.Node = declaration.parent
-    while (!ts.isImportDeclaration(parent)) {
-      if (!parent.parent) return null
-      parent = parent.parent
-    }
-    if (!ts.isStringLiteral(parent.moduleSpecifier)) return null
-    return {
-      module: parent.moduleSpecifier.text,
-      name: ts.isImportSpecifier(declaration)
-        ? (declaration.propertyName ?? declaration.name).text
-        : '*',
-    }
-  }
-
-  return (node: unknown): ImportBinding | null => {
-    const expression = unwrap(node)
-    if (expression?.type === 'Identifier') return resolveIdentifier(expression)
-    if (expression?.type !== 'MemberExpression' || expression.computed) return null
-    const object = unwrap(expression.object)
-    if (object?.type !== 'Identifier') return null
-    const binding = resolveIdentifier(object)
-    const member = propertyName(expression.property)
-    return binding?.name === '*' && member ? { module: binding.module, name: member } : null
-  }
 }
 
 /**
@@ -408,8 +304,6 @@ function collectTableBindings(
   const bindings: TableBindings = {
     locals: new Map(),
     namespaces: new Set(),
-    insertHelpers: new Set(),
-    insertHelperNamespaces: new Set(),
   }
 
   const visitImports = (node: SyntaxNode) => {
@@ -421,20 +315,10 @@ function collectTableBindings(
         if (!local) continue
         if (specifier.type === 'ImportNamespaceSpecifier') {
           bindings.namespaces.add(local)
-          if (isSyntaxNode(node.source) && node.source.value === '@sim/db/insert-columns') {
-            bindings.insertHelperNamespaces.add(local)
-          }
           continue
         }
         if (specifier.type !== 'ImportSpecifier') continue
         const imported = propertyName(specifier.imported)
-        if (
-          imported === 'withInsertColumns' &&
-          isSyntaxNode(node.source) &&
-          node.source.value === '@sim/db/insert-columns'
-        ) {
-          bindings.insertHelpers.add(local)
-        }
         if (imported && imported !== local && pendingTables.has(imported)) {
           bindings.locals.set(local, imported)
         }
@@ -476,7 +360,7 @@ function collectTableBindings(
 /**
  * Validates the sanctioned live-column builders around a `getTableColumns(t)`
  * call: `omit(getTableColumns(t), ['doomed', ...])` (the `<table>Columns`
- * helpers in schema.ts, e.g. `workspaceFileColumns`) and
+ * helpers in schema.ts) and
  * `const { doomed, ...live } = getTableColumns(t)`. Returns `null` when the
  * surrounding form is not a sanctioned builder at all, otherwise the doomed
  * columns the builder fails to name away — `[]` means fully sanctioned. Any
@@ -522,36 +406,11 @@ function checkCall(
   parent: SyntaxNode | null,
   pendingTables: Map<string, Set<string>>,
   bindings: TableBindings,
-  liveColumnMaps: Map<string, string>,
-  resolveImport: ReturnType<typeof createImportResolver>,
   report: (node: SyntaxNode, table: string, pattern: string) => void
 ): void {
   const callee = isSyntaxNode(call.callee) ? call.callee : null
   const args = Array.isArray(call.arguments) ? call.arguments : []
   const resolveArg = (node: unknown) => resolveTable(node, pendingTables, bindings)
-
-  const isInsertHelper =
-    bindings.insertHelpers.has(identifierName(callee) ?? '') ||
-    (callee?.type === 'MemberExpression' &&
-      !callee.computed &&
-      propertyName(callee.property) === 'withInsertColumns' &&
-      bindings.insertHelperNamespaces.has(identifierName(callee.object) ?? ''))
-  if (isInsertHelper) {
-    const table = resolveArg(args[0])
-    if (!table) return
-    const helper = resolveImport(callee)
-    const columns = resolveImport(args[1])
-    if (helper?.module !== '@sim/db/insert-columns' || helper.name !== 'withInsertColumns') {
-      report(call, table, 'withInsertColumns() must resolve to the imported INSERT helper')
-    } else if (
-      !columns ||
-      !isSchemaModule(columns.module) ||
-      liveColumnMaps.get(columns.name) !== table
-    ) {
-      report(call, table, "withInsertColumns() must use this table's validated live-column map")
-    }
-    return
-  }
 
   // getTableColumns(pendingTable) — spreads every declared column unless the
   // doomed ones are verifiably named away on the spot.
@@ -573,11 +432,7 @@ function checkCall(
   if (method === 'insert') {
     const table = resolveArg(args[0])
     if (table) {
-      report(
-        call,
-        table,
-        'insert() names every declared column, including omitted DEFAULT values; use withInsertColumns()'
-      )
+      report(call, table, 'insert() names every declared column, including omitted DEFAULT values')
     }
     return
   }
@@ -649,8 +504,7 @@ function checkCall(
 export function auditFile(
   file: string,
   source: string,
-  pendingTables: Map<string, Set<string>>,
-  liveColumnMaps: Map<string, string>
+  pendingTables: Map<string, Set<string>>
 ): Violation[] {
   const violations: Violation[] = []
   let program: SyntaxNode
@@ -667,7 +521,6 @@ export function auditFile(
   }
 
   const bindings = collectTableBindings(program, pendingTables)
-  const resolveImport = createImportResolver(file, source)
 
   const report = (node: SyntaxNode, table: string, pattern: string) => {
     violations.push({ file, line: node.loc?.start.line ?? 1, table, pattern })
@@ -675,7 +528,7 @@ export function auditFile(
 
   const visit = (node: SyntaxNode, parent: SyntaxNode | null) => {
     if (node.type === 'CallExpression') {
-      checkCall(node, parent, pendingTables, bindings, liveColumnMaps, resolveImport, report)
+      checkCall(node, parent, pendingTables, bindings, report)
     }
     for (const child of getChildNodes(node)) visit(child, node)
   }
@@ -726,13 +579,12 @@ function main(): void {
   // must keep naming every doomed column away, including ones deprecated later.
   const skipFiles = new Set([fileURLToPath(import.meta.url)])
   const pendingTableNames = new Set(pendingTables.keys())
-  const liveColumnMaps = readLiveColumnMaps(pendingTables)
   const violations: Violation[] = []
   for (const file of SCAN_DIRS.flatMap((dir) => collectSources(dir))) {
     if (skipFiles.has(file) || /\.test\.(ts|tsx|mts|cts)$/.test(file)) continue
     const source = readFileSync(file, 'utf8')
     if (file !== SCHEMA_PATH && !mayReferencePendingTable(source, pendingTableNames)) continue
-    violations.push(...auditFile(file, source, pendingTables, liveColumnMaps))
+    violations.push(...auditFile(file, source, pendingTables))
   }
 
   if (violations.length === 0) {
@@ -746,7 +598,7 @@ function main(): void {
     `❌ Found ${violations.length} unsafe read(s) or insert(s) of pending-drop tables.\n` +
       'These tables carry a `contract-pending` marker in packages/db/schema.ts: deprecated\n' +
       'columns are awaiting DROP, and full-table reads or inserts re-introduce them into live SQL\n' +
-      'and 42703 during the contract deploy. Use the validated live-column maps.\n'
+      'and 42703 during the contract deploy. Exclude retired columns from generated SQL.\n'
   )
   for (const violation of violations) {
     console.error(
