@@ -46,7 +46,7 @@ describe('getToolActivitySummary', () => {
         tool('terminal_run', 'cancelled'),
         tool('browser_type', 'rejected'),
       ])
-    ).toBe('Read files · 2 failed · 1 stopped')
+    ).toBe('Read files · 1 stopped')
   })
 
   it('does not invent actions when all calls failed or were stopped', () => {
@@ -55,7 +55,7 @@ describe('getToolActivitySummary', () => {
         tool('apply_file_edit', 'error'),
         tool('terminal_run', 'interrupted'),
       ])
-    ).toBe('Tool activity · 1 failed · 1 stopped')
+    ).toBe('2 tool calls · 1 stopped')
   })
 
   it('keeps an individual tool’s descriptive title', () => {
@@ -65,7 +65,7 @@ describe('getToolActivitySummary', () => {
   })
 
   it.each([
-    ['rejected', 'Failed running checks'],
+    ['rejected', '1 tool call'],
     ['skipped', 'Skipped running checks'],
     ['interrupted', 'Stopped running checks'],
   ] as const)('labels a single %s tool as finished', (status, expected) => {
@@ -94,7 +94,7 @@ describe('getToolActivitySummary', () => {
     ).toBe('Navigated pages, filled forms +5 more')
   })
 
-  it('keeps failure and interruption counts visible when action categories are capped', () => {
+  it('omits failure counts while retaining interruption counts when action categories are capped', () => {
     expect(
       getToolActivitySummary([
         tool('read'),
@@ -105,14 +105,14 @@ describe('getToolActivitySummary', () => {
         tool('wait', 'interrupted'),
         tool('browser_type', 'skipped'),
       ])
-    ).toBe('Read files, searched files +2 more · 1 failed · 1 stopped · 1 skipped')
+    ).toBe('Read files, searched files +2 more · 1 stopped · 1 skipped')
   })
 
-  it('uses the same outcome wording for rejected individual and grouped calls', () => {
+  it('keeps rejected individual and grouped calls neutral in summaries', () => {
     const rejected = { ...tool('terminal', 'rejected'), displayTitle: 'Running checks' }
-    expect(getToolActivitySummary([rejected])).toBe('Failed running checks')
+    expect(getToolActivitySummary([rejected])).toBe('1 tool call')
     expect(getToolActivitySummary([rejected, tool('read', 'skipped')])).toBe(
-      'Tool activity · 1 failed · 1 skipped'
+      '2 tool calls · 1 skipped'
     )
   })
 

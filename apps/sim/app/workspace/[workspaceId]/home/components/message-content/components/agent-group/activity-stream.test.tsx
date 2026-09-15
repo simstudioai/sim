@@ -121,23 +121,40 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     expect(header()?.textContent).toBe('Reading third')
   })
 
-  it.each(['error', 'cancelled', 'interrupted', 'rejected', 'skipped'] as const)(
+  it.each(['cancelled', 'interrupted', 'skipped'] as const)(
     'shows %s immediately and cancels a pending cosmetic update',
     (status) => {
       render([tool('first')])
       advance(100)
       render([tool('first', 'success'), tool('second')])
       render([tool('first', 'success'), tool('second', status)])
-      const prefix =
-        status === 'error' || status === 'rejected'
-          ? 'Failed'
-          : status === 'skipped'
-            ? 'Skipped'
-            : 'Stopped'
+      const prefix = status === 'skipped' ? 'Skipped' : 'Stopped'
       expect(header()?.textContent).toBe(`${prefix} reading second`)
       expect(container.querySelector('[class*="shimmer"]')).toBeNull()
       advance(1500)
       expect(header()?.textContent).toBe(`${prefix} reading second`)
+    }
+  )
+
+  it.each(['error', 'rejected'] as const)(
+    'keeps a %s attempt in history without promoting it into the summary',
+    (status) => {
+      render([tool('first')])
+      advance(100)
+      render([tool('first', 'success'), tool('second')])
+      render([tool('first', 'success'), tool('second', status)])
+      const label = agentName === 'mothership' ? 'Read first' : 'Reading first'
+      expect(header()?.textContent).toBe(label)
+      advance(1500)
+      expect(header()?.textContent).toBe(label)
+      render([tool('first', 'success'), tool('second', status)], false)
+      expect(header()?.textContent).toBe(
+        agentName === 'mothership' ? 'Read first + 1' : 'Read files'
+      )
+      act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
+      expect(container.querySelector('[data-state="open"]')?.textContent).toContain(
+        'Failed reading second'
+      )
     }
   )
 
@@ -161,22 +178,23 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       render([tool('first'), tool('second', status)])
       const outcome =
         status === 'error' || status === 'rejected'
-          ? 'failed'
+          ? ''
           : status === 'skipped'
             ? 'skipped'
             : 'stopped'
-      expect(header()?.textContent).toBe(`Reading first · 1 ${outcome}`)
+      const label = `Reading first${outcome ? ` · 1 ${outcome}` : ''}`
+      expect(header()?.textContent).toBe(label)
       expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
       advance(1000)
-      expect(header()?.textContent).toBe(`Reading first · 1 ${outcome}`)
+      expect(header()?.textContent).toBe(label)
     }
   )
 
-  it('surfaces an earlier parallel failure while the latest call keeps working', () => {
+  it('shows the latest parallel call without an earlier failure suffix', () => {
     render([tool('first'), tool('second')])
     advance(100)
     render([tool('first', 'error'), tool('second')])
-    expect(header()?.textContent).toBe('Reading second · 1 failed')
+    expect(header()?.textContent).toBe('Reading second')
   })
 
   it('keeps narration from prematurely completing an open lane', () => {
