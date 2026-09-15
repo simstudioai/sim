@@ -18,7 +18,7 @@ export async function setCleanupTimeouts(tx: Pick<CleanupTransaction, 'execute'>
   await tx.execute(sql`SET LOCAL statement_timeout = '5s'`)
 }
 
-/** One short DB transaction; callers do storage/backend work outside this callback. */
+/** One bounded DB transaction; storage under a binding lock must use a cancellable deadline. */
 export const cleanupQuery: CleanupQuery = (query) =>
   dbFor('cleanup').transaction(async (tx) => {
     await setCleanupTimeouts(tx)

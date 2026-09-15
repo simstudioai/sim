@@ -21,13 +21,11 @@ const { storage, prepareChat, executeChat, hardDelete, billing, decrement, reRoo
   })
 )
 const outbox = vi.hoisted(() => new Map<string, { eventType: string; payload: unknown }>())
-vi.mock('@/lib/core/outbox/service', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/core/outbox/service')>()
+vi.mock('@/lib/core/outbox/service', () => {
   return {
-    ...actual,
-    enqueueOutboxEvent: vi.fn(async (...args: Parameters<typeof actual.enqueueOutboxEvent>) => {
-      const id = await actual.enqueueOutboxEvent(...args)
-      outbox.set(id, { eventType: args[1], payload: args[2] })
+    enqueueOutboxEvent: vi.fn(async (_tx: unknown, eventType: string, payload: unknown) => {
+      const id = `test-outbox-${outbox.size}`
+      outbox.set(id, { eventType, payload })
       return id
     }),
     processOutboxEventById: vi.fn(async (id: string, handlers: OutboxHandlerRegistry) => {
@@ -55,7 +53,7 @@ vi.mock('@/background/cleanup-soft-deletes', () => ({
 }))
 vi.mock('@/lib/uploads', () => ({
   isUsingCloudStorage: () => true,
-  StorageService: { deleteFiles: storage },
+  StorageService: { deleteFile: storage },
 }))
 vi.mock('@/lib/cleanup/chat-cleanup', () => ({ prepareChatCleanup: prepareChat }))
 vi.mock('@/lib/knowledge/documents/service', () => ({ hardDeleteDocuments: hardDelete }))
@@ -88,7 +86,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
   outbox.clear()
-  storage.mockResolvedValue({ deleted: 1, failed: [] })
+  storage.mockResolvedValue(undefined)
   prepareChat.mockResolvedValue({ execute: executeChat })
 })
 
@@ -154,7 +152,7 @@ describe('requested cleanup stages', () => {
   it('records committed log deletion if attached storage cleanup fails', async () => {
     queueTableRows(schemaMock.workflowExecutionLogs, [{ id: 'one', files: [{ key: 'blob' }] }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'one', files: [{ key: 'blob' }] }])
-    storage.mockResolvedValue({ deleted: 0, failed: [{ key: 'blob', error: 'unavailable' }] })
+    storage.mockRejectedValue(new Error('unavailable'))
     const run = control('workflowLogs', false)
     await expect(runBoundedLogScope(scope, run)).rejects.toThrow('storage cleanup is incomplete')
     expect(dbChainMockFns.delete).toHaveBeenCalledOnce()

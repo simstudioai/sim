@@ -7,8 +7,7 @@ import { navigatePathAsync } from '@/executor/variables/resolvers/reference-asyn
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/execution/payloads/large-value-metadata')>()),
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
   registerLargeValueOwner: vi.fn().mockResolvedValue(true),
   addLargeValueReference: vi.fn().mockResolvedValue(undefined),
 }))

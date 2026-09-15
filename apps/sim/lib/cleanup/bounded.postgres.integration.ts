@@ -13,8 +13,8 @@ import {
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { lockLargeValueKeysForReference } from '@/lib/execution/payloads/large-value-lock'
 
-const { deleteStorageFiles } = vi.hoisted(() => ({ deleteStorageFiles: vi.fn() }))
-vi.mock('@/lib/uploads', () => ({ StorageService: { deleteFiles: deleteStorageFiles } }))
+const { deleteStorageFile } = vi.hoisted(() => ({ deleteStorageFile: vi.fn() }))
+vi.mock('@/lib/uploads', () => ({ StorageService: { deleteFile: deleteStorageFile } }))
 
 const url = new URL(process.env.DATABASE_URL ?? '')
 if (url.hostname !== '127.0.0.1' || url.pathname !== '/bounded_cleanup_test') {
@@ -43,7 +43,7 @@ beforeAll(async () => {
     sql`CREATE TABLE execution_large_values (key text PRIMARY KEY, workspace_id text, deleted_at timestamp)`
   )
   await db.execute(
-    sql`CREATE TABLE workspace_files (key text PRIMARY KEY, context text, deleted_at timestamp)`
+    sql`CREATE TABLE workspace_files (id text PRIMARY KEY DEFAULT gen_random_uuid()::text, key text NOT NULL, context text, deleted_at timestamp, content_updated_at timestamp NOT NULL DEFAULT now())`
   )
   await db.execute(sql`CREATE TABLE workflow_execution_logs (execution_id text)`)
   await db.execute(sql`CREATE TABLE paused_executions (execution_id text, status text)`)
@@ -56,7 +56,7 @@ beforeAll(async () => {
   )
 })
 beforeEach(async () => {
-  deleteStorageFiles.mockReset()
+  deleteStorageFile.mockReset()
   await db.execute(sql`TRUNCATE outbox_event`)
   await db.execute(
     sql`TRUNCATE execution_large_value_references, execution_large_value_dependencies, execution_large_values, workflow_execution_logs, paused_executions, workspace_files`
@@ -269,7 +269,10 @@ describe('large-value reference lifecycle locks', () => {
       const table = kind === 'metadata' ? 'execution_large_values' : 'workspace_files'
       if (kind === 'metadata')
         await db.execute(sql`INSERT INTO execution_large_values VALUES ('live-key','one',NULL)`)
-      else await db.execute(sql`INSERT INTO workspace_files VALUES ('live-key','execution',NULL)`)
+      else
+        await db.execute(
+          sql`INSERT INTO workspace_files (key,context,deleted_at) VALUES ('live-key','execution',NULL)`
+        )
       await db.transaction(async (tx) => {
         await lockLargeValueKeysForReference(tx, ['live-key'])
         await expect(
@@ -310,43 +313,104 @@ describe('durable retention storage cleanup', () => {
     ).rejects.toThrow('abort transaction')
     expect(await count('roots')).toBe(6)
     expect((await db.execute(sql`SELECT id FROM outbox_event`)).length).toBe(0)
-    expect(deleteStorageFiles).not.toHaveBeenCalled()
+    expect(deleteStorageFile).not.toHaveBeenCalled()
   })
   it('retries storage from the outbox after the root is gone', async () => {
     const [eventId] = await cleanupQuery(async (tx) => {
       await tx.delete(roots).where(eq(roots.id, 'a'))
       return enqueueRetentionStorageCleanup(tx, ['blob'], 'execution', 1)
     })
-    deleteStorageFiles.mockResolvedValueOnce({
-      deleted: 0,
-      failed: [{ key: 'blob', error: 'offline' }],
-    })
+    deleteStorageFile.mockRejectedValueOnce(new Error('offline'))
     await expect(
       processRetentionStorageCleanup(control(1), 'workflows', [eventId])
     ).rejects.toThrow('incomplete: pending')
     expect(await count('roots')).toBe(5)
-    const [pending] = await db.execute<{ status: string; payload: { keys: string[] } }>(
-      sql`SELECT status, payload FROM outbox_event WHERE id = ${eventId}`
-    )
+    const [pending] = await db.execute<{
+      status: string
+      payload: { files: Array<{ key: string }> }
+    }>(sql`SELECT status, payload FROM outbox_event WHERE id = ${eventId}`)
     expect(pending.status).toBe('pending')
-    expect(pending.payload.keys).toEqual(['blob'])
+    expect(pending.payload.files.map((file) => file.key)).toEqual(['blob'])
     await db.execute(
       sql`UPDATE outbox_event SET available_at = now() - interval '1 second' WHERE id = ${eventId}`
     )
-    deleteStorageFiles.mockResolvedValueOnce({ deleted: 1, failed: [] })
+    deleteStorageFile.mockResolvedValueOnce(undefined)
     await expect(processOutboxEventById(eventId, retentionStorageOutboxHandlers)).resolves.toBe(
       'completed'
     )
-    expect(deleteStorageFiles).toHaveBeenCalledTimes(2)
+    expect(deleteStorageFile).toHaveBeenCalledTimes(2)
     expect(await count('roots')).toBe(5)
+  })
+  it.each(['restore', 'replace', 'new-binding'] as const)(
+    'does not delete a newer live binding on retry: %s',
+    async (change) => {
+      if (change !== 'new-binding') {
+        await db.execute(sql`INSERT INTO workspace_files(id,key,context,deleted_at)
+          VALUES ('original','blob','execution',now() - interval '1 day')`)
+      }
+      const [eventId] = await cleanupQuery((tx) =>
+        enqueueRetentionStorageCleanup(tx, ['blob'], 'execution', 1, true)
+      )
+      deleteStorageFile.mockRejectedValueOnce(new Error('offline'))
+      await expect(processOutboxEventById(eventId, retentionStorageOutboxHandlers)).resolves.toBe(
+        'pending'
+      )
+      if (change === 'restore') {
+        await db.execute(sql`UPDATE workspace_files SET deleted_at = NULL,
+          content_updated_at = content_updated_at + interval '1 second' WHERE id = 'original'`)
+      } else {
+        // A replacement may coexist with an older tombstone for the same key.
+        await db.execute(
+          sql`INSERT INTO workspace_files(id,key,context) VALUES ('replacement','blob','execution')`
+        )
+      }
+      await db.execute(
+        sql`UPDATE outbox_event SET available_at = now() - interval '1 second' WHERE id = ${eventId}`
+      )
+      await expect(processOutboxEventById(eventId, retentionStorageOutboxHandlers)).resolves.toBe(
+        'completed'
+      )
+      expect(deleteStorageFile).toHaveBeenCalledTimes(1)
+      const active = await db.execute(
+        sql`SELECT id FROM workspace_files WHERE key = 'blob' AND deleted_at IS NULL`
+      )
+      expect(active).toHaveLength(1)
+    }
+  )
+  it('holds the captured binding lock through storage deletion and tombstones only that identity', async () => {
+    await db.execute(
+      sql`INSERT INTO workspace_files(id,key,context) VALUES ('original','blob','execution')`
+    )
+    const [eventId] = await cleanupQuery((tx) =>
+      enqueueRetentionStorageCleanup(tx, ['blob'], 'execution', 1, true)
+    )
+    deleteStorageFile.mockImplementationOnce(async () => {
+      await expect(
+        runOutsideTransactionContext(() =>
+          db.transaction(async (tx) => {
+            await tx.execute(sql`SET LOCAL lock_timeout = '100ms'`)
+            await tx.execute(
+              sql`UPDATE workspace_files SET content_updated_at = now() WHERE id = 'original'`
+            )
+          })
+        )
+      ).rejects.toThrow()
+    })
+    await expect(processOutboxEventById(eventId, retentionStorageOutboxHandlers)).resolves.toBe(
+      'completed'
+    )
+    expect(deleteStorageFile).toHaveBeenCalledOnce()
+    expect(
+      await db.execute(sql`SELECT id FROM workspace_files WHERE deleted_at IS NULL`)
+    ).toHaveLength(0)
   })
   it('bounds and deduplicates the persisted key batches', async () => {
     await cleanupQuery((tx) =>
       enqueueRetentionStorageCleanup(tx, ['a', 'b', 'a', 'c'], 'workspace', 2)
     )
-    const events = await db.execute<{ payload: { keys: string[] } }>(
+    const events = await db.execute<{ payload: { files: Array<{ key: string }> } }>(
       sql`SELECT payload FROM outbox_event ORDER BY created_at, id`
     )
-    expect(events.map((event) => event.payload.keys.length).sort()).toEqual([1, 2])
+    expect(events.map((event) => event.payload.files.length).sort()).toEqual([1, 2])
   })
 })
