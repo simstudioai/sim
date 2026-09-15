@@ -413,6 +413,7 @@ describe('Database Helpers', () => {
       const loaded = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
 
       expect(loaded?.blocks['loop-1'].data?.count).toBeUndefined()
+      expect(Object.hasOwn(loaded!.blocks['loop-1'].data!, 'count')).toBe(false)
       expect(loaded?.loops['loop-1'].iterations).toBe(3)
       expect(generateLoopBlocks(loaded!.blocks)['loop-1'].iterations).toBe(5)
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
