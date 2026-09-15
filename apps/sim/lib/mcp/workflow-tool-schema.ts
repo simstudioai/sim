@@ -1,119 +1,9 @@
 import { z } from 'zod'
+import type { McpToolSchema, McpToolSchemaProperty } from '@/lib/mcp/types'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { generateWorkflowInputShape } from '@/lib/workflows/input-schema'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import type { McpToolSchema } from './types'
-
-/**
- * Extended property definition for workflow tool schemas.
- * More specific than the generic McpToolSchema properties.
- */
-export interface McpToolProperty {
-  [key: string]: unknown
-  type: string
-  description?: string
-  items?: McpToolProperty
-  properties?: Record<string, McpToolProperty>
-}
-
-/**
- * Extended MCP tool schema with typed properties (for workflow tool generation).
- * Extends the base McpToolSchema with more specific property types.
- */
-export interface McpToolInputSchema extends McpToolSchema {
-  properties: Record<string, McpToolProperty>
-}
-
-export interface McpToolDefinition {
-  name: string
-  description: string
-  inputSchema: McpToolInputSchema
-}
-
-/**
- * File item Zod schema for MCP file inputs.
- * This is the single source of truth for file structure.
- */
-export const fileItemZodSchema = z.object({
-  name: z.string().describe('File name'),
-  data: z.string().describe('Base64 encoded file content'),
-  mimeType: z.string().describe('MIME type of the file'),
-})
-
-/**
- * Convert InputFormatField type to Zod schema
- */
-function fieldTypeToZod(fieldType: string | undefined, isRequired: boolean): z.ZodTypeAny {
-  let zodType: z.ZodTypeAny
-
-  switch (fieldType) {
-    case 'string':
-      zodType = z.string()
-      break
-    case 'number':
-      zodType = z.number()
-      break
-    case 'boolean':
-      zodType = z.boolean()
-      break
-    case 'object':
-      zodType = z.record(z.string(), z.any())
-      break
-    case 'array':
-      zodType = z.array(z.any())
-      break
-    case 'files':
-      zodType = z.array(fileItemZodSchema)
-      break
-    default:
-      zodType = z.string()
-  }
-
-  return isRequired ? zodType : zodType.optional()
-}
-
-/**
- * Generate Zod schema shape from InputFormatField array.
- * This is used directly by the MCP server for tool registration.
- */
-export function generateToolZodSchema(inputFormat: InputFormatField[]): z.ZodRawShape | undefined {
-  if (!inputFormat || inputFormat.length === 0) {
-    return undefined
-  }
-
-  const shape: Record<string, z.ZodTypeAny> = {}
-
-  for (const field of inputFormat) {
-    if (!field.name) continue
-
-    const zodType = fieldTypeToZod(field.type, true)
-    shape[field.name] = field.name ? zodType.describe(field.name) : zodType
-  }
-
-  return Object.keys(shape).length > 0 ? shape : undefined
-}
-
-/**
- * Map InputFormatField type to JSON Schema type (for database storage)
- */
-function mapFieldTypeToJsonSchemaType(fieldType: string | undefined): string {
-  switch (fieldType) {
-    case 'string':
-      return 'string'
-    case 'number':
-      return 'number'
-    case 'boolean':
-      return 'boolean'
-    case 'object':
-      return 'object'
-    case 'array':
-      return 'array'
-    case 'files':
-      return 'array'
-    default:
-      return 'string'
-  }
-}
 
 /**
  * Sanitize a workflow name to be a valid MCP tool name.
@@ -136,54 +26,15 @@ export function sanitizeToolName(name: string): string {
  * This converts the workflow's input format definition to JSON Schema format
  * that MCP clients can use to understand tool parameters.
  */
-export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToolInputSchema {
-  const properties: Record<string, McpToolProperty> = {}
-  const required: string[] = []
-
-  for (const field of inputFormat) {
-    if (!field.name) continue
-
-    const fieldName = field.name
-    const fieldType = mapFieldTypeToJsonSchemaType(field.type)
-
-    const property: McpToolProperty = {
-      type: fieldType,
-      // Use custom description if provided, otherwise use field name
-      description: field.description?.trim() || fieldName,
-    }
-
-    // Handle array types
-    if (fieldType === 'array') {
-      if (field.type === 'file[]') {
-        property.items = {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'File name' },
-            url: { type: 'string', description: 'File URL' },
-            type: { type: 'string', description: 'MIME type' },
-            size: { type: 'number', description: 'File size in bytes' },
-          },
-        }
-        // Use custom description if provided, otherwise use default
-        if (!field.description?.trim()) {
-          property.description = 'Array of file objects'
-        }
-      } else {
-        property.items = { type: 'string' }
-      }
-    }
-
-    properties[fieldName] = property
-
-    // All fields are considered required by default
-    // (in the future, we could add an optional flag to InputFormatField)
-    required.push(fieldName)
-  }
-
+export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToolSchema {
+  const schema = z.toJSONSchema(z.object(generateWorkflowInputShape(inputFormat)), {
+    target: 'draft-07',
+    io: 'input',
+  })
   return {
     type: 'object',
-    properties,
-    required: required.length > 0 ? required : undefined,
+    properties: schema.properties as Record<string, McpToolSchemaProperty>,
+    ...(schema.required?.length ? { required: schema.required } : {}),
   }
 }
 
@@ -198,10 +49,10 @@ export function applyDescriptionOverrides(
   overrides: Record<string, string> | null | undefined
 ): Record<string, unknown> {
   if (!overrides || Object.keys(overrides).length === 0) return baseSchema
-  const baseProperties = baseSchema.properties as Record<string, McpToolProperty> | undefined
+  const baseProperties = baseSchema.properties as Record<string, McpToolSchemaProperty> | undefined
   if (!baseProperties) return baseSchema
 
-  const properties: Record<string, McpToolProperty> = {}
+  const properties: Record<string, McpToolSchemaProperty> = {}
   for (const [name, property] of Object.entries(baseProperties)) {
     const override = overrides[name]
     properties[name] =
@@ -244,7 +95,7 @@ export function extractDescriptionOverrides(
     | Record<string, { description?: unknown }>
     | undefined
   if (!schemaProperties) return overrides
-  const baseProperties = (baseSchema.properties ?? {}) as Record<string, McpToolProperty>
+  const baseProperties = (baseSchema.properties ?? {}) as Record<string, McpToolSchemaProperty>
 
   for (const [name, property] of Object.entries(schemaProperties)) {
     if (!(name in baseProperties)) continue
