@@ -7,16 +7,17 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 /** Called only inside authorized installation/member operations; never returns secrets to a surface. */
-export async function readSharedSlackSearchApp() {
-  if (!isHosted || !(await isFeatureEnabled('slack-search-shared-app'))) return null
+export async function readSharedSlackSearchApp(organizationId: string) {
+  if (!isHosted || !(await isFeatureEnabled('slack-search-shared-app', { orgId: organizationId })))
+    return null
   return getSharedSlackSearchAppConfiguration()
 }
 
 /** Existing custom bots remain independent of the shared-app rollout. */
-export async function requireSlackSearchAppAvailable(appId: string) {
+export async function requireSlackSearchAppAvailable(appId: string, organizationId: string) {
   const shared = getSharedSlackSearchAppConfiguration(appId)
   if (shared?.id === appId) {
-    if (!(await readSharedSlackSearchApp()))
+    if (!(await readSharedSlackSearchApp(organizationId)))
       throw new OrchestrationError('forbidden', 'The shared Slack Search app is unavailable')
     return
   }
@@ -26,14 +27,14 @@ export async function requireSlackSearchAppAvailable(appId: string) {
     .where(eq(slackApp.id, appId))
     .limit(1)
   if (app?.kind !== 'shared') return
-  const configured = await readSharedSlackSearchApp()
+  const configured = await readSharedSlackSearchApp(organizationId)
   if (configured?.id !== appId)
     throw new OrchestrationError('forbidden', 'The shared Slack Search app is unavailable')
 }
 
 /** Canonical lookup inside an authorized organization operation. */
 export async function findSharedSlackSearchInstallation(organizationId: string) {
-  const app = await readSharedSlackSearchApp()
+  const app = await readSharedSlackSearchApp(organizationId)
   if (!app) return null
   const installations = await db
     .select()

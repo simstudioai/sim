@@ -51,7 +51,7 @@ async function authorizeSlackSearchBinding(
     throw new OrchestrationError('forbidden', 'Slack Search binding is no longer valid')
   }
   await requireOrganizationSearchAvailable(installation.organizationId)
-  await requireSlackSearchAppAvailable(installation.appId)
+  await requireSlackSearchAppAvailable(installation.appId, installation.organizationId)
   const secret = await loadSlackSearchCredential(
     installation.credentialId,
     installation.organizationId

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   credential: vi.fn(),
   availability: vi.fn(),
   replacement: vi.fn(),
+  appAvailable: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
   findSlackSearchInstallation: mocks.installation,
@@ -16,7 +17,7 @@ vi.mock('@/lib/knowledge/access/availability', () => ({
   requireOrganizationSearchAvailable: mocks.availability,
 }))
 vi.mock('@/lib/slack-search/shared-app', () => ({
-  requireSlackSearchAppAvailable: vi.fn(),
+  requireSlackSearchAppAvailable: mocks.appAvailable,
   findSharedSlackSearchInstallation: mocks.replacement,
 }))
 
@@ -49,6 +50,7 @@ beforeEach(() => {
   mocks.installation.mockResolvedValue(installation)
   mocks.credential.mockResolvedValue({ version: 'version1', botToken: 'secret' })
   mocks.availability.mockResolvedValue(undefined)
+  mocks.appAvailable.mockResolvedValue(undefined)
   mocks.replacement.mockResolvedValue(null)
 })
 
@@ -154,6 +156,22 @@ describe('Slack Search installation authorization', () => {
       installation,
     })
     expect(mocks.credential).toHaveBeenCalledWith('cred1', 'org1')
+    expect(mocks.appAvailable).toHaveBeenCalledWith('A1', 'org1')
+  })
+  it('rejects the next lifecycle check when the organization loses shared app access', async () => {
+    await expect(authorizeSlackSearchInstallation(principal)).resolves.toMatchObject({
+      installation,
+    })
+    mocks.credential.mockClear()
+    mocks.appAvailable.mockRejectedValueOnce(new Error('unavailable'))
+    await expect(
+      authorizeSlackSearchInstallation(principal, {
+        installationId: installation.id,
+        revision: installation.revision,
+      })
+    ).rejects.toThrow('unavailable')
+    expect(mocks.appAvailable).toHaveBeenLastCalledWith('A1', 'org1')
+    expect(mocks.credential).not.toHaveBeenCalled()
   })
   it.each([null, { ...installation, enabled: false }])(
     'does no work for removed or disabled installations',
