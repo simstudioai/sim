@@ -78,10 +78,19 @@ function escapeForMarkup(value: string): string {
     .replace(/'/g, '&#x27;')
 }
 
-/** The rendered text of a {@link Prose} run, links flattened to their labels. */
-function proseText(prose: Prose | undefined): string {
+/**
+ * The rendered text runs of a {@link Prose}, one per segment. Citation links
+ * split the body into separate text nodes, so the whole run never appears in
+ * the markup as a single contiguous string.
+ */
+function proseRuns(prose: Prose | undefined): string[] {
   if (!prose) throw new Error('expected the fixture profile to supply this prose field')
-  return escapeForMarkup(prose.map((s) => (typeof s === 'string' ? s : s.text)).join(''))
+  return prose.map((s) => escapeForMarkup(typeof s === 'string' ? s : s.text))
+}
+
+/** The longest run, distinctive enough to assert a body is absent from another page. */
+function longestRun(runs: string[]): string {
+  return runs.reduce((longest, run) => (run.length > longest.length ? run : longest), '')
 }
 
 describe('ComparisonProviderPage', () => {
@@ -120,18 +129,17 @@ describe('ComparisonProviderPage', () => {
   it('renders the lead answer and verdict bodies only when the profile supplies them', async () => {
     const withProse = await renderProvider('dust')
     const withoutProse = await renderProvider('n8n')
-    const lead = proseText(dustProfile.leadAnswer)
-    const verdict = proseText(dustProfile.betterThanAnswer)
+    const lead = proseRuns(dustProfile.leadAnswer)
+    const verdict = proseRuns(dustProfile.betterThanAnswer)
 
     expect(withProse).toContain('Is Sim better than Dust?')
     expect(withProse).toContain('id="better-than-heading"')
-    expect(withProse).toContain(lead)
-    expect(withProse).toContain(verdict)
+    for (const run of [...lead, ...verdict]) expect(withProse).toContain(run)
 
     expect(withoutProse).not.toContain('Is Sim better than n8n?')
     expect(withoutProse).not.toContain('id="better-than-heading"')
-    expect(withoutProse).not.toContain(lead)
-    expect(withoutProse).not.toContain(verdict)
+    expect(withoutProse).not.toContain(longestRun(lead))
+    expect(withoutProse).not.toContain(longestRun(verdict))
   })
 
   it('renders every section intro body the profile supplies, and none when it supplies none', async () => {
@@ -139,23 +147,19 @@ describe('ComparisonProviderPage', () => {
     const withoutProse = await renderProvider('n8n')
 
     for (const section of COMPARISON_SECTIONS) {
-      const intro = proseText(dustProfile.sectionIntros?.[section.group])
-      expect(withProse).toContain(intro)
-      expect(withoutProse).not.toContain(intro)
+      const intro = proseRuns(dustProfile.sectionIntros?.[section.group])
+      for (const run of intro) expect(withProse).toContain(run)
+      expect(withoutProse).not.toContain(longestRun(intro))
     }
   })
 
-  it('hardens external prose links and keeps internal ones as plain paths', async () => {
+  /** Every prose link is now a dated source citation, so all of them are absolute. */
+  it('hardens prose citation links and points them at the cited source', async () => {
     const markup = await renderProvider('openai-agentkit')
 
-    const external = anchorWrapping(markup, 'self-hosting')
-    expect(external).toContain('href="https://docs.sim.ai/platform/self-hosting"')
-    expect(external).toContain('target="_blank"')
-    expect(external).toContain('rel="noopener noreferrer"')
-
-    const internal = anchorWrapping(markup, 'Sim combines a per-user subscription')
-    expect(internal).toContain('href="/pricing"')
-    expect(internal).not.toContain('target=')
-    expect(internal).not.toContain('rel=')
+    const cited = anchorWrapping(markup, 'self-hosting')
+    expect(cited).toContain('href="https://docs.sim.ai/platform/self-hosting"')
+    expect(cited).toContain('target="_blank"')
+    expect(cited).toContain('rel="noopener noreferrer"')
   })
 })
