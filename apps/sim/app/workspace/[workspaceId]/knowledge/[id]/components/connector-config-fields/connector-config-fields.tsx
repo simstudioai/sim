@@ -64,7 +64,7 @@ export function ConnectorConfigFields({
 
         return (
           <ChipModalField
-            key={field.id}
+            key={hasCanonicalPair && canonicalId ? `canonical:${canonicalId}` : field.id}
             type='custom'
             title={
               /**
@@ -111,6 +111,7 @@ export function ConnectorConfigFields({
           >
             {field.type === 'selector' && field.selectorKey ? (
               <ConnectorSelectorField
+                key={field.id}
                 field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
                 value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
                 onChange={(value: ConfigFieldValue) => onFieldChange(field.id, value)}
@@ -122,6 +123,7 @@ export function ConnectorConfigFields({
               />
             ) : field.type === 'dropdown' && field.options ? (
               <ChipCombobox
+                key={field.id}
                 options={field.options.map((opt) => ({
                   label: opt.label,
                   value: opt.id,
@@ -136,6 +138,7 @@ export function ConnectorConfigFields({
               />
             ) : (
               <ChipInput
+                key={field.id}
                 value={
                   Array.isArray(sourceConfig[field.id])
                     ? (sourceConfig[field.id] as string[]).join(', ')

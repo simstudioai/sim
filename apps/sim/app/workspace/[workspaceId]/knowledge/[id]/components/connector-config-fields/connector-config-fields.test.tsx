@@ -106,4 +106,26 @@ describe('connector input mode switch', () => {
     act(() => radio('Manual input').click())
     expect(radio('Selector').checked).toBe(true)
   })
+
+  it('keeps focus on the switch through a keyboard mode round trip', () => {
+    act(() => root.render(<Harness />))
+    const selector = radio('Selector')
+    const manual = radio('Manual input')
+
+    act(() => {
+      manual.focus()
+      manual.click()
+    })
+    expect(radio('Manual input')).toBe(manual)
+    expect(manual.checked).toBe(true)
+    expect(document.activeElement).toBe(manual)
+
+    act(() => {
+      selector.focus()
+      selector.click()
+    })
+    expect(radio('Selector')).toBe(selector)
+    expect(selector.checked).toBe(true)
+    expect(document.activeElement).toBe(selector)
+  })
 })
