@@ -17,7 +17,7 @@ interface SignInCandidate {
  */
 export function markSignInProviders<T extends SignInCandidate>(
   providers: T[]
-): Array<Omit<T, 'domainKey' | 'isNamedPrimary'> & { isPrimary: boolean }> {
+): Array<Omit<T, 'isNamedPrimary'> & { isPrimary: boolean }> {
   const signInProviderByDomain = new Map<string, string>()
   for (const provider of providers) {
     if (!provider.domainVerified) continue
@@ -25,8 +25,8 @@ export function markSignInProviders<T extends SignInCandidate>(
       signInProviderByDomain.set(provider.domainKey, provider.providerId)
     }
   }
-  return providers.map(({ domainKey, isNamedPrimary: _named, ...provider }) => ({
+  return providers.map(({ isNamedPrimary: _named, ...provider }) => ({
     ...provider,
-    isPrimary: signInProviderByDomain.get(domainKey) === provider.providerId,
+    isPrimary: signInProviderByDomain.get(provider.domainKey) === provider.providerId,
   }))
 }

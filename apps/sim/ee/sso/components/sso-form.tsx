@@ -164,12 +164,12 @@ function SSOFormContent({
         email: emailValue,
         providerId: resolved.providerId,
         callbackURL: safeCallbackUrl,
-        /** A failed test sign-in returns to the same test link, so a retry still reaches the provider being tried. */
-        errorCallbackURL: `/sso?${new URLSearchParams({
-          error: 'sso_failed',
-          callbackUrl: safeCallbackUrl,
-          ...(testProviderId ? { provider: testProviderId } : {}),
-        })}`,
+        /**
+         * A failed test sign-in returns to the same test link, so a retry still reaches the provider
+         * being tried. `provider` precedes `callbackUrl` because the SSO plugin appends its own error
+         * with a raw `?`, which runs into whichever parameter comes last.
+         */
+        errorCallbackURL: `/sso?error=sso_failed${testProviderId ? `&provider=${encodeURIComponent(testProviderId)}` : ''}&callbackUrl=${encodeURIComponent(safeCallbackUrl)}`,
       })
 
       if (!result || result.error) {

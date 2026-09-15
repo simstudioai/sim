@@ -1,11 +1,21 @@
-import { db, ssoDomain, ssoProvider } from '@sim/db'
-import { forgetPrimaryProviders, verifiedDomainOfProvider } from '@sim/db/sso-primary-provider'
+import { db, ssoProvider } from '@sim/db'
+import { forgetPrimaryProvider } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
-import { and, eq, exists, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteSsoProviderContract, setPrimarySsoProviderContract } from '@/lib/api/contracts/auth'
 import { parseRequest } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
+import {
+  setPrimarySsoProvider,
+  setPrimarySsoProviderOperation,
+} from '@/lib/auth/sso/application/set-primary-provider'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -15,10 +25,10 @@ type RouteContext = { params: Promise<{ providerId: string }> }
 
 /**
  * Loads a provider the caller may manage: an organization provider for its
- * owners and admins, a personal provider for its creator. Sim owns these
- * mutations rather than exposing the SSO plugin's own, which
- * `/api/auth/[...all]` blocks by design: the plugin gates only on the row's
- * creator, while an organization's providers belong to the organization.
+ * owners and admins, a personal provider for its creator. Sim owns deleting
+ * rather than exposing the SSO plugin's own delete, which `/api/auth/[...all]`
+ * blocks by design: the plugin gates only on the row's creator, while an
+ * organization's providers belong to the organization.
  */
 async function loadManagedProvider(userId: string, providerId: string) {
   const [provider] = await db
@@ -41,69 +51,16 @@ async function loadManagedProvider(userId: string, providerId: string) {
   return provider
 }
 
-/**
- * Makes this provider the one its domain signs in through. The previous primary
- * stays configured and reachable by test link, so the switch can be reversed
- * the same way.
- */
-export const PATCH = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
-
-  const parsed = await parseRequest(setPrimarySsoProviderContract, request, context)
-  if (!parsed.success) return parsed.response
-  const { providerId } = parsed.data.params
-
-  const provider = await loadManagedProvider(session.user.id, providerId)
-  if (provider instanceof NextResponse) return provider
-  if (!provider.organizationId) {
-    return NextResponse.json(
-      { error: 'Only organization identity providers have a primary provider' },
-      { status: 400 }
-    )
-  }
-
-  /**
-   * Names the provider on the one domain record sign-in joins it to, so a
-   * provider this succeeds for is exactly the one sign-in then uses.
-   */
-  const named = await db
-    .update(ssoDomain)
-    .set({ primaryProviderId: providerId, updatedAt: new Date() })
-    .where(
-      and(
-        eq(ssoDomain.organizationId, provider.organizationId),
-        exists(
-          db
-            .select({ found: sql`1` })
-            .from(ssoProvider)
-            .where(
-              and(
-                eq(ssoProvider.id, provider.id),
-                eq(ssoProvider.domainVerified, true),
-                verifiedDomainOfProvider
-              )
-            )
-        )
-      )
-    )
-    .returning({ id: ssoDomain.id })
-  if (named.length === 0) {
-    return NextResponse.json(
-      { error: `Verify ${provider.domain} before making this provider primary.` },
-      { status: 409 }
-    )
-  }
-
-  logger.info('Set primary SSO provider', {
-    providerId,
-    organizationId: provider.organizationId,
-    domain: provider.domain,
-    userId: session.user.id,
-  })
-  return NextResponse.json({ success: true, providerId })
+/** Makes this provider the one its domain signs in through. */
+export const PATCH = defineInternalJsonRoute({
+  contract: setPrimarySsoProviderContract,
+  auth: internalSessionAuth,
+  operation: setPrimarySsoProviderOperation,
+  rateLimit: internalRateLimits.user({ bucketName: 'sso-set-primary-provider' }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: ({ params }) => ({ providerId: params.providerId }),
+  useCase: setPrimarySsoProvider,
+  present: ({ providerId }) => ({ success: true as const, providerId }),
 })
 
 /**
@@ -140,7 +97,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
       .where(and(eq(ssoProvider.id, provider.id), ownerClause))
       .returning({ id: ssoProvider.id })
     if (deleted.length > 0 && organizationId) {
-      await forgetPrimaryProviders(tx, organizationId, [providerId])
+      await forgetPrimaryProvider(tx, organizationId, providerId)
     }
     return deleted
   })

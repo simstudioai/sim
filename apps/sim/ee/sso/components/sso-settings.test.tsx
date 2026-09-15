@@ -269,6 +269,8 @@ function provider(organizationId: string) {
     id: `sso-${suffix}`,
     providerId: `provider-${suffix}`,
     domain: `org-${suffix}.example.com`,
+    domainKey: `org-${suffix}.example.com`,
+    domainVerified: true,
     issuer: `https://issuer-${suffix}.example.com`,
     organizationId,
     jitProvisioningEnabled: true,
@@ -791,8 +793,8 @@ describe('SSO provider list', () => {
 })
 
 describe('SSO primary provider', () => {
-  /** An organization moving acme's sign-in from one identity provider to another. */
-  function renderMigration(searchParams = '', okta = { domainVerified: true }) {
+  /** An organization moving one domain's sign-in from one identity provider to another. */
+  function renderMigration(searchParams = '', okta: Record<string, unknown> = {}) {
     mockUseSSOProviders.mockReturnValue({
       data: {
         providers: [
@@ -807,8 +809,8 @@ describe('SSO primary provider', () => {
             ...provider('org-a'),
             id: 'sso-okta',
             providerId: 'acme-okta',
-            domainVerified: okta.domainVerified,
             isPrimary: false,
+            ...okta,
           },
         ],
       },
@@ -856,6 +858,25 @@ describe('SSO primary provider', () => {
     expect(new URL(testLink?.value ?? '').searchParams.get('provider')).toBe('acme-okta')
   })
 
+  it('groups a provider whose stored domain is spelled differently with its domain', () => {
+    renderMigration('', { domain: '*.ORG-A.example.com' })
+    const rows = Array.from(container.querySelectorAll('[aria-label^="Open "]')).map(
+      (row) => row.parentElement?.textContent ?? ''
+    )
+    expect(rows.find((row) => row.includes('acme-entra'))).toContain('Primary')
+
+    openProvider('acme-okta')
+    expect(findButton('Make primary')).toBeDefined()
+  })
+
+  it('offers neither on a waiting provider that is not verified', () => {
+    renderMigration('', { domainVerified: false })
+    openProvider('acme-okta')
+
+    expect(findButton('Make primary')).toBeUndefined()
+    expect(container.querySelector('#sso-test-link')).toBeNull()
+  })
+
   it('offers neither on the primary provider itself', () => {
     renderMigration()
     openProvider('acme-entra')
@@ -899,7 +920,7 @@ describe('SSO primary provider', () => {
 
     act(() => findButton('Delete')?.click())
     expect(container.querySelector('[role="dialog"]')).toHaveTextContent(
-      'People at org-a.example.com can no longer sign in with SSO.'
+      'People at org-a.example.com can no longer sign in through it.'
     )
   })
 

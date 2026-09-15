@@ -514,10 +514,23 @@ describe('POST /api/auth/sso/register', () => {
 
   it("does not report the caller's own org-less provider as another tenant's claim", async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    queueProviders([{ domain: 'acme.com', userId: 'u1', organizationId: null }])
+    queueProviders([
+      { domain: 'acme.com', userId: 'u1', organizationId: null, providerId: 'acme-oidc' },
+    ])
     const res = await POST(request(OIDC_BODY))
     expect(res.status).toBe(200)
     expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
+  })
+
+  it("refuses a second provider on a domain the caller's own org-less provider signs in", async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([
+      { domain: 'acme.com', userId: 'u1', organizationId: null, providerId: 'acme-personal' },
+    ])
+    const res = await POST(request(OIDC_BODY))
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toMatchObject({ code: 'SSO_DOMAIN_ALREADY_ROUTED' })
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
   })
 
   it("still blocks an org admin from claiming another user's user-scoped domain", async () => {

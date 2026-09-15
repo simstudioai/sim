@@ -10,13 +10,23 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { mockGetSession } = vi.hoisted(() => ({
+const { mockGetSession, mockSetPrimary } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
+  mockSetPrimary: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+/** Authorization and the primary switch are the use case's; its own tests and the PostgreSQL suite cover them. */
+vi.mock('@/lib/auth/sso/application/set-primary-provider', () => ({
+  setPrimarySsoProviderOperation: { id: 'organization.sso.set_primary_provider' },
+  setPrimarySsoProvider: {
+    operation: { id: 'organization.sso.set_primary_provider' },
+    execute: mockSetPrimary,
+  },
+}))
 
 import { DELETE, PATCH } from '@/app/api/auth/sso/providers/[providerId]/route'
 
@@ -136,59 +146,45 @@ describe('PATCH /api/auth/sso/providers/[providerId]', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    resetDbChainMock()
-    mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
-    dbChainMockFns.returning.mockResolvedValue([{ id: 'domain-1' }])
+    mockGetSession.mockResolvedValue({ user: { id: 'u1' }, session: { id: 's1' } })
+    mockSetPrimary.mockResolvedValue({
+      providerId: 'acme-okta',
+      organizationId: 'org1',
+      domain: 'acme.com',
+    })
   })
 
-  function queueOrgProvider(role: string) {
-    queueTableRows(schemaMock.ssoProvider, [
-      { id: 'row-1', organizationId: 'org1', userId: 'u-other', domain: 'acme.com' },
-    ])
-    queueTableRows(schemaMock.member, [{ role }])
-  }
-
-  it('requires a session', async () => {
+  it('requires a session before the use case runs', async () => {
     mockGetSession.mockResolvedValue(null)
     expect((await patch()).status).toBe(401)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockSetPrimary).not.toHaveBeenCalled()
   })
 
   it('only accepts making a provider primary', async () => {
     expect((await patch({ isPrimary: false })).status).toBe(400)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockSetPrimary).not.toHaveBeenCalled()
   })
 
-  it("refuses a member who is not the organization's owner or admin", async () => {
-    queueOrgProvider('member')
-    expect((await patch()).status).toBe(403)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('names the provider on its verified domain', async () => {
-    queueOrgProvider('admin')
+  it('passes the routed provider to the use case and presents its result', async () => {
     const res = await patch()
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ success: true, providerId: 'acme-okta' })
-    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.ssoDomain)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ primaryProviderId: 'acme-okta' })
+    expect(mockSetPrimary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({ kind: 'session', userId: 'u1' }),
+        input: { providerId: 'acme-okta' },
+      })
     )
   })
 
-  it('refuses a provider whose domain is not verified', async () => {
-    queueOrgProvider('owner')
-    dbChainMockFns.returning.mockResolvedValue([])
+  it.each([
+    ['conflict', 409, 'Verify acme.com before making this provider primary.'],
+    ['forbidden', 403, 'Organization administrator access is required'],
+    ['not_found', 404, 'Provider not found'],
+  ] as const)('projects a %s refusal with its message', async (code, status, message) => {
+    mockSetPrimary.mockRejectedValue(new OrchestrationError(code, message))
     const res = await patch()
-    expect(res.status).toBe(409)
-    await expect(res.json()).resolves.toMatchObject({ error: expect.stringContaining('acme.com') })
-  })
-
-  it('refuses a personal provider, which has no primary', async () => {
-    queueTableRows(schemaMock.ssoProvider, [
-      { id: 'row-1', organizationId: null, userId: 'u1', domain: 'acme.com' },
-    ])
-    expect((await patch()).status).toBe(400)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(res.status).toBe(status)
+    await expect(res.json()).resolves.toEqual({ error: message })
   })
 })

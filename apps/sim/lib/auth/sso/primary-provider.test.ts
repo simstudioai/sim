@@ -54,8 +54,13 @@ describe('markSignInProviders', () => {
     ).toEqual(['eng-okta', 'zeta-okta'])
   })
 
-  it('drops the internal columns from what it returns', () => {
+  it('drops the named-primary column from what it returns', () => {
     const [provider] = markSignInProviders([row('acme-entra')])
-    expect(provider).toEqual({ providerId: 'acme-entra', domainVerified: true, isPrimary: true })
+    expect(provider).toEqual({
+      providerId: 'acme-entra',
+      domainKey: 'acme.com',
+      domainVerified: true,
+      isPrimary: true,
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, ne, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, ne, type SQL, sql } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { ssoDomain, ssoProvider } from './schema'
 
@@ -31,12 +31,13 @@ export const verifiedDomainOfProvider = and(
 export const isNamedPrimary: SQL<boolean> = sql<boolean>`coalesce(${ssoDomain.primaryProviderId} = ${ssoProvider.providerId}, false)`
 
 /**
- * Keeps sign-in where it is when a provider joins a domain that names no
- * primary: names the provider that has been signing the domain in, so the
- * newcomer does not take over by sorting first. Call with the domain record
- * locked. Does nothing when that provider belongs to another tenant.
+ * Keeps sign-in where it is when a provider joins a domain, so the newcomer does
+ * not take over by sorting first. When the domain already names a primary that
+ * still signs it in, nothing changes. Otherwise the organization provider that
+ * has been signing the domain in is named, or the stale name is cleared when
+ * there is none. Call inside the transaction that holds the domain record lock.
  */
-export async function nameIncumbentSignInProvider(
+export async function keepDomainSignInProvider(
   tx: SsoPrimaryWriter,
   input: {
     domainRecordId: string
@@ -45,43 +46,52 @@ export async function nameIncumbentSignInProvider(
     joiningProviderId: string
   }
 ): Promise<void> {
-  const [incumbent] = await tx
-    .select({ providerId: ssoProvider.providerId, organizationId: ssoProvider.organizationId })
+  const [record] = await tx
+    .select({ primaryProviderId: ssoDomain.primaryProviderId })
+    .from(ssoDomain)
+    .where(eq(ssoDomain.id, input.domainRecordId))
+    .limit(1)
+  if (!record) return
+
+  const signingIn = await tx
+    .select({ providerId: ssoProvider.providerId })
     .from(ssoProvider)
     .where(
       and(
+        eq(ssoProvider.organizationId, input.organizationId),
         eq(ssoProvider.domainVerified, true),
         sql`${ssoProviderDomainKey} = ${input.domain}`,
         ne(ssoProvider.providerId, input.joiningProviderId)
       )
     )
     .orderBy(asc(ssoProvider.providerId))
-    .limit(1)
-  if (incumbent?.organizationId !== input.organizationId) return
+  const namedStillSignsIn = signingIn.some(
+    (provider) => provider.providerId === record.primaryProviderId
+  )
+  if (namedStillSignsIn) return
+
+  const primaryProviderId = signingIn[0]?.providerId ?? null
+  if (primaryProviderId === record.primaryProviderId) return
   await tx
     .update(ssoDomain)
-    .set({ primaryProviderId: incumbent.providerId, updatedAt: new Date() })
+    .set({ primaryProviderId, updatedAt: new Date() })
     .where(eq(ssoDomain.id, input.domainRecordId))
 }
 
 /**
- * Clears the name wherever an organization's domain made one of these deleted
- * providers primary, so a provider later registered under the same id does not
+ * Clears the name wherever one of an organization's domains made this deleted
+ * provider primary, so a provider later registered under the same id does not
  * inherit the role.
  */
-export async function forgetPrimaryProviders(
+export async function forgetPrimaryProvider(
   tx: SsoPrimaryWriter,
   organizationId: string,
-  providerIds: string[]
+  providerId: string
 ): Promise<void> {
-  if (providerIds.length === 0) return
   await tx
     .update(ssoDomain)
     .set({ primaryProviderId: null, updatedAt: new Date() })
     .where(
-      and(
-        eq(ssoDomain.organizationId, organizationId),
-        inArray(ssoDomain.primaryProviderId, providerIds)
-      )
+      and(eq(ssoDomain.organizationId, organizationId), eq(ssoDomain.primaryProviderId, providerId))
     )
 }

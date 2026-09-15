@@ -33,8 +33,8 @@ export function SsoProviderList({
 }: SsoProviderListProps) {
   const providerCountByDomain = new Map<string, number>()
   for (const provider of providers) {
-    const domain = provider.domain ?? ''
-    providerCountByDomain.set(domain, (providerCountByDomain.get(domain) ?? 0) + 1)
+    const domainKey = provider.domainKey ?? ''
+    providerCountByDomain.set(domainKey, (providerCountByDomain.get(domainKey) ?? 0) + 1)
   }
 
   return (
@@ -57,7 +57,7 @@ export function SsoProviderList({
                 description={`${(provider.providerType ?? 'oidc').toUpperCase()} · ${provider.domain ?? 'no domain'}`}
                 badge={
                   provider.isPrimary &&
-                  (providerCountByDomain.get(provider.domain ?? '') ?? 0) > 1 ? (
+                  (providerCountByDomain.get(provider.domainKey ?? '') ?? 0) > 1 ? (
                     <ChipTag variant='gray'>Primary</ChipTag>
                   ) : undefined
                 }

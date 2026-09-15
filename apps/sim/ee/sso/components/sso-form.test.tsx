@@ -183,6 +183,8 @@ describe('SSOForm sign-in errors', () => {
     expect(mockSsoSignIn).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'user@example.com', providerId: 'example-okta' })
     )
+    const [signIn] = mockSsoSignIn.mock.calls[0]
+    expect(signIn.errorCallbackURL).not.toContain('provider=')
   })
 
   it('signs in through the provider a test link names, and returns to that link on failure', async () => {
@@ -199,6 +201,9 @@ describe('SSOForm sign-in errors', () => {
     const [signIn] = mockSsoSignIn.mock.calls[0]
     expect(signIn.providerId).toBe('example-okta')
     expect(signIn.errorCallbackURL).toContain('provider=example-okta')
+    /** The SSO plugin appends `?error=…` to the URL, so the test link must survive that suffix. */
+    const retry = new URL(`${signIn.errorCallbackURL}?error=invalid_provider`, 'https://sim.test')
+    expect(retry.searchParams.get('provider')).toBe('example-okta')
   })
 
   it('explains a test link that does not match the email domain', async () => {

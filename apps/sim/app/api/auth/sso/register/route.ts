@@ -1,5 +1,5 @@
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
-import { nameIncumbentSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
+import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
@@ -191,16 +191,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
 
     /**
-     * Refuses the domain when another tenant has claimed it. The caller's own
-     * organization may add a provider to a domain it already signs in through:
-     * the new provider waits, reachable by test link, until an admin makes it
-     * the domain's primary.
+     * Refuses the domain when another tenant has claimed it, or when the caller's
+     * own personal provider signs it in. The caller's organization may add a
+     * provider to a domain it already signs in through: the new provider waits,
+     * reachable by test link, until an admin makes it the domain's primary.
      */
     const findDomainRefusal = async (): Promise<NextResponse | null> => {
       const claims = await db
         .select({
           userId: ssoProvider.userId,
           organizationId: ssoProvider.organizationId,
+          providerId: ssoProvider.providerId,
         })
         .from(ssoProvider)
         .where(sql`${ssoProviderDomainKey} = ${domain}`)
@@ -214,6 +215,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           {
             error: 'This domain is already registered for SSO by another organization.',
             code: 'SSO_DOMAIN_ALREADY_REGISTERED',
+          },
+          { status: 409 }
+        )
+      }
+      const personal = claims.find(
+        (provider) =>
+          !provider.organizationId &&
+          typeof provider.providerId === 'string' &&
+          provider.providerId !== providerId
+      )
+      if (personal) {
+        return NextResponse.json(
+          {
+            error: `${domain} already signs in through the provider "${personal.providerId}". Edit that provider, or give this one a different verified domain.`,
+            code: 'SSO_DOMAIN_ALREADY_ROUTED',
           },
           { status: 409 }
         )
@@ -625,6 +641,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         id: ssoProvider.id,
         issuer: ssoProvider.issuer,
         domain: ssoProvider.domain,
+        domainVerified: ssoProvider.domainVerified,
         oidcConfig: ssoProvider.oidcConfig,
         samlConfig: ssoProvider.samlConfig,
         jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
@@ -643,14 +660,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * first the SELECT finds nothing.
      *
      * A provider joining a domain another provider already signs in does not
-     * take over by sorting first: when the domain names no primary, the provider
-     * signing it in until now is named, in the same transaction. The lock is
-     * `FOR UPDATE` so two providers joining at once name it one after the other.
+     * take over by sorting first: unless the domain's named primary still signs
+     * it in, the provider signing it in until now is named, in the same
+     * transaction. The lock is `FOR UPDATE` so two providers joining at once
+     * settle it one after the other.
      */
     const grantProviderDomainTrust = (joinsDomain: boolean): Promise<boolean> =>
       db.transaction(async (tx) => {
         const [proof] = await tx
-          .select({ id: ssoDomain.id, primaryProviderId: ssoDomain.primaryProviderId })
+          .select({ id: ssoDomain.id })
           .from(ssoDomain)
           .where(verifiedDomainClause)
           .limit(1)
@@ -664,8 +682,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .returning({ id: ssoProvider.id })
         if (granted.length === 0) return false
 
-        if (joinsDomain && proof.primaryProviderId === null) {
-          await nameIncumbentSignInProvider(tx, {
+        if (joinsDomain) {
+          await keepDomainSignInProvider(tx, {
             domainRecordId: proof.id,
             organizationId: orgId,
             domain,
@@ -703,8 +721,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       let domainTrustGranted: boolean
       try {
+        /** An owned provider joins the domain when it moves to it or is not yet trusted on it. */
         domainTrustGranted = await grantProviderDomainTrust(
-          normalizeSSODomain(existingOwnedProvider.domain) !== domain
+          !existingOwnedProvider.domainVerified ||
+            normalizeSSODomain(existingOwnedProvider.domain) !== domain
         )
       } catch (error) {
         try {

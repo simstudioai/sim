@@ -202,7 +202,10 @@ interface SsoProviderSettingsProps {
   onBack?: () => void
   /** Offered on the detail view; the caller owns the confirmation. */
   onDelete?: () => void
-  /** Offered on the detail view of a provider that is not its domain's primary; the caller owns the confirmation. */
+  /**
+   * Offered on the detail view of a verified provider waiting beside its domain's primary; its
+   * presence also shows the test sign-in link. The caller owns the confirmation.
+   */
   onMakePrimary?: () => void
 }
 

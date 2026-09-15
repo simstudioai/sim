@@ -18,7 +18,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { ssoProvider, user } from '../schema'
-import { forgetPrimaryProviders } from '../sso-primary-provider'
+import { forgetPrimaryProvider } from '../sso-primary-provider'
 
 const logger = {
   info: (message: string, meta?: any) => {
@@ -129,7 +129,7 @@ async function deregisterSSOProvider(): Promise<boolean> {
             organizationId: ssoProvider.organizationId,
           })
         for (const { providerId, organizationId } of deleted) {
-          if (organizationId) await forgetPrimaryProviders(tx, organizationId, [providerId])
+          if (organizationId) await forgetPrimaryProvider(tx, organizationId, providerId)
         }
       })
 

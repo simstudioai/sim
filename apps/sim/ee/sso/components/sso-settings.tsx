@@ -73,17 +73,18 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
     ? pendingDelete.isPrimary
       ? providerList.find(
           (entry) =>
-            entry.domain === pendingDelete.domain &&
+            entry.domainKey === pendingDelete.domainKey &&
             entry.providerId !== pendingDelete.providerId &&
             entry.domainVerified
         )
-      : providerList.find((entry) => entry.domain === pendingDelete.domain && entry.isPrimary)
+      : providerList.find((entry) => entry.domainKey === pendingDelete.domainKey && entry.isPrimary)
     : undefined
   const deleteDomain = pendingDelete?.domain ?? 'its domain'
   const canMakeSelectedPrimary =
     selectedProvider !== undefined &&
+    selectedProvider.domainVerified === true &&
     !selectedProvider.isPrimary &&
-    providerList.some((entry) => entry.domain === selectedProvider.domain && entry.isPrimary)
+    providerList.some((entry) => entry.domainKey === selectedProvider.domainKey && entry.isPrimary)
 
   const handleConfirmPrimary = async () => {
     if (!pendingPrimary?.providerId) return
@@ -214,7 +215,7 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             deleteSignInProvider
               ? `People at ${deleteDomain} ${pendingDelete?.isPrimary ? 'will sign in through' : 'keep signing in through'} ${deleteSignInProvider.providerId}.`
               : {
-                  text: `People at ${deleteDomain} can no longer sign in with SSO.`,
+                  text: `People at ${deleteDomain} can no longer sign in through it.`,
                   error: true,
                 },
             ' Their accounts and memberships stay.',

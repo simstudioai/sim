@@ -104,6 +104,8 @@ const ssoProviderListEntrySchema = z.object({
   userId: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
   jitProvisioningEnabled: z.boolean().optional(),
+  /** The domain as sign-in compares it: trimmed, lower-cased, a leading `*.` dropped. Providers sharing it share a primary. */
+  domainKey: z.string().optional(),
   /** Whether this provider's domain is verified, so it can sign people in. */
   domainVerified: z.boolean().optional(),
   /** Whether sign-in for this provider's domain goes through it. */
