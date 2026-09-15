@@ -36,6 +36,7 @@ const {
     isFetching: false,
   },
   lifecycle: {
+    removeOptions: { onSuccess: undefined as (() => void) | undefined },
     sync: { mutate: vi.fn(), reset: vi.fn(), error: null as Error | null, isPending: false },
     update: { mutate: vi.fn(), reset: vi.fn(), error: null as Error | null, isPending: false },
     remove: { mutate: vi.fn(), reset: vi.fn(), error: null as Error | null, isPending: false },
@@ -235,7 +236,10 @@ vi.mock('@/hooks/queries/kb/connectors', () => ({
     isPlaceholderData: lifecycle.detail.isPlaceholderData,
     refetch: lifecycle.detail.refetch,
   })),
-  useDeleteConnector: () => lifecycle.remove,
+  useDeleteConnector: (options: { onSuccess: () => void }) => {
+    lifecycle.removeOptions = options
+    return lifecycle.remove
+  },
   useTriggerSync: () => lifecycle.sync,
   useUpdateConnector: () => lifecycle.update,
 }))
@@ -943,15 +947,12 @@ describe('shared connector lifecycle actions', () => {
         expect(dialog.textContent).not.toContain('remain unless')
       }
       act(() => findButton(dialog, 'Remove').click())
-      expect(lifecycle.remove.mutate).toHaveBeenCalledWith(
-        {
-          knowledgeBaseId: 'knowledge-1',
-          connectorId: 'connector-1',
-          deleteDocuments: accessMode !== 'workspace',
-        },
-        expect.any(Object)
-      )
-      act(() => lifecycle.remove.mutate.mock.calls[0][1].onSuccess())
+      expect(lifecycle.remove.mutate).toHaveBeenCalledWith({
+        knowledgeBaseId: 'knowledge-1',
+        connectorId: 'connector-1',
+        deleteDocuments: accessMode !== 'workspace',
+      })
+      act(() => lifecycle.removeOptions.onSuccess?.())
       expect(onRemoved).toHaveBeenCalledOnce()
       expect(container.querySelector('[role="dialog"]')).toBeNull()
     }
