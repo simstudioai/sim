@@ -491,3 +491,48 @@ describe('KB file live source authorization', () => {
     expect(get).not.toHaveBeenCalled()
   })
 })
+
+/** Execution downloads share the logs endpoint's current workspace permission check. */
+describe('execution file download authorization', () => {
+  const executionKey = 'execution/owner-workspace/workflow/run/image.png'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('allows a current reader of the workspace named by the storage key', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+    await expect(verifyFileAccess(executionKey, USER_ID, undefined, 'execution')).resolves.toBe(
+      true
+    )
+    expect(mockGetUserEntityPermissions).toHaveBeenCalledExactlyOnceWith(
+      USER_ID,
+      'workspace',
+      'owner-workspace'
+    )
+  })
+
+  it('denies a caller without access to the file workspace', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    await expect(verifyFileAccess(executionKey, USER_ID, undefined, 'execution')).resolves.toBe(
+      false
+    )
+  })
+
+  it('rechecks access after membership is revoked', async () => {
+    mockGetUserEntityPermissions.mockResolvedValueOnce('read').mockResolvedValueOnce(null)
+    await expect(verifyFileAccess(executionKey, USER_ID, undefined, 'execution')).resolves.toBe(
+      true
+    )
+    await expect(verifyFileAccess(executionKey, USER_ID, undefined, 'execution')).resolves.toBe(
+      false
+    )
+  })
+
+  it('denies a malformed execution key before looking up workspace access', async () => {
+    await expect(
+      verifyFileAccess('execution/image.png', USER_ID, undefined, 'execution')
+    ).resolves.toBe(false)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+})

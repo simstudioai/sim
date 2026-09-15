@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+import { saveBlob } from '@/lib/uploads/client/download'
 import type { ChatFile } from '@/app/(interfaces)/chat/components/message/message'
 
 const logger = createLogger('ChatFileDownload')
@@ -56,28 +57,43 @@ function getFileUrl(file: ChatFile): string {
   return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
 }
 
-async function triggerDownload(url: string, filename: string): Promise<void> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`)
+async function triggerDownload(file: ChatFile): Promise<void> {
+  if (file.base64) {
+    /** Decoding locally avoids a data-URL fetch, which connect-src does not allow. */
+    const decoded = atob(file.base64)
+    const bytes = new Uint8Array(decoded.length)
+    for (let index = 0; index < decoded.length; index++) {
+      bytes[index] = decoded.charCodeAt(index)
+    }
+    saveBlob(new Blob([bytes], { type: file.type }), file.name)
+    return
   }
 
-  const blob = await response.blob()
-  const blobUrl = URL.createObjectURL(blob)
+  const hasStorageKey = Boolean(file.key && !file.key.startsWith('url/'))
+  const url = hasStorageKey
+    ? `/api/files/serve/${encodeURIComponent(file.key)}?context=${encodeURIComponent(file.context || 'execution')}`
+    : isSafeHttpUrl(file.url)
+      ? file.url
+      : null
+  if (!url) throw new Error('File has no download URL')
 
-  const link = document.createElement('a')
-  link.href = blobUrl
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  /** The same serve route as execution logs resolves current storage access on each click. */
+  // boundary-raw-fetch: binary file download, including externally hosted file URLs
+  let response = await fetch(url, { cache: 'no-store' })
+  if (hasStorageKey && response.status === 401 && isSafeHttpUrl(file.url)) {
+    /** Public chat visitors may only have the file access already delivered in the response. */
+    response = await fetch(file.url, { cache: 'no-store' })
+  }
+  if (!response.ok) {
+    throw new Error('Unable to download this file. Please try again or request a new copy.')
+  }
 
-  URL.revokeObjectURL(blobUrl)
-  logger.info(`Downloaded: ${filename}`)
+  saveBlob(await response.blob(), file.name)
 }
 
 export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadFailed, setDownloadFailed] = useState(false)
   const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null)
   const fileUrl = getFileUrl(file)
 
@@ -85,16 +101,14 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
     if (isDownloading) return
 
     setIsDownloading(true)
+    setDownloadFailed(false)
 
     try {
       logger.info(`Initiating download for file: ${file.name}`)
-      const url = getFileUrl(file)
-      await triggerDownload(url, file.name)
+      await triggerDownload(file)
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-      if (file.url && isSafeHttpUrl(file.url)) {
-        window.open(file.url, '_blank', 'noopener,noreferrer')
-      }
+      setDownloadFailed(true)
     } finally {
       setIsDownloading(false)
     }
@@ -142,6 +156,11 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
           )}
         </div>
       </Button>
+      {downloadFailed && (
+        <p role='alert' className='text-[var(--text-error)] text-xs'>
+          Unable to download this file. Please try again or request a new copy.
+        </p>
+      )}
     </div>
   )
 }
@@ -162,8 +181,7 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         try {
-          const url = getFileUrl(file)
-          await triggerDownload(url, file.name)
+          await triggerDownload(file)
           logger.info(`Downloaded file ${i + 1}/${files.length}: ${file.name}`)
 
           if (i < files.length - 1) {
