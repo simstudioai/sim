@@ -16,10 +16,19 @@ import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]
 
 const MAX_SUMMARY_ACTIONS = 3
 
+function isFailedTool(tool: ToolCallData): boolean {
+  return tool.status === ToolCallStatus.error || tool.status === ToolCallStatus.rejected
+}
+
+function toolCountLabel(tools: ToolCallData[]): string {
+  return `${tools.length} tool ${tools.length === 1 ? 'call' : 'calls'}`
+}
+
 /** Summarize completed actions without describing failed or skipped work as successful. */
 export function getToolActivitySummary(tools: ToolCallData[]): string {
   if (tools.length === 1) {
     const tool = tools[0]
+    if (isFailedTool(tool)) return toolCountLabel(tools)
     return getToolStatusDisplayTitle(
       tool.displayTitle,
       tool.status,
@@ -32,7 +41,7 @@ export function getToolActivitySummary(tools: ToolCallData[]): string {
     MAX_SUMMARY_ACTIONS
   )
   const summary = labels.join(', ')
-  const summaryLabel = summary ? summary[0].toUpperCase() + summary.slice(1) : 'Tool activity'
+  const summaryLabel = summary ? summary[0].toUpperCase() + summary.slice(1) : toolCountLabel(tools)
   return [
     additionalActions > 0 ? `${summaryLabel} +${additionalActions} more` : summaryLabel,
     ...getToolActivityInterruptions(tools),
@@ -56,6 +65,7 @@ export function getActiveToolActivityTitle(
   tool: ToolCallData,
   tools: ToolCallData[]
 ): string {
+  if (isFailedTool(tool)) return toolCountLabel(tools)
   return tool.status === ToolCallStatus.executing || tool.status === ToolCallStatus.success
     ? [label, ...getToolActivityInterruptions(tools)].join(' · ')
     : label
@@ -70,7 +80,9 @@ export function getActivityStatusTool(tools: ToolCallData[]): ToolCallData | und
           ? tool
           : newest,
       undefined
-    ) ?? tools.at(-1)
+    ) ??
+    tools.filter((tool) => !isFailedTool(tool)).at(-1) ??
+    tools.at(-1)
   )
 }
 
@@ -116,12 +128,14 @@ export function ToolActivityGroup({
   )
   const completedActivityLabel = groupedActivity?.completedTitle
     ? failedActivityTool
-      ? getToolStatusDisplayTitle(
-          failedActivityTool.displayTitle,
-          failedActivityTool.status,
-          failedActivityTool.toolName,
-          failedActivityTool.activityDescription
-        )
+      ? isFailedTool(failedActivityTool)
+        ? undefined
+        : getToolStatusDisplayTitle(
+            failedActivityTool.displayTitle,
+            failedActivityTool.status,
+            failedActivityTool.toolName,
+            failedActivityTool.activityDescription
+          )
       : groupedActivity.completedTitle
     : undefined
   const completedLabel = completedActivityLabel
@@ -160,7 +174,7 @@ export function ToolActivityGroup({
           }}
           activityKey={statusTool.id}
           attentionKey={attentionKey}
-          collapsible={tools.length > 1}
+          collapsible={tools.length > 1 || isFailedTool(statusTool)}
           expanded={expanded}
           onToggle={() => setExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}

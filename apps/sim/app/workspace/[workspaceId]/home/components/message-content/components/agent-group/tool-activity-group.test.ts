@@ -64,13 +64,13 @@ describe('getToolActivitySummary', () => {
         tool('apply_file_edit', 'error'),
         tool('terminal_run', 'interrupted'),
       ])
-    ).toBe('Tool activity · 1 stopped')
+    ).toBe('2 tool calls · 1 stopped')
   })
 
   it('uses a neutral summary when every call failed', () => {
     expect(
       getToolActivitySummary([tool('run_workflow', 'error'), tool('terminal', 'rejected')])
-    ).toBe('Tool activity')
+    ).toBe('2 tool calls')
   })
 
   it('does not infer tool failures from workflow results', () => {
@@ -89,7 +89,7 @@ describe('getToolActivitySummary', () => {
   })
 
   it.each([
-    ['rejected', 'Failed running checks'],
+    ['rejected', '1 tool call'],
     ['skipped', 'Skipped running checks'],
     ['interrupted', 'Stopped running checks'],
   ] as const)('labels a single %s tool as finished', (status, expected) => {
@@ -134,9 +134,9 @@ describe('getToolActivitySummary', () => {
 
   it('keeps individual failures explicit without adding aggregate failure badges', () => {
     const rejected = { ...tool('terminal', 'rejected'), displayTitle: 'Running checks' }
-    expect(getToolActivitySummary([rejected])).toBe('Failed running checks')
+    expect(getToolActivitySummary([rejected])).toBe('1 tool call')
     expect(getToolActivitySummary([rejected, tool('read', 'skipped')])).toBe(
-      'Tool activity · 1 skipped'
+      '2 tool calls · 1 skipped'
     )
   })
 
