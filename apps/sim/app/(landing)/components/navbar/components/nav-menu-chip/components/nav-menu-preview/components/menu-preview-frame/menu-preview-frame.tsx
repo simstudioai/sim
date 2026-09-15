@@ -8,7 +8,7 @@ interface MenuPreviewFrameProps {
   children: ReactNode
   /** Opt in only when a preview contains real hover or keyboard interaction. */
   interactive?: boolean
-  layout?: 'menu' | 'hero'
+  layout?: 'menu' | 'hero' | 'feature'
 }
 
 /** Navigation crops and open hero stages share the same product UI and edge treatment. */
@@ -18,7 +18,7 @@ export function MenuPreviewFrame({
   interactive = false,
   layout = 'menu',
 }: MenuPreviewFrameProps) {
-  const isHero = layout === 'hero'
+  const isHero = layout !== 'menu'
 
   return (
     <div
@@ -32,9 +32,11 @@ export function MenuPreviewFrame({
     >
       <div
         className={cn(
-          isHero
-            ? '-translate-x-1/2 absolute top-20 @max-[640px]:left-6 left-1/2 w-max @max-[640px]:translate-x-0 max-sm:top-6'
-            : 'relative w-[640px] origin-top-left p-10 [scale:min(1,tan(atan2(100cqw,640px)))]'
+          layout === 'feature'
+            ? '-translate-x-1/2 absolute top-10 left-1/2 w-[720px] origin-top px-[30px] [scale:min(1,tan(atan2(100cqw,720px)))] max-sm:top-6'
+            : isHero
+              ? '-translate-x-1/2 absolute top-20 @max-[640px]:left-6 left-1/2 w-max @max-[640px]:translate-x-0 max-sm:top-6'
+              : 'relative w-[640px] origin-top-left p-10 [scale:min(1,tan(atan2(100cqw,640px)))]'
         )}
       >
         {children}
