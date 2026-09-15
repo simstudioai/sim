@@ -840,53 +840,64 @@ describe('browser-agent session', () => {
     }
   })
 
-  it('extends an in-flight background restore without restarting its load', async () => {
-    vi.useFakeTimers()
-    try {
-      const tabs = Array.from({ length: 4 }, (_, index) => ({
-        url: `https://active-restore-${index}.example/`,
-      }))
-      const { persistence } = memoryBrowserPersistence({
-        'chat-active-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
-      })
-      const createdContents: MockView['webContents'][] = []
-      const selectedLoads: Array<() => void> = []
-      session = freshSession(
-        win,
-        {
-          onTabCreated: (webContents) => {
-            const contents = webContents as unknown as MockView['webContents']
-            const index = createdContents.push(contents) - 1
-            contents.loadURL.mockImplementation(
-              () =>
-                new Promise<void>((resolve) => {
-                  if (index === 1) selectedLoads.push(resolve)
-                })
-            )
+  it.each(['loaded', 'timed-out'] as const)(
+    'gives a late foreground promotion its full loading window (%s)',
+    async (outcome) => {
+      vi.useFakeTimers()
+      try {
+        const tabs = Array.from({ length: 4 }, (_, index) => ({
+          url: `https://active-restore-${index}.example/`,
+        }))
+        const { persistence } = memoryBrowserPersistence({
+          'chat-active-restore': { v: 1, tabs, activeIndex: 0, downloads: [] },
+        })
+        const createdContents: MockView['webContents'][] = []
+        const selectedLoads: Array<() => void> = []
+        session = freshSession(
+          win,
+          {
+            onTabCreated: (webContents) => {
+              const contents = webContents as unknown as MockView['webContents']
+              const index = createdContents.push(contents) - 1
+              contents.loadURL.mockImplementation(
+                () =>
+                  new Promise<void>((resolve) => {
+                    if (index === 1) selectedLoads.push(resolve)
+                  })
+              )
+            },
           },
-        },
-        persistence
-      )
+          persistence
+        )
 
-      const selected = session.withBrowserScope('chat-active-restore', () => {
-        session.restoreBrowserSession()
-        return session.switchAutomationTab('2')
-      })
-      const selection = session.withBrowserScope('chat-active-restore', () =>
-        session.waitForPendingTabRestore(selected)
-      )
+        session.withBrowserScope('chat-active-restore', () => session.restoreBrowserSession())
+        await vi.advanceTimersByTimeAsync(14_000)
+        const selected = session.withBrowserScope('chat-active-restore', () =>
+          session.switchAutomationTab('2')
+        )
+        const selection = session.withBrowserScope('chat-active-restore', () =>
+          session.waitForPendingTabRestore(selected)
+        )
 
-      expect(createdContents[1].loadURL).toHaveBeenCalledOnce()
-      expect(createdContents[1].stop).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(15_000)
-      expect(createdContents[1].stop).not.toHaveBeenCalled()
+        expect(createdContents[1].loadURL).toHaveBeenCalledOnce()
+        expect(createdContents[1].stop).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(19_999)
+        expect(createdContents[1].stop).not.toHaveBeenCalled()
 
-      selectedLoads[0]?.()
-      await expect(selection).resolves.toBe(true)
-    } finally {
-      vi.useRealTimers()
+        if (outcome === 'loaded') {
+          selectedLoads[0]?.()
+          await expect(selection).resolves.toBe(true)
+        } else {
+          session.withBrowserScope('chat-active-restore', () => session.switchAutomationTab('2'))
+          await vi.advanceTimersByTimeAsync(1)
+          await expect(selection).resolves.toBe(false)
+          expect(createdContents[1].stop).toHaveBeenCalledOnce()
+        }
+      } finally {
+        vi.useRealTimers()
+      }
     }
-  })
+  )
 
   it('queues a fifth foreground restore without preempting another foreground restore', async () => {
     const snapshots = Object.fromEntries(

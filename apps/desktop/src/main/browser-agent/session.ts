@@ -2448,8 +2448,7 @@ function loadPendingTabRestore(pending: PendingTabRestore, timeoutMs: number): P
   return new Promise((resolve) => {
     let settled = false
     let timeout: ReturnType<typeof setTimeout> | undefined
-    const startedAt = Date.now()
-    let deadlineAt = startedAt + timeoutMs
+    let deadlineAt = Date.now() + timeoutMs
     let foregroundDeadlineGranted = pending.priority === 'foreground'
     const finish = (loaded: boolean) => {
       if (settled) return
@@ -2496,7 +2495,7 @@ function loadPendingTabRestore(pending: PendingTabRestore, timeoutMs: number): P
     pending.promoteToForeground = () => {
       if (settled || foregroundDeadlineGranted) return
       foregroundDeadlineGranted = true
-      deadlineAt = startedAt + FOREGROUND_TAB_RESTORE_TIMEOUT_MS
+      deadlineAt = Date.now() + FOREGROUND_TAB_RESTORE_TIMEOUT_MS
       scheduleDeadline()
     }
     scheduleDeadline()
