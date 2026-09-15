@@ -223,11 +223,11 @@ describe('AgentGroup inline main activity', () => {
 
   it.each([
     ['success', 'Checked search requirements'],
-    ['error', 'Failed searching'],
+    ['error', '1 tool call'],
     ['cancelled', 'Stopped searching'],
     ['skipped', 'Skipped searching'],
     ['interrupted', 'Stopped searching'],
-    ['rejected', 'Failed searching'],
+    ['rejected', '1 tool call'],
   ] as const)('uses an honest grouped activity label after %s', (status, expected) => {
     const item = tool(status)
     act(() =>
@@ -387,7 +387,7 @@ describe('AgentGroup inline main activity', () => {
     expect(container.textContent).not.toContain('Built API')
   })
 
-  it('retains earlier failed outcomes when completed activities collapse into one summary', () => {
+  it('keeps earlier failures in expanded history when completed activities collapse', () => {
     act(() =>
       root.render(
         createElement(AgentGroup, {
@@ -420,10 +420,89 @@ describe('AgentGroup inline main activity', () => {
         })
       )
     )
-    expect(container.querySelector('[role="status"]')?.textContent).toBe(
-      'Checked inputs + 1 · 1 failed'
-    )
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Checked inputs + 1')
+    act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
+    expect(container.textContent).toContain('Failed reading first document')
   })
+
+  it.each(['mothership', 'workflow'])(
+    'keeps a lone failed %s call accessible under a neutral disclosure',
+    (agentName) => {
+      act(() =>
+        root.render(
+          createElement(AgentGroup, {
+            agentName,
+            agentLabel: agentName,
+            items: [
+              {
+                type: 'tool',
+                data: {
+                  id: 'failed-read',
+                  toolName: 'read',
+                  displayTitle: 'Reading notes',
+                  status: 'error',
+                },
+              },
+            ],
+          })
+        )
+      )
+      expect(container.textContent).not.toContain('Failed')
+      expect(container.textContent).toContain('1 tool call')
+      const disclosure = container.querySelector<HTMLElement>('[role="button"]')
+      expect(disclosure?.getAttribute('aria-expanded')).toBe('false')
+      act(() => disclosure?.click())
+      expect(container.textContent).toContain('Failed reading notes')
+    }
+  )
+
+  it.each(['executing', 'success'] as const)(
+    'keeps failures out of a %s summary while retaining them in expanded history',
+    (status) => {
+      const items: AgentGroupItem[] = [
+        {
+          type: 'tool',
+          data: {
+            id: 'read-failed',
+            toolName: 'read',
+            displayTitle: 'Reading image.png',
+            status: 'error',
+          },
+        },
+        {
+          type: 'tool',
+          data: { id: 'view', toolName: 'read', displayTitle: 'Viewing image.png', status },
+        },
+        {
+          type: 'tool',
+          data: {
+            id: 'later-failed',
+            toolName: 'read',
+            displayTitle: 'Reading notes',
+            status: 'error',
+          },
+        },
+      ]
+      act(() =>
+        root.render(
+          createElement(AgentGroup, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            items,
+            activity: { id: 'inspect', completedTitle: 'Inspected images' },
+            isStreaming: status === 'executing',
+            isLaneOpen: status === 'executing',
+          })
+        )
+      )
+      expect(container.textContent).toBe(
+        status === 'executing' ? 'Viewing image.png' : 'Viewed image.png + 2'
+      )
+      act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
+      expect(container.textContent).toContain('Failed reading image.png')
+      expect(container.textContent).toContain('Failed reading notes')
+    }
+  )
 
   it('paces the active status in place and expands the full completed history', () => {
     vi.useFakeTimers()

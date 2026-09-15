@@ -121,7 +121,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     expect(header()?.textContent).toBe('Reading third')
   })
 
-  it.each(['error', 'cancelled', 'interrupted', 'rejected', 'skipped'] as const)(
+  it.each(['cancelled', 'interrupted', 'skipped'] as const)(
     'shows %s immediately and cancels a pending cosmetic update',
     (status) => {
       render([tool('first')])
@@ -136,6 +136,28 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       expect(container.querySelector('[class*="shimmer"]')).toBeNull()
       advance(1500)
       expect(header()?.textContent).toBe(label)
+    }
+  )
+
+  it.each(['error', 'rejected'] as const)(
+    'keeps a %s attempt in history without promoting it into the summary',
+    (status) => {
+      render([tool('first')])
+      advance(100)
+      render([tool('first', 'success'), tool('second')])
+      render([tool('first', 'success'), tool('second', status)])
+      const label = agentName === 'mothership' ? 'Read first' : 'Reading first'
+      expect(header()?.textContent).toBe(label)
+      advance(1500)
+      expect(header()?.textContent).toBe(label)
+      render([tool('first', 'success'), tool('second', status)], false)
+      expect(header()?.textContent).toBe(
+        agentName === 'mothership' ? 'Read first + 1' : 'Read files'
+      )
+      act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
+      expect(container.querySelector('[data-state="open"]')?.textContent).toContain(
+        'Failed reading second'
+      )
     }
   )
 

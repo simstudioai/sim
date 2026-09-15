@@ -1,9 +1,9 @@
 'use client'
 
 import { type ComponentType, type ReactNode, useState } from 'react'
-import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
@@ -275,6 +275,8 @@ export function AgentGroupView({
     meaningfulItems.some(
       (item) =>
         item.type !== 'tool' ||
+        item.data.status === ToolCallStatus.error ||
+        item.data.status === ToolCallStatus.rejected ||
         needsToolInput(item.data) ||
         item.data.toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
     )
