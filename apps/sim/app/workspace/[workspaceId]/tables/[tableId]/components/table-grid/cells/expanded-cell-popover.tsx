@@ -278,6 +278,11 @@ function ExpandedCellEditor({
       <div className='flex items-center justify-between border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
         {parseError ? (
           <span className='text-[var(--text-error)] text-caption'>{parseError}</span>
+        ) : saveBlockedReason ? (
+          // Saving is refused, so the ↵ half of the shortcut hint would be a lie.
+          <span className='text-[var(--text-tertiary)] text-caption'>
+            <kbd className='font-mono'>esc</kbd> close
+          </span>
         ) : (
           <span className='text-[var(--text-tertiary)] text-caption'>
             <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel

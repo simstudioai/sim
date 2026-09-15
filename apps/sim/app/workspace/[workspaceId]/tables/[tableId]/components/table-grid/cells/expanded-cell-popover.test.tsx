@@ -120,6 +120,9 @@ describe('ExpandedCellPopover', () => {
     expect(getTextarea().readOnly).toBe(true)
     expect(getSaveButton().disabled).toBe(true)
     expect(document.body.textContent).not.toContain(BLOCKED_REASON)
+    // The ↵ half of the shortcut hint would advertise a save that never happens.
+    expect(document.body.textContent).toContain('esc close')
+    expect(document.body.textContent).not.toContain('save ·')
 
     const trigger = getSaveButton().parentElement
     if (!trigger) throw new Error('Missing Save tooltip trigger')
@@ -135,6 +138,7 @@ describe('ExpandedCellPopover', () => {
     render()
     expect(getTextarea().readOnly).toBe(false)
     expect(getSaveButton().disabled).toBe(false)
+    expect(document.body.textContent).toContain('save ·')
 
     typeDraft('Changed text')
     pressEnter()

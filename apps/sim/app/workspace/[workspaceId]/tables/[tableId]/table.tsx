@@ -93,7 +93,12 @@ import {
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { columnTypeIcon } from './components/table-grid/headers'
 import { useTable, useTableEventStream, useTableRoom } from './hooks'
-import { type BlockedTableAction, describeBlockedAction, lockedNouns } from './lock-copy'
+import {
+  type BlockedTableAction,
+  describeBlockedAction,
+  LOCK_TOOLTIPS,
+  lockedNouns,
+} from './lock-copy'
 import {
   ALL_VIEW_PARAM,
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
@@ -1716,6 +1721,12 @@ export function Table({
         workspaceId={workspaceId}
         tableId={tableId}
         onColumnRename={onColumnRename}
+        readOnly={!canMutateSchema}
+        readOnlyReason={
+          tableData?.locks.schemaLocked
+            ? LOCK_TOOLTIPS.schema
+            : 'You don’t have permission to change columns.'
+        }
       />
       <EnrichmentsSidebar
         open={slideout.kind === 'enrichments'}

@@ -18,6 +18,7 @@ import {
   type ColumnTypeOption,
   columnTypeOptionsForTable,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/column-config-sidebar'
+import { LOCK_TOOLTIPS } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
@@ -117,7 +118,7 @@ export function ColumnDropdown({
     const lockedTrigger = (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>{triggerButton}</Tooltip.Trigger>
-        <Tooltip.Content>Changing the table schema is disabled in Table Security.</Tooltip.Content>
+        <Tooltip.Content>{LOCK_TOOLTIPS.schema}</Tooltip.Content>
       </Tooltip.Root>
     )
     return trigger === 'inline-header' ? (

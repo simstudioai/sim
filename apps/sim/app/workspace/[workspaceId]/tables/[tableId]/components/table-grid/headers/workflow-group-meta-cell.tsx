@@ -12,6 +12,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
+  Tooltip,
 } from '@sim/emcn'
 import {
   ArrowDown,
@@ -70,7 +71,10 @@ interface ColumnOptionsMenuProps {
    *  it leaves the group with siblings). */
   deleteLabel?: string
   onOpenConfig: (columnName: string) => void
-  schemaLocked?: boolean
+  /** Why column changes are unavailable; disables the schema rows and explains them. */
+  schemaLockedReason?: string
+  /** Why deleting is unavailable; disables the destructive column row. */
+  deleteLockedReason?: string
   onInsertLeft: (columnName: string) => void
   onInsertRight: (columnName: string) => void
   onDeleteColumn: (columnName: string) => void
@@ -110,6 +114,24 @@ interface ColumnOptionsMenuProps {
 }
 
 /**
+ * A menu row a lock disables. A disabled `DropdownMenuItem` sets
+ * `pointer-events: none`, so it can never receive the hover its own tooltip
+ * would need — the trigger wraps it instead (same shape as the folder menu).
+ * Renders the row untouched when nothing blocks it.
+ */
+function MenuRow({ reason, children }: { reason?: string; children: React.ReactElement }) {
+  if (!reason) return children
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <div>{children}</div>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{reason}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+/**
  * Shared column-options dropdown rendered next to the column header chevron
  * AND on right-click of the workflow group meta cell. Anchors to a fixed
  * position passed in (so callers can place it under the chevron, or at the
@@ -123,7 +145,8 @@ export function ColumnOptionsMenu({
   column,
   deleteLabel,
   onOpenConfig,
-  schemaLocked,
+  schemaLockedReason,
+  deleteLockedReason,
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
@@ -141,6 +164,9 @@ export function ColumnOptionsMenu({
   isPinned,
   onPinToggle,
 }: ColumnOptionsMenuProps) {
+  // Hiding a workflow output leaves the data alone, so no lock covers it.
+  const destructiveReason =
+    deleteLabel === 'Hide column' ? undefined : (schemaLockedReason ?? deleteLockedReason)
   const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
   const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
   const runLabels = runMenuLabels(hasActiveFilter)
@@ -230,10 +256,15 @@ export function ColumnOptionsMenu({
             View workflow
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem disabled={schemaLocked} onSelect={() => onOpenConfig(column.key)}>
-          <Pencil />
-          Edit column
-        </DropdownMenuItem>
+        <MenuRow reason={schemaLockedReason}>
+          <DropdownMenuItem
+            disabled={Boolean(schemaLockedReason)}
+            onSelect={() => onOpenConfig(column.key)}
+          >
+            <Pencil />
+            Edit column
+          </DropdownMenuItem>
+        </MenuRow>
         {onPinToggle && (
           <DropdownMenuItem onSelect={() => onPinToggle(column.key)}>
             {isPinned ? <PinOff /> : <Pin />}
@@ -241,23 +272,36 @@ export function ColumnOptionsMenu({
           </DropdownMenuItem>
         )}
         {/* Stops acting on this column and starts creating siblings — `Edit column`
-            above is unconditional, so the rule is always backed. */}
+            above always renders (disabled or not), so the rule is always backed. */}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onInsertLeft(column.key)}>
-          <ArrowLeft />
-          Insert column left
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onInsertRight(column.key)}>
-          <ArrowRight />
-          Insert column right
-        </DropdownMenuItem>
+        <MenuRow reason={schemaLockedReason}>
+          <DropdownMenuItem
+            disabled={Boolean(schemaLockedReason)}
+            onSelect={() => onInsertLeft(column.key)}
+          >
+            <ArrowLeft />
+            Insert column left
+          </DropdownMenuItem>
+        </MenuRow>
+        <MenuRow reason={schemaLockedReason}>
+          <DropdownMenuItem
+            disabled={Boolean(schemaLockedReason)}
+            onSelect={() => onInsertRight(column.key)}
+          >
+            <ArrowRight />
+            Insert column right
+          </DropdownMenuItem>
+        </MenuRow>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.key))}
-        >
-          {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
-          {deleteLabel ?? 'Delete column'}
-        </DropdownMenuItem>
+        <MenuRow reason={destructiveReason}>
+          <DropdownMenuItem
+            disabled={Boolean(destructiveReason)}
+            onSelect={() => (onDeleteGroup ? onDeleteGroup() : onDeleteColumn(column.key))}
+          >
+            {deleteLabel === 'Hide column' ? <EyeOff /> : <Trash />}
+            {deleteLabel ?? 'Delete column'}
+          </DropdownMenuItem>
+        </MenuRow>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -283,7 +327,10 @@ interface WorkflowGroupMetaCellProps {
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
-  schemaLocked?: boolean
+  /** Why column changes are unavailable; disables the schema rows and explains them. */
+  schemaLockedReason?: string
+  /** Why deleting is unavailable; disables the destructive column row. */
+  deleteLockedReason?: string
   onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[], limit?: RunLimit) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
@@ -337,7 +384,8 @@ export function WorkflowGroupMetaCell({
   isGroupSelected,
   onSelectGroup,
   onOpenConfig,
-  schemaLocked,
+  schemaLockedReason,
+  deleteLockedReason,
   onRunColumn,
   onInsertLeft,
   onInsertRight,
@@ -543,7 +591,8 @@ export function WorkflowGroupMetaCell({
           position={optionsMenuPosition}
           column={column}
           onOpenConfig={onOpenConfig}
-          schemaLocked={schemaLocked}
+          schemaLockedReason={schemaLockedReason}
+          deleteLockedReason={deleteLockedReason}
           onInsertLeft={onInsertLeft}
           onInsertRight={onInsertRight}
           onDeleteColumn={onDeleteColumn}

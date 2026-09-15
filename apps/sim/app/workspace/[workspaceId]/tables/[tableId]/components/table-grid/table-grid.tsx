@@ -35,6 +35,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
+import { LOCK_TOOLTIPS } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useTimezoneState } from '@/hooks/queries/general-settings'
 import {
   useAddTableColumn,
@@ -2747,7 +2748,16 @@ export function TableGrid({
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
       const column = columnsRef.current.find((c) => c.key === columnName)
       if (column && columnTypeOf(column).editor === 'toggle') {
-        if (!options?.toggleBoolean || !canEditCellRef.current) return
+        if (!options?.toggleBoolean) return
+        // A toggle writes on the click itself, so there is no read-only editor to
+        // fall back to — an update-locked table has to explain the refusal here,
+        // the same way the Enter/Space keyboard paths do.
+        if (!canEditCellRef.current) {
+          if (canEditRef.current && updateLockedRef.current) {
+            onBlockedActionRef.current('edit-cell')
+          }
+          return
+        }
         const row = rowsRef.current.find((r) => r.id === rowId)
         if (row) {
           toggleBooleanCell(rowId, columnName, row.data[columnName])
@@ -4790,7 +4800,12 @@ export function TableGrid({
                                 groupName={workflowGroupById.get(g.groupId)?.name}
                                 onSelectGroup={handleGroupSelect}
                                 onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
-                                schemaLocked={locks?.schemaLocked}
+                                schemaLockedReason={
+                                  locks?.schemaLocked ? LOCK_TOOLTIPS.schema : undefined
+                                }
+                                deleteLockedReason={
+                                  locks?.deleteLocked ? LOCK_TOOLTIPS.delete : undefined
+                                }
                                 onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
                                 hasActiveFilter={Boolean(effectiveFilter)}
                                 selectedRowIds={selectedRowIds}
@@ -4932,7 +4947,12 @@ export function TableGrid({
                             workflowGroups={tableWorkflowGroups}
                             sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
-                            schemaLocked={locks?.schemaLocked}
+                            schemaLockedReason={
+                              locks?.schemaLocked ? LOCK_TOOLTIPS.schema : undefined
+                            }
+                            deleteLockedReason={
+                              locks?.deleteLocked ? LOCK_TOOLTIPS.delete : undefined
+                            }
                             onViewWorkflow={handleViewWorkflow}
                             onSortColumn={onSortColumn}
                             onClearSort={onClearSort}
@@ -5098,9 +5118,7 @@ export function TableGrid({
           {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
             <AddRowButton
               onClick={handleAddRowClick}
-              blockedReason={
-                locks?.insertLocked ? 'Inserting rows is disabled in Table Security.' : undefined
-              }
+              blockedReason={locks?.insertLocked ? LOCK_TOOLTIPS.insert : undefined}
             />
           )}
         </div>
@@ -5160,9 +5178,7 @@ export function TableGrid({
         columns={displayColumns}
         onSave={handleInlineSave}
         canEdit={userPermissions.canEdit}
-        saveBlockedReason={
-          locks?.updateLocked ? 'Updating rows is disabled in Table Security.' : undefined
-        }
+        saveBlockedReason={locks?.updateLocked ? LOCK_TOOLTIPS.update : undefined}
         scrollContainer={scrollRef.current}
       />
     </div>
