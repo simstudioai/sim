@@ -154,6 +154,42 @@ describe('chat file downloads', () => {
     expect(downloadedNames).toEqual(['generated.png'])
   })
 
+  it.each([false, true])(
+    'offers a safe browser download when an external host blocks CORS (stored=%s)',
+    async (stored) => {
+      if (stored) fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }))
+      fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      const container = renderFile({
+        ...imageFile,
+        base64: undefined,
+        key: stored ? imageFile.key : 'result-123',
+      })
+      await clickDownload(container)
+      const link = container.querySelector('a')!
+      expect(link.href).toBe(imageFile.url)
+      expect(link.download).toBe(imageFile.name)
+      expect(link.rel).toBe('noopener noreferrer')
+      expect(link.target).toBe('_blank')
+      expect(window.open).not.toHaveBeenCalled()
+    }
+  )
+
+  it('cancels both discarded authentication and failed download response bodies', async () => {
+    const cancelAuthentication = vi.fn()
+    const cancelDownload = vi.fn()
+    fetchMock.mockResolvedValueOnce(
+      new Response(new ReadableStream({ cancel: cancelAuthentication }), { status: 401 })
+    )
+    fetchMock.mockResolvedValueOnce(
+      new Response(new ReadableStream({ cancel: cancelDownload }), { status: 403 })
+    )
+    const container = renderFile({ ...imageFile, base64: undefined })
+    await clickDownload(container)
+    expect(cancelAuthentication).toHaveBeenCalledTimes(1)
+    expect(cancelDownload).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('a')).toBeNull()
+  })
+
   it('shows download errors without opening an expired storage error page', async () => {
     fetchMock
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
@@ -170,9 +206,11 @@ describe('chat file downloads', () => {
     'does not retry denied or deleted stored files through their old URLs (%s)',
     async (status) => {
       fetchMock.mockResolvedValue(new Response(null, { status }))
-      await clickDownload(renderFile({ ...imageFile, base64: undefined }))
+      const container = renderFile({ ...imageFile, base64: undefined })
+      await clickDownload(container)
       expect(fetchMock).toHaveBeenCalledTimes(1)
       expect(downloadedNames).toEqual([])
+      expect(container.querySelector('a')).toBeNull()
     }
   )
 

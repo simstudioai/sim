@@ -21,6 +21,21 @@ interface ChatFileDownloadAllProps {
   files: ChatFile[]
 }
 
+class DirectDownloadRequiredError extends Error {
+  constructor(readonly url: string) {
+    super('This file must be downloaded directly in the browser.')
+  }
+}
+
+async function fetchExternalFile(url: string): Promise<Response> {
+  try {
+    return await fetch(url, { cache: 'no-store' })
+  } catch {
+    /** A navigation can download external files whose hosts do not allow CORS reads. */
+    throw new DirectDownloadRequiredError(url)
+  }
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -80,13 +95,17 @@ async function triggerDownload(file: ChatFile): Promise<void> {
   if (!url) throw new Error('File has no download URL')
 
   /** The same serve route as execution logs resolves current storage access on each click. */
-  // boundary-raw-fetch: binary file download, including externally hosted file URLs
-  let response = await fetch(url, { cache: 'no-store' })
+  let response = hasStorageKey
+    ? // boundary-raw-fetch: binary file download through the authorized serve route
+      await fetch(url, { cache: 'no-store' })
+    : await fetchExternalFile(url)
   if (hasStorageKey && response.status === 401 && isSafeHttpUrl(file.url)) {
+    await response.body?.cancel()
     /** Public chat visitors may only have the file access already delivered in the response. */
-    response = await fetch(file.url, { cache: 'no-store' })
+    response = await fetchExternalFile(file.url)
   }
   if (!response.ok) {
+    await response.body?.cancel()
     throw new Error('Unable to download this file. Please try again or request a new copy.')
   }
 
@@ -95,7 +114,7 @@ async function triggerDownload(file: ChatFile): Promise<void> {
 
 export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
-  const [downloadFailed, setDownloadFailed] = useState(false)
+  const [downloadError, setDownloadError] = useState<{ directUrl?: string } | null>(null)
   const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null)
   const fileUrl = getFileUrl(file)
 
@@ -103,14 +122,14 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
     if (isDownloading) return
 
     setIsDownloading(true)
-    setDownloadFailed(false)
+    setDownloadError(null)
 
     try {
       logger.info(`Initiating download for file: ${file.name}`)
       await triggerDownload(file)
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-      setDownloadFailed(true)
+      setDownloadError(error instanceof DirectDownloadRequiredError ? { directUrl: error.url } : {})
     } finally {
       setIsDownloading(false)
     }
@@ -158,9 +177,24 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
           )}
         </div>
       </Button>
-      {downloadFailed && (
+      {downloadError && (
         <p role='alert' className='text-[var(--text-error)] text-xs'>
-          Unable to download this file. Please try again or request a new copy.
+          {downloadError.directUrl ? (
+            <>
+              Unable to download automatically.{' '}
+              <a
+                href={downloadError.directUrl}
+                download={file.name}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='underline'
+              >
+                Download directly
+              </a>
+            </>
+          ) : (
+            'Unable to download this file. Please try again or request a new copy.'
+          )}
         </p>
       )}
     </div>
