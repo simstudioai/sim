@@ -1,6 +1,23 @@
 import vm from 'node:vm'
 import type { SandboxBundleName } from '@/lib/execution/sandbox/types'
 
+/** Verifies the Function bundle without lending it any host globals. */
+export function evaluateFunctionGlobals(source: string): vm.Context {
+  const context = vm.createContext({})
+  vm.runInContext(source, context, { filename: 'function-globals.cjs', timeout: 5000 })
+  for (const name of ['Buffer', 'TextEncoder', 'TextDecoder', 'atob', 'btoa']) {
+    if (typeof context[name] !== 'function') {
+      throw new Error(`Function bundle did not provide ${name}`)
+    }
+  }
+  for (const name of ['process', 'require', 'fetch', 'setTimeout']) {
+    if (context[name] !== undefined) {
+      throw new Error(`Function bundle unexpectedly exposed ${name}`)
+    }
+  }
+  return context
+}
+
 /**
  * Evaluates a built sandbox bundle the way the isolated-vm worker will: as a
  * classic script in a context that has timers, `console`, and the text codecs

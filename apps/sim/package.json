@@ -259,6 +259,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@exodus/bytes": "1.15.1",
     "@next/env": "16.3.4",
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
@@ -285,6 +286,9 @@
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.0",
     "artillery": "2.0.34",
+    "buffer": "6.0.3",
+    "core-js-pure": "3.50.0",
+    "esbuild": "0.28.1",
     "node-gyp": "12.4.0",
     "postcss": "^8",
     "postcss-load-config": "6.0.1",

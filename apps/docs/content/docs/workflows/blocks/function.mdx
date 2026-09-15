@@ -148,14 +148,41 @@ workspace path instead, or keep the secret out of the output.
 
 ## Language
 
-JavaScript without imports runs in a fast local sandbox. JavaScript with `import` or `require`, Python, and Shell run in the configured remote sandbox provider.
+JavaScript without imports, mounted files, or a selected sandbox runs in a fast local sandbox. JavaScript with `import` or `require`, Python, and Shell run in the configured remote sandbox provider.
 
 | Feature | JavaScript | Python | Shell |
 | --- | --- | --- | --- |
-| **Execution** | Local when there are no imports; remote with imports | Always remote | Always remote |
+| **Execution** | Local by default; remote with imports, mounted files, or a selected sandbox | Always remote | Always remote |
 | **Return a value** | `return { … }` | Assign `__sim_result__ = { … }` | Print `__SIM_RESULT__={…}` |
 | **HTTP requests** | `fetch()` built in | `requests` or `httpx` | `curl` or an installed CLI |
 | **Best for** | quick transforms and JSON | scripts, data science, charts, complex math | CLI workflows and system utilities |
+
+### Local JavaScript data APIs
+
+`Buffer`, `atob`, `btoa`, `TextEncoder`, and `TextDecoder` are available without
+imports. For example, encode a JSON payload as UTF-8 base64:
+
+```javascript
+const payload = { message: 'Hello 🌍' }
+return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64')
+```
+
+`Buffer` is a Uint8Array-backed implementation of common Node Buffer operations,
+including UTF-8, base64, hex, concatenation, and numeric reads and writes. It does
+not provide every API from the latest Node release; import `node:buffer` to use
+the remote runtime's native implementation. All local Buffer allocations,
+including `allocUnsafe`, are zero-filled and count toward the isolate's memory
+limit.
+
+`TextEncoder` encodes UTF-8; `TextDecoder` supports encoding labels, streaming
+decoding, and fatal decoding errors. `atob` and `btoa` operate on binary strings,
+not Unicode text. Use `Buffer` for Unicode base64 conversion.
+
+These data APIs do not add filesystem access, Node modules, timers, streams, or
+`FormData` to the local runtime. Import the required Node module or select a
+remote sandbox when those capabilities are needed.
+
+### Remote runtimes
 
 <Callout type="info">
 Python and Shell require a remote sandbox. They are enabled by default on sim.ai;
@@ -236,8 +263,8 @@ Then open the block's advanced options and choose the sandbox under **Sandbox**.
 
 The default and custom behavior is intentionally explicit:
 
-- **JavaScript without imports** stays in the local isolated runtime for speed and
-  ignores the sandbox selection.
+- **JavaScript without imports** stays in the local isolated runtime for speed
+  unless a sandbox is selected or files are mounted.
 - **JavaScript with `import` or `require`** runs remotely. With no selection it
   uses the Function base; with a sandbox it gets that sandbox's npm packages and
   system packages and managed CLI tools.
