@@ -4,7 +4,6 @@ import type { PermissionType } from '@sim/platform-authz/workspace'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import {
   type AttributedBillingRequestEnvelope,
@@ -71,7 +70,10 @@ import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  filterModelSafeWorkspaceFileAttachments,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -95,14 +97,13 @@ class CopilotModelContentProjectionError extends Error {
   }
 }
 
-async function omitUnsafeInitialCopilotAttachments(
+async function assertModelSafeInitialCopilotAttachments(
   payload: Record<string, unknown>,
   workspaceId?: string
-): Promise<Record<string, unknown>> {
-  let projected = payload
+): Promise<void> {
   for (const key of ['attachments', 'fileAttachments'] as const) {
-    if (!Object.hasOwn(projected, key)) continue
-    const attachments = projected[key]
+    if (!Object.hasOwn(payload, key)) continue
+    const attachments = payload[key]
     if (!Array.isArray(attachments)) {
       refuseResolvedSecretProjection({
         site: 'copilot.initialAttachmentsShape',
@@ -128,22 +129,14 @@ async function omitUnsafeInitialCopilotAttachments(
       })
     }
 
-    if (safeAttachments.length === attachments.length) continue
-    logger.warn('Omitting Copilot attachments with unsafe secret provenance', {
-      attachmentCount: attachments.length,
-      omittedCount: attachments.length - safeAttachments.length,
-    })
-    projected =
-      safeAttachments.length > 0 ? { ...projected, [key]: safeAttachments } : omit(projected, [key])
+    if (safeAttachments.length !== attachments.length) {
+      refuseResolvedSecretProjection({
+        site: 'copilot.initialAttachmentsProvenance',
+        message: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+        inputPath: key,
+      })
+    }
   }
-  return projected
-}
-
-async function filterInitialCopilotAttachmentsForModel(
-  payload: Record<string, unknown>,
-  workspaceId?: string
-): Promise<Record<string, unknown>> {
-  return omitUnsafeInitialCopilotAttachments(payload, workspaceId)
 }
 
 async function ensureModelEgressRegistry(
@@ -412,12 +405,9 @@ export async function runCopilotLifecycle(
         }),
       }
     }
-    const modelSafeRequestPayload = await filterInitialCopilotAttachmentsForModel(
-      requestPayload,
-      lifecycleOptions.workspaceId
-    )
+    await assertModelSafeInitialCopilotAttachments(requestPayload, lifecycleOptions.workspaceId)
     await runCheckpointLoop(
-      modelSafeRequestPayload,
+      requestPayload,
       context,
       execContext,
       lifecycleOptions,

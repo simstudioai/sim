@@ -26,7 +26,10 @@ import {
   resolveAutoModel,
   SIM_AUTO_SYSTEM_PREAMBLE,
 } from '@/lib/model-router/resolve'
-import { importWorkspaceFileSecretProvenanceForModelView } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  importWorkspaceFileSecretProvenanceForModelView,
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   getFileExtension,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
@@ -1493,7 +1496,6 @@ export class AgentBlockHandler implements BlockHandler {
         continue
       }
 
-      const unsafeGeneratedDocumentFiles = new Set<string>()
       const groups = new Map<boolean, Array<{ file: UserFile; index: number }>>()
       message.files.forEach((file, index) => {
         const workspaceFile =
@@ -1511,7 +1513,7 @@ export class AgentBlockHandler implements BlockHandler {
               ...(await resolveExecutorFileMaterializationContext(ctx, group[0].file)),
               logger,
               maxBytes: inlineMaxBytes,
-              onServableFileContributors: async (file, contributors) => {
+              onServableFileContributors: async (_file, contributors) => {
                 if (!ctx.workspaceId) return
                 for (const identity of contributors) {
                   const safe = await importWorkspaceFileSecretProvenanceForModelView({
@@ -1522,8 +1524,7 @@ export class AgentBlockHandler implements BlockHandler {
                     ...(ctx.userId ? { actorUserId: ctx.userId } : {}),
                   })
                   if (!safe) {
-                    unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)
-                    return
+                    throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
                   }
                 }
               },
@@ -1535,9 +1536,7 @@ export class AgentBlockHandler implements BlockHandler {
         })
       )
 
-      const modelSafeHydratedFiles = hydratedFiles.flatMap((file, fileIndex) => {
-        if (unsafeGeneratedDocumentFiles.has(`${file.key}:${file.id}`)) return []
-
+      const modelSafeHydratedFiles = hydratedFiles.map((file, fileIndex) => {
         const sourceFile = message.files?.[fileIndex]
         const nameProjection = sourceFile ? projectedNameByFile.get(sourceFile) : undefined
         if (
@@ -1546,7 +1545,7 @@ export class AgentBlockHandler implements BlockHandler {
             largeFilePathAvailable: canUseProviderLargeFilePath(providerId),
           })
         ) {
-          return [file]
+          return file
         }
 
         if (nameProjection.inputPath) modelBoundInputPaths.push(nameProjection.inputPath)
@@ -1554,22 +1553,12 @@ export class AgentBlockHandler implements BlockHandler {
         const suffix = extension ? `.${extension}` : ''
         const keepsSuffix =
           suffix !== '' && nameProjection.name.toLowerCase().endsWith(suffix.toLowerCase())
-        return [
-          {
-            ...file,
-            name:
-              suffix !== '' && !keepsSuffix
-                ? `${nameProjection.name}${suffix}`
-                : nameProjection.name,
-          },
-        ]
+        return {
+          ...file,
+          name:
+            suffix !== '' && !keepsSuffix ? `${nameProjection.name}${suffix}` : nameProjection.name,
+        }
       })
-      if (modelSafeHydratedFiles.length !== hydratedFiles.length) {
-        logger.warn('Omitting generated document attachments with unsafe contributor provenance', {
-          omittedCount: hydratedFiles.length - modelSafeHydratedFiles.length,
-          attachmentCount: hydratedFiles.length,
-        })
-      }
 
       const missingFile = modelSafeHydratedFiles.find(
         (file) =>

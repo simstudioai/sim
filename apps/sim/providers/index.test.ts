@@ -37,6 +37,8 @@ vi.mock('@/providers/file-attachments.server', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
+    'File cannot be sent to a model because its secret provenance is unavailable',
   filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
     mockFilterModelSafeWorkspaceFileAttachments(...args),
 }))
@@ -963,35 +965,53 @@ describe('executeProviderRequest — caller-prepared model input', () => {
     })
   })
 
-  it('omits only unsafe durable files before any provider attachment processing', async () => {
-    const unsafe = {
-      id: 'wf-unsafe',
-      name: 'unsafe.txt',
-      url: '/unsafe',
-      size: 10,
-      type: 'text/plain',
-      key: 'workspace/ws-1/unsafe.txt',
-    }
-    const safe = {
-      id: 'wf-safe',
-      name: 'safe.txt',
-      url: '/safe',
-      size: 10,
-      type: 'text/plain',
-      key: 'workspace/ws-1/safe.txt',
-    }
-    mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce([safe])
+  it.each([
+    { stream: false, includeSafeFile: false },
+    { stream: false, includeSafeFile: true },
+    { stream: true, includeSafeFile: false },
+    { stream: true, includeSafeFile: true },
+  ])(
+    'rejects refused attachments before provider processing (stream=$stream, mixed=$includeSafeFile)',
+    async ({ stream, includeSafeFile }) => {
+      const unsafe = {
+        id: 'wf-unsafe',
+        name: 'unsafe.txt',
+        url: '/unsafe',
+        size: 10,
+        type: 'text/plain',
+        key: 'workspace/ws-1/unsafe.txt',
+      }
+      const safe = { ...unsafe, id: 'wf-safe', key: 'workspace/ws-1/safe.txt' }
+      const safeFiles = includeSafeFile ? [safe] : []
+      mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce(safeFiles)
+      const messages = [
+        { role: 'user' as const, content: 'Review files', files: safeFiles },
+        { role: 'user' as const, content: 'Include this file too', files: [unsafe] },
+      ]
+      const originalMessages = structuredClone(messages)
 
-    await executeProviderRequest('openai', {
-      model: 'test-model',
-      workspaceId: 'ws-1',
-      messages: [{ role: 'user', content: 'Review files', files: [unsafe, safe] }],
-    })
+      await expect(
+        executeProviderRequest('openai', {
+          model: 'test-model',
+          workspaceId: 'ws-1',
+          userId: 'user-1',
+          stream,
+          messages,
+        })
+      ).rejects.toThrow(
+        'File cannot be sent to a model because its secret provenance is unavailable'
+      )
 
-    expect(mockAttachLargeFileRemoteUrls.mock.calls[0][0].messages[0].files).toEqual([safe])
-    expect(mockUploadLargeFilesToProvider.mock.calls[0][0].messages[0].files).toEqual([safe])
-    expect(mockExecuteRequest.mock.calls[0][0].messages[0].files).toEqual([safe])
-  })
+      expect(mockFilterModelSafeWorkspaceFileAttachments).toHaveBeenCalledWith(
+        [...safeFiles, unsafe],
+        { workspaceId: 'ws-1', actorUserId: 'user-1' }
+      )
+      expect(messages).toEqual(originalMessages)
+      expect(mockAttachLargeFileRemoteUrls).not.toHaveBeenCalled()
+      expect(mockUploadLargeFilesToProvider).not.toHaveBeenCalled()
+      expect(mockExecuteRequest).not.toHaveBeenCalled()
+    }
+  )
 
   it('fails explicitly when file provenance lookup is unavailable', async () => {
     mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))

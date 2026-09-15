@@ -50,6 +50,8 @@ vi.mock('@/lib/copilot/application/load-search-integrations', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
+    'File cannot be sent to a model because its secret provenance is unavailable',
   filterModelSafeWorkspaceFileAttachments: (...args: unknown[]) =>
     mockFilterModelSafeWorkspaceFileAttachments(...args),
 }))
@@ -665,31 +667,45 @@ describe('runCopilotLifecycle', () => {
     expect(sent.fileAttachments).toEqual([{ name: 'TOKEN.txt', key: 'safe-key' }])
   })
 
-  it('omits only unsafe durable attachments before the initial Go request', async () => {
-    const unsafe = { id: 'wf-unsafe', name: 'unsafe.txt', key: 'workspace/ws-1/unsafe.txt' }
-    const safe = { id: 'wf-safe', name: 'safe.txt', key: 'workspace/ws-1/safe.txt' }
-    mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce([safe])
-    let capturedRequestBody = ''
-    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
-      capturedRequestBody = String(request.body)
-    })
-
-    await runCopilotLifecycle(
-      {
+  it.each([
+    { key: 'attachments', includeSafeFile: false },
+    { key: 'attachments', includeSafeFile: true },
+    { key: 'fileAttachments', includeSafeFile: false },
+    { key: 'fileAttachments', includeSafeFile: true },
+  ])(
+    'rejects refused initial $key before the Go request (mixed=$includeSafeFile)',
+    async ({ key, includeSafeFile }) => {
+      const unsafe = { id: 'wf-unsafe', name: 'unsafe.txt', key: 'workspace/ws-1/unsafe.txt' }
+      const safe = { id: 'wf-safe', name: 'safe.txt', key: 'workspace/ws-1/safe.txt' }
+      const safeFiles = includeSafeFile ? [safe] : []
+      mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce(safeFiles)
+      const onError = vi.fn()
+      const payload = {
         message: 'Review files',
-        fileAttachments: [unsafe, safe],
+        [key]: [...safeFiles, unsafe],
         workspaceId: 'ws-1',
         messageId: 'stream-file-provenance',
-      },
-      {
+      }
+      const originalPayload = structuredClone(payload)
+
+      const result = await runCopilotLifecycle(payload, {
         userId: 'user-1',
         workspaceId: 'ws-1',
         executionContext: { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' },
-      }
-    )
+        onError,
+      })
 
-    expect(JSON.parse(capturedRequestBody).fileAttachments).toEqual([safe])
-  })
+      const message = 'File cannot be sent to a model because its secret provenance is unavailable'
+      expect(result).toMatchObject({ success: false, error: message })
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message }), result)
+      expect(mockFilterModelSafeWorkspaceFileAttachments).toHaveBeenCalledWith(
+        [...safeFiles, unsafe],
+        { workspaceId: 'ws-1' }
+      )
+      expect(payload).toEqual(originalPayload)
+      expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects when durable attachment provenance cannot be verified', async () => {
     mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))

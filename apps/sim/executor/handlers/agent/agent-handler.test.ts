@@ -53,6 +53,8 @@ vi.mock('@/lib/internal/mcp/discover-tools', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
+    'File cannot be sent to a model because its secret provenance is unavailable',
   importWorkspaceFileSecretProvenanceForModelView:
     mockImportWorkspaceFileSecretProvenanceForModelView,
 }))
@@ -1040,55 +1042,68 @@ describe('AgentBlockHandler', () => {
       }
     })
 
-    it('omits only a generated document whose embedded contributor is not model-safe', async () => {
-      const key = 'workspace/ws-1/report.pdf'
-      mockContext.workspaceId = 'ws-1'
-      const hydrationSpy = vi
-        .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
-        .mockImplementationOnce(async (files, options) => {
-          await options.onServableFileContributors?.(files[0], [
-            {
-              fileId: 'image-1',
-              key: 'workspace/ws-1/image-1.png',
-              context: 'workspace',
-              contentUpdatedAt: new Date('2026-08-06T00:00:00.000Z'),
-            },
-          ])
-          return files.map((file) => ({ ...file, base64: 'JVBERi0=' }))
-        })
-      mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValueOnce(false)
-
-      try {
-        mockGetProviderFromModel.mockReturnValue('openai')
-
-        await handler.execute(mockContext, mockBlock, {
-          model: 'gpt-4o',
-          userPrompt: 'Analyze this document',
-          files: [
-            {
-              id: 'file-1',
-              name: 'report.pdf',
-              path: `/api/files/serve/${encodeURIComponent(key)}?context=workspace`,
-              key,
-              size: 128,
-              type: 'text/x-python-pdf',
-            },
-          ],
-          apiKey: 'test-api-key',
-        })
-
-        expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([])
-        expect(mockImportWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
-          expect.objectContaining({
-            workspaceId: mockContext.workspaceId,
-            view: 'opaque',
-            identity: expect.objectContaining({ fileId: 'image-1' }),
+    it.each([false, true])(
+      'honors generated document contributor admission (safe=%s)',
+      async (safe) => {
+        const key = 'workspace/ws-1/report.pdf'
+        mockContext.workspaceId = 'ws-1'
+        const hydrationSpy = vi
+          .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+          .mockImplementationOnce(async (files, options) => {
+            await options.onServableFileContributors?.(files[0], [
+              {
+                fileId: 'image-1',
+                key: 'workspace/ws-1/image-1.png',
+                context: 'workspace',
+                contentUpdatedAt: new Date('2026-08-06T00:00:00.000Z'),
+              },
+            ])
+            return files.map((file) => ({ ...file, base64: 'JVBERi0=' }))
           })
-        )
-      } finally {
-        hydrationSpy.mockRestore()
+        mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValueOnce(safe)
+
+        try {
+          mockGetProviderFromModel.mockReturnValue('openai')
+
+          const execution = handler.execute(mockContext, mockBlock, {
+            model: 'gpt-4o',
+            userPrompt: 'Analyze this document',
+            files: [
+              {
+                id: 'file-1',
+                name: 'report.pdf',
+                path: `/api/files/serve/${encodeURIComponent(key)}?context=workspace`,
+                key,
+                size: 128,
+                type: 'text/x-python-pdf',
+              },
+            ],
+            apiKey: 'test-api-key',
+          })
+
+          if (safe) {
+            await execution
+            expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
+              expect.objectContaining({ key, base64: 'JVBERi0=' }),
+            ])
+          } else {
+            await expect(execution).rejects.toThrow(
+              'File cannot be sent to a model because its secret provenance is unavailable'
+            )
+            expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+          }
+          expect(mockImportWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
+            expect.objectContaining({
+              workspaceId: mockContext.workspaceId,
+              view: 'opaque',
+              identity: expect.objectContaining({ fileId: 'image-1' }),
+            })
+          )
+        } finally {
+          hydrationSpy.mockRestore()
+        }
       }
-    })
+    )
 
     it('should reject files for providers without attachment support', async () => {
       const inputs = {
