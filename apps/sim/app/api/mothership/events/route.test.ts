@@ -8,9 +8,9 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ChatStatusEvent } from '@/lib/copilot/chat-status'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HEARTBEAT_INTERVAL_MS } from '@/lib/events/sse-endpoint'
+import type { ChatStatusEvent } from '@/lib/mothership/chat-status'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
 const { authorize, subscribe, unsubscribe } = vi.hoisted(() => ({
@@ -18,10 +18,10 @@ const { authorize, subscribe, unsubscribe } = vi.hoisted(() => ({
   subscribe: vi.fn(),
   unsubscribe: vi.fn(),
 }))
-vi.mock('@/lib/copilot/chat/organization-chats', () => ({
+vi.mock('@/lib/mothership/chat/organization-chats', () => ({
   authorizeOrganizationChatEvents: { execute: authorize },
 }))
-vi.mock('@/lib/copilot/chat-status', () => ({ chatPubSub: { onStatusChanged: subscribe } }))
+vi.mock('@/lib/mothership/chat-status', () => ({ chatPubSub: { onStatusChanged: subscribe } }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/mothership/events/route'

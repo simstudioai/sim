@@ -53,11 +53,32 @@ describe('private workspace-upload classification', () => {
       provenance: { status: 'exact', entries: [{ encryptedValue: 'fixture-ciphertext' }] },
     },
     { ...bound, provenance: { status: 'exact', entries: [{ ...entry, encryptedValue: '' }] } },
-    {
-      ...bound,
-      provenance: { status: 'exact', entries: Array(PROVENANCE_MAX_ENTRIES + 1).fill(entry) },
-    },
   ])('treats an unusable stored binding as unknown: %j', (binding) => {
     expect(read(binding)).toEqual({ status: 'unknown' })
+  })
+
+  it('folds repeated bindings without treating them as distinct secrets', () => {
+    expect(
+      read({
+        ...bound,
+        provenance: { status: 'exact', entries: Array(PROVENANCE_MAX_ENTRIES + 1).fill(entry) },
+      })
+    ).toEqual({ status: 'exact', entries: [entry] })
+  })
+
+  it('treats a stored binding above the distinct-secret limit as unknown', () => {
+    const entries = Array.from({ length: PROVENANCE_MAX_ENTRIES + 1 }, (_, index) => ({
+      ...entry,
+      encryptedValue: `fixture-ciphertext-${index}`,
+    }))
+    const atLimit = read({
+      ...bound,
+      provenance: { status: 'exact', entries: entries.slice(0, -1) },
+    })
+    expect(atLimit?.status).toBe('exact')
+    expect(atLimit?.status === 'exact' ? atLimit.entries : []).toHaveLength(PROVENANCE_MAX_ENTRIES)
+    expect(read({ ...bound, provenance: { status: 'exact', entries } })).toEqual({
+      status: 'unknown',
+    })
   })
 })

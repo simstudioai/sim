@@ -98,17 +98,19 @@ describe('provider tool-call identity boundary', () => {
     expect(restoreProviderToolCallId('legacy-call-1')).toBe('legacy-call-1')
   })
 
-  it('normalizes before global call/result dedupe so one run cannot suppress another', () => {
+  it('normalizes before turn-local call/result dedupe so one run cannot suppress another', () => {
+    const scope = { seenToolCalls: new Set<string>(), seenToolResults: new Set<string>() }
     const first = createProviderToolCallIdentity('dedupe-run-1')
     const second = createProviderToolCallIdentity('dedupe-run-2')
     const firstEvent = scopeProviderToolCallEvent(toolCall('provider-shared-call'), first)
     const secondEvent = scopeProviderToolCallEvent(toolCall('provider-shared-call'), second)
-    expect(shouldSkipToolCallEvent(firstEvent)).toBe(false)
-    expect(shouldSkipToolCallEvent(firstEvent)).toBe(true)
-    markToolResultSeen(scopeProviderToolCallId('provider-shared-call', first))
-    expect(shouldSkipToolCallEvent(secondEvent)).toBe(false)
+    expect(shouldSkipToolCallEvent(scope, firstEvent)).toBe(false)
+    expect(shouldSkipToolCallEvent(scope, firstEvent)).toBe(true)
+    markToolResultSeen(scope, scopeProviderToolCallId('provider-shared-call', first))
+    expect(shouldSkipToolCallEvent(scope, secondEvent)).toBe(false)
     expect(
       shouldSkipToolResultEvent(
+        scope,
         scopeProviderToolCallEvent(
           {
             type: 'tool',

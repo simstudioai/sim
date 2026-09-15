@@ -2,10 +2,15 @@ import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
+import {
+  resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
+import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
+import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
@@ -24,11 +29,17 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipStreamRecovery')
 
-export const readChatStream = defineAuthorizedWorkspaceUseCase({
+export const readChatStream = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
     id: 'mothership.runs.reconnect',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'copilot.use',
+    principalKinds: ['session'],
+  }),
+  organizationOperation: defineOrganizationOperation({
+    id: 'mothership.runs.reconnect',
+    minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['session'],
   }),
@@ -42,13 +53,16 @@ export const readChatStream = defineAuthorizedWorkspaceUseCase({
     const run = await getLatestRunForStream(input.streamId, principal.userId)
     if (!run?.chatId) throw new OrchestrationError('not_found', 'Stream not found')
     const chat = await resolveOwnedChatContext(principal, run.chatId)
-    if (run.workspaceId !== chat.workspaceId)
+    if (
+      (run.workspaceId ?? null) !== (chat.workspaceId ?? null) ||
+      (run.organizationId ?? null) !== (chat.organizationId ?? null)
+    )
       throw new OrchestrationError('not_found', 'Stream not found')
     return { ...chat, run }
   },
   authorizationOptions: {},
   async execute({ context }) {
-    const { run, chatId, userId, workspaceId } = context
+    const { run, chatId, userId, workspaceId, organizationId } = context
     if (isTerminalStreamStatus(run.status)) return run
     const saved = run.requestContext as Record<string, unknown> | null
     const config = StreamRecoveryConfigSchema.safeParse(saved?.recovery)
@@ -57,6 +71,8 @@ export const readChatStream = defineAuthorizedWorkspaceUseCase({
     if (
       intent.userId !== userId ||
       intent.workspaceId !== workspaceId ||
+      intent.organizationId !== organizationId ||
+      (organizationId && intent.mode !== 'assistant') ||
       intent.chatId !== chatId ||
       intent.messageId !== run.streamId
     ) {
@@ -79,22 +95,31 @@ export const readChatStream = defineAuthorizedWorkspaceUseCase({
       }
       const [events, billingAttribution, userPermission] = await Promise.all([
         readEvents(run.streamId, '0'),
-        resolveBillingAttribution({ actorUserId: userId, workspaceId }),
-        getUserEntityPermissions(userId, 'workspace', workspaceId),
+        organizationId
+          ? resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
+          : resolveBillingAttribution({ actorUserId: userId, workspaceId: workspaceId! }),
+        workspaceId
+          ? getUserEntityPermissions(userId, 'workspace', workspaceId)
+          : Promise.resolve(undefined),
       ])
-      if (!userPermission) throw new OrchestrationError('forbidden', 'Workspace access revoked')
+      if (workspaceId && !userPermission)
+        throw new OrchestrationError('forbidden', 'Workspace access revoked')
       const requestId = typeof saved?.requestId === 'string' ? saved.requestId : generateId()
       const completion = {
         chatId,
         userMessageId: run.streamId,
         requestId,
         workspaceId,
+        organizationId,
+        userId,
+        requestMode: intent.mode === 'assistant' ? ('assistant' as const) : ('agent' as const),
         notifyWorkspaceStatus: true,
         runController: { id: run.id, token: lease.value },
       }
       const stream = createSSEStream({
         userId,
         workspaceId,
+        organizationId,
         chatId,
         streamId: run.streamId,
         executionId: run.executionId,
@@ -109,6 +134,7 @@ export const readChatStream = defineAuthorizedWorkspaceUseCase({
         orchestrateOptions: {
           userId,
           workspaceId,
+          organizationId,
           chatId,
           runId: run.id,
           executionId: run.executionId,

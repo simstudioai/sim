@@ -68,10 +68,11 @@ export const workflowOperations = {
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies
   readLint: defineWorkspaceOperation({
     id: 'workflows.lint.read',
+    oauthScope: 'api:read',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key'],
+    principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
   }),
   // permission-group-exempt: reading a workflow's run inputs is workflow content; Chat itself is withheld by copilot.use at the chat surface
   readCopilotRunOptions: defineWorkspaceOperation({

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from '@/lib/auth/auth-client'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'

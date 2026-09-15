@@ -54,6 +54,8 @@ vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
   loadCopilotSearchIntegrations: mockLoadCopilotSearchIntegrations,
 }))
 
+vi.mock('@/lib/mothership/request/context/restore', () => ({ restoreStreamingContext: vi.fn() }))
+
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
   filterModelSafeWorkspaceFileAttachments: mockFilterModelSafeWorkspaceFileAttachments,
 }))
@@ -225,72 +227,146 @@ describe('runCopilotLifecycle', () => {
     { surface: 'web Search', goRoute: '/api/mothership', interactive: true },
     { surface: 'Slack Search', goRoute: '/api/mothership', interactive: false },
     { surface: 'MCP Search', goRoute: '/api/mothership/execute', interactive: false },
-  ])('injects fresh trusted inventory for each $surface turn', async ({ goRoute, interactive }) => {
-    mockRunStreamLoop.mockResolvedValue(undefined)
-    const signal = new AbortController().signal
-    const payload = {
-      mode: 'assistant',
-      message: 'Is my email connected?',
-      messageId: 'message-1',
-      userId: 'untrusted-person',
-      organizationId: 'org-1',
-      workspaceContext: 'stale or untrusted inventory',
-    }
-    for (const status of ['not_connected', 'connected']) {
-      const inventory = JSON.stringify({
-        connections: [{ connectionStatus: status }],
-        available: [],
-      })
-      mockLoadCopilotSearchIntegrations.mockResolvedValueOnce(inventory)
-      const result = await runCopilotLifecycle(payload, {
-        userId: 'person-1',
-        organizationId: 'org-1',
-        chatId: 'private-chat-1',
-        executionId: 'execution-1',
-        runId: 'run-1',
-        goRoute,
-        interactive,
-        abortSignal: signal,
-      })
-      expect(result.error).toBeUndefined()
+  ])(
+    'preserves the admitted canonical inventory for $surface without loading it again',
+    async ({ goRoute, interactive }) => {
+      mockRunStreamLoop.mockResolvedValue(undefined)
+      const inventory = [
+        { type: 'search_integrations', content: '{"connections":[],"available":[]}' },
+      ]
+      await runCopilotLifecycle(
+        { mode: 'assistant', message: 'Find the report', context: inventory },
+        {
+          userId: 'person-1',
+          organizationId: 'org-1',
+          chatId: 'private-chat-1',
+          executionId: 'execution-1',
+          runId: 'run-1',
+          goRoute,
+          interactive,
+        }
+      )
       const body = JSON.parse(String(mockRunStreamLoop.mock.lastCall?.[1].body))
-      expect(body.workspaceContext).toBe(inventory)
-      expect(mockLoadCopilotSearchIntegrations).toHaveBeenLastCalledWith({
-        userId: 'person-1',
-        organizationId: 'org-1',
-        chatId: 'private-chat-1',
-        messageId: 'message-1',
-        signal,
-      })
+      expect(body.context).toEqual(inventory)
+      expect(body).not.toHaveProperty('workspaceContext')
+      expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
     }
-    expect(mockLoadCopilotSearchIntegrations).toHaveBeenCalledTimes(2)
-    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
-    expect(payload.workspaceContext).toBe('stale or untrusted inventory')
-  })
+  )
 
-  it('does not call Copilot if the Search inventory cannot be loaded', async () => {
-    mockLoadCopilotSearchIntegrations.mockRejectedValueOnce(new Error('Inventory unavailable'))
-    const result = await runCopilotLifecycle(
-      { mode: 'assistant', message: 'Find my email', messageId: 'message-1' },
+  it.each([false, true])(
+    'retains Assistant policy on a standalone resume (organization=%s)',
+    async (organization) => {
+      let captured: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+        captured = context
+      })
+      const owner = organization ? { organizationId: 'org-1' } : { workspaceId: 'ws-1' }
+      await runCopilotLifecycle(
+        { streamId: 'stream-1', checkpointId: 'checkpoint-1', results: [] },
+        {
+          userId: 'user-1',
+          ...owner,
+          chatId: 'chat-1',
+          goRoute: '/api/tools/resume',
+          executionContext: {
+            userId: 'user-1',
+            ...owner,
+            chatId: 'chat-1',
+            workflowId: '',
+            requestMode: 'assistant',
+            assistantSearch: { source: 'slack' },
+            secretActorUserId: 'billing-owner',
+            secretMountPolicy: { secretScope: 'all', mountedSecrets: ['KEY'] },
+          },
+        }
+      )
+      expect(captured).toMatchObject({
+        ...owner,
+        requestMode: 'assistant',
+        assistantSearch: { source: 'slack' },
+        secretActorUserId: null,
+        secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+      })
+      expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith(
+        'user-1',
+        owner.workspaceId,
+        { includeSecrets: false }
+      )
+      const body = JSON.parse(String(mockRunStreamLoop.mock.lastCall?.[1].body))
+      expect(body).not.toHaveProperty('mode')
+      if (organization) {
+        expect(body).not.toHaveProperty('organizationId')
+        expect(body).not.toHaveProperty('chatId')
+        expect(body).not.toHaveProperty('workspaceId')
+      }
+    }
+  )
+
+  it('restores Assistant mode before reconstructing the secret-free execution environment', async () => {
+    let captured: ExecutionContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+      captured = context
+    })
+    await runCopilotLifecycle(
+      { mode: 'assistant', message: 'Search', assistantSearch: { source: 'drive' } },
       {
-        userId: 'person-1',
+        userId: 'user-1',
         organizationId: 'org-1',
-        chatId: 'private-chat-1',
+        chatId: 'chat-1',
+        recovery: { streamId: 'stream-1', events: [], requestMode: 'assistant' },
+        secretActorUserId: 'owner-1',
+        secretMountPolicy: { secretScope: 'all', mountedSecrets: ['KEY'] },
       }
     )
-    expect(result).toMatchObject({ success: false, error: 'Inventory unavailable' })
-    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', undefined, {
+      includeSecrets: false,
+    })
+    expect(captured).toMatchObject({
+      organizationId: 'org-1',
+      requestMode: 'assistant',
+      assistantSearch: { source: 'drive' },
+      secretActorUserId: null,
+      secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+    })
+    expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
   })
 
-  it('keeps workspace Assistant context without loading Search integrations', async () => {
-    mockRunStreamLoop.mockResolvedValueOnce(undefined)
-    await runCopilotLifecycle(
-      { mode: 'assistant', message: 'hello', workspaceContext: 'Workspace inventory' },
-      { userId: 'person-1', workspaceId: 'ws-1', chatId: 'chat-1' }
-    )
-    expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
-    const body = JSON.parse(String(mockRunStreamLoop.mock.calls[0][1].body))
-    expect(body.workspaceContext).toBe('Workspace inventory')
+  it.each(['build', undefined])(
+    'rejects mismatched restored mode (%s) before loading execution context or dispatching',
+    async (mode) => {
+      await expect(
+        runCopilotLifecycle(
+          { mode, message: 'Search' },
+          {
+            userId: 'user-1',
+            workspaceId: 'ws-1',
+            recovery: { streamId: 'stream-1', events: [], requestMode: 'assistant' },
+          }
+        )
+      ).rejects.toThrow('Recovered execution mode does not match')
+      expect(mockPrepareCopilotEnvironmentContext).not.toHaveBeenCalled()
+      expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects organization execution context from a different actor before dispatch', async () => {
+    await expect(
+      runCopilotLifecycle(
+        { mode: 'assistant', message: 'Search' },
+        {
+          userId: 'user-1',
+          organizationId: 'org-1',
+          chatId: 'chat-1',
+          executionContext: {
+            userId: 'other-user',
+            organizationId: 'org-1',
+            chatId: 'chat-1',
+            workflowId: '',
+          },
+        }
+      )
+    ).rejects.toThrow('authenticated scope')
+    expect(mockRunStreamLoop).not.toHaveBeenCalled()
   })
 
   it('refuses a headless chat before worker dispatch when its run cannot be persisted', async () => {
@@ -1960,15 +2036,20 @@ describe('runCopilotLifecycle', () => {
     expect(billingRequestId).not.toBe('caller-controlled')
 
     expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
-    expect(mockLoadCopilotSearchIntegrations).toHaveBeenCalledTimes(owner.organizationId ? 1 : 0)
+    expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
     for (const call of mockRunStreamLoop.mock.calls) {
       const body = JSON.parse(String(call[1].body))
-      expect(body).toMatchObject(
-        owner.organizationId
-          ? { organizationId: owner.organizationId }
-          : { workspaceId: owner.workspaceId }
-      )
-      if (owner.organizationId) expect(body).not.toHaveProperty('workspaceId')
+      if (call === mockRunStreamLoop.mock.calls[0]) {
+        expect(body).toMatchObject(
+          owner.organizationId
+            ? { organizationId: owner.organizationId }
+            : { workspaceId: owner.workspaceId }
+        )
+      } else {
+        expect(body).not.toHaveProperty('workspaceId')
+        expect(body).not.toHaveProperty('organizationId')
+        expect(body).not.toHaveProperty('checkpointId')
+      }
       const headers = call[1].headers as Record<string, string>
       expect(headers).toMatchObject({
         'x-api-key': 'sim-agent-key',

@@ -211,7 +211,7 @@ describe('ToolCallItem', () => {
     expect(markup).toContain('Read recent emails')
   })
 
-  it('keeps the integration icon with its paced action through completion', () => {
+  it('paces an iconless header while preserving integration icons on expanded child tools', () => {
     vi.useFakeTimers()
     const container = document.createElement('div')
     const root = createRoot(container)
@@ -244,18 +244,40 @@ describe('ToolCallItem', () => {
     const header = () => container.querySelector('[role="status"]')!
     try {
       render([first])
-      const icon = header().querySelector('[data-testid="gmail-icon"]')
-      expect(icon).not.toBeNull()
+      expect(header().textContent).toBe('Reading mail')
+      expect(header().querySelector('svg')).toBeNull()
       act(() => vi.advanceTimersByTime(100))
       render([{ ...first, status: 'success' }, next])
       expect(header().textContent).toBe('Reading mail')
-      expect(header().querySelector('[data-testid="gmail-icon"]')).toBe(icon)
-      expect(header().querySelector('[data-testid="slack-icon"]')).toBeNull()
+      expect(header().querySelector('svg')).toBeNull()
       act(() => vi.advanceTimersByTime(900))
       expect(header().textContent).toBe('Reading messages')
-      expect(header().querySelector('[data-testid="slack-icon"]')).not.toBeNull()
+      expect(header().querySelector('svg')).toBeNull()
+      const disclosure = container.querySelector<HTMLElement>('[role="button"]')!
+      act(() => disclosure.click())
+      expect(disclosure.getAttribute('aria-expanded')).toBe('true')
+      expect(header().textContent).toBe('Tool activity')
+      expect(header().querySelector('svg')).toBeNull()
+      const childRows = Array.from(container.querySelectorAll('[role="status"]')).slice(1)
+      expect(childRows).toHaveLength(2)
+      expect(childRows[0].textContent).toBe('Read mail')
+      expect(childRows[0].querySelector('[data-testid="gmail-icon"]')).not.toBeNull()
+      expect(childRows[1].textContent).toBe('Reading messages')
+      expect(childRows[1].querySelector('[data-testid="slack-icon"]')).not.toBeNull()
+      render(
+        [
+          { ...first, status: 'success' },
+          { ...next, status: 'success' },
+        ],
+        false
+      )
+      expect(header().textContent).toBe('Read messages + 1')
+      expect(header().querySelector('svg')).toBeNull()
+      expect(container.querySelector('[data-testid="gmail-icon"]')).not.toBeNull()
+      expect(container.querySelector('[data-testid="slack-icon"]')).not.toBeNull()
       render([{ ...next, status: 'success' }], false)
-      expect(header().querySelector('[data-testid="slack-icon"]')).not.toBeNull()
+      expect(header().textContent).toBe('Read messages')
+      expect(header().querySelector('svg')).toBeNull()
       expect(container.querySelector('[role="button"]')).toBeNull()
     } finally {
       act(() => root.unmount())

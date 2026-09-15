@@ -25,7 +25,7 @@ vi.mock('@/lib/internal/slack/client', () => ({
   slackString: (value: Record<string, unknown>, key: string) =>
     typeof value[key] === 'string' ? value[key] : undefined,
 }))
-vi.mock('@/lib/copilot/request/lifecycle/start', () => ({ requestChatTitle: title.request }))
+vi.mock('@/lib/mothership/request/lifecycle/start', () => ({ requestChatTitle: title.request }))
 
 vi.mock('@/lib/core/application/organization-authorization', () => ({
   authorizeOrganizationOperation: async (principal: {

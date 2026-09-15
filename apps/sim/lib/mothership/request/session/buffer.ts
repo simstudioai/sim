@@ -181,32 +181,37 @@ local last_seq = ARGV[6]
 local new_count = 0
 local new_bytes = 0
 local new_members = {}
+local seen_members = {}
 for i = ${firstMember}, #ARGV, 2 do
   local member = ARGV[i + 1]
-  if not redis.call('ZSCORE', KEYS[1], member) then
+  if not seen_members[member] and not redis.call('ZSCORE', KEYS[1], member) then
+    seen_members[member] = true
     new_count = new_count + 1
     new_bytes = new_bytes + string.len(member)
-    table.insert(new_members, member)
+    table.insert(new_members, {member = member, score = tonumber(ARGV[i])})
   end
 end
 
 local current_count = redis.call('ZCARD', KEYS[1])
-local prune_count = current_count + new_count - event_limit
-if prune_count < 0 then
-  prune_count = 0
-end
-local existing_prune_count = math.min(prune_count, current_count)
+local prune_count = math.max(current_count + new_count - event_limit, 0)
 local pruned_bytes = 0
-if existing_prune_count > 0 then
-  local pruned = redis.call('ZRANGE', KEYS[1], 0, existing_prune_count - 1)
-  for _, member in ipairs(pruned) do
-    pruned_bytes = pruned_bytes + string.len(member)
+if prune_count > 0 then
+  -- A replay can reintroduce an already-trimmed member before the retained ring.
+  -- Price the actual lowest-ranked union, not all existing members before new ones.
+  -- Only this many existing members can be pruned, so never scan the whole ring.
+  local existing_prune_count = math.min(prune_count, current_count)
+  if existing_prune_count > 0 then
+    local existing = redis.call('ZRANGE', KEYS[1], 0, existing_prune_count - 1, 'WITHSCORES')
+    for i = 1, #existing, 2 do
+      table.insert(new_members, {member = existing[i], score = tonumber(existing[i + 1])})
+    end
   end
-end
-for i = 1, prune_count - existing_prune_count do
-  local member = new_members[i]
-  if member then
-    pruned_bytes = pruned_bytes + string.len(member)
+  table.sort(new_members, function(a, b)
+    if a.score == b.score then return a.member < b.member end
+    return a.score < b.score
+  end)
+  for i = 1, prune_count do
+    pruned_bytes = pruned_bytes + string.len(new_members[i].member)
   end
 end
 
@@ -237,13 +242,9 @@ export type AppendEventsResult =
   | { persisted: false; refusal: RedisBudgetRefusal }
 
 /**
- * Persists a batch for replay.
- *
- * A refusal is returned, never thrown. A throw here reaches
- * `finalizeStream`'s second flush, which runs inside the error handler and so
- * escapes to reject the response stream — a stream that has already delivered every
- * byte to the user would end in an error because its *replay copy* did not fit.
- * Refusing to persist costs a resume; throwing costs the turn.
+ * Persists replay events and reports budget refusal without mutating storage.
+ * Leased writers require success before delivery; unleased writers may already
+ * have delivered the batch and stop recording after a refusal. A stale lease throws.
  */
 export async function appendEvents(
   envelopes: PersistedStreamEventEnvelope[],

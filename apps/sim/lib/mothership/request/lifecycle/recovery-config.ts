@@ -1,14 +1,15 @@
 import { z } from 'zod'
+import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
-import type { CopilotLifecycleOptions } from './run'
+import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 
 /** Start intent excludes transport credentials and receipts; takeover resolves those afresh. */
-export const DurableChatRequestSchema = ChatPayloadSchema.omit({
-  byokApiKey: true,
-  delegationToken: true,
-  receivedTextChars: true,
-  receivedActivity: true,
-}).extend({ messageId: z.uuid(), chatId: z.uuid() })
+export const DurableChatRequestSchema = ChatPayloadSchema.safeExtend({
+  messageId: z.uuid(),
+  chatId: z.uuid(),
+}).transform(
+  ({ byokApiKey, delegationToken, receivedTextChars, receivedActivity, ...request }) => request
+)
 export const StreamRecoveryConfigSchema = z
   .object({
     kind: z.literal('interactive_stream'),
@@ -16,9 +17,17 @@ export const StreamRecoveryConfigSchema = z
     goRoute: z.enum(['/api/mothership', '/api/copilot']),
     clientToolPickupExpected: z.boolean(),
     userTimezone: z.string().optional(),
-    requestMode: z.string().optional(),
+    requestMode: z.enum(COPILOT_REQUEST_MODES).optional(),
   })
   .strict()
+  .refine(
+    (config) =>
+      !config.requestMode ||
+      (config.requestMode === 'assistant') === (config.request.mode === 'assistant'),
+    {
+      message: 'Recovery mode must match the admitted request',
+    }
+  )
 
 export function streamRecoveryConfig(
   options: CopilotLifecycleOptions,

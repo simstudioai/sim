@@ -504,7 +504,7 @@ export async function withProfileLoginLease<T>(
   const path = `${credentialsPath()}.login-${digest}`
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
 
-  let release: (() => Promise<void>) | undefined
+  let release: () => Promise<void>
   try {
     release = await lock(path, {
       realpath: false,
@@ -533,7 +533,7 @@ export async function withCredentialsLock<T>(work: () => Promise<T>): Promise<T>
 
   const path = credentialsPath()
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  let release: (() => Promise<void>) | undefined
+  let release: () => Promise<void>
   try {
     release = await lock(path, {
       realpath: false,

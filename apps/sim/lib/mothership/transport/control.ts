@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
-import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
+import {
+  createTrustedCopilotPrincipal,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
 import type { SimControlRequest, SimControlResult } from '@/lib/mothership/generated/sim-transport'
 import {
   RUN_CONTROL_AUDIENCE,
@@ -18,15 +21,33 @@ const logger = createLogger('MothershipControlTransport')
 export async function executeSimControl(request: SimControlRequest): Promise<SimControlResult> {
   if (request.expiresAt <= Date.now()) return { status: 410, body: '{"error":"Request expired"}' }
   const { scope, operation } = request
+  if (Boolean(scope.workspaceId) === Boolean(scope.organizationId))
+    return { status: 403, body: '{"error":"Invalid owner scope"}' }
+  if (scope.organizationId && operation.kind !== 'run_control')
+    return {
+      status: 403,
+      body: '{"error":"Organization Assistant cannot execute workspace controls"}',
+    }
   if (operation.input.chatId !== scope.chatId)
     return { status: 403, body: '{"error":"Chat scope mismatch"}' }
-  const principal = createTrustedCopilotPrincipal(
-    { ...scope, delegationId: `transport:${request.id}` },
-    {
-      audience: operation.kind === 'run_control' ? RUN_CONTROL_AUDIENCE : TASK_DELEGATION_AUDIENCE,
-      ttlMs: 60_000,
-    }
-  )
+  const principal = scope.organizationId
+    ? createTrustedOrganizationCopilotPrincipal(
+        {
+          userId: scope.userId,
+          organizationId: scope.organizationId,
+          chatId: scope.chatId,
+          delegationId: `transport:${request.id}`,
+        },
+        { audience: RUN_CONTROL_AUDIENCE, ttlMs: 60_000 }
+      )
+    : createTrustedCopilotPrincipal(
+        { ...scope, workspaceId: scope.workspaceId!, delegationId: `transport:${request.id}` },
+        {
+          audience:
+            operation.kind === 'run_control' ? RUN_CONTROL_AUDIENCE : TASK_DELEGATION_AUDIENCE,
+          ttlMs: 60_000,
+        }
+      )
   try {
     switch (operation.kind) {
       case 'run_control':

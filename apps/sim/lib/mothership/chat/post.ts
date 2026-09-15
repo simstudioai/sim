@@ -20,6 +20,10 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
+import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import { chatOperations } from '@/lib/mothership/application/operations'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import {
@@ -72,12 +76,6 @@ import {
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
-import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
-import {
-  asOrchestrationError,
-  statusForOrchestrationError,
-} from '@/lib/core/orchestration/types'
-import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -355,7 +353,6 @@ type UnifiedChatBranch =
         implicitFeedback?: string
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
-        vfs?: VfsSnapshotV1
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
@@ -393,7 +390,6 @@ type UnifiedChatBranch =
         userMetadata?: { name?: string; email?: string; timezone?: string }
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
-        vfs?: VfsSnapshotV1
         effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
         modelSelection?: ModelSelection
         desktopLocalFilesystem?: boolean
@@ -772,6 +768,7 @@ async function resolveBranch(params: {
           mode: mode ?? 'agent',
           model: '',
           contexts: payloadParams.contexts,
+          workspaceContext: payloadParams.workspaceContext,
           assistantSearch: payloadParams.assistantSearch,
           mcpServerIds: payloadParams.mcpServerIds,
           fileAttachments: payloadParams.fileAttachments,
@@ -870,6 +867,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       return createUnauthorizedResponse()
     }
     const authenticatedUserId = session.user.id
+    const authenticatedUserName = session.user.name
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
@@ -1196,12 +1194,13 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.context
         )
       })
-      const [agentContexts, userPermission, executionContext, personalCredentials] = await Promise.all([
-        agentContextsPromise,
-        userPermissionPromise,
-        executionContextPromise,
-        personalCredentialsPromise,
-      ])
+      const [agentContexts, userPermission, executionContext, personalCredentials] =
+        await Promise.all([
+          agentContextsPromise,
+          userPermissionPromise,
+          executionContextPromise,
+          personalCredentialsPromise,
+        ])
       let workspaceContext: string | undefined
       if (personalCredentials) {
         workspaceContext = JSON.stringify({
@@ -1213,6 +1212,15 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               ? { instanceUrl: credential.instanceUrl }
               : {}),
           })),
+        })
+      }
+      if (branch.kind === 'organization' && actualChatId) {
+        workspaceContext = await loadCopilotSearchIntegrations({
+          userId: authenticatedUserId,
+          organizationId: branch.organizationId,
+          chatId: actualChatId,
+          messageId: userMessageId,
+          signal: req.signal,
         })
       }
       const turnContexts = agentContexts
@@ -1268,6 +1276,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 mcpServerIds,
                 fileAttachments,
                 assistantImages: assistantImages?.content,
+                workspaceContext,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
                 effort: body.effort,
@@ -1289,9 +1298,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.span.setAttribute(TraceAttr.WorkspaceId, workspaceId)
       }
 
-      const clientToolPickupExpected = body.clientCapabilities
-        ? body.clientCapabilities.includes('workflow-tool-pickup')
-        : true
+      const clientToolPickupExpected =
+        body.mode === 'assistant'
+          ? false
+          : body.clientCapabilities
+            ? body.clientCapabilities.includes('workflow-tool-pickup')
+            : true
       const requestPayload = { ...preparedPayload, protocolVersion: PROTOCOL_VERSION }
       const lease = actualChatId ? getLocalChatStreamLease(actualChatId, userMessageId) : undefined
       const runController = lease ? { id: runId, token: lease.value } : undefined
@@ -1326,7 +1338,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               goRoute: branch.goRoute,
               clientToolPickupExpected,
               userTimezone: executionContext.userTimezone,
-              requestMode: executionContext.requestMode,
+              requestMode: body.mode,
             },
             notifyWorkspaceStatus: branch.notifyChatStatus,
           },

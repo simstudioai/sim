@@ -4,16 +4,18 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { z } from 'zod'
-import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { insertRunSegment, withRunAdmissionLock } from '@/lib/mothership/async-runs/repository'
+import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
   buildPersistedUserMessage,
   type UserMessageParams,
 } from '@/lib/mothership/chat/persisted-message'
-import { chatPubSub } from '@/lib/mothership/chat-status'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import {
   assertChatStreamLease,
@@ -33,11 +35,17 @@ interface AdmitTurnInput {
 }
 
 /** The accepted message, its start intent and retry destination commit together. */
-export const admitChatTurn = defineAuthorizedWorkspaceUseCase({
+export const admitChatTurn = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
     id: 'mothership.chats.admit_turn',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'copilot.use',
+    principalKinds: ['session'],
+  }),
+  organizationOperation: defineOrganizationOperation({
+    id: 'mothership.chats.admit_turn',
+    minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['session'],
   }),
@@ -46,12 +54,15 @@ export const admitChatTurn = defineAuthorizedWorkspaceUseCase({
   },
   authorizationOptions: {},
   async execute({ context, input }) {
-    const { userId, workspaceId, chatId } = context
+    const { userId, workspaceId, organizationId, chatId } = context
     const recovery = StreamRecoveryConfigSchema.parse(input.recovery)
     const request = recovery.request
     if (
       request.userId !== userId ||
       request.workspaceId !== workspaceId ||
+      request.organizationId !== organizationId ||
+      (organizationId && request.mode !== 'assistant') ||
+      (input.message.requestMode === 'assistant') !== (request.mode === 'assistant') ||
       request.chatId !== chatId ||
       request.messageId !== input.message.id ||
       request.message !== input.message.content
@@ -67,7 +78,12 @@ export const admitChatTurn = defineAuthorizedWorkspaceUseCase({
           and(
             eq(copilotChats.id, chatId),
             eq(copilotChats.userId, userId),
-            eq(copilotChats.workspaceId, workspaceId),
+            workspaceId
+              ? eq(copilotChats.workspaceId, workspaceId)
+              : isNull(copilotChats.workspaceId),
+            organizationId
+              ? eq(copilotChats.organizationId, organizationId)
+              : isNull(copilotChats.organizationId),
             isNull(copilotChats.deletedAt)
           )
         )
@@ -85,6 +101,7 @@ export const admitChatTurn = defineAuthorizedWorkspaceUseCase({
         chatId,
         userId,
         workspaceId,
+        organizationId,
         streamId: request.messageId,
         workflowId: request.workflowId,
         requestContext: {
@@ -119,12 +136,18 @@ export const admitChatTurn = defineAuthorizedWorkspaceUseCase({
   async afterSuccess({ context, input }) {
     if (!input.notifyWorkspaceStatus) return
     try {
-      await chatPubSub?.publishStatusChanged({
-        workspaceId: context.workspaceId,
-        chatId: context.chatId,
-        type: 'started',
-        streamId: input.message.id,
-      })
+      publishChatStatusChanged(
+        {
+          workspaceId: context.workspaceId,
+          organizationId: context.organizationId,
+          userId: context.userId,
+        },
+        {
+          chatId: context.chatId,
+          type: 'started',
+          streamId: input.message.id,
+        }
+      )
     } catch (error) {
       createLogger('ChatAdmission').warn('Could not publish admitted chat status', {
         error: getErrorMessage(error),

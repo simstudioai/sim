@@ -4,6 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { AgentGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
@@ -76,7 +77,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     expect(container.textContent).not.toContain('Completed:')
   })
 
-  it('shows the first action immediately and coalesces bursts without replaying a backlog', () => {
+  it('shows the first action immediately and coalesces continuous bursts without replaying a backlog', () => {
     render([])
     advance(100)
     render([tool('first')])
@@ -84,7 +85,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     const row = header()
     const shimmer = container.querySelector('[class*="shimmer"]')
     advance(100)
-    render([tool('first', 'success')])
+    render([tool('first'), tool('second')])
     expect(header()?.textContent).toBe('Reading first')
     expect(container.querySelector('[class*="shimmer"]')).toBe(shimmer)
     render([tool('first', 'success'), tool('second')])
@@ -143,10 +144,11 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     advance(100)
     render([tool('first', 'success'), tool('second')])
     render([tool('first', 'success'), tool('second', 'success')], false)
-    expect(header()?.textContent).toBe('Read files')
+    const completed = agentName === 'mothership' ? 'Read second + 1' : 'Read files'
+    expect(header()?.textContent).toBe(completed)
     expect(container.querySelector('[class*="shimmer"]')).toBeNull()
     advance(2000)
-    expect(header()?.textContent).toBe('Read files')
+    expect(header()?.textContent).toBe(completed)
   })
 
   it.each(['error', 'cancelled', 'interrupted', 'rejected', 'skipped'] as const)(
@@ -259,7 +261,82 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       expect(rows[0].querySelector('[class*="shimmer"]')).toBeNull()
     }
     const liveRow = rows[rows.length - 1]
-    expect(liveRow.textContent).toBe('Reading second')
-    expect(liveRow.querySelector('[class*="shimmer"]')).not.toBeNull()
+    expect(liveRow.textContent).toBe(agentName === 'mothership' ? 'Read second' : 'Reading second')
+    if (agentName === 'mothership') {
+      expect(liveRow.querySelector('[class*="shimmer"]')).toBeNull()
+    } else {
+      expect(liveRow.querySelector('[class*="shimmer"]')).not.toBeNull()
+    }
   })
+
+  it('distinguishes a finished tool from an open agent lane', () => {
+    render([tool('first')])
+    advance(100)
+    render([tool('first', 'success')])
+    expect(header()?.textContent).toBe(agentName === 'mothership' ? 'Read first' : 'Reading first')
+    if (agentName === 'mothership') {
+      expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+    } else {
+      expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
+    }
+    advance(1500)
+    expect(header()?.textContent).toBe(agentName === 'mothership' ? 'Read first' : 'Reading first')
+  })
+
+  if (agentName === 'mothership') {
+    it('shows active tool names and count, reserving the grouped completed title for lane closure', () => {
+      const activity: ToolActivity = { id: 'research', completedTitle: 'Compared files' }
+      const renderActivity = (tools: ToolCallData[], open: boolean) =>
+        act(() =>
+          root.render(
+            <AgentGroup
+              agentName='mothership'
+              activity={activity}
+              items={items(tools)}
+              isStreaming={open}
+              isLaneOpen={open}
+            />
+          )
+        )
+      renderActivity([tool('first'), tool('second')], true)
+      expect(header()?.textContent).toBe('Reading second + 1')
+      expect(container.textContent).not.toContain(activity.completedTitle)
+      renderActivity([tool('first', 'success'), tool('second', 'success')], true)
+      expect(header()?.textContent).toBe('Read second')
+      expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+      renderActivity([tool('first', 'success'), tool('second', 'success')], false)
+      expect(header()?.textContent).toBe(activity.completedTitle)
+      advance(2000)
+      expect(header()?.textContent).toBe(activity.completedTitle)
+    })
+
+    it('closes the prior activity at normal text while keeping the trailing activity open', () => {
+      const activity: ToolActivity = { id: 'research', completedTitle: 'Compared files' }
+      const renderActivity = (open: boolean) =>
+        act(() =>
+          root.render(
+            <AgentGroup
+              agentName='mothership'
+              activity={activity}
+              isStreaming={open}
+              isLaneOpen={open}
+              items={[
+                ...items([tool('first', 'success')]),
+                { type: 'text', content: 'Checking another source.' },
+                ...items([tool('second', 'success')]),
+              ]}
+            />
+          )
+        )
+      renderActivity(true)
+      expect(
+        [...container.querySelectorAll('[role="status"]')].map((row) => row.textContent)
+      ).toEqual([activity.completedTitle, 'Read second'])
+      expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+      renderActivity(false)
+      expect(
+        [...container.querySelectorAll('[role="status"]')].map((row) => row.textContent)
+      ).toEqual([activity.completedTitle, activity.completedTitle])
+    })
+  }
 })

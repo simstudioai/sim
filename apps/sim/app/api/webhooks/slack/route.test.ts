@@ -48,6 +48,12 @@ vi.mock('@/lib/knowledge/application/slack-search/ingress', () => ({
   resolveSlackAppInstallation: { execute: mockResolveInstallation },
 }))
 vi.mock('@/lib/slack-search/dispatcher', () => ({ dispatchSlackSearch: mockSearch }))
+vi.mock('@/lib/knowledge/application/slack-search/commands', () => ({
+  receiveSlackSearchCommand: { execute: vi.fn() },
+}))
+vi.mock('@/lib/knowledge/application/slack-search/outbox', () => ({
+  dispatchSlackSearchTurn: vi.fn(),
+}))
 vi.mock('@/lib/webhooks/slack-custom-ingress', () => ({
   dispatchSlackCustomBotCredential: mockCustomDispatch,
   handleSlackAgentSessionStopped: vi.fn(),

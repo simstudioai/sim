@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { mothershipTaskKeys } from '@/hooks/queries/mothership-tasks'
 import { TaskPill } from './task-pill'
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }))
@@ -37,7 +38,7 @@ it('updates a pill in an earlier message without needing an event in that turn',
   )
   await waitFor(() => expect(request).toHaveBeenCalledTimes(1))
   request.mockResolvedValue({ taskId: task.taskId, status: 'completed', summary: 'Timer elapsed' })
-  await act(() => client.invalidateQueries({ queryKey: ['mothership-task', task.taskId] }))
+  await act(() => client.invalidateQueries({ queryKey: mothershipTaskKeys.detail(task.taskId) }))
   expect(await screen.findByText(/completed timer.*Timer elapsed/)).toBeTruthy()
 })
 
@@ -47,7 +48,9 @@ it('never replaces a live terminal event with a cached pending status', async ()
       <TaskPill task={task} />
     </QueryClientProvider>
   )
-  await waitFor(() => expect(client.getQueryData(['mothership-task', task.taskId])).toBeDefined())
+  await waitFor(() =>
+    expect(client.getQueryData(mothershipTaskKeys.detail(task.taskId))).toBeDefined()
+  )
   view.rerender(
     <QueryClientProvider client={client}>
       <TaskPill task={{ ...task, status: 'stopped' }} />

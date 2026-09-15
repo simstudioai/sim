@@ -25,6 +25,7 @@ import {
   requireUserCredentialCapabilities,
   type WorkspaceAuthorizationContext,
 } from '@/lib/core/application'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { chatOperations } from '@/lib/mothership/application/operations'
@@ -49,7 +50,6 @@ import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import type { OrchestratorResult, StreamEvent } from '@/lib/mothership/request/types'
 import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
-import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import {
   capabilityRefusal,
@@ -331,7 +331,7 @@ export const POST = withRouteHandler(
       }
 
       const [integrationTools, billingAttribution] = await Promise.all([
-        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        buildIntegrationToolSchemas(userId, undefined, workspaceId),
         // Hosted execution refuses to run without an attribution snapshot;
         // the executor path receives it as a header, this path resolves it
         // from the authenticated actor and asserted workspace.

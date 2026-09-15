@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
-import { compactRetrievalCitations } from '@/lib/copilot/chat/retrieval-citations'
+import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 

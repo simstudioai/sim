@@ -189,36 +189,41 @@ describe('workflow import and export application operations', () => {
     expect(result.warnings).toEqual(warnings)
   })
 
-  it('preserves mapped import receipts and normalizes validated bindings to no warnings', async () => {
-    const operation = { requestId: 'request-1' }
-    mocks.mappedImport.mockResolvedValue({
-      workflow: imported,
-      folderPath: '/Reports',
-      operation,
-      replayed: true,
-    })
+  it.each([false, true])(
+    'preserves mapped import receipts (legacy=%s) without duplicate audit',
+    async (legacy) => {
+      const { blocks: _blocks, ...metadata } = imported
+      const recordedWorkflow = legacy ? metadata : imported
+      const operation = { requestId: 'request-1' }
+      mocks.mappedImport.mockResolvedValue({
+        workflow: recordedWorkflow,
+        folderPath: '/Reports',
+        operation,
+        replayed: true,
+      })
 
-    const result = await importWorkflow.execute({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: {
-        workspaceId: 'ws-1',
-        workflow: { blocks: {}, edges: [] },
-        requestId: 'request-1',
-        previewFingerprint: 'preview-1',
-      },
-    })
+      const result = await importWorkflow.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        input: {
+          workspaceId: 'ws-1',
+          workflow: { blocks: {}, edges: [] },
+          requestId: 'request-1',
+          previewFingerprint: 'preview-1',
+        },
+      })
 
-    expect(result).toEqual({
-      workflow: imported,
-      folderPath: '/Reports',
-      operation,
-      replayed: true,
-      warnings: [],
-    })
-    expect(mocks.importTransition).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notifyWorkspace).not.toHaveBeenCalled()
-  })
+      expect(result).toEqual({
+        workflow: recordedWorkflow,
+        folderPath: '/Reports',
+        operation,
+        replayed: true,
+        warnings: [],
+      })
+      expect(mocks.importTransition).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(mocks.notifyWorkspace).not.toHaveBeenCalled()
+    }
+  )
 
   it('preserves classified import details and does not audit a failure', async () => {
     mocks.importTransition.mockResolvedValue({

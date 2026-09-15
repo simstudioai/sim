@@ -8,6 +8,7 @@ import {
   authenticateV2ApiKey,
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
+import { readV2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-headers'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
@@ -48,7 +49,7 @@ export function createFileUploadTransport(context: {
     const request = new NextRequest(new Request(input, init))
     try {
       request.signal.throwIfAborted()
-      const { principal } = await authenticateV2ApiKey(request.headers.get('x-api-key'))
+      const { principal } = await authenticateV2ApiKey(readV2CredentialHeaders(request.headers))
       request.signal.throwIfAborted()
       if (principal.kind !== 'personal_api_key' || principal.userId !== context.userId) {
         throw new V2ApiKeyUnauthenticatedError()

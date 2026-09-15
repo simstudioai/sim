@@ -1,6 +1,6 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { resolveOwnedWorkspaceChatContext as resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import type { TaskWakeRequest } from '@/lib/mothership/generated/tasks'
 import { acquirePendingChatStream } from '@/lib/mothership/request/session/abort'
 import { taskDelegationPolicy } from '@/lib/mothership/tasks/application/context'

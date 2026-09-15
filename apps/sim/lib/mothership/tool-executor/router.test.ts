@@ -3,13 +3,11 @@
  */
 
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The handler map is a wiring table from tool id to implementation. Only its
  * shape is asserted here, so every implementation module it imports is stubbed
- * except `workflow/mutations`, which holds the cancellation handler under test
- * and loads for real so a renamed or removed export fails at link time.
+ * with `workflow/mutations` mocked separately to assert cancellation dispatch.
  * Loading the rest reaches the block registry, the executor, and most of
  * `lib/`; every stubbed export resolves to a mock function, which is all the
  * table needs to bind.
@@ -48,8 +46,19 @@ vi.mock('@/lib/mothership/tools/handlers/workflow/queries', stubHandlerModule)
 /** Server-router tools are appended to the map from their own registry, which this test does not cover. */
 vi.mock('@/lib/mothership/tools/server/router', () => ({ getRegisteredServerToolNames: () => [] }))
 
-import { hasHandler } from '@/lib/mothership/tool-executor/executor'
-import { buildHandlerMap } from '@/lib/mothership/tool-executor/handler-map'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({ cancel: vi.fn() }))
+vi.mock('@/lib/mothership/tools/handlers/workflow/mutations', () => ({
+  executeCancelWorkflowRun: mocks.cancel,
+  executeGenerateApiKey: vi.fn(),
+  executeRunBlock: vi.fn(),
+  executeRunFromBlock: vi.fn(),
+  executeRunWorkflow: vi.fn(),
+  executeRunWorkflowUntilBlock: vi.fn(),
+}))
+
+import { executeTool, hasHandler } from '@/lib/mothership/tool-executor/executor'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
 import {
   getToolEntry,
@@ -57,9 +66,9 @@ import {
   toolRequiresApproval,
   toolRequiresApprovalLane,
 } from '@/lib/mothership/tool-executor/router'
-import { executeCancelWorkflowRun } from '@/lib/mothership/tools/handlers/workflow/mutations'
 
 describe('workflow-run cancellation tool routing', () => {
+  beforeEach(() => vi.clearAllMocks())
   it('routes cancellation through Sim with write permission and explicit approval', () => {
     expect(getToolEntry('cancel_workflow_run')).toMatchObject({
       requiredPermission: 'write',
@@ -69,12 +78,33 @@ describe('workflow-run cancellation tool routing', () => {
     expect(toolRequiresApproval('cancel_workflow_run')).toBe(true)
   })
 
-  it('registers the Sim cancellation handler', async () => {
+  it('dispatches cancellation to the registered Sim handler with trusted context', async () => {
     await ensureHandlersRegistered()
 
     expect(hasHandler('cancel_workflow_run')).toBe(true)
-    expect(executeCancelWorkflowRun).toBeTypeOf('function')
-    expect(buildHandlerMap().cancel_workflow_run).toBe(executeCancelWorkflowRun)
+    const context = {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      chatId: 'chat-1',
+      toolCallId: 'cancel-1',
+      copilotToolExecution: true,
+      userPermission: 'write',
+    }
+    const params = { workflowId: 'workflow-1', executionId: 'run-1' }
+    const result = { success: true, output: { status: 'cancelled' } }
+    mocks.cancel.mockResolvedValue(result)
+    await expect(
+      executeTool(
+        'cancel_workflow_run',
+        {
+          ...params,
+          activity: { title: 'Stopping workflow' },
+        },
+        context
+      )
+    ).resolves.toEqual(result)
+    expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith(params, context)
   })
 })
 

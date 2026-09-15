@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 import {
   resolvedSecretTraceProvenanceSchema,
   resourceOwnerSchema,
@@ -182,13 +183,8 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
 })
 export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
 
-/** A plain object, so the Assistant's search input may still extend it; the window's order is checked on the request. */
-export const workspaceSearchFiltersSchema = z.object({
-  source: z.string().trim().min(1, 'Source cannot be empty').max(100).optional(),
-  modifiedAfter: z.string().datetime({ offset: true }).optional(),
-  modifiedBefore: z.string().datetime({ offset: true }).optional(),
-  documentIds: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
-})
+export { workspaceSearchFiltersSchema }
+
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
 
 /** Chunks a search asks for at first paint, and once the reader asks for more; both within `topK`'s bound. */

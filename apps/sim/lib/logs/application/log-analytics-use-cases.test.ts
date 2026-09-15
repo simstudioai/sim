@@ -125,7 +125,8 @@ describe('getLogStats', () => {
     expect(mocks.readSegments).toHaveBeenCalledWith(
       expect.anything(),
       '2026-08-06T00:00:00.000Z',
-      expect.any(Number)
+      expect.any(Number),
+      { countHandledErrors: false }
     )
   })
 
@@ -168,7 +169,8 @@ describe('getLogStats', () => {
     expect(mocks.readSegments).toHaveBeenCalledWith(
       expect.anything(),
       '2026-08-01T00:00:00.000Z',
-      12 * 60 * 60 * 1000
+      12 * 60 * 60 * 1000,
+      { countHandledErrors: false }
     )
     expect(stats.timeBounds).toEqual({
       start: '2026-08-01T00:00:00.000Z',

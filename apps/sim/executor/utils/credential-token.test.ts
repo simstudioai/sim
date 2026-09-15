@@ -20,7 +20,7 @@ vi.mock('@/lib/credentials/application/copilot-managed-oauth-delegation', () => 
   createCopilotManagedOAuthPrincipal: mockCreateCopilotManagedOAuthPrincipal,
 }))
 
-vi.mock('@/lib/copilot/application/execute-credential-use-case', () => ({
+vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
   executeCopilotCredentialUseCase: mockPersonalCredentialUseCase,
 }))
 vi.mock('@/tools/metadata', () => ({

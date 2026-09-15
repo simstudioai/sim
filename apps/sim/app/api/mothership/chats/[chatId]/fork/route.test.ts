@@ -1,10 +1,13 @@
 /**
  * @vitest-environment node
  */
+
+import { copilotChats, member } from '@sim/db/schema'
 import {
   copilotHttpMock,
   copilotHttpMockFns,
   dbChainMockFns,
+  queueTableRows,
   resetDbChainMock,
   resetEnvMock,
   setEnv,
@@ -24,6 +27,7 @@ const {
   mockPublishStatusChanged,
   mockCaptureServerEvent,
   mockPersistChatFileCopies,
+  mockPermissionConfig,
 } = vi.hoisted(() => ({
   // Real (pure) cut semantics so tests drive selection through row.messageId:
   // rows with a NULL/undefined messageId are kept in every fork.
@@ -41,9 +45,25 @@ const {
   mockPublishStatusChanged: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
   mockPersistChatFileCopies: vi.fn(),
+  mockPermissionConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
+vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  resolveActiveWorkspaceApplicationContext: vi.fn(async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+  })),
+}))
+vi.mock('@/lib/core/application/workspace-authorization', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/application/workspace-authorization')>()),
+  authorizeWorkspaceOperation: mockAssertActiveWorkspaceAccess,
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: mockPermissionConfig,
+}))
 
 vi.mock('@/lib/mothership/chat/fork-chat-files', () => ({
   filterForkableChatFiles: mockFilterForkableChatFiles,
@@ -141,6 +161,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
     })
     dbChainMockFns.limit.mockResolvedValue([parentRow])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'row-id', workspaceId: 'ws-1' }])
@@ -155,6 +176,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     mockAppendCopilotChatMessages.mockResolvedValue(undefined)
     mockPersistChatFileCopies.mockResolvedValue(undefined)
     mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
+    mockPermissionConfig.mockResolvedValue(null)
     mockFetchGo.mockImplementation(async (_url: string, options: { body: string }) => {
       const request = JSON.parse(options.body)
       return Response.json({ chatId: request.newChatId, sourceThroughSeq: 3 })
@@ -173,6 +195,73 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     })
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(401)
+  })
+
+  it('forks organization history under current membership without inventing workspace files', async () => {
+    dbChainMockFns.limit.mockReset()
+    const chat = { ...parentRow, workspaceId: null, organizationId: 'org-1', resources: [] }
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(member, [{ role: 'member' }])
+    const attachments = [
+      {
+        id: 'upload-1',
+        filename: 'image.webp',
+        key: 'assistant/org-1/user-1/upload-1/image.webp',
+        media_type: 'image/webp',
+        size: 5,
+      },
+    ]
+    mockLoadCopilotChatMessages.mockResolvedValue([
+      { ...threeMessages[0], fileAttachments: attachments, requestMode: 'assistant' },
+      threeMessages[1],
+    ])
+    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    expect(res.status).toBe(200)
+    const request = JSON.parse(mockFetchGo.mock.calls[0][1].body)
+    expect(request).toMatchObject({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      sourceChatId: 'chat-1',
+    })
+    expect(request).not.toHaveProperty('workspaceId')
+    expect(mockListForkableChatFiles).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages.mock.calls[0][1][0].fileAttachments).toEqual(attachments)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', workspaceId: null })
+    )
+    expect(mockAssertActiveWorkspaceAccess).not.toHaveBeenCalled()
+  })
+
+  it.each(['membership', 'capability'] as const)(
+    'denies organization forks after %s revocation before copying',
+    async (revocation) => {
+      dbChainMockFns.limit.mockReset()
+      const chat = { ...parentRow, workspaceId: null, organizationId: 'org-1' }
+      queueTableRows(copilotChats, [chat])
+      queueTableRows(copilotChats, [chat])
+      queueTableRows(member, revocation === 'membership' ? [] : [{ role: 'member' }])
+      if (revocation === 'capability') mockPermissionConfig.mockResolvedValue({ hideCopilot: true })
+      const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+      expect(res.status).toBe(404)
+      expect(mockFetchGo).not.toHaveBeenCalled()
+      expect(mockLoadCopilotChatMessages).not.toHaveBeenCalled()
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    }
+  )
+
+  it('retains the workspace membership-only fork policy', async () => {
+    expect((await POST(createRequest('chat-1'), makeContext('chat-1'))).status).toBe(200)
+    expect(mockAssertActiveWorkspaceAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        id: 'mothership.chats.fork',
+        minimumRole: 'read',
+        capability: 'none',
+      }),
+      expect.objectContaining({ workspaceId: 'ws-1' }),
+      expect.anything()
+    )
   })
 
   it('404s when the chat belongs to another user', async () => {
