@@ -19,7 +19,6 @@ on:
   push:
     branches: [main, staging, dev]
   pull_request:
-    branches: [main, staging, dev]
     # Docs content and markdown don't affect the app build or images; push
     # runs stay unfiltered because they feed the deploy pipeline.
     paths-ignore:
@@ -36,9 +35,12 @@ permissions:
 jobs:
   test-build:
     name: Test and Build
-    if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
+    if: >-
+      (github.ref != 'refs/heads/dev' || github.event_name == 'pull_request') &&
+      (github.event_name != 'pull_request' ||
+       contains(fromJSON('["main", "staging", "dev"]'), github.base_ref) ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     uses: ./.github/workflows/test-build.yml
-    secrets: inherit
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
   # Smallest runner on purpose: a few seconds of pure shell over the commit
