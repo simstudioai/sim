@@ -7,7 +7,7 @@ import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from '@xyflow/react'
@@ -100,7 +100,7 @@ function describeErrorCause(error: unknown): Record<string, unknown> | undefined
     if (!driver) return undefined
     return filterUndefined({
       name: driver.name,
-      message: driver.message,
+      message: redactBoundParameters(driver.message),
       code: driver.code,
       severity: driver.severity,
       detail: driver.detail,

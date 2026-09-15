@@ -452,3 +452,34 @@ describe('DAGExecutor executor delegation origin', () => {
     expect(context.executorDelegationOrigin).toBe(executorDelegationOrigin)
   })
 })
+
+describe('DAGExecutor run-scoped permission config cache', () => {
+  function createContext(executor: DAGExecutor): ExecutionContext {
+    return (
+      executor as unknown as {
+        createExecutionContext: (workflowId: string) => { context: ExecutionContext }
+      }
+    ).createExecutionContext('wf-1').context
+  }
+
+  it('seeds one cache per run that survives per-block context copies', () => {
+    const executor = new DAGExecutor({
+      workflow: { version: '1', blocks: [], connections: [] },
+      contextExtensions: { workspaceId: 'ws-1' },
+    })
+
+    const context = createContext(executor)
+    const blockContext = { ...context }
+
+    expect(context.permissionConfigCache).toBeInstanceOf(Map)
+    expect(blockContext.permissionConfigCache).toBe(context.permissionConfigCache)
+  })
+
+  it('never shares the cache between runs', () => {
+    const workflow = { version: '1', blocks: [], connections: [] }
+    const parent = createContext(new DAGExecutor({ workflow, contextExtensions: {} }))
+    const child = createContext(new DAGExecutor({ workflow, contextExtensions: {} }))
+
+    expect(child.permissionConfigCache).not.toBe(parent.permissionConfigCache)
+  })
+})
