@@ -6,12 +6,12 @@
  */
 import '@/lib/core/utils/browser-polyfills'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { bindPreviewWheelZoom } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { pdfjs, Document as ReactPdfDocument, Page as ReactPdfPage } from 'react-pdf'
-import 'react-pdf/dist/Page/TextLayer.css'
-import { bindPreviewWheelZoom } from '@sim/emcn'
 import { PREVIEW_LOADING_OVERLAY } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
+import 'react-pdf/dist/Page/TextLayer.css'
 
 /**
  * The worker runs in its own context that browser-polyfills cannot reach, so
