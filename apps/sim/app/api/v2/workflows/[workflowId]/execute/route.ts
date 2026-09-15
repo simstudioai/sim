@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -20,7 +21,6 @@ import {
   v2InvalidBodyResponse,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import type { V2ApiKeyPrincipal } from '@/lib/api/server/routes/v2-api-key-auth'
 import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
@@ -272,13 +272,14 @@ export const POST = withRouteHandler(
 
     let publicApiUserId: string | undefined
     let isPublicApiAccess = false
-    let apiKeyPrincipal: V2ApiKeyPrincipal | undefined
+    let apiKeyPrincipal: Principal | undefined
 
     const admission = await admitOptionalV2Request(
       req,
       workflowOperations.execute,
       v2ApiKeyAuth,
-      v2RateLimits.publicApi
+      v2RateLimits.publicApi,
+      executeWorkflowOperation
     )
     if (!admission.success) return admission.response
 

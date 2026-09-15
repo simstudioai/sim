@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, member } from '@sim/db/schema'
 import { authMockFns, databaseMock, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import sharp from 'sharp'
@@ -12,6 +12,17 @@ const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   scratch: vi.fn(),
   artifact: vi.fn(),
+  target: vi.fn(),
+  fileContext: vi.fn(),
+}))
+vi.mock('@/lib/mothership/application/workspace-target', () => ({
+  resolveInvocationWorkspace: mocks.target,
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  loadActiveWorkspaceFileContext: mocks.fileContext,
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
 }))
 vi.mock('@sim/db', () => databaseMock)
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -254,5 +265,62 @@ describe('image HTTP route', () => {
     const response = await GET(request(), params)
     expect(response.status).toBe(404)
     expect(mocks.download).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization inline images', () => {
+  function ownOrgChat() {
+    queueTableRows(copilotChats, [{ ...owner, workspaceId: null, organizationId: 'org' }])
+    queueTableRows(member, [{ role: 'member' }])
+  }
+  it('publishes scratch using the org chat delegation with no default workspace', async () => {
+    ownOrgChat()
+    mocks.scratch.mockResolvedValue({ buffer: await raster() })
+    await materializeStreamImage(
+      { userId: 'owner', organizationId: 'org', chatId: 'chat' },
+      { ...input, reference: '/tmp/chart.png' }
+    )
+    expect(mocks.scratch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          kind: 'organization_delegated',
+          organizationId: 'org',
+          resourceScope: { chatId: 'chat' },
+        }),
+        input: expect.objectContaining({ organizationId: 'org', workspaceId: undefined }),
+      })
+    )
+    expect(mocks.target).not.toHaveBeenCalled()
+  })
+  it('resolves a canonical workspace file ID and authorizes its target before artifact access', async () => {
+    ownOrgChat()
+    mocks.fileContext.mockResolvedValue({ workspaceId: 'target' })
+    mocks.target.mockResolvedValue({ workspaceId: 'target' })
+    mocks.artifact.mockResolvedValue({ buffer: await raster() })
+    const reference = '11111111-1111-4111-8111-111111111111'
+    await materializeInlineChatImage.execute({ principal, input: { ...input, reference } })
+    expect(mocks.target).toHaveBeenCalledWith(
+      { userId: 'owner', organizationId: 'org', chatId: 'chat' },
+      'target'
+    )
+    expect(mocks.artifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({ workspaceId: 'target' }),
+        input: expect.objectContaining({ workspaceId: 'target', reference }),
+      })
+    )
+  })
+  it('does not read a file when its canonical workspace target is denied', async () => {
+    ownOrgChat()
+    mocks.fileContext.mockResolvedValue({ workspaceId: 'foreign' })
+    mocks.target.mockRejectedValue(new Error('Target denied'))
+    await expect(
+      materializeInlineChatImage.execute({
+        principal,
+        input: { ...input, reference: '11111111-1111-4111-8111-111111111111' },
+      })
+    ).rejects.toThrow('Target denied')
+    expect(mocks.artifact).not.toHaveBeenCalled()
+    expect(mocks.upload).not.toHaveBeenCalled()
   })
 })

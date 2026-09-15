@@ -137,7 +137,7 @@ export const ChatPayloadSchema = z
     /** Every chat has exactly one authoritative workspace or organization owner. */
     workspaceId: z.uuid().optional(),
     organizationId: z.string().min(1).max(200).optional(),
-    mode: z.literal("assistant").optional(),
+    mode: z.enum(["agent", "assistant"]).optional(),
     assistantSearch: AssistantSearch.optional(),
     assistantImages: z.array(AssistantImage).max(5).optional(),
     /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
@@ -178,14 +178,17 @@ export const ChatPayloadSchema = z
   .superRefine((value, ctx) => {
     if (Boolean(value.workspaceId) === Boolean(value.organizationId))
       ctx.addIssue({ code: "custom", message: "Exactly one workspaceId or organizationId is required" });
-    if (
-      (value.organizationId && value.mode !== "assistant") ||
-      (value.mode === "assistant" && value.workflowId)
-    )
-      ctx.addIssue({ code: "custom", message: "Organization chats require Assistant without a workflow" });
+    if (value.organizationId && !value.mode)
+      ctx.addIssue({ code: "custom", message: "Organization chats require an explicit mode" });
+    if ((value.organizationId || value.mode === "assistant") && value.workflowId)
+      ctx.addIssue({ code: "custom", message: "Organization and Assistant chats cannot select a workflow" });
     if (value.assistantImages?.length && !value.organizationId)
       ctx.addIssue({ code: "custom", message: "Assistant images require organization scope" });
-    if (value.mode !== "assistant" && (value.assistantSearch || value.assistantImages))
+    if (
+      value.mode !== "assistant" &&
+      !value.organizationId &&
+      (value.assistantSearch || value.assistantImages)
+    )
       ctx.addIssue({ code: "custom", message: "Assistant context requires Assistant mode" });
   });
 
@@ -207,6 +210,8 @@ export interface StreamTextCompletion {
 /** Replayed tool activity is presentation only; it never authorizes execution or approval. */
 export interface StreamToolReplay {
   replay?: true | undefined;
+  /** Requested operation target, authorized independently by Sim. */
+  workspaceId?: string | undefined;
 }
 
 /** POST /api/mothership — the chat request sim sends. */
@@ -221,10 +226,10 @@ export interface ChatRequest extends StreamResponseReceipt {
   protocolVersion?: number | undefined;
   messageId?: string | undefined;
   chatId?: string | undefined;
-  /** Exactly one owner is required; organization scope is restricted to Assistant. */
+  /** Exactly one owner is required, independently of the selected mode. */
   workspaceId?: string | undefined;
   organizationId?: string | undefined;
-  mode?: "assistant" | undefined;
+  mode?: "agent" | "assistant" | undefined;
   assistantSearch?: AssistantSearch | undefined;
   assistantImages?: AssistantImage[] | undefined;
   /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */

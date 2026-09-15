@@ -70,7 +70,7 @@ const {
 })
 
 vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
-  readOrganizationAssistantImage: mockReadOrganizationAssistantImage,
+  readOrganizationChatAttachment: mockReadOrganizationAssistantImage,
 }))
 
 vi.mock('fs/promises', () => ({

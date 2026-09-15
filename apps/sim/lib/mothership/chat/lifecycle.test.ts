@@ -3,7 +3,7 @@
  */
 import { dbChainMockFns, resetDbChainMock, schemaMock, workflowAuthzMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTrustedOrganizationCopilotPrincipal } from '@/lib/copilot/auth/application-delegation'
+import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const {

@@ -44,7 +44,7 @@ export const updateWorkspaceForkMappings = defineForkUseCase<
   operation: forkOperations.mappingsUpdate,
   bothSides: true,
   edge: true,
-  async execute({ principal, input, context }) {
+  async execute({ input, context }) {
     const edge = context.edge!
     const sourceWorkspaceId =
       input.direction === 'push' ? input.workspaceId : input.otherWorkspaceId
@@ -71,7 +71,7 @@ export const updateWorkspaceForkMappings = defineForkUseCase<
       const updated = await applyForkMappingEntries(
         tx,
         edge,
-        principal.userId,
+        context.userId,
         sourceWorkspaceId,
         input.mappings
       )
@@ -119,11 +119,11 @@ export const rollbackWorkspaceFork = defineForkUseCase<
   Awaited<ReturnType<typeof rollbackFork>>
 >({
   operation: forkOperations.rollback,
-  execute: ({ principal, input }) =>
+  execute: ({ context, input }) =>
     rollbackFork({
       targetWorkspaceId: input.workspaceId,
       otherWorkspaceId: input.otherWorkspaceId,
-      userId: principal.userId,
+      userId: context.userId,
       requestId: generateShortId(),
     }),
   projectAudit: ({ input, context, result }) => ({
@@ -134,12 +134,12 @@ export const rollbackWorkspaceFork = defineForkUseCase<
     description: `Rolled back the last promote into "${context.workspace.name}"`,
     metadata: { otherWorkspaceId: input.otherWorkspaceId, ...result },
   }),
-  async afterSuccess({ principal, input, result }) {
+  async afterSuccess({ context, input, result }) {
     try {
       const [other] = await db
         .select({ name: workspace.name, actorName: user.name })
         .from(workspace)
-        .leftJoin(user, eq(user.id, principal.userId))
+        .leftJoin(user, eq(user.id, context.userId))
         .where(eq(workspace.id, input.otherWorkspaceId))
         .limit(1)
       const otherName = other?.name ?? 'the source workspace'
@@ -230,10 +230,10 @@ export const updateWorkspaceForkExclusions = defineForkUseCase<
           },
         }
       : [],
-  afterSuccess({ principal, input, result }) {
+  afterSuccess({ context, input, result }) {
     if (!result.updated) return
     captureServerEvent(
-      principal.userId,
+      context.userId,
       'fork_excluded_workflows_updated',
       {
         workspace_id: input.workspaceId,

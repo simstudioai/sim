@@ -4,17 +4,21 @@ import { useRef } from 'react'
 import { Chip, ComposerActionButton, cn, Tooltip } from '@sim/emcn'
 import { ArrowUp, Plus, StopFilled } from '@sim/emcn/icons'
 import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
+import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
+import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
+import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 
 interface ComposerProps {
+  requestMode?: ChatRequestMode
   value: string
   files: ReturnType<typeof useFileAttachments>
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
@@ -31,6 +35,7 @@ interface ComposerProps {
  * carries only the controls that are wired for the organization.
  */
 export function Composer({
+  requestMode = 'assistant',
   value,
   files,
   isInitialView,
@@ -39,6 +44,7 @@ export function Composer({
   onSubmit,
   onStop,
 }: ComposerProps) {
+  const imagesOnly = requestMode === 'assistant'
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { organization } = useOrganizationContext()
   useChatInputFocus({ textareaRef })
@@ -105,17 +111,22 @@ export function Composer({
       </div>
 
       <div className='flex items-center justify-between'>
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Chip
-              shape='round'
-              leftIcon={Plus}
-              onClick={files.handleFileSelect}
-              aria-label='Attach images'
-            />
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>Attach images</Tooltip.Content>
-        </Tooltip.Root>
+        <div className='flex items-center gap-1'>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Chip
+                shape='round'
+                leftIcon={Plus}
+                onClick={files.handleFileSelect}
+                aria-label={imagesOnly ? 'Attach images' : 'Attach files'}
+              />
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {imagesOnly ? 'Attach images' : 'Attach files'}
+            </Tooltip.Content>
+          </Tooltip.Root>
+          <ModelSelector />
+        </div>
         <div className='flex items-center gap-1.5'>
           {voice.isSupported && (
             <MicButton
@@ -144,12 +155,12 @@ export function Composer({
       <input
         ref={files.fileInputRef}
         type='file'
-        accept={ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE}
+        accept={imagesOnly ? ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE : MOTHERSHIP_ACCEPT_ATTRIBUTE}
         onChange={files.handleFileChange}
         className='hidden'
         multiple
       />
-      {files.isDragging && <DropOverlay imagesOnly />}
+      {files.isDragging && <DropOverlay imagesOnly={imagesOnly} />}
       <MicrophonePermissionHelp
         open={voice.permissionHelpOpen}
         onOpenChange={voice.setPermissionHelpOpen}

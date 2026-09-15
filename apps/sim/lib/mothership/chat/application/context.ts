@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export type ChatOwnerContext =
@@ -25,6 +26,7 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
       workspaceId: copilotChats.workspaceId,
       organizationId: copilotChats.organizationId,
       type: copilotChats.type,
+      mode: conversationModeSelection,
     })
     .from(copilotChats)
     .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
@@ -50,5 +52,6 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
     ...owner,
     chatId,
     userId: chat.userId,
+    mode: chat.mode,
   }
 }

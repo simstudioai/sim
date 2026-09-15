@@ -96,8 +96,27 @@ export const oauthGetAuthLinkInputSchema = z.object({
     ),
 })
 
+/** Organization discovery returns explicit operation targets; it never selects a default workspace. */
+export const listWorkspacesInputSchema = z.object({
+  workspaceId: z
+    .string()
+    .uuid()
+    .optional()
+    .describe('Exact workspace ID to revalidate, when known.'),
+  query: z.string().trim().max(200).optional().describe('Case-insensitive workspace name filter.'),
+  limit: z.number().int().min(1).max(100).default(50),
+  cursor: z.string().uuid().optional().describe('Copy nextCursor from the preceding page.'),
+})
+
 /** Executor identity belongs to Sim; model-facing profile guidance belongs to its caller. */
 export const assistantToolContracts = [
+  {
+    id: 'list_workspaces',
+    route: 'sim',
+    description:
+      'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.',
+    inputSchema: listWorkspacesInputSchema,
+  },
   {
     id: 'search_workspace',
     route: 'sim',
@@ -117,3 +136,41 @@ export const assistantToolContracts = [
     inputSchema: oauthGetAuthLinkInputSchema,
   },
 ] as const
+
+/** Bulk discovery reports restrictions explicitly; only exact lookup returns the complete capability map. */
+const workspaceCapabilityDetailSchema = z.discriminatedUnion('capabilityDetail', [
+  z.object({
+    capabilityDetail: z.literal('full'),
+    capabilities: z.record(z.string(), z.boolean()),
+  }),
+  z.object({
+    capabilityDetail: z.literal('restrictions'),
+    copilotAllowed: z.boolean(),
+    deniedCapabilities: z
+      .array(z.string())
+      .describe(
+        'Static capabilities explicitly withheld by current workspace policy. Absence does not grant an operation; use exact workspaceId for the full map.'
+      ),
+  }),
+])
+
+/** Canonical organization discovery; authorized exact-target recall may include stored notes. */
+export const listWorkspacesResultSchema = z.object({
+  success: z.literal(true),
+  workspaces: z.array(
+    z
+      .object({ id: z.uuid(), name: z.string(), role: z.enum(['read', 'write', 'admin']) })
+      .and(workspaceCapabilityDetailSchema)
+  ),
+  nextCursor: z.uuid().nullable(),
+  storedNotes: z
+    .array(
+      z.object({
+        id: z.string(),
+        kind: z.enum(['user_pref', 'workspace_fact']),
+        content: z.string(),
+        updatedAt: z.iso.datetime(),
+      })
+    )
+    .optional(),
+})

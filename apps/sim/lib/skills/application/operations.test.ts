@@ -102,13 +102,21 @@ describe('skill operation registry', () => {
     expect(skillOperations.listEditors).toMatchObject({
       minimumRole: 'read',
       workspaceApiKey: 'allow',
-      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+      principalKinds: [
+        'session',
+        'personal_api_key',
+        'oauth_access_token',
+        'workspace_api_key',
+        'delegated',
+      ],
+      delegatedServices: ['copilot'],
     })
     for (const operation of [skillOperations.grantEditor, skillOperations.revokeEditor]) {
       expect(operation).toMatchObject({
         minimumRole: 'read',
         workspaceApiKey: 'deny',
-        principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+        principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+        delegatedServices: ['copilot'],
       })
     }
   })

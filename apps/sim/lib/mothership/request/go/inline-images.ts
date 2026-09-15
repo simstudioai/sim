@@ -24,7 +24,12 @@ export async function prepareStreamImages(
     return
   if (event.type === 'text' && !/[)\]\n]/.test(event.payload.text)) return
   const { chatId, requestId } = context
-  if (!chatId || !requestId || !execution.workspaceId || execution.copilotToolExecution !== true)
+  if (
+    !chatId ||
+    !requestId ||
+    (!execution.workspaceId && !execution.organizationId) ||
+    execution.copilotToolExecution !== true
+  )
     return
   if (attempted.size >= MAX_INLINE_IMAGES_PER_TURN) return
   const content = context.accumulatedContent + (event.type === 'text' ? event.payload.text : '')
@@ -39,7 +44,9 @@ export async function prepareStreamImages(
       await materializeStreamImage(
         {
           userId: execution.userId,
-          workspaceId: execution.workspaceId,
+          ...(execution.organizationId
+            ? { organizationId: execution.organizationId }
+            : { workspaceId: execution.workspaceId! }),
           chatId,
         },
         { requestId, reference, signal }

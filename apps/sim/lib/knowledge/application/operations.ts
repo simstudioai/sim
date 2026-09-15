@@ -287,7 +287,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.export',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   /**
@@ -437,7 +437,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   relocateFolder: defineKnowledgeOperation(
@@ -447,7 +447,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   deleteFolder: defineKnowledgeOperation(
@@ -457,7 +457,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   listDocuments: defineKnowledgeOperation(
@@ -920,7 +920,7 @@ export const knowledgeOperations = {
       minimumRole: 'read',
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   prepareSearchSource: defineKnowledgeOperation(
@@ -985,7 +985,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   uploadParts: defineKnowledgeOperation(
@@ -995,7 +995,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   uploadComplete: defineKnowledgeOperation(
@@ -1005,7 +1005,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
   uploadCancel: defineKnowledgeOperation(
@@ -1015,7 +1015,7 @@ export const knowledgeOperations = {
       minimumRole: 'write',
       workspaceApiKey: 'allow',
       capability: 'knowledge.upload',
-      principalKinds: HTTP_PRINCIPAL_KINDS,
+      ...ALL_PRINCIPAL_POLICY,
     })
   ),
 } as const

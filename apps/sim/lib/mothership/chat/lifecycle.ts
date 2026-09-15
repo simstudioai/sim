@@ -7,12 +7,13 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { type ConversationMode, conversationModeSelection } from '@/lib/mothership/chat/intent'
 import {
   authorizeOrganizationChat,
   authorizeOrganizationChatCancellation,
 } from '@/lib/mothership/chat/organization-chats'
 import { type PersistedMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -35,6 +36,7 @@ export interface ChatLoadResult {
  */
 const copilotChatAuthColumns = {
   id: copilotChats.id,
+  mode: conversationModeSelection,
   userId: copilotChats.userId,
   workflowId: copilotChats.workflowId,
   workspaceId: copilotChats.workspaceId,
@@ -108,7 +110,7 @@ function ownedLiveChatWhere(chatId: string, userId: string) {
 type CopilotChatAuthRow = Pick<
   typeof copilotChats.$inferSelect,
   'id' | 'userId' | 'workflowId' | 'workspaceId' | 'organizationId' | 'type'
->
+> & { mode: ConversationMode }
 
 export type CopilotChatDetailRow = Pick<
   typeof copilotChats.$inferSelect,
@@ -124,6 +126,7 @@ export type CopilotChatDetailRow = Pick<
   | 'createdAt'
   | 'updatedAt'
 > & {
+  mode: ConversationMode
   /** Transcript assembled from `copilot_messages` (no longer a chat-row column). */
   messages: unknown[]
 }
@@ -307,6 +310,7 @@ export async function getAccessibleCopilotChatWithMessages(
  * resolve. `title` is stamped only on a newly created chat.
  */
 export async function resolveOrCreateChat(params: {
+  mode?: ConversationMode
   chatId?: string
   userId: string
   workflowId?: string
@@ -330,6 +334,7 @@ export async function resolveOrCreateChat(params: {
     organizationId,
     principal,
     model,
+    mode,
     type,
     title,
     includeTranscript,
@@ -356,6 +361,9 @@ export async function resolveOrCreateChat(params: {
     })
 
     if (chat) {
+      if (organizationId && (mode ?? 'assistant') !== chat.mode) {
+        return { chatId, chat: null, conversationHistory: [], isNew: false }
+      }
       if ((organizationId ?? null) !== (chat.organizationId ?? null)) {
         return { chatId, chat: null, conversationHistory: [], isNew: false }
       }
@@ -417,7 +425,9 @@ export async function resolveOrCreateChat(params: {
       userId,
       ...(workflowId ? { workflowId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
-      ...(organizationId ? { organizationId } : {}),
+      ...(organizationId
+        ? { organizationId, config: { conversationMode: mode ?? 'assistant' } }
+        : {}),
       type: type ?? (organizationId ? 'mothership' : 'copilot'),
       title: title ?? null,
       model,

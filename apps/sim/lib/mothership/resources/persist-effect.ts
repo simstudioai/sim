@@ -11,7 +11,12 @@ export async function persistResourceEffect(
   if (payload.op === 'clear_view') {
     await changeStoredChatResources(
       chatId,
-      { kind: 'clear-view', tableId: payload.resource.id, viewId: payload.resource.viewId },
+      {
+        kind: 'clear-view',
+        tableId: payload.resource.id,
+        viewId: payload.resource.viewId,
+        workspaceId: payload.resource.workspaceId,
+      },
       payload.effectId
     )
     return

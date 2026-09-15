@@ -1,5 +1,8 @@
 import type { SetStateAction } from 'react'
-import type { MothershipResource } from '@/lib/mothership/resources/types'
+import {
+  getChatResourceSelectionId,
+  type MothershipResource,
+} from '@/lib/mothership/resources/types'
 
 /** The tab each desktop-backed kind currently shows, as resource ids. */
 export interface NativeActiveTabIds {
@@ -24,7 +27,10 @@ export function resolveEffectiveResourceId(
   nativeActiveTabIds?: NativeActiveTabIds
 ): string | null {
   if (resources.length === 0) return null
-  if (selectedResourceId && resources.some((resource) => resource.id === selectedResourceId)) {
+  if (
+    selectedResourceId &&
+    resources.some((resource) => getChatResourceSelectionId(resource) === selectedResourceId)
+  ) {
     return selectedResourceId
   }
   const fallback = resources[resources.length - 1]
@@ -37,7 +43,7 @@ export function resolveEffectiveResourceId(
       return nativeId
     }
   }
-  return fallback.id
+  return getChatResourceSelectionId(fallback)
 }
 
 export function resolveResourceSelectionUpdate(

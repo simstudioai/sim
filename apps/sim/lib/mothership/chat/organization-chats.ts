@@ -3,13 +3,12 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
-import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
-import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
+import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 
 export const organizationChatOperations = {
   subscribe: defineOrganizationOperation({
@@ -39,6 +38,7 @@ export const organizationChatOperations = {
 } as const
 
 interface OrganizationChatInput {
+  mode?: 'agent' | 'assistant'
   organizationId: string
 }
 
@@ -59,7 +59,6 @@ export const authorizeOrganizationChatEvents = {
       organizationChatOperations.subscribe,
       input
     )
-    await requireOrganizationSearchAvailable(context.organizationId)
     return context
   },
 }
@@ -100,6 +99,7 @@ export const createOrganizationChat = {
         userId: context.userId,
         organizationId: context.organizationId,
         type: 'mothership',
+        config: { conversationMode: input.mode ?? 'assistant' },
         model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
         lastSeenAt: new Date(),
       })
@@ -120,6 +120,14 @@ export const organizationChatDelegationOperations = {
     principalKinds: ['session', 'organization_delegated'],
     capability: 'none',
     delegationAudience: 'sim:copilot-cancel',
+    delegatedServices: ['copilot'],
+  }),
+  workspaces: defineOrganizationOperation({
+    id: 'organization.chats.workspaces',
+    minimumRole: 'member',
+    principalKinds: ['organization_delegated'],
+    capability: 'copilot.use',
+    delegationAudience: 'sim:workspaces',
     delegatedServices: ['copilot'],
   }),
   knowledge: defineOrganizationOperation({

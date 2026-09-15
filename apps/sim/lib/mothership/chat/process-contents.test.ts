@@ -34,6 +34,7 @@ const {
   getBlockVisibilityForCopilot,
   isIntegrationDeploymentAvailable,
   searchDocsExecute,
+  resolveInvocationWorkspace,
 } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
   getBlock: vi.fn(),
@@ -66,7 +67,10 @@ const {
   getBlockVisibilityForCopilot: vi.fn(async () => null),
   isIntegrationDeploymentAvailable: vi.fn(() => true),
   searchDocsExecute: vi.fn(),
+  resolveInvocationWorkspace: vi.fn(),
 }))
+
+vi.mock('@/lib/mothership/application/workspace-target', () => ({ resolveInvocationWorkspace }))
 
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
 vi.mock('@/lib/mothership/block-visibility', () => ({ getBlockVisibilityForCopilot }))
@@ -1841,5 +1845,70 @@ describe('table view context', () => {
       )
     ).toBeNull()
     expect(readTableUseCase).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization skill mention targets', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => {
+      if (!workspaceId) throw new Error('explicit workspace required')
+      return { workspaceId }
+    })
+    getSkillUseCase.mockResolvedValue({ skill: { content: 'Actual skill instructions' } })
+  })
+  it('reads each explicitly scoped skill with the existing loader after target authorization', async () => {
+    const result = await processContextsServer(
+      [
+        { kind: 'skill', skillId: 'skill-a', label: 'A', workspaceId: 'workspace-a' },
+        { kind: 'skill', skillId: 'skill-b', label: 'B', workspaceId: 'workspace-b' },
+      ],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(result).toHaveLength(2)
+    expect(result[0]?.content).toBe('Workspace workspace-a:\nActual skill instructions')
+    expect(result[1]?.content).toBe('Workspace workspace-b:\nActual skill instructions')
+    expect(resolveInvocationWorkspace).toHaveBeenCalledWith(
+      { userId: 'user', organizationId: 'org', chatId: 'chat' },
+      'workspace-a'
+    )
+    expect(getSkillUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { skillId: 'skill-a', workspaceId: 'workspace-a' } })
+    )
+    expect(getSkillUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { skillId: 'skill-b', workspaceId: 'workspace-b' } })
+    )
+  })
+  it('never falls back to a workspace for an unscoped or inaccessible organization mention', async () => {
+    expect(
+      await processContextsServer(
+        [{ kind: 'skill', skillId: 'skill-a', label: 'A' }],
+        'user',
+        '',
+        undefined,
+        'chat',
+        undefined,
+        'org'
+      )
+    ).toEqual([])
+    expect(getSkillUseCase).not.toHaveBeenCalled()
+    resolveInvocationWorkspace.mockRejectedValueOnce(new Error('denied'))
+    expect(
+      await processContextsServer(
+        [{ kind: 'skill', skillId: 'skill-a', label: 'A', workspaceId: 'foreign' }],
+        'user',
+        '',
+        undefined,
+        'chat',
+        undefined,
+        'org'
+      )
+    ).toEqual([])
+    expect(getSkillUseCase).not.toHaveBeenCalled()
   })
 })

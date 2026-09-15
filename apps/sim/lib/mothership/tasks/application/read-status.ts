@@ -1,15 +1,19 @@
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { resolveOwnedWorkspaceChatContext as resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
+import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { InternalTaskStatus } from '@/lib/mothership/generated/tasks'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
-import { taskOperations } from '@/lib/mothership/tasks/application/operations'
+import {
+  organizationTaskOperations,
+  taskOperations,
+} from '@/lib/mothership/tasks/application/operations'
 
-export const readTaskStatus = defineAuthorizedWorkspaceUseCase({
+export const readTaskStatus = defineAuthorizedChatUseCase({
   operation: taskOperations.readStatus,
+  organizationOperation: organizationTaskOperations.readStatus,
   async resolveContext({
     principal,
     input,

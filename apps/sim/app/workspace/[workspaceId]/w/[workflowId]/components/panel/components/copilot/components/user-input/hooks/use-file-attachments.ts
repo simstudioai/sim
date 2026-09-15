@@ -17,6 +17,7 @@ import {
 } from '@/lib/uploads/shared/assistant-images'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
+import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 
 const logger = createLogger('useFileAttachments')
 
@@ -85,6 +86,7 @@ interface UseFileAttachmentsProps {
   userId?: string
   workspaceId?: string
   organizationId?: string
+  requestMode?: ChatRequestMode
   disabled?: boolean
   isLoading?: boolean
 }
@@ -97,7 +99,8 @@ interface UseFileAttachmentsProps {
  * @returns File attachment state and operations
  */
 export function useFileAttachments(props: UseFileAttachmentsProps) {
-  const { userId, workspaceId, organizationId, disabled, isLoading } = props
+  const { userId, workspaceId, organizationId, requestMode, disabled, isLoading } = props
+  const imagesOnly = Boolean(organizationId) && requestMode !== 'agent'
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [dragCounter, setDragCounter] = useState(0)
@@ -167,7 +170,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       if (fileList.length === 0) return
       try {
         if (
-          organizationId &&
+          imagesOnly &&
           Array.from(fileList).some((file) => !isAssistantImageType(resolveFileType(file)))
         ) {
           toast.error('Attach PNG, JPEG, GIF, or WebP images.')
@@ -175,8 +178,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         }
         assertMultiFileUploadAdmission(fileList, {
           existingFiles: attachedFilesRef.current,
-          maxFileBytes: organizationId ? ASSISTANT_IMAGE_MAX_BYTES : MAX_WORKSPACE_FILE_SIZE,
-          ...(organizationId
+          maxFileBytes: imagesOnly ? ASSISTANT_IMAGE_MAX_BYTES : MAX_WORKSPACE_FILE_SIZE,
+          ...(imagesOnly
             ? {
                 maxFiles: ASSISTANT_IMAGE_MAX_COUNT,
                 maxTotalBytes: ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
@@ -218,7 +221,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
           const result = await uploadInternalFileSession({
             purpose: 'mothership_attachment',
             file,
-            ...(organizationId ? { organizationId } : { workspaceId: workspaceId! }),
+            ...(organizationId ? { organizationId, requestMode } : { workspaceId: workspaceId! }),
             signal: controller.signal,
           })
 
@@ -256,7 +259,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         }
       })
     },
-    [userId, workspaceId, organizationId, updateAttachedFiles]
+    [userId, workspaceId, organizationId, requestMode, imagesOnly, updateAttachedFiles]
   )
 
   /**

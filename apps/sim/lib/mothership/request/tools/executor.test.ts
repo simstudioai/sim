@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { workspace } from '@sim/db/schema'
+import { queueTableRows } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import '@sim/testing/mocks/executor'
 
@@ -9,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   executeTool,
+  dispatchCli,
   completeAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
@@ -28,6 +31,7 @@ const {
   const setAttribute = vi.fn()
   return {
     executeTool: vi.fn(),
+    dispatchCli: vi.fn(),
     encryptSecret: vi.fn(),
     decryptSecret: vi.fn(),
     publishToolConfirmation: vi.fn(),
@@ -48,6 +52,14 @@ const {
     ),
   }
 })
+
+vi.mock('@/lib/api/server/routes/in-process-transport', () => ({
+  dispatchInProcessV2Request: dispatchCli,
+}))
+vi.mock('@sim/platform-authz/workspace', () => ({
+  resolveEffectiveWorkspacePermission: async () => 'read',
+  permissionSatisfies: (actual: string | null, required: string) => actual === required,
+}))
 
 vi.mock('@sim/logger', () => ({
   createLogger: () => ({ error: mockError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
@@ -144,6 +156,7 @@ import {
   toolWatchdogTimeoutMs,
 } from '@/lib/mothership/request/tools/executor'
 import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
+import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
 import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
@@ -179,6 +192,39 @@ describe('tool result size diagnostics', () => {
     settleSimToolExecution.mockResolvedValue(undefined)
   })
 
+  it.each(['workspace-a', 'workspace-b'])(
+    'publishes an organization file edit under its own %s target',
+    async (workspaceId) => {
+      const output = { fileId: 'file', fileName: 'report.csv' }
+      executeTool.mockResolvedValueOnce({ success: true, output })
+      const toolCall = {
+        ...buildPendingToolCall(),
+        name: 'apply_file_edit',
+        targetWorkspaceId: workspaceId,
+      }
+      const completion = await executeToolAndReport(
+        toolCall.id,
+        buildStreamingContext(toolCall),
+        {
+          userId: 'actor',
+          organizationId: 'org',
+          chatId: 'chat',
+        },
+        { onEvent }
+      )
+      expect(completion.status).toBe('success')
+      expect(handleResourceSideEffects).toHaveBeenCalledWith(
+        'apply_file_edit',
+        {},
+        expect.objectContaining({ output }),
+        expect.objectContaining({ success: true }),
+        'chat',
+        onEvent,
+        expect.any(Function),
+        workspaceId
+      )
+    }
+  )
   it('keeps large visual observations out of UI replay while preserving the model result', async () => {
     const data = Buffer.alloc(850_000, 1).toString('base64')
     const output = {
@@ -389,11 +435,11 @@ describe('executeToolAndReport provenance isolation', () => {
 
   it('keeps a real embedded workflow execution alive beyond the generic watchdog', async () => {
     vi.useFakeTimers()
-    const runWorkflow = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      expect(String(input)).toBe('https://cli-budget.test/api/v2/workflows/workflow-1/execute')
-      expect(init?.method).toBe('POST')
+    const runWorkflow = vi.fn(async (request: Request) => {
+      expect(request.url).toBe('https://cli-budget.test/api/v2/workflows/workflow-1/execute')
+      expect(request.method).toBe('POST')
       await sleep(70_000)
-      init?.signal?.throwIfAborted()
+      request.signal.throwIfAborted()
       return Response.json({
         data: {
           executionId: 'run-1',
@@ -402,7 +448,15 @@ describe('executeToolAndReport provenance isolation', () => {
         },
       })
     })
-    vi.stubGlobal('fetch', runWorkflow)
+    dispatchCli.mockImplementationOnce(runWorkflow)
+    queueTableRows(workspace, [
+      {
+        id: 'workspace-1',
+        organizationId: null,
+        allowPersonalApiKeys: false,
+        billedAccountUserId: 'user-1',
+      },
+    ])
     executeTool.mockImplementation(async (name, params, context) => {
       expect(name).toBe('sim_cli')
       return executeSimCli(params, context)

@@ -3,9 +3,10 @@ import { copilotChats, mothershipResourceEffects } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  mergeChatResource,
+  getChatResourceKey,
   type MothershipResource,
   type MothershipResourceUpdate,
+  mergeChatResource,
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 
@@ -53,9 +54,9 @@ export async function serializeChatResourceWrite<T>(
 
 export type ChatResourceChange =
   | { kind: 'upsert'; resources: MothershipResourceUpdate[] }
-  | { kind: 'remove'; resources: Pick<MothershipResource, 'type' | 'id'>[] }
+  | { kind: 'remove'; resources: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>[] }
   | { kind: 'reorder'; resources: MothershipResource[] }
-  | { kind: 'clear-view'; tableId: string; viewId: string }
+  | { kind: 'clear-view'; tableId: string; viewId: string; workspaceId?: string }
 
 /** The caller resolves and authorizes this canonical chat before entering its atomic resource update. */
 export async function changeStoredChatResources(
@@ -63,84 +64,86 @@ export async function changeStoredChatResources(
   change: ChatResourceChange,
   effectId?: string
 ): Promise<MothershipResource[]> {
-  return serializeChatResourceWrite(chatId, () => db.transaction(async (tx) => {
-    await setChatResourceTxTimeouts(tx)
-    const [chat] = await tx
-      .select({ resources: copilotChats.resources })
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
-      .for('update')
-    if (!chat) throw new OrchestrationError('not_found', 'Chat not found')
-    const existing = sanitizeChatResources(Array.isArray(chat.resources) ? chat.resources : [])
-    if (effectId) {
-      const [applied] = await tx
-        .insert(mothershipResourceEffects)
-        .values({ chatId, effectId })
-        .onConflictDoNothing()
-        .returning({ effectId: mothershipResourceEffects.effectId })
-      if (!applied) return existing
-    }
-    let resources: MothershipResource[]
-    if (change.kind === 'clear-view') {
-      resources = existing.map((resource) => {
-        if (
-          resource.type !== 'table' ||
-          resource.id !== change.tableId ||
-          resource.viewId !== change.viewId
-        )
-          return resource
-        const { viewId: _view, ...unPinned } = resource
-        return unPinned
-      })
-    } else if (change.kind === 'remove') {
-      resources = existing.filter(
-        (resource) =>
-          !change.resources.some(
-            (removed) =>
-              removed.type === resource.type &&
-              (removed.id === resource.id ||
-                removed.type === 'browser' ||
-                removed.type === 'terminal')
-          )
-      )
-    } else {
-      const incoming = sanitizeChatResources(
-        change.resources.filter((resource) => resource.id !== 'streaming-file')
-      )
-      const byKey = new Map(
-        existing.map((resource) => [`${resource.type}:${resource.id}`, resource])
-      )
-      if (change.kind === 'reorder') {
-        const keys = incoming.map((resource) => `${resource.type}:${resource.id}`)
-        if (
-          keys.length !== byKey.size ||
-          new Set(keys).size !== keys.length ||
-          keys.some((key) => !byKey.has(key))
-        ) {
-          throw new OrchestrationError(
-            'validation',
-            'Reordered resources must match existing resources'
-          )
-        }
-        resources = keys.map((key) => {
-          const resource = byKey.get(key)
-          if (!resource) throw new OrchestrationError('validation', 'Resource order changed')
-          return resource
-        })
-      } else {
-        for (const resource of incoming) {
-          const key = `${resource.type}:${resource.id}`
-          const previous = byKey.get(key)
-          const merged = mergeChatResource(previous, resource)
-          byKey.set(key, effectId ? { ...merged, title: resource.title || merged.title } : merged)
-        }
-        resources = [...byKey.values()]
+  return serializeChatResourceWrite(chatId, () =>
+    db.transaction(async (tx) => {
+      await setChatResourceTxTimeouts(tx)
+      const [chat] = await tx
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
+        .for('update')
+      if (!chat) throw new OrchestrationError('not_found', 'Chat not found')
+      const existing = sanitizeChatResources(Array.isArray(chat.resources) ? chat.resources : [])
+      if (effectId) {
+        const [applied] = await tx
+          .insert(mothershipResourceEffects)
+          .values({ chatId, effectId })
+          .onConflictDoNothing()
+          .returning({ effectId: mothershipResourceEffects.effectId })
+        if (!applied) return existing
       }
-    }
-    await tx
-      .update(copilotChats)
-      .set({ resources: sql`${JSON.stringify(resources)}::jsonb`, updatedAt: new Date() })
-      .where(eq(copilotChats.id, chatId))
-    return resources
-  }))
+      let resources: MothershipResource[]
+      if (change.kind === 'clear-view') {
+        resources = existing.map((resource) => {
+          if (
+            resource.type !== 'table' ||
+            resource.id !== change.tableId ||
+            resource.workspaceId !== change.workspaceId ||
+            resource.viewId !== change.viewId
+          )
+            return resource
+          const { viewId: _view, ...unPinned } = resource
+          return unPinned
+        })
+      } else if (change.kind === 'remove') {
+        resources = existing.filter(
+          (resource) =>
+            !change.resources.some(
+              (removed) =>
+                removed.type === resource.type &&
+                removed.workspaceId === resource.workspaceId &&
+                (removed.id === resource.id ||
+                  removed.type === 'browser' ||
+                  removed.type === 'terminal')
+            )
+        )
+      } else {
+        const incoming = sanitizeChatResources(
+          change.resources.filter((resource) => resource.id !== 'streaming-file')
+        )
+        const byKey = new Map(existing.map((resource) => [getChatResourceKey(resource), resource]))
+        if (change.kind === 'reorder') {
+          const keys = incoming.map(getChatResourceKey)
+          if (
+            keys.length !== byKey.size ||
+            new Set(keys).size !== keys.length ||
+            keys.some((key) => !byKey.has(key))
+          ) {
+            throw new OrchestrationError(
+              'validation',
+              'Reordered resources must match existing resources'
+            )
+          }
+          resources = keys.map((key) => {
+            const resource = byKey.get(key)
+            if (!resource) throw new OrchestrationError('validation', 'Resource order changed')
+            return resource
+          })
+        } else {
+          for (const resource of incoming) {
+            const key = getChatResourceKey(resource)
+            const previous = byKey.get(key)
+            const merged = mergeChatResource(previous, resource)
+            byKey.set(key, effectId ? { ...merged, title: resource.title || merged.title } : merged)
+          }
+          resources = [...byKey.values()]
+        }
+      }
+      await tx
+        .update(copilotChats)
+        .set({ resources: sql`${JSON.stringify(resources)}::jsonb`, updatedAt: new Date() })
+        .where(eq(copilotChats.id, chatId))
+      return resources
+    })
+  )
 }

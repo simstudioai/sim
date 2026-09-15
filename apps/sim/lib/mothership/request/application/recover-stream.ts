@@ -72,7 +72,7 @@ export const readChatStream = defineAuthorizedChatUseCase({
       intent.userId !== userId ||
       intent.workspaceId !== workspaceId ||
       intent.organizationId !== organizationId ||
-      (organizationId && intent.mode !== 'assistant') ||
+      (organizationId && intent.mode !== context.mode) ||
       intent.chatId !== chatId ||
       intent.messageId !== run.streamId
     ) {

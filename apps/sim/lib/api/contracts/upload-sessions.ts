@@ -73,6 +73,7 @@ export const createInternalFileUploadBodySchema = z.discriminatedUnion('purpose'
   z
     .object({
       purpose: z.literal('mothership_attachment'),
+      requestMode: z.enum(['agent', 'assistant']).optional(),
       ...internalFileUploadBaseShape,
       size: z.number().int().min(1).max(MAX_WORKSPACE_FILE_SIZE),
       workspaceId: workspaceIdSchema.optional(),
@@ -89,6 +90,7 @@ export const createInternalFileUploadBodySchema = z.discriminatedUnion('purpose'
       }
       if (
         body.organizationId &&
+        body.requestMode !== 'agent' &&
         (body.size > ASSISTANT_IMAGE_MAX_BYTES ||
           !ASSISTANT_IMAGE_CONTENT_TYPES.some((type) => type === body.contentType))
       ) {

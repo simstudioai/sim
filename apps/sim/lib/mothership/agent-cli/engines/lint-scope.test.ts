@@ -19,7 +19,7 @@ vi.mock('@/lib/workflows/application/context', () => ({
 vi.mock('@/lib/workflows/queries', () => ({ loadWorkflowReadSnapshot: mocks.snapshot }))
 vi.mock('@/lib/workflows/editing/lint-report', () => ({ buildWorkflowLintReport: mocks.report }))
 vi.mock('@/lib/secrets/application/use-cases', () => ({
-  listSecretsUseCase: { execute: mocks.secrets },
+  listSecretsUseCase: { execute: mocks.secrets, delegationAudience: 'sim:secrets' },
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -240,7 +240,7 @@ describe('Mothership workflow lint scope', () => {
     expect(mocks.secrets).not.toHaveBeenCalled()
   })
 
-  it('does not substitute a delegated principal for a human secret-list identity', async () => {
+  it('rejects a delegated principal with the wrong workflow audience', async () => {
     await expect(
       readWorkflowLint.execute({
         principal: {
@@ -256,9 +256,40 @@ describe('Mothership workflow lint scope', () => {
         input: { workflowId: 'wf-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mocks.report).not.toHaveBeenCalled()
   })
 
+  it('lints through the real augmentation principal with keys disabled and keeps the actor on secret reads', async () => {
+    const context = await mocks.resolveContext()
+    mocks.resolveContext.mockResolvedValue({ ...context, allowPersonalApiKeys: false })
+    const result = await workflowLintCommand.execute(
+      ['wf-1'],
+      {
+        ...runtime,
+        workspaceId: 'workflow-workspace',
+        invocation: { userId: 'chat-actor', workspaceId: 'workflow-workspace', chatId: 'org-chat' },
+      },
+      {}
+    )
+    expect(result.exitCode).toBe(0)
+    expect(mocks.report).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ subjectUserId: 'chat-actor' }),
+      expect.anything()
+    )
+    expect(mocks.secrets).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'chat-actor',
+          workspaceId: 'workflow-workspace',
+          audience: 'sim:secrets',
+          resourceScope: { chatId: 'org-chat' },
+        }),
+      })
+    )
+  })
   it('honors a workspace policy that disables personal API keys', async () => {
     const context = await mocks.resolveContext()
     mocks.resolveContext.mockResolvedValue({ ...context, allowPersonalApiKeys: false })

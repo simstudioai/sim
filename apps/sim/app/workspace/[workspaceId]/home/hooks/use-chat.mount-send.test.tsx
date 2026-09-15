@@ -230,7 +230,10 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
 const mountedRoots: Root[] = []
 let queryClient: QueryClient
 
-function renderUseChat(owner: string | { organizationId: string } = 'ws-1'): {
+function renderUseChat(
+  owner: string | { organizationId: string } = 'ws-1',
+  requestMode?: 'agent' | 'assistant'
+): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
 } {
@@ -242,7 +245,7 @@ function renderUseChat(owner: string | { organizationId: string } = 'ws-1'): {
   let result: ReturnType<typeof useChat> | undefined
 
   function Probe() {
-    result = useChat(owner, undefined)
+    result = useChat(owner, undefined, { requestMode })
     return null
   }
 
@@ -451,6 +454,29 @@ describe('useChat remount send recovery', () => {
     })
   })
 
+  it('preserves Home agent intent through an org send, queue and unmount recovery', async () => {
+    navigationMocks.usePathname.mockReturnValue('/o/org-1/home')
+    const { getResult, unmount } = renderUseChat({ organizationId: 'org-1' }, 'agent')
+    await act(async () => {
+      void getResult().sendMessage('Update the workflow')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).toMatchObject({ organizationId: 'org-1', mode: 'agent' })
+    expect(state.postBodies[0]).not.toHaveProperty('workspaceId')
+    await act(async () => {
+      void getResult().sendMessage('Then verify it')
+    })
+    expect(getResult().messageQueue[0]).toMatchObject({
+      content: 'Then verify it',
+      requestMode: 'agent',
+    })
+    unmount()
+    await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-1' })).toMatchObject({
+      requestMode: 'agent',
+    })
+  })
+
   it('sends and recovers an organization turn without adding workspace scope', async () => {
     navigationMocks.usePathname.mockReturnValue('/o/org-1/home')
     const { getResult, unmount } = renderUseChat({ organizationId: 'org-1' })
@@ -561,6 +587,7 @@ describe('useChat remount send recovery', () => {
     async (loading) => {
       const history: MothershipChatHistory = {
         id: 'chat-selection',
+        mode: 'agent',
         title: 'Resources',
         messages: [],
         activeStreamId: null,

@@ -14,11 +14,16 @@ import { readV2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-h
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
 import {
+  type CopilotChatDelegationContext,
+  createCopilotChatPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
+import {
   importWorkspaceFileSnapshotProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -30,6 +35,7 @@ export function createFileReadTransport(context: {
   endpoint: string
   transport?: typeof fetch
   userId: string
+  invocation?: CopilotChatDelegationContext
   chatId?: string
   registry?: ResolvedSecretTraceRegistry
   trackDownload?: (
@@ -73,9 +79,15 @@ export function createFileReadTransport(context: {
     let stream: ReadableStream<Uint8Array> | undefined
     try {
       request.signal.throwIfAborted()
-      const { principal } = await authenticateV2ApiKey(readV2CredentialHeaders(request.headers))
+      const principal = context.invocation
+        ? createCopilotChatPrincipal(context.invocation, WORKSPACE_FILES_DELEGATION_AUDIENCE)
+        : (await authenticateV2ApiKey(readV2CredentialHeaders(request.headers))).principal
       request.signal.throwIfAborted()
-      if (principal.kind !== 'personal_api_key' || principal.userId !== context.userId) {
+      if (
+        principal.kind === 'delegated'
+          ? principal.subjectUserId !== context.userId
+          : principal.kind !== 'personal_api_key' || principal.userId !== context.userId
+      ) {
         throw new V2ApiKeyUnauthenticatedError()
       }
       if (!context.registry) {

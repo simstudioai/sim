@@ -102,4 +102,32 @@ describe('handleResourceSideEffects', () => {
       })
     }
   )
+  it.each(['workspace-a', 'workspace-b'])(
+    'addresses extracted exports to admitted %s',
+    async (workspaceId) => {
+      const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
+      mocks.extractResourcesFromToolResult.mockReturnValue([resource])
+      const onEvent = vi.fn()
+      await handleResourceSideEffects(
+        'run_function',
+        undefined,
+        { success: true, output: {} },
+        { success: true, output: {} },
+        'org-chat',
+        onEvent,
+        () => false,
+        workspaceId
+      )
+      expect(mocks.persistChatResources).toHaveBeenCalledWith('org-chat', [
+        { ...resource, workspaceId },
+      ])
+      expect(onEvent).toHaveBeenCalledWith({
+        type: 'resource',
+        payload: {
+          op: 'upsert',
+          resource: { ...resource, workspaceId },
+        },
+      })
+    }
+  )
 })

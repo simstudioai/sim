@@ -10,8 +10,7 @@ import { defineWorkspaceOperation } from '@/lib/core/application/workspace-opera
  * workspace's integration allowlist, the organization's revealed preview blocks,
  * the deployment's allowlist, and the workspace's own deployed custom blocks.
  *
- * Mothership calls these use cases as the personal-key principal authenticated
- * for its embedded CLI. No `delegated` principal kind is needed.
+ * Mothership calls these same use cases with bounded Copilot delegation.
  *
  * The block and tool catalogs name no capability. They are the set of things
  * the editor can render at all, already filtered per workspace, and the
@@ -28,7 +27,14 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: one entry of the same catalog listBlocks returns, so it cannot be governed differently
   readBlock: defineWorkspaceOperation({
@@ -37,7 +43,14 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: describes which tools exist; whether a member may call one is decided on that tool's own operation
   listTools: defineWorkspaceOperation({
@@ -46,7 +59,14 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: one entry of the same catalog listTools returns, so it cannot be governed differently
   readTool: defineWorkspaceOperation({
@@ -55,7 +75,14 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
   /**
    * The only catalog with a capability: it enumerates knowledge-base connector
@@ -68,6 +95,13 @@ export const catalogOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'knowledge.use',
-    principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'workspace_api_key'],
+    principalKinds: [
+      'session',
+      'personal_api_key',
+      'oauth_access_token',
+      'workspace_api_key',
+      'delegated',
+    ],
+    delegatedServices: ['copilot'],
   }),
 } as const

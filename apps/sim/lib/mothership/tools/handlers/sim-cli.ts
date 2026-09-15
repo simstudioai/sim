@@ -26,12 +26,14 @@ export async function executeSimCli(
       error: 'sim_cli requires the worker-built request; the invocation was not translated.',
     }
   }
-  if (!context.workspaceId) {
+  if (!context.workspaceId && !context.organizationId) {
     return { success: false, error: 'sim_cli requires a workspace-scoped execution context.' }
   }
   try {
     const result = await executeAgentCliRequest(parsed.data, {
       workspaceId: context.workspaceId,
+      organizationId: context.organizationId,
+      chatOrganizationId: context.chatOrganizationId,
       userId: context.userId,
       chatId: context.chatId,
       signal: context.abortSignal,

@@ -38,8 +38,11 @@ describe('organization Search page gates', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue(session)
-    mocks.context.mockResolvedValue({ searchAccess: { memberScoped: true } })
-    mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1' })
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: true,
+      searchAccess: { memberScoped: true },
+    })
+    mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1', mode: 'agent' })
   })
 
   it.each([
@@ -113,4 +116,25 @@ describe('organization Search page gates', () => {
     mocks.context.mockRejectedValue(new Error('Availability unavailable'))
     await expect(OrganizationHomePage({ params })).rejects.toThrow('Availability unavailable')
   })
+})
+
+it('keeps Home available without Search and reopens Search chats in Assistant', async () => {
+  mocks.context.mockResolvedValue({
+    mothershipAvailable: true,
+    searchAccess: { memberScoped: false },
+  })
+  expect(renderToStaticMarkup(await OrganizationHomePage({ params }))).toContain(
+    'Organization Assistant'
+  )
+  await expect(OrganizationSearchPage({ params })).rejects.toThrow(
+    'redirect:/workspace?redirect=settings'
+  )
+  mocks.context.mockResolvedValue({
+    mothershipAvailable: true,
+    searchAccess: { memberScoped: true },
+  })
+  mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1', mode: 'assistant' })
+  expect(renderToStaticMarkup(await OrganizationChatPage({ params }))).toContain(
+    'Organization Search'
+  )
 })

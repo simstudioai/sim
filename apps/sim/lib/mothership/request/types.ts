@@ -32,6 +32,8 @@ export interface ToolCallState {
   /** The model's tool name when `name` is a display identity (the worker's cli_*
    * names). Execution dispatches on this; rendering and persistence keep `name`. */
   execName?: string
+  /** Private invocation target, separate from provider arguments. */
+  targetWorkspaceId?: string
   status: ToolCallStatus
   /** Bounded registry ID of the agent that invoked this tool. */
   agentId?: string

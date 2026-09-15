@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
@@ -43,10 +44,8 @@ async function resolveWorkspaceContext(workspaceId: string): Promise<SecretWorks
   return context
 }
 
-function principalUserId(
-  principal: Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
-): string {
-  return principal.userId
+function principalUserId(principal: Principal): string {
+  return requirePrincipalSubjectUserId(principal)
 }
 
 function credentialTypes(scope?: SecretScope) {
@@ -208,7 +207,7 @@ async function getPersonalSecretMetadata(params: {
   }
 }
 
-const authorizationOptions = {}
+const authorizationOptions = { delegation: { audience: 'sim:secrets', isWithinScope: () => true } }
 
 export interface ListSecretsInput {
   workspaceId: string

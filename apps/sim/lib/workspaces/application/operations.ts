@@ -23,7 +23,8 @@ export const workspaceOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: PUBLIC_API_PRINCIPAL_KINDS,
+    principalKinds: [...PUBLIC_API_PRINCIPAL_KINDS, 'delegated'],
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: names of people the caller already shares a workspace with; `hideOrgMemberDirectory` covers the organization-wide roster and its email addresses, which is the materially different disclosure
   listPublicMembers: defineWorkspaceOperation({
@@ -32,6 +33,7 @@ export const workspaceOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: PUBLIC_API_PRINCIPAL_KINDS,
+    principalKinds: [...PUBLIC_API_PRINCIPAL_KINDS, 'delegated'],
+    delegatedServices: ['copilot'],
   }),
 } as const

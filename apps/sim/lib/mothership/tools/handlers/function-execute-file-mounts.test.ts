@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => ({
   presign: vi.fn(),
   render: vi.fn(),
   decrypt: vi.fn(),
+  attachment: vi.fn(),
+}))
+vi.mock('@/lib/mothership/chat/application/read-attachment', () => ({
+  readChatAttachment: { execute: mocks.attachment },
 }))
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (actual: string | null) => actual === 'read',
@@ -297,5 +301,91 @@ describe('Mothership file mounts bind content and classification to the same rec
     ).rejects.toThrow('Storage unavailable')
     expect(budget).toEqual({ buffered: 40 * 1024 * 1024, url: 500 })
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization-owned upload mounts', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    mocks.attachment.mockResolvedValue({
+      id: 'upload',
+      name: 'data.txt',
+      buffer: Buffer.from('public input'),
+    })
+  })
+  it('mounts the exact authorized private chat upload with no workspace lookup', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+    const result = await resolveInputFiles(
+      {
+        ...context,
+        workspaceId: undefined,
+        organizationId: 'org',
+        resolvedSecretTraceRegistry: registry,
+      },
+      [{ path: 'uploads/upload', sandboxPath: '/tmp/input.txt' }],
+      [],
+      [],
+      registry
+    )
+    expect(result).toEqual([
+      {
+        path: '/tmp/input.txt',
+        content: Buffer.from('public input').toString('base64'),
+        encoding: 'base64',
+      },
+    ])
+    expect(mocks.attachment).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'organization_delegated',
+        organizationId: 'org',
+        subjectUserId: 'reader',
+        resourceScope: { chatId: 'chat' },
+      }),
+      input: expect.objectContaining({ chatId: 'chat', reference: 'uploads/upload' }),
+    })
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(registry.isComplete()).toBe(true)
+  })
+  it('rejects unknown provenance without certifying derived scratch', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+    registry.markIncomplete('mounted-file-provenance-unavailable')
+    await expect(
+      resolveInputFiles(
+        {
+          ...context,
+          workspaceId: undefined,
+          organizationId: 'org',
+          resolvedSecretTraceRegistry: registry,
+        },
+        [{ path: 'uploads/upload' }],
+        [],
+        [],
+        registry
+      )
+    ).rejects.toThrow('provenance')
+    expect(registry.isComplete()).toBe(false)
+  })
+  it('requires a target for workspace files and never treats missing upload authority as a workspace fallback', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], { userId: 'reader' })
+    await expect(
+      resolveInputFiles(
+        { ...context, workspaceId: undefined, organizationId: 'org' },
+        [{ path: 'files/secret.txt' }],
+        [],
+        [],
+        registry
+      )
+    ).rejects.toThrow('explicit workspace')
+    mocks.attachment.mockRejectedValue(new Error('Attachment not found'))
+    await expect(
+      resolveInputFiles(
+        { ...context, workspaceId: undefined, organizationId: 'org' },
+        [{ path: 'uploads/foreign' }],
+        [],
+        [],
+        registry
+      )
+    ).rejects.toThrow('Attachment not found')
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 })

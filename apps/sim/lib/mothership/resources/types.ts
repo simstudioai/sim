@@ -19,6 +19,9 @@ export interface MothershipResource {
   type: MothershipResourceType
   id: string
   title: string
+  /** Canonical resource owner; independent of the conversation's owner. */
+  workspaceId?: string
+  workspaceName?: string
   path?: string
   /** Saved table view to open pinned (type "table" only). */
   viewId?: string
@@ -50,6 +53,26 @@ export interface WorkspaceResourceRef {
   id?: string
   path?: string
   title: string
+  workspaceId?: string
+}
+
+/** Scope is part of identity for aliases such as integration names and folder paths. */
+export function getChatResourceKey(
+  resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
+): string {
+  return resource.workspaceId
+    ? JSON.stringify([resource.workspaceId, resource.type, resource.id])
+    : `${resource.type}:${resource.id}`
+}
+
+/** UUID resources keep their existing deep links; workspace aliases need their owner in the URL. */
+export function getChatResourceSelectionId(resource: MothershipResource): string {
+  const canonicalId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    resource.id
+  )
+  return resource.workspaceId && !canonicalId && !isEphemeralResource(resource)
+    ? getChatResourceKey(resource)
+    : resource.id
 }
 
 interface ResourcePolicy {
@@ -185,12 +208,8 @@ export function reorderStoredChatResources(
   // writers) sends one fewer entry from the deduplicated client. Matching on
   // sets keeps that reorder valid and collapses the duplicate on write, where
   // a length check would reject every reorder for that chat forever.
-  const storedByKey = new Map(
-    stored.map((resource) => [`${resource.type}:${resource.id}`, resource])
-  )
-  const requestedKeys = Array.from(
-    new Set(requested.map((resource) => `${resource.type}:${resource.id}`))
-  )
+  const storedByKey = new Map(stored.map((resource) => [getChatResourceKey(resource), resource]))
+  const requestedKeys = Array.from(new Set(requested.map(getChatResourceKey)))
   if (requestedKeys.length !== storedByKey.size) return null
 
   const reordered: MothershipResource[] = []
@@ -221,6 +240,8 @@ export const GENERIC_RESOURCE_TITLES = new Set<string>([
  */
 const MERGED_FIELDS = {
   title: true,
+  workspaceId: true,
+  workspaceName: true,
   path: true,
   viewId: true,
   executionId: true,
@@ -250,6 +271,8 @@ export function mergeChatResource(
   const { viewId: _previousViewId, ...prevWithoutViewId } = prev
   const merged: MothershipResource = {
     ...(next.clearViewId === true ? prevWithoutViewId : prev),
+    ...(next.workspaceId !== undefined ? { workspaceId: next.workspaceId } : {}),
+    ...(next.workspaceName !== undefined ? { workspaceName: next.workspaceName } : {}),
     ...(next.path !== undefined ? { path: next.path } : {}),
     ...(next.clearViewId !== true && next.viewId !== undefined ? { viewId: next.viewId } : {}),
     ...(next.executionId !== undefined ? { executionId: next.executionId } : {}),

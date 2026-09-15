@@ -250,3 +250,22 @@ describe('trusted workbench byte receipts', () => {
     expect(() => unavailable.uploadProvenance()).toThrow('has not finished')
   })
 })
+
+it('shares an org chat receipt across explicit targets but never across orgs or chats', async () => {
+  const orgScope = { ...scope, organizationId: 'org', workspaceId: 'a' }
+  const first = createWorkbenchFileProvenance(orgScope)
+  const stream = body()
+  first.trackDownload(stream, safe)
+  await consume(first.observeDownload(machine, stream))
+  const second = createWorkbenchFileProvenance({ ...orgScope, workspaceId: 'b' })
+  await consume(second.observeUpload(machine, body()))
+  expect(second.uploadProvenance()).toEqual(safe)
+  for (const other of [
+    { ...orgScope, organizationId: 'other' },
+    { ...orgScope, sessionKey: 'other' },
+  ]) {
+    const outsider = createWorkbenchFileProvenance(other)
+    await consume(outsider.observeUpload(machine, body()))
+    expect(outsider.uploadProvenance()).toEqual({ status: 'unknown' })
+  }
+})

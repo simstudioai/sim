@@ -15,9 +15,13 @@ import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
  * and the Access Control "Blocks" list — sees custom blocks. Re-hydrates on
  * workspace switch (the query key changes) and on any publish/edit/unpublish.
  */
-export function CustomBlocksLoader() {
+export function CustomBlocksLoader({
+  workspaceId: scopedWorkspaceId,
+}: {
+  workspaceId?: string
+} = {}) {
   const params = useParams()
-  const workspaceId = params?.workspaceId as string | undefined
+  const workspaceId = scopedWorkspaceId ?? (params?.workspaceId as string | undefined)
   const { data } = useCustomBlocks(workspaceId)
 
   /** No-icon blocks use the access-authorized workspace host logo, then the default glyph. */

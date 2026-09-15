@@ -119,6 +119,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
         userPermission,
         requestMode,
         assistantSearch,
+        targetWorkspaceId,
       } = validation.data
       rootSpan.setAttributes({
         [TraceAttr.ToolName]: toolName,
@@ -214,6 +215,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
           copilotInteractionMode: 'interactive',
           requestMode,
           assistantSearch,
+          targetWorkspaceId,
           resolvedSecretTraceRegistry: toolRegistry,
         })
         const projection = inspectToolResultForCopilot(result, toolRegistry, toolName)

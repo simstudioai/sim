@@ -1,18 +1,28 @@
+import { type Principal, resolvePrincipalSubject } from '@sim/auth/principal'
 import {
   type AuthorizedWorkspaceUseCaseDefinition,
   defineAuthorizedWorkspaceUseCase,
 } from '@/lib/core/application/authorized-workspace-use-case'
 import {
+  isCopilotWorkspaceInvocation,
+  markCopilotWorkspaceInvocation,
+} from '@/lib/core/application/copilot-workspace-invocation'
+import {
   authorizeWorkspaceOperation,
   type WorkspaceAuthorizationContext,
 } from '@/lib/core/application/workspace-authorization'
+import { withinAuthorizedWorkspaceOperation } from '@/lib/core/application/workspace-invocation-scope'
 import type { WorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { getWorkspaceWithOwner, type WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { assertForkingEnabled } from '@/ee/workspace-forking/lib/lineage/authz'
 import { type ForkEdge, resolveForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
 
 export interface ForkApplicationContext extends WorkspaceAuthorizationContext {
+  userId: string
+  workspacePrincipals: Map<string, Principal>
   workspace: WorkspaceWithOwner
   other?: WorkspaceWithOwner
   edge?: ForkEdge
@@ -31,11 +41,19 @@ export function defineForkUseCase<
 ) {
   return defineAuthorizedWorkspaceUseCase<O, I, ForkApplicationContext, R>({
     ...definition,
-    authorizationOptions: {},
-    async resolveContext({ input }) {
+    authorizationOptions: {
+      delegation: { audience: 'sim:workspaces', isWithinScope: isCopilotWorkspaceInvocation },
+    },
+    async resolveContext({ input, principal }) {
+      const subject = resolvePrincipalSubject(principal)
+      if (subject?.kind !== 'sim_user') {
+        throw new OrchestrationError('forbidden', 'Workspace forking requires an acting user')
+      }
       const workspace = await getWorkspaceWithOwner(input.workspaceId, { includeArchived: false })
       if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
       return {
+        userId: subject.userId,
+        workspacePrincipals: new Map([[workspace.id, principal]]),
         workspace,
         workspaceId: workspace.id,
         workspaceOrganizationId: workspace.organizationId,
@@ -51,11 +69,10 @@ export function defineForkUseCase<
           includeArchived: false,
         })
         if (!other) throw new OrchestrationError('not_found', 'Workspace not found')
-        await authorizeWorkspaceOperation(principal, definition.operation, {
-          workspaceId: other.id,
-          workspaceOrganizationId: other.organizationId,
-          allowPersonalApiKeys: other.allowPersonalApiKeys,
-        })
+        context.workspacePrincipals.set(
+          other.id,
+          await authorizeOtherForkWorkspace(principal, definition.operation, context, other)
+        )
         await assertForkingEnabled(other.organizationId)
         context.other = other
       }
@@ -69,4 +86,45 @@ export function defineForkUseCase<
       }
     },
   })
+}
+
+/** Called only after primary admission; nested checks keep the same actor and bounded lifetime. */
+async function authorizeOtherForkWorkspace(
+  principal: Principal,
+  operation: WorkspaceOperation,
+  context: ForkApplicationContext,
+  other: WorkspaceWithOwner
+): Promise<Principal> {
+  const otherContext = {
+    workspaceId: other.id,
+    workspaceOrganizationId: other.organizationId,
+    allowPersonalApiKeys: other.allowPersonalApiKeys,
+  }
+  let otherPrincipal = principal
+  if (principal.kind === 'delegated') {
+    if (
+      !isCopilotWorkspaceInvocation(principal) ||
+      other.organizationId !== context.workspaceOrganizationId
+    ) {
+      throw new OrchestrationError('not_found', 'Workspace not found in this organization')
+    }
+    otherPrincipal = Object.freeze({
+      ...createCopilotChatPrincipal(
+        { userId: context.userId, workspaceId: other.id, chatId: principal.resourceScope?.chatId },
+        principal.audience
+      ),
+      expiresAt: principal.expiresAt,
+    })
+    markCopilotWorkspaceInvocation(otherPrincipal)
+  }
+  await withinAuthorizedWorkspaceOperation(() =>
+    authorizeWorkspaceOperation(otherPrincipal, operation, otherContext, {
+      delegation: { audience: 'sim:workspaces', isWithinScope: isCopilotWorkspaceInvocation },
+    })
+  )
+  if (principal.kind === 'delegated' && other.organizationId) {
+    /** permission-group-enforced: copilot.use — explicit secondary targets retain their own agent access. */
+    await assertWorkspaceCapability(context.userId, other.id, 'copilot.use', other.organizationId)
+  }
+  return otherPrincipal
 }

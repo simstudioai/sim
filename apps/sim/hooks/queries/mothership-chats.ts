@@ -32,10 +32,11 @@ import {
   isFilePreviewSession,
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
-import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { getChatResourceKey, type MothershipResource } from '@/lib/mothership/resources/types'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
 export interface MothershipChatMetadata {
+  mode?: MothershipChat['mode']
   id: string
   name: string
   updatedAt: Date
@@ -46,6 +47,8 @@ export interface MothershipChatMetadata {
 }
 
 export interface MothershipChatHistory {
+  /** Absent only in locally optimistic cache entries before the server responds. */
+  mode?: MothershipChat['mode']
   id: string
   title: string | null
   messages: PersistedMessage[]
@@ -178,8 +181,14 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
     `${chatContext}.activeStreamId must be a string or null`
   )
 
+  assertValid(
+    chat.mode === 'agent' || chat.mode === 'assistant',
+    `${chatContext}.mode must be agent or assistant`
+  )
+
   return {
     id: chat.id,
+    mode: chat.mode,
     title: chat.title,
     messages: normalizeMessages(chat.messages),
     activeStreamId: chat.activeStreamId,
@@ -201,6 +210,7 @@ export function mapChat(chat: MothershipChat): MothershipChatMetadata {
   return {
     id: chat.id,
     name: chat.title ?? 'New chat',
+    mode: chat.mode,
     updatedAt,
     isActive: chat.activeStreamId !== null,
     isUnread:
@@ -439,7 +449,7 @@ export function useAddChatResource(chatId?: string) {
       )
       if (previous) {
         const exists = previous.resources.some(
-          (r) => r.type === resource.type && r.id === resource.id
+          (r) => getChatResourceKey(r) === getChatResourceKey(resource)
         )
         if (!exists) {
           queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), {
@@ -508,6 +518,7 @@ async function removeChatResource(params: {
   chatId: string
   resourceType: MothershipResource['type']
   resourceId: string
+  workspaceId?: string
 }): Promise<{ resources: MothershipResource[] }> {
   const data = await requestJson(removeMothershipChatResourceContract, {
     body: params,
@@ -519,7 +530,7 @@ export function useRemoveChatResource(chatId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: removeChatResource,
-    onMutate: async ({ resourceType, resourceId }) => {
+    onMutate: async ({ resourceType, resourceId, workspaceId }) => {
       if (!chatId) return
       await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(chatId) })
       const removed: MothershipChatHistory['resources'] = []
@@ -527,7 +538,11 @@ export function useRemoveChatResource(chatId?: string) {
         if (!prev) return prev
         const next: MothershipChatHistory['resources'] = []
         for (const r of prev.resources) {
-          if (r.type === resourceType && r.id === resourceId) removed.push(r)
+          if (
+            getChatResourceKey(r) ===
+            getChatResourceKey({ type: resourceType, id: resourceId, workspaceId })
+          )
+            removed.push(r)
           else next.push(r)
         }
         return removed.length > 0 ? { ...prev, resources: next } : prev

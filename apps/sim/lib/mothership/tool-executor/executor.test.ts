@@ -18,6 +18,13 @@ const { executeAppTool, recordSecretUsage } = vi.hoisted(() => ({
   recordSecretUsage: vi.fn(),
 }))
 
+const targets = vi.hoisted(() => ({ resolve: vi.fn(), environment: vi.fn() }))
+vi.mock('@/lib/mothership/application/workspace-target', () => ({
+  resolveInvocationWorkspace: targets.resolve,
+}))
+vi.mock('@/lib/mothership/environment-context', () => ({
+  prepareCopilotEnvironmentContext: targets.environment,
+}))
 vi.mock('./router', () => ({
   getToolEntry,
   isKnownTool,
@@ -579,5 +586,125 @@ describe('copilot tool executor fallback', () => {
     )
 
     expect(recordSecretUsage).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization direct tool targets', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearHandlers()
+    getToolEntry.mockReturnValue({ requiredPermission: 'write' })
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    targets.resolve.mockResolvedValue({ workspaceId: 'selected', permission: 'write' })
+    targets.environment.mockImplementation(async () => ({
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
+        userId: 'actor',
+        workspaceId: 'selected',
+      }),
+    }))
+  })
+  it('separates the invocation target from provider-owned workspace arguments and retains org billing', async () => {
+    const handler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('provider_operation', handler)
+    const registry = new ResolvedSecretTraceRegistry([], { userId: 'actor' })
+    const result = await executeTool(
+      'provider_operation',
+      { workspaceId: 'provider-owned-id' },
+      {
+        userId: 'actor',
+        workflowId: '',
+        organizationId: 'org',
+        chatId: 'chat',
+        requestMode: 'agent',
+        targetWorkspaceId: 'selected',
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+    expect(result.success).toBe(true)
+    expect(handler).toHaveBeenCalledWith(
+      { workspaceId: 'provider-owned-id' },
+      expect.objectContaining({
+        workspaceId: 'selected',
+        organizationId: undefined,
+        chatOrganizationId: 'org',
+        userPermission: 'write',
+      })
+    )
+    expect(targets.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org', chatId: 'chat' }),
+      'selected'
+    )
+    expect(registry.isComplete()).toBe(true)
+  })
+  it('stamps returned organization resources with the actual authorized target', async () => {
+    registerHandler(
+      'provider_operation',
+      vi.fn().mockResolvedValue({
+        success: true,
+        resources: [{ type: 'workflow', id: 'workflow', title: 'Edited', workspaceId: 'forged' }],
+      })
+    )
+    const result = await executeTool(
+      'provider_operation',
+      {},
+      {
+        userId: 'actor',
+        workflowId: '',
+        organizationId: 'org',
+        chatId: 'chat',
+        requestMode: 'agent',
+        targetWorkspaceId: 'selected',
+      }
+    )
+    expect(result.resources).toEqual([
+      { type: 'workflow', id: 'workflow', title: 'Edited', workspaceId: 'selected' },
+    ])
+  })
+  it('denies removed target access before environment resolution or provider dispatch', async () => {
+    targets.resolve.mockRejectedValue(new Error('Target access revoked'))
+    const handler = vi.fn()
+    registerHandler('provider_operation', handler)
+    const result = await executeTool(
+      'provider_operation',
+      {},
+      {
+        userId: 'actor',
+        workflowId: '',
+        organizationId: 'org',
+        chatId: 'chat',
+        requestMode: 'agent',
+        targetWorkspaceId: 'selected',
+      }
+    )
+    expect(result).toMatchObject({ success: false, error: 'Target access revoked' })
+    expect(targets.environment).not.toHaveBeenCalled()
+    expect(handler).not.toHaveBeenCalled()
+  })
+  it('keeps no-target organization code explicitly secret-free', async () => {
+    getToolEntry.mockReturnValue(undefined)
+    const handler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('run_code', handler)
+    await executeTool(
+      'run_code',
+      { code: 'print(1)' },
+      {
+        userId: 'actor',
+        workflowId: '',
+        organizationId: 'org',
+        chatId: 'chat',
+        requestMode: 'agent',
+      }
+    )
+    expect(handler).toHaveBeenCalledWith(
+      { code: 'print(1)' },
+      expect.objectContaining({
+        organizationId: 'org',
+        secretActorUserId: null,
+        secretMountPolicy: { secretScope: 'selected', mountedSecrets: [] },
+      })
+    )
+    expect(targets.environment).not.toHaveBeenCalled()
   })
 })

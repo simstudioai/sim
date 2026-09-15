@@ -1,6 +1,9 @@
 /**
  * @vitest-environment node
  */
+
+import { copilotChats, workspace } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockRead, mockWrite, mockRunEmbeddedCli, mockMint } = vi.hoisted(() => ({
@@ -20,6 +23,11 @@ vi.mock('sim/embed', () => ({
   createEmbeddedClient: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mockMint }))
+vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: async () => [] }))
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: () => true,
+  resolveEffectiveWorkspacePermission: async () => 'write',
+}))
 vi.mock('@/lib/core/utils/urls', () => ({
   getInternalApiBaseUrl: () => 'http://internal',
   SITE_URL: 'http://sim.test',
@@ -39,6 +47,25 @@ function cli(argv: string[], extra: Partial<AgentCliRequest> = {}): { request: A
 describe('sim-cli handler executes the worker-built request', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    queueTableRows(copilotChats, [
+      {
+        userId: 'u-1',
+        workspaceId: 'ws-1',
+        organizationId: null,
+        type: 'mothership',
+        mode: 'agent',
+      },
+    ])
+    for (let index = 0; index < 2; index++)
+      queueTableRows(workspace, [
+        {
+          id: 'ws-1',
+          organizationId: null,
+          allowPersonalApiKeys: false,
+          billedAccountUserId: 'owner',
+        },
+      ])
     mockMint.mockResolvedValue('key')
     mockRunEmbeddedCli.mockResolvedValue({ exitCode: 0, stdout: 'BIG OUTPUT', stderr: '' })
   })
@@ -62,7 +89,7 @@ describe('sim-cli handler executes the worker-built request', () => {
         })
       ).success
     ).toBe(false)
-    expect(mockMint).toHaveBeenCalledTimes(1)
+    expect(mockMint).not.toHaveBeenCalled()
     expect(mockRunEmbeddedCli).toHaveBeenCalledTimes(1)
   })
 

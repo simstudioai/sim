@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { promisify } from 'node:util'
-import { workspaceFiles } from '@sim/db/schema'
+import { copilotChats, workspace, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -94,6 +94,7 @@ vi.mock('@/lib/users/queries', () => ({
     return email
   },
 }))
+vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: async () => [] }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: vi.fn() }))
 vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
   resolveProvider: () => ({
@@ -122,7 +123,14 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 const WORKSPACE = '7727ef3f-8cf6-4686-b063-2bb006a10785'
 const CONTENT = 'ROUND_TRIP_CANARY_ONLY_FOR_LOCAL_TEST'
 const REVISION = new Date('2026-09-06T00:00:00Z')
-const PRINCIPAL = { kind: 'personal_api_key', userId: 'reader', keyId: 'fixture-key' } as const
+const PRINCIPAL = {
+  kind: 'delegated',
+  serviceId: 'copilot',
+  subjectUserId: 'reader',
+  workspaceId: WORKSPACE,
+  audience: 'sim:workspace-files',
+  resourceScope: { chatId: 'chat' },
+} as const
 const SOURCE = {
   id: 'source',
   key: `workspace/${WORKSPACE}/123-abc-source.txt`,
@@ -188,6 +196,24 @@ function queueRead(file: typeof SOURCE, provenance: WorkspaceFileSecretProvenanc
 }
 
 function execute(argv: string[], trace: ResolvedSecretTraceRegistry, sink?: string) {
+  queueTableRows(copilotChats, [
+    {
+      userId: 'reader',
+      workspaceId: WORKSPACE,
+      organizationId: null,
+      type: 'mothership',
+      mode: 'agent',
+    },
+  ])
+  for (let index = 0; index < 2; index++)
+    queueTableRows(workspace, [
+      {
+        id: WORKSPACE,
+        organizationId: null,
+        allowPersonalApiKeys: false,
+        billedAccountUserId: 'owner',
+      },
+    ])
   return executeSimCli(
     {
       request: {
@@ -219,7 +245,9 @@ beforeEach(async () => {
   mocks.receipts.clear()
   directory = await mkdtemp(join(tmpdir(), 'mship-round-trip-'))
   mocks.permission.mockResolvedValue('read')
-  mocks.authenticate.mockResolvedValue({ principal: PRINCIPAL })
+  mocks.authenticate.mockRejectedValue(
+    new Error('Private CLI must not authenticate with a personal key')
+  )
   mocks.decrypt.mockResolvedValue({ decrypted: CONTENT })
   mocks.stream.mockImplementation(async ({ key }: { key: string }) => {
     if (key === PUBLISHED.key) {
@@ -254,14 +282,14 @@ beforeEach(async () => {
     },
   })
   mocks.create.mockImplementation(async ({ principal, input, secretProvenance }) => {
-    expect(principal).toEqual(PRINCIPAL)
+    expect(principal).toMatchObject(PRINCIPAL)
     expect(input.size).toBe(Buffer.byteLength(CONTENT))
     expect(secretProvenance).toBe('pending')
     expect(mocks.complete).not.toHaveBeenCalled()
     return SESSION
   })
   mocks.complete.mockImplementation(async ({ principal, secretProvenance }) => {
-    expect(principal).toEqual(PRINCIPAL)
+    expect(principal).toMatchObject(PRINCIPAL)
     expect(uploaded?.toString()).toBe(CONTENT)
     dbChainMockFns.returning
       .mockResolvedValueOnce([PUBLISHED])
@@ -386,6 +414,7 @@ describe.each(['download', 'stdout', 'stdout with pending sibling'] as const)(
           inspectToolResultForCopilot(reread, readTrace, 'sim_cli').result
         )
         expect(observation.includes(CONTENT)).toBe(classification === 'safe')
+        expect(mocks.authenticate).not.toHaveBeenCalled()
       }
     )
   }

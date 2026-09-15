@@ -1,4 +1,5 @@
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
   isBlockVisibleToCaller,
   loadCatalogWorkspaceContext,
@@ -74,7 +75,7 @@ export const listCatalogBlocks = defineAuthorizedWorkspaceUseCase({
   operation: catalogOperations.listBlocks,
   resolveContext: ({ input }: { input: ListCatalogBlocksInput }) =>
     loadCatalogWorkspaceContext(input.workspaceId),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<ListCatalogBlocksResult> => {
     const search = normalizeCatalogSearch(input.search)
     const gate = await resolveCatalogGate(principal, context)

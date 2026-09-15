@@ -61,7 +61,8 @@ export const POST = withRouteHandler(
       request,
       workflowOperations.resumeRun,
       v2ApiKeyAuth,
-      v2RateLimits.publicApi
+      v2RateLimits.publicApi,
+      resumeWorkflowRun
     )
     if (!admission.success) return admission.response
 

@@ -25,6 +25,7 @@ import {
   type UploadSessionTransfer,
 } from '@/lib/uploads/upload-session/service'
 import type { WorkspaceFileUploadSource } from '@/lib/uploads/upload-session/workspace-file-provenance'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { authorizeWorkspaceFileOperation } from '@/lib/workspace-files/application/workspace-operation-context'
 import {
@@ -348,6 +349,7 @@ export interface CreateWorkspaceFileUploadOperationInput {
 }
 
 export const createWorkspaceFileUploadOperation = {
+  delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
   operation: fileOperations.uploadCreate,
   async execute({
     principal,
@@ -382,6 +384,7 @@ export const createWorkspaceFileUploadOperation = {
 } as const
 
 export const issueWorkspaceFileUploadPartsOperation = {
+  delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
   operation: fileOperations.uploadParts,
   async execute({
     principal,
@@ -401,6 +404,7 @@ export const issueWorkspaceFileUploadPartsOperation = {
 } as const
 
 export const completeWorkspaceFileUploadOperation = {
+  delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
   operation: fileOperations.uploadComplete,
   async execute({
     principal,
@@ -420,6 +424,7 @@ export const completeWorkspaceFileUploadOperation = {
 } as const
 
 export const readWorkspaceFileUploadOperation = {
+  delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
   operation: fileOperations.uploadRead,
   async execute({ principal, input }: { principal: Principal; input: UploadSessionControlInput }) {
     return readWorkspaceUploadSession(principal, input)
@@ -427,6 +432,7 @@ export const readWorkspaceFileUploadOperation = {
 } as const
 
 export const abortWorkspaceFileUploadOperation = {
+  delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
   operation: fileOperations.uploadCancel,
   async execute({ principal, input }: { principal: Principal; input: UploadSessionControlInput }) {
     return abortWorkspaceUploadSession(principal, input)

@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import type { CopilotChatDelegationContext } from '@/lib/mothership/auth/application-delegation'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 /**
  * Sim's half of the mothership↔CLI translation layer: generic execution PRIMITIVES.
@@ -21,12 +22,16 @@ export interface AgentCliClient {
 export interface AgentCliRuntime {
   client: AgentCliClient
   workspaceId: string
+  chatOrganizationId?: string
+  chatPrincipal?: Principal
   /**
    * The caller as the v2 surface resolved it from the embedded credential. Present, an
    * engine may read a platform catalog through its application use case in one call
    * instead of paging it through the client; absent, the client is the only path.
    */
   principal?: Principal
+  /** Validated immutable target; used to select each direct engine operation's declared audience. */
+  invocation?: CopilotChatDelegationContext
 
   /** The human the command acts as — reference resolution and grants scope to them. */
   userId: string

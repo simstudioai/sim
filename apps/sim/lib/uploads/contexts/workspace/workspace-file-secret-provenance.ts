@@ -258,7 +258,9 @@ function deserializeExactEntriesFromStorage(
 export async function createWorkspaceFileSecretProvenanceFromRegistry(
   registry: ResolvedSecretTraceRegistry | undefined,
   persistedValue: unknown,
-  destinationScope: { userId: string; workspaceId: string },
+  destinationScope:
+    | { userId: string; workspaceId: string }
+    | { userId: string; workspaceId?: undefined },
   sourceValue: unknown = persistedValue,
   representations: readonly WorkspaceFileSecretProvenanceRepresentation[] = [],
   representationsComplete = true

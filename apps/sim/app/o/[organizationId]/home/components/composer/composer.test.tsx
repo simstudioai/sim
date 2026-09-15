@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, useState } from 'react'
+import { toast } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
@@ -67,12 +68,21 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-async function render(isInitialView: boolean, initialValue = 'Summarize') {
+async function render(
+  isInitialView: boolean,
+  initialValue = 'Summarize',
+  requestMode: 'agent' | 'assistant' = 'assistant'
+) {
   function Harness() {
     const [value, setValue] = useState(initialValue)
-    const files = useFileAttachments({ userId: 'user-a', organizationId: 'organization-a' })
+    const files = useFileAttachments({
+      userId: 'user-a',
+      organizationId: 'organization-a',
+      requestMode,
+    })
     return (
       <Composer
+        requestMode={requestMode}
         value={value}
         files={files}
         onChange={setValue}
@@ -233,4 +243,24 @@ describe('organization image composer', () => {
       true
     )
   })
+})
+
+it('uploads an agent document with explicit mode while Assistant remains image-only', async () => {
+  const toastError = vi.spyOn(toast, 'error').mockReturnValue('toast-id')
+  const document = new File(['document'], 'notes.txt', { type: 'text/plain' })
+  await render(true, '', 'assistant')
+  await paste([document])
+  expect(mocks.upload).not.toHaveBeenCalled()
+  expect(toastError).toHaveBeenCalledWith('Attach PNG, JPEG, GIF, or WebP images.')
+  await render(true, '', 'agent')
+  await paste([document])
+  expect(mocks.upload).toHaveBeenCalledWith(
+    expect.objectContaining({
+      file: document,
+      organizationId: 'organization-a',
+      requestMode: 'agent',
+    })
+  )
+  expect(container.querySelector('input[type="file"]')?.getAttribute('accept')).toContain('.txt')
+  expect(container.querySelector('button[aria-label="Model and reasoning effort"]')).not.toBeNull()
 })

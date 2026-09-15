@@ -1,4 +1,8 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type {
+  DelegatedPrincipal,
+  OrganizationDelegatedPrincipal,
+  Principal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -92,6 +96,7 @@ import {
   type OutputFileDeclaration,
   resolveOutputFormat,
 } from '@/lib/mothership/request/tools/files'
+import { activeSandboxChatOwner } from '@/lib/mothership/tools/sandbox-resources'
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 import {
   validateWorkspaceFileWriteTarget,
@@ -1004,7 +1009,7 @@ function serializeForShellEnv(value: unknown, nullValue = ''): string {
 }
 
 interface FunctionRouteExecutionContext {
-  principal: DelegatedPrincipal
+  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
   workflowId?: string
   workspaceId?: string
   executionId?: string
@@ -1663,7 +1668,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   const resolvedWorkspaceId =
     workspaceId || (workflowId ? (await getWorkflowById(workflowId))?.workspaceId : undefined)
 
-  if (!resolvedWorkspaceId) {
+  if (!resolvedWorkspaceId || routeContext.principal.kind !== 'delegated') {
     return exportFailure(
       'Workspace context required to save sandbox file to workspace',
       400,
@@ -1841,7 +1846,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   const resolvedWorkspaceId =
     args.workspaceId ||
     (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
-  if (!resolvedWorkspaceId) {
+  if (!resolvedWorkspaceId || args.routeContext.principal.kind !== 'delegated') {
     return exportFailure(
       'Workspace context required to save sandbox files to workspace',
       400,
@@ -2239,7 +2244,7 @@ async function collectSandboxOutputFiles(args: {
 export interface TrustedFunctionExecutionAuth {
   attributedUserId: string
   fileAccessUserId?: string
-  principal: DelegatedPrincipal
+  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
   sandboxProfile?: 'mothership'
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
@@ -2377,11 +2382,17 @@ export async function executeFunctionRequest(
     // `environmentVariables[...]` dict narrow together — filtering only the dict
     // would leave `{{OTHER_SECRET}}` resolving, which is a hole, not a scope.
     const envVars = scopeEnvironmentVariables(rawEnvVars, secretScope, mountedSecrets)
+    const admittedChatOwner = activeSandboxChatOwner()
     const mothershipSession =
-      usesMothershipSandbox && !selectedSandboxId && sandboxSessionKey && workspaceId
+      usesMothershipSandbox &&
+      !selectedSandboxId &&
+      sandboxSessionKey &&
+      (workspaceId || admittedChatOwner?.organizationId)
         ? await buildMothershipSandboxSession({
             sessionKey: sandboxSessionKey,
-            workspaceId,
+            ...(admittedChatOwner?.organizationId
+              ? { organizationId: admittedChatOwner.organizationId }
+              : { workspaceId }),
             userId: auth.attributedUserId,
             signal: executionSignal,
           })

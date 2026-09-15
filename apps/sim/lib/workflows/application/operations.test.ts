@@ -105,19 +105,17 @@ describe('workflow operation registry', () => {
   /**
    * Toggling unauthenticated public execution removes the authentication
    * requirement from a deployed workflow, so it takes an accountable human:
-   * admin role, no workspace key, and — unlike every other admin write in this
-   * registry — no Copilot delegation.
+   * admin role and no workspace key. Copilot uses the actual user's admin role.
    */
   it('reserves public-execution changes for an accountable human admin', () => {
     expect(workflowOperations.updatePublicApi).toMatchObject({
       id: 'workflows.public_api.update',
       minimumRole: 'admin',
       workspaceApiKey: 'deny',
-      principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+      principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     })
     expect(workflowOperations.updatePublicApi.principalKinds).not.toContain('workspace_api_key')
-    expect(workflowOperations.updatePublicApi.principalKinds).not.toContain('delegated')
-    expect(workflowOperations.updatePublicApi.delegatedServices).toBeUndefined()
+    expect(workflowOperations.updatePublicApi.delegatedServices).toEqual(['copilot'])
   })
 
   /**

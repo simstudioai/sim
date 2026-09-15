@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { MothershipChat, MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
+import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
 
 /**
@@ -23,6 +24,7 @@ export async function listMothershipChats(
   const chats = await db
     .select({
       id: copilotChats.id,
+      mode: conversationModeSelection,
       title: copilotChats.title,
       updatedAt: copilotChats.updatedAt,
       activeStreamId: copilotChats.conversationId,
@@ -53,6 +55,7 @@ export async function listMothershipChats(
 
   return chats.map((c) => ({
     id: c.id,
+    mode: c.mode,
     title: c.title,
     updatedAt: c.updatedAt.toISOString(),
     activeStreamId: streamMarkers?.get(c.id)?.streamId ?? null,

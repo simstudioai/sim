@@ -51,6 +51,7 @@ export const AgentCliInvocation = z.discriminatedUnion("kind", [
 export type AgentCliInvocation = z.infer<typeof AgentCliInvocation>;
 
 export const AgentCliRequest = z.object({
+  workspaceId: z.uuid().optional(),
   invocation: AgentCliInvocation,
   sink: AgentCliSandboxFileSink.optional(),
   curate: z.literal("block").optional(),
