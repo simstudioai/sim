@@ -297,6 +297,46 @@ describe('the run-scoped permission config cache', () => {
     expect(ctx.permissionConfigCache).toBeUndefined()
   })
 
+  it('stops retrying when the caller of a check outside a run cancels', async () => {
+    const controller = new AbortController()
+    const reason = new Error('Tool cancelled')
+    mocks.getUserPermissionConfig.mockImplementationOnce(async () => {
+      controller.abort(reason)
+      throw databaseError()
+    })
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        toolId: 'http_request',
+        signal: controller.signal,
+      })
+    ).rejects.toBe(reason)
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not let one caller cancel a load shared through the run cache', async () => {
+    const run = runContext()
+    const controller = new AbortController()
+    mocks.getUserPermissionConfig.mockImplementationOnce(async () => {
+      controller.abort(new Error('Tool cancelled'))
+      throw databaseError()
+    })
+
+    const cancelled = assertPermissionsAllowed({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      toolId: 'http_request',
+      ctx: { ...run },
+      signal: controller.signal,
+    })
+    const other = gate({ ...run })
+
+    await expect(Promise.all([cancelled, other])).resolves.toBeDefined()
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
+  })
+
   it('retries a transient failure for a check made outside a run', async () => {
     mocks.getUserPermissionConfig.mockRejectedValueOnce(databaseError())
 

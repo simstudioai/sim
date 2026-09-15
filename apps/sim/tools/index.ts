@@ -1754,6 +1754,7 @@ async function executeToolImplementation(
           toolId: normalizedToolId,
           toolKind,
           ctx: executionContext,
+          signal: effectiveSignal,
         })
       } catch (error) {
         effectiveSignal?.throwIfAborted()

@@ -246,12 +246,15 @@ async function loadPermissionConfig(
 /**
  * Loads the governed subject's permission config. The subject is resolved here, not by callers,
  * so every gate reads the same person's group. On a run context the in-flight load is memoized per
- * subject and workspace in the run's `permissionConfigCache`, and a failed load is evicted.
+ * subject and workspace in the run's `permissionConfigCache`, and a failed load is evicted. A shared
+ * load observes only the run's abort signal, so one caller's cancellation cannot fail it for others;
+ * an unshared load observes the caller's `signal`.
  */
 async function getPermissionConfig(
   actorUserId: string | undefined,
   workspaceId: string | undefined,
-  ctx?: ExecutionContext
+  ctx?: ExecutionContext,
+  signal?: AbortSignal
 ): Promise<PermissionGroupConfig | null> {
   const userId = governedSubjectUserId(actorUserId, ctx)
   if (!userId || !workspaceId) {
@@ -260,7 +263,7 @@ async function getPermissionConfig(
 
   const cache = ctx?.permissionConfigCache
   if (!cache) {
-    return loadPermissionConfig(userId, workspaceId, ctx?.abortSignal)
+    return loadPermissionConfig(userId, workspaceId, signal ?? ctx?.abortSignal)
   }
 
   const key = `${userId}:${workspaceId}`
@@ -536,6 +539,8 @@ interface PermissionAssertion {
   toolId?: string
   toolKind?: ToolKind
   ctx?: ExecutionContext
+  /** Caller cancellation, observed while loading a config that is not shared through a run cache. */
+  signal?: AbortSignal
 }
 
 /**
@@ -553,7 +558,7 @@ interface PermissionAssertion {
 /** permission-group-enforced: custom_tools.use — gates tool invocation during a run, not an operation */
 /** permission-group-enforced: skills.use — gates skill loading during a run, not an operation */
 export async function assertPermissionsAllowed(req: PermissionAssertion): Promise<void> {
-  const { workspaceId, model, blockType, toolId, toolKind, ctx } = req
+  const { workspaceId, model, blockType, toolId, toolKind, ctx, signal } = req
   const userId = governedSubjectUserId(req.userId, ctx)
 
   const blockTypeExempt = blockType ? isBlockTypeAccessControlExempt(blockType) : false
@@ -564,7 +569,7 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
 
   const config =
     userId && workspaceId
-      ? await getPermissionConfig(userId, workspaceId, ctx)
+      ? await getPermissionConfig(userId, workspaceId, ctx, signal)
       : mergeEnvAllowlist(null)
 
   const subject = { userId, workspaceId }
