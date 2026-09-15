@@ -709,7 +709,7 @@ export function FieldFormat({
                 {showValue && (
                   <div className='flex flex-col gap-1.5'>
                     {isFileFieldType(field.type) ? (
-                      <div className='flex items-center justify-between'>
+                      <div className='flex min-h-5 items-center justify-between'>
                         {renderFieldLabel('Value')}
                         {renderFileModeToggle(field)}
                       </div>

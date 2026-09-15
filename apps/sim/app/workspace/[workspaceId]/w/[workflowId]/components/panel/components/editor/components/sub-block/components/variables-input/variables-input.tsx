@@ -465,7 +465,7 @@ export function VariablesInput({
                 </div>
 
                 <div className='flex flex-col gap-1.5'>
-                  <div className='flex items-center justify-between'>
+                  <div className='flex min-h-5 items-center justify-between'>
                     <Label className='text-small'>Value</Label>
                     {assignment.type === 'boolean' && (
                       <IconSwitch

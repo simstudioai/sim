@@ -645,7 +645,7 @@ function ChipModalField(props: ChipModalFieldProps) {
   return (
     <div className={cn('flex flex-col gap-[9px]', flush ? 'px-0' : 'px-2', className)}>
       {titleAdornment ? (
-        <div className='flex items-center justify-between gap-1.5'>
+        <div className='flex min-h-[18px] items-center justify-between gap-1.5'>
           {label}
           {titleAdornment}
         </div>
