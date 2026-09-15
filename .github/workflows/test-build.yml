@@ -96,6 +96,7 @@ jobs:
           lib/auth/sim-auth-adapter.postgres.test.ts
           ee/scim/lib/managed-membership.postgres.test.ts
           lib/auth/sso/application/admit-sso-user.postgres.test.ts
+          lib/auth/sso/primary-provider.postgres.test.ts
 
       - name: Verify cumulative billing timeout recovery in PostgreSQL
         working-directory: apps/sim

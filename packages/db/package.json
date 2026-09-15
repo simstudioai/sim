@@ -24,6 +24,10 @@
     "./timestamps": {
       "types": "./timestamps.ts",
       "default": "./timestamps.ts"
+    },
+    "./sso-primary-provider": {
+      "types": "./sso-primary-provider.ts",
+      "default": "./sso-primary-provider.ts"
     }
   },
   "scripts": {

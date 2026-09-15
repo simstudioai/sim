@@ -202,6 +202,8 @@ interface SsoProviderSettingsProps {
   onBack?: () => void
   /** Offered on the detail view; the caller owns the confirmation. */
   onDelete?: () => void
+  /** Offered on the detail view of a provider that is not its domain's primary; the caller owns the confirmation. */
+  onMakePrimary?: () => void
 }
 
 export function SsoProviderSettings({
@@ -212,6 +214,7 @@ export function SsoProviderSettings({
   onSaved,
   onBack,
   onDelete,
+  onMakePrimary,
 }: SsoProviderSettingsProps) {
   const existingJitProvisioningEnabled = existingProvider?.jitProvisioningEnabled ?? true
   const configureSSOMutation = useConfigureSSO()
@@ -529,6 +532,9 @@ export function SsoProviderSettings({
   if (existingProvider && !isEditing) {
     const detailActions: SettingsAction[] = [
       { text: 'Edit', variant: 'primary', onSelect: handleEdit },
+      ...(onMakePrimary
+        ? [{ text: 'Make primary', onSelect: onMakePrimary } satisfies SettingsAction]
+        : []),
       ...(onDelete
         ? [{ text: 'Delete', variant: 'destructive', onSelect: onDelete } satisfies SettingsAction]
         : []),
@@ -581,6 +587,19 @@ export function SsoProviderSettings({
             {existingProvider.providerType === 'saml' && (
               <SettingRow label='SP Entity ID' htmlFor='sso-entity-id'>
                 <ChipCopyInput id='sso-entity-id' value={getBaseUrl()} copyLabel='Copy entity ID' />
+              </SettingRow>
+            )}
+
+            {onMakePrimary && (
+              <SettingRow htmlFor='sso-test-link' label='Test sign-in link'>
+                <ChipCopyInput
+                  id='sso-test-link'
+                  value={`${getBaseUrl()}/sso?provider=${encodeURIComponent(existingProvider.providerId ?? '')}`}
+                  copyLabel='Copy test sign-in link'
+                />
+                <p className='text-[var(--text-muted)] text-caption'>
+                  {`People at ${existingProvider.domain} still sign in through the primary provider. Share this link to try this one first.`}
+                </p>
               </SettingRow>
             )}
           </div>

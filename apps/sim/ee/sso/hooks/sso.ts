@@ -6,6 +6,7 @@ import {
   deleteSsoProviderContract,
   listSsoProvidersContract,
   type SsoRegistrationBody,
+  setPrimarySsoProviderContract,
   ssoRegistrationContract,
 } from '@/lib/api/contracts/auth'
 import { organizationKeys } from '@/hooks/queries/organization'
@@ -76,6 +77,20 @@ export function useDeleteSSOProvider() {
   return useMutation({
     mutationFn: (providerId: string) =>
       requestJson(deleteSsoProviderContract, { params: { providerId } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
+  })
+}
+
+/** Moves sign-in for a provider's domain to that provider. */
+export function useSetPrimarySSOProvider() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (providerId: string) =>
+      requestJson(setPrimarySsoProviderContract, {
+        params: { providerId },
+        body: { isPrimary: true },
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
   })
 }

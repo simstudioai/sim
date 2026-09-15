@@ -1266,6 +1266,7 @@ export const schemaMock = {
     status: 'ssoDomain.status',
     verificationToken: 'ssoDomain.verificationToken',
     verifiedAt: 'ssoDomain.verifiedAt',
+    primaryProviderId: 'ssoDomain.primaryProviderId',
     createdBy: 'ssoDomain.createdBy',
     createdAt: 'ssoDomain.createdAt',
     updatedAt: 'ssoDomain.updatedAt',

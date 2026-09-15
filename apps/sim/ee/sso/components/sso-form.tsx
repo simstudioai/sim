@@ -19,6 +19,8 @@ const logger = createLogger('SSOForm')
 const SSO_SIGN_IN_ERROR = 'Unable to start SSO. Check your email and try again.'
 const SSO_NO_PROVIDER_ERROR =
   'No SSO provider is configured for this email domain. Ask your administrator.'
+const SSO_TEST_LINK_ERROR =
+  'This sign-in link is not set up for your email domain. Ask your administrator for the right link.'
 const SSO_ERROR_MESSAGES = {
   account_not_found: 'No account found. Please contact your administrator to set up SSO access.',
   sso_failed: 'SSO authentication failed. Please try again.',
@@ -68,6 +70,7 @@ export default function SSOForm({ registrationDisabled }: SSOFormProps) {
       initialEmail={searchParams?.get('email') ?? ''}
       initialError={initialError}
       callbackParam={searchParams?.get('callbackUrl') ?? null}
+      testProviderId={searchParams?.get('provider') || null}
     />
   )
 }
@@ -76,6 +79,8 @@ interface SSOFormContentProps extends SSOFormProps {
   initialEmail: string
   initialError: string | null
   callbackParam: string | null
+  /** A test sign-in link names the provider an administrator wants to try before making it primary. */
+  testProviderId: string | null
 }
 
 function SSOFormContent({
@@ -83,6 +88,7 @@ function SSOFormContent({
   initialEmail,
   initialError,
   callbackParam,
+  testProviderId,
 }: SSOFormContentProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [email, setEmail] = useState(initialEmail)
@@ -143,11 +149,14 @@ function SSOFormContent({
       /** Named explicitly; see `resolveSsoProviderContract` for why the domain lookup is not trusted. */
       let resolved: { providerId: string }
       try {
-        resolved = await requestJson(resolveSsoProviderContract, { body: { email: emailValue } })
+        resolved = await requestJson(resolveSsoProviderContract, {
+          body: { email: emailValue, providerId: testProviderId ?? undefined },
+        })
       } catch (error) {
         const noProvider = isApiClientError(error) && error.status === 404
         if (!noProvider) logger.error('SSO provider resolution failed', { error })
-        setFormError(noProvider ? SSO_NO_PROVIDER_ERROR : SSO_SIGN_IN_ERROR)
+        const noProviderError = testProviderId ? SSO_TEST_LINK_ERROR : SSO_NO_PROVIDER_ERROR
+        setFormError(noProvider ? noProviderError : SSO_SIGN_IN_ERROR)
         return
       }
 
@@ -155,7 +164,12 @@ function SSOFormContent({
         email: emailValue,
         providerId: resolved.providerId,
         callbackURL: safeCallbackUrl,
-        errorCallbackURL: `/sso?error=sso_failed&callbackUrl=${encodeURIComponent(safeCallbackUrl)}`,
+        /** A failed test sign-in returns to the same test link, so a retry still reaches the provider being tried. */
+        errorCallbackURL: `/sso?${new URLSearchParams({
+          error: 'sso_failed',
+          callbackUrl: safeCallbackUrl,
+          ...(testProviderId ? { provider: testProviderId } : {}),
+        })}`,
       })
 
       if (!result || result.error) {

@@ -11,12 +11,14 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession } = vi.hoisted(() => ({ mockGetSession: vi.fn() }))
+const { mockGetSession } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+}))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
 
-import { DELETE } from '@/app/api/auth/sso/providers/[providerId]/route'
+import { DELETE, PATCH } from '@/app/api/auth/sso/providers/[providerId]/route'
 
 const context = { params: Promise.resolve({ providerId: 'acme-okta' }) }
 const request = () => createMockRequest('DELETE')
@@ -27,6 +29,39 @@ describe('DELETE /api/auth/sso/providers/[providerId]', () => {
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'row-1' }])
+  })
+
+  it('clears the name of a domain that made the deleted provider primary', async () => {
+    queueTableRows(schemaMock.ssoProvider, [
+      { id: 'row-1', organizationId: 'org1', userId: 'u1', domain: 'acme.com' },
+    ])
+    queueTableRows(schemaMock.member, [{ role: 'owner' }])
+    const res = await DELETE(request(), context)
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.ssoDomain)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ primaryProviderId: null })
+    )
+  })
+
+  it('leaves domains alone when deleting a personal provider', async () => {
+    queueTableRows(schemaMock.ssoProvider, [
+      { id: 'row-1', organizationId: null, userId: 'u1', domain: 'acme.com' },
+    ])
+    const res = await DELETE(request(), context)
+    expect(res.status).toBe(200)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('leaves domains alone when nothing was deleted', async () => {
+    queueTableRows(schemaMock.ssoProvider, [
+      { id: 'row-1', organizationId: 'org1', userId: 'u1', domain: 'acme.com' },
+    ])
+    queueTableRows(schemaMock.member, [{ role: 'owner' }])
+    dbChainMockFns.returning.mockResolvedValue([])
+    expect((await DELETE(request(), context)).status).toBe(404)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('requires a session', async () => {
@@ -93,14 +128,67 @@ describe('DELETE /api/auth/sso/providers/[providerId]', () => {
     await expect(res.json()).resolves.toEqual({ success: true, providerId })
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.ssoProvider)
   })
+})
 
-  it('answers 404 when the row vanished between the check and the delete', async () => {
+describe('PATCH /api/auth/sso/providers/[providerId]', () => {
+  const patch = (body: Record<string, unknown> = { isPrimary: true }) =>
+    PATCH(createMockRequest('PATCH', body), context)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'domain-1' }])
+  })
+
+  function queueOrgProvider(role: string) {
     queueTableRows(schemaMock.ssoProvider, [
-      { id: 'row-1', organizationId: 'org1', userId: 'u1', domain: 'acme.com' },
+      { id: 'row-1', organizationId: 'org1', userId: 'u-other', domain: 'acme.com' },
     ])
-    queueTableRows(schemaMock.member, [{ role: 'owner' }])
+    queueTableRows(schemaMock.member, [{ role }])
+  }
+
+  it('requires a session', async () => {
+    mockGetSession.mockResolvedValue(null)
+    expect((await patch()).status).toBe(401)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('only accepts making a provider primary', async () => {
+    expect((await patch({ isPrimary: false })).status).toBe(400)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it("refuses a member who is not the organization's owner or admin", async () => {
+    queueOrgProvider('member')
+    expect((await patch()).status).toBe(403)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('names the provider on its verified domain', async () => {
+    queueOrgProvider('admin')
+    const res = await patch()
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ success: true, providerId: 'acme-okta' })
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.ssoDomain)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ primaryProviderId: 'acme-okta' })
+    )
+  })
+
+  it('refuses a provider whose domain is not verified', async () => {
+    queueOrgProvider('owner')
     dbChainMockFns.returning.mockResolvedValue([])
-    const res = await DELETE(request(), context)
-    expect(res.status).toBe(404)
+    const res = await patch()
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toMatchObject({ error: expect.stringContaining('acme.com') })
+  })
+
+  it('refuses a personal provider, which has no primary', async () => {
+    queueTableRows(schemaMock.ssoProvider, [
+      { id: 'row-1', organizationId: null, userId: 'u1', domain: 'acme.com' },
+    ])
+    expect((await patch()).status).toBe(400)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

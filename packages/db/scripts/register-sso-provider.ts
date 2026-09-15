@@ -45,6 +45,7 @@ import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { ssoDomain, ssoProvider, user } from '../schema'
+import { nameIncumbentSignInProvider } from '../sso-primary-provider'
 
 interface SSOMapping {
   id: string
@@ -573,8 +574,8 @@ async function registerSSOProvider(): Promise<boolean> {
 
     /**
      * Stored in the same canonical form the application writes, so sign-in
-     * resolution, the one-provider-per-domain guard, and the admission domain
-     * check all key on one value.
+     * resolution, the domain ownership check, and the admission domain check
+     * all key on one value.
      */
     const providerData: SSOProviderData = {
       id: generateId(),
@@ -646,7 +647,10 @@ async function registerSSOProvider(): Promise<boolean> {
       // providerId ends up as exactly this config, atomically. Deleting the
       // ssoProvider row does not touch linked accounts (they key on the
       // providerId string, not the row id), so existing SSO logins keep working.
-      await tx.delete(ssoProvider).where(eq(ssoProvider.providerId, ssoConfig.providerId))
+      const [previous] = await tx
+        .delete(ssoProvider)
+        .where(eq(ssoProvider.providerId, ssoConfig.providerId))
+        .returning({ domain: ssoProvider.domain })
       await tx.insert(ssoProvider).values(providerData)
 
       // Keep the verified-domains model consistent with script registration: a
@@ -669,7 +673,7 @@ async function registerSSOProvider(): Promise<boolean> {
       }
       if (providerData.organizationId && normalizedDomain) {
         const existingDomain = await tx
-          .select({ id: ssoDomain.id })
+          .select({ id: ssoDomain.id, primaryProviderId: ssoDomain.primaryProviderId })
           .from(ssoDomain)
           .where(
             and(
@@ -677,9 +681,18 @@ async function registerSSOProvider(): Promise<boolean> {
               eq(ssoDomain.domain, normalizedDomain)
             )
           )
-        if (existingDomain.length === 0) {
+          .for('update')
+
+        /**
+         * A provider joining a domain another provider already signs in does not
+         * take over by sorting first, matching registration in the app.
+         */
+        const joinsDomain = !previous || normalizeSSODomain(previous.domain) !== normalizedDomain
+        let domainRecordId = existingDomain[0]?.id
+        if (!domainRecordId) {
+          domainRecordId = generateId()
           await tx.insert(ssoDomain).values({
-            id: generateId(),
+            id: domainRecordId,
             organizationId: providerData.organizationId,
             domain: normalizedDomain,
             status: 'verified',
@@ -690,7 +703,15 @@ async function registerSSOProvider(): Promise<boolean> {
           await tx
             .update(ssoDomain)
             .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
-            .where(eq(ssoDomain.id, existingDomain[0].id))
+            .where(eq(ssoDomain.id, domainRecordId))
+        }
+        if (joinsDomain && !existingDomain[0]?.primaryProviderId) {
+          await nameIncumbentSignInProvider(tx, {
+            domainRecordId,
+            organizationId: providerData.organizationId,
+            domain: normalizedDomain,
+            joiningProviderId: ssoConfig.providerId,
+          })
         }
       }
     })

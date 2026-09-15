@@ -2416,6 +2416,13 @@
       "when": 1789427851762,
       "tag": "0345_document_connector_processing_status",
       "breakpoints": true
+    },
+    {
+      "idx": 346,
+      "version": "7",
+      "when": 1789433048280,
+      "tag": "0346_sso_domain_primary_provider",
+      "breakpoints": true
     }
   ]
 }

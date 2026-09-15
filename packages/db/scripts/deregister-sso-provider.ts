@@ -14,10 +14,11 @@
  */
 
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { ssoProvider, user } from '../schema'
+import { forgetPrimaryProviders } from '../sso-primary-provider'
 
 const logger = {
   info: (message: string, meta?: any) => {
@@ -111,6 +112,27 @@ async function deregisterSSOProvider(): Promise<boolean> {
 
     const specificProviderId = process.env.SSO_PROVIDER_ID
 
+    /**
+     * Deletes providers and clears any domain of their organization that named
+     * one as primary, so a provider later registered under the same id does not
+     * inherit the role.
+     */
+    const deleteProviders = (providerIds: string[]) =>
+      db.transaction(async (tx) => {
+        const deleted = await tx
+          .delete(ssoProvider)
+          .where(
+            and(eq(ssoProvider.userId, targetUser.id), inArray(ssoProvider.providerId, providerIds))
+          )
+          .returning({
+            providerId: ssoProvider.providerId,
+            organizationId: ssoProvider.organizationId,
+          })
+        for (const { providerId, organizationId } of deleted) {
+          if (organizationId) await forgetPrimaryProviders(tx, organizationId, [providerId])
+        }
+      })
+
     if (specificProviderId) {
       const providerToDelete = providers.find((p) => p.providerId === specificProviderId)
       if (!providerToDelete) {
@@ -118,17 +140,13 @@ async function deregisterSSOProvider(): Promise<boolean> {
         return false
       }
 
-      await db
-        .delete(ssoProvider)
-        .where(
-          and(eq(ssoProvider.userId, targetUser.id), eq(ssoProvider.providerId, specificProviderId))
-        )
+      await deleteProviders([specificProviderId])
 
       logger.info(
         `✅ Successfully deleted SSO provider '${specificProviderId}' for user ${targetUser.email}`
       )
     } else {
-      await db.delete(ssoProvider).where(eq(ssoProvider.userId, targetUser.id))
+      await deleteProviders(providers.map((provider) => provider.providerId))
 
       logger.info(
         `✅ Successfully deleted all ${providers.length} SSO provider(s) for user ${targetUser.email}`

@@ -8,7 +8,7 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Single Sign-On lets your team sign in to Sim through your company's identity provider instead of managing separate passwords. Sim supports both OIDC and SAML 2.0, and an organization can use more than one identity provider at a time, one per verified domain.
+Single Sign-On lets your team sign in to Sim through your company's identity provider instead of managing separate passwords. Sim supports both OIDC and SAML 2.0, and an organization can use more than one identity provider at a time.
 
 ---
 
@@ -38,7 +38,7 @@ Go to **Settings → Organization → Single sign-on**. The page has three tabs:
 
 Use **Domains** to verify ownership, then return to **Sign-in** to configure your provider. Switching tabs preserves an unsaved sign-in draft while you stay on this page; use **Save** or **Update** to commit it. The selected tab and provider are included in the URL, so they can be bookmarked or shared. On self-hosted deployments, Provisioning appears when SCIM is enabled.
 
-An organization can run several identity providers at once, each serving a different verified domain: Okta for `eng.acme.com` and Microsoft Entra ID for `acme.com`, for example. **Sign-in** lists them; select **Add identity provider** for another, or a row to view, edit, or delete one. Sim routes each sign-in by the email domain, so a domain routes to exactly one provider.
+An organization can run several identity providers at once: Okta for `eng.acme.com` and Microsoft Entra ID for `acme.com`, for example. **Sign-in** lists them; select **Add identity provider** for another, or a row to view, edit, or delete one. Sim routes each sign-in by the email domain. When a domain has more than one provider, the one marked **Primary** is used, which is how you [switch identity providers](#switching-identity-providers) without downtime.
 
 ### 2. Choose a protocol
 
@@ -101,13 +101,26 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 
 ## Editing and advanced configuration
 
-For a saved connection, open **Sign-in**, select the provider, and select **Edit**. The Provider ID remains fixed. **Delete** removes that sign-in path only: accounts and memberships it admitted stay, and people at its domain sign in another way until a provider serves the domain again. A saved OIDC client secret appears as a mask with a suffix when available; **Replace** lets you enter a new secret, and **Keep saved** cancels that replacement. Select **Update** to save the provider, or **Discard** to abandon changes.
+For a saved connection, open **Sign-in**, select the provider, and select **Edit**. The Provider ID remains fixed. **Delete** removes that sign-in path only: accounts and memberships it admitted stay. If the domain has another provider, it becomes primary; otherwise people at the domain sign in another way until a provider serves it again. A saved OIDC client secret appears as a mask with a suffix when available; **Replace** lets you enter a new secret, and **Keep saved** cancels that replacement. Select **Update** to save the provider, or **Discard** to abandon changes.
 
 **Advanced options** contains OIDC scopes and optional authorization, token, and JWKS endpoint overrides. For SAML, it contains Audience, Callback URL override, signed-assertion requirements, NameID format, and optional IdP metadata XML. **Attribute mapping** lets either protocol override the email, name, and stable user-ID claim names. Leave a mapping blank to use the protocol default.
 
 SCIM settings save immediately in the **Provisioning** tab. Its **Disable just-in-time provisioning** rule overrides Automatic first-sign-in membership while the connection is active and entitled. Existing members can still sign in. See [directory provisioning](/platform/enterprise/scim#provisioning-and-sso-together).
 
 Follow the [Okta](/platform/enterprise/scim/okta) or [Microsoft Entra](/platform/enterprise/scim/entra) provisioning walkthrough to connect a SCIM app and verify synchronization separately from sign-in.
+
+## Switching identity providers
+
+To move a domain from one identity provider to another, for example from Microsoft Entra ID to Okta, set up the new provider next to the current one and switch when it works. Nobody loses access along the way.
+
+1. **Add the new provider** under **Sign-in** with the same verified domain. It is saved alongside the current provider, which stays **Primary**, so sign-in does not change yet.
+2. **Test it.** Open the new provider and copy its **Test sign-in link**. Anyone at the domain who opens the link signs in through the new provider; everyone else still uses the current one.
+3. **Make it primary.** Select **Make primary** on the new provider. From their next sign-in, everyone at the domain goes through it. People already signed in stay signed in.
+4. **Remove the old provider** once you are confident, or keep it to switch back with **Make primary**.
+
+The first time someone signs in through the new provider, Sim links it to their existing account by email address, so their workspaces and membership carry over. This requires the new provider to send the same email addresses as the old one.
+
+---
 
 ## Provider Guides
 
@@ -313,11 +326,11 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "What is the Domain field used for?",
-    answer: "The domain (e.g. company.com) is how Sim routes users to the right identity provider. When a user enters their email on the SSO sign-in page, Sim matches their email domain to the provider that serves it and redirects them there. Each verified domain routes to one provider, and an organization can serve different domains with different providers."
+    answer: "The domain (e.g. company.com) is how Sim routes users to the right identity provider. When a user enters their email on the SSO sign-in page, Sim matches their email domain to the provider that serves it and redirects them there. If a domain has more than one provider, Sim uses the one marked Primary."
   },
   {
     question: "Can we use more than one identity provider?",
-    answer: "Yes. Add one provider per verified domain: for example Okta for eng.acme.com and Microsoft Entra ID for acme.com. Sign-in routes by email domain, so a single domain cannot be split across two providers. SCIM provisioning stays organization-wide and works alongside any number of providers."
+    answer: "Yes. Different domains can use different providers, for example Okta for eng.acme.com and Microsoft Entra ID for acme.com. A domain can also have several providers while you move between them: sign-in uses its primary provider, and the others are reachable through a test sign-in link. SCIM provisioning stays organization-wide and works alongside any number of providers."
   },
   {
     question: "Do I need to provide OIDC endpoints manually?",

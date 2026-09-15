@@ -15,7 +15,7 @@ import { ScimSection } from '@/ee/scim/components/scim-section'
 import { SsoProviderList } from '@/ee/sso/components/sso-provider-list'
 import { SsoProviderSettings } from '@/ee/sso/components/sso-provider-settings'
 import { VerifiedDomainsSection } from '@/ee/sso/components/verified-domains-section'
-import { useDeleteSSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
+import { useDeleteSSOProvider, useSetPrimarySSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
 import { ssoSettingsParsers, ssoSettingsUrlKeys } from '@/ee/sso/search-params'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 
@@ -58,8 +58,43 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
   const showList = () =>
     void setParams({ provider: null, createProvider: null }, { history: 'replace' })
   const deleteProvider = useDeleteSSOProvider()
+  const setPrimaryProvider = useSetPrimarySSOProvider()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [pendingPrimaryId, setPendingPrimaryId] = useState<string | null>(null)
   const pendingDelete = providerList.find((entry) => entry.providerId === pendingDeleteId)
+  const pendingPrimary = providerList.find((entry) => entry.providerId === pendingPrimaryId)
+  /**
+   * Who signs in the domain once the provider is deleted: the first other
+   * verified provider by id when deleting the primary, otherwise the domain's
+   * current primary. The list arrives ordered by provider id, so this is the
+   * provider the server uses.
+   */
+  const deleteSignInProvider = pendingDelete
+    ? pendingDelete.isPrimary
+      ? providerList.find(
+          (entry) =>
+            entry.domain === pendingDelete.domain &&
+            entry.providerId !== pendingDelete.providerId &&
+            entry.domainVerified
+        )
+      : providerList.find((entry) => entry.domain === pendingDelete.domain && entry.isPrimary)
+    : undefined
+  const deleteDomain = pendingDelete?.domain ?? 'its domain'
+  const canMakeSelectedPrimary =
+    selectedProvider !== undefined &&
+    !selectedProvider.isPrimary &&
+    providerList.some((entry) => entry.domain === selectedProvider.domain && entry.isPrimary)
+
+  const handleConfirmPrimary = async () => {
+    if (!pendingPrimary?.providerId) return
+    try {
+      await setPrimaryProvider.mutateAsync(pendingPrimary.providerId)
+      toast.success(`${pendingPrimary.providerId} is now the primary provider`)
+      setPendingPrimaryId(null)
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to change the primary provider'))
+    }
+  }
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete?.providerId) return
@@ -142,8 +177,31 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
                 ? () => setPendingDeleteId(selectedProvider.providerId ?? null)
                 : undefined
             }
+            onMakePrimary={
+              canMakeSelectedPrimary
+                ? () => setPendingPrimaryId(selectedProvider.providerId ?? null)
+                : undefined
+            }
           />
         )}
+
+        <ChipConfirmModal
+          open={tab === 'sign-in' && pendingPrimary !== undefined}
+          onOpenChange={(open) => !open && setPendingPrimaryId(null)}
+          title='Make primary provider'
+          text={[
+            'Make ',
+            { text: pendingPrimary?.providerId ?? 'this provider', bold: true },
+            ` the primary provider for ${pendingPrimary?.domain ?? 'its domain'}? Everyone there signs in through it from their next sign-in. People already signed in stay signed in, and the current primary stays configured so you can switch back.`,
+          ]}
+          confirm={{
+            label: 'Make primary',
+            variant: 'primary',
+            onClick: () => void handleConfirmPrimary(),
+            pending: setPrimaryProvider.isPending,
+            pendingLabel: 'Switching...',
+          }}
+        />
 
         <ChipConfirmModal
           open={tab === 'sign-in' && pendingDelete !== undefined}
@@ -153,10 +211,12 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             'Delete ',
             { text: pendingDelete?.providerId ?? 'this provider', bold: true },
             '? ',
-            {
-              text: `People at ${pendingDelete?.domain ?? 'its domain'} can no longer sign in through it.`,
-              error: true,
-            },
+            deleteSignInProvider
+              ? `People at ${deleteDomain} ${pendingDelete?.isPrimary ? 'will sign in through' : 'keep signing in through'} ${deleteSignInProvider.providerId}.`
+              : {
+                  text: `People at ${deleteDomain} can no longer sign in with SSO.`,
+                  error: true,
+                },
             ' Their accounts and memberships stay.',
           ]}
           confirm={{

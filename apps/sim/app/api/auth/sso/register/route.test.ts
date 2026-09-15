@@ -210,40 +210,21 @@ describe('POST /api/auth/sso/register', () => {
     const res = await POST(request({ ...OIDC_BODY, orgId: 'org-attacker' }))
     expect(res.status).toBe(409)
     expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-    // The conflict lookup itself must be case-insensitive: lower(domain) = <normalized domain>.
+    /** The conflict lookup compares the normalized domain key, which is case-insensitive. */
     const conflictWhere = dbChainMockFns.where.mock.calls.find(([condition]) =>
-      condition?.strings?.join('?').includes('lower(')
+      JSON.stringify(condition ?? '').includes('regexp_replace')
     )
     expect(conflictWhere?.[0]?.values).toContain('acme.com')
   })
 
-  it('refuses a second provider on a domain the organization already routes', async () => {
+  it('adds a provider beside the one already signing in a domain', async () => {
     queueMembers([{ organizationId: 'org1', role: 'owner' }])
     queueProviders([
-      { domain: 'acme.com', userId: 'u1', organizationId: 'org1', providerId: 'acme-saml' },
+      { domain: 'acme.com', userId: 'u1', organizationId: 'org1', providerId: 'acme-entra' },
     ])
     const res = await POST(request(OIDC_BODY))
-    const json = await res.json()
-    expect(res.status).toBe(409)
-    expect(json.code).toBe('SSO_DOMAIN_ALREADY_ROUTED')
-    expect(json.error).toContain('acme-saml')
-    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
-  })
-
-  it('turns a lost race on the domain index into the same 409 as the pre-check', async () => {
-    queueMembers([{ organizationId: 'org1', role: 'owner' }])
-    queueProviders([])
-    mockRegisterSSOProvider.mockRejectedValue(
-      Object.assign(new Error('duplicate key value violates unique constraint'), {
-        code: '23505',
-        constraint_name: 'sso_provider_org_domain_unique',
-      })
-    )
-    const res = await POST(request(OIDC_BODY))
-    const json = await res.json()
-    expect(res.status).toBe(409)
-    expect(json.code).toBe('SSO_DOMAIN_ALREADY_ROUTED')
-    expect(json.error).toContain('acme.com')
+    expect(res.status).toBe(200)
+    expect(mockRegisterSSOProvider).toHaveBeenCalledTimes(1)
   })
 
   it('lets the organization add a provider for a different verified domain', async () => {
