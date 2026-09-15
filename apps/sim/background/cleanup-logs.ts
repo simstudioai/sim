@@ -18,6 +18,8 @@ import {
   chunkedBatchDelete,
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
+import type { BoundedCleanupPayload } from '@/lib/cleanup/bounded-types'
+import { retentionCleanupQueue } from '@/lib/cleanup/queue'
 import {
   LIVE_PAUSED_REFERENCE_STATUSES,
   markLargeValuesDeleted,
@@ -43,7 +45,6 @@ const WORKFLOW_LOG_CLEANUP_BATCH_SIZE = 500
 const WORKFLOW_LOG_CLEANUP_MAX_BATCHES = 50
 const WORKFLOW_LOG_CLEANUP_ROW_LIMIT =
   WORKFLOW_LOG_CLEANUP_BATCH_SIZE * WORKFLOW_LOG_CLEANUP_MAX_BATCHES
-const LOG_CLEANUP_CONCURRENCY_LIMIT = 2
 const LARGE_VALUE_CLEANUP_BATCH_SIZE = 500
 const LARGE_VALUE_CLEANUP_TOTAL_KEY_LIMIT = 5_000
 const LARGE_VALUE_CLEANUP_GRACE_HOURS = 7 * 24
@@ -231,93 +232,7 @@ async function cleanupLegacyLargeExecutionValues(
             eq(workspaceFiles.context, 'execution'),
             isNull(workspaceFiles.deletedAt),
             lt(workspaceFiles.uploadedAt, legacyRetentionDate),
-            sql`${workspaceFiles.key} LIKE 'execution/%/%/%/large-value-lv_%.json'`,
-            sql`NOT EXISTS (
-              SELECT 1
-              FROM ${executionLargeValues} AS registered_value
-              WHERE registered_value.key = ${workspaceFiles.key}
-            )`,
-            sql`NOT EXISTS (
-              SELECT 1
-              FROM ${executionLargeValueReferences} AS ref
-              WHERE ref.key = ${workspaceFiles.key}
-                AND (
-                  (
-                    ref.source = 'execution_log'
-                    AND EXISTS (
-                      SELECT 1
-                      FROM ${workflowExecutionLogs} AS ref_wel
-                      WHERE ref_wel.execution_id = ref.execution_id
-                    )
-                  )
-                  OR (
-                    ref.source = 'paused_snapshot'
-                    AND EXISTS (
-                      SELECT 1
-                      FROM ${pausedExecutions} AS ref_pe
-                      WHERE ref_pe.execution_id = ref.execution_id
-                        AND ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
-                    )
-                  )
-                )
-            )`,
-            sql`NOT EXISTS (
-              SELECT 1
-              FROM ${executionLargeValueDependencies} AS dependency
-              INNER JOIN ${executionLargeValues} AS parent_value
-                ON parent_value.key = dependency.parent_key
-               AND parent_value.deleted_at IS NULL
-              WHERE dependency.child_key = ${workspaceFiles.key}
-                AND dependency.workspace_id = ${workspaceFiles.workspaceId}
-                AND (
-                  EXISTS (
-                    SELECT 1
-                    FROM ${workflowExecutionLogs} AS parent_owner_wel
-                    WHERE parent_owner_wel.execution_id = parent_value.owner_execution_id
-                  )
-                  OR EXISTS (
-                    SELECT 1
-                    FROM ${pausedExecutions} AS parent_owner_pe
-                    WHERE parent_owner_pe.execution_id = parent_value.owner_execution_id
-                      AND parent_owner_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
-                  )
-                  OR EXISTS (
-                    SELECT 1
-                    FROM ${executionLargeValueReferences} AS parent_ref
-                    WHERE parent_ref.key = parent_value.key
-                      AND (
-                        (
-                          parent_ref.source = 'execution_log'
-                          AND EXISTS (
-                            SELECT 1
-                            FROM ${workflowExecutionLogs} AS parent_ref_wel
-                            WHERE parent_ref_wel.execution_id = parent_ref.execution_id
-                          )
-                        )
-                        OR (
-                          parent_ref.source = 'paused_snapshot'
-                          AND EXISTS (
-                            SELECT 1
-                            FROM ${pausedExecutions} AS parent_ref_pe
-                            WHERE parent_ref_pe.execution_id = parent_ref.execution_id
-                              AND parent_ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
-                          )
-                        )
-                      )
-                  )
-                )
-            )`,
-            sql`NOT EXISTS (
-              SELECT 1
-              FROM ${workflowExecutionLogs} AS owner_wel
-              WHERE owner_wel.execution_id = split_part(${workspaceFiles.key}, '/', 4)
-            )`,
-            sql`NOT EXISTS (
-              SELECT 1
-              FROM ${pausedExecutions} AS pe
-              WHERE pe.execution_id = split_part(${workspaceFiles.key}, '/', 4)
-                AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
-            )`
+            legacyLargeValuePredicate()
           )
         )
         .orderBy(
@@ -487,6 +402,106 @@ export async function runCleanupLogs(payload: CleanupJobPayload): Promise<void> 
 export const cleanupLogsTask = task({
   id: 'cleanup-logs',
   machine: 'large-1x',
-  queue: { concurrencyLimit: LOG_CLEANUP_CONCURRENCY_LIMIT },
-  run: runCleanupLogs,
+  queue: retentionCleanupQueue,
+  run: async (payload: CleanupJobPayload | BoundedCleanupPayload) => {
+    if ('mode' in payload && payload.mode === 'bounded') {
+      const { runBoundedCleanup } = await import('@/lib/cleanup/bounded-runner')
+      const { runBoundedLogScope } = await import('@/background/cleanup-logs-bounded')
+      return runBoundedCleanup('cleanup-logs', payload, runBoundedLogScope)
+    }
+    return runCleanupLogs(payload as CleanupJobPayload)
+  },
 })
+
+/** Shared reference guards for legacy large values; bounded and scheduled cleanup must agree. */
+export function legacyLargeValuePredicate() {
+  return and(
+    sql`${workspaceFiles.key} LIKE 'execution/%/%/%/large-value-lv_%.json'`,
+    sql`NOT EXISTS (
+              SELECT 1
+              FROM ${executionLargeValues} AS registered_value
+              WHERE registered_value.key = ${workspaceFiles.key}
+            )`,
+    sql`NOT EXISTS (
+              SELECT 1
+              FROM ${executionLargeValueReferences} AS ref
+              WHERE ref.key = ${workspaceFiles.key}
+                AND (
+                  (
+                    ref.source = 'execution_log'
+                    AND EXISTS (
+                      SELECT 1
+                      FROM ${workflowExecutionLogs} AS ref_wel
+                      WHERE ref_wel.execution_id = ref.execution_id
+                    )
+                  )
+                  OR (
+                    ref.source = 'paused_snapshot'
+                    AND EXISTS (
+                      SELECT 1
+                      FROM ${pausedExecutions} AS ref_pe
+                      WHERE ref_pe.execution_id = ref.execution_id
+                        AND ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
+                    )
+                  )
+                )
+            )`,
+    sql`NOT EXISTS (
+              SELECT 1
+              FROM ${executionLargeValueDependencies} AS dependency
+              INNER JOIN ${executionLargeValues} AS parent_value
+                ON parent_value.key = dependency.parent_key
+               AND parent_value.deleted_at IS NULL
+              WHERE dependency.child_key = ${workspaceFiles.key}
+                AND dependency.workspace_id = ${workspaceFiles.workspaceId}
+                AND (
+                  EXISTS (
+                    SELECT 1
+                    FROM ${workflowExecutionLogs} AS parent_owner_wel
+                    WHERE parent_owner_wel.execution_id = parent_value.owner_execution_id
+                  )
+                  OR EXISTS (
+                    SELECT 1
+                    FROM ${pausedExecutions} AS parent_owner_pe
+                    WHERE parent_owner_pe.execution_id = parent_value.owner_execution_id
+                      AND parent_owner_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
+                  )
+                  OR EXISTS (
+                    SELECT 1
+                    FROM ${executionLargeValueReferences} AS parent_ref
+                    WHERE parent_ref.key = parent_value.key
+                      AND (
+                        (
+                          parent_ref.source = 'execution_log'
+                          AND EXISTS (
+                            SELECT 1
+                            FROM ${workflowExecutionLogs} AS parent_ref_wel
+                            WHERE parent_ref_wel.execution_id = parent_ref.execution_id
+                          )
+                        )
+                        OR (
+                          parent_ref.source = 'paused_snapshot'
+                          AND EXISTS (
+                            SELECT 1
+                            FROM ${pausedExecutions} AS parent_ref_pe
+                            WHERE parent_ref_pe.execution_id = parent_ref.execution_id
+                              AND parent_ref_pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
+                          )
+                        )
+                      )
+                  )
+                )
+            )`,
+    sql`NOT EXISTS (
+              SELECT 1
+              FROM ${workflowExecutionLogs} AS owner_wel
+              WHERE owner_wel.execution_id = split_part(${workspaceFiles.key}, '/', 4)
+            )`,
+    sql`NOT EXISTS (
+              SELECT 1
+              FROM ${pausedExecutions} AS pe
+              WHERE pe.execution_id = split_part(${workspaceFiles.key}, '/', 4)
+                AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
+            )`
+  )
+}

@@ -29,7 +29,9 @@ import {
   DEFAULT_DELETE_CHUNK_SIZE,
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
+import type { BoundedCleanupPayload } from '@/lib/cleanup/bounded-types'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
+import { retentionCleanupQueue } from '@/lib/cleanup/queue'
 import {
   type CleanupOwnerScope,
   cleanupOwnerCondition,
@@ -467,12 +469,14 @@ async function reRootOne(
   preferred: () => Promise<unknown>,
   withUniqueName: () => Promise<unknown>,
   subject: string,
-  label: string
+  label: string,
+  strict = false
 ): Promise<void> {
   try {
     await preferred()
     return
   } catch (error) {
+    if (strict) throw error
     logger.warn(`[${label}] Re-rooting ${subject} under its deduplicated name failed; retrying`, {
       error,
     })
@@ -517,10 +521,12 @@ async function reRootActiveFolderChildren(
   }
 }
 
-async function reRootActiveFolderChildrenUnguarded(
+export async function reRootActiveFolderChildrenUnguarded(
   folderIds: string[],
   retentionDate: Date,
-  label: string
+  label: string,
+  executor: Pick<typeof cleanupDb, 'select' | 'update'> = cleanupDb,
+  strict = false
 ): Promise<void> {
   /**
    * Re-asserted here, not just on the DELETE. `deleteFilter` already skips a folder restored
@@ -534,7 +540,7 @@ async function reRootActiveFolderChildrenUnguarded(
    * Closing it properly means holding a row lock across select → onBatch → delete, which
    * nothing in this sweep does today.
    */
-  const stillExpired = await cleanupDb
+  const stillExpired = await executor
     .select({ id: folderTable.id })
     .from(folderTable)
     .where(
@@ -548,7 +554,7 @@ async function reRootActiveFolderChildrenUnguarded(
   const expiredIds = stillExpired.map(({ id }) => id)
   if (expiredIds.length === 0) return
 
-  const workflows = await cleanupDb
+  const workflows = await executor
     .select({ id: workflow.id, name: workflow.name, workspaceId: workflow.workspaceId })
     .from(workflow)
     .where(and(inArray(workflow.folderId, expiredIds), isNull(workflow.archivedAt)))
@@ -558,23 +564,21 @@ async function reRootActiveFolderChildrenUnguarded(
     if (!workspaceId) continue
     await reRootOne(
       async () => {
-        const name = await deduplicateWorkflowName(row.name, workspaceId, null, cleanupDb)
-        await cleanupDb
-          .update(workflow)
-          .set({ folderId: null, name })
-          .where(eq(workflow.id, row.id))
+        const name = await deduplicateWorkflowName(row.name, workspaceId, null, executor)
+        await executor.update(workflow).set({ folderId: null, name }).where(eq(workflow.id, row.id))
       },
       () =>
-        cleanupDb
+        executor
           .update(workflow)
           .set({ folderId: null, name: `${row.name} (${row.id})` })
           .where(eq(workflow.id, row.id)),
       `workflow ${row.id}`,
-      label
+      label,
+      strict
     )
   }
 
-  const files = await cleanupDb
+  const files = await executor
     .select({
       id: workspaceFiles.id,
       originalName: workspaceFiles.originalName,
@@ -597,20 +601,39 @@ async function reRootActiveFolderChildrenUnguarded(
         const originalName = await allocateUniqueWorkspaceFileName(
           workspaceId,
           row.originalName,
-          null
+          null,
+          strict
+            ? async (workspaceId, name) => {
+                const [existing] = await executor
+                  .select({ id: workspaceFiles.id })
+                  .from(workspaceFiles)
+                  .where(
+                    and(
+                      eq(workspaceFiles.workspaceId, workspaceId),
+                      eq(workspaceFiles.context, 'workspace'),
+                      isNull(workspaceFiles.folderId),
+                      isNull(workspaceFiles.deletedAt),
+                      eq(workspaceFiles.originalName, name)
+                    )
+                  )
+                  .limit(1)
+                return Boolean(existing)
+              }
+            : undefined
         )
-        await cleanupDb
+        await executor
           .update(workspaceFiles)
           .set({ folderId: null, originalName })
           .where(eq(workspaceFiles.id, row.id))
       },
       () =>
-        cleanupDb
+        executor
           .update(workspaceFiles)
           .set({ folderId: null, originalName: `${row.originalName} (${row.id})` })
           .where(eq(workspaceFiles.id, row.id)),
       `workspace file ${row.id}`,
-      label
+      label,
+      strict
     )
   }
 
@@ -621,7 +644,7 @@ async function reRootActiveFolderChildrenUnguarded(
    * namespace where its name may already be taken — the identical 23505 stall. Covering only
    * workflows and files would leave the class half-closed.
    */
-  const childFolders = await cleanupDb
+  const childFolders = await executor
     .select({
       id: folderTable.id,
       name: folderTable.name,
@@ -635,24 +658,25 @@ async function reRootActiveFolderChildrenUnguarded(
     await reRootOne(
       async () => {
         const name = await deduplicateFolderName(
-          cleanupDb,
+          executor,
           row.workspaceId,
           null,
           row.name,
           row.resourceType
         )
-        await cleanupDb
+        await executor
           .update(folderTable)
           .set({ parentId: null, name })
           .where(eq(folderTable.id, row.id))
       },
       () =>
-        cleanupDb
+        executor
           .update(folderTable)
           .set({ parentId: null, name: `${row.name} (${row.id})` })
           .where(eq(folderTable.id, row.id)),
       `folder ${row.id}`,
-      label
+      label,
+      strict
     )
   }
 
@@ -975,6 +999,15 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
 export const cleanupSoftDeletesTask = task({
   id: 'cleanup-soft-deletes',
   machine: 'large-1x',
-  queue: { concurrencyLimit: 5 },
-  run: runCleanupSoftDeletes,
+  queue: retentionCleanupQueue,
+  run: async (payload: CleanupJobPayload | BoundedCleanupPayload) => {
+    if ('mode' in payload && payload.mode === 'bounded') {
+      const { runBoundedCleanup } = await import('@/lib/cleanup/bounded-runner')
+      const { runBoundedSoftDeleteScope } = await import(
+        '@/background/cleanup-soft-deletes-bounded'
+      )
+      return runBoundedCleanup('cleanup-soft-deletes', payload, runBoundedSoftDeleteScope)
+    }
+    return runCleanupSoftDeletes(payload as CleanupJobPayload)
+  },
 })

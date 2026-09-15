@@ -429,7 +429,12 @@ describe('folder cleanup target', () => {
 
       await onBatch([{ id: 'folder-1' }])
 
-      expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledWith('ws-1', 'report.pdf', null)
+      expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledWith(
+        'ws-1',
+        'report.pdf',
+        null,
+        undefined
+      )
       expect(dbChainMockFns.set).toHaveBeenCalledWith({
         folderId: null,
         originalName: 'report (2).pdf',

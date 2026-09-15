@@ -199,7 +199,7 @@ describe('cleanup logs worker', () => {
 
   it('caps Trigger.dev concurrency for log cleanup tasks', () => {
     expect(cleanupLogsTask).toMatchObject({
-      queue: { concurrencyLimit: 2 },
+      queue: { name: 'retention-cleanup', concurrencyLimit: 1 },
     })
   })
 })

@@ -49,6 +49,7 @@ import {
 } from '@/lib/billing/storage'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import type { CleanupQuery } from '@/lib/cleanup/bounded'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
@@ -3948,7 +3949,8 @@ export async function hardDeleteDocuments(
   expectedKnowledgeBaseId?: string,
   connectorSyncGuard?: ConnectorSyncDeletionGuard,
   /** When provided, only documents the caller may currently read are deleted, re-verified at the delete itself. */
-  access?: KnowledgeAccessScope
+  access?: KnowledgeAccessScope,
+  cleanupQuery?: CleanupQuery
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -3963,7 +3965,8 @@ export async function hardDeleteDocuments(
       expectedConnectorId,
       expectedKnowledgeBaseId,
       connectorSyncGuard,
-      access
+      access,
+      cleanupQuery
     )
   }
   return deletedCount
@@ -3979,7 +3982,8 @@ async function hardDeleteDocumentBatch(
   expectedConnectorId?: string,
   expectedKnowledgeBaseId?: string,
   connectorSyncGuard?: ConnectorSyncDeletionGuard,
-  access?: KnowledgeAccessScope
+  access?: KnowledgeAccessScope,
+  cleanupQuery?: CleanupQuery
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   const scopedConnectorId = connectorSyncGuard?.connectorId ?? expectedConnectorId
@@ -3987,31 +3991,36 @@ async function hardDeleteDocumentBatch(
   const requireEligibleDocument = Boolean(expectedKnowledgeBaseId || connectorSyncGuard)
   const requireVisibleDocument = Boolean(expectedKnowledgeBaseId && !connectorSyncGuard)
   const accessCondition = access ? knowledgeAccessCondition(access) : undefined
-  const documentsToDelete = await db
-    .select({
-      id: document.id,
-      knowledgeBaseId: document.knowledgeBaseId,
-      fileUrl: document.fileUrl,
-      fileSize: document.fileSize,
-      uploadedBy: document.uploadedBy,
-      connectorId: document.connectorId,
-      deletedAt: document.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      organizationId: knowledgeBase.organizationId,
-    })
-    .from(document)
-    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-    .where(
-      and(
-        inArray(document.id, ids),
-        scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
-        scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
-        requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
-        requireEligibleDocument ? isNull(document.archivedAt) : undefined,
-        requireVisibleDocument ? isNull(document.deletedAt) : undefined,
-        accessCondition
+  const selectDocuments = async (executor: Pick<typeof db, 'select'>) =>
+    executor
+      .select({
+        id: document.id,
+        knowledgeBaseId: document.knowledgeBaseId,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        uploadedBy: document.uploadedBy,
+        connectorId: document.connectorId,
+        deletedAt: document.deletedAt,
+        workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
+      })
+      .from(document)
+      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+      .where(
+        and(
+          inArray(document.id, ids),
+          scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+          scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
+          requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+          requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+          requireVisibleDocument ? isNull(document.deletedAt) : undefined,
+          accessCondition
+        )
       )
-    )
+
+  const documentsToDelete = await (cleanupQuery
+    ? cleanupQuery(selectDocuments)
+    : selectDocuments(db))
 
   if (documentsToDelete.length === 0) {
     return 0
@@ -4031,7 +4040,11 @@ async function hardDeleteDocumentBatch(
       if (!storageContextByWorkspace.has(doc.workspaceId)) {
         storageContextByWorkspace.set(
           doc.workspaceId,
-          await resolveStorageBillingContext(doc.workspaceId)
+          await (cleanupQuery
+            ? cleanupQuery((executor) =>
+                resolveStorageBillingContext(doc.workspaceId!, { executor })
+              )
+            : resolveStorageBillingContext(doc.workspaceId))
         )
       }
       continue
@@ -4044,7 +4057,7 @@ async function hardDeleteDocumentBatch(
    * concurrent deletion cannot double-decrement a payer.
    */
   let deletedDocs: typeof documentsToDelete = []
-  await db.transaction(async (tx) => {
+  const deleteBatch = async (tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) => {
     /**
      * Lock every parent KB in stable ID order before deleting document rows.
      * Normal inserts and KB moves take the same parent lock first, so the
@@ -4188,7 +4201,8 @@ async function hardDeleteDocumentBatch(
         }),
       legacyDeltas: [],
     })
-  })
+  }
+  await (cleanupQuery ? cleanupQuery(deleteBatch) : db.transaction(deleteBatch))
 
   logger.info(`[${requestId}] Hard deleted ${deletedDocs.length} documents`, {
     documentIds: deletedDocs.map((doc) => doc.id),

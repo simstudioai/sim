@@ -372,26 +372,7 @@ async function pruneStaleReferences(
         SELECT ref.ctid
         FROM ${executionLargeValueReferences} AS ref
         WHERE ref.workspace_id IN ${workspaceIds}
-          AND (
-            (
-              ref.source = 'execution_log'
-              AND NOT EXISTS (
-                SELECT 1
-                FROM ${workflowExecutionLogs} AS wel
-                WHERE wel.execution_id = ref.execution_id
-              )
-            )
-            OR (
-              ref.source = 'paused_snapshot'
-              AND NOT EXISTS (
-                SELECT 1
-                FROM ${pausedExecutions} AS pe
-                WHERE pe.execution_id = ref.execution_id
-                  AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
-              )
-            )
-            OR ref.source NOT IN ('execution_log', 'paused_snapshot')
-          )
+          AND ${staleLargeValueReferencePredicate()}
         LIMIT ${batchSize}
       )
       RETURNING ref.key
@@ -416,19 +397,7 @@ async function pruneDeletedParentDependencies(
         SELECT dependency.ctid
         FROM ${executionLargeValueDependencies} AS dependency
         WHERE dependency.workspace_id IN ${workspaceIds}
-          AND (
-            EXISTS (
-              SELECT 1
-              FROM ${executionLargeValues} AS parent_value
-              WHERE parent_value.key = dependency.parent_key
-                AND parent_value.deleted_at IS NOT NULL
-            )
-            OR NOT EXISTS (
-              SELECT 1
-              FROM ${executionLargeValues} AS parent_value
-              WHERE parent_value.key = dependency.parent_key
-            )
-          )
+          AND ${staleLargeValueDependencyPredicate()}
         LIMIT ${batchSize}
       )
       RETURNING dependency.parent_key
@@ -454,13 +423,7 @@ async function pruneDeletedLargeValueTombstones(
         SELECT value.ctid
         FROM ${executionLargeValues} AS value
         WHERE value.workspace_id IN ${workspaceIds}
-          AND value.deleted_at IS NOT NULL
-          AND value.deleted_at < ${sql.param(deletedBefore, executionLargeValues.deletedAt)}
-          AND NOT EXISTS (
-            SELECT 1
-            FROM ${executionLargeValueDependencies} AS dependency
-            WHERE dependency.parent_key = value.key
-          )
+          AND ${largeValueTombstonePredicate(deletedBefore)}
         LIMIT ${batchSize}
       )
       RETURNING value.key
@@ -612,4 +575,56 @@ export function unreferencedLargeValuePredicate() {
         )
     )
   `
+}
+
+/** Eligibility shared by bounded maintenance and scheduled pruning. SQL alias: ref. */
+export function staleLargeValueReferencePredicate() {
+  return sql`(
+            (
+              ref.source = 'execution_log'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM ${workflowExecutionLogs} AS wel
+                WHERE wel.execution_id = ref.execution_id
+              )
+            )
+            OR (
+              ref.source = 'paused_snapshot'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM ${pausedExecutions} AS pe
+                WHERE pe.execution_id = ref.execution_id
+                  AND pe.status IN ${LIVE_PAUSED_REFERENCE_STATUSES}
+              )
+            )
+            OR ref.source NOT IN ('execution_log', 'paused_snapshot')
+          )`
+}
+
+/** Eligibility shared by bounded maintenance and scheduled pruning. SQL alias: dependency. */
+export function staleLargeValueDependencyPredicate() {
+  return sql`(
+            EXISTS (
+              SELECT 1
+              FROM ${executionLargeValues} AS parent_value
+              WHERE parent_value.key = dependency.parent_key
+                AND parent_value.deleted_at IS NOT NULL
+            )
+            OR NOT EXISTS (
+              SELECT 1
+              FROM ${executionLargeValues} AS parent_value
+              WHERE parent_value.key = dependency.parent_key
+            )
+          )`
+}
+
+/** Eligibility shared by bounded maintenance and scheduled pruning. SQL alias: value. */
+export function largeValueTombstonePredicate(deletedBefore: Date) {
+  return sql`value.deleted_at IS NOT NULL
+          AND value.deleted_at < ${sql.param(deletedBefore, executionLargeValues.deletedAt)}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ${executionLargeValueDependencies} AS dependency
+            WHERE dependency.parent_key = value.key
+          )`
 }
