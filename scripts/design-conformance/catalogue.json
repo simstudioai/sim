@@ -1,0 +1,4911 @@
+{
+  "version": "1.0.0",
+  "sourceCommit": "463fa05b27fe170cbb58bca89cc955313df5af84",
+  "provisional": true,
+  "sources": [
+    {
+      "file": "apps/sim/app/_styles/globals.css",
+      "blob": "c99b6a04651fb86f7e6ff2cf98e05ce5750531ee"
+    },
+    {
+      "file": "packages/emcn/src/components/avatar/avatar.tsx",
+      "blob": "85ebaa522c8a536ea4962cc3a18610c53b677ab7"
+    },
+    {
+      "file": "packages/emcn/src/components/badge/badge.tsx",
+      "blob": "cb0d1c3cd7fd653397878b466f9ddd66ccab735a"
+    },
+    {
+      "file": "packages/emcn/src/components/banner/banner.tsx",
+      "blob": "15368c2a5c23df05fe8de8420261116a519729cb"
+    },
+    {
+      "file": "packages/emcn/src/components/button/button.tsx",
+      "blob": "523aa73ef58e624cb7cb73a608cfbd2e2dacc2e2"
+    },
+    {
+      "file": "packages/emcn/src/components/calendar/calendar-day-cell.tsx",
+      "blob": "e3c49796c159ff2da106ba66cdfabc36f2e8d782"
+    },
+    {
+      "file": "packages/emcn/src/components/calendar/calendar.tsx",
+      "blob": "28cdadcbd1948d1e4adf2ef290c1c408dbf69d4f"
+    },
+    {
+      "file": "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "blob": "9df963bf85e9c30d01193eafae703d2afe063880"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-button-group/chip-button-group.tsx",
+      "blob": "5b779537ff63a03ccfea8207297dbb91838859c8"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-combobox/chip-combobox.tsx",
+      "blob": "9650a9892f7fbed64d8944d3a4e1fff0d4a44d78"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-copy-input/chip-copy-input.tsx",
+      "blob": "75111802089b8e6f60418b8adb7fa455b232e4d9"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-date-picker/chip-date-picker.tsx",
+      "blob": "9370d2fa6ea750b3e1bc783ebac78d482bac3789"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx",
+      "blob": "c4d5af5f49d8f5b7b2562df82c1dd2abf9adf89e"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-emails-input/chip-emails-input.tsx",
+      "blob": "7f973615b28e9dd56e469461c8bc1f716789f468"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "blob": "e1dca7bc55ea83706fb4cd433cf5c7d7e1154175"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "blob": "b714d85f06049a32fd774ff7cfdd7967335ee810"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "blob": "739960e7c5f73ce8e5bd8fd72969e12e62b3baae"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-switch/chip-switch.tsx",
+      "blob": "f3001005d1dd5de713f04657275a3542080659c8"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "blob": "67bfdd193820ea98dec5f7683aaf2b081b549207"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-textarea/chip-textarea.tsx",
+      "blob": "8f891a110314dd6cc189f390deb8e7a2b29f2084"
+    },
+    {
+      "file": "packages/emcn/src/components/chip-time-picker/chip-time-picker.tsx",
+      "blob": "6bebb61d419a4435ec56f3865524c47cc4e6a0af"
+    },
+    {
+      "file": "packages/emcn/src/components/chip/chip-chevron.tsx",
+      "blob": "3b4b30d23b51fba8ee59a0ba4235c58ad8efe765"
+    },
+    {
+      "file": "packages/emcn/src/components/chip/chip-chrome.ts",
+      "blob": "b4c5d63c52c3be642dbebb2ece49f2248d75d448"
+    },
+    {
+      "file": "packages/emcn/src/components/chip/chip.tsx",
+      "blob": "939e63455940eb4e7d0f4e8c98ae369f2cc21ee6"
+    },
+    {
+      "file": "packages/emcn/src/components/chip/segmented-control.ts",
+      "blob": "183a4954d708547f152fdc35574d5074be7e5080"
+    },
+    {
+      "file": "packages/emcn/src/components/code/code.css",
+      "blob": "1c49b13eef8c8ab136697ee3aa88f8a818c6eddd"
+    },
+    {
+      "file": "packages/emcn/src/components/code/code.tsx",
+      "blob": "b044aefea9870f2f60fe8d0d1903c7342a49cafd"
+    },
+    {
+      "file": "packages/emcn/src/components/code/copy-code-button.tsx",
+      "blob": "2c1c30046b3eb38fea65a17419b3c3de8631250f"
+    },
+    {
+      "file": "packages/emcn/src/components/code/prism.ts",
+      "blob": "b0d7e9e6f0767bf51d23b2b303697f294cd49b88"
+    },
+    {
+      "file": "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "blob": "661bab113c9d240e8c899a3b87a1829ff13512c2"
+    },
+    {
+      "file": "packages/emcn/src/components/combobox/combobox.tsx",
+      "blob": "39858f47f67db4ff2fb63fdc37105f72ed107a38"
+    },
+    {
+      "file": "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "blob": "87d6295f58d566ef7da4c8f314364d587f51b56d"
+    },
+    {
+      "file": "packages/emcn/src/components/expandable/expandable.tsx",
+      "blob": "62d89db9df5b2b83ca7d42b9db0b870afc688ccd"
+    },
+    {
+      "file": "packages/emcn/src/components/field-divider/field-divider.tsx",
+      "blob": "7408a21360f16dec3dbfa2551af0da6be66e19f9"
+    },
+    {
+      "file": "packages/emcn/src/components/index.ts",
+      "blob": "20e11b11f4c45debe4f690c996ca8471c7903086"
+    },
+    {
+      "file": "packages/emcn/src/components/info-card/info-card.tsx",
+      "blob": "11fd521792c5de35da6e5f8ddbc7aef87bf2f533"
+    },
+    {
+      "file": "packages/emcn/src/components/info/info.tsx",
+      "blob": "71b8ad1630989edec040ecfa03cb50d6949885bd"
+    },
+    {
+      "file": "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "blob": "a6c5ea82fff6705059def63b0a28ef2880ed9a51"
+    },
+    {
+      "file": "packages/emcn/src/components/input/input.tsx",
+      "blob": "fe0a4c1806a9d16995c31f403199710d15291434"
+    },
+    {
+      "file": "packages/emcn/src/components/label/label.tsx",
+      "blob": "412f12e8dc7eb29870a88d9d21babd602cdd26f1"
+    },
+    {
+      "file": "packages/emcn/src/components/modal/auto-focus.ts",
+      "blob": "6a1da9a978f8ff3804ea16a3952ea0f8ccdfa85a"
+    },
+    {
+      "file": "packages/emcn/src/components/modal/modal.tsx",
+      "blob": "6309ee44ae76d484eacd5d180db09061d7fa2072"
+    },
+    {
+      "file": "packages/emcn/src/components/overflow-text/overflow-text.tsx",
+      "blob": "c87d5d105e526bac605b43d9eb6c2c00ca50a852"
+    },
+    {
+      "file": "packages/emcn/src/components/popover/popover-animation.ts",
+      "blob": "6a284af10f335dc874559556dc9cfb9c6082ef55"
+    },
+    {
+      "file": "packages/emcn/src/components/popover/popover.tsx",
+      "blob": "529d2f57d064bc698f61d84ea5b6ff46a2cf47aa"
+    },
+    {
+      "file": "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "blob": "fe08f64dde3709fefb4edfbf3018a1e42a15931e"
+    },
+    {
+      "file": "packages/emcn/src/components/scroll-fade/scroll-fade.module.css",
+      "blob": "e391b96fa8e96b98023764441801f5503e75a5ea"
+    },
+    {
+      "file": "packages/emcn/src/components/scroll-fade/scroll-fade.ts",
+      "blob": "1c529a64142ae836e658649439a85b6f51202c5e"
+    },
+    {
+      "file": "packages/emcn/src/components/secret-input/secret-input.tsx",
+      "blob": "359e9f1d5ae257f49f35164345df4535dd236ace"
+    },
+    {
+      "file": "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "blob": "fe9032032d021b7ef9a8155908500113bbc1aad4"
+    },
+    {
+      "file": "packages/emcn/src/components/skeleton/skeleton.tsx",
+      "blob": "00a129c5e15709c96e865500d7b1386e93d44dfc"
+    },
+    {
+      "file": "packages/emcn/src/components/slider/slider.tsx",
+      "blob": "7dd386a05992f45a207975f6c0318ad11e81e2ce"
+    },
+    {
+      "file": "packages/emcn/src/components/switch/switch.tsx",
+      "blob": "1d5b0c8be9cfa45f4b05d9dbae8e060d126c1c4a"
+    },
+    {
+      "file": "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "blob": "44b02ff7a7981fa18c3ade6659c3744f3908212f"
+    },
+    {
+      "file": "packages/emcn/src/components/table/table.tsx",
+      "blob": "0ba67ba490f47115a1af54bab31b9798c1bef4d8"
+    },
+    {
+      "file": "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "blob": "d898d32f37558454651862ee60d266ca34223e3e"
+    },
+    {
+      "file": "packages/emcn/src/components/textarea/textarea.tsx",
+      "blob": "d1cb2b593092edf1059883c02d84b5564b332fb0"
+    },
+    {
+      "file": "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "blob": "009f2815beb7c3b221185e034080b1ec83e2294f"
+    },
+    {
+      "file": "packages/emcn/src/components/toast/toast.tsx",
+      "blob": "6c8d1d4e37b59ed16d536593c6477a3d4cb1d048"
+    },
+    {
+      "file": "packages/emcn/src/components/tooltip/tooltip-styles.ts",
+      "blob": "53060bd5608af2d4b9543476dbb85d7e6db32b6f"
+    },
+    {
+      "file": "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "blob": "321f912caeb5811e8fd1395db07cd09e48482559"
+    },
+    {
+      "file": "packages/emcn/src/components/wizard/wizard.tsx",
+      "blob": "88417d6b7cba02a45e0bb8accb986b58ffd5c6f8"
+    },
+    {
+      "file": "packages/emcn/src/lib/cn.ts",
+      "blob": "44b68c24039bbec3a0207cc05883f5de24f098bf"
+    },
+    {
+      "file": "packages/emcn/src/lib/keyboard.ts",
+      "blob": "1d91eda8a3a715d8cc47e3c255078ac5866ceeb4"
+    }
+  ],
+  "theme": "@theme default {\n  --font-sans:\n    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial,\n    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';\n  --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;\n  --font-mono:\n    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',\n    monospace;\n\n  --color-red-50: oklch(97.1% 0.013 17.38);\n  --color-red-100: oklch(93.6% 0.032 17.717);\n  --color-red-200: oklch(88.5% 0.062 18.334);\n  --color-red-300: oklch(80.8% 0.114 19.571);\n  --color-red-400: oklch(70.4% 0.191 22.216);\n  --color-red-500: oklch(63.7% 0.237 25.331);\n  --color-red-600: oklch(57.7% 0.245 27.325);\n  --color-red-700: oklch(50.5% 0.213 27.518);\n  --color-red-800: oklch(44.4% 0.177 26.899);\n  --color-red-900: oklch(39.6% 0.141 25.723);\n  --color-red-950: oklch(25.8% 0.092 26.042);\n\n  --color-orange-50: oklch(98% 0.016 73.684);\n  --color-orange-100: oklch(95.4% 0.038 75.164);\n  --color-orange-200: oklch(90.1% 0.076 70.697);\n  --color-orange-300: oklch(83.7% 0.128 66.29);\n  --color-orange-400: oklch(75% 0.183 55.934);\n  --color-orange-500: oklch(70.5% 0.213 47.604);\n  --color-orange-600: oklch(64.6% 0.222 41.116);\n  --color-orange-700: oklch(55.3% 0.195 38.402);\n  --color-orange-800: oklch(47% 0.157 37.304);\n  --color-orange-900: oklch(40.8% 0.123 38.172);\n  --color-orange-950: oklch(26.6% 0.079 36.259);\n\n  --color-amber-50: oklch(98.7% 0.022 95.277);\n  --color-amber-100: oklch(96.2% 0.059 95.617);\n  --color-amber-200: oklch(92.4% 0.12 95.746);\n  --color-amber-300: oklch(87.9% 0.169 91.605);\n  --color-amber-400: oklch(82.8% 0.189 84.429);\n  --color-amber-500: oklch(76.9% 0.188 70.08);\n  --color-amber-600: oklch(66.6% 0.179 58.318);\n  --color-amber-700: oklch(55.5% 0.163 48.998);\n  --color-amber-800: oklch(47.3% 0.137 46.201);\n  --color-amber-900: oklch(41.4% 0.112 45.904);\n  --color-amber-950: oklch(27.9% 0.077 45.635);\n\n  --color-yellow-50: oklch(98.7% 0.026 102.212);\n  --color-yellow-100: oklch(97.3% 0.071 103.193);\n  --color-yellow-200: oklch(94.5% 0.129 101.54);\n  --color-yellow-300: oklch(90.5% 0.182 98.111);\n  --color-yellow-400: oklch(85.2% 0.199 91.936);\n  --color-yellow-500: oklch(79.5% 0.184 86.047);\n  --color-yellow-600: oklch(68.1% 0.162 75.834);\n  --color-yellow-700: oklch(55.4% 0.135 66.442);\n  --color-yellow-800: oklch(47.6% 0.114 61.907);\n  --color-yellow-900: oklch(42.1% 0.095 57.708);\n  --color-yellow-950: oklch(28.6% 0.066 53.813);\n\n  --color-lime-50: oklch(98.6% 0.031 120.757);\n  --color-lime-100: oklch(96.7% 0.067 122.328);\n  --color-lime-200: oklch(93.8% 0.127 124.321);\n  --color-lime-300: oklch(89.7% 0.196 126.665);\n  --color-lime-400: oklch(84.1% 0.238 128.85);\n  --color-lime-500: oklch(76.8% 0.233 130.85);\n  --color-lime-600: oklch(64.8% 0.2 131.684);\n  --color-lime-700: oklch(53.2% 0.157 131.589);\n  --color-lime-800: oklch(45.3% 0.124 130.933);\n  --color-lime-900: oklch(40.5% 0.101 131.063);\n  --color-lime-950: oklch(27.4% 0.072 132.109);\n\n  --color-green-50: oklch(98.2% 0.018 155.826);\n  --color-green-100: oklch(96.2% 0.044 156.743);\n  --color-green-200: oklch(92.5% 0.084 155.995);\n  --color-green-300: oklch(87.1% 0.15 154.449);\n  --color-green-400: oklch(79.2% 0.209 151.711);\n  --color-green-500: oklch(72.3% 0.219 149.579);\n  --color-green-600: oklch(62.7% 0.194 149.214);\n  --color-green-700: oklch(52.7% 0.154 150.069);\n  --color-green-800: oklch(44.8% 0.119 151.328);\n  --color-green-900: oklch(39.3% 0.095 152.535);\n  --color-green-950: oklch(26.6% 0.065 152.934);\n\n  --color-emerald-50: oklch(97.9% 0.021 166.113);\n  --color-emerald-100: oklch(95% 0.052 163.051);\n  --color-emerald-200: oklch(90.5% 0.093 164.15);\n  --color-emerald-300: oklch(84.5% 0.143 164.978);\n  --color-emerald-400: oklch(76.5% 0.177 163.223);\n  --color-emerald-500: oklch(69.6% 0.17 162.48);\n  --color-emerald-600: oklch(59.6% 0.145 163.225);\n  --color-emerald-700: oklch(50.8% 0.118 165.612);\n  --color-emerald-800: oklch(43.2% 0.095 166.913);\n  --color-emerald-900: oklch(37.8% 0.077 168.94);\n  --color-emerald-950: oklch(26.2% 0.051 172.552);\n\n  --color-teal-50: oklch(98.4% 0.014 180.72);\n  --color-teal-100: oklch(95.3% 0.051 180.801);\n  --color-teal-200: oklch(91% 0.096 180.426);\n  --color-teal-300: oklch(85.5% 0.138 181.071);\n  --color-teal-400: oklch(77.7% 0.152 181.912);\n  --color-teal-500: oklch(70.4% 0.14 182.503);\n  --color-teal-600: oklch(60% 0.118 184.704);\n  --color-teal-700: oklch(51.1% 0.096 186.391);\n  --color-teal-800: oklch(43.7% 0.078 188.216);\n  --color-teal-900: oklch(38.6% 0.063 188.416);\n  --color-teal-950: oklch(27.7% 0.046 192.524);\n\n  --color-cyan-50: oklch(98.4% 0.019 200.873);\n  --color-cyan-100: oklch(95.6% 0.045 203.388);\n  --color-cyan-200: oklch(91.7% 0.08 205.041);\n  --color-cyan-300: oklch(86.5% 0.127 207.078);\n  --color-cyan-400: oklch(78.9% 0.154 211.53);\n  --color-cyan-500: oklch(71.5% 0.143 215.221);\n  --color-cyan-600: oklch(60.9% 0.126 221.723);\n  --color-cyan-700: oklch(52% 0.105 223.128);\n  --color-cyan-800: oklch(45% 0.085 224.283);\n  --color-cyan-900: oklch(39.8% 0.07 227.392);\n  --color-cyan-950: oklch(30.2% 0.056 229.695);\n\n  --color-sky-50: oklch(97.7% 0.013 236.62);\n  --color-sky-100: oklch(95.1% 0.026 236.824);\n  --color-sky-200: oklch(90.1% 0.058 230.902);\n  --color-sky-300: oklch(82.8% 0.111 230.318);\n  --color-sky-400: oklch(74.6% 0.16 232.661);\n  --color-sky-500: oklch(68.5% 0.169 237.323);\n  --color-sky-600: oklch(58.8% 0.158 241.966);\n  --color-sky-700: oklch(50% 0.134 242.749);\n  --color-sky-800: oklch(44.3% 0.11 240.79);\n  --color-sky-900: oklch(39.1% 0.09 240.876);\n  --color-sky-950: oklch(29.3% 0.066 243.157);\n\n  --color-blue-50: oklch(97% 0.014 254.604);\n  --color-blue-100: oklch(93.2% 0.032 255.585);\n  --color-blue-200: oklch(88.2% 0.059 254.128);\n  --color-blue-300: oklch(80.9% 0.105 251.813);\n  --color-blue-400: oklch(70.7% 0.165 254.624);\n  --color-blue-500: oklch(62.3% 0.214 259.815);\n  --color-blue-600: oklch(54.6% 0.245 262.881);\n  --color-blue-700: oklch(48.8% 0.243 264.376);\n  --color-blue-800: oklch(42.4% 0.199 265.638);\n  --color-blue-900: oklch(37.9% 0.146 265.522);\n  --color-blue-950: oklch(28.2% 0.091 267.935);\n\n  --color-indigo-50: oklch(96.2% 0.018 272.314);\n  --color-indigo-100: oklch(93% 0.034 272.788);\n  --color-indigo-200: oklch(87% 0.065 274.039);\n  --color-indigo-300: oklch(78.5% 0.115 274.713);\n  --color-indigo-400: oklch(67.3% 0.182 276.935);\n  --color-indigo-500: oklch(58.5% 0.233 277.117);\n  --color-indigo-600: oklch(51.1% 0.262 276.966);\n  --color-indigo-700: oklch(45.7% 0.24 277.023);\n  --color-indigo-800: oklch(39.8% 0.195 277.366);\n  --color-indigo-900: oklch(35.9% 0.144 278.697);\n  --color-indigo-950: oklch(25.7% 0.09 281.288);\n\n  --color-violet-50: oklch(96.9% 0.016 293.756);\n  --color-violet-100: oklch(94.3% 0.029 294.588);\n  --color-violet-200: oklch(89.4% 0.057 293.283);\n  --color-violet-300: oklch(81.1% 0.111 293.571);\n  --color-violet-400: oklch(70.2% 0.183 293.541);\n  --color-violet-500: oklch(60.6% 0.25 292.717);\n  --color-violet-600: oklch(54.1% 0.281 293.009);\n  --color-violet-700: oklch(49.1% 0.27 292.581);\n  --color-violet-800: oklch(43.2% 0.232 292.759);\n  --color-violet-900: oklch(38% 0.189 293.745);\n  --color-violet-950: oklch(28.3% 0.141 291.089);\n\n  --color-purple-50: oklch(97.7% 0.014 308.299);\n  --color-purple-100: oklch(94.6% 0.033 307.174);\n  --color-purple-200: oklch(90.2% 0.063 306.703);\n  --color-purple-300: oklch(82.7% 0.119 306.383);\n  --color-purple-400: oklch(71.4% 0.203 305.504);\n  --color-purple-500: oklch(62.7% 0.265 303.9);\n  --color-purple-600: oklch(55.8% 0.288 302.321);\n  --color-purple-700: oklch(49.6% 0.265 301.924);\n  --color-purple-800: oklch(43.8% 0.218 303.724);\n  --color-purple-900: oklch(38.1% 0.176 304.987);\n  --color-purple-950: oklch(29.1% 0.149 302.717);\n\n  --color-fuchsia-50: oklch(97.7% 0.017 320.058);\n  --color-fuchsia-100: oklch(95.2% 0.037 318.852);\n  --color-fuchsia-200: oklch(90.3% 0.076 319.62);\n  --color-fuchsia-300: oklch(83.3% 0.145 321.434);\n  --color-fuchsia-400: oklch(74% 0.238 322.16);\n  --color-fuchsia-500: oklch(66.7% 0.295 322.15);\n  --color-fuchsia-600: oklch(59.1% 0.293 322.896);\n  --color-fuchsia-700: oklch(51.8% 0.253 323.949);\n  --color-fuchsia-800: oklch(45.2% 0.211 324.591);\n  --color-fuchsia-900: oklch(40.1% 0.17 325.612);\n  --color-fuchsia-950: oklch(29.3% 0.136 325.661);\n\n  --color-pink-50: oklch(97.1% 0.014 343.198);\n  --color-pink-100: oklch(94.8% 0.028 342.258);\n  --color-pink-200: oklch(89.9% 0.061 343.231);\n  --color-pink-300: oklch(82.3% 0.12 346.018);\n  --color-pink-400: oklch(71.8% 0.202 349.761);\n  --color-pink-500: oklch(65.6% 0.241 354.308);\n  --color-pink-600: oklch(59.2% 0.249 0.584);\n  --color-pink-700: oklch(52.5% 0.223 3.958);\n  --color-pink-800: oklch(45.9% 0.187 3.815);\n  --color-pink-900: oklch(40.8% 0.153 2.432);\n  --color-pink-950: oklch(28.4% 0.109 3.907);\n\n  --color-rose-50: oklch(96.9% 0.015 12.422);\n  --color-rose-100: oklch(94.1% 0.03 12.58);\n  --color-rose-200: oklch(89.2% 0.058 10.001);\n  --color-rose-300: oklch(81% 0.117 11.638);\n  --color-rose-400: oklch(71.2% 0.194 13.428);\n  --color-rose-500: oklch(64.5% 0.246 16.439);\n  --color-rose-600: oklch(58.6% 0.253 17.585);\n  --color-rose-700: oklch(51.4% 0.222 16.935);\n  --color-rose-800: oklch(45.5% 0.188 13.697);\n  --color-rose-900: oklch(41% 0.159 10.272);\n  --color-rose-950: oklch(27.1% 0.105 12.094);\n\n  --color-slate-50: oklch(98.4% 0.003 247.858);\n  --color-slate-100: oklch(96.8% 0.007 247.896);\n  --color-slate-200: oklch(92.9% 0.013 255.508);\n  --color-slate-300: oklch(86.9% 0.022 252.894);\n  --color-slate-400: oklch(70.4% 0.04 256.788);\n  --color-slate-500: oklch(55.4% 0.046 257.417);\n  --color-slate-600: oklch(44.6% 0.043 257.281);\n  --color-slate-700: oklch(37.2% 0.044 257.287);\n  --color-slate-800: oklch(27.9% 0.041 260.031);\n  --color-slate-900: oklch(20.8% 0.042 265.755);\n  --color-slate-950: oklch(12.9% 0.042 264.695);\n\n  --color-gray-50: oklch(98.5% 0.002 247.839);\n  --color-gray-100: oklch(96.7% 0.003 264.542);\n  --color-gray-200: oklch(92.8% 0.006 264.531);\n  --color-gray-300: oklch(87.2% 0.01 258.338);\n  --color-gray-400: oklch(70.7% 0.022 261.325);\n  --color-gray-500: oklch(55.1% 0.027 264.364);\n  --color-gray-600: oklch(44.6% 0.03 256.802);\n  --color-gray-700: oklch(37.3% 0.034 259.733);\n  --color-gray-800: oklch(27.8% 0.033 256.848);\n  --color-gray-900: oklch(21% 0.034 264.665);\n  --color-gray-950: oklch(13% 0.028 261.692);\n\n  --color-zinc-50: oklch(98.5% 0 none);\n  --color-zinc-100: oklch(96.7% 0.001 286.375);\n  --color-zinc-200: oklch(92% 0.004 286.32);\n  --color-zinc-300: oklch(87.1% 0.006 286.286);\n  --color-zinc-400: oklch(70.5% 0.015 286.067);\n  --color-zinc-500: oklch(55.2% 0.016 285.938);\n  --color-zinc-600: oklch(44.2% 0.017 285.786);\n  --color-zinc-700: oklch(37% 0.013 285.805);\n  --color-zinc-800: oklch(27.4% 0.006 286.033);\n  --color-zinc-900: oklch(21% 0.006 285.885);\n  --color-zinc-950: oklch(14.1% 0.005 285.823);\n\n  --color-neutral-50: oklch(98.5% 0 none);\n  --color-neutral-100: oklch(97% 0 none);\n  --color-neutral-200: oklch(92.2% 0 none);\n  --color-neutral-300: oklch(87% 0 none);\n  --color-neutral-400: oklch(70.8% 0 none);\n  --color-neutral-500: oklch(55.6% 0 none);\n  --color-neutral-600: oklch(43.9% 0 none);\n  --color-neutral-700: oklch(37.1% 0 none);\n  --color-neutral-800: oklch(26.9% 0 none);\n  --color-neutral-900: oklch(20.5% 0 none);\n  --color-neutral-950: oklch(14.5% 0 none);\n\n  --color-stone-50: oklch(98.5% 0.001 106.423);\n  --color-stone-100: oklch(97% 0.001 106.424);\n  --color-stone-200: oklch(92.3% 0.003 48.717);\n  --color-stone-300: oklch(86.9% 0.005 56.366);\n  --color-stone-400: oklch(70.9% 0.01 56.259);\n  --color-stone-500: oklch(55.3% 0.013 58.071);\n  --color-stone-600: oklch(44.4% 0.011 73.639);\n  --color-stone-700: oklch(37.4% 0.01 67.558);\n  --color-stone-800: oklch(26.8% 0.007 34.298);\n  --color-stone-900: oklch(21.6% 0.006 56.043);\n  --color-stone-950: oklch(14.7% 0.004 49.25);\n\n  --color-mauve-50: oklch(98.5% 0 none);\n  --color-mauve-100: oklch(96% 0.003 325.6);\n  --color-mauve-200: oklch(92.2% 0.005 325.62);\n  --color-mauve-300: oklch(86.5% 0.012 325.68);\n  --color-mauve-400: oklch(71.1% 0.019 323.02);\n  --color-mauve-500: oklch(54.2% 0.034 322.5);\n  --color-mauve-600: oklch(43.5% 0.029 321.78);\n  --color-mauve-700: oklch(36.4% 0.029 323.89);\n  --color-mauve-800: oklch(26.3% 0.024 320.12);\n  --color-mauve-900: oklch(21.2% 0.019 322.12);\n  --color-mauve-950: oklch(14.5% 0.008 326);\n\n  --color-olive-50: oklch(98.8% 0.003 106.5);\n  --color-olive-100: oklch(96.6% 0.005 106.5);\n  --color-olive-200: oklch(93% 0.007 106.5);\n  --color-olive-300: oklch(88% 0.011 106.6);\n  --color-olive-400: oklch(73.7% 0.021 106.9);\n  --color-olive-500: oklch(58% 0.031 107.3);\n  --color-olive-600: oklch(46.6% 0.025 107.3);\n  --color-olive-700: oklch(39.4% 0.023 107.4);\n  --color-olive-800: oklch(28.6% 0.016 107.4);\n  --color-olive-900: oklch(22.8% 0.013 107.4);\n  --color-olive-950: oklch(15.3% 0.006 107.1);\n\n  --color-mist-50: oklch(98.7% 0.002 197.1);\n  --color-mist-100: oklch(96.3% 0.002 197.1);\n  --color-mist-200: oklch(92.5% 0.005 214.3);\n  --color-mist-300: oklch(87.2% 0.007 219.6);\n  --color-mist-400: oklch(72.3% 0.014 214.4);\n  --color-mist-500: oklch(56% 0.021 213.5);\n  --color-mist-600: oklch(45% 0.017 213.2);\n  --color-mist-700: oklch(37.8% 0.015 216);\n  --color-mist-800: oklch(27.5% 0.011 216.9);\n  --color-mist-900: oklch(21.8% 0.008 223.9);\n  --color-mist-950: oklch(14.8% 0.004 228.8);\n\n  --color-taupe-50: oklch(98.6% 0.002 67.8);\n  --color-taupe-100: oklch(96% 0.002 17.2);\n  --color-taupe-200: oklch(92.2% 0.005 34.3);\n  --color-taupe-300: oklch(86.8% 0.007 39.5);\n  --color-taupe-400: oklch(71.4% 0.014 41.2);\n  --color-taupe-500: oklch(54.7% 0.021 43.1);\n  --color-taupe-600: oklch(43.8% 0.017 39.3);\n  --color-taupe-700: oklch(36.7% 0.016 35.7);\n  --color-taupe-800: oklch(26.8% 0.011 36.5);\n  --color-taupe-900: oklch(21.4% 0.009 43.1);\n  --color-taupe-950: oklch(14.7% 0.004 49.3);\n\n  --color-black: #000;\n  --color-white: #fff;\n\n  --spacing: 0.25rem;\n\n  --breakpoint-sm: 40rem;\n  --breakpoint-md: 48rem;\n  --breakpoint-lg: 64rem;\n  --breakpoint-xl: 80rem;\n  --breakpoint-2xl: 96rem;\n\n  --container-3xs: 16rem;\n  --container-2xs: 18rem;\n  --container-xs: 20rem;\n  --container-sm: 24rem;\n  --container-md: 28rem;\n  --container-lg: 32rem;\n  --container-xl: 36rem;\n  --container-2xl: 42rem;\n  --container-3xl: 48rem;\n  --container-4xl: 56rem;\n  --container-5xl: 64rem;\n  --container-6xl: 72rem;\n  --container-7xl: 80rem;\n\n  --text-xs: 0.75rem;\n  --text-xs--line-height: calc(1 / 0.75);\n  --text-sm: 0.875rem;\n  --text-sm--line-height: calc(1.25 / 0.875);\n  --text-base: 1rem;\n  --text-base--line-height: calc(1.5 / 1);\n  --text-lg: 1.125rem;\n  --text-lg--line-height: calc(1.75 / 1.125);\n  --text-xl: 1.25rem;\n  --text-xl--line-height: calc(1.75 / 1.25);\n  --text-2xl: 1.5rem;\n  --text-2xl--line-height: calc(2 / 1.5);\n  --text-3xl: 1.875rem;\n  --text-3xl--line-height: calc(2.25 / 1.875);\n  --text-4xl: 2.25rem;\n  --text-4xl--line-height: calc(2.5 / 2.25);\n  --text-5xl: 3rem;\n  --text-5xl--line-height: 1;\n  --text-6xl: 3.75rem;\n  --text-6xl--line-height: 1;\n  --text-7xl: 4.5rem;\n  --text-7xl--line-height: 1;\n  --text-8xl: 6rem;\n  --text-8xl--line-height: 1;\n  --text-9xl: 8rem;\n  --text-9xl--line-height: 1;\n\n  --font-weight-thin: 100;\n  --font-weight-extralight: 200;\n  --font-weight-light: 300;\n  --font-weight-normal: 400;\n  --font-weight-medium: 500;\n  --font-weight-semibold: 600;\n  --font-weight-bold: 700;\n  --font-weight-extrabold: 800;\n  --font-weight-black: 900;\n\n  --tracking-tighter: -0.05em;\n  --tracking-tight: -0.025em;\n  --tracking-normal: 0em;\n  --tracking-wide: 0.025em;\n  --tracking-wider: 0.05em;\n  --tracking-widest: 0.1em;\n\n  --leading-tight: 1.25;\n  --leading-snug: 1.375;\n  --leading-normal: 1.5;\n  --leading-relaxed: 1.625;\n  --leading-loose: 2;\n\n  --radius-xs: 0.125rem;\n  --radius-sm: 0.25rem;\n  --radius-md: 0.375rem;\n  --radius-lg: 0.5rem;\n  --radius-xl: 0.75rem;\n  --radius-2xl: 1rem;\n  --radius-3xl: 1.5rem;\n  --radius-4xl: 2rem;\n\n  --shadow-2xs: 0 1px rgb(0 0 0 / 0.05);\n  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);\n  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);\n  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);\n  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);\n  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);\n  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);\n\n  --inset-shadow-2xs: inset 0 1px rgb(0 0 0 / 0.05);\n  --inset-shadow-xs: inset 0 1px 1px rgb(0 0 0 / 0.05);\n  --inset-shadow-sm: inset 0 2px 4px rgb(0 0 0 / 0.05);\n\n  --drop-shadow-xs: 0 1px 1px rgb(0 0 0 / 0.05);\n  --drop-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.15);\n  --drop-shadow-md: 0 3px 3px rgb(0 0 0 / 0.12);\n  --drop-shadow-lg: 0 4px 4px rgb(0 0 0 / 0.15);\n  --drop-shadow-xl: 0 9px 7px rgb(0 0 0 / 0.1);\n  --drop-shadow-2xl: 0 25px 25px rgb(0 0 0 / 0.15);\n\n  --text-shadow-2xs: 0px 1px 0px rgb(0 0 0 / 0.15);\n  --text-shadow-xs: 0px 1px 1px rgb(0 0 0 / 0.2);\n  --text-shadow-sm:\n    0px 1px 0px rgb(0 0 0 / 0.075), 0px 1px 1px rgb(0 0 0 / 0.075), 0px 2px 2px rgb(0 0 0 / 0.075);\n  --text-shadow-md:\n    0px 1px 1px rgb(0 0 0 / 0.1), 0px 1px 2px rgb(0 0 0 / 0.1), 0px 2px 4px rgb(0 0 0 / 0.1);\n  --text-shadow-lg:\n    0px 1px 2px rgb(0 0 0 / 0.1), 0px 3px 2px rgb(0 0 0 / 0.1), 0px 4px 8px rgb(0 0 0 / 0.1);\n\n  --ease-in: cubic-bezier(0.4, 0, 1, 1);\n  --ease-out: cubic-bezier(0, 0, 0.2, 1);\n  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);\n\n  --animate-spin: spin 1s linear infinite;\n  --animate-ping: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;\n  --animate-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;\n  --animate-bounce: bounce 1s infinite;\n\n  @keyframes spin {\n    to {\n      transform: rotate(360deg);\n    }\n  }\n\n  @keyframes ping {\n    75%,\n    100% {\n      transform: scale(2);\n      opacity: 0;\n    }\n  }\n\n  @keyframes pulse {\n    50% {\n      opacity: 0.5;\n    }\n  }\n\n  @keyframes bounce {\n    0%,\n    100% {\n      transform: translateY(-25%);\n      animation-timing-function: cubic-bezier(0.8, 0, 1, 1);\n    }\n\n    50% {\n      transform: none;\n      animation-timing-function: cubic-bezier(0, 0, 0.2, 1);\n    }\n  }\n\n  --blur-xs: 4px;\n  --blur-sm: 8px;\n  --blur-md: 12px;\n  --blur-lg: 16px;\n  --blur-xl: 24px;\n  --blur-2xl: 40px;\n  --blur-3xl: 64px;\n\n  --perspective-dramatic: 100px;\n  --perspective-near: 300px;\n  --perspective-normal: 500px;\n  --perspective-midrange: 800px;\n  --perspective-distant: 1200px;\n\n  --aspect-video: 16 / 9;\n\n  --default-transition-duration: 150ms;\n  --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n  --default-font-family: --theme(--font-sans, initial);\n  --default-font-feature-settings: --theme(--font-sans--font-feature-settings, initial);\n  --default-font-variation-settings: --theme(--font-sans--font-variation-settings, initial);\n  --default-mono-font-family: --theme(--font-mono, initial);\n  --default-mono-font-feature-settings: --theme(--font-mono--font-feature-settings, initial);\n  --default-mono-font-variation-settings: --theme(--font-mono--font-variation-settings, initial);\n}\n\n/* Deprecated */\n@theme default inline reference {\n  --blur: 8px;\n  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);\n  --shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);\n  --drop-shadow: 0 1px 2px rgb(0 0 0 / 0.1), 0 1px 1px rgb(0 0 0 / 0.06);\n  --radius: 0.25rem;\n  --max-width-prose: 65ch;\n}\n\n@custom-variant dark (&:where(.dark, .dark *):not(:where(.light, .light *)));\n@custom-variant hover (&:hover);\n@custom-variant hover-hover {\n  @media (hover: hover) and (pointer: fine) {\n    &:hover {\n      @slot;\n    }\n  }\n}\n@theme inline {\n  /**\n   * Pinned to the v3 default stack. v4's own `--font-sans` is an\n   * `-apple-system`-first list, and Preflight resolves the document font through\n   * it, so taking the new default would shift the face on every element that\n   * does not name a font.\n   */\n  --font-sans:\n    ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\",\n    \"Noto Color Emoji\";\n\n  --font-season: var(--font-season);\n  --font-body:\n    ui-sans-serif, -apple-system, system-ui, Segoe UI, Helvetica, Apple Color Emoji, Arial,\n    sans-serif, Segoe UI Emoji, Segoe UI Symbol;\n  --font-mono:\n    var(--font-martian-mono, ui-monospace), SFMono-Regular, Menlo, Monaco, Consolas,\n    \"Liberation Mono\", \"Courier New\", monospace;\n\n  /**\n   * Pinned in px. v4's defaults are rem, and rem in a media query resolves\n   * against the browser's initial font size rather than `html { font-size }` —\n   * so a reader who raised their browser's default text size would get the\n   * mobile layout at a desktop width. These are v3's px values unchanged.\n   */\n  --breakpoint-sm: 640px;\n  --breakpoint-md: 768px;\n  --breakpoint-lg: 1024px;\n  --breakpoint-xl: 1280px;\n  --breakpoint-2xl: 1536px;\n\n  --text-micro: 10px;\n  /**\n   * `xs` is the one size here that also exists in Tailwind's own scale, so it\n   * inherits `--text-xs--line-height` unless that is overridden too. v4's ratio\n   * (4/3) against an 11px size yields 14.67px, where v3 resolved 16.5px; the\n   * paired value keeps the leading where it was.\n   */\n  --text-xs: 11px;\n  --text-xs--line-height: 1.5;\n  --text-caption: 12px;\n  --text-small: 13px;\n  --text-base: 15px;\n  --text-md: 16px;\n\n  /**\n   * Hairline scale key. Overriding `spacing` rather than `width`/`height` keeps\n   * every derived scale in agreement — a `w-px` line and the `-right-px` offset\n   * that positions it resolve to the same value, which a width-only override\n   * desynchronizes by half a device pixel.\n   */\n  --spacing-px: var(--border-width);\n\n  --color-background: hsl(var(--background));\n  --color-foreground: hsl(var(--foreground));\n  --color-card: hsl(var(--card));\n  --color-card-foreground: hsl(var(--card-foreground));\n  --color-popover: hsl(var(--popover));\n  --color-popover-foreground: hsl(var(--popover-foreground));\n  --color-primary: hsl(var(--primary));\n  --color-primary-foreground: hsl(var(--primary-foreground));\n  --color-secondary: hsl(var(--secondary));\n  --color-secondary-foreground: hsl(var(--secondary-foreground));\n  --color-muted: hsl(var(--muted));\n  --color-muted-foreground: hsl(var(--muted-foreground));\n  --color-accent: hsl(var(--accent));\n  --color-accent-foreground: hsl(var(--accent-foreground));\n  --color-destructive: hsl(var(--destructive));\n  --color-destructive-foreground: hsl(var(--destructive-foreground));\n\n  /**\n   * Neutral border colors are plain hex, not the HSL triplets the shadcn keys\n   * above use — `hsl(var(--border))` would be invalid CSS and get dropped,\n   * leaving the utility to fall through to the `*` border-color rule below by\n   * accident.\n   */\n  --color-border: var(--border);\n  --color-input: hsl(var(--input));\n  --color-ring: hsl(var(--ring));\n\n  --color-chart-1: hsl(var(--chart-1));\n  --color-chart-2: hsl(var(--chart-2));\n  --color-chart-3: hsl(var(--chart-3));\n  --color-chart-4: hsl(var(--chart-4));\n  --color-chart-5: hsl(var(--chart-5));\n\n  /**\n   * v4 ships its palette in oklch, which renders visibly more saturated than\n   * v3's sRGB hex on a P3 display. These are the v3 values for every stock\n   * palette colour the app actually uses, recovered from a v3 build, so the\n   * upgrade changes no rendered colour. Adopting the wider-gamut palette is a\n   * design decision to make on its own, not a side effect of the upgrade.\n   */\n  --color-amber-50: #fffbeb;\n  --color-amber-200: #fde68a;\n  --color-amber-300: #fcd34d;\n  --color-amber-400: #fbbf24;\n  --color-amber-500: #f59e0b;\n  --color-amber-600: #d97706;\n  --color-amber-700: #b45309;\n  --color-amber-800: #92400e;\n  --color-amber-900: #78350f;\n  --color-amber-950: #451a03;\n  --color-blue-500: #3b82f6;\n  --color-emerald-400: #34d399;\n  --color-emerald-500: #10b981;\n  --color-green-500: #22c55e;\n  --color-orange-400: #fb923c;\n  --color-purple-500: #a855f7;\n  --color-red-50: #fef2f2;\n  --color-red-300: #fca5a5;\n  --color-red-400: #f87171;\n  --color-red-600: #dc2626;\n  --color-red-700: #b91c1c;\n  --color-red-950: #450a0a;\n  --color-yellow-200: #fef08a;\n  --color-yellow-500: #eab308;\n\n  --color-gray-50: #fafafa;\n  --color-gray-100: #f5f5f5;\n  --color-gray-200: #e5e5e5;\n  --color-gray-300: #d4d4d4;\n  --color-gray-400: #a3a3a3;\n  --color-gray-500: #737373;\n  --color-gray-600: #525252;\n  --color-gray-700: #404040;\n  --color-gray-800: #262626;\n  --color-gray-900: #171717;\n  --color-gray-950: #0a0a0a;\n\n  --radius-xs: 2px;\n  --radius-sm: calc(var(--radius) - 4px);\n  --radius-md: calc(var(--radius) - 2px);\n  --radius-lg: var(--radius);\n\n  /**\n   * These names intentionally match the app's own `:root` custom properties, so\n   * the value below reads back as a self-reference. It resolves: Tailwind emits\n   * the theme copy inside `@layer theme`, and the app's later unlayered `:root`\n   * declaration outranks any layered one, so the real value always wins. The\n   * `inline` substitution then resolves it at the element, which is what lets\n   * `.dark` override each shadow.\n   */\n  --shadow-subtle: var(--shadow-subtle);\n  --shadow-medium: var(--shadow-medium);\n  --shadow-overlay: var(--shadow-overlay);\n  --shadow-kbd: var(--shadow-kbd);\n  --shadow-kbd-sm: var(--shadow-kbd-sm);\n  --shadow-card: var(--shadow-card);\n  --shadow-ambient: var(--shadow-ambient);\n\n  /**\n   * The home/chat reading column. The heading, input, suggested actions,\n   * transcript, and its skeleton must all share one value or the footer input\n   * visibly misaligns with the messages above it — so they read this key rather\n   * than repeating a literal.\n   */\n  --container-chat: 44rem;\n\n  --animate-caret-blink: caret-blink 1.25s ease-out infinite;\n  --animate-running-hatch-scroll: running-hatch-scroll 900ms linear infinite;\n  --animate-ring-pulse: ring-pulse 1.5s ease-in-out infinite;\n  --animate-stream-fade-in: stream-fade-in 300ms ease-out forwards;\n  --animate-slide-in-bottom: slide-in-bottom 400ms cubic-bezier(0.16, 1, 0.3, 1);\n  /* Deliberately slower than tw-animate-css's own 200ms ease-out default. */\n  --animate-collapsible-down: collapsible-down 300ms cubic-bezier(0.4, 0, 0.2, 1);\n  --animate-collapsible-up: collapsible-up 300ms cubic-bezier(0.4, 0, 0.2, 1);\n  --animate-hero-cursor-press: hero-cursor-press 340ms cubic-bezier(0.23, 1, 0.32, 1);\n  --animate-hero-modal-in: hero-modal-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;\n  --animate-hero-kb-content-morph: hero-kb-content-morph 420ms cubic-bezier(0.22, 1, 0.36, 1) 260ms\n    forwards;\n  --animate-hero-file-drop: hero-file-drop 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards;\n  --animate-hero-node-pop: hero-node-pop 440ms cubic-bezier(0.16, 1, 0.3, 1) forwards;\n  --animate-hero-edge-draw: hero-edge-draw 520ms ease-out forwards;\n}",
+  "variables": {
+    "--accent": [
+      "0 0% 17.5%",
+      "0 0% 92.5%"
+    ],
+    "--accent-foreground": [
+      "0 0% 11.2%",
+      "0 0% 98%"
+    ],
+    "--animate-bounce": [
+      "bounce 1000ms infinite"
+    ],
+    "--animate-caret-blink": [
+      "caret-blink 1250ms ease-out infinite"
+    ],
+    "--animate-collapsible-down": [
+      "collapsible-down 300ms cubic-bezier(0.4,0,0.2,1)"
+    ],
+    "--animate-collapsible-up": [
+      "collapsible-up 300ms cubic-bezier(0.4,0,0.2,1)"
+    ],
+    "--animate-hero-cursor-press": [
+      "hero-cursor-press 340ms cubic-bezier(0.23,1,0.32,1)"
+    ],
+    "--animate-hero-edge-draw": [
+      "hero-edge-draw 520ms ease-out forwards"
+    ],
+    "--animate-hero-file-drop": [
+      "hero-file-drop 480ms cubic-bezier(0.16,1,0.3,1) forwards"
+    ],
+    "--animate-hero-kb-content-morph": [
+      "hero-kb-content-morph 420ms cubic-bezier(0.22,1,0.36,1) 260ms forwards"
+    ],
+    "--animate-hero-modal-in": [
+      "hero-modal-in 320ms cubic-bezier(0.16,1,0.3,1) both"
+    ],
+    "--animate-hero-node-pop": [
+      "hero-node-pop 440ms cubic-bezier(0.16,1,0.3,1) forwards"
+    ],
+    "--animate-ping": [
+      "ping 1000ms cubic-bezier(0,0,0.2,1) infinite"
+    ],
+    "--animate-pulse": [
+      "pulse 2000ms cubic-bezier(0.4,0,0.6,1) infinite"
+    ],
+    "--animate-ring-pulse": [
+      "ring-pulse 1500ms ease-in-out infinite"
+    ],
+    "--animate-running-hatch-scroll": [
+      "running-hatch-scroll 900ms linear infinite"
+    ],
+    "--animate-slide-in-bottom": [
+      "slide-in-bottom 400ms cubic-bezier(0.16,1,0.3,1)"
+    ],
+    "--animate-spin": [
+      "spin 1000ms linear infinite"
+    ],
+    "--animate-stream-fade-in": [
+      "stream-fade-in 300ms ease-out forwards"
+    ],
+    "--aspect-video": [
+      "16 / 9"
+    ],
+    "--auth-primary-btn-bg": [
+      "#ffffff"
+    ],
+    "--auth-primary-btn-border": [
+      "#ffffff"
+    ],
+    "--auth-primary-btn-hover-bg": [
+      "#e0e0e0"
+    ],
+    "--auth-primary-btn-hover-border": [
+      "#e0e0e0"
+    ],
+    "--auth-primary-btn-hover-text": [
+      "#000000"
+    ],
+    "--auth-primary-btn-text": [
+      "#000000"
+    ],
+    "--background": [
+      "0 0% 10.59%",
+      "0 0% 100%"
+    ],
+    "--badge-amber-bg": [
+      "#fde68a",
+      "rgba(245,158,11,0.2)"
+    ],
+    "--badge-amber-text": [
+      "#a16207",
+      "#fcd34d"
+    ],
+    "--badge-blue-bg": [
+      "#bfdbfe",
+      "rgba(59,130,246,0.2)"
+    ],
+    "--badge-blue-secondary-bg": [
+      "#bae6fd",
+      "rgba(51,180,255,0.2)"
+    ],
+    "--badge-blue-secondary-text": [
+      "#0369a1",
+      "#7dd3fc"
+    ],
+    "--badge-blue-text": [
+      "#1d4ed8",
+      "#93c5fd"
+    ],
+    "--badge-cyan-bg": [
+      "#cffafe",
+      "rgba(14,165,233,0.2)"
+    ],
+    "--badge-cyan-text": [
+      "#0891b2",
+      "#7dd3fc"
+    ],
+    "--badge-error-bg": [
+      "#551a1a",
+      "#fecaca"
+    ],
+    "--badge-error-text": [
+      "#dc2626",
+      "#fca5a5"
+    ],
+    "--badge-gray-bg": [
+      "#3a3a3a",
+      "#e7e5e4"
+    ],
+    "--badge-gray-text": [
+      "#57534e",
+      "#a8a8a8"
+    ],
+    "--badge-orange-bg": [
+      "#fed7aa",
+      "rgba(249,115,22,0.2)"
+    ],
+    "--badge-orange-text": [
+      "#c2410c",
+      "#fdba74"
+    ],
+    "--badge-pink-bg": [
+      "#fbcfe8",
+      "rgba(236,72,153,0.2)"
+    ],
+    "--badge-pink-text": [
+      "#be185d",
+      "#f9a8d4"
+    ],
+    "--badge-purple-bg": [
+      "#e9d5ff",
+      "rgba(168,85,247,0.2)"
+    ],
+    "--badge-purple-text": [
+      "#7c3aed",
+      "#d8b4fe"
+    ],
+    "--badge-success-bg": [
+      "#bbf7d0",
+      "rgba(34,197,94,0.2)"
+    ],
+    "--badge-success-text": [
+      "#15803d",
+      "#86efac"
+    ],
+    "--badge-teal-bg": [
+      "#99f6e4",
+      "rgba(20,184,166,0.2)"
+    ],
+    "--badge-teal-text": [
+      "#0f766e",
+      "#5eead4"
+    ],
+    "--base-muted-foreground": [
+      "#737373",
+      "#a3a3a3"
+    ],
+    "--bg": [
+      "#1b1b1b",
+      "#fefefe"
+    ],
+    "--blur": [
+      "8px"
+    ],
+    "--blur-2xl": [
+      "40px"
+    ],
+    "--blur-3xl": [
+      "64px"
+    ],
+    "--blur-lg": [
+      "16px"
+    ],
+    "--blur-md": [
+      "12px"
+    ],
+    "--blur-sm": [
+      "8px"
+    ],
+    "--blur-xl": [
+      "24px"
+    ],
+    "--blur-xs": [
+      "4px"
+    ],
+    "--border": [
+      "#444444",
+      "#d8d8d8"
+    ],
+    "--border-1": [
+      "var(--border)"
+    ],
+    "--border-inverted": [
+      "#363636",
+      "#3d3d3d"
+    ],
+    "--border-muted": [
+      "var(--border)"
+    ],
+    "--border-success": [
+      "#575757",
+      "#e0e0e0"
+    ],
+    "--border-width": [
+      "0.5px",
+      "1px"
+    ],
+    "--brand": [
+      "#33c482"
+    ],
+    "--brand-accent": [
+      "#33c482"
+    ],
+    "--brand-accent-hover": [
+      "#2dac72"
+    ],
+    "--brand-agent": [
+      "#6f3dfa",
+      "#701ffc"
+    ],
+    "--brand-blue": [
+      "#3b6fe0",
+      "#5b8def"
+    ],
+    "--brand-hover": [
+      "#2dac72"
+    ],
+    "--brand-knowledge": [
+      "#00b0b0"
+    ],
+    "--brand-secondary": [
+      "#33b4ff"
+    ],
+    "--breakpoint-2xl": [
+      "1536px"
+    ],
+    "--breakpoint-lg": [
+      "1024px"
+    ],
+    "--breakpoint-md": [
+      "768px"
+    ],
+    "--breakpoint-sm": [
+      "640px"
+    ],
+    "--breakpoint-xl": [
+      "1280px"
+    ],
+    "--card": [
+      "0 0% 9.0%",
+      "0 0% 99.2%"
+    ],
+    "--card-background": [
+      "0 0% 9.0%",
+      "0 0% 99.2%"
+    ],
+    "--card-border": [
+      "0 0% 22.7%",
+      "0 0% 89.8%"
+    ],
+    "--card-foreground": [
+      "0 0% 3.9%",
+      "0 0% 98%"
+    ],
+    "--card-hover": [
+      "0 0% 12.0%",
+      "0 0% 96.1%"
+    ],
+    "--card-text": [
+      "0 0% 3.9%",
+      "0 0% 98%"
+    ],
+    "--caution": [
+      "#f59e0b"
+    ],
+    "--code-bg": [
+      "#1f1f1f",
+      "#f5f5f5"
+    ],
+    "--code-foreground": [
+      "#1a1a1a",
+      "#eeeeee"
+    ],
+    "--code-line-number": [
+      "#737373",
+      "#a8a8a8"
+    ],
+    "--color-accent": [
+      "hsl(var(--accent))"
+    ],
+    "--color-accent-foreground": [
+      "hsl(var(--accent-foreground))"
+    ],
+    "--color-amber-100": [
+      "oklch(96.2% 0.059 95.617)"
+    ],
+    "--color-amber-200": [
+      "#fde68a"
+    ],
+    "--color-amber-300": [
+      "#fcd34d"
+    ],
+    "--color-amber-400": [
+      "#fbbf24"
+    ],
+    "--color-amber-50": [
+      "#fffbeb"
+    ],
+    "--color-amber-500": [
+      "#f59e0b"
+    ],
+    "--color-amber-600": [
+      "#d97706"
+    ],
+    "--color-amber-700": [
+      "#b45309"
+    ],
+    "--color-amber-800": [
+      "#92400e"
+    ],
+    "--color-amber-900": [
+      "#78350f"
+    ],
+    "--color-amber-950": [
+      "#451a03"
+    ],
+    "--color-background": [
+      "hsl(var(--background))"
+    ],
+    "--color-black": [
+      "#000"
+    ],
+    "--color-blue-100": [
+      "oklch(93.2% 0.032 255.585)"
+    ],
+    "--color-blue-200": [
+      "oklch(88.2% 0.059 254.128)"
+    ],
+    "--color-blue-300": [
+      "oklch(80.9% 0.105 251.813)"
+    ],
+    "--color-blue-400": [
+      "oklch(70.7% 0.165 254.624)"
+    ],
+    "--color-blue-50": [
+      "oklch(97% 0.014 254.604)"
+    ],
+    "--color-blue-500": [
+      "#3b82f6"
+    ],
+    "--color-blue-600": [
+      "oklch(54.6% 0.245 262.881)"
+    ],
+    "--color-blue-700": [
+      "oklch(48.8% 0.243 264.376)"
+    ],
+    "--color-blue-800": [
+      "oklch(42.4% 0.199 265.638)"
+    ],
+    "--color-blue-900": [
+      "oklch(37.9% 0.146 265.522)"
+    ],
+    "--color-blue-950": [
+      "oklch(28.2% 0.091 267.935)"
+    ],
+    "--color-border": [
+      "var(--border)"
+    ],
+    "--color-card": [
+      "hsl(var(--card))"
+    ],
+    "--color-card-foreground": [
+      "hsl(var(--card-foreground))"
+    ],
+    "--color-chart-1": [
+      "hsl(var(--chart-1))"
+    ],
+    "--color-chart-2": [
+      "hsl(var(--chart-2))"
+    ],
+    "--color-chart-3": [
+      "hsl(var(--chart-3))"
+    ],
+    "--color-chart-4": [
+      "hsl(var(--chart-4))"
+    ],
+    "--color-chart-5": [
+      "hsl(var(--chart-5))"
+    ],
+    "--color-cyan-100": [
+      "oklch(95.6% 0.045 203.388)"
+    ],
+    "--color-cyan-200": [
+      "oklch(91.7% 0.08 205.041)"
+    ],
+    "--color-cyan-300": [
+      "oklch(86.5% 0.127 207.078)"
+    ],
+    "--color-cyan-400": [
+      "oklch(78.9% 0.154 211.53)"
+    ],
+    "--color-cyan-50": [
+      "oklch(98.4% 0.019 200.873)"
+    ],
+    "--color-cyan-500": [
+      "oklch(71.5% 0.143 215.221)"
+    ],
+    "--color-cyan-600": [
+      "oklch(60.9% 0.126 221.723)"
+    ],
+    "--color-cyan-700": [
+      "oklch(52% 0.105 223.128)"
+    ],
+    "--color-cyan-800": [
+      "oklch(45% 0.085 224.283)"
+    ],
+    "--color-cyan-900": [
+      "oklch(39.8% 0.07 227.392)"
+    ],
+    "--color-cyan-950": [
+      "oklch(30.2% 0.056 229.695)"
+    ],
+    "--color-destructive": [
+      "hsl(var(--destructive))"
+    ],
+    "--color-destructive-foreground": [
+      "hsl(var(--destructive-foreground))"
+    ],
+    "--color-emerald-100": [
+      "oklch(95% 0.052 163.051)"
+    ],
+    "--color-emerald-200": [
+      "oklch(90.5% 0.093 164.15)"
+    ],
+    "--color-emerald-300": [
+      "oklch(84.5% 0.143 164.978)"
+    ],
+    "--color-emerald-400": [
+      "#34d399"
+    ],
+    "--color-emerald-50": [
+      "oklch(97.9% 0.021 166.113)"
+    ],
+    "--color-emerald-500": [
+      "#10b981"
+    ],
+    "--color-emerald-600": [
+      "oklch(59.6% 0.145 163.225)"
+    ],
+    "--color-emerald-700": [
+      "oklch(50.8% 0.118 165.612)"
+    ],
+    "--color-emerald-800": [
+      "oklch(43.2% 0.095 166.913)"
+    ],
+    "--color-emerald-900": [
+      "oklch(37.8% 0.077 168.94)"
+    ],
+    "--color-emerald-950": [
+      "oklch(26.2% 0.051 172.552)"
+    ],
+    "--color-foreground": [
+      "hsl(var(--foreground))"
+    ],
+    "--color-fuchsia-100": [
+      "oklch(95.2% 0.037 318.852)"
+    ],
+    "--color-fuchsia-200": [
+      "oklch(90.3% 0.076 319.62)"
+    ],
+    "--color-fuchsia-300": [
+      "oklch(83.3% 0.145 321.434)"
+    ],
+    "--color-fuchsia-400": [
+      "oklch(74% 0.238 322.16)"
+    ],
+    "--color-fuchsia-50": [
+      "oklch(97.7% 0.017 320.058)"
+    ],
+    "--color-fuchsia-500": [
+      "oklch(66.7% 0.295 322.15)"
+    ],
+    "--color-fuchsia-600": [
+      "oklch(59.1% 0.293 322.896)"
+    ],
+    "--color-fuchsia-700": [
+      "oklch(51.8% 0.253 323.949)"
+    ],
+    "--color-fuchsia-800": [
+      "oklch(45.2% 0.211 324.591)"
+    ],
+    "--color-fuchsia-900": [
+      "oklch(40.1% 0.17 325.612)"
+    ],
+    "--color-fuchsia-950": [
+      "oklch(29.3% 0.136 325.661)"
+    ],
+    "--color-gray-100": [
+      "#f5f5f5"
+    ],
+    "--color-gray-200": [
+      "#e5e5e5"
+    ],
+    "--color-gray-300": [
+      "#d4d4d4"
+    ],
+    "--color-gray-400": [
+      "#a3a3a3"
+    ],
+    "--color-gray-50": [
+      "#fafafa"
+    ],
+    "--color-gray-500": [
+      "#737373"
+    ],
+    "--color-gray-600": [
+      "#525252"
+    ],
+    "--color-gray-700": [
+      "#404040"
+    ],
+    "--color-gray-800": [
+      "#262626"
+    ],
+    "--color-gray-900": [
+      "#171717"
+    ],
+    "--color-gray-950": [
+      "#0a0a0a"
+    ],
+    "--color-green-100": [
+      "oklch(96.2% 0.044 156.743)"
+    ],
+    "--color-green-200": [
+      "oklch(92.5% 0.084 155.995)"
+    ],
+    "--color-green-300": [
+      "oklch(87.1% 0.15 154.449)"
+    ],
+    "--color-green-400": [
+      "oklch(79.2% 0.209 151.711)"
+    ],
+    "--color-green-50": [
+      "oklch(98.2% 0.018 155.826)"
+    ],
+    "--color-green-500": [
+      "#22c55e"
+    ],
+    "--color-green-600": [
+      "oklch(62.7% 0.194 149.214)"
+    ],
+    "--color-green-700": [
+      "oklch(52.7% 0.154 150.069)"
+    ],
+    "--color-green-800": [
+      "oklch(44.8% 0.119 151.328)"
+    ],
+    "--color-green-900": [
+      "oklch(39.3% 0.095 152.535)"
+    ],
+    "--color-green-950": [
+      "oklch(26.6% 0.065 152.934)"
+    ],
+    "--color-indigo-100": [
+      "oklch(93% 0.034 272.788)"
+    ],
+    "--color-indigo-200": [
+      "oklch(87% 0.065 274.039)"
+    ],
+    "--color-indigo-300": [
+      "oklch(78.5% 0.115 274.713)"
+    ],
+    "--color-indigo-400": [
+      "oklch(67.3% 0.182 276.935)"
+    ],
+    "--color-indigo-50": [
+      "oklch(96.2% 0.018 272.314)"
+    ],
+    "--color-indigo-500": [
+      "oklch(58.5% 0.233 277.117)"
+    ],
+    "--color-indigo-600": [
+      "oklch(51.1% 0.262 276.966)"
+    ],
+    "--color-indigo-700": [
+      "oklch(45.7% 0.24 277.023)"
+    ],
+    "--color-indigo-800": [
+      "oklch(39.8% 0.195 277.366)"
+    ],
+    "--color-indigo-900": [
+      "oklch(35.9% 0.144 278.697)"
+    ],
+    "--color-indigo-950": [
+      "oklch(25.7% 0.09 281.288)"
+    ],
+    "--color-input": [
+      "hsl(var(--input))"
+    ],
+    "--color-lime-100": [
+      "oklch(96.7% 0.067 122.328)"
+    ],
+    "--color-lime-200": [
+      "oklch(93.8% 0.127 124.321)"
+    ],
+    "--color-lime-300": [
+      "oklch(89.7% 0.196 126.665)"
+    ],
+    "--color-lime-400": [
+      "oklch(84.1% 0.238 128.85)"
+    ],
+    "--color-lime-50": [
+      "oklch(98.6% 0.031 120.757)"
+    ],
+    "--color-lime-500": [
+      "oklch(76.8% 0.233 130.85)"
+    ],
+    "--color-lime-600": [
+      "oklch(64.8% 0.2 131.684)"
+    ],
+    "--color-lime-700": [
+      "oklch(53.2% 0.157 131.589)"
+    ],
+    "--color-lime-800": [
+      "oklch(45.3% 0.124 130.933)"
+    ],
+    "--color-lime-900": [
+      "oklch(40.5% 0.101 131.063)"
+    ],
+    "--color-lime-950": [
+      "oklch(27.4% 0.072 132.109)"
+    ],
+    "--color-mauve-100": [
+      "oklch(96% 0.003 325.6)"
+    ],
+    "--color-mauve-200": [
+      "oklch(92.2% 0.005 325.62)"
+    ],
+    "--color-mauve-300": [
+      "oklch(86.5% 0.012 325.68)"
+    ],
+    "--color-mauve-400": [
+      "oklch(71.1% 0.019 323.02)"
+    ],
+    "--color-mauve-50": [
+      "oklch(98.5% 0 none)"
+    ],
+    "--color-mauve-500": [
+      "oklch(54.2% 0.034 322.5)"
+    ],
+    "--color-mauve-600": [
+      "oklch(43.5% 0.029 321.78)"
+    ],
+    "--color-mauve-700": [
+      "oklch(36.4% 0.029 323.89)"
+    ],
+    "--color-mauve-800": [
+      "oklch(26.3% 0.024 320.12)"
+    ],
+    "--color-mauve-900": [
+      "oklch(21.2% 0.019 322.12)"
+    ],
+    "--color-mauve-950": [
+      "oklch(14.5% 0.008 326)"
+    ],
+    "--color-mist-100": [
+      "oklch(96.3% 0.002 197.1)"
+    ],
+    "--color-mist-200": [
+      "oklch(92.5% 0.005 214.3)"
+    ],
+    "--color-mist-300": [
+      "oklch(87.2% 0.007 219.6)"
+    ],
+    "--color-mist-400": [
+      "oklch(72.3% 0.014 214.4)"
+    ],
+    "--color-mist-50": [
+      "oklch(98.7% 0.002 197.1)"
+    ],
+    "--color-mist-500": [
+      "oklch(56% 0.021 213.5)"
+    ],
+    "--color-mist-600": [
+      "oklch(45% 0.017 213.2)"
+    ],
+    "--color-mist-700": [
+      "oklch(37.8% 0.015 216)"
+    ],
+    "--color-mist-800": [
+      "oklch(27.5% 0.011 216.9)"
+    ],
+    "--color-mist-900": [
+      "oklch(21.8% 0.008 223.9)"
+    ],
+    "--color-mist-950": [
+      "oklch(14.8% 0.004 228.8)"
+    ],
+    "--color-muted": [
+      "hsl(var(--muted))"
+    ],
+    "--color-muted-foreground": [
+      "hsl(var(--muted-foreground))"
+    ],
+    "--color-neutral-100": [
+      "oklch(97% 0 none)"
+    ],
+    "--color-neutral-200": [
+      "oklch(92.2% 0 none)"
+    ],
+    "--color-neutral-300": [
+      "oklch(87% 0 none)"
+    ],
+    "--color-neutral-400": [
+      "oklch(70.8% 0 none)"
+    ],
+    "--color-neutral-50": [
+      "oklch(98.5% 0 none)"
+    ],
+    "--color-neutral-500": [
+      "oklch(55.6% 0 none)"
+    ],
+    "--color-neutral-600": [
+      "oklch(43.9% 0 none)"
+    ],
+    "--color-neutral-700": [
+      "oklch(37.1% 0 none)"
+    ],
+    "--color-neutral-800": [
+      "oklch(26.9% 0 none)"
+    ],
+    "--color-neutral-900": [
+      "oklch(20.5% 0 none)"
+    ],
+    "--color-neutral-950": [
+      "oklch(14.5% 0 none)"
+    ],
+    "--color-olive-100": [
+      "oklch(96.6% 0.005 106.5)"
+    ],
+    "--color-olive-200": [
+      "oklch(93% 0.007 106.5)"
+    ],
+    "--color-olive-300": [
+      "oklch(88% 0.011 106.6)"
+    ],
+    "--color-olive-400": [
+      "oklch(73.7% 0.021 106.9)"
+    ],
+    "--color-olive-50": [
+      "oklch(98.8% 0.003 106.5)"
+    ],
+    "--color-olive-500": [
+      "oklch(58% 0.031 107.3)"
+    ],
+    "--color-olive-600": [
+      "oklch(46.6% 0.025 107.3)"
+    ],
+    "--color-olive-700": [
+      "oklch(39.4% 0.023 107.4)"
+    ],
+    "--color-olive-800": [
+      "oklch(28.6% 0.016 107.4)"
+    ],
+    "--color-olive-900": [
+      "oklch(22.8% 0.013 107.4)"
+    ],
+    "--color-olive-950": [
+      "oklch(15.3% 0.006 107.1)"
+    ],
+    "--color-orange-100": [
+      "oklch(95.4% 0.038 75.164)"
+    ],
+    "--color-orange-200": [
+      "oklch(90.1% 0.076 70.697)"
+    ],
+    "--color-orange-300": [
+      "oklch(83.7% 0.128 66.29)"
+    ],
+    "--color-orange-400": [
+      "#fb923c"
+    ],
+    "--color-orange-50": [
+      "oklch(98% 0.016 73.684)"
+    ],
+    "--color-orange-500": [
+      "oklch(70.5% 0.213 47.604)"
+    ],
+    "--color-orange-600": [
+      "oklch(64.6% 0.222 41.116)"
+    ],
+    "--color-orange-700": [
+      "oklch(55.3% 0.195 38.402)"
+    ],
+    "--color-orange-800": [
+      "oklch(47% 0.157 37.304)"
+    ],
+    "--color-orange-900": [
+      "oklch(40.8% 0.123 38.172)"
+    ],
+    "--color-orange-950": [
+      "oklch(26.6% 0.079 36.259)"
+    ],
+    "--color-pink-100": [
+      "oklch(94.8% 0.028 342.258)"
+    ],
+    "--color-pink-200": [
+      "oklch(89.9% 0.061 343.231)"
+    ],
+    "--color-pink-300": [
+      "oklch(82.3% 0.12 346.018)"
+    ],
+    "--color-pink-400": [
+      "oklch(71.8% 0.202 349.761)"
+    ],
+    "--color-pink-50": [
+      "oklch(97.1% 0.014 343.198)"
+    ],
+    "--color-pink-500": [
+      "oklch(65.6% 0.241 354.308)"
+    ],
+    "--color-pink-600": [
+      "oklch(59.2% 0.249 0.584)"
+    ],
+    "--color-pink-700": [
+      "oklch(52.5% 0.223 3.958)"
+    ],
+    "--color-pink-800": [
+      "oklch(45.9% 0.187 3.815)"
+    ],
+    "--color-pink-900": [
+      "oklch(40.8% 0.153 2.432)"
+    ],
+    "--color-pink-950": [
+      "oklch(28.4% 0.109 3.907)"
+    ],
+    "--color-popover": [
+      "hsl(var(--popover))"
+    ],
+    "--color-popover-foreground": [
+      "hsl(var(--popover-foreground))"
+    ],
+    "--color-primary": [
+      "hsl(var(--primary))"
+    ],
+    "--color-primary-foreground": [
+      "hsl(var(--primary-foreground))"
+    ],
+    "--color-purple-100": [
+      "oklch(94.6% 0.033 307.174)"
+    ],
+    "--color-purple-200": [
+      "oklch(90.2% 0.063 306.703)"
+    ],
+    "--color-purple-300": [
+      "oklch(82.7% 0.119 306.383)"
+    ],
+    "--color-purple-400": [
+      "oklch(71.4% 0.203 305.504)"
+    ],
+    "--color-purple-50": [
+      "oklch(97.7% 0.014 308.299)"
+    ],
+    "--color-purple-500": [
+      "#a855f7"
+    ],
+    "--color-purple-600": [
+      "oklch(55.8% 0.288 302.321)"
+    ],
+    "--color-purple-700": [
+      "oklch(49.6% 0.265 301.924)"
+    ],
+    "--color-purple-800": [
+      "oklch(43.8% 0.218 303.724)"
+    ],
+    "--color-purple-900": [
+      "oklch(38.1% 0.176 304.987)"
+    ],
+    "--color-purple-950": [
+      "oklch(29.1% 0.149 302.717)"
+    ],
+    "--color-red-100": [
+      "oklch(93.6% 0.032 17.717)"
+    ],
+    "--color-red-200": [
+      "oklch(88.5% 0.062 18.334)"
+    ],
+    "--color-red-300": [
+      "#fca5a5"
+    ],
+    "--color-red-400": [
+      "#f87171"
+    ],
+    "--color-red-50": [
+      "#fef2f2"
+    ],
+    "--color-red-500": [
+      "oklch(63.7% 0.237 25.331)"
+    ],
+    "--color-red-600": [
+      "#dc2626"
+    ],
+    "--color-red-700": [
+      "#b91c1c"
+    ],
+    "--color-red-800": [
+      "oklch(44.4% 0.177 26.899)"
+    ],
+    "--color-red-900": [
+      "oklch(39.6% 0.141 25.723)"
+    ],
+    "--color-red-950": [
+      "#450a0a"
+    ],
+    "--color-ring": [
+      "hsl(var(--ring))"
+    ],
+    "--color-rose-100": [
+      "oklch(94.1% 0.03 12.58)"
+    ],
+    "--color-rose-200": [
+      "oklch(89.2% 0.058 10.001)"
+    ],
+    "--color-rose-300": [
+      "oklch(81% 0.117 11.638)"
+    ],
+    "--color-rose-400": [
+      "oklch(71.2% 0.194 13.428)"
+    ],
+    "--color-rose-50": [
+      "oklch(96.9% 0.015 12.422)"
+    ],
+    "--color-rose-500": [
+      "oklch(64.5% 0.246 16.439)"
+    ],
+    "--color-rose-600": [
+      "oklch(58.6% 0.253 17.585)"
+    ],
+    "--color-rose-700": [
+      "oklch(51.4% 0.222 16.935)"
+    ],
+    "--color-rose-800": [
+      "oklch(45.5% 0.188 13.697)"
+    ],
+    "--color-rose-900": [
+      "oklch(41% 0.159 10.272)"
+    ],
+    "--color-rose-950": [
+      "oklch(27.1% 0.105 12.094)"
+    ],
+    "--color-secondary": [
+      "hsl(var(--secondary))"
+    ],
+    "--color-secondary-foreground": [
+      "hsl(var(--secondary-foreground))"
+    ],
+    "--color-sky-100": [
+      "oklch(95.1% 0.026 236.824)"
+    ],
+    "--color-sky-200": [
+      "oklch(90.1% 0.058 230.902)"
+    ],
+    "--color-sky-300": [
+      "oklch(82.8% 0.111 230.318)"
+    ],
+    "--color-sky-400": [
+      "oklch(74.6% 0.16 232.661)"
+    ],
+    "--color-sky-50": [
+      "oklch(97.7% 0.013 236.62)"
+    ],
+    "--color-sky-500": [
+      "oklch(68.5% 0.169 237.323)"
+    ],
+    "--color-sky-600": [
+      "oklch(58.8% 0.158 241.966)"
+    ],
+    "--color-sky-700": [
+      "oklch(50% 0.134 242.749)"
+    ],
+    "--color-sky-800": [
+      "oklch(44.3% 0.11 240.79)"
+    ],
+    "--color-sky-900": [
+      "oklch(39.1% 0.09 240.876)"
+    ],
+    "--color-sky-950": [
+      "oklch(29.3% 0.066 243.157)"
+    ],
+    "--color-slate-100": [
+      "oklch(96.8% 0.007 247.896)"
+    ],
+    "--color-slate-200": [
+      "oklch(92.9% 0.013 255.508)"
+    ],
+    "--color-slate-300": [
+      "oklch(86.9% 0.022 252.894)"
+    ],
+    "--color-slate-400": [
+      "oklch(70.4% 0.04 256.788)"
+    ],
+    "--color-slate-50": [
+      "oklch(98.4% 0.003 247.858)"
+    ],
+    "--color-slate-500": [
+      "oklch(55.4% 0.046 257.417)"
+    ],
+    "--color-slate-600": [
+      "oklch(44.6% 0.043 257.281)"
+    ],
+    "--color-slate-700": [
+      "oklch(37.2% 0.044 257.287)"
+    ],
+    "--color-slate-800": [
+      "oklch(27.9% 0.041 260.031)"
+    ],
+    "--color-slate-900": [
+      "oklch(20.8% 0.042 265.755)"
+    ],
+    "--color-slate-950": [
+      "oklch(12.9% 0.042 264.695)"
+    ],
+    "--color-stone-100": [
+      "oklch(97% 0.001 106.424)"
+    ],
+    "--color-stone-200": [
+      "oklch(92.3% 0.003 48.717)"
+    ],
+    "--color-stone-300": [
+      "oklch(86.9% 0.005 56.366)"
+    ],
+    "--color-stone-400": [
+      "oklch(70.9% 0.01 56.259)"
+    ],
+    "--color-stone-50": [
+      "oklch(98.5% 0.001 106.423)"
+    ],
+    "--color-stone-500": [
+      "oklch(55.3% 0.013 58.071)"
+    ],
+    "--color-stone-600": [
+      "oklch(44.4% 0.011 73.639)"
+    ],
+    "--color-stone-700": [
+      "oklch(37.4% 0.01 67.558)"
+    ],
+    "--color-stone-800": [
+      "oklch(26.8% 0.007 34.298)"
+    ],
+    "--color-stone-900": [
+      "oklch(21.6% 0.006 56.043)"
+    ],
+    "--color-stone-950": [
+      "oklch(14.7% 0.004 49.25)"
+    ],
+    "--color-taupe-100": [
+      "oklch(96% 0.002 17.2)"
+    ],
+    "--color-taupe-200": [
+      "oklch(92.2% 0.005 34.3)"
+    ],
+    "--color-taupe-300": [
+      "oklch(86.8% 0.007 39.5)"
+    ],
+    "--color-taupe-400": [
+      "oklch(71.4% 0.014 41.2)"
+    ],
+    "--color-taupe-50": [
+      "oklch(98.6% 0.002 67.8)"
+    ],
+    "--color-taupe-500": [
+      "oklch(54.7% 0.021 43.1)"
+    ],
+    "--color-taupe-600": [
+      "oklch(43.8% 0.017 39.3)"
+    ],
+    "--color-taupe-700": [
+      "oklch(36.7% 0.016 35.7)"
+    ],
+    "--color-taupe-800": [
+      "oklch(26.8% 0.011 36.5)"
+    ],
+    "--color-taupe-900": [
+      "oklch(21.4% 0.009 43.1)"
+    ],
+    "--color-taupe-950": [
+      "oklch(14.7% 0.004 49.3)"
+    ],
+    "--color-teal-100": [
+      "oklch(95.3% 0.051 180.801)"
+    ],
+    "--color-teal-200": [
+      "oklch(91% 0.096 180.426)"
+    ],
+    "--color-teal-300": [
+      "oklch(85.5% 0.138 181.071)"
+    ],
+    "--color-teal-400": [
+      "oklch(77.7% 0.152 181.912)"
+    ],
+    "--color-teal-50": [
+      "oklch(98.4% 0.014 180.72)"
+    ],
+    "--color-teal-500": [
+      "oklch(70.4% 0.14 182.503)"
+    ],
+    "--color-teal-600": [
+      "oklch(60% 0.118 184.704)"
+    ],
+    "--color-teal-700": [
+      "oklch(51.1% 0.096 186.391)"
+    ],
+    "--color-teal-800": [
+      "oklch(43.7% 0.078 188.216)"
+    ],
+    "--color-teal-900": [
+      "oklch(38.6% 0.063 188.416)"
+    ],
+    "--color-teal-950": [
+      "oklch(27.7% 0.046 192.524)"
+    ],
+    "--color-violet-100": [
+      "oklch(94.3% 0.029 294.588)"
+    ],
+    "--color-violet-200": [
+      "oklch(89.4% 0.057 293.283)"
+    ],
+    "--color-violet-300": [
+      "oklch(81.1% 0.111 293.571)"
+    ],
+    "--color-violet-400": [
+      "oklch(70.2% 0.183 293.541)"
+    ],
+    "--color-violet-50": [
+      "oklch(96.9% 0.016 293.756)"
+    ],
+    "--color-violet-500": [
+      "oklch(60.6% 0.25 292.717)"
+    ],
+    "--color-violet-600": [
+      "oklch(54.1% 0.281 293.009)"
+    ],
+    "--color-violet-700": [
+      "oklch(49.1% 0.27 292.581)"
+    ],
+    "--color-violet-800": [
+      "oklch(43.2% 0.232 292.759)"
+    ],
+    "--color-violet-900": [
+      "oklch(38% 0.189 293.745)"
+    ],
+    "--color-violet-950": [
+      "oklch(28.3% 0.141 291.089)"
+    ],
+    "--color-white": [
+      "#fff"
+    ],
+    "--color-yellow-100": [
+      "oklch(97.3% 0.071 103.193)"
+    ],
+    "--color-yellow-200": [
+      "#fef08a"
+    ],
+    "--color-yellow-300": [
+      "oklch(90.5% 0.182 98.111)"
+    ],
+    "--color-yellow-400": [
+      "oklch(85.2% 0.199 91.936)"
+    ],
+    "--color-yellow-50": [
+      "oklch(98.7% 0.026 102.212)"
+    ],
+    "--color-yellow-500": [
+      "#eab308"
+    ],
+    "--color-yellow-600": [
+      "oklch(68.1% 0.162 75.834)"
+    ],
+    "--color-yellow-700": [
+      "oklch(55.4% 0.135 66.442)"
+    ],
+    "--color-yellow-800": [
+      "oklch(47.6% 0.114 61.907)"
+    ],
+    "--color-yellow-900": [
+      "oklch(42.1% 0.095 57.708)"
+    ],
+    "--color-yellow-950": [
+      "oklch(28.6% 0.066 53.813)"
+    ],
+    "--color-zinc-100": [
+      "oklch(96.7% 0.001 286.375)"
+    ],
+    "--color-zinc-200": [
+      "oklch(92% 0.004 286.32)"
+    ],
+    "--color-zinc-300": [
+      "oklch(87.1% 0.006 286.286)"
+    ],
+    "--color-zinc-400": [
+      "oklch(70.5% 0.015 286.067)"
+    ],
+    "--color-zinc-50": [
+      "oklch(98.5% 0 none)"
+    ],
+    "--color-zinc-500": [
+      "oklch(55.2% 0.016 285.938)"
+    ],
+    "--color-zinc-600": [
+      "oklch(44.2% 0.017 285.786)"
+    ],
+    "--color-zinc-700": [
+      "oklch(37% 0.013 285.805)"
+    ],
+    "--color-zinc-800": [
+      "oklch(27.4% 0.006 286.033)"
+    ],
+    "--color-zinc-900": [
+      "oklch(21% 0.006 285.885)"
+    ],
+    "--color-zinc-950": [
+      "oklch(14.1% 0.005 285.823)"
+    ],
+    "--container-2xl": [
+      "672px"
+    ],
+    "--container-2xs": [
+      "288px"
+    ],
+    "--container-3xl": [
+      "768px"
+    ],
+    "--container-3xs": [
+      "256px"
+    ],
+    "--container-4xl": [
+      "896px"
+    ],
+    "--container-5xl": [
+      "1024px"
+    ],
+    "--container-6xl": [
+      "1152px"
+    ],
+    "--container-7xl": [
+      "1280px"
+    ],
+    "--container-chat": [
+      "704px"
+    ],
+    "--container-lg": [
+      "512px"
+    ],
+    "--container-md": [
+      "448px"
+    ],
+    "--container-sm": [
+      "384px"
+    ],
+    "--container-xl": [
+      "576px"
+    ],
+    "--container-xs": [
+      "320px"
+    ],
+    "--default-font-family": [
+      "--theme(--font-sans,initial)"
+    ],
+    "--default-font-feature-settings": [
+      "--theme(--font-sans--font-feature-settings,initial)"
+    ],
+    "--default-font-variation-settings": [
+      "--theme(--font-sans--font-variation-settings,initial)"
+    ],
+    "--default-mono-font-family": [
+      "--theme(--font-mono,initial)"
+    ],
+    "--default-mono-font-feature-settings": [
+      "--theme(--font-mono--font-feature-settings,initial)"
+    ],
+    "--default-mono-font-variation-settings": [
+      "--theme(--font-mono--font-variation-settings,initial)"
+    ],
+    "--default-transition-duration": [
+      "150ms"
+    ],
+    "--default-transition-timing-function": [
+      "cubic-bezier(0.4,0,0.2,1)"
+    ],
+    "--desktop-title-bar-control-icon-size": [
+      "0",
+      "16px"
+    ],
+    "--desktop-title-bar-control-offset": [
+      "0",
+      "calc((var(--desktop-title-bar-height) - var(--desktop-title-bar-control-size)) / 2)"
+    ],
+    "--desktop-title-bar-control-size": [
+      "0",
+      "30px"
+    ],
+    "--desktop-title-bar-height": [
+      "0",
+      "max(env(titlebar-area-height,38px),38px)"
+    ],
+    "--desktop-title-bar-inset-x": [
+      "0",
+      "max(env(titlebar-area-x,81px),81px)"
+    ],
+    "--destructive": [
+      "0 62.8% 30.6%",
+      "0 84.2% 60.2%"
+    ],
+    "--destructive-foreground": [
+      "0 0% 98%"
+    ],
+    "--drop-shadow": [
+      "0 1px 2px rgb(0 0 0 / 0.1),0 1px 1px rgb(0 0 0 / 0.06)"
+    ],
+    "--drop-shadow-2xl": [
+      "0 25px 25px rgb(0 0 0 / 0.15)"
+    ],
+    "--drop-shadow-lg": [
+      "0 4px 4px rgb(0 0 0 / 0.15)"
+    ],
+    "--drop-shadow-md": [
+      "0 3px 3px rgb(0 0 0 / 0.12)"
+    ],
+    "--drop-shadow-sm": [
+      "0 1px 2px rgb(0 0 0 / 0.15)"
+    ],
+    "--drop-shadow-xl": [
+      "0 9px 7px rgb(0 0 0 / 0.1)"
+    ],
+    "--drop-shadow-xs": [
+      "0 1px 1px rgb(0 0 0 / 0.05)"
+    ],
+    "--ease-in": [
+      "cubic-bezier(0.4,0,1,1)"
+    ],
+    "--ease-in-out": [
+      "cubic-bezier(0.4,0,0.2,1)"
+    ],
+    "--ease-out": [
+      "cubic-bezier(0,0,0.2,1)"
+    ],
+    "--editor-connections-height": [
+      "172px"
+    ],
+    "--error": [
+      "#dc2626",
+      "#f87171"
+    ],
+    "--error-emphasis": [
+      "#b91c1c"
+    ],
+    "--error-muted": [
+      "#f6d2d2",
+      "#fecaca"
+    ],
+    "--font-body": [
+      "ui-sans-serif,-apple-system,system-ui,Segoe UI,Helvetica,Apple Color Emoji,Arial,sans-serif,Segoe UI Emoji,Segoe UI Symbol"
+    ],
+    "--font-mono": [
+      "var(--font-martian-mono,ui-monospace),SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",\"Courier New\",monospace"
+    ],
+    "--font-sans": [
+      "ui-sans-serif,system-ui,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\",\"Segoe UI Symbol\",\"Noto Color Emoji\""
+    ],
+    "--font-season": [
+      "var(--font-season)"
+    ],
+    "--font-serif": [
+      "ui-serif,Georgia,Cambria,'Times New Roman',Times,serif"
+    ],
+    "--font-weight-black": [
+      "900"
+    ],
+    "--font-weight-bold": [
+      "700"
+    ],
+    "--font-weight-extrabold": [
+      "800"
+    ],
+    "--font-weight-extralight": [
+      "200"
+    ],
+    "--font-weight-light": [
+      "300"
+    ],
+    "--font-weight-medium": [
+      "500"
+    ],
+    "--font-weight-normal": [
+      "400"
+    ],
+    "--font-weight-semibold": [
+      "600"
+    ],
+    "--font-weight-thin": [
+      "100"
+    ],
+    "--foreground": [
+      "0 0% 3.9%",
+      "0 0% 98%"
+    ],
+    "--highlight-match-bg": [
+      "#bae6fd",
+      "rgba(51,180,255,0.2)"
+    ],
+    "--highlight-match-text": [
+      "#0369a1",
+      "#7dd3fc"
+    ],
+    "--highlight-search": [
+      "#fcd34d"
+    ],
+    "--highlight-search-active": [
+      "#f6ad55"
+    ],
+    "--indicator-active": [
+      "#4ade80"
+    ],
+    "--indicator-inactive": [
+      "#b7b7b7"
+    ],
+    "--indicator-online": [
+      "#33c482"
+    ],
+    "--indicator-seat-filled": [
+      "#34b5ff"
+    ],
+    "--input": [
+      "0 0% 16.1%",
+      "0 0% 89.8%"
+    ],
+    "--input-background": [
+      "0 0% 100%",
+      "0 0% 20.78%"
+    ],
+    "--inset-shadow-2xs": [
+      "inset 0 1px rgb(0 0 0 / 0.05)"
+    ],
+    "--inset-shadow-sm": [
+      "inset 0 2px 4px rgb(0 0 0 / 0.05)"
+    ],
+    "--inset-shadow-xs": [
+      "inset 0 1px 1px rgb(0 0 0 / 0.05)"
+    ],
+    "--landing-bg": [
+      "#1c1c1c"
+    ],
+    "--landing-bg-card": [
+      "#232323"
+    ],
+    "--landing-bg-elevated": [
+      "#2a2a2a"
+    ],
+    "--landing-bg-hover": [
+      "#f0f0f0"
+    ],
+    "--landing-bg-section": [
+      "#f6f6f6"
+    ],
+    "--landing-bg-skeleton": [
+      "#e8e8e8"
+    ],
+    "--landing-bg-subtle": [
+      "#fafafa"
+    ],
+    "--landing-bg-surface": [
+      "#1e1e1e"
+    ],
+    "--landing-border": [
+      "#2a2a2a"
+    ],
+    "--landing-border-light": [
+      "#e5e5e5"
+    ],
+    "--landing-border-strong": [
+      "#3d3d3d"
+    ],
+    "--landing-border-subtle": [
+      "#d4d4d4"
+    ],
+    "--landing-text": [
+      "#ececec"
+    ],
+    "--landing-text-body": [
+      "#cdcdcd"
+    ],
+    "--landing-text-dark": [
+      "#1c1c1c"
+    ],
+    "--landing-text-icon": [
+      "#939393"
+    ],
+    "--landing-text-muted": [
+      "#999999"
+    ],
+    "--landing-text-secondary": [
+      "#666666"
+    ],
+    "--landing-text-subtle": [
+      "#f6f6f6"
+    ],
+    "--leading-loose": [
+      "2"
+    ],
+    "--leading-normal": [
+      "1.5"
+    ],
+    "--leading-relaxed": [
+      "1.625"
+    ],
+    "--leading-snug": [
+      "1.375"
+    ],
+    "--leading-tight": [
+      "1.25"
+    ],
+    "--max-width-prose": [
+      "65ch"
+    ],
+    "--muted": [
+      "0 0% 17.5%",
+      "0 0% 96.1%"
+    ],
+    "--muted-foreground": [
+      "0 0% 46.9%"
+    ],
+    "--output-panel-width": [
+      "560px"
+    ],
+    "--panel-width": [
+      "320px"
+    ],
+    "--perspective-distant": [
+      "1200px"
+    ],
+    "--perspective-dramatic": [
+      "100px"
+    ],
+    "--perspective-midrange": [
+      "800px"
+    ],
+    "--perspective-near": [
+      "300px"
+    ],
+    "--perspective-normal": [
+      "500px"
+    ],
+    "--popover": [
+      "0 0% 100%",
+      "0 0% 9.0%"
+    ],
+    "--popover-foreground": [
+      "0 0% 3.9%",
+      "0 0% 98%"
+    ],
+    "--primary": [
+      "0 0% 11.2%"
+    ],
+    "--primary-foreground": [
+      "0 0% 98%"
+    ],
+    "--radius": [
+      "8px"
+    ],
+    "--radius-2xl": [
+      "16px"
+    ],
+    "--radius-3xl": [
+      "24px"
+    ],
+    "--radius-4xl": [
+      "32px"
+    ],
+    "--radius-lg": [
+      "var(--radius)"
+    ],
+    "--radius-md": [
+      "calc(var(--radius) - 2px)"
+    ],
+    "--radius-sm": [
+      "calc(var(--radius) - 4px)"
+    ],
+    "--radius-xl": [
+      "12px"
+    ],
+    "--radius-xs": [
+      "2px"
+    ],
+    "--ring": [
+      "0 0% 3.9%",
+      "0 0% 83.9%"
+    ],
+    "--scrollbar-size": [
+      "8px"
+    ],
+    "--scrollbar-thumb": [
+      "0 0% 30%",
+      "0 0% 65%"
+    ],
+    "--scrollbar-thumb-color": [
+      "#5a5a5a",
+      "#c0c0c0"
+    ],
+    "--scrollbar-thumb-hover": [
+      "0 0% 40%",
+      "0 0% 55%"
+    ],
+    "--scrollbar-thumb-hover-color": [
+      "#6a6a6a",
+      "#a8a8a8"
+    ],
+    "--scrollbar-track": [
+      "0 0% 17.5%",
+      "0 0% 85%"
+    ],
+    "--secondary": [
+      "0 0% 12.0%",
+      "0 0% 96.1%"
+    ],
+    "--secondary-foreground": [
+      "0 0% 11.2%",
+      "0 0% 98%"
+    ],
+    "--selection": [
+      "#1a5cf6",
+      "#4b83f7"
+    ],
+    "--selection-bg": [
+      "#264f78",
+      "#add6ff"
+    ],
+    "--selection-dark": [
+      "#264f78"
+    ],
+    "--selection-muted": [
+      "#1a5cf647",
+      "#4b83f759"
+    ],
+    "--shadow": [
+      "0 1px 3px 0 rgb(0 0 0 / 0.1),0 1px 2px -1px rgb(0 0 0 / 0.1)"
+    ],
+    "--shadow-2xl": [
+      "0 25px 50px -12px rgb(0 0 0 / 0.25)"
+    ],
+    "--shadow-2xs": [
+      "0 1px rgb(0 0 0 / 0.05)"
+    ],
+    "--shadow-ambient": [
+      "0 0 12px 0 rgba(0,0,0,0.08)",
+      "0 0 12px 0 rgba(0,0,0,0.22)",
+      "var(--shadow-ambient)"
+    ],
+    "--shadow-card": [
+      "0 1px 3px rgba(0,0,0,0.04)",
+      "var(--shadow-card)"
+    ],
+    "--shadow-inner": [
+      "inset 0 2px 4px 0 rgb(0 0 0 / 0.05)"
+    ],
+    "--shadow-kbd": [
+      "0 4px 0 0 rgba(48,48,48,1)",
+      "var(--shadow-kbd)"
+    ],
+    "--shadow-kbd-sm": [
+      "0 2px 0 0 rgba(48,48,48,1)",
+      "var(--shadow-kbd-sm)"
+    ],
+    "--shadow-lg": [
+      "0 10px 15px -3px rgb(0 0 0 / 0.1),0 4px 6px -4px rgb(0 0 0 / 0.1)"
+    ],
+    "--shadow-md": [
+      "0 4px 6px -1px rgb(0 0 0 / 0.1),0 2px 4px -2px rgb(0 0 0 / 0.1)"
+    ],
+    "--shadow-medium": [
+      "0 4px 12px rgba(0,0,0,0.1)",
+      "var(--shadow-medium)"
+    ],
+    "--shadow-overlay": [
+      "0 10px 30px rgba(0,0,0,0.11)",
+      "0 10px 30px rgba(0,0,0,0.3)",
+      "var(--shadow-overlay)"
+    ],
+    "--shadow-sm": [
+      "0 1px 3px 0 rgb(0 0 0 / 0.1),0 1px 2px -1px rgb(0 0 0 / 0.1)"
+    ],
+    "--shadow-subtle": [
+      "0 2px 4px 0 rgba(0,0,0,0.08)",
+      "var(--shadow-subtle)"
+    ],
+    "--shadow-xl": [
+      "0 20px 25px -5px rgb(0 0 0 / 0.1),0 8px 10px -6px rgb(0 0 0 / 0.1)"
+    ],
+    "--shadow-xs": [
+      "0 1px 2px 0 rgb(0 0 0 / 0.05)"
+    ],
+    "--sidebar-collapsed-width": [
+      "0",
+      "48px"
+    ],
+    "--sidebar-expanded-width": [
+      "256px"
+    ],
+    "--sidebar-width": [
+      "0",
+      "var(--sidebar-collapsed-width)",
+      "var(--sidebar-expanded-width)"
+    ],
+    "--spacing": [
+      "4px"
+    ],
+    "--spacing-px": [
+      "var(--border-width)"
+    ],
+    "--success": [
+      "#22c55e"
+    ],
+    "--surface-1": [
+      "#1e1e1e",
+      "#fbfbfb"
+    ],
+    "--surface-2": [
+      "#232323",
+      "#ffffff"
+    ],
+    "--surface-3": [
+      "#242424",
+      "#f7f7f7"
+    ],
+    "--surface-4": [
+      "#292929",
+      "#f5f5f5"
+    ],
+    "--surface-5": [
+      "#363636",
+      "#f3f3f3"
+    ],
+    "--surface-6": [
+      "#454545",
+      "#e5e5e5"
+    ],
+    "--surface-7": [
+      "#505050",
+      "#d9d9d9"
+    ],
+    "--surface-active": [
+      "#2c2c2c",
+      "#ececec"
+    ],
+    "--surface-hover": [
+      "#262626",
+      "#f2f2f2"
+    ],
+    "--surface-inverted": [
+      "#1b1b1b",
+      "#242424"
+    ],
+    "--surface-inverted-hover": [
+      "#363636"
+    ],
+    "--terminal-height": [
+      "206px"
+    ],
+    "--terminal-status-error-bg": [
+      "#491515",
+      "#fef2f2"
+    ],
+    "--terminal-status-error-border": [
+      "#883827",
+      "#f87171"
+    ],
+    "--terminal-status-info-bg": [
+      "#383838",
+      "#f7f7f7"
+    ],
+    "--terminal-status-info-border": [
+      "#686868",
+      "#a3a3a3"
+    ],
+    "--terminal-status-info-color": [
+      "#525252",
+      "#b7b7b7"
+    ],
+    "--terminal-status-warning-bg": [
+      "#3d3520",
+      "#fefce8"
+    ],
+    "--terminal-status-warning-border": [
+      "#5c4d1f",
+      "#facc15"
+    ],
+    "--terminal-status-warning-color": [
+      "#a16207",
+      "#d4a72c"
+    ],
+    "--text-2xl": [
+      "24px"
+    ],
+    "--text-2xl--line-height": [
+      "calc(2 / 1.5)"
+    ],
+    "--text-3xl": [
+      "30px"
+    ],
+    "--text-3xl--line-height": [
+      "calc(2.25 / 1.875)"
+    ],
+    "--text-4xl": [
+      "36px"
+    ],
+    "--text-4xl--line-height": [
+      "calc(2.5 / 2.25)"
+    ],
+    "--text-5xl": [
+      "48px"
+    ],
+    "--text-5xl--line-height": [
+      "1"
+    ],
+    "--text-6xl": [
+      "60px"
+    ],
+    "--text-6xl--line-height": [
+      "1"
+    ],
+    "--text-7xl": [
+      "72px"
+    ],
+    "--text-7xl--line-height": [
+      "1"
+    ],
+    "--text-8xl": [
+      "96px"
+    ],
+    "--text-8xl--line-height": [
+      "1"
+    ],
+    "--text-9xl": [
+      "128px"
+    ],
+    "--text-9xl--line-height": [
+      "1"
+    ],
+    "--text-base": [
+      "15px"
+    ],
+    "--text-base--line-height": [
+      "calc(1.5 / 1)"
+    ],
+    "--text-body": [
+      "#434343",
+      "#c1c1c1"
+    ],
+    "--text-caption": [
+      "12px"
+    ],
+    "--text-error": [
+      "#ef4444"
+    ],
+    "--text-icon": [
+      "#5a5a5a",
+      "#969696"
+    ],
+    "--text-icon-muted": [
+      "#5c5c5c",
+      "#949494"
+    ],
+    "--text-inverse": [
+      "#1b1b1b",
+      "#ffffff"
+    ],
+    "--text-lg": [
+      "18px"
+    ],
+    "--text-lg--line-height": [
+      "calc(1.75 / 1.125)"
+    ],
+    "--text-md": [
+      "16px"
+    ],
+    "--text-micro": [
+      "10px"
+    ],
+    "--text-muted": [
+      "#6e6e6e",
+      "#7a7a7a"
+    ],
+    "--text-muted-inverse": [
+      "#a0a0a0",
+      "#b3b3b3"
+    ],
+    "--text-placeholder": [
+      "#8d8d8d"
+    ],
+    "--text-primary": [
+      "#1a1a1a",
+      "#e6e6e6"
+    ],
+    "--text-secondary": [
+      "#525252",
+      "#cccccc"
+    ],
+    "--text-shadow-2xs": [
+      "0 1px 0 rgb(0 0 0 / 0.15)"
+    ],
+    "--text-shadow-lg": [
+      "0 1px 2px rgb(0 0 0 / 0.1),0 3px 2px rgb(0 0 0 / 0.1),0 4px 8px rgb(0 0 0 / 0.1)"
+    ],
+    "--text-shadow-md": [
+      "0 1px 1px rgb(0 0 0 / 0.1),0 1px 2px rgb(0 0 0 / 0.1),0 2px 4px rgb(0 0 0 / 0.1)"
+    ],
+    "--text-shadow-sm": [
+      "0 1px 0 rgb(0 0 0 / 0.075),0 1px 1px rgb(0 0 0 / 0.075),0 2px 2px rgb(0 0 0 / 0.075)"
+    ],
+    "--text-shadow-xs": [
+      "0 1px 1px rgb(0 0 0 / 0.2)"
+    ],
+    "--text-sm": [
+      "14px"
+    ],
+    "--text-sm--line-height": [
+      "calc(1.25 / 0.875)"
+    ],
+    "--text-small": [
+      "13px"
+    ],
+    "--text-subtle": [
+      "#7d7d7d",
+      "#8c8c8c"
+    ],
+    "--text-success": [
+      "#22c55e"
+    ],
+    "--text-tertiary": [
+      "#5c5c5c",
+      "#b3b3b3"
+    ],
+    "--text-xl": [
+      "20px"
+    ],
+    "--text-xl--line-height": [
+      "calc(1.75 / 1.25)"
+    ],
+    "--text-xs": [
+      "11px"
+    ],
+    "--text-xs--line-height": [
+      "1.5"
+    ],
+    "--thinking-ink-current": [
+      "#2c2c2c",
+      "#d6d6d6"
+    ],
+    "--thinking-ink-glow": [
+      "rgba(255,255,255,0.6)",
+      "rgba(255,255,255,0.9)"
+    ],
+    "--thinking-ink-inner": [
+      "#2c2c2c",
+      "#a7a7a7"
+    ],
+    "--thinking-ink-outer": [
+      "#5f5f5f",
+      "#d6d6d6"
+    ],
+    "--tooltip-bg": [
+      "#1b1b1b",
+      "#fdfdfd"
+    ],
+    "--tracking-normal": [
+      "0"
+    ],
+    "--tracking-tight": [
+      "-0.025em"
+    ],
+    "--tracking-tighter": [
+      "-0.05em"
+    ],
+    "--tracking-wide": [
+      "0.025em"
+    ],
+    "--tracking-wider": [
+      "0.05em"
+    ],
+    "--tracking-widest": [
+      "0.1em"
+    ],
+    "--warning": [
+      "#ea580c",
+      "#ff6600"
+    ],
+    "--white": [
+      "#ffffff"
+    ],
+    "--workflow-background": [
+      "0 0% 10.59%",
+      "0 0% 100%"
+    ],
+    "--workflow-edge": [
+      "#454545",
+      "#e0e0e0"
+    ],
+    "--workspace-content-gap": [
+      "0"
+    ],
+    "--workspace-content-title-bar-inset": [
+      "0",
+      "var(--desktop-title-bar-height)"
+    ],
+    "--z-dropdown": [
+      "100"
+    ],
+    "--z-modal": [
+      "200"
+    ],
+    "--z-popover": [
+      "300"
+    ],
+    "--z-shell-gate": [
+      "600"
+    ],
+    "--z-takeover": [
+      "500"
+    ],
+    "--z-toast": [
+      "150"
+    ],
+    "--z-tooltip": [
+      "400"
+    ]
+  },
+  "colourTokens": [
+    "--auth-primary-btn-bg",
+    "--auth-primary-btn-border",
+    "--auth-primary-btn-hover-bg",
+    "--auth-primary-btn-hover-border",
+    "--auth-primary-btn-hover-text",
+    "--auth-primary-btn-text",
+    "--badge-amber-bg",
+    "--badge-amber-text",
+    "--badge-blue-bg",
+    "--badge-blue-secondary-bg",
+    "--badge-blue-secondary-text",
+    "--badge-blue-text",
+    "--badge-cyan-bg",
+    "--badge-cyan-text",
+    "--badge-error-bg",
+    "--badge-error-text",
+    "--badge-gray-bg",
+    "--badge-gray-text",
+    "--badge-orange-bg",
+    "--badge-orange-text",
+    "--badge-pink-bg",
+    "--badge-pink-text",
+    "--badge-purple-bg",
+    "--badge-purple-text",
+    "--badge-success-bg",
+    "--badge-success-text",
+    "--badge-teal-bg",
+    "--badge-teal-text",
+    "--base-muted-foreground",
+    "--bg",
+    "--border",
+    "--border-1",
+    "--border-inverted",
+    "--border-muted",
+    "--border-success",
+    "--brand",
+    "--brand-accent",
+    "--brand-accent-hover",
+    "--brand-agent",
+    "--brand-blue",
+    "--brand-hover",
+    "--brand-knowledge",
+    "--brand-secondary",
+    "--caution",
+    "--code-bg",
+    "--code-foreground",
+    "--code-line-number",
+    "--color-accent",
+    "--color-accent-foreground",
+    "--color-amber-200",
+    "--color-amber-300",
+    "--color-amber-400",
+    "--color-amber-50",
+    "--color-amber-500",
+    "--color-amber-600",
+    "--color-amber-700",
+    "--color-amber-800",
+    "--color-amber-900",
+    "--color-amber-950",
+    "--color-background",
+    "--color-black",
+    "--color-blue-500",
+    "--color-border",
+    "--color-card",
+    "--color-card-foreground",
+    "--color-chart-1",
+    "--color-chart-2",
+    "--color-chart-3",
+    "--color-chart-4",
+    "--color-chart-5",
+    "--color-destructive",
+    "--color-destructive-foreground",
+    "--color-emerald-400",
+    "--color-emerald-500",
+    "--color-foreground",
+    "--color-gray-100",
+    "--color-gray-200",
+    "--color-gray-300",
+    "--color-gray-400",
+    "--color-gray-50",
+    "--color-gray-500",
+    "--color-gray-600",
+    "--color-gray-700",
+    "--color-gray-800",
+    "--color-gray-900",
+    "--color-gray-950",
+    "--color-green-500",
+    "--color-input",
+    "--color-muted",
+    "--color-muted-foreground",
+    "--color-orange-400",
+    "--color-popover",
+    "--color-popover-foreground",
+    "--color-primary",
+    "--color-primary-foreground",
+    "--color-purple-500",
+    "--color-red-300",
+    "--color-red-400",
+    "--color-red-50",
+    "--color-red-600",
+    "--color-red-700",
+    "--color-red-950",
+    "--color-ring",
+    "--color-secondary",
+    "--color-secondary-foreground",
+    "--color-white",
+    "--color-yellow-200",
+    "--color-yellow-500",
+    "--error",
+    "--error-emphasis",
+    "--error-muted",
+    "--foreground",
+    "--highlight-match-bg",
+    "--highlight-match-text",
+    "--highlight-search",
+    "--highlight-search-active",
+    "--indicator-active",
+    "--indicator-inactive",
+    "--indicator-online",
+    "--indicator-seat-filled",
+    "--landing-bg",
+    "--landing-bg-card",
+    "--landing-bg-elevated",
+    "--landing-bg-hover",
+    "--landing-bg-section",
+    "--landing-bg-skeleton",
+    "--landing-bg-subtle",
+    "--landing-bg-surface",
+    "--landing-border",
+    "--landing-border-light",
+    "--landing-border-strong",
+    "--landing-border-subtle",
+    "--landing-text",
+    "--landing-text-body",
+    "--landing-text-dark",
+    "--landing-text-icon",
+    "--landing-text-muted",
+    "--landing-text-secondary",
+    "--landing-text-subtle",
+    "--muted-foreground",
+    "--scrollbar-thumb-color",
+    "--scrollbar-thumb-hover-color",
+    "--selection",
+    "--selection-bg",
+    "--selection-dark",
+    "--selection-muted",
+    "--success",
+    "--surface-1",
+    "--surface-2",
+    "--surface-3",
+    "--surface-4",
+    "--surface-5",
+    "--surface-6",
+    "--surface-7",
+    "--surface-active",
+    "--surface-hover",
+    "--surface-inverted",
+    "--surface-inverted-hover",
+    "--terminal-status-error-bg",
+    "--terminal-status-error-border",
+    "--terminal-status-info-bg",
+    "--terminal-status-info-border",
+    "--terminal-status-info-color",
+    "--terminal-status-warning-bg",
+    "--terminal-status-warning-border",
+    "--terminal-status-warning-color",
+    "--text-body",
+    "--text-error",
+    "--text-icon",
+    "--text-icon-muted",
+    "--text-inverse",
+    "--text-muted",
+    "--text-muted-inverse",
+    "--text-placeholder",
+    "--text-primary",
+    "--text-secondary",
+    "--text-subtle",
+    "--text-success",
+    "--text-tertiary",
+    "--thinking-ink-current",
+    "--thinking-ink-glow",
+    "--thinking-ink-inner",
+    "--thinking-ink-outer",
+    "--tooltip-bg",
+    "--warning",
+    "--white",
+    "--workflow-edge"
+  ],
+  "allowed": {
+    "align-content": [
+      "flex-start"
+    ],
+    "align-items": [
+      "baseline",
+      "center",
+      "end",
+      "flex-end",
+      "flex-start",
+      "normal",
+      "start",
+      "stretch"
+    ],
+    "animation": [
+      "caret-blink 1250ms ease-out infinite",
+      "collapsible-down 300ms cubic-bezier(0.4,0,0.2,1)",
+      "collapsible-up 300ms cubic-bezier(0.4,0,0.2,1)",
+      "none",
+      "var(--animate-pulse)"
+    ],
+    "animation-play-state": [
+      "paused"
+    ],
+    "aspect-ratio": [
+      "1 / 1"
+    ],
+    "backdrop-filter": [
+      "blur(2px)"
+    ],
+    "border-radius": [
+      "12px",
+      "20px",
+      "2px",
+      "40px",
+      "4px",
+      "5px",
+      "6px",
+      "8px",
+      "calc(infinity * 1px)",
+      "calc(var(--radius-lg) - 2px)",
+      "var(--radius)",
+      "var(--radius-lg)",
+      "var(--radius-md)",
+      "var(--radius-sm)",
+      "var(--radius-xs)"
+    ],
+    "border-style": [
+      "dashed",
+      "dotted",
+      "double",
+      "hidden",
+      "none",
+      "solid",
+      "var(--tw-border-style)"
+    ],
+    "border-width": [
+      "0",
+      "1px",
+      "2px"
+    ],
+    "box-shadow": [
+      "0 0 #0000",
+      "0 0 0 1px var(--tw-shadow-color,rgba(28,40,64,0.08)),0 1px 3px 0 var(--tw-shadow-color,rgba(28,40,64,0.1))",
+      "0 0 0 1px var(--tw-shadow-color,var(--border-1)),0 1px 3px 0 var(--tw-shadow-color,rgba(0,0,0,0.3))",
+      "0 0 12px 0 rgba(0,0,0,0.08)",
+      "0 0 12px 0 rgba(0,0,0,0.22)",
+      "0 10px 15px -3px var(--tw-shadow-color,rgb(0 0 0 / 0.1)),0 4px 6px -4px var(--tw-shadow-color,rgb(0 0 0 / 0.1))",
+      "0 10px 30px rgba(0,0,0,0.11)",
+      "0 10px 30px rgba(0,0,0,0.3)",
+      "0 1px 2px 0 var(--tw-shadow-color,rgb(0 0 0 / 0.05))",
+      "0 1px 3px rgba(0,0,0,0.04)",
+      "0 2px 0 0 rgba(48,48,48,1)",
+      "0 2px 0 0 var(--tw-shadow-color,var(--border-1))",
+      "0 2px 4px 0 rgba(0,0,0,0.08)",
+      "0 4px 0 0 rgba(48,48,48,1)",
+      "0 4px 0 0 var(--tw-shadow-color,var(--border-1))",
+      "0 4px 12px rgba(0,0,0,0.1)",
+      "inset 0 0 0 1px var(--tw-shadow-color,#C3C3C3)",
+      "var(--shadow-ambient)",
+      "var(--shadow-card)",
+      "var(--shadow-kbd)",
+      "var(--shadow-kbd-sm)",
+      "var(--shadow-medium)",
+      "var(--shadow-overlay)",
+      "var(--shadow-subtle)",
+      "var(--tw-ring-inset,) 0 0 0 calc(0 + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor)",
+      "var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor)",
+      "var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor)",
+      "var(--tw-ring-inset,) 0 0 0 calc(var(--border-width) + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor)"
+    ],
+    "clip-path": [
+      "inset(50%)"
+    ],
+    "display": [
+      "block",
+      "contents",
+      "flex",
+      "flow-root",
+      "grid",
+      "inline",
+      "inline-block",
+      "inline-flex",
+      "inline-grid",
+      "none",
+      "table",
+      "table-cell",
+      "table-row"
+    ],
+    "flex": [
+      "1",
+      "none"
+    ],
+    "flex-direction": [
+      "column",
+      "column-reverse",
+      "row",
+      "row-reverse"
+    ],
+    "flex-grow": [
+      "1"
+    ],
+    "flex-shrink": [
+      "0",
+      "1"
+    ],
+    "flex-wrap": [
+      "nowrap",
+      "wrap",
+      "wrap-reverse"
+    ],
+    "font-family": [
+      "inherit",
+      "ui-sans-serif,-apple-system,system-ui,Segoe UI,Helvetica,Apple Color Emoji,Arial,sans-serif,Segoe UI Emoji,Segoe UI Symbol",
+      "ui-sans-serif,system-ui,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\",\"Segoe UI Symbol\",\"Noto Color Emoji\"",
+      "var(--font-body)",
+      "var(--font-martian-mono,ui-monospace),SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",\"Courier New\",monospace",
+      "var(--font-mono)",
+      "var(--font-sans)",
+      "var(--font-season)"
+    ],
+    "font-size": [
+      "10px",
+      "11px",
+      "12px",
+      "13px",
+      "14px",
+      "15px",
+      "16px",
+      "18px",
+      "var(--text-base)",
+      "var(--text-caption)",
+      "var(--text-md)",
+      "var(--text-micro)",
+      "var(--text-small)",
+      "var(--text-xs)"
+    ],
+    "font-variant-numeric": [
+      "var(--tw-ordinal,) var(--tw-slashed-zero,) var(--tw-numeric-figure,) var(--tw-numeric-spacing,) var(--tw-numeric-fraction,)"
+    ],
+    "font-weight": [
+      "400",
+      "500",
+      "600",
+      "inherit"
+    ],
+    "gap": [
+      "0",
+      "10px",
+      "12px",
+      "16px",
+      "2px",
+      "3px",
+      "4px",
+      "6px",
+      "8px",
+      "9px"
+    ],
+    "grid-template-columns": [
+      "repeat(7,minmax(0,1fr))"
+    ],
+    "height": [
+      "1.25px",
+      "100%",
+      "10px",
+      "12px",
+      "14px",
+      "16px",
+      "18px",
+      "1px",
+      "20px",
+      "21px",
+      "22px",
+      "24px",
+      "28px",
+      "30px",
+      "32px",
+      "34px",
+      "40px",
+      "48px",
+      "6px",
+      "8px",
+      "var(--border-width)",
+      "var(--tab-strip-band,30px)",
+      "var(--tab-strip-height,34px)"
+    ],
+    "isolation": [
+      "auto",
+      "isolate"
+    ],
+    "justify-content": [
+      "center",
+      "end",
+      "flex-end",
+      "flex-start",
+      "normal",
+      "space-around",
+      "space-between",
+      "space-evenly",
+      "start"
+    ],
+    "letter-spacing": [
+      "inherit",
+      "var(--tracking-widest)"
+    ],
+    "line-height": [
+      "1",
+      "1.5",
+      "18px",
+      "20px",
+      "21px",
+      "var(--text-xs--line-height)",
+      "var(--tw-leading,1.5)",
+      "var(--tw-leading,calc(1.25 / 0.875))",
+      "var(--tw-leading,calc(1.5 / 1))",
+      "var(--tw-leading,calc(1.75 / 1.125))"
+    ],
+    "margin": [
+      "-1.5px",
+      "-1px",
+      "-4px",
+      "-6px",
+      "0",
+      "12px",
+      "16px",
+      "1px",
+      "2px",
+      "4px",
+      "6px",
+      "8px",
+      "auto",
+      "calc(2px * calc(1 - var(--tw-space-y-reverse)))",
+      "calc(2px * var(--tw-space-y-reverse))",
+      "calc(var(--border-width) * -1)",
+      "var(--border-width)"
+    ],
+    "mask-image": [
+      "linear-gradient(to bottom,transparent var(--scroll-fade-top-start),black var(--scroll-fade-top-end),black var(--scroll-fade-bottom-start),transparent var(--scroll-fade-bottom-end))",
+      "linear-gradient(to right,black calc(100% - 16px),transparent)",
+      "linear-gradient(to right,transparent var(--scroll-fade-left-start),black var(--scroll-fade-left-end),black var(--scroll-fade-right-start),transparent var(--scroll-fade-right-end))"
+    ],
+    "max-height": [
+      "128px",
+      "192px",
+      "84vh",
+      "min(420px,var(--radix-popper-available-height,420px))"
+    ],
+    "max-width": [
+      "100%",
+      "1400px",
+      "220px",
+      "240px",
+      "280px",
+      "320px",
+      "34px",
+      "none"
+    ],
+    "min-height": [
+      "0",
+      "100px",
+      "112px"
+    ],
+    "min-width": [
+      "0",
+      "120px",
+      "128px",
+      "160px",
+      "34px"
+    ],
+    "opacity": [
+      "0",
+      "0.3",
+      "0.5",
+      "0.6",
+      "0.7",
+      "0.8",
+      "1"
+    ],
+    "outline-offset": [
+      "-1px",
+      "2px"
+    ],
+    "outline-style": [
+      "auto",
+      "dashed",
+      "dotted",
+      "double",
+      "none",
+      "solid",
+      "var(--tw-outline-style)"
+    ],
+    "outline-width": [
+      "1px",
+      "2px"
+    ],
+    "overflow": [
+      "auto",
+      "clip",
+      "hidden",
+      "scroll",
+      "visible"
+    ],
+    "overflow-wrap": [
+      "break-word"
+    ],
+    "overflow-x": [
+      "auto",
+      "clip",
+      "hidden",
+      "scroll",
+      "visible"
+    ],
+    "overflow-y": [
+      "auto",
+      "clip",
+      "hidden",
+      "scroll",
+      "visible"
+    ],
+    "padding": [
+      "0",
+      "10px",
+      "12px",
+      "13px",
+      "14px",
+      "16px",
+      "18px",
+      "1px",
+      "2.25px",
+      "24px",
+      "28px",
+      "2px",
+      "32px",
+      "3px",
+      "40px",
+      "4px",
+      "5px",
+      "6px",
+      "7px",
+      "8.5px",
+      "8px",
+      "9px",
+      "var(--tab-strip-inline-end,8px)",
+      "var(--tab-strip-inline-start,8px)"
+    ],
+    "position": [
+      "absolute",
+      "fixed",
+      "relative",
+      "static",
+      "sticky"
+    ],
+    "text-align": [
+      "center",
+      "end",
+      "justify",
+      "left",
+      "right",
+      "start"
+    ],
+    "text-indent": [
+      "4px"
+    ],
+    "text-overflow": [
+      "clip",
+      "ellipsis"
+    ],
+    "text-transform": [
+      "capitalize",
+      "lowercase",
+      "none",
+      "uppercase"
+    ],
+    "transform-origin": [
+      "--radix-dropdown-menu-content-transform-origin",
+      "--radix-popover-content-transform-origin",
+      "bottom"
+    ],
+    "transition-duration": [
+      "0",
+      "1000ms",
+      "150ms",
+      "200ms",
+      "var(--tw-duration,150ms)"
+    ],
+    "transition-property": [
+      "color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to",
+      "left,width,opacity",
+      "none",
+      "opacity",
+      "opacity,transform",
+      "opacity,translate",
+      "transform,box-shadow,color",
+      "transform,translate,scale,rotate"
+    ],
+    "transition-timing-function": [
+      "var(--ease-out)",
+      "var(--tw-ease,var(--default-transition-timing-function))"
+    ],
+    "visibility": [
+      "collapse",
+      "hidden",
+      "visible"
+    ],
+    "white-space": [
+      "break-spaces",
+      "normal",
+      "nowrap",
+      "pre",
+      "pre-line",
+      "pre-wrap"
+    ],
+    "width": [
+      "100%",
+      "10px",
+      "12px",
+      "14px",
+      "16px",
+      "18px",
+      "1px",
+      "20px",
+      "24px",
+      "256px",
+      "2px",
+      "30px",
+      "32px",
+      "34px",
+      "36px",
+      "40px",
+      "48px",
+      "6px",
+      "88px",
+      "8px",
+      "auto",
+      "fit-content",
+      "min(100vw - 32px,280px)",
+      "var(--border-width)",
+      "var(--radix-dropdown-menu-trigger-width)",
+      "var(--radix-popover-trigger-width)",
+      "var(--tab-strip-band,30px)"
+    ],
+    "z-index": [
+      "1",
+      "10",
+      "150",
+      "20",
+      "200",
+      "30",
+      "300",
+      "400",
+      "calc(300 + 1)"
+    ]
+  },
+  "provenance": {
+    "align-content=flex-start": [
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "align-items=baseline": [
+      "policy:structural-keyword"
+    ],
+    "align-items=center": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/label/label.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "policy:structural-keyword"
+    ],
+    "align-items=end": [
+      "policy:structural-keyword"
+    ],
+    "align-items=flex-end": [
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "policy:structural-keyword"
+    ],
+    "align-items=flex-start": [
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "policy:structural-keyword"
+    ],
+    "align-items=normal": [
+      "policy:structural-keyword"
+    ],
+    "align-items=start": [
+      "policy:structural-keyword"
+    ],
+    "align-items=stretch": [
+      "policy:structural-keyword"
+    ],
+    "animation-play-state=paused": [
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "animation=caret-blink 1250ms ease-out infinite": [
+      "packages/emcn/src/components/input-otp/input-otp.tsx"
+    ],
+    "animation=collapsible-down 300ms cubic-bezier(0.4,0,0.2,1)": [
+      "packages/emcn/src/components/expandable/expandable.tsx"
+    ],
+    "animation=collapsible-up 300ms cubic-bezier(0.4,0,0.2,1)": [
+      "packages/emcn/src/components/expandable/expandable.tsx"
+    ],
+    "animation=none": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/skeleton/skeleton.tsx"
+    ],
+    "animation=var(--animate-pulse)": [
+      "packages/emcn/src/components/skeleton/skeleton.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "aspect-ratio=1 / 1": [
+      "packages/emcn/src/components/avatar/avatar.tsx"
+    ],
+    "backdrop-filter=blur(2px)": [
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "border-radius=12px": [
+      "packages/emcn/src/components/chip-date-picker/chip-date-picker.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "border-radius=20px": [
+      "packages/emcn/src/components/slider/slider.tsx"
+    ],
+    "border-radius=2px": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/badge/badge.tsx"
+    ],
+    "border-radius=40px": [
+      "packages/emcn/src/components/badge/badge.tsx"
+    ],
+    "border-radius=4px": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "border-radius=5px": [
+      "packages/emcn/src/components/button/button.tsx"
+    ],
+    "border-radius=6px": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/skeleton/skeleton.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "border-radius=8px": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-combobox/chip-combobox.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "border-radius=calc(infinity * 1px)": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "border-radius=calc(var(--radius-lg) - 2px)": [
+      "packages/emcn/src/components/chip/segmented-control.ts"
+    ],
+    "border-radius=var(--radius-lg)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "border-radius=var(--radius-md)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "border-radius=var(--radius-sm)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "border-radius=var(--radius-xs)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "border-radius=var(--radius)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "border-style=dashed": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "policy:structural-keyword"
+    ],
+    "border-style=dotted": [
+      "policy:structural-keyword"
+    ],
+    "border-style=double": [
+      "policy:structural-keyword"
+    ],
+    "border-style=hidden": [
+      "policy:structural-keyword"
+    ],
+    "border-style=none": [
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "policy:structural-keyword"
+    ],
+    "border-style=solid": [
+      "policy:structural-keyword"
+    ],
+    "border-style=var(--tw-border-style)": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-date-picker/chip-date-picker.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "border-width=0": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx"
+    ],
+    "border-width=1px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-date-picker/chip-date-picker.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "border-width=2px": [
+      "packages/emcn/src/components/avatar/avatar.tsx"
+    ],
+    "box-shadow=0 0 #0000": [
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "box-shadow=0 0 0 1px var(--tw-shadow-color,rgba(28,40,64,0.08)),0 1px 3px 0 var(--tw-shadow-color,rgba(28,40,64,0.1))": [
+      "packages/emcn/src/components/chip/chip.tsx"
+    ],
+    "box-shadow=0 0 0 1px var(--tw-shadow-color,var(--border-1)),0 1px 3px 0 var(--tw-shadow-color,rgba(0,0,0,0.3))": [
+      "packages/emcn/src/components/chip/chip.tsx"
+    ],
+    "box-shadow=0 0 12px 0 rgba(0,0,0,0.08)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=0 0 12px 0 rgba(0,0,0,0.22)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=0 10px 15px -3px var(--tw-shadow-color,rgb(0 0 0 / 0.1)),0 4px 6px -4px var(--tw-shadow-color,rgb(0 0 0 / 0.1))": [
+      "packages/emcn/src/components/popover/popover.tsx"
+    ],
+    "box-shadow=0 10px 30px rgba(0,0,0,0.11)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=0 10px 30px rgba(0,0,0,0.3)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=0 1px 2px 0 var(--tw-shadow-color,rgb(0 0 0 / 0.05))": [
+      "packages/emcn/src/components/chip-date-picker/chip-date-picker.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx"
+    ],
+    "box-shadow=0 1px 3px rgba(0,0,0,0.04)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=0 2px 0 0 rgba(48,48,48,1)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=0 2px 0 0 var(--tw-shadow-color,var(--border-1))": [
+      "packages/emcn/src/components/button/button.tsx"
+    ],
+    "box-shadow=0 2px 4px 0 rgba(0,0,0,0.08)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=0 4px 0 0 rgba(48,48,48,1)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=0 4px 0 0 var(--tw-shadow-color,var(--border-1))": [
+      "packages/emcn/src/components/button/button.tsx"
+    ],
+    "box-shadow=0 4px 12px rgba(0,0,0,0.1)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=inset 0 0 0 1px var(--tw-shadow-color,#C3C3C3)": [
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx"
+    ],
+    "box-shadow=var(--shadow-ambient)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=var(--shadow-card)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=var(--shadow-kbd-sm)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=var(--shadow-kbd)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=var(--shadow-medium)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=var(--shadow-overlay)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=var(--shadow-subtle)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "box-shadow=var(--tw-ring-inset,) 0 0 0 calc(0 + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor)": [
+      "packages/emcn/src/components/switch/switch.tsx"
+    ],
+    "box-shadow=var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor)": [
+      "packages/emcn/src/components/input-otp/input-otp.tsx"
+    ],
+    "box-shadow=var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor)": [
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx"
+    ],
+    "box-shadow=var(--tw-ring-inset,) 0 0 0 calc(var(--border-width) + var(--tw-ring-offset-width)) var(--tw-ring-color,currentcolor)": [
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "clip-path=inset(50%)": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx"
+    ],
+    "display=block": [
+      "packages/emcn/src/components/overflow-text/overflow-text.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "policy:structural-keyword"
+    ],
+    "display=contents": [
+      "policy:structural-keyword"
+    ],
+    "display=flex": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "policy:structural-keyword"
+    ],
+    "display=flow-root": [
+      "policy:structural-keyword"
+    ],
+    "display=grid": [
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "policy:structural-keyword"
+    ],
+    "display=inline": [
+      "policy:structural-keyword"
+    ],
+    "display=inline-block": [
+      "policy:structural-keyword"
+    ],
+    "display=inline-flex": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/label/label.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "policy:structural-keyword"
+    ],
+    "display=inline-grid": [
+      "policy:structural-keyword"
+    ],
+    "display=none": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "policy:structural-keyword"
+    ],
+    "display=table": [
+      "policy:structural-keyword"
+    ],
+    "display=table-cell": [
+      "policy:structural-keyword"
+    ],
+    "display=table-row": [
+      "policy:structural-keyword"
+    ],
+    "flex-direction=column": [
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "policy:structural-keyword"
+    ],
+    "flex-direction=column-reverse": [
+      "policy:structural-keyword"
+    ],
+    "flex-direction=row": [
+      "policy:structural-keyword"
+    ],
+    "flex-direction=row-reverse": [
+      "policy:structural-keyword"
+    ],
+    "flex-grow=1": [
+      "packages/emcn/src/components/slider/slider.tsx"
+    ],
+    "flex-shrink=0": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx",
+      "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-switch/chip-switch.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "flex-shrink=1": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "flex-wrap=nowrap": [
+      "policy:structural-keyword"
+    ],
+    "flex-wrap=wrap": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "policy:structural-keyword"
+    ],
+    "flex-wrap=wrap-reverse": [
+      "policy:structural-keyword"
+    ],
+    "flex=1": [
+      "packages/emcn/src/components/chip-date-picker/chip-date-picker.tsx",
+      "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx"
+    ],
+    "flex=none": [
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "font-family=inherit": [
+      "packages/emcn/src/components/code/code.tsx"
+    ],
+    "font-family=ui-sans-serif,-apple-system,system-ui,Segoe UI,Helvetica,Apple Color Emoji,Arial,sans-serif,Segoe UI Emoji,Segoe UI Symbol": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-family=ui-sans-serif,system-ui,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\",\"Segoe UI Symbol\",\"Noto Color Emoji\"": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "font-family=var(--font-body)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-family=var(--font-martian-mono,ui-monospace),SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",\"Courier New\",monospace": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx"
+    ],
+    "font-family=var(--font-mono)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-family=var(--font-sans)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-family=var(--font-season)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-size=10px": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-size=11px": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/popover/popover.tsx"
+    ],
+    "font-size=12px": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "font-size=13px": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/label/label.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "font-size=14px": [
+      "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "font-size=15px": [
+      "apps/sim/app/_styles/globals.css",
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "font-size=16px": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-size=18px": [
+      "packages/emcn/src/components/input-otp/input-otp.tsx"
+    ],
+    "font-size=var(--text-base)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-size=var(--text-caption)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-size=var(--text-md)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-size=var(--text-micro)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-size=var(--text-small)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-size=var(--text-xs)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "font-variant-numeric=var(--tw-ordinal,) var(--tw-slashed-zero,) var(--tw-numeric-figure,) var(--tw-numeric-spacing,) var(--tw-numeric-fraction,)": [
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx"
+    ],
+    "font-weight=400": [
+      "policy:documented-weight"
+    ],
+    "font-weight=500": [
+      "policy:documented-weight"
+    ],
+    "font-weight=600": [
+      "policy:documented-weight"
+    ],
+    "gap=0": [
+      "packages/emcn/src/components/chip/segmented-control.ts"
+    ],
+    "gap=10px": [
+      "packages/emcn/src/components/progress-item/progress-item.tsx"
+    ],
+    "gap=12px": [
+      "packages/emcn/src/components/banner/banner.tsx"
+    ],
+    "gap=16px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "gap=2px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "gap=3px": [
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx"
+    ],
+    "gap=4px": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "gap=6px": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "gap=8px": [
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "gap=9px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx"
+    ],
+    "grid-template-columns=repeat(7,minmax(0,1fr))": [
+      "packages/emcn/src/components/calendar/calendar.tsx"
+    ],
+    "height=1.25px": [
+      "packages/emcn/src/components/field-divider/field-divider.tsx"
+    ],
+    "height=100%": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "height=10px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx"
+    ],
+    "height=12px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx"
+    ],
+    "height=14px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/chip-switch/chip-switch.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "height=16px": [
+      "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "height=18px": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "height=1px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx"
+    ],
+    "height=20px": [
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "height=21px": [
+      "packages/emcn/src/components/code/code.tsx"
+    ],
+    "height=22px": [
+      "packages/emcn/src/components/chip/segmented-control.ts"
+    ],
+    "height=24px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "height=28px": [
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "height=30px": [
+      "packages/emcn/src/components/calendar/calendar-day-cell.tsx",
+      "packages/emcn/src/components/chip-combobox/chip-combobox.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx"
+    ],
+    "height=32px": [
+      "packages/emcn/src/components/avatar/avatar.tsx"
+    ],
+    "height=34px": [
+      "packages/emcn/src/components/calendar/calendar.tsx"
+    ],
+    "height=40px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/table/table.tsx"
+    ],
+    "height=48px": [
+      "packages/emcn/src/components/input-otp/input-otp.tsx"
+    ],
+    "height=6px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "height=8px": [
+      "packages/emcn/src/components/avatar/avatar.tsx"
+    ],
+    "height=var(--border-width)": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "height=var(--tab-strip-band,30px)": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "height=var(--tab-strip-height,34px)": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "isolation=auto": [
+      "policy:structural-keyword"
+    ],
+    "isolation=isolate": [
+      "policy:structural-keyword"
+    ],
+    "justify-content=center": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/calendar/calendar-day-cell.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "policy:structural-keyword"
+    ],
+    "justify-content=end": [
+      "policy:structural-keyword"
+    ],
+    "justify-content=flex-end": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "policy:structural-keyword"
+    ],
+    "justify-content=flex-start": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "policy:structural-keyword"
+    ],
+    "justify-content=normal": [
+      "policy:structural-keyword"
+    ],
+    "justify-content=space-around": [
+      "policy:structural-keyword"
+    ],
+    "justify-content=space-between": [
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "policy:structural-keyword"
+    ],
+    "justify-content=space-evenly": [
+      "policy:structural-keyword"
+    ],
+    "justify-content=start": [
+      "policy:structural-keyword"
+    ],
+    "letter-spacing=inherit": [
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx"
+    ],
+    "letter-spacing=var(--tracking-widest)": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "line-height=1": [
+      "packages/emcn/src/components/label/label.tsx",
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "line-height=1.5": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "line-height=18px": [
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "line-height=20px": [
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "line-height=21px": [
+      "packages/emcn/src/components/code/code.tsx"
+    ],
+    "line-height=var(--text-xs--line-height)": [
+      "apps/sim/app/_styles/globals.css"
+    ],
+    "line-height=var(--tw-leading,1.5)": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/popover/popover.tsx"
+    ],
+    "line-height=var(--tw-leading,calc(1.25 / 0.875))": [
+      "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "line-height=var(--tw-leading,calc(1.5 / 1))": [
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "line-height=var(--tw-leading,calc(1.75 / 1.125))": [
+      "packages/emcn/src/components/input-otp/input-otp.tsx"
+    ],
+    "margin=-1.5px": [
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "margin=-1px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx"
+    ],
+    "margin=-4px": [
+      "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx"
+    ],
+    "margin=-6px": [
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "margin=0": [
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "margin=12px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx"
+    ],
+    "margin=16px": [
+      "packages/emcn/src/components/table/table.tsx"
+    ],
+    "margin=1px": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "margin=2px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "margin=4px": [
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "margin=6px": [
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "margin=8px": [
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx"
+    ],
+    "margin=auto": [
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "margin=calc(2px * calc(1 - var(--tw-space-y-reverse)))": [
+      "packages/emcn/src/components/combobox/combobox.tsx"
+    ],
+    "margin=calc(2px * var(--tw-space-y-reverse))": [
+      "packages/emcn/src/components/combobox/combobox.tsx"
+    ],
+    "margin=calc(var(--border-width) * -1)": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "margin=var(--border-width)": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "mask-image=linear-gradient(to bottom,transparent var(--scroll-fade-top-start),black var(--scroll-fade-top-end),black var(--scroll-fade-bottom-start),transparent var(--scroll-fade-bottom-end))": [
+      "packages/emcn/src/components/scroll-fade/scroll-fade.module.css"
+    ],
+    "mask-image=linear-gradient(to right,black calc(100% - 16px),transparent)": [
+      "packages/emcn/src/components/overflow-text/overflow-text.tsx"
+    ],
+    "mask-image=linear-gradient(to right,transparent var(--scroll-fade-left-start),black var(--scroll-fade-left-end),black var(--scroll-fade-right-start),transparent var(--scroll-fade-right-end))": [
+      "packages/emcn/src/components/scroll-fade/scroll-fade.module.css"
+    ],
+    "max-height=128px": [
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "max-height=192px": [
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "max-height=84vh": [
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "max-height=min(420px,var(--radix-popper-available-height,420px))": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "max-width=100%": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "max-width=1400px": [
+      "packages/emcn/src/components/banner/banner.tsx"
+    ],
+    "max-width=220px": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "max-width=240px": [
+      "packages/emcn/src/components/chip-select/chip-select.tsx"
+    ],
+    "max-width=280px": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "max-width=320px": [
+      "packages/emcn/src/components/info/info.tsx"
+    ],
+    "max-width=34px": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "max-width=none": [
+      "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx"
+    ],
+    "min-height=0": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx"
+    ],
+    "min-height=100px": [
+      "packages/emcn/src/components/code/code.tsx"
+    ],
+    "min-height=112px": [
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "min-width=0": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/overflow-text/overflow-text.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "min-width=120px": [
+      "packages/emcn/src/components/popover/popover.tsx"
+    ],
+    "min-width=128px": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "min-width=160px": [
+      "packages/emcn/src/components/chip-select/chip-select.tsx"
+    ],
+    "min-width=34px": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "opacity=0": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "opacity=0.3": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "opacity=0.5": [
+      "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip-textarea/chip-textarea.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/label/label.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "opacity=0.6": [
+      "packages/emcn/src/components/chip/chip.tsx"
+    ],
+    "opacity=0.7": [
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "opacity=0.8": [
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "opacity=1": [
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "outline-offset=-1px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts"
+    ],
+    "outline-offset=2px": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "outline-style=auto": [
+      "policy:structural-keyword"
+    ],
+    "outline-style=dashed": [
+      "policy:structural-keyword"
+    ],
+    "outline-style=dotted": [
+      "policy:structural-keyword"
+    ],
+    "outline-style=double": [
+      "policy:structural-keyword"
+    ],
+    "outline-style=none": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "policy:structural-keyword"
+    ],
+    "outline-style=solid": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "policy:structural-keyword"
+    ],
+    "outline-style=var(--tw-outline-style)": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts"
+    ],
+    "outline-width=1px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts"
+    ],
+    "outline-width=2px": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "overflow-wrap=break-word": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "overflow-x=auto": [
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "policy:structural-keyword"
+    ],
+    "overflow-x=clip": [
+      "policy:structural-keyword"
+    ],
+    "overflow-x=hidden": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "policy:structural-keyword"
+    ],
+    "overflow-x=scroll": [
+      "policy:structural-keyword"
+    ],
+    "overflow-x=visible": [
+      "policy:structural-keyword"
+    ],
+    "overflow-y=auto": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "policy:structural-keyword"
+    ],
+    "overflow-y=clip": [
+      "policy:structural-keyword"
+    ],
+    "overflow-y=hidden": [
+      "policy:structural-keyword"
+    ],
+    "overflow-y=scroll": [
+      "policy:structural-keyword"
+    ],
+    "overflow-y=visible": [
+      "policy:structural-keyword"
+    ],
+    "overflow=auto": [
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "policy:structural-keyword"
+    ],
+    "overflow=clip": [
+      "policy:structural-keyword"
+    ],
+    "overflow=hidden": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/expandable/expandable.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/overflow-text/overflow-text.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx",
+      "policy:structural-keyword"
+    ],
+    "overflow=scroll": [
+      "policy:structural-keyword"
+    ],
+    "overflow=visible": [
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "policy:structural-keyword"
+    ],
+    "padding=0": [
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/calendar/calendar-day-cell.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx"
+    ],
+    "padding=10px": [
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "padding=12px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/table/table.tsx"
+    ],
+    "padding=13px": [
+      "packages/emcn/src/components/field-divider/field-divider.tsx"
+    ],
+    "padding=14px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx"
+    ],
+    "padding=16px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/field-divider/field-divider.tsx",
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "padding=18px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx"
+    ],
+    "padding=1px": [
+      "packages/emcn/src/components/badge/badge.tsx"
+    ],
+    "padding=2.25px": [
+      "packages/emcn/src/components/badge/badge.tsx"
+    ],
+    "padding=24px": [
+      "packages/emcn/src/components/banner/banner.tsx"
+    ],
+    "padding=28px": [
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "padding=2px": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/field-divider/field-divider.tsx"
+    ],
+    "padding=32px": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "padding=3px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx"
+    ],
+    "padding=40px": [
+      "packages/emcn/src/components/combobox/combobox.tsx"
+    ],
+    "padding=4px": [
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "padding=5px": [
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "padding=6px": [
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-textarea/chip-textarea.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/collapsible-card/collapsible-card.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "padding=7px": [
+      "packages/emcn/src/components/badge/badge.tsx"
+    ],
+    "padding=8.5px": [
+      "packages/emcn/src/components/code/code.tsx"
+    ],
+    "padding=8px": [
+      "packages/emcn/src/components/banner/banner.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/chip-textarea/chip-textarea.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "padding=9px": [
+      "packages/emcn/src/components/badge/badge.tsx"
+    ],
+    "padding=var(--tab-strip-inline-end,8px)": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "padding=var(--tab-strip-inline-start,8px)": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "position=absolute": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx",
+      "policy:structural-keyword"
+    ],
+    "position=fixed": [
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/toast/toast.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "policy:structural-keyword"
+    ],
+    "position=relative": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/calendar/calendar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "policy:structural-keyword"
+    ],
+    "position=static": [
+      "policy:structural-keyword"
+    ],
+    "position=sticky": [
+      "policy:structural-keyword"
+    ],
+    "text-align=center": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "policy:structural-keyword"
+    ],
+    "text-align=end": [
+      "policy:structural-keyword"
+    ],
+    "text-align=justify": [
+      "policy:structural-keyword"
+    ],
+    "text-align=left": [
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "policy:structural-keyword"
+    ],
+    "text-align=right": [
+      "packages/emcn/src/components/code/code.tsx",
+      "policy:structural-keyword"
+    ],
+    "text-align=start": [
+      "policy:structural-keyword"
+    ],
+    "text-indent=4px": [
+      "packages/emcn/src/components/chip-input/chip-input.tsx"
+    ],
+    "text-overflow=clip": [
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/overflow-text/overflow-text.tsx",
+      "policy:structural-keyword"
+    ],
+    "text-overflow=ellipsis": [
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "policy:structural-keyword"
+    ],
+    "text-transform=capitalize": [
+      "policy:structural-keyword"
+    ],
+    "text-transform=lowercase": [
+      "policy:structural-keyword"
+    ],
+    "text-transform=none": [
+      "policy:structural-keyword"
+    ],
+    "text-transform=uppercase": [
+      "policy:structural-keyword"
+    ],
+    "transform-origin=--radix-dropdown-menu-content-transform-origin": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "transform-origin=--radix-popover-content-transform-origin": [
+      "packages/emcn/src/components/chip-date-picker/chip-date-picker.tsx"
+    ],
+    "transform-origin=bottom": [
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "transition-duration=0": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "transition-duration=1000ms": [
+      "packages/emcn/src/components/input-otp/input-otp.tsx"
+    ],
+    "transition-duration=150ms": [
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "transition-duration=200ms": [
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "transition-duration=var(--tw-duration,150ms)": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "transition-property=color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "transition-property=left,width,opacity": [
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "transition-property=none": [
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "transition-property=opacity": [
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "transition-property=opacity,transform": [
+      "packages/emcn/src/components/chip/chip-chrome.ts"
+    ],
+    "transition-property=opacity,translate": [
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "transition-property=transform,box-shadow,color": [
+      "packages/emcn/src/components/button/button.tsx"
+    ],
+    "transition-property=transform,translate,scale,rotate": [
+      "packages/emcn/src/components/switch/switch.tsx"
+    ],
+    "transition-timing-function=var(--ease-out)": [
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "transition-timing-function=var(--tw-ease,var(--default-transition-timing-function))": [
+      "packages/emcn/src/components/badge/badge.tsx",
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/switch/switch.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "visibility=collapse": [
+      "policy:structural-keyword"
+    ],
+    "visibility=hidden": [
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "policy:structural-keyword"
+    ],
+    "visibility=visible": [
+      "policy:structural-keyword"
+    ],
+    "white-space=break-spaces": [
+      "policy:structural-keyword"
+    ],
+    "white-space=normal": [
+      "packages/emcn/src/components/tooltip/tooltip.tsx",
+      "policy:structural-keyword"
+    ],
+    "white-space=nowrap": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/chip/segmented-control.ts",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/overflow-text/overflow-text.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/progress-item/progress-item.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx",
+      "policy:structural-keyword"
+    ],
+    "white-space=pre": [
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "policy:structural-keyword"
+    ],
+    "white-space=pre-line": [
+      "policy:structural-keyword"
+    ],
+    "white-space=pre-wrap": [
+      "packages/emcn/src/components/code/code.tsx",
+      "policy:structural-keyword"
+    ],
+    "width=100%": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/calendar/calendar-day-cell.tsx",
+      "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-textarea/chip-textarea.tsx",
+      "packages/emcn/src/components/chip-time-picker/chip-time-picker.tsx",
+      "packages/emcn/src/components/chip/chip.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/expandable/expandable.tsx",
+      "packages/emcn/src/components/input/input.tsx",
+      "packages/emcn/src/components/popover/popover.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/table/table.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/textarea/textarea.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "width=10px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx"
+    ],
+    "width=12px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/code/code.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/info-card/info-card.tsx"
+    ],
+    "width=14px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "packages/emcn/src/components/chip-input/chip-input.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/chip-switch/chip-switch.tsx",
+      "packages/emcn/src/components/chip-tag/chip-tag.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/code/copy-code-button.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/info/info.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/slider/slider.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx"
+    ],
+    "width=16px": [
+      "packages/emcn/src/components/checkbox/checkbox.tsx",
+      "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx",
+      "packages/emcn/src/components/chip/chip-chrome.ts",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/switch/switch.tsx"
+    ],
+    "width=18px": [
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx"
+    ],
+    "width=1px": [
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/modal/modal.tsx",
+      "packages/emcn/src/components/secret-reveal/secret-reveal.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx",
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/wizard/wizard.tsx"
+    ],
+    "width=20px": [
+      "packages/emcn/src/components/button/button.tsx",
+      "packages/emcn/src/components/checkbox/checkbox.tsx"
+    ],
+    "width=24px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/chip-modal/chip-modal.tsx",
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "width=256px": [
+      "packages/emcn/src/components/calendar/calendar.tsx"
+    ],
+    "width=2px": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "width=30px": [
+      "packages/emcn/src/components/calendar/calendar-day-cell.tsx"
+    ],
+    "width=32px": [
+      "packages/emcn/src/components/avatar/avatar.tsx"
+    ],
+    "width=34px": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "width=36px": [
+      "packages/emcn/src/components/switch/switch.tsx"
+    ],
+    "width=40px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "width=48px": [
+      "packages/emcn/src/components/input-otp/input-otp.tsx"
+    ],
+    "width=6px": [
+      "packages/emcn/src/components/avatar/avatar.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "width=88px": [
+      "packages/emcn/src/components/chip-time-picker/chip-time-picker.tsx"
+    ],
+    "width=8px": [
+      "packages/emcn/src/components/avatar/avatar.tsx"
+    ],
+    "width=auto": [
+      "packages/emcn/src/components/tag-input/tag-input.tsx",
+      "packages/emcn/src/components/time-picker/time-picker.tsx"
+    ],
+    "width=fit-content": [
+      "packages/emcn/src/components/chip-select/chip-select.tsx",
+      "packages/emcn/src/components/chip/segmented-control.ts"
+    ],
+    "width=min(100vw - 32px,280px)": [
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "width=var(--border-width)": [
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "width=var(--radix-dropdown-menu-trigger-width)": [
+      "packages/emcn/src/components/chip-dropdown/chip-dropdown.tsx"
+    ],
+    "width=var(--radix-popover-trigger-width)": [
+      "packages/emcn/src/components/combobox/combobox.tsx"
+    ],
+    "width=var(--tab-strip-band,30px)": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "z-index=1": [
+      "packages/emcn/src/components/calendar/calendar.tsx"
+    ],
+    "z-index=10": [
+      "packages/emcn/src/components/combobox/combobox.tsx",
+      "packages/emcn/src/components/input-otp/input-otp.tsx",
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "z-index=150": [
+      "packages/emcn/src/components/toast/toast.tsx"
+    ],
+    "z-index=20": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "z-index=200": [
+      "packages/emcn/src/components/modal/modal.tsx"
+    ],
+    "z-index=30": [
+      "packages/emcn/src/components/tab-strip/tab-strip.tsx"
+    ],
+    "z-index=300": [
+      "packages/emcn/src/components/chip-date-picker/chip-date-picker.tsx",
+      "packages/emcn/src/components/dropdown-menu/dropdown-menu.tsx",
+      "packages/emcn/src/components/popover/popover.tsx"
+    ],
+    "z-index=400": [
+      "packages/emcn/src/components/tooltip/tooltip.tsx"
+    ],
+    "z-index=calc(300 + 1)": [
+      "packages/emcn/src/components/popover/popover.tsx"
+    ]
+  },
+  "notes": [
+    "Seed permissions are provisional, not adjudicated design guidance.",
+    "Documented weights 400/500/600 override inference.",
+    "Colours require references or approved named utilities, even when a raw literal matches.",
+    "Length normalization uses the nominal 16px Tailwind rem scale.",
+    "Global CSS tokens and EMCN style definitions supply values; application call sites and dataset cases do not.",
+    "Dynamic expressions are unchecked; no application code, plugins or imported helpers execute."
+  ]
+}
