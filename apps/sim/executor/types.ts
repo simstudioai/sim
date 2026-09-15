@@ -421,8 +421,11 @@ export interface ExecutionContext {
   /** In-flight block-output PII redaction policy (resolved `blockOutputs` stage). */
   piiBlockOutputRedaction?: PiiBlockOutputRedaction
 
-  permissionConfig?: PermissionGroupConfig | null
-  permissionConfigLoaded?: boolean
+  /**
+   * Per-run memo of permission config loads, keyed by subject and workspace. A Map so the per-block
+   * shallow copies of this context share it; never inherited by a child workflow's context.
+   */
+  permissionConfigCache?: Map<string, Promise<PermissionGroupConfig | null>>
 
   /**
    * Resolved display names for the resources an agent tool is bound to, keyed `${kind}:${id}`,

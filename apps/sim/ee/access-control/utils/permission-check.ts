@@ -1,10 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { describeError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import {
   getAllowedIntegrationsFromEnv,
   isInvitationsDisabled,
   isPublicApiDisabled,
 } from '@/lib/core/config/env-flags'
+import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   CAPABILITY_RULES,
@@ -199,20 +204,49 @@ function governedSubjectUserId(
   return declared ?? undefined
 }
 
+const PERMISSION_CONFIG_LOAD_MAX_ATTEMPTS = 3
+const PERMISSION_CONFIG_LOAD_RETRY_BACKOFF = { baseMs: 25, maxMs: 100 } as const
+
 /**
- * Cache-aware wrapper around `getUserPermissionConfig`. When an
- * `ExecutionContext` is provided, the resolved config is memoized on the
- * context so repeated checks during a single workflow run share one DB hit.
- *
- * The subject is resolved HERE rather than by each caller, because the memo is
- * keyed by nothing but the context. `validateModelProvider` and
- * `validateBlockType` take the actor's id positionally, so a run declaring a
- * different gate subject had the first model check fill the cache with the
- * BILLING actor's group — and every later `assertPermissionsAllowed`, having
- * correctly resolved the governed subject, was handed that stale entry. Doing
- * the derivation at the one place the config is loaded makes the memo correct
- * by construction: within a run `capabilityGovernedUserId` is fixed, so every
- * path resolves and caches the same person.
+ * Loads a permission config, retrying a transient database read failure a bounded number of times.
+ * The last failure is rethrown: resolving `null` would turn every gate off.
+ */
+async function loadPermissionConfig(
+  userId: string,
+  workspaceId: string,
+  signal: AbortSignal | undefined
+): Promise<PermissionGroupConfig | null> {
+  for (let attempt = 1; ; attempt += 1) {
+    signal?.throwIfAborted()
+    try {
+      return await getUserPermissionConfig(userId, workspaceId)
+    } catch (error) {
+      signal?.throwIfAborted()
+      if (
+        attempt >= PERMISSION_CONFIG_LOAD_MAX_ATTEMPTS ||
+        !findDatabaseQueryError(error) ||
+        !isRetryableInfrastructureError(error)
+      ) {
+        throw error
+      }
+
+      const delayMs = backoffWithJitter(attempt, null, PERMISSION_CONFIG_LOAD_RETRY_BACKOFF)
+      logger.warn('Retrying permission config load after database error', {
+        workspaceId,
+        attempt,
+        maxAttempts: PERMISSION_CONFIG_LOAD_MAX_ATTEMPTS,
+        delayMs,
+        cause: describeError(error),
+      })
+      await sleep(delayMs)
+    }
+  }
+}
+
+/**
+ * Loads the governed subject's permission config. The subject is resolved here, not by callers,
+ * so every gate reads the same person's group. On a run context the in-flight load is memoized per
+ * subject and workspace in the run's `permissionConfigCache`, and a failed load is evicted.
  */
 async function getPermissionConfig(
   actorUserId: string | undefined,
@@ -224,18 +258,21 @@ async function getPermissionConfig(
     return mergeEnvAllowlist(null)
   }
 
-  if (ctx) {
-    if (ctx.permissionConfigLoaded) {
-      return ctx.permissionConfig ?? null
-    }
-
-    const config = await getUserPermissionConfig(userId, workspaceId)
-    ctx.permissionConfig = config
-    ctx.permissionConfigLoaded = true
-    return config
+  const cache = ctx?.permissionConfigCache
+  if (!cache) {
+    return loadPermissionConfig(userId, workspaceId, ctx?.abortSignal)
   }
 
-  return getUserPermissionConfig(userId, workspaceId)
+  const key = `${userId}:${workspaceId}`
+  const cached = cache.get(key)
+  if (cached) return cached
+
+  const pending = loadPermissionConfig(userId, workspaceId, ctx?.abortSignal)
+  cache.set(key, pending)
+  pending.catch(() => {
+    if (cache.get(key) === pending) cache.delete(key)
+  })
+  return pending
 }
 
 /**

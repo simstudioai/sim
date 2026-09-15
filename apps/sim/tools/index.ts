@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { isLoopbackIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
-import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
+import { describeError, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
@@ -17,7 +16,7 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
+import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
   createTimeoutAbortController,
   DEFAULT_EXECUTION_TIMEOUT_MS,
@@ -116,8 +115,6 @@ const logger = createLogger('Tools')
 const PRIVATE_TOOL_METADATA_ERROR_MESSAGE = 'Internal tool response metadata could not be verified'
 const INTERNAL_DATABASE_ERROR_MESSAGE =
   'An internal error occurred while executing the tool. Please try again.'
-const PERMISSION_PREFLIGHT_MAX_ATTEMPTS = 3
-const PERMISSION_PREFLIGHT_RETRY_BACKOFF = { baseMs: 25, maxMs: 100 } as const
 
 function projectToolLogMetadata(
   metadata: Record<string, unknown>,
@@ -132,53 +129,6 @@ function projectToolLogMetadata(
   return projection.safe && isPlainRecord(projection.value)
     ? projection.value
     : { ...structuralFallback, redacted: true }
-}
-
-interface ToolPermissionPreflight {
-  userId: string
-  workspaceId: string
-  toolId: string
-  toolKind?: 'skill' | 'custom' | 'mcp'
-  ctx?: ExecutionContext
-  requestId: string
-  signal?: AbortSignal
-}
-
-async function assertToolPermissionsWithRetry({
-  requestId,
-  signal,
-  ...permission
-}: ToolPermissionPreflight): Promise<void> {
-  for (let attempt = 1; ; attempt += 1) {
-    signal?.throwIfAborted()
-    try {
-      await assertPermissionsAllowed(permission)
-      return
-    } catch (error) {
-      signal?.throwIfAborted()
-      const isDatabaseQueryError = Boolean(
-        findCause(error, (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError)
-      )
-      if (
-        attempt >= PERMISSION_PREFLIGHT_MAX_ATTEMPTS ||
-        !isDatabaseQueryError ||
-        !isRetryableInfrastructureError(error)
-      ) {
-        throw error
-      }
-
-      const delayMs = backoffWithJitter(attempt, null, PERMISSION_PREFLIGHT_RETRY_BACKOFF)
-      logger.warn(`[${requestId}] Retrying tool permission preflight after database error`, {
-        toolId: permission.toolId,
-        attempt,
-        maxAttempts: PERMISSION_PREFLIGHT_MAX_ATTEMPTS,
-        delayMs,
-        cause: describeError(error),
-      })
-      await sleep(delayMs)
-      signal?.throwIfAborted()
-    }
-  }
 }
 
 /**
@@ -1796,15 +1746,19 @@ async function executeToolImplementation(
     // Runs for ALL tools (not just kinded ones) so the per-tool `deniedTools`
     // denylist is enforced alongside the existing mcp/custom/skill gates.
     if (scope.userId && scope.workspaceId) {
-      await assertToolPermissionsWithRetry({
-        userId: scope.userId,
-        workspaceId: scope.workspaceId,
-        toolId: normalizedToolId,
-        toolKind,
-        ctx: executionContext,
-        requestId,
-        signal: effectiveSignal,
-      })
+      effectiveSignal?.throwIfAborted()
+      try {
+        await assertPermissionsAllowed({
+          userId: scope.userId,
+          workspaceId: scope.workspaceId,
+          toolId: normalizedToolId,
+          toolKind,
+          ctx: executionContext,
+        })
+      } catch (error) {
+        effectiveSignal?.throwIfAborted()
+        throw error
+      }
     }
 
     if (normalizedToolId === 'load_skill') {
@@ -2327,10 +2281,7 @@ async function executeToolImplementation(
     }
   } catch (error: any) {
     const normalizedError = toError(error)
-    const databaseQueryError = findCause(
-      error,
-      (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError
-    )
+    const databaseQueryError = findDatabaseQueryError(error)
     const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
     logger.error(
       `[${requestId}] Error executing tool ${toolId}:`,

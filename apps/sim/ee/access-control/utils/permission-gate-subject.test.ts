@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -18,6 +19,7 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: vi.fn(),
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: vi.fn() }))
+vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/providers/utils', () => ({
   isFunctionToolCall: () => false,
   getProviderFromModel: () => 'openai',
@@ -36,7 +38,10 @@ import {
  * field and keeps gating on the caller.
  */
 function runDeclaring(capabilityGovernedUserId?: string | null): ExecutionContext {
-  return { metadata: { capabilityGovernedUserId } } as unknown as ExecutionContext
+  return {
+    metadata: { capabilityGovernedUserId },
+    permissionConfigCache: new Map(),
+  } as unknown as ExecutionContext
 }
 
 describe('the subject a run’s permission gate is decided about', () => {
@@ -162,5 +167,145 @@ describe('the group a run’s later gates read from its cache', () => {
     })
 
     expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
+  })
+})
+
+function databaseError(code = 'ECONNRESET'): DrizzleQueryError {
+  return new DrizzleQueryError(
+    'select "billing_blocked" from "user_stats" where "user_stats"."user_id" = $1',
+    ['owner-secret-id'],
+    Object.assign(new Error(`driver failure ${code}`), { code })
+  )
+}
+
+/** Every block runs on a shallow copy of the run's context, so the memo lives in a Map they share. */
+describe('the run-scoped permission config cache', () => {
+  function runContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
+    return {
+      metadata: {},
+      permissionConfigCache: new Map(),
+      ...overrides,
+    } as unknown as ExecutionContext
+  }
+
+  function gate(ctx: ExecutionContext, workspaceId = 'workspace-1') {
+    return assertPermissionsAllowed({
+      userId: 'user-1',
+      workspaceId,
+      toolId: 'http_request',
+      ctx,
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getUserPermissionConfig.mockResolvedValue({ deniedTools: [] })
+  })
+
+  it('loads once across the per-block copies of one run', async () => {
+    const run = runContext()
+
+    await gate({ ...run })
+    await gate({ ...run })
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledExactlyOnceWith('user-1', 'workspace-1')
+  })
+
+  it('shares one in-flight load between concurrent parallel branches', async () => {
+    const run = runContext()
+    let release!: (config: unknown) => void
+    mocks.getUserPermissionConfig.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve
+      })
+    )
+
+    const branches = Promise.all(Array.from({ length: 5 }, () => gate({ ...run })))
+    release({ deniedTools: [] })
+    await branches
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a separate entry per workspace', async () => {
+    const run = runContext()
+    mocks.getUserPermissionConfig.mockImplementation(async (_userId, workspaceId) =>
+      workspaceId === 'workspace-2' ? { deniedTools: ['http_request'] } : { deniedTools: [] }
+    )
+
+    await gate({ ...run }, 'workspace-1')
+    await expect(gate({ ...run }, 'workspace-2')).rejects.toBeInstanceOf(ToolNotAllowedError)
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
+  })
+
+  it('evicts a failed load so a later gate loads again', async () => {
+    const run = runContext()
+    mocks.getUserPermissionConfig.mockRejectedValueOnce(new Error('config unavailable'))
+
+    await expect(gate({ ...run })).rejects.toThrow('config unavailable')
+    await gate({ ...run })
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a transient database failure and then caches the result', async () => {
+    const run = runContext()
+    mocks.getUserPermissionConfig.mockRejectedValueOnce(databaseError())
+
+    await gate({ ...run })
+    await gate({ ...run })
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry a database failure that is not transient', async () => {
+    const sqlError = databaseError('42703')
+    mocks.getUserPermissionConfig.mockRejectedValue(sqlError)
+
+    await expect(gate(runContext())).rejects.toBe(sqlError)
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed with the last error once retries are exhausted', async () => {
+    const error = databaseError()
+    mocks.getUserPermissionConfig.mockRejectedValue(error)
+
+    await expect(gate(runContext())).rejects.toBe(error)
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(3)
+  })
+
+  it('stops retrying when the run is cancelled', async () => {
+    const controller = new AbortController()
+    const reason = new Error('Execution cancelled')
+    mocks.getUserPermissionConfig.mockImplementationOnce(async () => {
+      controller.abort(reason)
+      throw databaseError()
+    })
+
+    await expect(gate(runContext({ abortSignal: controller.signal }))).rejects.toBe(reason)
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not memoize on a context that carries no run cache', async () => {
+    const ctx = { metadata: {} } as unknown as ExecutionContext
+
+    await gate(ctx)
+    await gate(ctx)
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
+    expect(ctx.permissionConfigCache).toBeUndefined()
+  })
+
+  it('retries a transient failure for a check made outside a run', async () => {
+    mocks.getUserPermissionConfig.mockRejectedValueOnce(databaseError())
+
+    await assertPermissionsAllowed({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      toolId: 'http_request',
+    })
+
+    expect(mocks.getUserPermissionConfig).toHaveBeenCalledTimes(2)
   })
 })
