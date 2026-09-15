@@ -1,5 +1,5 @@
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { TableRowTtlDisabledError } from '@/lib/table/errors'
 
 /** Whether TTL columns and their cleanup behavior are enabled globally. */
 export function isTableRowTtlEnabled(): Promise<boolean> {
@@ -9,5 +9,5 @@ export function isTableRowTtlEnabled(): Promise<boolean> {
 /** Rejects attempts to introduce a TTL column while the feature is disabled. */
 export async function assertTableRowTtlEnabled(): Promise<void> {
   if (await isTableRowTtlEnabled()) return
-  throw new OrchestrationError('validation', 'Expiration columns are not enabled')
+  throw new TableRowTtlDisabledError()
 }
