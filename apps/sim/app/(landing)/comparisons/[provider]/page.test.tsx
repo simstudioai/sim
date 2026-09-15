@@ -9,6 +9,11 @@ vi.mock('@sim/emcn', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sim/emcn')>()),
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
   TableOfContents: () => null,
+  Tooltip: {
+    Root: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Trigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Content: () => null,
+  },
 }))
 
 vi.mock('@sim/emcn/icons', () => ({
@@ -69,6 +74,14 @@ function escapeForMarkup(value: string): string {
 }
 
 describe('ComparisonProviderPage', () => {
+  it('includes every schema fact in the table exactly once', () => {
+    for (const section of COMPARISON_SECTIONS) {
+      expect(section.rows.map(({ key }) => key).sort()).toEqual(
+        Object.keys(getFactGroup(simProfile, section.group)).sort()
+      )
+    }
+  })
+
   it.each(ALL_COMPETITORS)(
     'renders every fact and section for $name in one chart',
     async (competitor) => {
@@ -119,6 +132,13 @@ describe('ComparisonProviderPage', () => {
       const verdict = buildBottomLine(competitor)
       expect(markup).toContain(escapeForMarkup(verdict.chooseSim))
       expect(markup).toContain(escapeForMarkup(verdict.chooseCompetitor))
+      const bottomLine = markup.match(
+        /<section aria-labelledby="bottom-line-heading"[^>]*>([\s\S]*?)<\/section>/
+      )?.[1]
+      expect(bottomLine).toBeDefined()
+      for (const source of [...verdict.chooseSimSources, ...verdict.chooseCompetitorSources]) {
+        expect(bottomLine).toContain(escapeForMarkup(source.url))
+      }
     }
   )
 

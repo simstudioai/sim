@@ -5,8 +5,15 @@ import { simProfile } from '@/lib/compare/data'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
 import { BrandIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
+import { CitedContent } from '@/app/(landing)/comparisons/components/source-info'
 import { COMPARISON_THEME } from '@/app/(landing)/comparisons/theme'
-import { ALL_COMPETITORS, ensurePeriod, lowercaseFirst } from '@/app/(landing)/comparisons/utils'
+import {
+  ALL_COMPETITORS,
+  type ComparisonFaq,
+  describeFact,
+  getComparisonReviewDate,
+  mergeSources,
+} from '@/app/(landing)/comparisons/utils'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
@@ -16,40 +23,71 @@ const baseUrl = SITE_URL
 
 export const revalidate = 3600
 
-const faqItems = [
+const faqItems: ComparisonFaq[] = [
   {
     question: 'How does Sim compare to workflow automation and AI agent platforms?',
     answer:
-      'Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. Compared to workflow automation tools like n8n, Zapier, and Make, Sim treats AI agents as first-class building blocks rather than an add-on to data routing, and ships a native knowledge base, MCP support, and an in-editor AI Copilot. Compared to enterprise AI builders like Gumloop, Workato, StackAI, and Vellum, Sim is fully open source (Apache 2.0) and self-hostable, so teams can run it on their own infrastructure.',
+      'Sim combines a visual workflow canvas, natural-language assistance, multiple model providers, a knowledge base, and MCP support. Its core can run on your own infrastructure. Each comparison examines the specific product surfaces, plans, and deployment options offered by Sim and the other platform.',
+    sources: mergeSources(
+      simProfile.facts.platform.builderType.sources,
+      simProfile.facts.aiCapabilities.naturalLanguageBuilding.sources,
+      simProfile.facts.aiCapabilities.multiLlmSupport.sources,
+      simProfile.facts.aiCapabilities.knowledgeBaseRag.sources,
+      simProfile.facts.aiCapabilities.mcpSupport.sources,
+      simProfile.facts.platform.selfHostOption.sources
+    ),
   },
   {
     question: 'Is Sim open source?',
     answer:
-      'Yes. Sim is released under the Apache License 2.0 and can be self-hosted via Docker or Kubernetes, or used as a managed cloud-hosted service.',
+      'Sim’s core is Apache-2.0 licensed and can be self-hosted with Docker or Kubernetes. Enterprise features have separate license terms, and some capabilities, including Chat, use external services.',
+    sources: mergeSources(
+      simProfile.facts.platform.license.sources,
+      simProfile.facts.platform.selfHostOption.sources,
+      simProfile.facts.platform.deploymentOptions.sources
+    ),
   },
   {
     question: 'Which AI agent platform should I choose?',
     answer:
-      "The right platform depends on what you're optimizing for: licensing and data control (Sim, n8n self-hosted), integration breadth (Zapier, Pipedream), enterprise governance (Workato, Tines), or AI-native agent building specifically (Sim, Gumloop, StackAI). Each comparison page on this site lays out sourced, dated facts across platform, AI capabilities, integrations, pricing, security, and support so you can weigh the tradeoffs for your team.",
+      'Choose based on the workflows you need to run, deployment requirements, model and integration support, governance, and total cost. Compare the documented product surfaces and plan restrictions, then test a representative workflow before deciding.',
+    sources: [],
   },
   {
     question: 'Is Sim free to use?',
-    answer: `${ensurePeriod(simProfile.facts.pricing.freeTier.value)} Sim is also free to self-host under the Apache 2.0 license with no seat or usage limits beyond your own infrastructure.`,
+    answer: `${describeFact(simProfile.facts.pricing.freeTier)} You can also self-host the Apache-2.0 core. Infrastructure, model providers, external services, and Enterprise licensing may carry separate costs.`,
+    sources: mergeSources(
+      simProfile.facts.pricing.freeTier.sources,
+      simProfile.facts.platform.license.sources,
+      simProfile.facts.platform.selfHostOption.sources,
+      simProfile.facts.platform.deploymentOptions.sources
+    ),
   },
   {
     question: 'Does Sim support MCP (Model Context Protocol)?',
-    answer: `${ensurePeriod(simProfile.facts.aiCapabilities.mcpSupport.value)} Sim can also publish any deployed workflow as its own MCP server, so it works as both an MCP client and an MCP server.`,
+    answer:
+      'Yes. Sim can call external MCP tools and publish deployed workflows as tools on public or API-key-protected MCP servers.',
+    sources: mergeSources(
+      simProfile.facts.aiCapabilities.mcpSupport.sources,
+      simProfile.facts.integrations.mcpPublishing.sources
+    ),
   },
   {
     question: 'How many integrations does Sim support?',
-    answer: `Sim ships ${ensurePeriod(lowercaseFirst(simProfile.facts.integrations.integrationCount.value))} Combined with native MCP client support, teams can extend Sim to any service with a public API, not just the built-in catalog.`,
+    answer: `${describeFact(simProfile.facts.integrations.integrationCount)} MCP, API, and custom code connections provide additional extension options. Service counts and individual tool-action counts are different measures.`,
+    sources: mergeSources(
+      simProfile.facts.integrations.integrationCount.sources,
+      simProfile.facts.integrations.extensibilitySdk.sources,
+      simProfile.facts.aiCapabilities.mcpSupport.sources,
+      simProfile.facts.integrations.customCodeSteps.sources
+    ),
   },
 ]
 
 export const metadata: Metadata = buildLandingMetadata({
   title: 'Sim Comparisons | Sim, the AI Workspace',
   description:
-    'Compare Sim, the open-source AI workspace, to n8n, Zapier, Make, and other workflow automation and AI agent platforms. Sourced, dated, fact-checked.',
+    'Compare Sim, an AI workspace with an open-source core, to n8n, Zapier, Make, and other workflow automation and AI agent platforms. Documented capabilities, plan restrictions, and source review dates.',
   path: '/comparisons',
   keywords: [
     'Sim comparison',
@@ -63,6 +101,7 @@ export const metadata: Metadata = buildLandingMetadata({
 })
 
 export default function ComparisonHubPage() {
+  const reviewDate = getComparisonReviewDate([simProfile, ...ALL_COMPETITORS])
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -113,14 +152,41 @@ export default function ComparisonHubPage() {
               Sim comparisons
             </h1>
             <p className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
-              See how Sim compares to workflow automation platforms and AI agent builders.
+              <CitedContent
+                sources={mergeSources(
+                  simProfile.facts.platform.builderType.sources,
+                  simProfile.facts.platform.license.sources,
+                  simProfile.facts.platform.deploymentOptions.sources
+                )}
+                label='About Sim'
+              >
+                Sim is an AI workspace where teams build, deploy, and manage AI agents. Its core is
+                Apache-2.0 licensed; Enterprise features have separate terms, and Chat uses a
+                Sim-managed service.
+              </CitedContent>{' '}
+              See how Sim compares to workflow automation platforms and AI agent builders on
+              platform architecture, AI capabilities, integrations, pricing, security, and support.
+              {reviewDate ? (
+                <>
+                  {' '}
+                  Oldest profile citation date:{' '}
+                  <time dateTime={reviewDate.toISOString().slice(0, 10)}>
+                    {reviewDate.toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                      timeZone: 'UTC',
+                    })}
+                  </time>
+                  .
+                </>
+              ) : null}{' '}
+              Estimates and unverified capabilities are labeled on each comparison.
             </p>
             <p className='sr-only'>
-              This directory lists every Sim vs. competitor comparison page, covering workflow
-              automation platforms (n8n, Zapier, Make, Pipedream), enterprise AI builders (Gumloop,
-              Workato, Retool, Tines, StackAI, Power Automate, Vellum), and AI agent products
-              (OpenAI AgentKit, Claude Cowork). Each page gives sourced, dated facts across
-              platform, AI capabilities, integrations, pricing, security, and support.
+              This directory links to comparisons of Sim with the products listed below. Each page
+              distinguishes product surfaces, plans, and deployment options across the comparison
+              categories.
             </p>
           </div>
         </div>
@@ -141,29 +207,39 @@ export default function ComparisonHubPage() {
                   const Icon = competitor.brand?.icon
                   return (
                     <div key={competitor.id}>
-                      <Link
-                        href={`/comparisons/${competitor.id}`}
-                        className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover-hover:bg-[var(--surface-hover)]'
-                        aria-label={`Sim vs ${competitor.name} comparison`}
-                      >
-                        {Icon ? (
-                          <BrandIconTile
-                            icon={Icon}
-                            selfFramed={competitor.brand?.selfFramed}
-                            className='size-8 shrink-0'
-                            iconClassName='size-4'
-                          />
-                        ) : null}
-                        <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-                          <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
-                            Sim vs {competitor.name}
-                          </h3>
-                          <p className='hidden text-[var(--text-muted)] text-caption leading-[150%] sm:line-clamp-1'>
-                            {competitor.oneLiner}
-                          </p>
-                        </div>
-                        <ChevronArrow />
-                      </Link>
+                      <div className='flex items-center'>
+                        <Link
+                          href={`/comparisons/${competitor.id}`}
+                          className='group/link flex min-w-0 flex-1 items-center gap-4 px-6 py-4 transition-colors hover-hover:bg-[var(--surface-hover)]'
+                        >
+                          {Icon ? (
+                            <BrandIconTile
+                              icon={Icon}
+                              selfFramed={competitor.brand?.selfFramed}
+                              className='size-8 shrink-0'
+                              iconClassName='size-4'
+                            />
+                          ) : null}
+                          <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                            <h3 className='text-[var(--text-primary)] text-sm leading-snug tracking-[-0.02em]'>
+                              Sim vs {competitor.name}
+                            </h3>
+                            <p className='hidden text-[var(--text-muted)] text-caption leading-[150%] sm:line-clamp-1'>
+                              {competitor.oneLiner}
+                            </p>
+                          </div>
+                          <ChevronArrow />
+                        </Link>
+                        <span className='mr-6 shrink-0 text-[var(--text-muted)] text-caption'>
+                          <CitedContent
+                            sources={competitor.facts.platform.builderType.sources}
+                            label={`${competitor.name} description`}
+                            description={competitor.oneLiner}
+                          >
+                            Sources
+                          </CitedContent>
+                        </span>
+                      </div>
                       <div className='h-px w-full bg-[var(--border)]' />
                     </div>
                   )
@@ -179,7 +255,16 @@ export default function ComparisonHubPage() {
                 Frequently asked questions
               </h2>
               <div>
-                <LandingFAQ faqs={faqItems} />
+                <LandingFAQ
+                  faqs={faqItems.map((faq) => ({
+                    ...faq,
+                    answerContent: (
+                      <CitedContent sources={faq.sources} label={faq.question}>
+                        {faq.answer}
+                      </CitedContent>
+                    ),
+                  }))}
+                />
               </div>
             </section>
           </div>

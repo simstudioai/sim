@@ -46,6 +46,7 @@ export function ComparisonCards({
               sources={'sources' in item ? item.sources : [item.source]}
               label={item.title}
               tone={tone}
+              description={item.description}
             >
               {item.title}
             </CitedContent>

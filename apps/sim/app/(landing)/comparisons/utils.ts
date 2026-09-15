@@ -3,6 +3,7 @@ import {
   claudeCoworkProfile,
   crewaiProfile,
   dustProfile,
+  type Fact,
   type FactSource,
   flowiseProfile,
   gumloopProfile,
@@ -31,11 +32,11 @@ export interface ComparisonFaq {
 }
 
 /** Keeps one citation per URL when a summary combines multiple sourced facts. */
-function mergeSources(...groups: FactSource[][]): FactSource[] {
+export function mergeSources(...groups: FactSource[][]): FactSource[] {
   const sources = new Map<string, FactSource>()
   for (const source of groups.flat()) {
     const existing = sources.get(source.url)
-    if (!existing || source.asOf > existing.asOf) sources.set(source.url, source)
+    if (!existing || source.asOf < existing.asOf) sources.set(source.url, source)
   }
   return [...sources.values()]
 }
@@ -70,27 +71,54 @@ export function getCompetitorBySlug(slug: string): CompetitorProfile | null {
   return COMPETITOR_BY_SLUG.get(slug) ?? null
 }
 
-/**
- * The most recent `asOf` date across every fact source in a profile. Used as
- * the sitemap `lastModified` for that competitor's comparison page, so the
- * sitemap reflects when the underlying facts were actually last verified.
- */
-export function getLatestVerifiedDate(profile: CompetitorProfile): Date {
-  let latest = 0
-  for (const group of Object.values(profile.facts)) {
-    for (const fact of Object.values(group as Record<string, { sources: { asOf: string }[] }>)) {
-      for (const source of fact.sources) {
-        const time = new Date(source.asOf).getTime()
-        if (!Number.isNaN(time) && time > latest) {
-          latest = time
-        }
-      }
-    }
-  }
-  return latest > 0 ? new Date(latest) : new Date()
+/** Includes card and table citations; brand lookups are not claim reviews. */
+function getProfileSources(profile: CompetitorProfile): FactSource[] {
+  return [
+    ...Object.values(profile.facts).flatMap((group) =>
+      Object.values<Fact>(group).flatMap((fact) => fact.sources)
+    ),
+    ...profile.standoutFeatures.map(({ source }) => source),
+    ...profile.limitations.map(({ source }) => source),
+  ]
 }
 
-/** Sim's own latest-verified date, identical across every competitor page, computed once. */
+function sourceTimestamp(source: FactSource): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(source.asOf)) return null
+  const timestamp = Date.parse(`${source.asOf}T00:00:00.000Z`)
+  return Number.isFinite(timestamp) &&
+    new Date(timestamp).toISOString().slice(0, 10) === source.asOf
+    ? timestamp
+    : null
+}
+
+/** Latest citation review, for modification metadata rather than a full-page verification claim. */
+export function getLatestVerifiedDate(profile: CompetitorProfile): Date {
+  const timestamps = getProfileSources(profile)
+    .map(sourceTimestamp)
+    .filter((timestamp): timestamp is number => timestamp !== null)
+  return new Date(Math.max(0, ...timestamps))
+}
+
+/** Oldest stored check date among dated fact, description, and card citations, including Sim. */
+export function getComparisonReviewDate(profiles: CompetitorProfile[]): Date | null {
+  if (profiles.length === 0) return null
+  const timestamps: number[] = []
+  for (const profile of profiles) {
+    const facts = Object.values(profile.facts).flatMap((group) => Object.values<Fact>(group))
+    if (facts.some((fact) => fact.confidence !== 'unknown' && fact.sources.length === 0))
+      return null
+    const sources = getProfileSources(profile)
+    if (sources.length === 0) return null
+    for (const source of sources) {
+      const timestamp = sourceTimestamp(source)
+      if (timestamp === null) return null
+      timestamps.push(timestamp)
+    }
+  }
+  return new Date(Math.min(...timestamps))
+}
+
+/** Latest stored Sim citation check date, computed once for modification metadata. */
 export const SIM_LATEST_VERIFIED = getLatestVerifiedDate(simProfile)
 
 /**
@@ -103,6 +131,8 @@ export const SIM_LATEST_VERIFIED = getLatestVerifiedDate(simProfile)
 export interface ComparisonVerdict {
   chooseSim: string
   chooseCompetitor: string
+  chooseSimSources: FactSource[]
+  chooseCompetitorSources: FactSource[]
   simPoints: ComparisonChoicePoint[]
   competitorPoints: ComparisonChoicePoint[]
 }
@@ -117,16 +147,25 @@ export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdic
   const strength = competitor.standoutFeatures[0]
   const chooseCompetitor = strength
     ? `Choose ${competitor.name} if you specifically need ${lowercaseFirst(strength.title)}: ${strength.description}`
-    : `Choose ${competitor.name} if its specific strengths, documented above, matter more to your team than an AI-native, self-hostable workspace.`
+    : `Choose ${competitor.name} if its deployment options, pricing, and governance fit your requirements.`
 
   return {
-    chooseSim: `Choose Sim if you want an open-source, self-hostable AI workspace that treats AI agents as first-class citizens: native multi-LLM support, real-time multiplayer editing, environment promotion (dev/qa/prod), human-in-the-loop approvals, and enterprise governance (SSO, credential-level permissions, audit logs) built in rather than bolted on.`,
+    chooseSim: `Choose Sim for a self-hostable AI workflow workspace with multiple model providers, collaborative editing, and human approval steps. Check plan eligibility and separate Enterprise license terms for governance and environment-management features.`,
     chooseCompetitor,
+    chooseSimSources: mergeSources(
+      simProfile.facts.platform.selfHostOption.sources,
+      simProfile.facts.platform.license.sources,
+      simProfile.facts.aiCapabilities.multiLlmSupport.sources,
+      simProfile.facts.platform.realtimeCollaboration.sources,
+      simProfile.facts.aiCapabilities.humanInTheLoop.sources,
+      simProfile.facts.platform.environmentPromotion.sources
+    ),
+    chooseCompetitorSources: strength ? [strength.source] : [],
     simPoints: [
       {
         title: 'Open source and self-hostable',
         description:
-          'Run your AI workspace under Apache 2.0, with Docker and Kubernetes deployment options.',
+          'Run the Apache-2.0 core with Docker or Kubernetes. Enterprise features have separate license terms.',
         sources: mergeSources(
           simProfile.facts.platform.license.sources,
           simProfile.facts.platform.selfHostOption.sources
@@ -182,7 +221,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   const faqs: ComparisonFaq[] = [
     {
       question: `Is Sim a good alternative to ${name}?`,
-      answer: `Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. ${ensurePeriod(competitor.oneLiner)} Teams considering a switch typically weigh licensing (Sim is Apache 2.0 and self-hostable), pricing model, and how AI-native the platform's agent-building experience is.`,
+      answer: `Sim is an AI workspace where teams build and run agents visually, conversationally, or with code. ${ensurePeriod(competitor.oneLiner)} Compare deployment, pricing, and governance requirements. Sim's core is Apache-2.0 licensed; Enterprise features have separate terms.`,
       sources: mergeSources(
         simProfile.facts.platform.builderType.sources,
         simProfile.facts.platform.license.sources,
@@ -194,6 +233,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
       question: `What is the main difference between Sim and ${name}?`,
       answer: buildKeyDifferenceAnswer(competitor),
       sources: mergeSources(
+        simProfile.facts.platform.builderType.sources,
         simProfile.facts.aiCapabilities.multiLlmSupport.sources,
         simProfile.facts.aiCapabilities.naturalLanguageBuilding.sources,
         simProfile.facts.aiCapabilities.knowledgeBaseRag.sources,
@@ -203,7 +243,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Does Sim support self-hosting compared to ${name}?`,
-      answer: `Sim can be self-hosted via Docker or Kubernetes under an Apache 2.0 license, in addition to a managed cloud-hosted plan. ${name}'s self-hosting position: ${ensurePeriod(firstSentence(facts.platform.selfHostOption.value))}`,
+      answer: `Sim's core can be self-hosted with Docker or Kubernetes; Enterprise licensing and external service requirements are separate. ${name}'s self-hosting position: ${describeFact(facts.platform.selfHostOption)}`,
       sources: mergeSources(
         simProfile.facts.platform.selfHostOption.sources,
         simProfile.facts.platform.license.sources,
@@ -213,7 +253,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `How does Sim's pricing compare to ${name}?`,
-      answer: `Sim uses ${summarizeFact(simProfile.facts.pricing.pricingModel.value)} ${name} uses ${summarizeFact(facts.pricing.pricingModel.value)}`,
+      answer: `Sim uses ${describeFact(simProfile.facts.pricing.pricingModel)} ${name} uses ${describeFact(facts.pricing.pricingModel)}`,
       sources: mergeSources(
         simProfile.facts.pricing.pricingModel.sources,
         facts.pricing.pricingModel.sources
@@ -221,7 +261,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Is Sim more secure than ${name}?`,
-      answer: `Security is a like-for-like comparison, not a one-line verdict. Sim: ${summarizeFact(simProfile.facts.security.additionalCompliance.value)} ${name}: ${summarizeFact(facts.security.additionalCompliance.value)} Check the Security & compliance rows above for the full breakdown, including SSO, audit logging, and data residency.`,
+      answer: `Security depends on product scope, configuration, and your requirements. Sim: ${describeFact(simProfile.facts.security.additionalCompliance)} ${name}: ${describeFact(facts.security.additionalCompliance)} Check the Security & compliance rows above for SSO, audit logging, and data residency.`,
       sources: mergeSources(
         simProfile.facts.security.additionalCompliance.sources,
         facts.security.additionalCompliance.sources
@@ -229,7 +269,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Which has stronger AI agent capabilities, Sim or ${name}?`,
-      answer: `Sim: ${summarizeFact(simProfile.facts.aiCapabilities.multiLlmSupport.value)} ${name}: ${summarizeFact(facts.aiCapabilities.multiLlmSupport.value)} Sim also ships native human-in-the-loop approvals, a hybrid vector-plus-keyword knowledge base, and an in-editor AI Copilot that can read execution logs and directly edit the workflow to fix a failed run.`,
+      answer: `Sim: ${describeFact(simProfile.facts.aiCapabilities.multiLlmSupport)} ${name}: ${describeFact(facts.aiCapabilities.multiLlmSupport)} Compare the AI rows for retrieval, tool use, approvals, and evaluation capabilities; availability can vary by product surface and plan.`,
       sources: mergeSources(
         simProfile.facts.aiCapabilities.multiLlmSupport.sources,
         facts.aiCapabilities.multiLlmSupport.sources,
@@ -245,7 +285,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Can I migrate from ${name} to Sim?`,
-      answer: `There is no automated one-click migration tool between ${name} and Sim. Workflows and automations need to be rebuilt in Sim's visual builder, natural-language Chat surface, or API. Most teams start by recreating their highest-value automation first to validate the switch before migrating the rest.`,
+      answer: `Plan to map ${name}'s triggers, actions, credentials, and data into Sim's workflow model. Rebuild and validate a representative automation in Sim before deciding how to migrate the rest.`,
       sources: [],
     },
   ]
@@ -253,7 +293,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   if (competitor.isWorkflowBuilder === false) {
     faqs.push({
       question: `Is ${name} a workflow builder like Sim?`,
-      answer: `Not in the same sense. ${competitor.oneLiner} Sim, by contrast, is a visual and code-based workflow builder that deploys agents as REST APIs, scheduled jobs, or chat interfaces, so the two solve different parts of the AI agent problem rather than competing feature-for-feature.`,
+      answer: `${ensurePeriod(competitor.oneLiner)} Sim provides a visual workflow canvas with API and chat deployment. Compare the specific product surfaces and deployment models described above.`,
       sources: mergeSources(
         facts.platform.builderType.sources,
         simProfile.facts.platform.builderType.sources,
@@ -269,7 +309,7 @@ function buildKeyDifferenceAnswer(competitor: CompetitorProfile): string {
   const topFeature = competitor.standoutFeatures[0]
   const topLimitation = competitor.limitations[0]
   const parts = [
-    `Sim is built specifically as an AI agent workspace, with native multi-LLM support, an in-editor AI Copilot, and a knowledge base with hybrid vector + keyword search.`,
+    `Sim combines a workflow canvas, natural-language assistance, multiple model providers, and a document knowledge base.`,
   ]
   if (topFeature) {
     parts.push(`${competitor.name}'s standout capability is ${formatClaim(topFeature)}`)
@@ -299,11 +339,6 @@ function formatClaim(item: { title: string; description: string }): string {
   return `${lowercaseFirst(item.title)}: ${item.description}`
 }
 
-function firstSentence(value: string): string {
-  const match = value.match(/^[^.]+\./)
-  return match ? match[0] : value
-}
-
 /** Appends a period if `value` doesn't already end in sentence-closing punctuation. */
 export function ensurePeriod(value: string): string {
   return /[.!?]$/.test(value) ? value : `${value}.`
@@ -324,14 +359,17 @@ export function lowercaseFirst(value: string): string {
   return value.charAt(0).toLowerCase() + value.slice(1)
 }
 
-/**
- * Composes {@link firstSentence} + {@link lowercaseFirst} + {@link ensurePeriod} for
- * stitching a fact value mid-sentence. Strips a leading "Yes:"/"No:" (or the
- * comma-separated "Yes,"/"No,") token first so boolean facts don't produce
- * mid-sentence "yes: ..."/"no: ..." fragments.
- */
+/** Preserves qualifications, negation, and decimal numbers when stitching a fact into an answer. */
 function summarizeFact(value: string): string {
-  const stripped = value.replace(/^(Yes|No)(?![a-zA-Z])(?:[:,]\s*)?/, '').trim()
-  const base = stripped.length > 0 ? stripped : value
-  return ensurePeriod(lowercaseFirst(firstSentence(base)))
+  return ensurePeriod(lowercaseFirst(value))
+}
+
+/** Keeps confidence labels and source-scope qualifications in independently quoted FAQ answers. */
+export function describeFact(fact: Fact): string {
+  const confidence =
+    fact.confidence === 'verified'
+      ? ''
+      : `${fact.confidence === 'estimated' ? 'Estimate' : 'Unverified'}: `
+  const summary = summarizeFact(fact.value)
+  return `${confidence}${summary}${fact.detail ? ` ${ensurePeriod(fact.detail)}` : ''}`
 }

@@ -12,13 +12,8 @@ export interface SourceLinkProps {
 }
 
 /**
- * Wraps a fact's visible value (or a card's title) so hovering it directly
- * shows a one-line "Source: X" tooltip, and clicking it opens the source,
- * rather than a separate info-icon affordance next to every value. One
- * hover/click target per fact instead of two keeps the dense comparison
- * table and card lists from reading as icon-cluttered. Every {@link FactSource}
- * carries a real, publicly reachable URL (enforced by the type), so this
- * always renders as a link.
+ * Keeps prose citations inline, with source metadata on hover or focus and a
+ * visible check date on devices whose primary pointer cannot hover.
  */
 export function SourceLink({ source, children, className }: SourceLinkProps) {
   return (
@@ -31,10 +26,21 @@ export function SourceLink({ source, children, className }: SourceLinkProps) {
           className={cn('relative block min-w-0', className)}
         >
           {children}
-          <span className='sr-only'> (source: {source.label}, opens in a new tab)</span>
+          <span className='sr-only'>
+            {' '}
+            (source: {source.label}, checked {source.asOf}, opens in a new tab)
+          </span>
         </a>
       </Tooltip.Trigger>
-      <Tooltip.Content>Source: {source.label}</Tooltip.Content>
+      <span
+        className='ml-1 whitespace-nowrap text-[var(--text-muted)] text-caption [@media(hover:hover)]:hidden'
+        aria-hidden='true'
+      >
+        (checked <time dateTime={source.asOf}>{source.asOf}</time>)
+      </span>
+      <Tooltip.Content>
+        Source: {source.label} · Checked {source.asOf}
+      </Tooltip.Content>
     </Tooltip.Root>
   )
 }

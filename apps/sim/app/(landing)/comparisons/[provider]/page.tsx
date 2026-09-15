@@ -13,6 +13,7 @@ import {
   ALL_COMPETITORS,
   buildBottomLine,
   buildComparisonFaqs,
+  getComparisonReviewDate,
   getCompetitorBySlug,
 } from '@/app/(landing)/comparisons/utils'
 import { BackLink } from '@/app/(landing)/components'
@@ -22,9 +23,6 @@ import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/component
 export const revalidate = 3600
 /** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
 export const dynamicParams = true
-
-/** Manually maintained; initialized to the oldest citation in the current comparison data. */
-const LAST_VERIFIED_DATE = '2026-07-02'
 
 export async function generateStaticParams() {
   return ALL_COMPETITORS.map((competitor) => ({ provider: competitor.id }))
@@ -44,7 +42,7 @@ export async function generateMetadata({
 
   return buildLandingMetadata({
     title: `Sim vs ${competitor.name} | Sim, the AI Workspace`,
-    description: `Compare Sim, the open-source AI workspace, to ${competitor.name} on platform, AI, integrations, pricing, security, and support. Sourced and dated facts.`,
+    description: `Compare Sim, an AI workspace with an open-source core, to ${competitor.name} on platform, AI, integrations, pricing, security, and support. Source dates and uncertainty labels included.`,
     path: `/comparisons/${competitor.id}`,
     keywords: [
       `Sim vs ${competitor.name}`,
@@ -73,11 +71,12 @@ export default async function ComparisonProviderPage({
   const verdict = buildBottomLine(competitor)
   const faqs = buildComparisonFaqs(competitor)
   const CompetitorIcon = competitor.brand?.icon
-  const verificationText = (
+  const reviewDate = getComparisonReviewDate([simProfile, competitor])
+  const verificationText = reviewDate ? (
     <span className='whitespace-nowrap'>
-      Last verified{' '}
-      <time dateTime={LAST_VERIFIED_DATE}>
-        {new Date(LAST_VERIFIED_DATE).toLocaleDateString('en-US', {
+      Oldest profile citation date:{' '}
+      <time dateTime={reviewDate.toISOString().slice(0, 10)}>
+        {reviewDate.toLocaleDateString('en-US', {
           month: 'long',
           day: 'numeric',
           year: 'numeric',
@@ -85,6 +84,10 @@ export default async function ComparisonProviderPage({
         })}
       </time>
       <sup>†</sup>
+    </span>
+  ) : (
+    <span>
+      See citation review dates<sup>†</sup>
     </span>
   )
 
@@ -104,7 +107,8 @@ export default async function ComparisonProviderPage({
             </h1>
             <p className='text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
               Here is how Sim compares to {competitor.name} on platform architecture, AI
-              capabilities, integrations, pricing, security, and support.
+              capabilities, integrations, pricing, security, and support. Estimates and unverified
+              capabilities are labeled; plan and deployment restrictions apply.
             </p>
             <a
               href='#comparison-verification-note'
@@ -117,10 +121,11 @@ export default async function ComparisonProviderPage({
             </a>
           </div>
           <p className='sr-only'>
-            Sim is an open-source AI workspace for building, deploying, and managing AI agents. This
-            page compares Sim to {competitor.name} across platform architecture, AI capabilities,
-            integrations, pricing, security and compliance, observability, and support, using
-            sourced, dated facts for buyers evaluating both platforms.
+            Sim is an AI workspace with an Apache-2.0 core and separately licensed Enterprise
+            features. This page compares Sim to {competitor.name} across platform architecture, AI
+            capabilities, integrations, pricing, security and compliance, observability, and
+            support. Cited facts include source dates; estimates and unverified capabilities are
+            labeled for buyers evaluating both platforms.
           </p>
         </div>
       </div>
@@ -228,8 +233,19 @@ export default async function ComparisonProviderPage({
             Bottom line
           </h2>
           <div className='flex flex-col gap-3 lg:w-1/2'>
-            <p className='text-small leading-[150%]'>{verdict.chooseSim}</p>
-            <p className='text-small leading-[150%]'>{verdict.chooseCompetitor}</p>
+            <p className='text-small leading-[150%]'>
+              <CitedContent sources={verdict.chooseSimSources} label='Choosing Sim'>
+                {verdict.chooseSim}
+              </CitedContent>
+            </p>
+            <p className='text-small leading-[150%]'>
+              <CitedContent
+                sources={verdict.chooseCompetitorSources}
+                label={`Choosing ${competitor.name}`}
+              >
+                {verdict.chooseCompetitor}
+              </CitedContent>
+            </p>
           </div>
         </section>
       </div>
@@ -272,9 +288,9 @@ export default async function ComparisonProviderPage({
               id='comparison-verification-note'
               className='scroll-mt-6 text-[var(--text-muted)] text-caption leading-relaxed'
             >
-              † We use AI agents to periodically check this page for accuracy and freshness. For the
-              most accurate, up-to-date information, follow the cited source links or visit the
-              official websites for{' '}
+              † AI agents review the cited sources for this page. Estimates and unverified
+              capabilities are labeled. For the most accurate, up-to-date information, follow the
+              cited source links or visit the official websites for{' '}
               <a
                 href={simProfile.website}
                 target='_blank'

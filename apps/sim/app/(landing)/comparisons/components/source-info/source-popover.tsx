@@ -18,9 +18,16 @@ interface SourcePopoverProps {
   label: string
   tone?: 'default' | 'inverse' | 'inverse-desktop'
   children: ReactNode
+  description?: string
 }
 
-export function SourcePopover({ sources, label, tone = 'default', children }: SourcePopoverProps) {
+export function SourcePopover({
+  sources,
+  label,
+  tone = 'default',
+  children,
+  description,
+}: SourcePopoverProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const firstLinkRef = useRef<HTMLAnchorElement>(null)
   const [open, setOpen] = useState(false)
@@ -43,9 +50,12 @@ export function SourcePopover({ sources, label, tone = 'default', children }: So
                   tone === 'inverse' && 'text-[var(--white)]',
                   tone === 'inverse-desktop' && 'lg:text-white'
                 )}
-                aria-label={`${typeof children === 'string' ? children : label}: ${countLabel}`}
               >
                 {children}
+                <span className='sr-only'>
+                  {' '}
+                  — {label}: {countLabel}
+                </span>
               </button>
             </PopoverTrigger>
           </Tooltip.Trigger>
@@ -62,13 +72,20 @@ export function SourcePopover({ sources, label, tone = 'default', children }: So
         className={cn(
           'w-[360px] shadow-overlay',
           COMPARISON_THEME,
-          sources.length <= 3 ? 'max-h-none! overflow-visible' : 'overscroll-contain'
+          !description && sources.length <= 3
+            ? 'max-h-none! overflow-visible'
+            : 'overscroll-contain'
         )}
         border
         onWheel={(event) => event.stopPropagation()}
         onOpenAutoFocus={() => firstLinkRef.current?.focus()}
         onCloseAutoFocus={() => triggerRef.current?.focus()}
       >
+        {description ? (
+          <p className='px-2 py-2 text-[var(--text-body)] text-small leading-relaxed'>
+            {description}
+          </p>
+        ) : null}
         <ul className='flex flex-col gap-1'>
           {sources.map((source, index) => (
             <li key={source.url}>
@@ -89,7 +106,7 @@ export function SourcePopover({ sources, label, tone = 'default', children }: So
                     {new URL(source.url).hostname}
                   </span>
                   <span className='text-[var(--text-muted)] text-caption'>
-                    Verified{' '}
+                    Checked{' '}
                     <time dateTime={source.asOf}>
                       {new Date(source.asOf).toLocaleDateString('en-US', {
                         month: 'short',

@@ -11,16 +11,19 @@ export interface FactValueProps {
   wrap?: boolean
 }
 
+const TERMINAL_PUNCTUATION = /[.!?][\])}'"’”]*$/
+
 /**
  * Renders a compact fact with access to every citation. Full fact text and
  * source metadata remain in the server-rendered HTML for assistive technology
  * and crawlers, while the popover provides individually clickable sources.
  */
 export function FactValue({ fact, label, tone = 'default', wrap = false }: FactValueProps) {
-  const { status, text } = parseFactValue(fact.value)
-  const isBoolean = status === 'yes' || status === 'no'
+  const { status } = parseFactValue(fact.value)
+  const isBoolean = fact.confidence === 'verified' && (status === 'yes' || status === 'no')
 
-  const fullText = [fact.value, fact.detail].filter(Boolean).join('. ')
+  const detailSeparator = TERMINAL_PUNCTUATION.test(fact.value.trimEnd()) ? ' ' : '. '
+  const fullText = fact.detail ? `${fact.value}${detailSeparator}${fact.detail}` : fact.value
 
   const glance = isBoolean ? (
     status === 'yes' ? (
@@ -42,34 +45,42 @@ export function FactValue({ fact, label, tone = 'default', wrap = false }: FactV
     )
   ) : null
 
-  const shortText = isBoolean ? null : (fact.shortValue ?? text)
+  const shortText = fact.sources.length === 0 ? fullText : (fact.shortValue ?? fact.value)
 
-  const valueNode = glance ?? (
+  const valueNode = (
     <span
       className={cn(
-        'block min-w-0 text-[var(--text-body)] text-sm',
+        'flex min-w-0 items-center gap-1.5 text-[var(--text-body)] text-sm',
         wrap ? 'whitespace-normal break-words leading-relaxed' : 'truncate',
         tone === 'inverse-desktop' && 'lg:text-white'
       )}
     >
-      {shortText}
+      {glance}
+      <span className={cn('min-w-0', !wrap && 'truncate')}>{shortText}</span>
     </span>
   )
 
   return (
     <div className='flex w-full min-w-0 items-center'>
-      <SourcePopover sources={fact.sources} label={label} tone={tone}>
+      <SourcePopover sources={fact.sources} label={label} tone={tone} description={fullText}>
         {valueNode}
       </SourcePopover>
-      <span className='sr-only'>
-        {fullText}
-        {fact.sources.map((source) => (
-          <span key={source.url}>
-            {' '}
-            Source: {source.label}. {source.url}. Verified {source.asOf}.
-          </span>
-        ))}
-      </span>
+      {fact.confidence !== 'verified' ? (
+        <span className='ml-1.5 shrink-0 text-[var(--text-muted)] text-caption'>
+          {fact.confidence === 'estimated' ? '(estimate)' : '(unverified)'}
+        </span>
+      ) : null}
+      {fact.sources.length > 0 ? (
+        <span className='sr-only'>
+          {fullText}
+          {fact.sources.map((source) => (
+            <span key={source.url}>
+              {' '}
+              Source: {source.label}. {source.url}. Checked {source.asOf}.
+            </span>
+          ))}
+        </span>
+      ) : null}
     </div>
   )
 }
