@@ -2,6 +2,7 @@
 import { Readable } from 'node:stream'
 import { workspaceFiles } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -307,6 +308,70 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
       expect(mocks.buffer).toHaveBeenCalledTimes(2)
     }
   )
+
+  it('carries unified text reads through the actual CLI transport and secret projection', async () => {
+    classify('unknown')
+    const trace = registry()
+    const result = await executeSimCli(
+      {
+        request: {
+          invocation: {
+            kind: 'augmentation',
+            name: 'files read',
+            positionals: ['file'],
+            flags: {},
+          },
+        },
+      },
+      {
+        userId: 'reader',
+        workspaceId: 'workspace',
+        workflowId: '',
+        chatId: 'chat',
+        resolvedSecretTraceRegistry: trace,
+      }
+    )
+    expect(result.success).toBe(true)
+    expect(JSON.stringify(result.output)).toContain(content)
+    expect(JSON.stringify(result.output)).toContain('representation')
+    expect(
+      JSON.stringify(inspectToolResultForCopilot(result, trace, 'sim_cli').result)
+    ).not.toContain(content)
+    expect(mocks.buffer).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns an authorized safe PNG observation through the real augmentation adapter', async () => {
+    classify('exact')
+    const image = { ...file, name: 'image.png', type: 'image/png' }
+    mocks.reference.mockResolvedValue(image)
+    const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    mocks.render.mockResolvedValue({ buffer: png, contentType: 'image/png' })
+    const result = await executeSimCli(
+      {
+        request: {
+          invocation: {
+            kind: 'augmentation',
+            name: 'files read',
+            positionals: ['uploads/image.png'],
+            flags: {},
+          },
+        },
+      },
+      {
+        userId: 'reader',
+        workspaceId: 'workspace',
+        workflowId: '',
+        chatId: 'chat',
+        resolvedSecretTraceRegistry: registry(),
+      }
+    )
+    expect(result.success).toBe(true)
+    expect(JSON.stringify(result.output)).toContain(png.toString('base64'))
+    expect(JSON.stringify(result.output)).toContain('image/png')
+    expect(mocks.buffer).not.toHaveBeenCalled()
+  })
 
   it('checks current permission before opening storage', async () => {
     mocks.permission.mockResolvedValue(null)

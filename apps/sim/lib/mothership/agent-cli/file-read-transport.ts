@@ -104,6 +104,7 @@ export function createFileReadTransport(context: {
             offset: parsed.data.query.offset,
             limit: parsed.data.query.limit,
             includeSecretProvenance: true,
+            allowPlainText: true,
           },
         })
         await observe(result.file.workspaceId, result.secretProvenance)
