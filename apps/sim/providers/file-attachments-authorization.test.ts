@@ -38,7 +38,7 @@ import type { ProviderRequest } from '@/providers/types'
 /** Authorization and key inference are real: mocking either hid this pre-existing refusal. */
 describe('provider attachment storage-key authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   it.each(
@@ -94,4 +94,39 @@ describe('provider attachment storage-key authorization', () => {
       expect(permission).not.toHaveBeenCalled()
     }
   )
+
+  it('allows standalone provider reads of authorized mothership attachments in workspace storage', async () => {
+    const file: UserFile = {
+      id: 'attachment-1',
+      name: 'document.pdf',
+      key: 'workspace/workspace-1/attachment-1/document.pdf',
+      url: '',
+      size: 10 * 1024 * 1024,
+      type: 'application/pdf',
+      context: 'workspace',
+    }
+    metadata.mockResolvedValue({
+      id: file.id,
+      key: file.key,
+      workspaceId: 'workspace-1',
+      userId: 'uploader',
+      context: 'mothership',
+      deletedAt: null,
+    })
+    permission.mockResolvedValue('read')
+    presign.mockResolvedValue('https://storage.example.com/signed')
+
+    await attachLargeFileRemoteUrls(
+      {
+        model: 'gpt-4.1',
+        userId: 'reader',
+        messages: [{ role: 'user', content: 'Read the attachment', files: [file] }],
+      },
+      'openai'
+    )
+
+    expect(permission).toHaveBeenCalledWith('reader', 'workspace', 'workspace-1')
+    expect(presign).toHaveBeenCalledWith(file.key, 'workspace', 3600)
+    expect(file.remoteUrl).toBe('https://storage.example.com/signed')
+  })
 })

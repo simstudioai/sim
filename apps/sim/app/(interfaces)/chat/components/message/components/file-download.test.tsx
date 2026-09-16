@@ -85,6 +85,13 @@ describe('ChatFileDownload', () => {
     )
   })
 
+  it.each(['', ' \t\n'])('uses the serve route to preview files with a blank URL (%j)', (url) => {
+    const container = renderFile({ ...imageFile, base64: undefined, url })
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(
+      '/api/files/serve/execution%2Fgenerated.png?context=execution'
+    )
+  })
+
   it('keeps a download available when an image preview fails', () => {
     const container = renderFile(imageFile)
     act(() => container.querySelector('img')!.dispatchEvent(new Event('error')))
@@ -153,6 +160,26 @@ describe('chat file downloads', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, imageFile.url, { cache: 'no-store' })
     expect(downloadedNames).toEqual(['generated.png'])
   })
+
+  it.each(['', ' \t\n'].flatMap((url) => [false, true].map((stored) => ({ url, stored }))))(
+    'never downloads the chat page for a blank URL (%j)',
+    async ({ url, stored }) => {
+      if (stored) fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }))
+      fetchMock.mockResolvedValue(new Response('<html>Chat page</html>'))
+      const container = renderFile({
+        ...imageFile,
+        base64: undefined,
+        key: stored ? imageFile.key : 'url/external',
+        url,
+      })
+      await clickDownload(container)
+      expect(fetchMock).toHaveBeenCalledTimes(stored ? 1 : 0)
+      expect(createObjectURL).not.toHaveBeenCalled()
+      expect(downloadedNames).toEqual([])
+      expect(container.querySelector('a')).toBeNull()
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain('Unable to download')
+    }
+  )
 
   it.each([false, true])(
     'offers a safe browser download when an external host blocks CORS (stored=%s)',

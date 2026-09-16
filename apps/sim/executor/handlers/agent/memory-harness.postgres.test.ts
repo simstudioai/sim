@@ -72,6 +72,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
+import { StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
@@ -84,7 +85,13 @@ import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, StreamingExecution, UserFile } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { INLINE_ATTACHMENT_THRESHOLD_BYTES } from '@/providers/attachments'
+import {
+  attachLargeFileRemoteUrls,
+  uploadLargeFilesToProvider,
+} from '@/providers/file-attachments.server'
 import { createAgentStreamPump } from '@/providers/stream-pump'
+import type { ProviderRequest } from '@/providers/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const databaseUrl = process.env.AGENT_MEMORY_TEST_DATABASE_URL
@@ -382,12 +389,14 @@ describe.skipIf(!databaseUrl)(
     })
 
     it.each(
-      (['openai', 'anthropic'] as const).flatMap((provider) =>
-        [false, true].map((streaming) => ({ provider, streaming }))
+      (['workspace', 'mothership'] as const).flatMap((storageContext) =>
+        (['openai', 'anthropic'] as const).flatMap((provider) =>
+          [false, true].map((streaming) => ({ storageContext, provider, streaming }))
+        )
       )
     )(
-      'deployed chat reads remembered workspace files with $provider, streaming=$streaming',
-      async ({ provider, streaming }) => {
+      'deployed chat reads remembered $storageContext files with $provider, streaming=$streaming',
+      async ({ storageContext, provider, streaming }) => {
         if (!fixture.database || !connection) throw new Error('Missing harness database')
         vi.stubGlobal('fetch', interceptFetch)
         outbound = []
@@ -414,7 +423,7 @@ describe.skipIf(!databaseUrl)(
               key,
               userId: scope.userId,
               workspaceId: scope.workspaceId,
-              context: 'workspace',
+              context: storageContext,
               originalName: 'result.pdf',
               contentType: 'application/pdf',
               size: buffer.length,
@@ -487,6 +496,57 @@ describe.skipIf(!databaseUrl)(
             input: { key, assertedWorkspaceId: scope.workspaceId },
           })
         ).rejects.toThrow('Principal kind system')
+
+        const strictWorkspaceRead = readWorkspaceFileRecordByKey.execute({
+          principal: {
+            kind: 'workspace_api_key',
+            workspaceId: scope.workspaceId,
+            keyId: 'harness-key',
+          },
+          input: { key, assertedWorkspaceId: scope.workspaceId },
+        })
+        if (storageContext === 'mothership') {
+          await expect(strictWorkspaceRead).rejects.toMatchObject({ code: 'not_found' })
+        } else {
+          await expect(strictWorkspaceRead).resolves.toMatchObject({ file: { id: record.id } })
+        }
+
+        /** Exercise large-file authorization with real metadata and delegation before model dispatch. */
+        const largeFile = { ...file, size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1 }
+        const largeRequest: ProviderRequest = {
+          model: models[provider],
+          apiKey: apiKey(provider),
+          userId: scope.userId,
+          messages: [{ role: 'user', content: 'Read the attachment', files: [largeFile] }],
+        }
+        const cloudStorage = vi.spyOn(StorageService, 'hasCloudStorage').mockReturnValue(true)
+        const presign = vi
+          .spyOn(StorageService, 'generatePresignedDownloadUrl')
+          .mockResolvedValue('https://storage.example.com/signed')
+        try {
+          await attachLargeFileRemoteUrls(largeRequest, provider, firstContext)
+          expect(presign).toHaveBeenCalledWith(key, 'workspace', 3600)
+          expect(largeFile.remoteUrl).toBe('https://storage.example.com/signed')
+          if (provider === 'openai') {
+            const upload = vi.fn(async (url: string, init?: RequestInit) => {
+              expect(url).toBe('https://api.openai.com/v1/files')
+              expect(init?.body).toBeInstanceOf(FormData)
+              const body = init!.body as FormData
+              const uploaded = body.get('file') as File
+              expect(Buffer.from(await uploaded.arrayBuffer())).toEqual(buffer)
+              return Response.json({ id: 'file-harness' })
+            })
+            vi.stubGlobal('fetch', upload)
+            await uploadLargeFilesToProvider(largeRequest, provider, firstContext)
+            expect(upload).toHaveBeenCalledOnce()
+            expect(largeFile.providerFileId).toBe('file-harness')
+          }
+        } finally {
+          cloudStorage.mockRestore()
+          presign.mockRestore()
+          vi.stubGlobal('fetch', interceptFetch)
+        }
+
         expect(await executeTurn(firstContext, { ...inputs, files: [file] })).toBe('READY')
         expect(requestFiles(outbound[0])).toEqual([buffer.toString('base64')])
         const stored = await readConversation(conversationId)
@@ -529,7 +589,7 @@ describe.skipIf(!databaseUrl)(
         report.push({
           provider,
           streaming,
-          workspaceAttachment: true,
+          storageContext,
           stored,
           controls: {
             missingOrigin: 'blocked before HTTP',
