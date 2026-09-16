@@ -9,11 +9,17 @@ const {
   mockCreateCopilotManagedOAuthPrincipal,
   mockResolveCredentialAccessToken,
   mockPersonalCredentialUseCase,
+  mockOrganizationPersonalToken,
 } = vi.hoisted(() => ({
   mockBindExecutorManagedOAuthDelegation: vi.fn(),
   mockCreateCopilotManagedOAuthPrincipal: vi.fn(),
   mockResolveCredentialAccessToken: vi.fn(),
   mockPersonalCredentialUseCase: vi.fn(),
+  mockOrganizationPersonalToken: vi.fn(),
+}))
+
+vi.mock('@/lib/mothership/application/resolve-organization-personal-token', () => ({
+  resolveCopilotOrganizationPersonalToken: mockOrganizationPersonalToken,
 }))
 
 vi.mock('@/lib/credentials/application/copilot-managed-oauth-delegation', () => ({
@@ -25,7 +31,7 @@ vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
 }))
 vi.mock('@/tools/metadata', () => ({
   getToolMetadata: (id: string) =>
-    id === 'gmail_read' ? { oauth: { required: true, provider: 'google-email' } } : undefined,
+    id === 'gmail_read' ? { id, oauth: { required: true, provider: 'google-email' } } : undefined,
 }))
 
 vi.mock('@/lib/oauth/token-resolution', () => ({
@@ -52,6 +58,38 @@ describe('resolveExecutorCredentialToken', () => {
       ok: true,
       token: { accessToken: 'fresh' },
     })
+  })
+
+  it('uses organization-native personal authority without reaching workspace token resolution', async () => {
+    const context = {
+      userId: 'user-1',
+      organizationId: 'org',
+      chatId: 'chat',
+      toolCallId: 'call',
+      copilotToolExecution: true,
+      requestMode: 'assistant',
+    }
+    mockOrganizationPersonalToken.mockResolvedValue({
+      accessToken: 'own-token',
+      credentialType: 'managed_oauth',
+    })
+    const token = await resolveExecutorCredentialToken({
+      requestId: 'req',
+      credentialId: 'own',
+      userId: 'user-1',
+      toolId: 'gmail_read',
+      scopes: ['read'],
+      copilotExecutionContext: context,
+    })
+    expect(token.accessToken).toBe('own-token')
+    expect(mockOrganizationPersonalToken).toHaveBeenCalledWith(context, {
+      credentialId: 'own',
+      expectedProviderId: 'google-email',
+      requiredScopes: ['read'],
+      toolId: 'gmail_read',
+    })
+    expect(mockPersonalCredentialUseCase).not.toHaveBeenCalled()
+    expect(mockResolveCredentialAccessToken).not.toHaveBeenCalled()
   })
 
   it('dispatches with an internal-JWT auth result for the executing user', async () => {

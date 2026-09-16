@@ -18,7 +18,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   getUserPermissionConfig: vi.fn(async () => permissionConfig.current),
 }))
 
-vi.mock('@/lib/mothership/integration-tool-projection', () => ({
+vi.mock('@/lib/integrations/tool-projection', () => ({
   resolveDeniedBlockOperations: vi.fn(() => denied.current),
 }))
 

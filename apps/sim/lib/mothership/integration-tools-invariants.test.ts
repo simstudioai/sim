@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { getExposedIntegrationTools } from '@/lib/mothership/integration-tools'
+import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 
 /**

@@ -1,12 +1,12 @@
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import type { ExposedIntegrationTool } from '@/lib/mothership/integration-tools'
+import type { ExposedIntegrationTool } from '@/lib/integrations/tool-catalog'
 import {
   filterExposedIntegrationTools,
   getExposedIntegrationTools,
-} from '@/lib/mothership/integration-tools'
+} from '@/lib/integrations/tool-catalog'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {
   intersectIntegrationAllowlists,
   resolveAccessControlBlockType,

@@ -5,6 +5,7 @@
 import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { getToolMetadata } from '@/tools/metadata'
 
 const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
   getToolEntry: vi.fn(),
@@ -76,7 +77,7 @@ describe('copilot tool executor fallback', () => {
     }
   )
 
-  it.each(['search_workspace', 'read_document'])(
+  it.each(['search_workspace', 'read_document', 'oauth_get_auth_link'])(
     'dispatches %s with explicit org context for canonical organization authorization',
     async (toolId) => {
       getToolEntry.mockReturnValue({ requiredPermission: 'read' })
@@ -92,6 +93,62 @@ describe('copilot tool executor fallback', () => {
       }
       expect((await executeTool(toolId, {}, context)).success).toBe(true)
       expect(handler).toHaveBeenCalledWith({}, expect.objectContaining({ organizationId: 'org-1' }))
+    }
+  )
+
+  it('passes personal integration calls with trusted org authority and no workspace resolution', async () => {
+    const metadata = {
+      id: 'gmail_send',
+      params: {},
+      oauth: { required: true, provider: 'google-email' },
+    }
+    vi.mocked(getToolMetadata).mockReturnValueOnce(metadata).mockReturnValueOnce(metadata)
+    isKnownTool.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true })
+    const result = await executeTool(
+      'gmail_send',
+      { credentialId: 'own' },
+      {
+        userId: 'person',
+        workflowId: '',
+        organizationId: 'org',
+        requestMode: 'assistant',
+        copilotToolExecution: true,
+        chatId: 'chat',
+        toolCallId: 'call',
+      }
+    )
+    expect(result).toEqual({ success: true })
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'gmail_send',
+      expect.objectContaining({
+        _context: expect.objectContaining({
+          organizationId: 'org',
+          workspaceId: undefined,
+          envReferenceMode: 'off',
+        }),
+      }),
+      expect.objectContaining({
+        operationContext: expect.objectContaining({
+          organizationId: 'org',
+          workspaceId: undefined,
+        }),
+      })
+    )
+    expect(targets.resolve).not.toHaveBeenCalled()
+  })
+
+  it.each(['run_function', 'run_code', 'read', 'mcp_remote_tool'])(
+    'keeps %s outside organization Assistant',
+    async (toolId) => {
+      const result = await executeTool(
+        toolId,
+        {},
+        { userId: 'person', workflowId: '', organizationId: 'org', requestMode: 'assistant' }
+      )
+      expect(result.success).toBe(false)
+      expect(executeAppTool).not.toHaveBeenCalled()
     }
   )
 

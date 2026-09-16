@@ -9,7 +9,13 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
+import {
+  type IntegrationGateConfig,
+  integrationGateSignature,
+  projectIntegrationToolsForViewer,
+} from '@/lib/integrations/tool-projection'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import {
   isAssistantIntegrationParameter,
   isAssistantIntegrationTool,
@@ -24,16 +30,15 @@ import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-invento
 import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import {
-  type IntegrationGateConfig,
-  integrationGateSignature,
-  projectIntegrationToolsForViewer,
-} from '@/lib/mothership/integration-tool-projection'
-import {
   buildOrganizationTaggedMcpToolSchemas,
   buildTaggedMcpToolSchemas,
 } from '@/lib/mothership/mcp-tools'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
+import { providerIdsForService } from '@/lib/oauth/utils'
+import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
@@ -182,6 +187,11 @@ export async function buildIntegrationToolSchemas(
       '@/lib/permission-groups/config-scope.server'
     )
     permissionConfig = await resolvePermissionGroupConfig(userId, workspaceId, undefined)
+  } else if (options.organizationId) {
+    const organizationConfig = await getUserPermissionConfigForOrganization(options.organizationId)
+    if (personalAccountsOnly && capabilityDeniedBy('integrations.manage', organizationConfig))
+      return []
+    permissionConfig = organizationConfig
   }
   const cacheKey = getIntegrationToolSchemaCacheKey(
     userId,
@@ -194,6 +204,26 @@ export async function buildIntegrationToolSchemas(
     context: { userId, options: { schemaSurface, personalAccountsOnly }, vis, permissionConfig },
   })
   if (!schemas) throw new Error('Integration tool catalog is unavailable')
+  if (options.organizationId && personalAccountsOnly) {
+    const approvals = await listOrganizationSearchApprovals(options.organizationId)
+    const providers = new Set(
+      SEARCH_CONNECTORS.filter((connector) => approvals.get(connector.type) === true).map(
+        (connector) => connector.providerId
+      )
+    )
+    return structuredClone(
+      schemas.filter((schema) => {
+        const metadata = getToolMetadata(schema.name)
+        return (
+          !metadata?.personalToken &&
+          metadata?.oauth?.required &&
+          providerIdsForService(metadata.oauth.provider).some((providerId) =>
+            providers.has(providerId)
+          )
+        )
+      })
+    )
+  }
   return structuredClone(schemas)
 }
 
@@ -378,7 +408,8 @@ export async function buildCopilotRequestPayload(
   let mothershipTools: ToolSchema[] = []
 
   if (
-    (!params.organizationId && (effectiveMode === 'build' || isAssistant)) ||
+    isAssistant ||
+    (!params.organizationId && effectiveMode === 'build') ||
     (params.organizationId && !isAssistant)
   ) {
     integrationTools = await buildIntegrationToolSchemas(
