@@ -7,6 +7,7 @@ import {
   isBYOKEmbeddingCredentialRejection,
   isEmbeddingQuotaExhaustion,
 } from '@/lib/embeddings'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
@@ -194,7 +195,12 @@ export async function runDocumentProcessing(
         processingTime: Date.now() - startedAt,
       }
     }
-    logger.error(`[${requestId}] Failed to process document: ${docData.filename}`, error)
+    const diagnostic = getConnectorFailureDiagnostic(error)
+    logger.error(
+      `[${requestId}] Failed to process document: ${docData.filename}`,
+      diagnostic ?? error
+    )
+    if (diagnostic?.category === 'database') throw new Error(diagnostic.message)
     throw error
   }
 }

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -564,6 +565,22 @@ describe('knowledge processing worker', () => {
       error: expect.stringContaining('then retry this document'),
     })
     expect(mockTrigger).not.toHaveBeenCalled()
+  })
+
+  it('keeps database failures retryable without sending SQL or parameters to Trigger', async () => {
+    const error = new DrizzleQueryError(
+      'insert private SQL',
+      ['private bound content'],
+      Object.assign(new Error('private database detail'), { code: '57014' })
+    )
+    mockProcessDocumentAsync.mockRejectedValueOnce(error)
+    const failure = await runDocumentProcessing(WORKSPACE_PAYLOAD).catch(
+      (caught: unknown) => caught
+    )
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toMatchObject({ message: 'Database request failed (SQLSTATE 57014).' })
+    expect(failure).not.toHaveProperty('cause')
+    expect(JSON.stringify(failure)).not.toContain('private')
   })
 
   it('retries failed provider continuation dispatch instead of reporting a successful deferral', async () => {

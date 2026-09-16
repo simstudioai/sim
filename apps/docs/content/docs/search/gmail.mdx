@@ -139,6 +139,8 @@ Updates, removals, and access refresh in the background. Empty mailboxes and fil
 
 ## Troubleshooting
 
+An individual thread failure does not mean the whole mailbox failed. Sim retries temporary server and rate-limit errors with bounded backoff. Error diagnostics record the Google API operation, HTTP status, and a recognized error reason when available.
+
 | What you see | What to do |
 | --- | --- |
 | A different email is requested | Use the Google account matching your verified Sim email. A separate personal account or alias does not satisfy the match. |

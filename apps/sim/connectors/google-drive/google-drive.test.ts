@@ -436,6 +436,7 @@ describe('Google Drive recursive folders and raw files', () => {
       .mockResolvedValueOnce(driveErrorResponse('insufficientFilePermissions', 'No download'))
     await expect(googleDriveConnector.getDocument('token', {}, FILE_ID)).rejects.toMatchObject({
       kind: 'permission',
+      diagnostic: { operation: 'drive.files.get', reasons: ['insufficientFilePermissions'] },
     })
   })
 })
@@ -512,7 +513,7 @@ describe('Google Drive API error parsing', () => {
       )
     )
 
-    expect(error.reasons).toEqual(reasons.slice(0, 16))
+    expect(error.reasons).toEqual(['userRateLimitExceeded'])
     expect(error.kind).toBe('transient')
     expect(error.rateLimited).toBe(true)
   })
@@ -754,7 +755,8 @@ describe('Google Drive export failures', () => {
       name: 'GoogleDriveApiError',
       status: 403,
       kind: 'unknown',
-      reasons: ['newGoogleReason'],
+      reasons: [],
+      diagnostic: { operation: 'drive.files.export', reasons: [] },
     })
   })
 

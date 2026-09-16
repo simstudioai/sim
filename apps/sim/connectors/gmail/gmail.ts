@@ -3,9 +3,9 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
+import { fetchGoogleApiWithRetry, GoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
   getGoogleWorkspaceDocument,
   InvalidGoogleWorkspaceCursor,
@@ -52,16 +52,6 @@ const HISTORY_PAGE_SIZE = 500
 const CHANGED_THREAD_CONCURRENCY = 5
 /** Gmail's thread listing omits these unless `includeSpamTrash` is set; the feed must agree. */
 const HIDDEN_LABEL_IDS = new Set(['SPAM', 'TRASH'])
-
-class GmailApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number
-  ) {
-    super(`${message}: ${status}`)
-    this.name = 'GmailApiError'
-  }
-}
 
 interface GmailHeader {
   name: string
@@ -229,26 +219,23 @@ async function getLabelIndex(
 
   let index: GmailLabelIndex | null = null
   try {
-    const response = await fetchWithRetry(`${GMAIL_API_BASE}/labels`, {
-      method: 'GET',
-      signal,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
+    const response = await fetchGoogleApiWithRetry(
+      'gmail.labels.list',
+      `${GMAIL_API_BASE}/labels`,
+      {
+        method: 'GET',
+        signal,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      }
+    )
 
-    if (response.status === 401) {
-      throw new GmailApiError('Failed to fetch Gmail labels', response.status)
-    }
-    if (response.ok) {
-      index = buildLabelIndex(await readLabels(response))
-    } else {
-      logger.warn('Failed to fetch Gmail labels', { status: response.status })
-    }
+    index = buildLabelIndex(await readLabels(response))
   } catch (error) {
     signal?.throwIfAborted()
-    if (error instanceof GmailApiError && error.status === 401) throw error
+    if (error instanceof GoogleApiError && error.status === 401) throw error
     logger.warn('Failed to fetch Gmail labels', { error: toError(error).message })
   }
 
@@ -387,7 +374,8 @@ async function readMessageBody(
   if (!body.attachmentId) return body.data ? decodeBase64Url(body.data, context) : ''
 
   const params = new URLSearchParams({ fields: 'data,size' })
-  const response = await fetchWithRetry(
+  const response = await fetchGoogleApiWithRetry(
+    'gmail.messages.attachments.get',
     `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(body.attachmentId)}?${params}`,
     {
       method: 'GET',
@@ -395,9 +383,6 @@ async function readMessageBody(
       headers: { Authorization: `Bearer ${context.accessToken}`, Accept: 'application/json' },
     }
   )
-  if (!response.ok) {
-    throw new GmailApiError('Failed to fetch Gmail message body', response.status)
-  }
 
   let fetchedBody: unknown
   try {
@@ -591,18 +576,16 @@ async function fetchThread(
     params.set('fields', 'id,historyId,snippet,messages(id,labelIds,internalDate)')
   const url = `${GMAIL_API_BASE}/threads/${encodeURIComponent(threadId)}?${params}`
 
-  const response = await fetchWithRetry(url, {
-    method: 'GET',
-    signal,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-    },
-  })
-
-  if (!response.ok) {
-    if (response.status === 404) return null
-    throw new GmailApiError(`Failed to fetch thread ${threadId}`, response.status)
+  let response: Response
+  try {
+    response = await fetchGoogleApiWithRetry('gmail.threads.get', url, {
+      method: 'GET',
+      signal,
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    })
+  } catch (error) {
+    if (error instanceof GoogleApiError && error.status === 404) return null
+    throw error
   }
 
   const thread = await readResponseJsonWithLimit(response, {
@@ -790,18 +773,21 @@ function threadInScope(thread: GmailThread, scope: GmailChangeScope): boolean {
 const gmailMailboxConnector: ConnectorConfig = {
   ...gmailConnectorMeta,
 
-  isCredentialInvalidError: (error) => error instanceof GmailApiError && error.status === 401,
+  isCredentialInvalidError: (error) => error instanceof GoogleApiError && error.status === 401,
 
   /** The mailbox's current history id; `users.history.list` replays everything after it. */
   getChangeCursor: async (accessToken, _sourceConfig, syncContext): Promise<string> => {
     if (syncContext?.mirrorsSourceAcls === true) {
       throw new Error('Company-wide Gmail indexing uses complete mailbox listings')
     }
-    const response = await fetchWithRetry(`${GMAIL_API_BASE}/profile?fields=historyId`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-    })
-    if (!response.ok) throw new GmailApiError('Failed to read the Gmail profile', response.status)
+    const response = await fetchGoogleApiWithRetry(
+      'gmail.users.getProfile',
+      `${GMAIL_API_BASE}/profile?fields=historyId`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      }
+    )
     const data: unknown = await response.json()
     if (
       !isPlainRecord(data) ||
@@ -851,14 +837,14 @@ const gmailMailboxConnector: ConnectorConfig = {
     for (const type of HISTORY_TYPES) params.append('historyTypes', type)
     if (pageToken) params.set('pageToken', pageToken)
 
-    const response = await fetchWithRetry(`${GMAIL_API_BASE}/history?${params.toString()}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-    })
-    if (!response.ok) {
-      logger.warn('Failed to list Gmail history', { status: response.status })
-      throw new GmailApiError('Failed to list Gmail history', response.status)
-    }
+    const response = await fetchGoogleApiWithRetry(
+      'gmail.history.list',
+      `${GMAIL_API_BASE}/history?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      }
+    )
     const page = parseHistoryList(await response.json())
 
     const changes = await mapWithConcurrency(
@@ -881,7 +867,7 @@ const gmailMailboxConnector: ConnectorConfig = {
   /** Gmail answers 404 once `startHistoryId` falls outside the history it retains. */
   isChangeCursorInvalidError: (error) =>
     error instanceof InvalidGmailChangeCursorError ||
-    (error instanceof GmailApiError && error.status === 404),
+    (error instanceof GoogleApiError && error.status === 404),
 
   listDocuments: async (
     accessToken: string,
@@ -953,7 +939,7 @@ const gmailMailboxConnector: ConnectorConfig = {
       maxThreads,
     })
 
-    const response = await fetchWithRetry(url, {
+    const response = await fetchGoogleApiWithRetry('gmail.threads.list', url, {
       method: 'GET',
       signal,
       headers: {
@@ -961,11 +947,6 @@ const gmailMailboxConnector: ConnectorConfig = {
         Accept: 'application/json',
       },
     })
-
-    if (!response.ok) {
-      logger.error('Failed to list Gmail threads', { status: response.status })
-      throw new GmailApiError('Failed to list Gmail threads', response.status)
-    }
 
     /** Gmail can return 204 when an empty listing has no requested metadata fields. */
     const { threads, nextPageToken } = parseThreadList(
@@ -1102,7 +1083,8 @@ const gmailMailboxConnector: ConnectorConfig = {
 
     try {
       const profileUrl = `${GMAIL_API_BASE}/profile`
-      const profileResponse = await fetchWithRetry(
+      await fetchGoogleApiWithRetry(
+        'gmail.users.getProfile',
         profileUrl,
         {
           method: 'GET',
@@ -1115,10 +1097,6 @@ const gmailMailboxConnector: ConnectorConfig = {
         VALIDATE_RETRY_OPTIONS
       )
 
-      if (!profileResponse.ok) {
-        return { valid: false, error: `Failed to access Gmail: ${profileResponse.status}` }
-      }
-
       /**
        * Labels may arrive as ids (from the `gmail.labels` selector) or as names
        * (typed into the advanced input), so both forms are accepted here and the
@@ -1128,7 +1106,8 @@ const gmailMailboxConnector: ConnectorConfig = {
       let labelIndex = EMPTY_LABEL_INDEX
       if (configuredLabels.length > 0) {
         const labelsUrl = `${GMAIL_API_BASE}/labels`
-        const labelsResponse = await fetchWithRetry(
+        const labelsResponse = await fetchGoogleApiWithRetry(
+          'gmail.labels.list',
           labelsUrl,
           {
             method: 'GET',
@@ -1140,10 +1119,6 @@ const gmailMailboxConnector: ConnectorConfig = {
           },
           VALIDATE_RETRY_OPTIONS
         )
-
-        if (!labelsResponse.ok) {
-          return { valid: false, error: 'Failed to fetch labels' }
-        }
 
         const labels = await readLabels(labelsResponse)
         labelIndex = buildLabelIndex(labels)
@@ -1171,7 +1146,8 @@ const gmailMailboxConnector: ConnectorConfig = {
       if (query?.trim()) {
         const searchQuery = buildSearchQuery(sourceConfig, labelIndex)
         const testUrl = `${GMAIL_API_BASE}/threads?q=${encodeURIComponent(searchQuery)}&maxResults=1`
-        const testResponse = await fetchWithRetry(
+        await fetchGoogleApiWithRetry(
+          'gmail.threads.list',
           testUrl,
           {
             method: 'GET',
@@ -1183,10 +1159,6 @@ const gmailMailboxConnector: ConnectorConfig = {
           },
           VALIDATE_RETRY_OPTIONS
         )
-
-        if (!testResponse.ok) {
-          return { valid: false, error: 'Invalid search query. Check Gmail search syntax.' }
-        }
       }
 
       return { valid: true }

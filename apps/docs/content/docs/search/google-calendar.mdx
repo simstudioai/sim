@@ -135,6 +135,8 @@ Search schedules syncs hourly. Event edits, cancellations, access changes, inact
 
 ## Troubleshooting
 
+When a sync fails, **Sync history** includes the Google API operation, HTTP status, and a recognized reason when available. A `403` alone does not establish a missing scope: `rateLimitExceeded` and `userRateLimitExceeded` are retried with bounded backoff. A persistent access error requires checking the affected user’s Calendar access.
+
 | What you see | What to do |
 | --- | --- |
 | No events | Check the date range, search query, and calendar IDs. Use an empty calendar selection or `primary` for each person's own calendar. |

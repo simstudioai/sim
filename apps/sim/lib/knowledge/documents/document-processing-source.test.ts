@@ -11,6 +11,7 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -688,6 +689,51 @@ describe('processDocumentAsync write guards', () => {
       )
     ).rejects.toThrow('processor failed after claim')
 
+    expect(onClaimed).toHaveBeenCalledTimes(1)
+    expect(guardForStatusWrite('processing')).toBeDefined()
+    expect(guardForStatusWrite('failed')).toBeDefined()
+  })
+
+  it('stores bounded database diagnostics while retaining the original error for retry classification', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    const databaseError = new DrizzleQueryError(
+      'insert private SQL',
+      ['private bound content'],
+      Object.assign(new Error('private driver detail'), { code: '57014' })
+    )
+    mockProcessDocument.mockRejectedValueOnce(databaseError)
+    const onClaimed = vi.fn()
+
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'a.pdf',
+          fileUrl: 'https://example.com/a.pdf',
+          fileSize: 1,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION,
+        'request-1',
+        { chargedAtDispatch: true, onClaimed }
+      )
+    ).rejects.toBe(databaseError)
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingStatus: 'failed',
+        processingError: 'Database request failed (SQLSTATE 57014).',
+      })
+    )
     expect(onClaimed).toHaveBeenCalledTimes(1)
     expect(guardForStatusWrite('processing')).toBeDefined()
     expect(guardForStatusWrite('failed')).toBeDefined()

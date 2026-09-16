@@ -110,7 +110,8 @@ export async function listGoogleWorkspaceUsers(
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
       signal,
     },
-    options.validate ? VALIDATE_RETRY_OPTIONS : undefined
+    options.validate ? VALIDATE_RETRY_OPTIONS : undefined,
+    'directory.users.list'
   )
   const data = await readDirectoryJson(response)
   if (
@@ -154,7 +155,8 @@ export async function getGoogleWorkspaceUser(
         headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
         signal: options.signal,
       },
-      options.validate ? VALIDATE_RETRY_OPTIONS : undefined
+      options.validate ? VALIDATE_RETRY_OPTIONS : undefined,
+      'directory.users.get'
     )
     return parseUser(await readDirectoryJson(response))
   } catch (error) {

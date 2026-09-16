@@ -155,6 +155,8 @@ Search schedules syncs hourly. Central crawls revisit the selected users' files 
 
 ## Troubleshooting
 
+**Directory permission sync failed** means Sim could not fully verify group membership. Check the Directory administrator’s access to the affected group and any nested groups; this is separate from file-download access. An incomplete membership read does not replace the last verified membership, which remains subject to freshness checks.
+
 | Problem | Next step |
 | --- | --- |
 | Google rejects authorization (`unauthorized_client`) | In **Manage Domain Wide Delegation**, verify the numeric **Client ID** matches `client_id` in the JSON key uploaded to Sim and all required scopes appear under **View details**. Check pending approval and allow time for recent changes to propagate. Changing the OAuth consent screen alone does not authorize delegation. |
