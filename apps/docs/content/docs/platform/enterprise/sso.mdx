@@ -324,10 +324,10 @@ SSO provisioning creates internal organization members but does not grant worksp
 By default members can sign in with a password, an email code, or your identity provider. To make single sign-on the only way in, open **Settings → Organization → Single sign-on → Sign-in** and set **Allowed sign-in methods** to **Single sign-on**. It becomes available once the organization has an identity provider on a verified domain.
 
 - The requirement is checked when a session is created, so turning it on signs nobody out. Members keep working and meet the requirement at their next sign-in. To end current sessions too, use **Sign out all members** under **Settings → Organization → Security**.
-- Organization owners keep every sign-in method. If the identity provider breaks, an owner can still sign in with a password and turn the requirement back off.
+- Organization owners keep every sign-in method. If the identity provider breaks, an owner can still sign in with a password — setting one through **Forgot password** if they only ever signed in through the identity provider — and turn the requirement back off.
 - If the last identity provider is deleted or its domain verification lapses, the requirement stops being enforced instead of locking the organization out, and you can switch back to any method at any time.
 - Desktop app handoff from an already signed-in browser keeps working, because that session derives from one the requirement already admitted.
-- A member who tries a password or email code sees a message telling them to sign in through their identity provider.
+- A member who tries a password, an email code, or a social sign-in such as Google or GitHub sees a message telling them to sign in through their identity provider.
 
 <Callout type="info">
   Turning the requirement off restores password and email sign-in immediately for everyone.
@@ -362,7 +362,7 @@ By default members can sign in with a password, an email code, or your identity 
   },
   {
     question: "Can I still use email/password login after enabling SSO?",
-    answer: "Yes, unless you require single sign-on. Enabling SSO does not disable password login on its own; set Allowed sign-in methods to Single sign-on to refuse password and email-code sign-in for members. Organization owners keep password sign-in as a way back in if the identity provider breaks."
+    answer: "Yes, unless you require single sign-on. Enabling SSO does not disable password login on its own; set Allowed sign-in methods to Single sign-on to refuse password, email-code, and social sign-in for members. Organization owners keep password sign-in as a way back in if the identity provider breaks, and can set a password through Forgot password if they never had one."
   },
   {
     question: "A user already has an account with the same email — what happens when they sign in with SSO?",

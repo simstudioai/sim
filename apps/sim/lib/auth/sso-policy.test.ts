@@ -18,11 +18,11 @@ vi.mock('@/lib/auth/sso/verified-provider', () => ({
   hasSignInCapableSsoProvider: mockHasProvider,
 }))
 
+import { SSO_REQUIRED_MESSAGE } from '@/lib/auth/constants'
 import {
   assertSsoRequirementSatisfied,
   invalidateSsoPolicyCache,
   isSsoRequiredForOrganization,
-  SSO_REQUIRED_MESSAGE,
   satisfiesSsoRequirement,
 } from '@/lib/auth/sso-policy'
 

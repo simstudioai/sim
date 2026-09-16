@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { SSO_REQUIRED_ERROR_CODE, SSO_REQUIRED_MESSAGE } from '@/lib/auth/sso-policy'
+import { SSO_REQUIRED_ERROR_CODE, SSO_REQUIRED_MESSAGE } from '@/lib/auth/constants'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 export const metadata: Metadata = {

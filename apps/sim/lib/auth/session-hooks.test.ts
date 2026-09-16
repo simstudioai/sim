@@ -13,10 +13,10 @@ vi.mock('@/lib/auth/access-control', () => ({
   isEmailBlockedByAccessControl: isBlocked,
 }))
 
+import { SSO_REQUIRED_MESSAGE } from '@/lib/auth/constants'
 import { runWithAuthDatabase } from '@/lib/auth/database-context'
 import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
-import { SSO_REQUIRED_MESSAGE } from '@/lib/auth/sso-policy'
 
 const createdAt = new Date('2026-09-08T00:00:00Z')
 const session: Session = {
@@ -106,6 +106,34 @@ describe('prepareSessionForCreation', () => {
         prepareSessionForCreation(session, { path: '/sign-in/email' })
       )
     ).rejects.toThrow(SSO_REQUIRED_MESSAGE)
+  })
+
+  it('still signs in through the identity provider when the membership read fails', async () => {
+    setEnvFlags({ isBillingEnabled: false, isSsoEnabled: true })
+    const { executor, limit } = transactionExecutor()
+    limit.mockResolvedValueOnce([{ email: 'member@example.com', suspendedAt: null }])
+    limit.mockRejectedValueOnce(new Error('connection reset'))
+
+    /** A database blip must not cost a sign-in the requirement would have allowed anyway. */
+    await expect(
+      runWithAuthDatabase(executor, () =>
+        prepareSessionForCreation(session, { path: '/sso/callback/okta' })
+      )
+    ).resolves.toEqual({ data: session })
+  })
+
+  it('refuses a password sign-in when the membership itself cannot be read', async () => {
+    setEnvFlags({ isBillingEnabled: false, isSsoEnabled: true })
+    const { executor, limit } = transactionExecutor()
+    limit.mockResolvedValueOnce([{ email: 'member@example.com', suspendedAt: null }])
+    limit.mockRejectedValueOnce(new Error('connection reset'))
+
+    /** An unknown membership cannot be read as "no organization requires SSO of this person". */
+    await expect(
+      runWithAuthDatabase(executor, () =>
+        prepareSessionForCreation(session, { path: '/sign-in/email' })
+      )
+    ).rejects.toThrow('connection reset')
   })
 
   it('refuses the sign-in when the requirement itself cannot be read', async () => {

@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { getAuthDatabase } from '@/lib/auth/database-context'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
-import { assertSsoRequirementSatisfied } from '@/lib/auth/sso-policy'
+import { assertSsoRequirementSatisfied, satisfiesSsoRequirement } from '@/lib/auth/sso-policy'
 
 const logger = createLogger('SessionHooks')
 
@@ -41,20 +41,32 @@ export async function prepareSessionForCreation<T extends Session>(
     })
   }
 
-  /** Users belong to at most one organization, the same assumption the expiry clamp below makes. */
-  const [membership] = await executor
-    .select({ organizationId: member.organizationId, role: member.role })
-    .from(member)
-    .where(eq(member.userId, session.userId))
-    .limit(1)
+  /**
+   * A membership that cannot be read is not a membership that does not exist, so a failed lookup
+   * refuses the sign-in methods an organization could be requiring against — and only those. Every
+   * other path keeps the old behavior of continuing without an organization, so a database blip
+   * does not cost a sign-in to people this setting has nothing to say about.
+   */
+  let membership: { organizationId: string; role: string } | undefined
+  try {
+    /** Users belong to at most one organization, the same assumption the expiry clamp makes. */
+    ;[membership] = await executor
+      .select({ organizationId: member.organizationId, role: member.role })
+      .from(member)
+      .where(eq(member.userId, session.userId))
+      .limit(1)
+  } catch (error) {
+    if (!satisfiesSsoRequirement(context?.path)) throw error
+    logger.error('Error reading organization membership', { error, userId: session.userId })
+    return { data: session }
+  }
 
   if (!membership) return { data: session }
 
   /**
    * Outside the fallback below on purpose: a requirement that cannot be read is not a requirement
    * that does not apply, and admitting a password sign-in because a lookup failed is exactly the
-   * bypass the setting exists to prevent. The read runs on the transaction that is creating the
-   * session, so a failure here means that write is failing too.
+   * bypass the setting exists to prevent.
    */
   await assertSsoRequirementSatisfied(
     { userId: session.userId, ...membership },

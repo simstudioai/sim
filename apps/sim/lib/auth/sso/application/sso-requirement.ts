@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { organization } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { hasSignInCapableSsoProvider } from '@/lib/auth/sso/verified-provider'
-import { invalidateSsoPolicyCache, isSsoRequiredForOrganization } from '@/lib/auth/sso-policy'
+import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OperationUseCase } from '@/lib/core/application/operation'
@@ -49,11 +49,17 @@ async function loadRequirement(organizationId: string): Promise<SsoRequirement> 
     .limit(1)
   if (!org) throw new OrchestrationError('not_found', 'Organization not found')
 
-  const [hasVerifiedProvider, isEnforced] = await Promise.all([
+  /** Read fresh rather than through the sign-in cache: an admin is waiting on this answer. */
+  const [hasVerifiedProvider, entitled] = await Promise.all([
     hasSignInCapableSsoProvider(organizationId),
-    isSsoRequiredForOrganization(organizationId),
+    isOrganizationFeatureEntitled(organizationId, isSsoEnabled),
   ])
-  return { requireSso: org.requireSso, hasVerifiedProvider, isEnforced }
+  /** The same three terms sign-in checks, so the surface reports what is actually enforced. */
+  return {
+    requireSso: org.requireSso,
+    hasVerifiedProvider,
+    isEnforced: org.requireSso && entitled && hasVerifiedProvider,
+  }
 }
 
 export const readSsoRequirement: OperationUseCase<

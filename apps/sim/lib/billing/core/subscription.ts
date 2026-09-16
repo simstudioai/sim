@@ -589,10 +589,11 @@ export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterpris
 export async function isOrganizationFeatureEntitled(
   organizationId: string,
   selfHostEntitlement: boolean,
-  executor: DbOrTx = db
+  executor: DbOrTx = db,
+  options: { onError?: EnterprisePlanErrorPolicy } = {}
 ): Promise<boolean> {
   if (!isBillingEnabled) return selfHostEntitlement
-  return isOrganizationOnEnterprisePlan(organizationId, 'return-false', executor)
+  return isOrganizationOnEnterprisePlan(organizationId, options.onError ?? 'return-false', executor)
 }
 
 /**

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
 import { eq } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
+import { SSO_REQUIRED_ERROR_CODE, SSO_REQUIRED_MESSAGE } from '@/lib/auth/constants'
 import { isSsoCallbackPath } from '@/lib/auth/sso/callback-provider'
 import { hasSignInCapableSsoProvider } from '@/lib/auth/sso/verified-provider'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
@@ -51,14 +52,26 @@ export async function isSsoRequiredForOrganization(
     .where(eq(organization.id, organizationId))
     .limit(1)
 
+  /**
+   * `onError: 'throw'` because a swallowed read is a permissive answer here: an outage on the
+   * subscription read would otherwise return "not entitled", drop the requirement, and — worse —
+   * cache that for the whole TTL. A throw leaves the cache untouched and refuses the sign-in.
+   */
+  /** Stored, entitled, and a provider that could satisfy it — the three terms, cheapest first. */
   const required =
     row?.requireSso === true &&
-    (await isOrganizationFeatureEntitled(organizationId, isSsoEnabled, executor)) &&
+    (await isOrganizationFeatureEntitled(organizationId, isSsoEnabled, executor, {
+      onError: 'throw',
+    })) &&
     (await hasSignInCapableSsoProvider(organizationId, executor))
   if (executor === db) requirementCache.set(organizationId, required)
   return required
 }
 
+/**
+ * Drops this process's copy. Other instances keep theirs until the TTL expires, so the TTL — not
+ * this call — is what bounds how long a change takes to reach the whole fleet.
+ */
 export function invalidateSsoPolicyCache(organizationId: string): void {
   requirementCache.delete(organizationId)
 }
@@ -87,11 +100,6 @@ export function satisfiesSsoRequirement(path: string | undefined): boolean {
   if (!path) return true
   return DERIVED_SESSION_PATHS.has(path) || isSsoCallbackPath(path)
 }
-
-export const SSO_REQUIRED_ERROR_CODE = 'SSO_REQUIRED'
-
-export const SSO_REQUIRED_MESSAGE =
-  'Your organization requires single sign-on. Sign in through your identity provider.'
 
 /**
  * Refuses a session that an organization's sign-in requirement does not allow. Owners keep every
