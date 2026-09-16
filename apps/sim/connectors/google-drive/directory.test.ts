@@ -215,6 +215,25 @@ describe('the membership a directory reports', () => {
     await expect(membersOf(GROUP)).rejects.toThrow()
   })
 
+  it('preserves the denied nested-group operation instead of returning partial membership', async () => {
+    directory({ 'eng@corp.com': [USER('alice@corp.com'), NESTED('restricted@corp.com')] })
+    const healthy = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string) => {
+      if (decodeURIComponent(new URL(url).pathname).includes('/restricted@corp.com/members')) {
+        return jsonResponse(
+          { error: { errors: [{ reason: 'forbidden' }], message: 'private detail' } },
+          403
+        )
+      }
+      return healthy(url)
+    })
+
+    await expect(membersOf(GROUP)).rejects.toMatchObject({
+      status: 403,
+      diagnostic: { operation: 'directory.members.list', reasons: ['forbidden'] },
+    })
+  })
+
   /** A directory that hiccups must not cost a group its membership; transient errors are retried. */
   it('retries a transient directory error before giving up', async () => {
     directory({ 'eng@corp.com': [USER('alice@corp.com')] })

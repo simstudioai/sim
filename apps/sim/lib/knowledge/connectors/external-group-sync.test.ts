@@ -3,6 +3,7 @@
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import type { ConnectorDirectory } from '@/connectors/types'
 
 const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory, mockAvailability } =
@@ -295,6 +296,11 @@ describe('refreshConnectorDirectory', () => {
       syncContext: {},
       accessToken: 'token',
     }).catch((error: unknown) => error)
+    expect(getConnectorFailureDiagnostic(failure)).toMatchObject({
+      phase: 'directory',
+      status: 429,
+      category: 'rate_limit',
+    })
     expect(getRetryAfterMs(failure)).toBe(60_000)
     expect(isRateLimitError(failure)).toBe(true)
   })

@@ -31,6 +31,7 @@ import {
 import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
+import { ConnectorDirectoryError } from '@/connectors/source-error'
 import type {
   ConnectorConfig,
   ConnectorDirectory,
@@ -382,7 +383,9 @@ export async function refreshMirroredDirectory(input: {
       connector: connectorConfig.id,
       error: getErrorMessage(error),
     })
-    throw new Error(`${DIRECTORY_ERROR_PREFIX}${getErrorMessage(error)}`, { cause: error })
+    throw new ConnectorDirectoryError(`${DIRECTORY_ERROR_PREFIX}${getErrorMessage(error)}`, {
+      cause: error,
+    })
   }
 }
 

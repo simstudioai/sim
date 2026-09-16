@@ -9,8 +9,13 @@ const { fetchProvider, listUsers, getUser } = vi.hoisted(() => ({
   getUser: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({ fetchWithRetry: fetchProvider }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
+  fetchWithRetry: (
+    url: string,
+    init: RequestInit,
+    options?: import('@/lib/knowledge/documents/utils').RetryOptions
+  ) => (options?.fetcher ? options.fetcher(url, init, fetchProvider) : fetchProvider(url, init)),
+}))
 vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
 vi.mock('@/connectors/google-workspace/users', () => ({
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE: 100,
@@ -180,8 +185,7 @@ describe('company-wide Gmail indexing', () => {
     ).resolves.toEqual({ valid: true })
     expect(fetchProvider).toHaveBeenCalledWith(
       expect.stringContaining('/profile'),
-      expect.objectContaining({ signal: controller.signal }),
-      expect.any(Object)
+      expect.objectContaining({ signal: controller.signal })
     )
   })
 

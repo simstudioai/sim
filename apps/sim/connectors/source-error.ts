@@ -11,9 +11,13 @@ export class ConnectorSourceError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly category?: ConnectorSourceFailureCategory
+    readonly category?: ConnectorSourceFailureCategory,
+    readonly diagnostic?: { operation: string; reasons: readonly string[] }
   ) {
     super(message)
     this.name = 'ConnectorSourceError'
   }
 }
+
+/** Keeps directory failures distinct from document-content failures through cause wrapping. */
+export class ConnectorDirectoryError extends Error {}

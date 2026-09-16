@@ -41,7 +41,9 @@ export async function listGoogleWorkspaceDrives(
     {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
       signal,
-    }
+    },
+    {},
+    'drive.drives.list'
   )
   const body = await readBodyWithLimit(response, SHARED_DRIVES_PAGE_MAX_BYTES)
   if (!body) throw new Error('Google Drive shared-drive metadata exceeded its size limit')
