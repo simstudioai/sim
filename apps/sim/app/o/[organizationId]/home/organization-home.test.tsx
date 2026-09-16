@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   addResource: vi.fn(),
 }))
+vi.mock('@/blocks/integration-matcher', () => ({ mentionifyIntegrations: (text: string) => text }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ fetchQuery: vi.fn() }) }))
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
@@ -54,6 +55,13 @@ vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
+vi.mock('@/app/workspace/[workspaceId]/home/components/suggested-actions', () => ({
+  SuggestedActions: ({ onSelectPrompt }: { onSelectPrompt: (prompt: string) => void }) => (
+    <button onClick={() => onSelectPrompt('Create a CRM with sample data.')}>
+      Suggested actions
+    </button>
+  ),
+}))
 vi.mock('@/hooks/queries/kb/connectors', () => ({ useSearchSourceOverview: mocks.sources }))
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
@@ -80,7 +88,7 @@ beforeEach(() => {
   )
   mocks.upload.mockResolvedValue({ key: 'image-key', path: '/image-path' })
   mocks.context.mockReturnValue({
-    organization: { id: 'organization-a' },
+    organization: { id: 'organization-a', name: 'Acme' },
     searchAccess: { memberScoped: true },
     mothershipAvailable: true,
     canBuild: true,
@@ -159,7 +167,8 @@ describe('organization home', () => {
     await act(async () => renderHome(<OrganizationHome userName='Ada Lovelace' />))
     expect(container.textContent).toContain('What should we get done, Ada?')
     expect(container.textContent).toContain('Question composer')
-    expect(container.textContent).toContain('Get started')
+    expect(container.textContent).toContain('Suggested actions')
+    expect(container.textContent).not.toContain('Get started')
     expect(mocks.renderer).not.toHaveBeenCalled()
     expect(mocks.chat).toHaveBeenCalledWith(
       { organizationId: 'organization-a' },
@@ -240,13 +249,13 @@ describe('organization home', () => {
     'routes onboarding for admin=$isAdmin without a workspace creation requirement',
     async ({ isAdmin, integrationHref }) => {
       mocks.context.mockReturnValue({
-        organization: { id: 'organization-a' },
+        organization: { id: 'organization-a', name: 'Acme' },
         searchAccess: { memberScoped: true },
         mothershipAvailable: true,
         canBuild: true,
         viewer: { isAdmin, canUseSearchMcp: true },
       })
-      await act(async () => renderHome(<OrganizationHome />))
+      await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
       expect(
         Array.from(container.querySelectorAll('a')).map((link) => ({
           label: link.textContent,
@@ -265,21 +274,21 @@ describe('organization home', () => {
   )
   it('does not complete MCP onboarding for an unrelated personal API key', async () => {
     mocks.apiKeys.mockReturnValue({ data: { personalKeys: [{ id: 'workflow-api-key' }] } })
-    await act(async () => renderHome(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(hasCompletedMcpStep()).toBe(false)
     expect(mocks.apiKeys).not.toHaveBeenCalled()
   })
 
   it('hides MCP onboarding and stops authorization paging when organization policy blocks access', async () => {
     mocks.context.mockReturnValue({
-      organization: { id: 'organization-a' },
+      organization: { id: 'organization-a', name: 'Acme' },
       searchAccess: { memberScoped: true },
       mothershipAvailable: true,
       canBuild: true,
       viewer: { isAdmin: false, canUseSearchMcp: false },
     })
     mockAuthorizedApps([{ apps: [], nextCursor: 'older-apps' }])
-    await act(async () => renderHome(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(container.textContent).not.toContain('Connect Sim Search MCP')
     expect(container.textContent).toContain('Connect an integration')
     expect(mocks.authorizedApps).toHaveBeenCalledWith('', { enabled: false })
@@ -295,7 +304,7 @@ describe('organization home', () => {
     { scopes: ['unrecognized:read'], completed: false },
   ])('derives MCP completion from OAuth scopes $scopes', async ({ scopes, completed }) => {
     mockAuthorizedApps([{ apps: [authorizedApp(scopes)], nextCursor: null }])
-    await act(async () => renderHome(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(hasCompletedMcpStep()).toBe(completed)
   })
 
@@ -305,7 +314,7 @@ describe('organization home', () => {
       nextCursor: 'older-apps',
     }
     mockAuthorizedApps([firstPage])
-    await act(async () => renderHome(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(hasCompletedMcpStep()).toBe(false)
     expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1)
 
@@ -313,7 +322,7 @@ describe('organization home', () => {
       firstPage,
       { apps: [authorizedApp(['search:read'])], nextCursor: 'even-older-apps' },
     ])
-    await act(async () => renderHome(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(hasCompletedMcpStep()).toBe(true)
     expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1)
   })
@@ -322,7 +331,7 @@ describe('organization home', () => {
     'does not start another authorization page request while %j',
     async (state) => {
       mockAuthorizedApps([{ apps: [], nextCursor: 'older-apps' }], state)
-      await act(async () => renderHome(<OrganizationHome />))
+      await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
       expect(mocks.fetchNextPage).not.toHaveBeenCalled()
       expect(hasCompletedMcpStep()).toBe(false)
     }
@@ -330,11 +339,11 @@ describe('organization home', () => {
 
   it('clears MCP completion when the Search authorization is revoked', async () => {
     mockAuthorizedApps([{ apps: [authorizedApp(['search:read'])], nextCursor: null }])
-    await act(async () => renderHome(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(hasCompletedMcpStep()).toBe(true)
 
     mockAuthorizedApps([{ apps: [], nextCursor: null }])
-    await act(async () => renderHome(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(hasCompletedMcpStep()).toBe(false)
   })
 
@@ -459,7 +468,7 @@ describe('organization home', () => {
 
 it('uses agent mode on new Home and does not consume a Search handoff', async () => {
   mocks.context.mockReturnValue({
-    organization: { id: 'organization-a' },
+    organization: { id: 'organization-a', name: 'Acme' },
     mothershipAvailable: true,
     canBuild: true,
     searchAccess: { memberScoped: false },
@@ -641,4 +650,23 @@ it('keeps the latest submitted Search query when the next turn is switched to Bu
     }),
     undefined
   )
+})
+
+it('fills the Build draft from suggested actions without sending', async () => {
+  await act(async () => renderHome(<OrganizationHome userName='Ada Lovelace' />))
+  expect(container.querySelector('h1')?.textContent).toBe('What should we get done, Ada?')
+  const suggestion = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Suggested actions'
+  )!
+  await act(async () => suggestion.click())
+  expect(composerProps().value).toBe('Create a CRM with sample data.')
+  expect(mocks.send).not.toHaveBeenCalled()
+})
+
+it('shows staging Search heading and setup steps instead of Build suggestions', async () => {
+  await act(async () => renderHome(<OrganizationHome />))
+  await act(async () => composerProps().onModeChange?.('assistant'))
+  expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+  expect(container.textContent).toContain('Get started')
+  expect(container.textContent).not.toContain('Suggested actions')
 })

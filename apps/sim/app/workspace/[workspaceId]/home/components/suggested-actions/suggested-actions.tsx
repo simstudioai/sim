@@ -232,11 +232,13 @@ const INITIAL_ACTIONS: Action[] = [
 ]
 
 interface SuggestedActionsProps {
+  organizationId?: string
   onSelectPrompt: (prompt: string) => void
 }
 
-export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+export function SuggestedActions({ onSelectPrompt, organizationId }: SuggestedActionsProps) {
+  const params = useParams<{ workspaceId?: string }>()
+  const workspaceId = organizationId ? undefined : params.workspaceId
   const posthog = usePostHog()
 
   const { data: credentials = EMPTY_CREDENTIALS } = useWorkspaceCredentials({
@@ -291,16 +293,21 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   }, [connectedProviders, services, signals])
 
   const handleSelect = (action: Action, position: number) => {
-    captureEvent(posthog, 'suggested_action_clicked', {
-      workspace_id: workspaceId,
-      kind: action.kind,
-      action_id: action.id,
-      label: action.label,
-      position,
-      connected_provider_count: connectedProviders.size,
-    })
+    if (workspaceId)
+      captureEvent(posthog, 'suggested_action_clicked', {
+        workspace_id: workspaceId,
+        kind: action.kind,
+        action_id: action.id,
+        label: action.label,
+        position,
+        connected_provider_count: connectedProviders.size,
+      })
     if (action.kind === 'prompt') {
       onSelectPrompt(action.prompt)
+      return
+    }
+    if (!workspaceId) {
+      onSelectPrompt(`${action.label}.`)
       return
     }
     const target = resolveOAuthServiceForSlug(action.slug)
@@ -308,10 +315,11 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   }
 
   const handleToggleExpanded = () => {
-    captureEvent(posthog, 'suggested_actions_toggled', {
-      workspace_id: workspaceId,
-      expanded: !expanded,
-    })
+    if (workspaceId)
+      captureEvent(posthog, 'suggested_actions_toggled', {
+        workspace_id: workspaceId,
+        expanded: !expanded,
+      })
     setAnimationsEnabled(true)
     setExpanded((prev) => !prev)
   }

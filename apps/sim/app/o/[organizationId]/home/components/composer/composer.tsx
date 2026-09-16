@@ -107,8 +107,9 @@ export function Composer({
       editorRef.current.setValue(value)
       if (!value) editorRef.current.setContexts([])
       lastPublished.current = value
+      if (value) textareaRef.current?.focus()
     }
-  }, [value])
+  }, [value, textareaRef])
   useEffect(() => {
     if (editorRef.current.getValue() !== editor.value) return
     if (editor.value !== lastPublished.current) {
@@ -146,8 +147,12 @@ export function Composer({
   const canSubmit =
     !files.attachedFiles.some((file) => file.uploading) &&
     (value.trim().length > 0 || files.attachedFiles.some((file) => file.key))
-  const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
-  const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
+  const animatedPlaceholder = useAnimatedPlaceholder(isInitialView && !imagesOnly)
+  const placeholder = isInitialView
+    ? imagesOnly
+      ? 'Search your sources'
+      : animatedPlaceholder
+    : 'Send message to Sim'
 
   const submit = () => {
     if (!canSubmit) return
@@ -213,6 +218,7 @@ export function Composer({
       />
 
       <InputToolbar
+        showModelSelector={!imagesOnly}
         leadingControls={
           <>
             {!imagesOnly && contextPicker('resources', Plus, 'Add resources')}

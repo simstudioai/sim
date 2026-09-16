@@ -167,9 +167,8 @@ describe('organization voice composer', () => {
     async (isInitialView) => {
       await render(isInitialView)
       const mic = container.querySelector<HTMLButtonElement>('button[aria-label="Voice input"]')!
-      expect(mic.previousElementSibling?.getAttribute('aria-label')).toBe(
-        'Model and reasoning effort'
-      )
+      expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
+      expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
       expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
       await act(async () => mic.click())
       expect(mocks.toggleListening).toHaveBeenCalledOnce()
@@ -406,12 +405,22 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
   ])
 })
 
-it('does not expose resource or skill controls in Search', async () => {
-  await render(true)
-  expect(container.querySelector('[aria-label="Skills"]')).toBeNull()
-  expect(container.querySelector('[aria-label="Add resources"]')).toBeNull()
-  expect(container.querySelector('[aria-label="Attach images"]')).not.toBeNull()
-})
+it.each([true, false])(
+  'hides Build controls in Search (can choose mode: %s)',
+  async (canChoose) => {
+    await render(true, '', 'assistant', {
+      isSending: false,
+      showModeSelector: canChoose,
+      onModeChange: vi.fn(),
+    })
+    expect(container.querySelector('[aria-label="Skills"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Add resources"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
+    expect(Boolean(container.querySelector('[aria-label="Conversation mode"]'))).toBe(canChoose)
+    expect(container.querySelector('[aria-label="Attach images"]')).not.toBeNull()
+  }
+)
 
 it('lists organization-owned legacy workspaces in the resource picker', async () => {
   await render(true, '', 'agent')
