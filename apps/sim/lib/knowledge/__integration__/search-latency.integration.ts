@@ -62,15 +62,17 @@ vi.hoisted(() => {
 
 const externalFetch = globalThis.fetch
 const enabled = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_TEST === 'true'
+const batchSize = 1000
+const MIN_CHUNK_COUNT = 5000
 const chunkCount = Number(process.env.KNOWLEDGE_SEARCH_PERFORMANCE_CHUNKS ?? 20_000)
 const unrelatedChunkCount = Number(
-  process.env.KNOWLEDGE_SEARCH_PERFORMANCE_UNRELATED_CHUNKS ?? chunkCount / 2
+  process.env.KNOWLEDGE_SEARCH_PERFORMANCE_UNRELATED_CHUNKS ??
+    Math.max(MIN_CHUNK_COUNT, Math.ceil(chunkCount / (2 * batchSize)) * batchSize)
 )
 const evictSharedBuffers = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_EVICT_BUFFERS === 'true'
 const dimensions = 1536
 const candidateDimensions = 512
 const chunksPerDocument = 4
-const batchSize = 1000
 const logger = createLogger('SearchLatencyIntegration')
 const fixtureSchema = z.object({
   aliceId: z.uuid(),
@@ -497,7 +499,10 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     if (
       [chunkCount, unrelatedChunkCount].some(
         (count) =>
-          !Number.isInteger(count) || count < 5_000 || count > 200_000 || count % batchSize !== 0
+          !Number.isInteger(count) ||
+          count < MIN_CHUNK_COUNT ||
+          count > 200_000 ||
+          count % batchSize !== 0
       )
     )
       throw new Error(
