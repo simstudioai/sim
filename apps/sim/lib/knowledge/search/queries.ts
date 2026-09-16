@@ -49,9 +49,8 @@ const logger = createLogger('KnowledgeSearchQueries')
 const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Tuples a relaxed-order scan may visit before giving up on filling the limit. */
 const HNSW_MAX_SCAN_TUPLES = '20000'
-/** Stop a permission-starved graph walk early enough to scan the filtered projection instead. */
-const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '1000'
-const CANDIDATE_HNSW_EF_SEARCH = '1000'
+/** Iterative scans expand a modest initial neighborhood when permission filters reject neighbors. */
+const CANDIDATE_HNSW_EF_SEARCH = '100'
 const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'
 const MIN_VECTOR_RERANK_CANDIDATES = 400
 const MAX_VECTOR_RERANK_CANDIDATES = 1600
@@ -86,7 +85,7 @@ async function withVectorScanSettings<T>(
       await measureSearchStage('vector.settings', () =>
         tx.execute(
           ranking === 'candidate'
-            ? sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${CANDIDATE_HNSW_MAX_SCAN_TUPLES}, true), set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`
+            ? sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true), set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`
             : sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true)`
         )
       )
@@ -813,7 +812,8 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
 
 /**
  * Bound ANN traversal and rerank a small candidate pool against the original vectors.
- * Materialized document identities let PostgreSQL filter before computing distances.
+ * Nearest-neighbor traversal drives document visibility lookups, avoiding a sort of
+ * every visible chunk when the planner underestimates the caller's accessible corpus.
  * An underfilled index scan expands to a filtered scan within the same statement snapshot.
  * Live source authorization and content hydration still run after candidate ranking.
  */
@@ -919,13 +919,12 @@ async function selectLiveVectorResults(
           queryVector.model
         ),
       })
-      const candidateConditions = and(
-        inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-        eq(embeddingSearch.enabled, true),
-        sql`${embeddingSearch.documentId} IN (SELECT id FROM visible_search_documents)`,
-        sql`EXISTS (SELECT 1 FROM visible_search_documents)`
-      )
-      /** Materialize only document identities, so neither the hash table nor ACL checks carry vectors. */
+      /**
+       * LIMIT keeps document authorization downstream of vector traversal, with a primary-key
+       * lookup per candidate. Only an underfilled ANN scan materializes the visible document set.
+       * Its exact fallback scores the compact projection once, then joins scalar distances to
+       * visible identities; it cannot turn into a random vector lookup for every document.
+       */
       const identities = await withVectorScanSettings(
         (executor) =>
           executor.execute<{ id: string; initial_count: number }>(sql`
@@ -934,16 +933,32 @@ async function selectLiveVectorResults(
             WHERE ${and(...candidateDocumentVisibility)}
           ), initial_candidates AS MATERIALIZED (
             SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
-            WHERE ${candidateConditions}
+            CROSS JOIN LATERAL (
+              SELECT 1 FROM ${document}
+              WHERE ${and(eq(document.id, embeddingSearch.documentId), ...candidateDocumentVisibility)}
+              LIMIT 1
+            ) AS visible
+            WHERE ${and(
+              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+              eq(embeddingSearch.enabled, true)
+            )}
             ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
+          ), filtered_scores AS MATERIALIZED (
+            SELECT ${embeddingSearch.id} AS id, ${embeddingSearch.documentId} AS document_id,
+              ${candidateDistance} AS distance FROM ${embeddingSearch}
+            WHERE ${and(
+              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+              eq(embeddingSearch.enabled, true)
+            )}
+              AND (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
           ), candidates AS (
             SELECT id FROM initial_candidates
             WHERE (SELECT count(*) FROM initial_candidates) >= ${candidateLimit}
             UNION ALL (
-              SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
-              WHERE ${candidateConditions}
-                AND (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
-              ORDER BY (${candidateDistance}) + 0, ${embeddingSearch.id}
+              SELECT filtered_scores.id FROM filtered_scores
+              INNER JOIN visible_search_documents ON visible_search_documents.id = filtered_scores.document_id
+              WHERE (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
+              ORDER BY filtered_scores.distance + 0, filtered_scores.id
               LIMIT ${candidateLimit}
             )
           ) SELECT id, (SELECT count(*)::int FROM initial_candidates) AS initial_count FROM candidates

@@ -308,6 +308,38 @@ describe('parseBuffer reconciles the extension with the sniffed bytes', () => {
     expect(result.metadata?.detectedType).toBe('html')
   })
 
+  it.each([
+    '<!doctype html><html><head><script src="./app.js"></script></head><body><div id="root"></div></body></html>',
+    '{\\rtf1\\ansi Source-format example}',
+  ])(
+    'preserves textual markup when the caller supplies a canonical text artifact',
+    async (content) => {
+      const result = await parseBuffer(Buffer.from(content), 'txt', { textMode: 'literal' })
+
+      expect(result.content).toBe(content)
+      expect(result.metadata?.detectedType).toBeUndefined()
+    }
+  )
+
+  it('keeps literal-text handling scoped to txt artifacts', async () => {
+    const result = await parseBuffer(
+      Buffer.from('<!doctype html><html><body><p>Readable page</p></body></html>'),
+      'html',
+      { textMode: 'literal' }
+    )
+
+    expect(result.content).toContain('Readable page')
+    expect(result.content).not.toContain('<html>')
+    await expect(
+      parseBuffer(Buffer.from('<!doctype html><html><body>403 Forbidden</body></html>'), 'json', {
+        textMode: 'literal',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_format' })
+    await expect(parseBuffer(oleBinary(), 'txt', { textMode: 'literal' })).rejects.toMatchObject({
+      code: 'invalid_format',
+    })
+  })
+
   it('extracts a docx labelled .xlsx through the Word parser', async () => {
     const result = await parseBuffer(await buildDocx('Office Relocation'), 'xlsx')
 
