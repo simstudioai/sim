@@ -804,11 +804,12 @@ export const zapierProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'SOC 2 Type II and SOC 3 certified',
+      compliance: {
+        value:
+          "SOC 2 Type II and SOC 3 certified, plus GDPR and CCPA compliance. Reports are published and available via the Zapier Trust Center (trust.zapier.com). Not HIPAA-compliant (no BAAs, PHI unsupported). Some third-party sources also cite ISO 27001 and PCI DSS, though these aren't confirmed on Zapier's trust page.",
         detail:
-          'Reports are published and available via the Zapier Trust Center (trust.zapier.com). Zapier also maintains GDPR and CCPA compliance.',
-        shortValue: 'SOC 2 Type II and SOC 3 certified',
+          "Zapier maintains SOC 2 Type II, SOC 3, GDPR, and CCPA compliance, with enterprise customers auto-opted-out of AI data training and full reports published and available via the Zapier Trust Center. Zapier does not support regulated healthcare or PHI data under HIPAA and will not sign BAAs. It also certifies to the EU-US/UK/Swiss-US Data Privacy Framework. ISO 27001 and PCI DSS are cited by secondary sources only and are not listed on Zapier's trust or security page.",
+        shortValue: 'SOC 2 Type II, SOC 3, GDPR, CCPA; no HIPAA',
         confidence: 'verified',
         sources: [
           {
@@ -817,6 +818,21 @@ export const zapierProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           { url: 'https://trust.zapier.com/', label: 'Zapier Trust Center', asOf: '2026-07-02' },
+          {
+            url: 'https://zapier.com/security-compliance',
+            label: 'Zapier | Secure and Compliant AI Orchestration at Scale',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/8496181993613-Security-and-Compliance',
+            label: 'Security and Compliance – Zapier Help Center',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://zapier.com/legal/data-privacy',
+            label: 'Data Privacy Overview | Zapier',
+            asOf: '2026-07-02',
+          },
         ],
       },
       dataResidency: {
@@ -857,36 +873,6 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://zapier.com/security-compliance',
             label: 'Zapier Security & Compliance (via fetch cache)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          "SOC 2 Type II, SOC 3, GDPR, and CCPA compliant. Not HIPAA-compliant (no BAAs, PHI unsupported). Some third-party sources also cite ISO 27001 and PCI DSS, though these aren't confirmed on Zapier's trust page.",
-        detail:
-          "Zapier maintains SOC 2 Type II, SOC 3, GDPR, and CCPA compliance, with enterprise customers auto-opted-out of AI data training and full reports available via the Zapier Trust Center. Zapier does not support regulated healthcare or PHI data under HIPAA and will not sign BAAs. It also certifies to the EU-US/UK/Swiss-US Data Privacy Framework. ISO 27001 and PCI DSS are cited by secondary sources only and are not listed on Zapier's trust or security page.",
-        shortValue: 'SOC 2, SOC 3, GDPR, CCPA. Not HIPAA-compliant',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://zapier.com/security-compliance',
-            label: 'Zapier | Secure and Compliant AI Orchestration at Scale',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://help.zapier.com/hc/en-us/articles/8496181993613-Security-and-Compliance',
-            label: 'Security and Compliance – Zapier Help Center',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://trust.zapier.com/',
-            label: 'Zapier Trust Center | Powered by Conveyor',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://zapier.com/legal/data-privacy',
-            label: 'Data Privacy Overview | Zapier',
             asOf: '2026-07-02',
           },
         ],
@@ -990,6 +976,21 @@ export const zapierProfile: CompetitorProfile = {
             url: 'https://help.zapier.com/hc/en-us/articles/33678718215309-Team-plan-updates-SSO-is-now-included-and-new-user-limits',
             label: 'Team plan updates: SSO is now included and new user limits',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          "Yes: Zapier supports version 2.0 of the SCIM protocol, but only on Enterprise accounts that have Workspaces (an Enterprise account without Workspaces must contact its account manager). The API is served from https://zapier.com/scim/v3 and exposes both Users and Groups at the organization level: it pushes newly created users from the identity provider into Zapier, syncs profile updates to existing accounts, deactivates users, and reactivates previously deactivated ones, with GET/POST/PATCH/PUT/DELETE endpoints for creating team groups and adding or removing their members. Documented limits: users are deactivated rather than permanently deleted, the account owner cannot be removed, usernames must match the user's email address, the domain must be verified, filter DSL support is restricted, and the API is rate limited. Once provisioning is enabled, members must be managed from the identity provider rather than Zapier's Members page, and users cannot edit their own account details.",
+        detail:
+          'Groups map to team workspaces inside the organization rather than to roles, so group membership drives which team account a member belongs to.',
+        shortValue: 'Yes: SCIM 2.0 users and groups, Enterprise-only',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/8496291497741-Provision-user-accounts-with-SCIM',
+            label: 'Provision user accounts with SCIM - Zapier',
+            asOf: '2026-09-15',
           },
         ],
       },

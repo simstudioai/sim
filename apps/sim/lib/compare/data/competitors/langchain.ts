@@ -781,18 +781,23 @@ export const langchainProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          "Yes: LangSmith is SOC 2 Type II certified. LangGraph Platform (now branded LangSmith Deployment) is publicly announced as carrying the same attestation, sharing LangSmith's infrastructure and compliance posture.",
+          "Yes: LangSmith is SOC 2 Type II certified, and is additionally stated to be HIPAA compliant and GDPR compliant. LangGraph Platform (now branded LangSmith Deployment) is publicly announced as carrying the same attestation, sharing LangSmith's infrastructure and compliance posture. No ISO 27001, PCI-DSS, or FedRAMP attestation was found on LangChain's own compliance materials.",
         detail:
-          "LangChain's Trust Center (trust.langchain.com) is the canonical source but renders via client-side JavaScript, so it could not be directly verified by an automated fetch; the LangSmith-side certification is independently confirmed on a static docs page.",
-        shortValue: 'Yes, SOC 2 Type II for LangSmith; LangGraph Platform shares it',
+          "LangChain's Trust Center (trust.langchain.com) is the canonical source for these claims but renders via client-side JavaScript, so it could not be directly verified by an automated fetch; the SOC 2 Type II certification is independently confirmed on a static docs page, while the HIPAA and GDPR claims rest on LangChain's own docs and Trust Center.",
+        shortValue: 'SOC 2 Type II, HIPAA, GDPR; no ISO/PCI/FedRAMP',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/regions-faq',
             label: 'Regions FAQ - Docs by LangChain (confirms SOC 2 Type 2)',
             asOf: '2026-07-08',
+          },
+          {
+            url: 'https://trust.langchain.com/',
+            label: 'LangChain Trust Center',
+            asOf: '2026-07-02',
           },
         ],
       },
@@ -834,25 +839,6 @@ export const langchainProfile: CompetitorProfile = {
         shortValue: 'Not publicly documented as a distinct admin-activity audit log',
         confidence: 'unknown',
         sources: [],
-      },
-      additionalCompliance: {
-        value: 'HIPAA and GDPR, in addition to SOC 2 Type II',
-        detail:
-          "LangChain's own docs and Trust Center state LangSmith is SOC 2 Type II, HIPAA compliant, and GDPR compliant; no ISO 27001, PCI-DSS, or FedRAMP attestation was found on LangChain's own compliance materials.",
-        shortValue: 'HIPAA and GDPR compliant, alongside SOC 2 Type II',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.langchain.com/langsmith/regions-faq',
-            label: 'Regions FAQ - Docs by LangChain',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://trust.langchain.com/',
-            label: 'LangChain Trust Center',
-            asOf: '2026-07-02',
-          },
-        ],
       },
       modelAndToolGovernance: {
         value:
@@ -930,6 +916,21 @@ export const langchainProfile: CompetitorProfile = {
             url: 'https://docs.langchain.com/langsmith/user-management',
             label: 'User management - Docs by LangChain',
             asOf: '2026-07-08',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: LangSmith supports SCIM 2.0 directory provisioning on the Enterprise plan, automatically provisioning and de-provisioning users across the LangSmith organization and its workspaces and keeping user status, group membership, and organization/workspace role assignments in sync with the identity provider. Microsoft Entra ID (Azure) and Okta are the documented providers, and other identity providers "have not been tested but may function depending on their SCIM implementation". The IdP must support SCIM 2.0, only Organization Admins can configure it, cloud customers must have SAML SSO configurable for the organization while self-hosted customers must enable OAuth with Client Secret authentication, and the docs instruct operators to disable just-in-time (JIT) provisioning first to prevent conflicts between automatic and manual user provisioning. Documented limits: the push from the IdP runs on roughly a one-hour cadence, group renaming is not supported via SCIM, and SCIM connections typically require HTTP/1.1 or later, so an HTTP/1.0 client may hit a 426 Upgrade Required error.',
+        detail:
+          'Role mapping is driven by an IdP group naming convention (<optional_prefix><org_role_name><separator><workspace_name><separator><workspace_role_name>), so an admin assigns specific organization roles and workspace roles to groups of users. A lighter Enterprise alternative, SSO Groups Sync, instead reads group membership from the SSO token at login time rather than requiring IdP group push.',
+        shortValue: 'Yes, SCIM 2.0 with group role mapping, Enterprise plan',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.langchain.com/langsmith/user-management',
+            label: 'User management - Docs by LangChain (SCIM setup and limits)',
+            asOf: '2026-09-15',
           },
         ],
       },

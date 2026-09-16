@@ -749,17 +749,22 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes (company-wide, not Cowork-specific)',
-        detail:
-          'Anthropic holds SOC 2 Type I and Type II; the detailed report is available under NDA via the Anthropic Trust Portal. There is no Cowork-specific SOC 2 scoping statement.',
-        shortValue: 'Company-wide, not Cowork-specific',
+      compliance: {
+        value:
+          'Yes, but company-wide rather than Cowork-specific: Anthropic holds SOC 2 Type I and Type II, ISO 27001:2022, and ISO/IEC 42001:2023, and is HIPAA-ready with a BAA available through sales-assisted Enterprise. The detailed SOC 2 report is available under NDA via the Anthropic Trust Portal, and there is no Cowork-specific SOC 2 scoping statement.',
+        detail: 'Company-wide Anthropic certifications, not Cowork-scoped.',
+        shortValue: 'Company-wide SOC 2, ISO 27001/42001, HIPAA-ready',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://trust.anthropic.com/',
             label: 'Anthropic Trust Center',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://support.claude.com/en/articles/10015870-what-certifications-has-anthropic-obtained',
+            label: 'What Certifications has Anthropic obtained?',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -804,20 +809,6 @@ export const claudeCoworkProfile: CompetitorProfile = {
             url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
             label: 'Use Claude Cowork safely',
             asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'ISO 27001:2022, ISO/IEC 42001:2023, HIPAA-ready (BAA via sales-assisted Enterprise)',
-        detail: 'Company-wide Anthropic certifications, not Cowork-scoped.',
-        shortValue: 'ISO 27001, ISO 42001, HIPAA-ready',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://support.claude.com/en/articles/10015870-what-certifications-has-anthropic-obtained',
-            label: 'What Certifications has Anthropic obtained?',
-            asOf: '2026-07-08',
           },
         ],
       },
@@ -908,10 +899,10 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: Claude Enterprise supports SAML 2.0 single sign-on with identity providers like Okta, Entra ID, Google, OneLogin, JumpCloud, and Duo, plus domain capture (claims your email domain so all logins route through SSO) and automated JIT/SCIM user provisioning and de-provisioning tied to the IdP.',
+          'Yes: Claude Enterprise supports SAML 2.0 single sign-on with identity providers like Okta, Entra ID, Google, OneLogin, JumpCloud, and Duo, plus domain capture (claims your email domain so all logins route through SSO).',
         detail:
           "This is an Enterprise-plan feature covering claude.ai, Claude Desktop, and Cowork logins collectively, not configured separately for Cowork. Anthropic's SSO documentation describes SAML integrations specifically; it does not document OIDC support.",
-        shortValue: 'Yes: SAML SSO + SCIM auto-provisioning',
+        shortValue: 'Yes: SAML 2.0 SSO with domain capture',
         confidence: 'verified',
         sources: [
           {
@@ -919,10 +910,25 @@ export const claudeCoworkProfile: CompetitorProfile = {
             label: 'Set up single sign-on (SSO)',
             asOf: '2026-07-02',
           },
+        ],
+      },
+      scim: {
+        value:
+          'Yes, at the Anthropic organization level rather than as a Cowork feature: SCIM directory sync is available only to Enterprise plan organizations and to Console organizations that have their own parent organization or are joined to an Enterprise parent, and is not available on Team plans or to Console organizations joined to a Team plan parent. Users assigned to the identity-provider app are automatically provisioned into every organization joined to the parent org, and users removed from the IdP app are automatically removed. Enabling group mappings controls which users are provisioned to which organizations and with which roles, so role and seat types propagate automatically from IdP group membership instead of being changed by hand. Supported identity providers include Okta, Microsoft Entra ID, Google Workspace, OneLogin, JumpCloud, and Ping Identity, with further providers reachable through WorkOS. Documented limits: each parent organization can be linked to only one identity provider, so every organization under it uses the same IdP, and the Primary Owner is exempt from SCIM reconciliation and cannot be assigned through group mappings, leaving ownership a manual transfer.',
+        detail:
+          'SCIM and JIT are the two provisioning modes, and either can be combined with group mappings; without them, roles and seat types are changed by hand. Provisioning is configured once for the Claude organization and covers claude.ai, Claude Desktop, and Cowork collectively rather than being set up separately for Cowork.',
+        shortValue: 'Yes: SCIM directory sync on Enterprise plans',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://support.claude.com/en/articles/13133195-set-up-jit-or-scim-provisioning',
+            label: 'Set up JIT or SCIM provisioning',
+            asOf: '2026-09-15',
+          },
           {
             url: 'https://support.claude.com/en/articles/10276682-important-considerations-before-enabling-single-sign-on-sso-and-jit-scim-provisioning',
             label: 'Important considerations before enabling SSO and JIT/SCIM provisioning',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

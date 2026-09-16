@@ -792,10 +792,12 @@ export const gumloopProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          'SOC 2 Type II attested; also HIPAA-compliant with BAAs available on eligible plans, and GDPR-aligned with EU-U.S. Data Privacy Framework (incl. UK Extension) certification',
-        shortValue: 'SOC 2 Type II, HIPAA, GDPR-aligned',
+          'SOC 2 Type II attested; HIPAA-compliant with Business Associate Agreements (BAAs) available on eligible plans; GDPR-aligned privacy program plus EU-U.S. Data Privacy Framework certification including the UK Extension; no ISO 27001, PCI DSS, or FedRAMP',
+        detail:
+          'Gumloop is SOC 2 Type II attested, is HIPAA compliant with Business Associate Agreements (BAAs) available on eligible plans, maintains a GDPR-aligned privacy program, and is certified under the EU-U.S. Data Privacy Framework including the UK Extension. It also has zero-data-retention (ZDR) agreements with major LLM providers, BYOK support, encryption in transit and at rest, and DPAs for Enterprise customers, but no ISO 27001, PCI DSS, or FedRAMP.',
+        shortValue: 'SOC 2 Type II, HIPAA, GDPR; no ISO/PCI/FedRAMP',
         confidence: 'verified',
         sources: [
           {
@@ -850,21 +852,6 @@ export const gumloopProfile: CompetitorProfile = {
           {
             url: 'https://www.gumloop.com/pricing',
             label: 'Gumloop Pricing (Enterprise features list)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'SOC 2 Type II, HIPAA (with BAAs), GDPR-aligned program plus EU-U.S. Data Privacy Framework (incl. UK Extension); no ISO 27001, PCI, or FedRAMP',
-        detail:
-          'Gumloop is SOC 2 Type II attested, is HIPAA compliant with Business Associate Agreements (BAAs) available on eligible plans, maintains a GDPR-aligned privacy program, and is certified under the EU-U.S. Data Privacy Framework including the UK Extension. It also has zero-data-retention (ZDR) agreements with major LLM providers, BYOK support, encryption in transit and at rest, and DPAs for Enterprise customers, but no ISO 27001, PCI DSS, or FedRAMP.',
-        shortValue: 'SOC 2, HIPAA, GDPR; no ISO/PCI/FedRAMP',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop: Security and trust',
             asOf: '2026-07-02',
           },
         ],
@@ -965,16 +952,31 @@ export const gumloopProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: Gumloop supports enterprise SSO via SAML 2.0 (Okta, Entra ID, Google Workspace, JumpCloud, Ping Identity, Active Directory) plus Google/Microsoft OAuth. An SCIM add-on for Okta and Microsoft Entra ID auto-provisions and deprovisions users, syncs custom roles and teams from IdP groups, and runs on a 15-minute sync cycle.',
+          'Yes: Gumloop supports enterprise SSO via SAML 2.0 (Okta, Entra ID, Google Workspace, JumpCloud, Ping Identity, Active Directory) plus Google/Microsoft OAuth.',
         detail:
           'Requires Admin role and an Enterprise subscription; enforces SP-initiated login only.',
-        shortValue: 'Yes: SAML SSO plus SCIM auto-provisioning',
+        shortValue: 'Yes: SAML 2.0 SSO plus Google/Microsoft OAuth',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.gumloop.com/enterprise-features/sso_saml_scim',
             label: 'SSO, SAML & SCIM - Gumloop docs',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: SCIM 2.0 provisioning is available as an add-on, supported for Okta and Microsoft Entra ID only, and enabled on request by contacting Gumloop support. Users assigned the application in the IdP are automatically provisioned, kept updated, and automatically deprovisioned when removed, which frees up seats. IdP groups can be mapped to Gumloop Custom Roles and, separately, to teams (projects), using either curated mapping tables or name-based auto-resolution, with a user receiving the union of all matched mappings. Sync runs automatically every 15 minutes and admins can also trigger an on-demand sync. Documented limit: SCIM can only add users to teams inside the synced organization.',
+        detail:
+          'SCIM is an add-on rather than a standard plan feature: Gumloop directs customers to contact support@gumloop.com to request enablement, and reaching the SSO/SCIM settings requires the Admin organization role and an Enterprise subscription.',
+        shortValue: 'Yes: add-on SCIM for Okta and Entra ID',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.gumloop.com/enterprise-features/sso_saml_scim',
+            label: 'SSO, SAML & SCIM - Gumloop docs',
+            asOf: '2026-09-15',
           },
         ],
       },

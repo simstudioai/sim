@@ -739,12 +739,13 @@ export const pipedreamProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II',
+      compliance: {
+        value:
+          'Yes: SOC 2 Type 2, with the report provided on request, plus HIPAA support (Pipedream acts as a Business Associate and signs BAAs, Enterprise) and GDPR handled through Standard Contractual Clauses. Sensitive data is encrypted at rest via AWS KMS, whose ISO 27001/27017/27018 coverage is inherited from the AWS infrastructure layer. No independent Pipedream-held ISO 27001, PCI, or FedRAMP certification appears on its trust page.',
         detail:
-          'Pipedream provides a SOC 2 Type 2 report on request, undergoes annual third-party audits, and uses continuous-compliance monitoring tooling. It also supports HIPAA, acting as a Business Associate and offering BAAs.',
-        shortValue: 'SOC 2 Type II, HIPAA BAA available',
-        confidence: 'verified',
+          "Pipedream's Privacy and Security page states it provides a SOC 2 Type 2 report on request, undergoes annual third-party audits, and uses continuous-compliance monitoring tooling. It acts as a Business Associate and signs Business Associate Addendums (BAAs) for HIPAA/PHI use cases (Enterprise), and uses Standard Contractual Clauses (SCCs) for GDPR-related data transfers. Sensitive data (OAuth grants, key-based credentials, env vars) is encrypted at rest with AES-256-GCM via AWS KMS, which itself holds SOC 1/2/3 and ISO 27001/27017/27018 certifications. That ISO/PCI/FedRAMP coverage is inherited from the AWS infrastructure layer, not a certification Pipedream independently holds on its own trust page. Some third-party review sites describe Pipedream itself as directly PCI, FedRAMP, and CSA STAR compliant, but Pipedream's own security documentation does not corroborate this.",
+        shortValue: 'SOC 2, HIPAA BAA, GDPR SCCs; ISO via AWS',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
@@ -754,6 +755,11 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://pipedream.com/docs/privacy-and-security/hipaa',
             label: 'Pipedream Docs: HIPAA Compliance',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://pipedream.com/blog/hippa/',
+            label: 'Pipedream Blog – Pipedream supports HIPAA compliance',
             asOf: '2026-07-02',
           },
         ],
@@ -797,26 +803,6 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://pipedream.com/docs/privacy-and-security',
             label: 'Pipedream Docs: Privacy and Security',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'SOC 2 Type 2, HIPAA (via BAA, Enterprise), GDPR (SCCs), and AWS KMS infra with ISO 27001/27017/27018. No independent Pipedream-held ISO 27001/PCI/FedRAMP certification on the trust page',
-        detail:
-          "Pipedream's Privacy and Security page states it provides a SOC 2 Type 2 report on request, signs Business Associate Addendums (BAAs) for HIPAA/PHI use cases (Enterprise), and uses Standard Contractual Clauses (SCCs) for GDPR-related data transfers. Sensitive data (OAuth grants, key-based credentials, env vars) is encrypted at rest with AES-256-GCM via AWS KMS, which itself holds SOC 1/2/3 and ISO 27001/27017/27018 certifications. That ISO/PCI/FedRAMP coverage is inherited from the AWS infrastructure layer, not a certification Pipedream independently holds on its own trust page. Some third-party review sites describe Pipedream itself as directly PCI, FedRAMP, and CSA STAR compliant, but Pipedream's own security documentation does not corroborate this.",
-        shortValue: 'SOC 2, HIPAA BAA, GDPR SCCs; ISO via AWS only',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/privacy-and-security',
-            label: 'Pipedream Docs – Privacy and Security',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/blog/hippa/',
-            label: 'Pipedream Blog – Pipedream supports HIPAA compliance',
             asOf: '2026-07-02',
           },
         ],
@@ -902,6 +888,21 @@ export const pipedreamProfile: CompetitorProfile = {
             url: 'https://pipedream.com/docs/workspaces/sso',
             label: 'Single Sign On Overview',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: Pipedream supports provisioning user accounts from an identity provider via SCIM, available to any workspace on the Business plan and configured alongside Single Sign-On. The documentation confirms SCIM user-account provisioning and the Business-plan requirement, but does not enumerate which operations are covered (create, update, deactivate), which identity providers work with SCIM specifically, whether group or role mapping is supported, or any documented limits.',
+        detail:
+          'SCIM is documented as part of workspace SSO configuration; Pipedream lists Google, Okta, and any SAML-compliant provider as supported SSO identity providers, and the SCIM implementation details are not published.',
+        shortValue: 'Yes: SCIM user provisioning on Business plan',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://pipedream.com/docs/workspaces',
+            label: 'Managing workspaces - Pipedream Docs',
+            asOf: '2026-09-15',
           },
         ],
       },

@@ -784,14 +784,20 @@ export const tinesProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II, audited annually',
-        shortValue: 'SOC 2 Type II, audited annually',
+      compliance: {
+        value:
+          'Yes: SOC 2 Type II, audited annually, plus ISO 27001, ISO 27701, and ISO 42001 (AI management systems), announced April 14, 2026 as the "ISO trifecta." No HIPAA, PCI, or FedRAMP certification; Tines says self-hosting can help meet regimes like FedRAMP, not that it holds FedRAMP certification',
+        shortValue: 'SOC 2 Type II, ISO 27001/27701/42001; no HIPAA',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.tines.com/security/',
             label: 'Security at Tines',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.tines.com/blog/tines-achieves-the-iso-trifecta-iso-27001-iso-27701-and-iso-42001-certification/',
+            label: 'Tines achieves the ISO trifecta (27001, 27701, 42001)',
             asOf: '2026-07-02',
           },
         ],
@@ -836,24 +842,6 @@ export const tinesProfile: CompetitorProfile = {
           {
             url: 'https://www.tines.com/docs/admin/audit-logs/',
             label: 'Audit logs docs',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'ISO 27001, ISO 27701, and ISO 42001 (AI management systems), announced April 14, 2026 as the "ISO trifecta." No HIPAA, PCI, or FedRAMP certification; Tines says self-hosting can help meet regimes like FedRAMP, not that it holds FedRAMP certification',
-        shortValue: 'ISO 27001, 27701, and 42001 certified',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.tines.com/blog/tines-achieves-the-iso-trifecta-iso-27001-iso-27701-and-iso-42001-certification/',
-            label: 'Tines achieves the ISO trifecta (27001, 27701, 42001)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.tines.com/security/',
-            label: 'Security at Tines',
             asOf: '2026-07-02',
           },
         ],
@@ -939,6 +927,19 @@ export const tinesProfile: CompetitorProfile = {
             url: 'https://saml-doc.okta.com/SAML_Docs/How-to-Configure-SAML-2.0-for-Tines.html',
             label: 'How to Configure SAML 2.0 for Tines - Okta',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: Tines exposes SCIM v2-compliant endpoints for provisioning users and groups, pushing profile updates, adding and removing users from groups, and deprovisioning users, with the tenant owner role assignable through the SCIM userType field and identity-provider group to Tines permissions mapping that grants teams, roles, and permissions by configured rules. SCIM is turned on or off per tenant under Authentication settings, and Tines states that SCIM support is not available in all plans and that customers should contact their Tines point of contact or Tines support to learn more about enabling it. Enabling it is exclusive: SCIM is not compatible with just-in-time user provisioning, and once it is on, users can only be added and modified via SCIM because the regular methods of inviting and modifying users through the UI or the API are disabled. Deprovisioned users are marked inactive rather than removed, so a tenant owner may still have to delete them manually.',
+        shortValue: 'Yes: SCIM v2 with group and role mapping',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://www.tines.com/docs/admin/user-administration/scim/',
+            label: 'SCIM | Docs | Tines',
+            asOf: '2026-09-15',
           },
         ],
       },

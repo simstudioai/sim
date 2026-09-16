@@ -833,15 +833,18 @@ export const simProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC2 compliant',
-        shortValue: 'SOC2 compliant',
+      compliance: {
+        value:
+          'Yes: SOC 2 Type II, ISO 27001:2022, and GDPR are listed on the Sim Trust Center, which also publishes the control set and the subprocessor list. HIPAA, PCI DSS, and FedRAMP are not listed there',
+        detail:
+          'Self-hosting, rather than additional certifications, is the primary lever Sim offers for data-residency-sensitive compliance needs.',
+        shortValue: 'SOC 2 Type II, ISO 27001, GDPR',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://sim.ai',
-            label: 'Sim Landing Page',
-            asOf: '2026-07-02',
+            url: 'https://trust.sim.ai',
+            label: 'Sim Trust Center',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://sim.ai/enterprise',
@@ -908,20 +911,6 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://docs.sim.ai/platform/enterprise/data-drains',
             label: 'Sim Docs: Data Drains',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value: 'SOC2',
-        detail:
-          'Self-hosting is the primary lever Sim offers for data-residency-sensitive compliance needs beyond SOC2, rather than additional certifications.',
-        shortValue: 'SOC2',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://sim.ai/enterprise',
-            label: 'Sim Enterprise Page',
             asOf: '2026-07-02',
           },
         ],
@@ -1008,8 +997,8 @@ export const simProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain, plus SCIM 2.0 directory provisioning for Okta, Microsoft Entra ID, OneLogin, and JumpCloud that creates, updates, deactivates, and removes members and maps pushed groups to permission groups, workspace access, and the organization admin role',
-        shortValue: 'SAML 2.0 and OIDC SSO with SCIM 2.0 provisioning',
+          'Yes: SAML 2.0 and OIDC single sign-on, with users routed to SSO by their email domain',
+        shortValue: 'SAML 2.0 and OIDC SSO',
         confidence: 'verified',
         sources: [
           {
@@ -1017,10 +1006,25 @@ export const simProfile: CompetitorProfile = {
             label: 'Sim Docs: Single Sign-On (SSO)',
             asOf: '2026-07-02',
           },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: SCIM 2.0 directory provisioning on Enterprise plans, configured under Single sign-on then Provisioning, with documented setup for Okta, Microsoft Entra ID, OneLogin, and JumpCloud. The identity provider creates members when someone joins, updates them when their details change, and deactivates them on a deactivation request, and pushed groups map to permission groups, workspace access, and the organization admin role',
+        detail:
+          'Each user email domain must be verified in Sim first, and a self-hosted deployment has to be reachable by the identity provider over HTTPS. Deactivation suspends access while retaining organization membership, ownership, and the seat rather than deleting the user.',
+        shortValue: 'SCIM 2.0 on Enterprise',
+        confidence: 'verified',
+        sources: [
           {
             url: 'https://docs.sim.ai/platform/enterprise/scim',
             label: 'Sim Docs: Directory provisioning (SCIM)',
-            asOf: '2026-09-07',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.sim.ai/platform/enterprise/scim/okta',
+            label: 'Sim Docs: Okta provisioning',
+            asOf: '2026-09-15',
           },
         ],
       },

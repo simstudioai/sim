@@ -849,16 +849,27 @@ export const makeProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II and SOC 3 completed; ISO 27001 certified; GDPR compliant',
+      compliance: {
+        value:
+          "Yes: SOC 2 Type II and SOC 3 completed, ISO 27001 certified, and GDPR compliant; no HIPAA, PCI, or FedRAMP mentioned. Make's Security page lists a completed SOC 2 Type II audit, a publicly available SOC 3 report, ISO 27001 certification for the platform, and GDPR compliance. HIPAA is not mentioned on that page and is not offered.",
         detail:
-          "Make's Security page lists completed SOC 2 Type II audit, a publicly available SOC 3 report, ISO 27001 certification for the platform, and GDPR compliance. HIPAA is not mentioned on this page.",
-        shortValue: 'SOC 2 Type II, SOC 3, ISO 27001, GDPR',
+          "Make's Security page states the company operates an ISO 27001-certified information security program and runs infrastructure compliant with SOC 3 and SOC 2 Type II audits, alongside GDPR adherence (Make also has a dedicated GDPR page). HIPAA compliance is not mentioned or offered, and no PCI or FedRAMP coverage is mentioned.",
+        shortValue: 'SOC 2, SOC 3, ISO 27001, GDPR; no HIPAA',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.make.com/en/security',
             label: 'Make Security page',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.make.com/en/privacy-and-gdpr',
+            label: 'Make.com GDPR | General Data Protection Regulation | Make',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://community.make.com/t/information-security-compliance-soc2-iso27001-hipaa-etc/8052',
+            label: 'Information Security Compliance (SOC2, ISO27001, HIPAA, etc.) - Make Community',
             asOf: '2026-07-02',
           },
         ],
@@ -914,31 +925,6 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/security',
             label: 'Make Security page',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'SOC 2 Type II, SOC 3, and ISO 27001 certified, plus GDPR adherence; no HIPAA, PCI, or FedRAMP mentioned',
-        detail:
-          "Make's Security page states the company operates an ISO 27001-certified information security program and runs infrastructure compliant with SOC 3 and SOC 2 Type II audits, alongside GDPR adherence (Make also has a dedicated GDPR page). HIPAA compliance is not mentioned or offered.",
-        shortValue: 'No HIPAA, PCI, or FedRAMP',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.make.com/en/security',
-            label: 'Automation Security & Compliance | Make',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.make.com/en/privacy-and-gdpr',
-            label: 'Make.com GDPR | General Data Protection Regulation | Make',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://community.make.com/t/information-security-compliance-soc2-iso27001-hipaa-etc/8052',
-            label: 'Information Security Compliance (SOC2, ISO27001, HIPAA, etc.) - Make Community',
             asOf: '2026-07-02',
           },
         ],
@@ -1039,6 +1025,15 @@ export const makeProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
         ],
+      },
+      scim: {
+        value:
+          "Not publicly documented: no Make documentation confirming SCIM 2.0 directory provisioning was found. Make's published single sign-on, pricing, Enterprise, and White Label login material describes SAML 2.0 and OIDC SSO, domain claim, two-factor enforcement, and custom organization/team roles, and lets an admin choose which teams new SSO users join, but does not mention SCIM. Whether Make offers SCIM provisioning under an Enterprise or White Label agreement could not be confirmed either way.",
+        detail:
+          'Make does document SSO-driven provisioning - White Label end-users automatically receive their own organization on first sign-in, and admins pick which teams new SSO users join - but that is authentication-time provisioning, not identity-provider-driven create/update/deactivate.',
+        shortValue: 'Not publicly documented; could not confirm',
+        confidence: 'unknown',
+        sources: [],
       },
       sessionPolicy: {
         value:

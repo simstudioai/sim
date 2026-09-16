@@ -760,11 +760,12 @@ export const vellumProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type 2',
+      compliance: {
+        value:
+          'SOC 2 Type 2 attested and HIPAA compliant, with a Business Associate Agreement (BAA) available for enterprise customers; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
         detail:
-          'Documented at docs.vellum.ai and corroborated by a third-party Drata customer case study noting Vellum achieved SOC 2 Type 1 and Type 2 attestations.',
-        shortValue: 'SOC 2 Type 2 attested',
+          'SOC 2 Type 2 is documented at docs.vellum.ai and corroborated by a third-party Drata customer case study noting Vellum achieved SOC 2 Type 1 and Type 2 attestations. Those same docs and case study state Vellum is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). No mention of ISO 27001, PCI, or FedRAMP certification was found.',
+        shortValue: 'SOC 2 Type 2 and HIPAA; no other certs',
         confidence: 'verified',
         sources: [
           {
@@ -817,26 +818,6 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://www.vellum.ai/docs/trust-security/the-permissions-model',
             label: 'Vellum Docs: The Permissions Model',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'HIPAA compliant, with a BAA available for enterprise customers; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
-        detail:
-          "Vellum's docs and a third-party Drata case study state it is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). No mention of ISO 27001, PCI, or FedRAMP certification was found.",
-        shortValue: 'HIPAA + BAA; no other certs confirmed',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
-            label: 'Vellum Docs: Data Privacy and Storage',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://drata.com/customers/vellum',
-            label: 'Vellum Case Study: Drata',
             asOf: '2026-07-02',
           },
         ],
@@ -902,6 +883,13 @@ export const vellumProfile: CompetitorProfile = {
         detail:
           "Vellum's security/data-privacy documentation does not mention SSO/SAML, and a search of docs.vellum.ai for SSO/SAML configuration returns no dedicated setup page.",
         shortValue: 'Claimed by third parties, undocumented directly',
+        confidence: 'unknown',
+        sources: [],
+      },
+      scim: {
+        value:
+          'Not publicly documented: no first-party Vellum documentation reviewed confirms SCIM 2.0 directory provisioning. The Manage Organization Access page describes members joining only by manual invitation or by a pre-approved email-domain automatic-join policy, and the RBAC page covers workspace roles (Admin/Member) with no identity-provider sync, group-to-role mapping, or automated create/update/deactivate flow; the enterprise marketing page reviewed names no SCIM either. This mirrors the uncertainty already recorded for SSO, which third-party summaries claim but Vellum itself does not document, so SCIM may be offered to enterprise customers without being published.',
+        shortValue: 'Not publicly documented; could not confirm',
         confidence: 'unknown',
         sources: [],
       },

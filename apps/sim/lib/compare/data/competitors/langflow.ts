@@ -689,12 +689,12 @@ export const langflowProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          "Unknown: no public documentation or official page states a SOC 2 certification for Langflow. The docs' Security page discusses infrastructure-level responsibility for operators, not a compliance certification.",
+          "Unknown: no public documentation or official page states a SOC 2 certification for Langflow, and none confirms HIPAA, ISO 27001, a GDPR-specific attestation, PCI, or FedRAMP either. The docs' Security page discusses infrastructure-level responsibility for operators, not a compliance certification.",
         detail:
           'Security docs place isolation and compliance burden on the deploying organization.',
-        shortValue: 'Unknown, no SOC2 certification documented',
+        shortValue: 'Unknown, no compliance certifications documented',
         confidence: 'unknown',
         sources: [],
       },
@@ -736,13 +736,6 @@ export const langflowProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
         ],
-      },
-      additionalCompliance: {
-        value:
-          'Unknown: no public documentation or official page confirms HIPAA, ISO 27001, GDPR-specific attestation, PCI, or FedRAMP certification for Langflow.',
-        shortValue: 'Unknown, no compliance certifications documented',
-        confidence: 'unknown',
-        sources: [],
       },
       modelAndToolGovernance: {
         value:
@@ -806,6 +799,15 @@ export const langflowProfile: CompetitorProfile = {
           'Unknown: no official Langflow documentation confirms SAML or OIDC single sign-on with organization auto-provisioning. Authentication docs cover API-key-based authentication, and third-party summaries mention SSO as a roadmap item, not a shipped, documented feature.',
         detail: 'Some community sources describe SSO as planned rather than confirmed shipped.',
         shortValue: 'Unknown, not confirmed as a documented shipped feature',
+        confidence: 'unknown',
+        sources: [],
+      },
+      scim: {
+        value:
+          'Not publicly documented: no Langflow documentation page describes SCIM 2.0 directory provisioning, or any identity-provider-driven creation, update, or deactivation of members with group or role mapping. What Langflow does document is built-in username/password sign-in with short-lived JWTs and API keys validated against its own database, plus an external-authentication mode where a proxy forwards an identity-provider token that Langflow validates against the provider JWKS endpoint and then provisions a local user automatically, which is just-in-time sign-in provisioning rather than directory-driven lifecycle management. Not finding a SCIM page is not itself confirmation that the capability does not exist.',
+        detail:
+          'Role-based access control is an optional plugin applied after authentication, so even where roles exist they are assigned inside Langflow rather than pushed from a directory.',
+        shortValue: 'Not publicly documented; no SCIM provisioning described',
         confidence: 'unknown',
         sources: [],
       },

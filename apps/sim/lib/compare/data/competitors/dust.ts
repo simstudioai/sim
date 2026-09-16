@@ -810,12 +810,13 @@ export const dustProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II certified, achieved audit readiness with Vanta in three weeks',
+      compliance: {
+        value:
+          "SOC 2 Type II certified, with audit readiness achieved with Vanta in three weeks and the report downloadable through Dust's Trust Center; also GDPR compliant and HIPAA-capable; no ISO 27001, PCI, or FedRAMP",
         detail:
-          "Dust's own security page states SOC 2 Type II certification; a Vanta customer case study describes Dust achieving SOC 2 Type II audit readiness in three weeks using Vanta's automation, reducing compliance workload by roughly 50%. The report is downloadable via Dust's Trust Center.",
-        shortValue: 'SOC 2 Type II certified, report via Trust Center',
-        confidence: 'verified',
+          "Dust's own security page states SOC 2 Type II certification; a Vanta customer case study describes Dust achieving SOC 2 Type II audit readiness in three weeks using Vanta's automation, reducing compliance workload by roughly 50%. The report is downloadable via Dust's Trust Center. Dust's security page and enterprise materials additionally state GDPR compliance and HIPAA-compliance capability alongside SOC 2 Type II. No source confirms ISO 27001, PCI-DSS, or FedRAMP.",
+        shortValue: 'SOC 2 Type II, GDPR, HIPAA-capable; no ISO/PCI',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://www.vanta.com/customers/dust',
@@ -825,6 +826,11 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://trust.dust.com/',
             label: 'Dust Trust Center',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://dust.tt/home/security',
+            label: 'Dust Security',
             asOf: '2026-07-02',
           },
         ],
@@ -870,20 +876,6 @@ export const dustProfile: CompetitorProfile = {
             url: 'https://docs.dust.tt/docs/audit-logs',
             label: 'Audit Logs | Dust Docs',
             asOf: '2026-07-04',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value: 'GDPR compliant, HIPAA-capable, SOC 2 Type II; no ISO 27001, PCI, or FedRAMP',
-        detail:
-          "Dust's security page and enterprise materials state GDPR compliance and HIPAA-compliance capability alongside SOC 2 Type II. No source confirms ISO 27001, PCI-DSS, or FedRAMP.",
-        shortValue: 'GDPR, HIPAA-capable, SOC 2 Type II',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://dust.tt/home/security',
-            label: 'Dust Security',
-            asOf: '2026-07-02',
           },
         ],
       },
@@ -941,17 +933,34 @@ export const dustProfile: CompetitorProfile = {
         sources: [],
       },
       sso: {
-        value:
-          'Yes: SSO (e.g. Okta, Entra, JumpCloud) and SCIM user provisioning on the Enterprise plan',
+        value: 'Yes: SSO (SAML, OIDC) on the Enterprise plan, e.g. Okta, Entra, JumpCloud',
         detail:
-          'Enterprise plan materials name SSO and SCIM explicitly, and a third-party enterprise summary lists Okta/Entra/JumpCloud as example supported identity providers.',
-        shortValue: 'SSO and SCIM provisioning, Enterprise plan',
+          'Enterprise plan materials name SSO (SAML, OIDC) explicitly, and a third-party enterprise summary lists Okta/Entra/JumpCloud as example supported identity providers.',
+        shortValue: 'SAML/OIDC SSO on the Enterprise plan',
         confidence: 'verified',
         sources: [
           {
             url: 'https://dust.tt/home/enterprise',
             label: 'Dust for Enterprise',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          "Yes: SCIM 2.0 user and group provisioning, documented as an enterprise feature requiring admin access. Dust states that users are created, updated, and deactivated in Dust automatically from the identity provider; an admin selects their IdP from a list during setup, with Okta given as the worked example and per-IdP documentation recommended because the steps differ by provider. Groups are provisioned alongside users and mapped to Dust roles in settings, replacing an earlier scheme that relied on groups named exactly dust-admins and dust-managers; a user always keeps the highest role granted across their groups (admin outranks manager). Provisioning the relevant groups is also what enables department-segmented analytics. Dust publishes no fixed list of supported identity providers, and manual group management remains available alongside SCIM-provisioned groups. Dust's own Enterprise page separately lists SCIM alongside SSO and role-based permissions as enterprise-readiness features.",
+        shortValue: 'Yes: SCIM user and group provisioning, enterprise',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/users-and-groups-provisioning',
+            label: 'Users and groups provisioning | Dust Docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://dust.tt/home/enterprise',
+            label: 'Dust for Enterprise',
+            asOf: '2026-09-15',
           },
         ],
       },

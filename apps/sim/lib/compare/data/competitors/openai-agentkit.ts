@@ -863,11 +863,12 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type 2, plus ISO 27001, 27017, 27018, and 27701 certifications',
+      compliance: {
+        value:
+          'Yes: SOC 2 Type 2, FedRAMP Moderate Authorization (ChatGPT Enterprise and API Platform), PCI DSS v4.0.1, ISO/IEC 27001:2022, ISO 27017, ISO 27018, and ISO/IEC 27701:2019; supports customer HIPAA compliance via BAA and GDPR/CCPA via DPA; FERPA covered via a separate Student Data Privacy Agreement for ChatGPT Edu',
         detail:
-          "OpenAI's most recent SOC 2 report covers January 1, 2025 through June 30, 2025 for Security, Availability, Confidentiality, and Privacy Trust Services Criteria across the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team.",
-        shortValue: 'SOC 2 Type 2 plus ISO 27001/27017/27018/27701',
+          "OpenAI's most recent SOC 2 report covers January 1, 2025 through June 30, 2025 for Security, Availability, Confidentiality, and Privacy Trust Services Criteria across the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team. ChatGPT Enterprise and the API Platform hold FedRAMP Moderate (Class C) authorization per the FedRAMP Marketplace listing. OpenAI's trust portal lists PCI DSS v4.0.1 for payment-processing components, plus ISO/IEC 27001:2022, 27017:2015, 27018:2019, and 27701:2019 certifications, and lists GDPR and CCPA. OpenAI offers a Data Processing Addendum for GDPR/CCPA and a Business Associate Agreement for HIPAA-regulated customers on ChatGPT Enterprise/Edu and the API (not standard ChatGPT Business); this is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. FERPA compliance for ChatGPT Edu/for Teachers runs through a separate Student Data Privacy Agreement rather than the general DPA.",
+        shortValue: 'SOC 2 Type 2, FedRAMP Moderate, ISO 27001, HIPAA BAA',
         confidence: 'estimated',
         sources: [
           {
@@ -879,6 +880,17 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             url: 'https://openai.com/security-and-privacy/',
             label: 'Security and privacy at OpenAI',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.fedramp.gov/marketplace/products/FR2533155773/',
+            label: 'ChatGPT Enterprise and API Platform | FedRAMP Marketplace',
+            asOf: '2026-07-08',
+          },
+          {
+            url: 'https://help.openai.com/en/articles/8660679-how-can-i-get-a-business-associate-agreement-baa-with-openai',
+            label:
+              'How can I get a Business Associate Agreement (BAA) with OpenAI? | OpenAI Help Center',
+            asOf: '2026-07-08',
           },
         ],
       },
@@ -934,28 +946,6 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             url: 'https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform',
             label: 'Admin and Audit Logs API for the API Platform | OpenAI Help Center',
             asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'FedRAMP Moderate Authorization (ChatGPT Enterprise and API Platform), PCI DSS v4.0.1, SOC 2 Type 2, ISO/IEC 27001:2022, ISO/IEC 27701:2019; supports customer HIPAA compliance via BAA and GDPR/CCPA via DPA; FERPA covered via a separate Student Data Privacy Agreement for ChatGPT Edu',
-        detail:
-          "OpenAI's ChatGPT Enterprise and API Platform hold FedRAMP Moderate (Class C) authorization per the FedRAMP Marketplace listing. OpenAI's trust portal lists PCI DSS v4.0.1 for payment-processing components, a SOC 2 Type 2 examination (Security, Availability, Confidentiality, Privacy criteria) covering the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team, plus ISO/IEC 27001:2022, 27017:2015, 27018:2019, and 27701:2019 certifications, and lists GDPR and CCPA. OpenAI offers a Data Processing Addendum for GDPR/CCPA and a Business Associate Agreement for HIPAA-regulated customers on ChatGPT Enterprise/Edu and the API (not standard ChatGPT Business); this is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. FERPA compliance for ChatGPT Edu/for Teachers runs through a separate Student Data Privacy Agreement rather than the general DPA.",
-        shortValue: 'FedRAMP Moderate, PCI DSS, SOC 2, ISO 27001/27701, HIPAA BAA',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://www.fedramp.gov/marketplace/products/FR2533155773/',
-            label: 'ChatGPT Enterprise and API Platform | FedRAMP Marketplace',
-            asOf: '2026-07-08',
-          },
-          { url: 'https://trust.openai.com/', label: 'OpenAI Trust Portal', asOf: '2026-07-08' },
-          {
-            url: 'https://help.openai.com/en/articles/8660679-how-can-i-get-a-business-associate-agreement-baa-with-openai',
-            label:
-              'How can I get a Business Associate Agreement (BAA) with OpenAI? | OpenAI Help Center',
-            asOf: '2026-07-08',
           },
         ],
       },
@@ -1046,15 +1036,35 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: OpenAI supports SAML-based SSO for ChatGPT Enterprise/Edu/Business and the API Platform, with organization auto-provisioning available either via Automatic Account Creation (email-domain matched invitations) or SCIM-based Directory Sync that invites users based on Identity Provider group membership.',
+          'Yes: OpenAI supports SAML-based single sign-on for ChatGPT Enterprise, Edu, and Business workspaces and for the API Platform, so members authenticate against the customer identity provider rather than an OpenAI-held password.',
         detail: 'Requires prior verification of at least one domain to enable SSO.',
-        shortValue: 'Yes, SAML SSO with SCIM auto-provisioning',
+        shortValue: 'Yes, SAML SSO after domain verification',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.openai.com/en/articles/9534785-configuring-sso',
             label: 'Configuring SSO | OpenAI Help Center',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes, at the OpenAI workspace identity layer rather than as an AgentKit or Agent Builder feature: SCIM directory sync provisions workspace membership and group assignments from the customer identity provider, and synchronized identity groups keep access current as employees join the organization, change roles, or leave, with the identity provider acting as the membership source so later provisioning updates can overwrite membership changed on the workspace side. It is gated to eligible ChatGPT Enterprise and Edu workspaces; SCIM and synchronized identity groups are not included with ChatGPT Business. Workspaces that do not use SCIM can instead auto-provision via Automatic Account Creation (email-domain matched invitations), and SCIM-based Directory Sync invites users based on Identity Provider group membership. Provisioning is configured once for the OpenAI workspace and inherited by every agent built inside it; OpenAI does not state on these pages whether an API-Platform-only organization can use the same directory sync, and publishes no AgentKit-specific provisioning control.',
+        detail:
+          "OpenAI frames SCIM as the provisioning half of workspace identity management, alongside SSO, domain verification, user lifecycle management, and identity-group synchronization: SSO governs how people authenticate, SCIM governs who exists in the workspace and with which group assignments. OpenAI's public learning docs defer to the Help Center for current SCIM behavior, supported attributes, and setup steps.",
+        shortValue: 'Yes, SCIM directory sync on Enterprise/Edu workspaces',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.chatgpt.com/docs/enterprise/groups-and-provisioning',
+            label: 'Groups and provisioning | ChatGPT Learn',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://learn.chatgpt.com/docs/enterprise/work-admin-faq',
+            label: 'ChatGPT Work admin FAQ | ChatGPT Learn',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.openai.com/en/articles/9672121-getting-started-with-identity-and-provisioning-in-chatgpt-enterprise-edu-and-chatgpt-for-teachers',

@@ -904,12 +904,12 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          'Yes: Copilot Studio (listed by its former name, "Copilot Studios") is one of the Microsoft online services explicitly in scope of the Office 365 SOC 2 Type 2 attestation report, with audit reports available from the Microsoft Service Trust Portal',
+          'Yes: Copilot Studio (listed by its former name, "Copilot Studios") is one of the Microsoft online services explicitly in scope of the Office 365 SOC 2 Type 2 attestation report, and is separately certified under HIPAA (Business Associate Agreement), HITRUST CSF, FedRAMP, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, with an audit report for each available from the Microsoft Service Trust Portal',
         detail:
-          'Copilot Studio\'s own admin-certification page confirms SOC compliance without naming the specific report type, but Microsoft\'s dedicated SOC 2 Type 2 compliance offering page lists "Copilot Studios" by name among the in-scope Office 365 services, resolving which SOC report type applies.',
-        shortValue: 'Yes, named in scope of the SOC 2 Type 2 attestation report',
+          'Copilot Studio\'s own admin-certification page confirms SOC compliance without naming the specific report type, but Microsoft\'s dedicated SOC 2 Type 2 compliance offering page lists "Copilot Studios" by name among the in-scope Office 365 services, resolving which SOC report type applies. The wider certification list is the full set published on that admin-certification page, where each certification links to a corresponding audit report or certificate.',
+        shortValue: 'SOC 2 Type 2, HIPAA, FedRAMP, ISO, PCI DSS',
         confidence: 'verified',
         sources: [
           {
@@ -970,22 +970,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-logging-copilot-studio',
             label:
               'View audit logs for admins, makers, and users of Copilot Studio - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'HIPAA (Business Associate Agreement), HITRUST CSF, FedRAMP, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, each with an audit report on the Microsoft Service Trust Portal',
-        detail:
-          "This is the full list from Copilot Studio's admin-certification documentation. Each certification links to a corresponding audit report or certificate.",
-        shortValue: 'HIPAA, HITRUST, FedRAMP, multiple ISO standards, PCI DSS, CSA STAR, and more',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/admin-certification',
-            label:
-              'Review ISO, SOC, and HIPAA compliance - Microsoft Copilot Studio | Microsoft Learn',
             asOf: '2026-07-02',
           },
         ],
@@ -1083,17 +1067,38 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: Copilot Studio and the wider Power Platform are built on Microsoft Entra ID, which natively supports SAML/OIDC single sign-on plus automatic user/app provisioning (SAML just-in-time and SCIM-based), so signing in via Entra ID grants org-level access without manual per-user account setup',
+          'Yes: Copilot Studio and the wider Power Platform are built on Microsoft Entra ID, whose federation-based single sign-on covers SAML 2.0 and OpenID Connect, so a member signs in once with their work credentials and Entra ID confirms their identity to the service instead of the product keeping its own username/password database',
         detail:
-          "SSO and provisioning are inherited from the Microsoft 365/Entra ID tenant rather than a Copilot Studio-specific setting, consistent with the rest of Microsoft's enterprise stack.",
-        shortValue: 'Yes, SSO via Entra ID (SAML/OIDC) with automatic provisioning',
+          "SSO is inherited from the Microsoft 365/Entra ID tenant rather than being a Copilot Studio-specific setting, consistent with the rest of Microsoft's enterprise stack. Entra ID additionally offers password-based and linked SSO for applications that cannot federate.",
+        shortValue: 'Yes, SSO via Entra ID (SAML 2.0 and OIDC)',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/what-is-single-sign-on',
+            label: 'What is single sign-on in Microsoft Entra ID? | Microsoft Learn',
+            asOf: '2026-09-15',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes, but at the Microsoft Entra ID identity-platform layer rather than inside Copilot Studio itself: Copilot Studio members are users of the Microsoft 365/Entra ID tenant, and Entra ID is what performs SCIM 2.0 provisioning. Outbound, the Entra provisioning service automatically creates accounts for new joiners, keeps identity data in sync as status or roles change, provisions groups to applications that support them, and deactivates accounts when people leave, either through a preintegrated gallery connector (gallery apps generally use SCIM 2.0-based user-management APIs) or generically against any application implementing the SCIM 2.0 standard. Inbound, an API-driven provisioning app accepts bulk payloads packaged with SCIM schema constructs on a Microsoft Graph /bulkUpload endpoint, with the provisioning service, not the client, deciding whether each record is a create, update, enable, or disable. That inbound path requires a Microsoft Entra ID P1, P2, or Microsoft Entra ID Governance license and is throttled to 40 API calls in any 5-second window, with a tenant limit of 2,000 calls per 24 hours on P1/P2 and 6,000 on Entra ID Governance.',
+        detail:
+          'Microsoft documents this as a tenant-level Entra ID capability rather than a Copilot Studio product setting, so joiner/mover/leaver handling for Copilot Studio makers and users is whatever the tenant already configures in Entra ID (optionally driven by Lifecycle Workflows). Microsoft requires an application to expose a SCIM-compliant endpoint before it will onboard it to the gallery for automated provisioning.',
+        shortValue: 'Yes, via Microsoft Entra ID SCIM 2.0 provisioning',
         confidence: 'verified',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/entra/identity/app-provisioning/user-provisioning',
             label:
               'What is automated app user provisioning in Microsoft Entra ID | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/entra/identity/app-provisioning/inbound-provisioning-api-concepts',
+            label:
+              'API-driven inbound provisioning concepts - Microsoft Entra ID | Microsoft Learn',
+            asOf: '2026-09-15',
           },
         ],
       },

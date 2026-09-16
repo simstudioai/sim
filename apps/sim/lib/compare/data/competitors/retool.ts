@@ -787,12 +787,13 @@ export const retoolProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type 2, plus ISO/IEC 27001:2022, GDPR, and CCPA.',
+      compliance: {
+        value:
+          'Yes: SOC 2 Type 2, plus ISO/IEC 27001:2022, GDPR, and CCPA certifications, and HIPAA via a signed BAA on Enterprise (self-hosted) plans. Reports and certificates are downloadable via the self-serve Trust Center (SafeBase-powered). PCI and FedRAMP are not confirmed.',
         detail:
-          'Reports/certificates are downloadable via the self-serve Trust Center (SafeBase-powered).',
-        shortValue: 'SOC 2 Type 2, ISO 27001, GDPR, CCPA',
-        confidence: 'verified',
+          'The Trust Center (SafeBase-powered) lists SOC 2 Type 2, ISO/IEC 27001:2022, GDPR, and CCPA certifications, and reports/certificates are downloadable from it self-serve. HIPAA compliance is available with a signed BAA on Enterprise (self-hosted) plans. PCI and FedRAMP are not confirmed.',
+        shortValue: 'SOC 2, ISO 27001, GDPR, CCPA; HIPAA via BAA',
+        confidence: 'estimated',
         sources: [
           { url: 'https://trust.retool.com/', label: 'Retool Trust Center', asOf: '2026-07-02' },
           {
@@ -841,26 +842,6 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/changelog/audit-logs-in-datadog',
             label: 'Send audit log events to Datadog',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'SOC 2 Type II, ISO/IEC 27001:2022, GDPR, and CCPA certifications, plus HIPAA via BAA on Enterprise.',
-        detail:
-          'The Trust Center (SafeBase-powered) lists SOC 2 Type 2, ISO/IEC 27001:2022, GDPR, and CCPA certifications. HIPAA compliance is available with a signed BAA on Enterprise (self-hosted) plans. PCI and FedRAMP are not confirmed.',
-        shortValue: 'SOC 2, ISO 27001, GDPR, CCPA; HIPAA via BAA',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://trust.retool.com/',
-            label: 'Retool Trust Center (SafeBase)',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.retool.com/legal/security',
-            label: 'Security Practices (Retool Docs)',
             asOf: '2026-07-02',
           },
         ],
@@ -953,21 +934,34 @@ export const retoolProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: Retool supports SAML 2.0 SSO and Custom SSO (Okta, Azure AD/Entra ID, Google Workspace, OneLogin, and other SAML/OIDC providers) — but only on the Enterprise plan, not Business. SCIM-based auto-provisioning is available on Cloud or self-hosted 2.32.1+.',
+          'Yes: Retool supports SAML 2.0 SSO and Custom SSO (Okta, Azure AD/Entra ID, Google Workspace, OneLogin, and other SAML/OIDC providers) — but only on the Enterprise plan, not Business.',
         detail:
           "Retool's current pricing page places SAML/Custom SSO exclusively on the Enterprise tier; the Business plan's feature list does not include SSO/SAML.",
-        shortValue: 'Yes, Enterprise-only SSO plus SCIM auto-provisioning',
+        shortValue: 'Yes, Enterprise-only SAML 2.0 and Custom SSO',
         confidence: 'verified',
         sources: [
-          {
-            url: 'https://docs.retool.com/sso/guides/scim-user-provisioning',
-            label: 'Provision users with SCIM',
-            asOf: '2026-07-02',
-          },
           {
             url: 'https://retool.com/pricing',
             label: 'Retool Pricing',
             asOf: '2026-07-08',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: Retool supports SCIM, described as the industry standard for automatically provisioning user accounts, covering Create Users, Update User Attributes, Deactivate Users, and Group Push with role mapping onto default Retool groups. The Retool pricing page lists "SAML/OpenID Connect SSO, SCIM provisioning" under the Enterprise plan for both Cloud and Self-hosted; self-hosted deployments require version 2.32.1 or later, and Group Push features require 2.94 or later. Default Retool groups cannot be renamed through SCIM group mapping, but custom identity-provider groups can be mapped onto the four default groups (admin, editor, viewer, All Users), and Retool warns to use caution when syncing groups because SCIM user provisioning can modify group memberships when requests are made. Microsoft Entra ID additionally requires adding aadOptscim062020 to the tenant URL for SCIM 2.0 compliance, and the authentication token must be at least 10 characters long.',
+        shortValue: 'Yes: SCIM provisioning on Enterprise, with group mapping',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.retool.com/sso/guides/scim-user-provisioning',
+            label: 'Provision users with SCIM | Retool Docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://retool.com/pricing',
+            label: 'Retool Pricing',
+            asOf: '2026-09-15',
           },
         ],
       },

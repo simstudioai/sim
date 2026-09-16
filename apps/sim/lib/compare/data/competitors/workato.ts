@@ -899,10 +899,12 @@ export const workatoProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          'Workato maintains SOC 1 Type II, SOC 2 Type II, and SOC 3 reports (SOC 2 aligned to AICPA Trust Services Criteria, reports available to customers under NDA), plus PCI-DSS v4.0.1 Level 1, ISO 27001/27701/42001, HIPAA (with BAAs), IRAP, and NIST 800-171A r2 certifications',
-        shortValue: 'SOC 1/2/3, PCI-DSS, ISO, HIPAA, IRAP, NIST',
+          'Workato maintains SOC 1 Type II, SOC 2 Type II, and SOC 3 reports (SOC 2 aligned to AICPA Trust Services Criteria, reports available to customers under NDA), plus PCI-DSS v4.0.1 Level 1, ISO 27001, ISO 27701, ISO 42001, HIPAA (with BAAs), IRAP (PROTECTED, Australia), and NIST 800-171A r2 certifications.',
+        detail:
+          "Workato's certifications go well beyond SOC 2: SOC 1 Type II covers financial reporting controls, ISO 27001 covers infosec management, ISO 27701 covers privacy (PIMS extending 27001, aligning with GDPR handling of PII), ISO 42001 covers AI governance, HIPAA compliance runs through signable BAAs with annual third-party attestation, PCI-DSS v4.0.1 Level 1 covers cardholder data, IRAP is assessed at the Australian government PROTECTED level, and NIST 800-171A r2 supports federal contractors handling Controlled Unclassified Information. There is no FedRAMP authorization or a standalone GDPR certification; GDPR compliance is represented through the ISO 27701 PIMS alignment.",
+        shortValue: 'SOC 1/2/3, ISO 27001/27701/42001, HIPAA, PCI-DSS, IRAP, NIST',
         confidence: 'verified',
         sources: [
           {
@@ -913,6 +915,11 @@ export const workatoProfile: CompetitorProfile = {
           {
             url: 'https://www.workato.com/legal/security',
             label: 'Workato Security Overview',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://www.workato.com/platform/security',
+            label: 'Automation Governance and Data Security | Workato',
             asOf: '2026-07-02',
           },
         ],
@@ -958,26 +965,6 @@ export const workatoProfile: CompetitorProfile = {
             url: 'https://docs.workato.com/features/activity-audit-log-streaming.html',
             label: 'Audit log streaming | Workato Docs',
             asOf: '2026-07-08',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'SOC1 Type II, SOC2 Type II, SOC3, ISO 27001, ISO 27701, ISO 42001, HIPAA (BAA), PCI-DSS v4.0.1 Level 1, IRAP (PROTECTED, Australia), NIST 800-171A r2',
-        detail:
-          "Workato's certifications go well beyond SOC 2: SOC 1 Type II covers financial reporting controls, ISO 27001 covers infosec management, ISO 27701 covers privacy (PIMS extending 27001, aligning with GDPR handling of PII), ISO 42001 covers AI governance, HIPAA compliance runs through signable BAAs with annual third-party attestation, PCI-DSS v4.0.1 Level 1 covers cardholder data, IRAP is assessed at the Australian government PROTECTED level, and NIST 800-171A r2 supports federal contractors handling Controlled Unclassified Information. There is no FedRAMP authorization or a standalone GDPR certification; GDPR compliance is represented through the ISO 27701 PIMS alignment.",
-        shortValue: 'SOC, ISO 27001/27701/42001, HIPAA, PCI-DSS, IRAP, NIST',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.workato.com/security/security-compliance.html',
-            label: 'Security compliance | Workato docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.workato.com/platform/security',
-            label: 'Automation Governance and Data Security | Workato',
-            asOf: '2026-07-02',
           },
         ],
       },
@@ -1083,6 +1070,26 @@ export const workatoProfile: CompetitorProfile = {
             url: 'https://docs.workato.com/user-accounts-and-teams/saml-role-sync.html',
             label: 'Workato Docs: SAML role sync',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          'Yes: Workato supports SCIM 2.0 in compliance with the IETF SCIM specification, automatically provisioning users into the workspace from an identity provider, updating custom user attributes such as workato_role directly from the identity provider, assigning users to collaborator groups through the workato_user_groups attribute, and automatically de-provisioning users. It is configured under Workspace admin > Settings > Authentication > SCIM Provisioning by generating a SCIM token and base URL (https://workato.com/scim/v2, which varies by data center), and requires SAML SSO to be active in the identity provider first. SCIM 2.0 is included only in specific pricing plans: the organization must have the Data Monitoring/Advanced Security & Compliance capability, arranged with a Workato account executive or Customer Success Representative. Okta, OneLogin, and Microsoft Entra ID are the documented identity providers.',
+        detail:
+          'Configuring SCIM requires being the workspace root account holder, holding the admin role, or holding a custom role with the SCIM provisioning privilege. One documented limitation: profile names are not updated automatically after initial provisioning, even if SCIM mappings change, so an excessively long profile name coming from identity-provider attributes must be corrected manually.',
+        shortValue: 'Yes: SCIM 2.0 with group mapping, plan-gated',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/scim.html',
+            label: 'System for Cross-domain Identity Management (SCIM 2.0) | Workato docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.workato.com/scim-workato.html',
+            label: 'Configure and use SCIM in Workato | Workato Docs',
+            asOf: '2026-09-15',
           },
         ],
       },

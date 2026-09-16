@@ -786,17 +786,22 @@ export const crewaiProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          'Yes: CrewAI AMP has a SOC 2 Type 1 audit report (dated November 2025), available via its Trust Center',
+          'Yes: CrewAI AMP has a SOC 2 Type 1 audit report (dated November 2025) and a HIPAA audit report (dated February 2026) for the Enterprise edition, both available via its Trust Center. No ISO 27001, PCI, or FedRAMP certification is confirmed. These attestations apply to the Enterprise/AMP offering, not to a self-hosted deployment of the open-source framework, which has no compliance certification of its own since it is not a hosted service.',
         detail:
-          "CrewAI's Trust Center (trust.crewai.com, indexed by Vanta) lists a SOC 2 Type 1 Audit Report from November 2025. This applies to the Enterprise/AMP offering, not to a self-hosted deployment of the open-source framework, which has no compliance certification of its own since it isn't a hosted service.",
-        shortValue: 'SOC 2 Type 1 report (Nov 2025) for the AMP platform',
+          "CrewAI's Trust Center (trust.crewai.com, indexed by Vanta) lists the SOC 2 Type 1 Audit Report from November 2025 alongside the HIPAA Audit Report from February 2026. CrewAI's pricing page separately references 'FedRamp High compliance' language for its Enterprise tier, but no independent FedRAMP authorization listing corroborates that claim, so it is not treated as confirmed here.",
+        shortValue: 'SOC 2 Type 1 and HIPAA audits, AMP Enterprise only',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://trust.crewai.com/',
             label: 'CrewAI Trust Center',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://crewai.com/pricing',
+            label: 'CrewAI Pricing',
             asOf: '2026-07-02',
           },
         ],
@@ -843,26 +848,6 @@ export const crewaiProfile: CompetitorProfile = {
             url: 'https://techjacksolutions.com/ai-tools/crewai/crewai-production-guide/',
             label: 'CrewAI in Production: Deployment, Monitoring & Scaling - TechJack Solutions',
             asOf: '2026-07-04',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'HIPAA (Enterprise edition, audit report dated February 2026); no ISO 27001, PCI, or FedRAMP certification confirmed',
-        detail:
-          "CrewAI's Trust Center lists a HIPAA Audit Report dated February 2026 for the Enterprise edition, alongside the SOC 2 Type 1 report. CrewAI's pricing page separately references 'FedRamp High compliance' language for its Enterprise tier, but no independent FedRAMP authorization listing corroborates that claim, so it is not treated as confirmed here.",
-        shortValue: 'HIPAA audit (Feb 2026); FedRAMP claim unconfirmed',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://trust.crewai.com/',
-            label: 'CrewAI Trust Center',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://crewai.com/pricing',
-            label: 'CrewAI Pricing',
-            asOf: '2026-07-02',
           },
         ],
       },
@@ -934,6 +919,13 @@ export const crewaiProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
         ],
+      },
+      scim: {
+        value:
+          'Not publicly documented: no CrewAI page describes SCIM 2.0 directory provisioning or automated creation, update, or deactivation of members from an identity provider. The platform SSO documentation covers SAML 2.0 and OAuth 2.0/OIDC authentication through WorkOS (the SaaS default), Microsoft Entra ID, Okta, Auth0, and Keycloak, and the pricing page lists SSO and role-based access control as Enterprise-tier features, but neither names SCIM, directory sync, or group-to-role provisioning. The open-source framework has no user accounts or sign-in at all, so the question does not apply to it. Not finding a SCIM page is not itself confirmation that the capability does not exist.',
+        shortValue: 'Not publicly documented; SSO only, no SCIM',
+        confidence: 'unknown',
+        sources: [],
       },
       sessionPolicy: {
         value:

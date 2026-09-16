@@ -671,12 +671,12 @@ export const flowiseProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          'Unknown: a third-party security-scan aggregator (Nudge Security) lists Flowise as SOC 2 compliant among several other certifications, but Flowise has published no SOC 2 report, badge, or trust page of its own.',
+          'Unknown: a third-party security-scan aggregator (Nudge Security) lists Flowise as SOC 2 compliant among several other certifications, but Flowise has published no SOC 2 report, badge, or trust page of its own, and beyond that unconfirmed third-party SOC 2 claim it has published no HIPAA, ISO 27001, PCI, or FedRAMP certification either.',
         detail:
           'The same third-party source also claims FedRAMP and PCI compliance for a small startup, an atypical combination not corroborated on flowiseai.com.',
-        shortValue: 'No official confirmation found',
+        shortValue: 'Unknown, no official certifications published',
         confidence: 'unknown',
         sources: [],
       },
@@ -718,13 +718,6 @@ export const flowiseProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
         ],
-      },
-      additionalCompliance: {
-        value:
-          'Unknown: beyond the unconfirmed third-party SOC 2 claim, Flowise has published no HIPAA, ISO 27001, PCI, or FedRAMP certification.',
-        shortValue: 'Unknown, no official certifications published',
-        confidence: 'unknown',
-        sources: [],
       },
       modelAndToolGovernance: {
         value:
@@ -786,6 +779,13 @@ export const flowiseProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
         ],
+      },
+      scim: {
+        value:
+          'Not publicly documented: no Flowise documentation page describes SCIM 2.0 directory provisioning or any automated creation, update, or deactivation of members driven by an identity provider. Flowise documents Enterprise-plan SSO as OIDC authentication only (Microsoft Azure/Entra ID, Google, and Auth0) and requires every user to be invited into a workspace with a role before their first SSO sign-in works, so member lifecycle is manual rather than directory-driven. Not finding a SCIM page is not itself confirmation that the capability does not exist.',
+        shortValue: 'Not publicly documented; members invited manually',
+        confidence: 'unknown',
+        sources: [],
       },
       sessionPolicy: {
         value:

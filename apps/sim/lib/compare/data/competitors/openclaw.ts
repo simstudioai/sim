@@ -814,17 +814,22 @@ export const openClawProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          'No: OpenClaw is a self-hosted open-source project run by a non-profit Foundation, not a vendor selling a hosted service, and publishes no SOC 2 report.',
+          'No: OpenClaw is a self-hosted open-source project run by a non-profit Foundation, not a vendor selling a hosted service, and publishes no SOC 2 report and no other compliance certifications (no HIPAA, ISO 27001, GDPR-specific attestation, PCI, or FedRAMP). As open-source, self-hosted software from a non-profit Foundation, OpenClaw is not the kind of vendor entity that typically pursues these certifications; compliance posture depends entirely on how and where the operator self-hosts it.',
         detail:
-          'No SOC 2 attestation, trust center, or audit report exists for OpenClaw. Responsibility for infrastructure security rests entirely with whoever self-hosts the Gateway.',
-        shortValue: 'No SOC 2 report published',
+          "No SOC 2 attestation, trust center, or audit report exists for OpenClaw, and responsibility for infrastructure security rests entirely with whoever self-hosts the Gateway. China restricted state enterprises and government agencies from deploying OpenClaw in March 2026 over security concerns, per Wikipedia's history summary, a data point on the compliance/trust landscape rather than a certification.",
+        shortValue: 'None: no SOC 2 or other certifications published',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.openclaw.ai/gateway/security',
             label: 'OpenClaw Docs: Security',
+            asOf: '2026-07-02',
+          },
+          {
+            url: 'https://en.wikipedia.org/wiki/OpenClaw',
+            label: 'Wikipedia: OpenClaw',
             asOf: '2026-07-02',
           },
         ],
@@ -875,21 +880,6 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://docs.openclaw.ai/gateway/security',
             label: 'OpenClaw Docs: Security',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'No compliance certifications (no HIPAA, ISO 27001, GDPR-specific attestation, PCI, or FedRAMP). As open-source, self-hosted software from a non-profit Foundation, OpenClaw is not the kind of vendor entity that typically pursues these certifications; compliance posture depends entirely on how and where the operator self-hosts it.',
-        detail:
-          "China restricted state enterprises and government agencies from deploying OpenClaw in March 2026 over security concerns, per Wikipedia's history summary, a data point on the compliance/trust landscape rather than a certification.",
-        shortValue: 'None documented; compliance posture depends on self-hosting operator',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://en.wikipedia.org/wiki/OpenClaw',
-            label: 'Wikipedia: OpenClaw',
             asOf: '2026-07-02',
           },
         ],
@@ -968,7 +958,7 @@ export const openClawProfile: CompetitorProfile = {
         value:
           'No: OpenClaw has no SAML/OIDC single sign-on feature. Its access model authenticates individual senders on connected messaging channels (DM pairing, allowlists), a single-operator personal tool, not an organization with a directory of employees signing in via an identity provider.',
         detail:
-          'SSO and organization provisioning are out of scope for the "single-user, personal-assistant model" OpenClaw\'s security documentation describes.',
+          'SSO is out of scope for the "single-user, personal-assistant model" OpenClaw\'s security documentation describes.',
         shortValue: 'No: single-operator model has no SSO/IdP concept',
         confidence: 'verified',
         sources: [
@@ -976,6 +966,26 @@ export const openClawProfile: CompetitorProfile = {
             url: 'https://docs.openclaw.ai/gateway/security',
             label: 'OpenClaw Docs: Security',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          "No: OpenClaw's Gateway documentation describes no SCIM 2.0 directory provisioning, and the product has no organization directory to provision members into. The Gateway's security model is one trust boundary per gateway (a single operator, or a team whose members trust each other), access is granted per messaging-channel sender through DM pairing or allowlists, and callers authenticate to the Gateway itself with a static shared secret (token or password) or a trusted-proxy header rather than as directory-managed user accounts. An organization needing per-employee provisioning would run separate Gateway instances per trust boundary, which is what the docs recommend, rather than creating, updating, or deactivating users from an identity provider.",
+        detail:
+          'Because there are no member accounts, there is nothing for joiner/mover/leaver automation to target: revoking access means removing a sender from an allowlist or rotating the shared secret. No SCIM endpoint, identity-provider integration, or group/role mapping appears in the Gateway security or authentication documentation.',
+        shortValue: 'No: no directory of users to provision',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://docs.openclaw.ai/gateway/security',
+            label: 'OpenClaw Docs: Security',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.openclaw.ai/gateway/authentication',
+            label: 'OpenClaw Docs: Authentication',
+            asOf: '2026-09-15',
           },
         ],
       },

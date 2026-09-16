@@ -864,12 +864,12 @@ export const n8nProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          "SOC 2: program 'aligned to' SOC 2 with annual third-party audits; report available to enterprise customers via Trust Center",
+          "SOC 2 Type II certification, viewable via the Trust Center, with a security program described as 'aligned to' the SOC 2 framework under continuous evaluation and annual independent third-party audits; the SOC 2 report is provided to enterprise customers on request rather than published openly. A SOC 3 report is publicly downloadable from the Security page, and GDPR compliance is claimed as a data processor. No HIPAA, ISO 27001, PCI, or FedRAMP certification found.",
         detail:
-          'n8n operates a Trust Center (trust.n8n.io, powered by SafeBase) covering security, compliance, privacy, and reliability. Its security program is aligned to the SOC 2 framework, with continuous evaluation and annual independent audits, and the SOC 2 report is provided to enterprise customers on request rather than published openly.',
-        shortValue: 'Aligned to SOC 2, report on request',
+          'n8n operates a Trust Center (trust.n8n.io, powered by SafeBase) covering security, compliance, privacy, and reliability. Its security program is aligned to the SOC 2 framework, with continuous evaluation and annual independent audits, and the SOC 2 report is provided to enterprise customers on request rather than published openly; n8n now holds SOC 2 Type II certification, viewable via the Trust Center, in addition to the public SOC 3 report. The Trust Center and the legal/security page also list GDPR compliance (as a data processor with a standard DPA) and CAIQ self-assessment questionnaires for both cloud and self-hosted deployments. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.',
+        shortValue: 'SOC 2 Type II, public SOC 3, GDPR',
         confidence: 'verified',
         sources: [
           { url: 'https://trust.n8n.io/', label: 'n8n Trust Center', asOf: '2026-07-02' },
@@ -926,27 +926,6 @@ export const n8nProfile: CompetitorProfile = {
             url: 'https://n8n.io/legal/security/',
             label: 'Security | n8n (audit log retention)',
             asOf: '2026-07-04',
-          },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'GDPR (as data processor), SOC 2 Type II certification, and a publicly downloadable SOC 3 report; no HIPAA, ISO 27001, PCI, or FedRAMP certification found',
-        detail:
-          "n8n's Trust Center (SafeBase-hosted) and legal/security page list GDPR compliance (as a data processor with a standard DPA), CAIQ self-assessment questionnaires for both cloud and self-hosted deployments, and a SOC 3 report that is publicly downloadable from the Security page. n8n now holds SOC 2 Type II certification, viewable via the Trust Center, in addition to the public SOC 3 report. n8n holds no ISO 27001, HIPAA BAA, PCI-DSS, or FedRAMP certification. Third-party blog posts describe self-hosted n8n as helping organizations map to HIPAA/ISO 27001 requirements, but that is not the same as holding those certifications.",
-        shortValue: 'GDPR, SOC 2 Type II certified, public SOC 3 report',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://trust.n8n.io/',
-            label: 'n8n Trust Center | Powered by SafeBase',
-            asOf: '2026-07-08',
-          },
-          { url: 'https://n8n.io/legal/security/', label: 'Security | n8n', asOf: '2026-07-08' },
-          {
-            url: 'https://support.n8n.io/article/request-for-soc-2-report',
-            label: 'Request for SOC-2 report | n8n Help Center',
-            asOf: '2026-07-08',
           },
         ],
       },
@@ -1061,6 +1040,15 @@ export const n8nProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
         ],
+      },
+      scim: {
+        value:
+          "Not publicly documented: no n8n documentation confirming SCIM 2.0 directory provisioning was found. n8n's SSO documentation covers SAML and OIDC authentication, and its user-management documentation covers email invites and LDAP, with neither mentioning SCIM. A community feature request asking for SCIM support remains open with no official n8n response, so SCIM availability could not be confirmed either way.",
+        detail:
+          'n8n does document automated user provisioning through SSO, where a user instance role and project access are assigned from identity-provider attributes on first login, but that is authentication-time provisioning rather than identity-provider-driven create/update/deactivate.',
+        shortValue: 'Not publicly documented; SCIM support unconfirmed',
+        confidence: 'unknown',
+        sources: [],
       },
       sessionPolicy: {
         value:
