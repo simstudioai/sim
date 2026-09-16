@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
-import { credential, credentialGroupEnrollment } from '@sim/db/schema'
+import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
+import { resourceScopeFromOwner, sameResourceScope } from '@/lib/core/resource-scope'
 import {
   type OrganizationAccountAccessPolicy,
   organizationAccountAccessPolicyCodec,
@@ -23,7 +24,10 @@ export async function filterWorkspaceAccountCredentials<
     .select({
       id: credential.id,
       organizationId: credential.organizationId,
-      groupId: credentialGroupEnrollment.credentialGroupId,
+      workspaceId: credential.workspaceId,
+      groupId: credentialGroup.id,
+      groupOrganizationId: credentialGroup.organizationId,
+      groupWorkspaceId: credentialGroup.workspaceId,
       providerId: credential.providerId,
       type: credential.type,
     })
@@ -32,7 +36,20 @@ export async function filterWorkspaceAccountCredentials<
       credentialGroupEnrollment,
       eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
     )
+    .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
     .where(inArray(credential.id, managedIds))
+  for (const binding of bindings) {
+    if (
+      !sameResourceScope(
+        resourceScopeFromOwner(binding),
+        resourceScopeFromOwner({
+          organizationId: binding.groupOrganizationId,
+          workspaceId: binding.groupWorkspaceId,
+        })
+      )
+    )
+      throw new Error('Credential and enrollment group owners do not match')
+  }
   const byId = new Map(bindings.map((binding) => [binding.id, binding]))
   const policies = new Map<string, OrganizationAccountAccessPolicy>()
   const organizationId = context.workspaceOrganizationId
@@ -60,7 +77,7 @@ export async function filterWorkspaceAccountCredentials<
     if (entry.type !== 'managed_oauth' && entry.type !== 'personal_token') return true
     const binding = byId.get(entry.id)
     if (!binding) return false
-    if (!binding.organizationId) return true
+    if (!binding.organizationId) return binding.workspaceId === context.workspaceId
     if (binding.organizationId !== organizationId || !organizationAvailable) return false
     const policy = policies.get(binding.groupId)
     if (!policy) throw new Error('Organization credential policy was not loaded')

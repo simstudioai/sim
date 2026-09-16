@@ -18,9 +18,14 @@ const entries = [
   { id: 'calendar', type: 'managed_oauth', providerId: 'google-calendar' },
   { id: 'token', type: 'personal_token', providerId: 'gitlab' },
 ]
-const bindings = entries
-  .slice(1)
-  .map((entry) => ({ ...entry, organizationId: 'org', groupId: 'group' }))
+const bindings = entries.slice(1).map((entry) => ({
+  ...entry,
+  organizationId: 'org',
+  workspaceId: null,
+  groupId: 'group',
+  groupOrganizationId: 'org',
+  groupWorkspaceId: null,
+}))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -50,7 +55,10 @@ describe('workspace organization credential visibility', () => {
     expect(dbChainMockFns.select).toHaveBeenCalledExactlyOnceWith({
       id: schemaMock.credential.id,
       organizationId: schemaMock.credential.organizationId,
-      groupId: schemaMock.credentialGroupEnrollment.credentialGroupId,
+      workspaceId: schemaMock.credential.workspaceId,
+      groupId: schemaMock.credentialGroup.id,
+      groupOrganizationId: schemaMock.credentialGroup.organizationId,
+      groupWorkspaceId: schemaMock.credentialGroup.workspaceId,
       providerId: schemaMock.credential.providerId,
       type: schemaMock.credential.type,
     })
@@ -87,10 +95,45 @@ describe('workspace organization credential visibility', () => {
   it('preserves independently managed workspace accounts', async () => {
     queueTableRows(
       schemaMock.credential,
-      bindings.map((binding) => ({ ...binding, organizationId: null }))
+      bindings.map((binding) => ({
+        ...binding,
+        organizationId: null,
+        workspaceId: 'ws',
+        groupOrganizationId: null,
+        groupWorkspaceId: 'ws',
+      }))
     )
     expect(await filterWorkspaceAccountCredentials(context, entries)).toEqual(entries)
     expect(mocks.available).not.toHaveBeenCalled()
+    expect(mocks.policy).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { groupOrganizationId: 'other-org', groupWorkspaceId: null },
+    { groupOrganizationId: null, groupWorkspaceId: 'ws' },
+  ])('rejects mismatched group ownership before loading policy: %j', async (owner) => {
+    queueTableRows(
+      schemaMock.credential,
+      bindings.map((binding) => ({ ...binding, ...owner }))
+    )
+    await expect(filterWorkspaceAccountCredentials(context, entries)).rejects.toThrow(
+      'Credential and enrollment group owners do not match'
+    )
+    expect(mocks.policy).not.toHaveBeenCalled()
+  })
+
+  it('hides independently managed credentials that moved to another workspace', async () => {
+    queueTableRows(
+      schemaMock.credential,
+      bindings.map((binding) => ({
+        ...binding,
+        organizationId: null,
+        workspaceId: 'other-ws',
+        groupOrganizationId: null,
+        groupWorkspaceId: 'other-ws',
+      }))
+    )
+    expect(await filterWorkspaceAccountCredentials(context, entries)).toEqual([entries[0]])
     expect(mocks.policy).not.toHaveBeenCalled()
   })
 

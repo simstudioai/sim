@@ -17,17 +17,33 @@ import { isOrganizationCredentialType } from '@/lib/credential-groups/credential
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 const ALL_INTEGRATIONS = 'all'
 
-type OrganizationWorkspaceGrantModalProps = {
+interface OrganizationWorkspaceGrantModalBaseProps {
   credentialTypes: OrganizationAccountWorkspaceAccess['credentialTypes']
   disabled: boolean
   error?: string
   onSave: (grant: Grant) => void
   onClose: () => void
-} & (
-  | { mode: 'create'; workspaces: OrganizationAccountWorkspaceAccess['workspaces'] }
-  | { mode: 'edit'; grant: Grant; workspaceName: string; onRemove: () => void }
-)
+}
 
+interface CreateOrganizationWorkspaceGrantModalProps
+  extends OrganizationWorkspaceGrantModalBaseProps {
+  mode: 'create'
+  workspaces: OrganizationAccountWorkspaceAccess['workspaces']
+}
+
+interface EditOrganizationWorkspaceGrantModalProps
+  extends OrganizationWorkspaceGrantModalBaseProps {
+  mode: 'edit'
+  grant: Grant
+  workspaceName: string
+  onRemove: () => void
+}
+
+type OrganizationWorkspaceGrantModalProps =
+  | CreateOrganizationWorkspaceGrantModalProps
+  | EditOrganizationWorkspaceGrantModalProps
+
+/** All integrations is an explicit grant; an empty picker selection never grants access. */
 export function OrganizationWorkspaceGrantModal(props: OrganizationWorkspaceGrantModalProps) {
   const { credentialTypes, disabled, error, onSave, onClose } = props
   const [workspaceId, setWorkspaceId] = useState(

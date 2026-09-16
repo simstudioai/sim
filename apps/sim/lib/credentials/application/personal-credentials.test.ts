@@ -117,7 +117,14 @@ describe('personal credential application access', () => {
     }
     mocks.listTokens.mockResolvedValue([token])
     queueTableRows(schemaMock.credential, [
-      { ...token, organizationId: null, groupId: 'legacy-group' },
+      {
+        ...token,
+        organizationId: null,
+        workspaceId: 'workspace-1',
+        groupId: 'legacy-group',
+        groupOrganizationId: null,
+        groupWorkspaceId: 'workspace-1',
+      },
     ])
     const result = await listPersonalCredentials.execute({
       principal,
@@ -142,7 +149,14 @@ describe('personal credential application access', () => {
     const managed = { ...personalCredential, providerId: 'slack', type: 'managed_oauth' as const }
     mocks.listPersonal.mockResolvedValue([managed])
     queueTableRows(schemaMock.credential, [
-      { ...managed, organizationId: null, groupId: 'legacy-group' },
+      {
+        ...managed,
+        organizationId: null,
+        workspaceId: 'workspace-1',
+        groupId: 'legacy-group',
+        groupOrganizationId: null,
+        groupWorkspaceId: 'workspace-1',
+      },
     ])
 
     const result = await authorizePersonalCredential.execute({

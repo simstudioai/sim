@@ -78,15 +78,13 @@ export const getWorkspaceOrganizationAccounts = defineAuthorizedWorkspaceUseCase
     if (!result.allowed) return result
     result.providers = group.options
       .filter((option) => {
+        if (option.status !== 'active') return false
         if (!isCredentialGroupProvider(option.provider))
           throw new Error(`Unsupported organization provider: ${option.provider}`)
-        return (
-          option.status === 'active' &&
-          organizationAccountPolicyAllowsWorkspace(
-            policy.document,
-            context.workspaceId,
-            `oauth:${option.provider}`
-          )
+        return organizationAccountPolicyAllowsWorkspace(
+          policy.document,
+          context.workspaceId,
+          `oauth:${option.provider}`
         )
       })
       .map((option) => {
