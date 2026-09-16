@@ -2451,6 +2451,13 @@
       "when": 1789579589946,
       "tag": "0350_organization_require_sso",
       "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1789583796385,
+      "tag": "0351_copilot_run_activity_index",
+      "breakpoints": true
     }
   ]
 }

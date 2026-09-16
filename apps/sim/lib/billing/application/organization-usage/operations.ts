@@ -48,6 +48,18 @@ const BASE = {
  * nothing outside the type system ever sees.
  */
 export const organizationUsageOperations = {
+  // permission-group-exempt: aggregate organization activity is governed by organization admin authority, not a workspace permission group
+  readActivitySummary: defineOrganizationUsageOperation({
+    id: 'organization_usage.activity.summary.read',
+    capability: 'none',
+    ...BASE,
+  }),
+  // permission-group-exempt: organization activity breakdowns require the same organization admin authority as the summary
+  readActivityBreakdown: defineOrganizationUsageOperation({
+    id: 'organization_usage.activity.breakdown.read',
+    capability: 'none',
+    ...BASE,
+  }),
   // permission-group-exempt: the organization's pooled ledger is authorized by organization billing-admin authority, which no workspace-shaped group key names
   readSummary: defineOrganizationUsageOperation({
     id: 'organization_usage.summary.read',

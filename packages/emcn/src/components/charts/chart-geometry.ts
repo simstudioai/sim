@@ -1,28 +1,10 @@
-/**
- * Geometry shared by every chart in the family.
- *
- * Extracted so a sibling chart cannot drift: bar and line charts read the same
- * padding, the same clamps, the same gridlines, and resolve their x ticks the same
- * way, so two charts stacked in one card line up on the pixel.
- *
- * Pure — no React, no DOM — so a server module can read the constants.
- */
-
 export const CHART_PADDING = { top: 16, right: 28, bottom: 26, left: 26 } as const
 
 export type ChartPadding = { top: number; right: number; bottom: number; left: number }
 
-/** Matches the loader placeholders callers size themselves against. */
 export const CHART_DEFAULT_HEIGHT = 166
 
-/**
- * Below this the axis labels collide, so the chart scrolls rather than compresses.
- *
- * Consumers pair `overflow-x-auto` with `overflow-y-hidden`: a computed `overflow-x`
- * other than `visible` promotes `overflow-y: visible` to `auto`, so the tooltip's
- * shadow reaching the foot of the box raised a vertical scrollbar over the chart
- * whenever the cursor neared the axis.
- */
+/** Minimum width before axis labels collide; narrower containers scroll horizontally. */
 export const CHART_MIN_WIDTH = 280
 
 export const CHART_TICK_FILL = 'var(--text-tertiary)'
@@ -35,27 +17,10 @@ const NARROW_GLYPH = /[.,:\s]/
 /** Gap between a y-axis tick label's right edge and the axis rule. */
 export const CHART_AXIS_LABEL_GAP = 8
 
-/**
- * The gutter is rounded up to a multiple of this.
- *
- * Charts are read side by side — the logs dashboard puts three in one row — and a
- * gutter derived exactly from each chart's own labels made `5`, `1.2s` and `12.3k`
- * resolve to 26, 27 and 32, so three plots that used to share an origin no longer
- * did. Quantizing collapses differences this small to one value while still growing
- * for a genuinely wider label, and it turns the sub-pixel slack that `Math.ceil`
- * alone left into several pixels.
- */
+/** Quantize gutters so comparable charts keep aligned plot origins. */
 const CHART_AXIS_GUTTER_STEP = 8
 
-/**
- * Rendered width of a right-anchored y-axis tick label.
- *
- * SVG `<text>` cannot be measured before layout, so the gutter that has to hold it
- * is estimated from the glyphs instead. The ratios are for the UI sans at
- * {@link CHART_TICK_FONT_SIZE}: digits and letters sit near 0.58em, punctuation and
- * spaces near 0.3em. Deliberately generous — an over-wide gutter costs a couple of
- * plot pixels, an under-wide one clips the label against the container's edge.
- */
+/** Estimate SVG label width before layout, allowing extra space to prevent clipping. */
 export function estimateAxisLabelWidth(text: string): number {
   let width = 0
   for (const character of text) {
@@ -64,16 +29,7 @@ export function estimateAxisLabelWidth(text: string): number {
   return width * CHART_TICK_FONT_SIZE
 }
 
-/**
- * {@link CHART_PADDING} with a left gutter wide enough for the chart's own y-axis
- * labels.
- *
- * The fixed 26px gutter left 18px of drawable width once the label gap is taken out,
- * which fits four narrow glyphs — so any tick past `7.3k` was cut off at the left edge
- * of the container. Both charts resolve their gutter through this one function from
- * the labels they are about to draw, so a bar and a line chart showing comparable
- * magnitudes still line up when stacked in one card, and neither can clip.
- */
+/** Expand the shared left gutter to accommodate the chart’s y-axis labels. */
 export function resolveChartPadding(yAxisLabels: readonly string[]): ChartPadding {
   const widest = yAxisLabels.reduce((max, label) => Math.max(max, estimateAxisLabelWidth(label)), 0)
   const required = Math.max(CHART_PADDING.left, widest + CHART_AXIS_LABEL_GAP)
@@ -110,7 +66,14 @@ export function resolveTimeTickIndices(pointCount: number, usableWidth: number):
  * Tick label whose precision follows the window: clock time within a day and a half,
  * calendar day within a quarter, month beyond that.
  */
-export function formatTimeTick(date: Date, spanMs: number, timeZone?: string): string {
+export function formatTimeTick(
+  date: Date,
+  spanMs: number,
+  timeZone?: string,
+  format: 'auto' | 'date' = 'auto'
+): string {
+  if (format === 'date')
+    return date.toLocaleDateString('en-US', { timeZone, month: 'short', day: 'numeric' })
   if (spanMs <= 36 * 60 * 60 * 1000) {
     return date.toLocaleTimeString('en-US', {
       timeZone,

@@ -3726,6 +3726,7 @@ export const copilotRuns = pgTable(
     executionIdIdx: index('copilot_runs_execution_id_idx').on(table.executionId),
     parentRunIdIdx: index('copilot_runs_parent_run_id_idx').on(table.parentRunId),
     chatIdIdx: index('copilot_runs_chat_id_idx').on(table.chatId),
+    chatStartedAtIdx: index('copilot_runs_chat_started_at_idx').on(table.chatId, table.startedAt),
     userIdIdx: index('copilot_runs_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_runs_workflow_id_idx').on(table.workflowId),
     workspaceIdIdx: index('copilot_runs_workspace_id_idx').on(table.workspaceId),

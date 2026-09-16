@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+
 import {
   CHART_AXIS_LABEL_GAP,
   CHART_PADDING,
@@ -11,7 +11,8 @@ import {
   resolveChartPadding,
   resolveSpanMs,
   resolveTimeTickIndices,
-} from '@/components/charts/chart-geometry'
+} from '@sim/emcn'
+import { describe, expect, it } from 'vitest'
 
 describe('resolveTimeTickIndices', () => {
   it('budgets roughly one tick per 64px, clamped to 3..8', () => {
@@ -21,7 +22,7 @@ describe('resolveTimeTickIndices', () => {
   })
 
   it('dedupes the collisions rounding produces on a short series', () => {
-    // 2 points across a wide chart wants 8 ticks but only has indices 0 and 1.
+    /** 2 points across a wide chart wants 8 ticks but only has indices 0 and 1. */
     const indices = resolveTimeTickIndices(2, 4000)
     expect(indices).toEqual([...new Set(indices)])
     expect(indices.every((index) => index >= 0 && index < 2)).toBe(true)
@@ -69,8 +70,8 @@ describe('resolveSpanMs', () => {
 
 describe('chartPlotBand', () => {
   it('insets the band so strokes clear the axis rules', () => {
-    // The line and bar charts both clamp to this band, which is what keeps them
-    // aligned when stacked in the same card.
+    /** The line and bar charts both clamp to this band, which is what keeps them */
+    /** aligned when stacked in the same card. */
     expect(chartPlotBand(166)).toEqual({
       yMin: CHART_PADDING.top + 3,
       yMax: CHART_PADDING.top + (166 - CHART_PADDING.top - CHART_PADDING.bottom) - 3,
@@ -93,11 +94,6 @@ describe('resolveChartPadding', () => {
     expect(resolveChartPadding([]).left).toBeGreaterThanOrEqual(CHART_PADDING.left)
   })
 
-  /**
-   * Three charts sit side by side on the logs dashboard. A gutter derived exactly from
-   * each one's own labels put their plot origins at 26, 27 and 32 — visibly ragged
-   * across a row that used to share one origin.
-   */
   it('resolves labels of similar width to the same gutter', () => {
     const gutters = [['5'], ['1.2s'], ['12.3k'], ['0'], ['7.3k']].map(
       (labels) => resolveChartPadding(labels).left

@@ -5,6 +5,7 @@ import {
   MAX_CUSTOM_RANGE_DAYS,
   type UsageWindowPreset,
 } from '@/lib/api/contracts/organization-usage'
+import { ACTIVITY_MAX_PAGE } from '@/lib/billing/core/organization-activity'
 import { formatDateShort } from '@/lib/core/utils/date-display'
 import { getBrowserTimezone } from '@/lib/core/utils/timezone'
 import { DEFAULT_USAGE_PRESET, PERIOD_LABELS } from '@/ee/organization-usage/constants'
@@ -22,15 +23,7 @@ function isCalendarDate(value: string | null): value is string {
   return new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value
 }
 
-/**
- * Every rule the window resolver enforces, checked here too.
- *
- * The server refuses an unreal date, an inverted pair, and a span past the cap — each
- * as a 400. A deep link carrying any of them would otherwise be marked "resolved" and
- * fail all four queries on the page, which is a worse outcome than the fallback this
- * guard exists to provide. Duplicated deliberately, and narrowly: these are the three
- * conditions that turn a link into an error rather than into different data.
- */
+/** Match server date validation so invalid links fall back before issuing requests. */
 export function isUsableCustomRange(start: string | null, end: string | null): boolean {
   if (!isCalendarDate(start) || !isCalendarDate(end)) return false
   const from = new Date(`${start}T00:00:00.000Z`).getTime()
@@ -39,34 +32,16 @@ export function isUsableCustomRange(start: string | null, end: string | null): b
   return Math.round((to - from) / DAY_MS) + 1 <= MAX_CUSTOM_RANGE_DAYS
 }
 
-/**
- * The panel's URL state, resolved into the window every query is keyed on.
- *
- * A `custom` preset missing either bound falls back to the default rather than
- * querying unbounded — the same partial-deep-link guard audit-logs uses.
- */
+/** Resolve shared URL filters, falling back when a custom range is invalid. */
 export function useUsageWindow() {
   const [state, setState] = useQueryStates(organizationUsageParsers, organizationUsageUrlKeys)
   const timezone = getBrowserTimezone()
 
-  /**
-   * Both bounds present, and a range the API will actually accept.
-   *
-   * Every condition the window resolver refuses with a 400 — an unreal date, an
-   * inverted pair, a span past the cap — has to be checked here too, or a bookmarked
-   * link carrying one is marked resolved and fails all four queries on the page. The
-   * fallback exists precisely so a bad link degrades to the default window instead.
-   */
   const isResolvedCustom =
     state.preset === 'custom' && isUsableCustomRange(state.startDate, state.endDate)
   const preset: UsageWindowPreset =
     state.preset === 'custom' && !isResolvedCustom ? DEFAULT_USAGE_PRESET : state.preset
 
-  /*
-    Not memoized: this object is only ever hashed, never compared by identity —
-    React Query hashes a query key structurally, and the panel reads the primitive
-    fields off it directly.
-  */
   const window: OrganizationUsageWindowKey = {
     preset,
     ...(isResolvedCustom
@@ -83,13 +58,10 @@ export function useUsageWindow() {
     window,
     tab: state.tab,
     workspace: state.workspace,
+    activityDimension: state.activityDimension,
+    activitySort: state.activitySort,
+    activityPage: Math.min(ACTIVITY_MAX_PAGE, Math.max(0, state.activityPage)),
     expanded: state.expanded,
-    /**
-     * The *resolved* preset, not the raw URL value. A partial custom deep link
-     * queries the current period, so surfacing `state.preset` left the picker
-     * reading "Custom range" over data that was not custom — and the allowance
-     * gate, which keys on `current-period`, disagreed with the window too.
-     */
     preset,
     startDate: state.startDate,
     endDate: state.endDate,
