@@ -254,7 +254,7 @@ If you prefer not to use Docker. **All commands run from the repository root unl
    cd packages/db && bun run db:migrate && cd ../..
    ```
 
-   For ad-hoc schema iteration during development you can also use `bun run db:push` from `packages/db`, but `db:migrate` is the canonical command for staging and production. `db:push` reconciles directly to the current schema without running versioned migration guards or backfills. For disposable local/dev databases, `bun run db:push --force` accepts Drizzle's data-loss prompts, including column drops.
+   For ad-hoc schema iteration during development you can also use `bun run db:push` from `packages/db`, but `db:migrate` is the canonical command for staging and production. `db:push` reconciles directly to the current schema without running versioned migration guards. For disposable local/dev databases, `bun run db:push --force` accepts Drizzle's data-loss prompts, including column drops.
 
 4. **Run the Development Servers:**
 
