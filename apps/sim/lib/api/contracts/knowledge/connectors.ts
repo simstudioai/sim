@@ -195,6 +195,9 @@ export const memberSyncLogDataSchema = z
     membersCompleted: z.number(),
     membersIncomplete: z.number(),
     membersFailed: z.number(),
+    /** Null for historical logs; absent from responses served by older deployments. */
+    docsFailed: z.number().int().nonnegative().nullable().optional(),
+    processingDispatchFailed: z.number().int().nonnegative().nullable().optional(),
     docsListed: z.number(),
     docsAdded: z.number(),
     docsUpdated: z.number(),

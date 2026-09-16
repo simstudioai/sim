@@ -1063,7 +1063,13 @@ describe('shared connector sync history', () => {
     }
   )
 
-  it('labels a healthy unfinished member listing as continuing', () => {
+  it.each([
+    { docsFailed: 0, processingDispatchFailed: 0, continuing: true },
+    { docsFailed: 1, processingDispatchFailed: 0, continuing: false },
+    { docsFailed: 0, processingDispatchFailed: 1, continuing: false },
+    { docsFailed: null, processingDispatchFailed: null, continuing: false },
+    { docsFailed: undefined, processingDispatchFailed: undefined, continuing: false },
+  ])('requires known healthy member counters for continuation: %j', (fields) => {
     lifecycle.detail.current = {
       memberSyncLogs: [
         {
@@ -1071,6 +1077,8 @@ describe('shared connector sync history', () => {
           membersCompleted: 1,
           membersIncomplete: 1,
           membersFailed: 0,
+          docsFailed: fields.docsFailed,
+          processingDispatchFailed: fields.processingDispatchFailed,
           docsTombstoned: 0,
           docsPurged: 0,
         },
@@ -1082,9 +1090,12 @@ describe('shared connector sync history', () => {
         knowledgeBaseId='knowledge-1'
       />
     )
-    expect(container.textContent).toContain('Continuing')
-    expect(container.textContent).not.toContain('Partial')
-    expect(container.textContent).not.toContain('No changes')
+    expect(container.textContent).toContain(fields.continuing ? 'Continuing' : 'Partial')
+    expect(container.textContent).not.toContain(fields.continuing ? 'Partial' : 'Continuing')
+    if (fields.continuing) expect(container.textContent).not.toContain('No changes')
+    if (fields.docsFailed) expect(container.textContent).toContain('1 failed')
+    if (fields.processingDispatchFailed)
+      expect(container.textContent).toContain('1 failed to queue')
   })
 
   it('loads the member engine history rather than the content history', () => {

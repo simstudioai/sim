@@ -163,7 +163,10 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
     const latestMemberRunHasError = sql`coalesce((
       SELECT ${knowledgeConnectorMemberSyncLog.status} = 'failed'
         OR (${knowledgeConnectorMemberSyncLog.status} = 'partial' AND (
-          ${knowledgeConnectorMemberSyncLog.membersFailed} > 0 OR NOT ${continuing}
+          ${knowledgeConnectorMemberSyncLog.membersFailed} > 0
+          OR ${knowledgeConnectorMemberSyncLog.docsFailed} > 0
+          OR ${knowledgeConnectorMemberSyncLog.processingDispatchFailed} > 0
+          OR NOT ${continuing}
         ))
       FROM ${knowledgeConnectorMemberSyncLog}
       WHERE ${knowledgeConnectorMemberSyncLog.connectorId} = ${knowledgeConnector.id}

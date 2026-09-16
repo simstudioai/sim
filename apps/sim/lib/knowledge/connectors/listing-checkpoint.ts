@@ -134,6 +134,7 @@ export async function runResumableListing(input: {
         listedCount: 0,
         unsafe: false,
         contentFailures: false,
+        permissionFailures: false,
       }
       await input.saveCheckpoint(checkpoint)
       cursors.clear()

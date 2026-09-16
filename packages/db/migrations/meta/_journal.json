@@ -2472,6 +2472,13 @@
       "when": 1789591219081,
       "tag": "0353_search_mcp_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 354,
+      "version": "7",
+      "when": 1789600824945,
+      "tag": "0354_member_sync_failure_counts",
+      "breakpoints": true
     }
   ]
 }

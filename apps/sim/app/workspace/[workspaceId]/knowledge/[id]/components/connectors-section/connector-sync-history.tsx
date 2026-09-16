@@ -208,6 +208,8 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
             log.status === 'partial' &&
             log.membersIncomplete > 0 &&
             log.membersFailed === 0 &&
+            log.docsFailed === 0 &&
+            log.processingDispatchFailed === 0 &&
             !log.errorMessage
           const state = continuing
             ? 'continuing'
@@ -217,6 +219,9 @@ function MemberSyncHistory({ logs, members, isLoading }: MemberSyncHistoryProps)
             log.docsUpdated > 0 && `${log.docsUpdated} updated`,
             log.docsTombstoned + log.docsPurged > 0 &&
               `${log.docsTombstoned + log.docsPurged} deleted`,
+            (log.docsFailed ?? 0) > 0 && `${log.docsFailed} failed`,
+            (log.processingDispatchFailed ?? 0) > 0 &&
+              `${log.processingDispatchFailed} failed to queue`,
           ]
             .filter(Boolean)
             .join(' · ')
