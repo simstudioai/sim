@@ -847,7 +847,8 @@ async function handleCloudFile(
       // If file is already from execution context, create UserFile reference without re-uploading
       if (context === 'execution') {
         userFile = {
-          id: `file_${Date.now()}_${generateShortId(7)}`,
+          id:
+            sourceProvenance.source?.identity?.fileId ?? `file_${Date.now()}_${generateShortId(7)}`,
           name: filename,
           url: normalizedFilePath,
           size: fileBuffer.length,

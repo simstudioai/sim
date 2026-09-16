@@ -99,7 +99,8 @@ async function insertFileMetadataHelper(
   contentType: string,
   fileSize: number,
   uploadId?: string,
-  cleanupOnMetadataFailure = false
+  cleanupOnMetadataFailure = false,
+  metadataId?: string
 ): Promise<void> {
   const { insertFileMetadata, insertImmutableFileMetadata } = await import(
     '@/lib/uploads/server/metadata'
@@ -108,6 +109,7 @@ async function insertFileMetadataHelper(
     context === 'knowledge-base' ? insertImmutableFileMetadata : insertFileMetadata
   try {
     await insertMetadata({
+      ...(metadataId ? { id: metadataId } : {}),
       key,
       userId: metadata.userId,
       workspaceId: metadata.workspaceId || null,
@@ -162,6 +164,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     customKey,
     metadata,
     persistMetadata = true,
+    metadataId,
     createOnly = false,
     cleanupOnMetadataFailure = false,
     createOnlyUploadId,
@@ -212,7 +215,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         contentType,
         file.length,
         uploadId,
-        cleanupOnMetadataFailure
+        cleanupOnMetadataFailure,
+        metadataId
       )
     }
 
@@ -242,7 +246,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         contentType,
         file.length,
         uploadId,
-        cleanupOnMetadataFailure
+        cleanupOnMetadataFailure,
+        metadataId
       )
     }
 
@@ -272,7 +277,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         contentType,
         file.length,
         uploadId,
-        cleanupOnMetadataFailure
+        cleanupOnMetadataFailure,
+        metadataId
       )
     }
 
@@ -331,7 +337,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       contentType,
       file.length,
       uploadId,
-      cleanupOnMetadataFailure
+      cleanupOnMetadataFailure,
+      metadataId
     )
   }
 

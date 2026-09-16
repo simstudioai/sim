@@ -223,6 +223,7 @@ export async function authorizeWorkflowBindingCredentials(
   }
   for (const credentialId of ids) {
     const access = await authorizeCredentialUseForAuth(
+      // actorless-unsupported: the guard above admits only user credentials or scoped Copilot delegation; executor credential binding is forbidden.
       { success: true, userId: requirePrincipalSubjectUserId(principal) },
       { workspaceId, credentialId }
     )

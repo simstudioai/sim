@@ -61,7 +61,6 @@ import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,
   parseExecutionDeadlineHeader,
 } from '@/lib/execution/execution-deadline-header'
-import { processInputFileFields } from '@/lib/execution/files'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
@@ -105,7 +104,6 @@ import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
-import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
@@ -151,7 +149,6 @@ import {
 } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
-import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
@@ -168,7 +165,6 @@ import type { BlockLog, NormalizedBlockOutput, StreamingExecution } from '@/exec
 import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import { emptyRunFromBlockSnapshot } from '@/executor/utils/run-from-block'
-import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
@@ -1313,7 +1309,7 @@ async function handleExecutePost(
       variables?: Record<string, any>
     } | null = null
 
-    let processedInput = input
+    const processedInput = input
     try {
       if (req.signal.aborted) {
         await releaseExecutionSlot(executionId)
@@ -1351,33 +1347,6 @@ async function handleExecutePost(
               : undefined,
           variables: deployedVariables,
         }
-
-        // Custom blocks resolve only inside the org overlay; wrap this pre-execution
-        // serialize (used for input file-field discovery) the same way the core does.
-        const customBlockRows = await getCustomBlockRowsForWorkspace(workspaceId)
-        const serializedWorkflow = await withCustomBlockOverlay(customBlockRows, async () =>
-          new Serializer().serializeWorkflow(
-            workflowData.blocks,
-            workflowData.edges,
-            workflowData.loops,
-            workflowData.parallels,
-            false
-          )
-        )
-
-        const executionContext = {
-          workspaceId,
-          workflowId,
-          executionId,
-        }
-
-        processedInput = await processInputFileFields(
-          input,
-          serializedWorkflow.blocks,
-          executionContext,
-          requestId,
-          actorUserId
-        )
       }
     } catch (fileError) {
       reqLogger.error('Failed to process input file fields:', fileError)

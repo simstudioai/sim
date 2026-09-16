@@ -1,6 +1,13 @@
 /** @vitest-environment node */
-import type { SessionPrincipal } from '@sim/auth/principal'
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import type { OrganizationDelegatedPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import {
+  auditMock,
+  auditMockFns,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   accountsGroup: vi.fn(),
   invite: vi.fn(),
 }))
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/credential-groups/scoped-availability', () => ({
   isScopedCredentialGroupsAvailable: mocks.available,
 }))
@@ -73,6 +81,17 @@ const input = {
     },
   ],
 }
+const delegated: OrganizationDelegatedPrincipal = {
+  kind: 'organization_delegated',
+  serviceId: 'copilot',
+  organizationId: 'org-1',
+  subjectUserId: 'real-actor',
+  delegationId: 'settings-call',
+  audience: 'sim:settings',
+  resourceScope: { chatId: 'chat-1' },
+  issuedAt: new Date(),
+  expiresAt: new Date(Date.now() + 60_000),
+}
 
 describe('organization workspace sharing administration', () => {
   beforeEach(() => {
@@ -90,6 +109,56 @@ describe('organization workspace sharing administration', () => {
       document: buildOrganizationAccountAccessPolicy('group-1', []),
     })
     mocks.write.mockImplementation(async ({ document }) => ({ revision: 4, document }))
+  })
+
+  it('reauthorizes the delegated human and attributes a workspace access change to that actor', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'admin' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
+    await updateOrganizationAccountWorkspaceAccess.execute({ principal: delegated, input })
+    expect(eq).toHaveBeenCalledWith(schemaMock.member.userId, 'real-actor')
+    expect(mocks.write).toHaveBeenCalledWith(
+      expect.objectContaining({ actorUserId: 'real-actor', organizationId: 'org-1' })
+    )
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'real-actor',
+        metadata: expect.objectContaining({
+          operation: 'organization_accounts.workspace_access.update',
+          actor: expect.objectContaining({
+            kind: 'organization_delegated',
+            subjectUserId: 'real-actor',
+          }),
+        }),
+      })
+    )
+  })
+
+  it.each(['member', null])(
+    'does not preserve an outdated delegated admin grant: %s',
+    async (role) => {
+      queueTableRows(schemaMock.member, role ? [{ role }] : [])
+      await expect(
+        updateOrganizationAccountWorkspaceAccess.execute({ principal: delegated, input })
+      ).rejects.toThrow()
+      expect(mocks.write).not.toHaveBeenCalled()
+      expect(mocks.group).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { organizationId: 'foreign' },
+    { audience: 'sim:search' },
+    { expiresAt: new Date(0) },
+    { resourceScope: {} },
+  ])('rejects invalid delegation before loading connected accounts: %j', async (override) => {
+    await expect(
+      updateOrganizationAccountWorkspaceAccess.execute({
+        principal: { ...delegated, ...override },
+        input,
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.group).not.toHaveBeenCalled()
+    expect(mocks.write).not.toHaveBeenCalled()
   })
 
   it.each(['member', null])(

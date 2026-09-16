@@ -10,14 +10,12 @@ import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { validateCallChain } from '@/lib/execution/call-chain'
-import { processInputFileFields } from '@/lib/execution/files'
 import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { MAX_MCP_WORKFLOW_RESPONSE_BYTES } from '@/lib/mcp/constants'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
-import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -40,7 +38,6 @@ import {
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
 import { workflowHasResponseBlock } from '@/lib/workflows/utils'
-import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
@@ -50,7 +47,6 @@ import {
   type StructuredExecutionError,
 } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
-import { Serializer } from '@/serializer'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteService')
@@ -460,7 +456,7 @@ export async function executeWorkflowService(
       return { ok: true, queued: true, executionId, jobId: enqueue.jobId }
     }
 
-    let processedInput = input
+    const processedInput = input
     let workflowVariables: Record<string, unknown> = {}
     let workflowBlocks: Record<string, unknown> = {}
     try {
@@ -492,27 +488,6 @@ export async function executeWorkflowService(
             : undefined) ??
           (workflow.variables as Record<string, unknown> | null) ??
           {}
-
-        // Custom blocks resolve only inside the org overlay; wrap this pre-execution
-        // serialize (used for input file-field discovery) the same way the core does.
-        const customBlockRows = await getCustomBlockRowsForWorkspace(workspaceId)
-        const serializedWorkflow = await withCustomBlockOverlay(customBlockRows, async () =>
-          new Serializer().serializeWorkflow(
-            workflowData.blocks,
-            workflowData.edges,
-            workflowData.loops || {},
-            workflowData.parallels || {},
-            false
-          )
-        )
-
-        processedInput = await processInputFileFields(
-          input,
-          serializedWorkflow.blocks,
-          { workspaceId, workflowId, executionId },
-          requestId,
-          actorUserId
-        )
       } else {
         workflowVariables = (workflow.variables as Record<string, unknown> | null) ?? {}
       }
@@ -754,7 +729,10 @@ export async function executeWorkflowService(
             status: 'failed',
             aborted: 'timeout',
             output: compactTimeoutOutput,
-            blockOutputs: await compactServiceOutput(await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs), compactionContext),
+            blockOutputs: await compactServiceOutput(
+              await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
+              compactionContext
+            ),
             error: { message: timeoutErrorMessage, code: 'TIMEOUT' },
             resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
             hasResponseBlock: false,
@@ -800,7 +778,10 @@ export async function executeWorkflowService(
           status,
           aborted: null,
           output: compactOutput,
-          blockOutputs: await compactServiceOutput(await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs), compactionContext),
+          blockOutputs: await compactServiceOutput(
+            await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
+            compactionContext
+          ),
           error:
             status === 'failed' || (status === 'cancelled' && result.error)
               ? classifyExecutionError(result.error ? new Error(result.error) : undefined, result)
@@ -855,7 +836,10 @@ export async function executeWorkflowService(
               executionResult.output,
               compactionContext
             )
-            compactErrorBlockOutputs = await compactServiceOutput(await pickRunBlockOutputs(selectedOutputs, workflowBlocks, executionResult.logs), compactionContext)
+            compactErrorBlockOutputs = await compactServiceOutput(
+              await pickRunBlockOutputs(selectedOutputs, workflowBlocks, executionResult.logs),
+              compactionContext
+            )
           } catch (compactError) {
             if (
               compactError instanceof PayloadSizeLimitError &&

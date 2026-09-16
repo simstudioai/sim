@@ -136,7 +136,6 @@ describe('knowledge operation registry', () => {
       knowledgeOperations.update,
       knowledgeOperations.delete,
       knowledgeOperations.uploadDocument,
-      knowledgeOperations.prepareSearchSource,
       knowledgeOperations.updateConnectorAccess,
     ]) {
       expect(operation.organizationOperation.minimumRole).toBe('admin')
@@ -172,13 +171,32 @@ describe('knowledge operation registry', () => {
     }
   })
 
-  it('permits organization delegation only for Copilot reads', () => {
+  it('permits organization delegation for reads and explicitly selected Search controls', () => {
+    const settingsControls = [
+      knowledgeOperations.listSlackInstallations,
+      knowledgeOperations.configureSlackInstallation,
+      knowledgeOperations.removeSlackInstallation,
+    ]
+    const searchControls = [
+      ...settingsControls,
+      knowledgeOperations.listSearchIntegrations,
+      knowledgeOperations.approveSearchIntegration,
+      knowledgeOperations.prepareSearchSource,
+    ]
+
     for (const operation of Object.values(knowledgeOperations)) {
       if (!operation.organizationOperation.principalKinds.includes('organization_delegated'))
         continue
-      expect(operation.minimumRole).toBe('read')
-      expect(operation.delegatedServices).toContain('copilot')
-      expect(operation.organizationOperation.delegationAudience).toBe('sim:knowledge')
+      if (!searchControls.some((control) => control.id === operation.id)) {
+        expect(operation.minimumRole).toBe('read')
+        expect(operation.delegatedServices).toContain('copilot')
+      }
+      expect(operation.organizationOperation.delegatedServices).toContain('copilot')
+      expect(operation.organizationOperation.delegationAudience).toBe(
+        settingsControls.some((control) => control.id === operation.id)
+          ? 'sim:settings'
+          : 'sim:knowledge'
+      )
     }
     expect(knowledgeOperations.search.organizationOperation.principalKinds).toContain(
       'organization_delegated'

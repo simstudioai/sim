@@ -1722,13 +1722,15 @@ export async function revokeInvitationAsAdmin(input: {
   actorId: string
   invitationId: string
   workspaceId?: string
+  organizationId?: string
 }): Promise<AuthorizedInvitationRevocationResult> {
   return db.transaction(async (tx): Promise<AuthorizedInvitationRevocationResult> => {
     const inv = await lockInvitationForMutation(tx, input.invitationId, {
       lockCurrentGrantWorkspaces: input.workspaceId === undefined,
       additionalWorkspaceIds: input.workspaceId ? [input.workspaceId] : [],
     })
-    if (!inv) return { success: false, kind: 'not-found' }
+    if (!inv || (input.organizationId && inv.organizationId !== input.organizationId))
+      return { success: false, kind: 'not-found' }
     if (inv.status !== 'pending') return { success: false, kind: 'not-pending' }
 
     const isOrganizationAdmin = inv.organizationId

@@ -2,13 +2,16 @@ import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application'
 import { assertOperationCapability } from '@/lib/core/application'
 
-export type OrganizationBillingSummaryPrincipal = Extract<Principal, { kind: 'session' }>
+export type OrganizationBillingSummaryPrincipal = Extract<
+  Principal,
+  { kind: 'session' | 'organization_delegated' }
+>
 
 export interface OrganizationBillingSummaryOperation<Id extends string = string>
   extends ApplicationOperation<Id> {
   readonly organizationRoles: readonly ['admin', 'owner']
   readonly workspaceApiKey: 'deny'
-  readonly principalKinds: readonly ['session']
+  readonly principalKinds: readonly ['session', 'organization_delegated']
 }
 
 function defineOrganizationBillingSummaryOperation<const Id extends string>(
@@ -26,7 +29,7 @@ export const organizationBillingSummaryOperations = {
     id: 'organization_billing.summary.read',
     organizationRoles: ['admin', 'owner'],
     workspaceApiKey: 'deny',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
     capability: 'none',
   }),
 } as const

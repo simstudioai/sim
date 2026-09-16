@@ -247,12 +247,14 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     throw new ExecutionFileAccessError()
   }
 
-  if (options.workflowId && parts.workflowId !== options.workflowId) {
-    throw new ExecutionFileAccessError()
-  }
-
+  // Explicit file grants are minted only after workspace authorization. They can carry
+  // an input from another workflow/run without granting any neighboring execution files.
   if (allowedFileKeys.has(key)) {
     return
+  }
+
+  if (options.workflowId && parts.workflowId !== options.workflowId) {
+    throw new ExecutionFileAccessError()
   }
 
   if (

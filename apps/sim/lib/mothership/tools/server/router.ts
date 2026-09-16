@@ -26,6 +26,8 @@ import {
 import { ffmpegServerTool } from '@/lib/mothership/tools/server/media/ffmpeg'
 import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
+import { organizationSearchSourcesServerTool } from '@/lib/mothership/tools/server/search-sources'
+import { settingsServerTool } from '@/lib/mothership/tools/server/settings'
 import { getCredentialsServerTool } from '@/lib/mothership/tools/server/user/get-credentials'
 import { listWorkspacesServerTool } from '@/lib/mothership/tools/server/workspace-list'
 
@@ -58,6 +60,8 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [listWorkspacesServerTool.name]: listWorkspacesServerTool,
+  [organizationSearchSourcesServerTool.name]: organizationSearchSourcesServerTool,
+  [settingsServerTool.name]: settingsServerTool,
   [readDocumentServerTool.name]: readDocumentServerTool,
   // The streamed file-writing pair: prepare opens the write (live preview),
   // apply continues it. The preview machinery keys off these exact names.

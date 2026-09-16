@@ -7304,4 +7304,181 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  settings: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        scope: {
+          type: 'string',
+          enum: ['account', 'organization', 'workspace'],
+        },
+        workspaceId: {
+          description:
+            'Explicit workspace target in organization chat; omit for account and organization settings.',
+          type: 'string',
+          format: 'uuid',
+          pattern:
+            '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+        },
+        action: {
+          anyOf: [
+            {
+              type: 'string',
+              const: 'list',
+            },
+            {
+              type: 'string',
+              const: 'get',
+            },
+            {
+              type: 'string',
+              const: 'open',
+            },
+            {
+              type: 'string',
+              const: 'describe',
+            },
+            {
+              type: 'string',
+              const: 'execute',
+            },
+            {
+              type: 'string',
+              const: 'update',
+            },
+          ],
+        },
+        section: {
+          description:
+            'Required for action: get, open, describe, execute, update. Only used for action: get, open, describe, execute, update. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 64,
+        },
+        operation: {
+          description:
+            'Required for action: describe, execute. Only used for action: describe, execute. Omit for other actions.',
+          anyOf: [
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 64,
+            },
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 64,
+              description: 'Exact operation from get for this section.',
+            },
+          ],
+        },
+        input: {
+          description:
+            'Inputs matching the operation schema from get. Required for action: execute. Only used for action: execute. Omit for other actions.',
+          type: 'object',
+          propertyNames: {
+            type: 'string',
+          },
+          additionalProperties: {},
+        },
+        changes: {
+          description:
+            'Only fields from the updateSchema returned by get. Unrecognized fields are rejected; secrets use the setup UI. Required for action: update. Only used for action: update. Omit for other actions.',
+          type: 'object',
+          propertyNames: {
+            type: 'string',
+          },
+          additionalProperties: {},
+        },
+      },
+      required: ['scope', 'action'],
+      additionalProperties: false,
+    },
+    resultSchema: undefined,
+  },
+  search_sources: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        action: {
+          anyOf: [
+            {
+              type: 'string',
+              const: 'list',
+            },
+            {
+              type: 'string',
+              const: 'get',
+            },
+            {
+              type: 'string',
+              const: 'providers',
+            },
+            {
+              type: 'string',
+              const: 'setup',
+            },
+            {
+              type: 'string',
+              const: 'approve',
+            },
+          ],
+        },
+        cursor: {
+          description: 'Only used for action: list. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 1024,
+        },
+        connectorType: {
+          description:
+            'Required for action: setup, approve. Only used for action: list, setup, approve. Omit for other actions.',
+          anyOf: [
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 100,
+            },
+            {
+              type: 'string',
+              minLength: 1,
+              maxLength: 100,
+            },
+          ],
+        },
+        search: {
+          description: 'Only used for action: list. Omit for other actions.',
+          type: 'string',
+          maxLength: 200,
+        },
+        mine: {
+          description: 'Only used for action: list. Omit for other actions.',
+          type: 'boolean',
+        },
+        connectorId: {
+          description:
+            'Required for action: get. Only used for action: get. Omit for other actions.',
+          type: 'string',
+          minLength: 1,
+          maxLength: 255,
+        },
+        accessMode: {
+          description:
+            'Required for action: setup. Only used for action: setup. Omit for other actions.',
+          type: 'string',
+          enum: ['admin', 'members'],
+        },
+        approved: {
+          description:
+            'Required for action: approve. Only used for action: approve. Omit for other actions.',
+          type: 'boolean',
+        },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    resultSchema: undefined,
+  },
 }

@@ -2,37 +2,57 @@ import type { ApplicationOperation } from '@/lib/core/application'
 import { assertOperationCapability } from '@/lib/core/application'
 
 export interface UserAccountOperation<Id extends string = string> extends ApplicationOperation<Id> {
-  readonly principalKinds: readonly ['session']
+  readonly principalKinds: readonly ('session' | 'delegated' | 'organization_delegated')[]
+  readonly delegationAudience?: string
 }
 
 /**
- * Bakes the session-only principal policy into the operation —
- * `requireUserAccountPrincipal` reads `principalKinds` off it at authorization
- * time — and refuses a missing capability at definition time, the same guard
- * every other operation factory carries.
+ * Account operations remain session-only unless durable profile/preferences
+ * explicitly opt into bounded Copilot delegation.
  */
 function defineUserAccountOperation<const Id extends string>(
-  operation: ApplicationOperation<Id>
+  operation: ApplicationOperation<Id>,
+  allowPreferencesDelegation = false
 ): UserAccountOperation<Id> {
   assertOperationCapability(operation)
+  if (allowPreferencesDelegation)
+    return Object.freeze({
+      ...operation,
+      principalKinds: Object.freeze(['session', 'delegated', 'organization_delegated'] as const),
+      delegationAudience: 'sim:settings',
+    })
   return Object.freeze({ ...operation, principalKinds: Object.freeze(['session'] as const) })
 }
 
 /**
- * Operations an account performs on itself. They carry no workspace scope and
- * no role: the resource *is* the authenticated principal, so a session is both
- * the only acceptable credential and the whole authorization story, enforced by
- * `internalSessionAuth` on the route and `requireUserAccountPrincipal` in each
- * use case.
+ * Operations an account performs on itself. Delegated preference operations
+ * recheck the hosting conversation's membership and act only on its human subject.
+ * Destructive account and grant-management operations still require a session.
  */
 export const userAccountOperations = {
   // permission-group-exempt: reading your own profile is not a workspace act, so no group key names it
-  readProfile: defineUserAccountOperation({ id: 'users.account.profile.read', capability: 'none' }),
+  readProfile: defineUserAccountOperation(
+    { id: 'users.account.profile.read', capability: 'none' },
+    true
+  ),
   // permission-group-exempt: reading your own account settings is not a workspace act, so no group key names it
-  readSettings: defineUserAccountOperation({
-    id: 'users.account.settings.read',
-    capability: 'none',
-  }),
+  readSettings: defineUserAccountOperation(
+    {
+      id: 'users.account.settings.read',
+      capability: 'none',
+    },
+    true
+  ),
+  /** permission-group-exempt: a person changes their own profile, not an organization's resource. */
+  updateProfile: defineUserAccountOperation(
+    { id: 'users.account.profile.update', capability: 'none' },
+    true
+  ),
+  /** permission-group-exempt: durable account preferences belong to the acting person. */
+  updateSettings: defineUserAccountOperation(
+    { id: 'users.account.settings.update', capability: 'none' },
+    true
+  ),
   // permission-group-exempt: the resource is the account itself, and a permission group scopes a workspace the account may leave rather than the account
   previewDeletion: defineUserAccountOperation({
     id: 'users.account.deletion_preview',

@@ -793,7 +793,9 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
       output = buildManualTriggerOutput(finalInput, workflowInput)
   }
 
-  output = mergeFilesIntoOutput(output, workflowInput, options.workspaceId)
+  if (resolution.path !== StartBlockPath.EXTERNAL_TRIGGER) {
+    output = mergeFilesIntoOutput(output, workflowInput, options.workspaceId)
+  }
 
   if (runMetadataEnabled) {
     // The metadata key is server-owned when the toggle is on: any caller-supplied

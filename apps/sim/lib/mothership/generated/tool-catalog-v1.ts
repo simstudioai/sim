@@ -5,7 +5,10 @@
 export interface ToolCatalogEntry {
   capabilities?: unknown
   clientExecutable?: boolean
-  description?: 'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.'
+  description?:
+    | 'Discover and configure organization Search sources. list/get return accessible sources and indexing status; providers returns available integration approvals; approve changes a provider approval when authorized; setup returns the existing connection UI for the user to complete. Put the returned setupUrl in a clickable Markdown link at the end of the reply. Setup does not mean connected or indexed. Use search_workspace and read_document to retrieve source content.'
+    | 'List currently accessible workspaces with roles and explicit capability restrictions. Bulk results report copilotAllowed and deniedCapabilities; exact workspaceId returns the full capability map. Omitted restrictions never authorize an operation.'
+    | 'Read and manage account, organization, and workspace settings. list finds sections; get returns current values, updateSchema and operation names; describe returns one operation’s exact input schema; update changes narrow preferences; execute performs a listed operation; open returns the existing user setup flow. When user setup is needed, put the returned setupUrl in a clickable Markdown link at the end of the reply. Workspace resources retain their CLI commands. Account is the acting user; organization is the conversation’s organization. Every operation checks current permissions and entitlements.'
   hidden?: boolean
   id:
     | 'apply_file_edit'
@@ -119,10 +122,12 @@ export interface ToolCatalogEntry {
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
+    | 'search_sources'
     | 'search_workspace'
     | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
+    | 'settings'
     | 'share_file'
     | 'steer_agent'
     | 'table'
@@ -7245,6 +7250,135 @@ export const ListWorkspaces: ToolCatalogEntry = {
   },
 }
 
+export const Settings: ToolCatalogEntry = {
+  id: 'settings',
+  description:
+    'Read and manage account, organization, and workspace settings. list finds sections; get returns current values, updateSchema and operation names; describe returns one operation’s exact input schema; update changes narrow preferences; execute performs a listed operation; open returns the existing user setup flow. When user setup is needed, put the returned setupUrl in a clickable Markdown link at the end of the reply. Workspace resources retain their CLI commands. Account is the acting user; organization is the conversation’s organization. Every operation checks current permissions and entitlements.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      scope: { type: 'string', enum: ['account', 'organization', 'workspace'] },
+      workspaceId: {
+        description:
+          'Explicit workspace target in organization chat; omit for account and organization settings.',
+        type: 'string',
+        format: 'uuid',
+        pattern:
+          '^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$',
+      },
+      action: {
+        anyOf: [
+          { type: 'string', const: 'list' },
+          { type: 'string', const: 'get' },
+          { type: 'string', const: 'open' },
+          { type: 'string', const: 'describe' },
+          { type: 'string', const: 'execute' },
+          { type: 'string', const: 'update' },
+        ],
+      },
+      section: {
+        description:
+          'Required for action: get, open, describe, execute, update. Only used for action: get, open, describe, execute, update. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 64,
+      },
+      operation: {
+        description:
+          'Required for action: describe, execute. Only used for action: describe, execute. Omit for other actions.',
+        anyOf: [
+          { type: 'string', minLength: 1, maxLength: 64 },
+          {
+            type: 'string',
+            minLength: 1,
+            maxLength: 64,
+            description: 'Exact operation from get for this section.',
+          },
+        ],
+      },
+      input: {
+        description:
+          'Inputs matching the operation schema from get. Required for action: execute. Only used for action: execute. Omit for other actions.',
+        type: 'object',
+        propertyNames: { type: 'string' },
+        additionalProperties: {},
+      },
+      changes: {
+        description:
+          'Only fields from the updateSchema returned by get. Unrecognized fields are rejected; secrets use the setup UI. Required for action: update. Only used for action: update. Omit for other actions.',
+        type: 'object',
+        propertyNames: { type: 'string' },
+        additionalProperties: {},
+      },
+    },
+    required: ['scope', 'action'],
+    additionalProperties: false,
+  },
+}
+
+export const SearchSources: ToolCatalogEntry = {
+  id: 'search_sources',
+  description:
+    'Discover and configure organization Search sources. list/get return accessible sources and indexing status; providers returns available integration approvals; approve changes a provider approval when authorized; setup returns the existing connection UI for the user to complete. Put the returned setupUrl in a clickable Markdown link at the end of the reply. Setup does not mean connected or indexed. Use search_workspace and read_document to retrieve source content.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      action: {
+        anyOf: [
+          { type: 'string', const: 'list' },
+          { type: 'string', const: 'get' },
+          { type: 'string', const: 'providers' },
+          { type: 'string', const: 'setup' },
+          { type: 'string', const: 'approve' },
+        ],
+      },
+      cursor: {
+        description: 'Only used for action: list. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 1024,
+      },
+      connectorType: {
+        description:
+          'Required for action: setup, approve. Only used for action: list, setup, approve. Omit for other actions.',
+        anyOf: [
+          { type: 'string', minLength: 1, maxLength: 100 },
+          { type: 'string', minLength: 1, maxLength: 100 },
+        ],
+      },
+      search: {
+        description: 'Only used for action: list. Omit for other actions.',
+        type: 'string',
+        maxLength: 200,
+      },
+      mine: { description: 'Only used for action: list. Omit for other actions.', type: 'boolean' },
+      connectorId: {
+        description: 'Required for action: get. Only used for action: get. Omit for other actions.',
+        type: 'string',
+        minLength: 1,
+        maxLength: 255,
+      },
+      accessMode: {
+        description:
+          'Required for action: setup. Only used for action: setup. Omit for other actions.',
+        type: 'string',
+        enum: ['admin', 'members'],
+      },
+      approved: {
+        description:
+          'Required for action: approve. Only used for action: approve. Omit for other actions.',
+        type: 'boolean',
+      },
+    },
+    required: ['action'],
+    additionalProperties: false,
+  },
+}
+
 export const FfmpegOperation = {
   overlayAudio: 'overlay_audio',
   mixAudio: 'mix_audio',
@@ -7811,4 +7945,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [WebSearch.id]: WebSearch,
   [Workflow.id]: Workflow,
   [ListWorkspaces.id]: ListWorkspaces,
+  [Settings.id]: Settings,
+  [SearchSources.id]: SearchSources,
 }

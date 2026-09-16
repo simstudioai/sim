@@ -8,8 +8,15 @@ import {
 } from '@/lib/api/contracts/primitives'
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
+import { memberCreditLimitUpdateSchema } from '@/lib/billing/application/usage-limit-validation'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
+import {
+  organizationRosterSchema as domainOrganizationRosterSchema,
+  rosterMemberSchema as domainRosterMemberSchema,
+  rosterPendingInvitationSchema as domainRosterPendingInvitationSchema,
+  rosterWorkspaceAccessSchema as domainRosterWorkspaceAccessSchema,
+} from '@/lib/organizations/application/member-roster-schema'
+import { addOrganizationDomainBodySchema } from '@/lib/organizations/domain-validation'
 
 const numericResponseSchema = z.preprocess((value) => {
   if (typeof value !== 'string') return value
@@ -179,16 +186,14 @@ export const organizationSsoPolicyResponseSchema = z.object({
   data: organizationSsoPolicyDataSchema,
 })
 
-export const MAX_ORGANIZATION_DOMAINS = 25
+export { MAX_ORGANIZATION_DOMAINS } from '@/lib/organizations/domain-validation'
 
 export const organizationDomainParamsSchema = z.object({
   id: z.string().min(1),
   domainId: z.string().min(1),
 })
 
-export const addOrganizationDomainBodySchema = z.object({
-  domain: z.string().min(1, 'Domain is required').max(253, 'Domain is too long'),
-})
+export { addOrganizationDomainBodySchema } from '@/lib/organizations/domain-validation'
 
 export type AddOrganizationDomainBody = z.input<typeof addOrganizationDomainBodySchema>
 
@@ -276,50 +281,10 @@ export const transferOwnershipBodySchema = z.object({
   alsoLeave: z.boolean().optional().default(false),
 })
 
-export const rosterWorkspaceAccessSchema = z.object({
-  workspaceId: z.string(),
-  workspaceName: z.string(),
-  permission: workspacePermissionSchema,
-  /**
-   * Why this role is fixed, when it is. Carried so the roster can disable the
-   * controls the workspace-permissions route refuses, the way the teammates list
-   * already does — without them it offers an edit that can only fail.
-   */
-  roleSource: z.enum(['owner', 'explicit', 'org-admin']),
-  isBilledAccount: z.boolean(),
-})
-
-export const rosterMemberSchema = z.object({
-  memberId: z.string(),
-  userId: z.string(),
-  role: z.enum(['owner', 'admin', 'member', 'external']),
-  createdAt: z.string(),
-  name: z.string(),
-  email: z.string(),
-  image: z.string().nullable(),
-  /** Set while a directory deactivation blocks the member's sign-in; access is otherwise intact. */
-  suspendedAt: z.string().nullable(),
-  workspaces: z.array(rosterWorkspaceAccessSchema),
-})
-
-export const rosterPendingInvitationSchema = z.object({
-  id: z.string(),
-  email: z.string(),
-  role: z.string(),
-  kind: z.enum(['organization', 'workspace']),
-  membershipIntent: z.enum(['internal', 'external']).optional(),
-  createdAt: z.string(),
-  expiresAt: z.string(),
-  inviteeName: z.string().nullable(),
-  inviteeImage: z.string().nullable(),
-  workspaces: z.array(rosterWorkspaceAccessSchema),
-})
-
-export const organizationRosterSchema = z.object({
-  members: z.array(rosterMemberSchema),
-  pendingInvitations: z.array(rosterPendingInvitationSchema),
-  workspaces: z.array(z.object({ id: z.string(), name: z.string() })),
-})
+export const rosterWorkspaceAccessSchema = domainRosterWorkspaceAccessSchema
+export const rosterMemberSchema = domainRosterMemberSchema
+export const rosterPendingInvitationSchema = domainRosterPendingInvitationSchema
+export const organizationRosterSchema = domainOrganizationRosterSchema
 
 export const organizationMemberUsageSchema = z
   .object({
@@ -471,14 +436,7 @@ export const getOrganizationMemberUsageLimitContract = defineRouteContract({
   },
 })
 
-export const updateOrganizationMemberUsageLimitBodySchema = z.object({
-  /** New cap in credits; `null` clears the per-member cap. */
-  creditLimit: z
-    .number()
-    .int('Credit limit must be a whole number of credits')
-    .min(0, 'Credit limit cannot be negative')
-    .nullable(),
-})
+export const updateOrganizationMemberUsageLimitBodySchema = memberCreditLimitUpdateSchema
 
 export const updateOrganizationMemberUsageLimitContract = defineRouteContract({
   method: 'PUT',

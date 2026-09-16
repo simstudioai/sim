@@ -53,10 +53,19 @@ export async function executeTool(
     const organizationTools =
       context.requestMode === 'assistant'
         ? ['search_workspace', 'read_document']
-        : ['list_workspaces', 'search_workspace', 'read_document']
+        : [
+            'list_workspaces',
+            'search_workspace',
+            'read_document',
+            'search_sources',
+            ...(params.scope !== 'workspace' ? ['settings'] : []),
+          ]
     if (organizationTools.includes(toolId)) {
       if (context.targetWorkspaceId)
-        return { success: false, error: 'Organization retrieval does not take a workspace target' }
+        return {
+          success: false,
+          error: 'Organization and account operations do not take a workspace target',
+        }
       return executeBoundTool(toolId, params, context)
     }
     if (context.requestMode === 'assistant')

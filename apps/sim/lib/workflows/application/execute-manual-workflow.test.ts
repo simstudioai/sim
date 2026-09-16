@@ -132,6 +132,123 @@ describe('manual workflow execution application operations', () => {
     )
   })
 
+  it('runs saved draft state as a scoped Copilot actor without substituting the owner', async () => {
+    const delegated = {
+      kind: 'delegated' as const,
+      serviceId: 'copilot' as const,
+      subjectUserId: 'copilot-actor',
+      workspaceId: context.workspaceId,
+      audience: 'sim:workflows',
+      delegationId: 'cli-call',
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    }
+    await executeManualWorkflowOperation.execute({
+      principal: delegated,
+      input: { ...baseInput, useMockPayload: false, triggerBlockId: 'trigger-1' },
+    })
+    expect(mocks.executeService).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: delegated,
+        userId: 'copilot-actor',
+        workflowId: context.workflowId,
+        useDraftState: true,
+        triggerBlockId: 'trigger-1',
+      })
+    )
+    const sourceSnapshot = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: {},
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+    mocks.loadSourceState.mockResolvedValue(sourceSnapshot)
+    await executeManualWorkflowFromBlockOperation.execute({
+      principal: delegated,
+      input: { ...baseInput, blockId: 'agent-1', sourceRunId: 'source-run' },
+    })
+    expect(mocks.loadSourceState).toHaveBeenCalledWith('source-run', context.workflowId)
+    expect(mocks.executeService).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        principal: delegated,
+        userId: 'copilot-actor',
+        runFromBlock: { startBlockId: 'agent-1', sourceSnapshot, sourceExecutionId: 'source-run' },
+      })
+    )
+  })
+
+  it('rejects wrong workspace, audience, expired delegation, and non-Copilot service', async () => {
+    const base = {
+      kind: 'delegated',
+      serviceId: 'copilot',
+      subjectUserId: 'actor',
+      workspaceId: context.workspaceId,
+      audience: 'sim:workflows',
+      delegationId: 'call',
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    } as const
+    for (const principal of [
+      { ...base, workspaceId: 'foreign' },
+      { ...base, audience: 'sim:settings' },
+      { ...base, expiresAt: new Date(0) },
+      { ...base, serviceId: 'executor' },
+    ]) {
+      await expect(
+        executeManualWorkflowOperation.execute({
+          principal: principal as never,
+          input: { ...baseInput, useMockPayload: false },
+        })
+      ).rejects.toThrow()
+      await expect(
+        executeManualWorkflowFromBlockOperation.execute({
+          principal: principal as never,
+          input: { ...baseInput, blockId: 'agent-1', sourceRunId: 'source-run' },
+        })
+      ).rejects.toThrow()
+    }
+    expect(mocks.executeService).not.toHaveBeenCalled()
+    expect(mocks.loadManualState).not.toHaveBeenCalled()
+  })
+
+  it('requires current write access for delegated manual execution', async () => {
+    const principal = {
+      kind: 'delegated',
+      serviceId: 'copilot',
+      subjectUserId: 'actor',
+      workspaceId: context.workspaceId,
+      audience: 'sim:workflows',
+      delegationId: 'call',
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    } as const
+    mocks.permission.mockResolvedValue('read')
+    await expect(
+      executeManualWorkflowOperation.execute({
+        principal,
+        input: { ...baseInput, useMockPayload: false },
+      })
+    ).rejects.toThrow()
+    expect(mocks.executeService).not.toHaveBeenCalled()
+  })
+
+  it('still refuses workspace API keys for manual block entry', async () => {
+    await expect(
+      executeManualWorkflowFromBlockOperation.execute({
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: context.workspaceId,
+          keyId: 'workspace-key',
+        } as never,
+        input: { ...baseInput, blockId: 'agent-1', sourceRunId: 'source-run' },
+      })
+    ).rejects.toThrow()
+    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mocks.executeService).not.toHaveBeenCalled()
+  })
+
   it('requires an explicit block id when the workflow has multiple runnable triggers', async () => {
     mocks.resolveOptions.mockReturnValue([
       triggerOption,

@@ -1,24 +1,7 @@
 import { z } from 'zod'
+import { workflowFileInputSchema } from '@/lib/workflows/input-file-schema'
 import type { InputFormatField } from '@/lib/workflows/types'
-import type { UserFile } from '@/executor/types'
 import { isSafeKey } from '@/tools/safe-assign'
-
-/**
- * Canonical uploaded file references for workflow inputs. File ownership is checked
- * by the executor against the run's workspace, after input-shape validation.
- */
-const workflowInputFileSchema = z
-  .object({
-    id: z.string().min(1, 'File id cannot be empty'),
-    name: z.string().min(1, 'File name cannot be empty'),
-    url: z.string().min(1, 'File url cannot be empty'),
-    size: z.number().nonnegative(),
-    type: z.string().min(1, 'File MIME type cannot be empty'),
-    key: z.string().min(1, 'File storage key cannot be empty'),
-  })
-  .passthrough() satisfies z.ZodType<
-  Pick<UserFile, 'id' | 'name' | 'url' | 'size' | 'type' | 'key'>
->
 
 function fieldTypeToSchema(type: string | undefined): z.ZodType {
   switch (type) {
@@ -33,8 +16,9 @@ function fieldTypeToSchema(type: string | undefined): z.ZodType {
       return z.record(z.string(), z.unknown())
     case 'array':
       return z.array(z.unknown())
+    case 'files':
     case 'file[]':
-      return z.array(workflowInputFileSchema)
+      return z.array(workflowFileInputSchema)
     default:
       throw new Error(`Unsupported workflow input type "${type}"`)
   }
@@ -56,8 +40,8 @@ export function generateWorkflowInputShape(inputFormat: InputFormatField[]): z.Z
 
     const schema = fieldTypeToSchema(field.type).describe(
       field.description?.trim() ||
-        (field.type === 'file[]'
-          ? 'Array of uploaded file objects. Include each file id, name, url, size, MIME type, and storage key.'
+        (field.type === 'file[]' || field.type === 'files'
+          ? 'Files: use an existing workspace file ID/key, a file upload {type:"file",data:"data:<mime>;base64,...",name}, or URL {type:"url",data:"https://...",name}. Stored metadata and access are rechecked when the workflow runs.'
           : name)
     )
     shape[name] = field.value !== undefined && field.value !== null ? schema.optional() : schema

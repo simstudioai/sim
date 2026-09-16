@@ -107,7 +107,10 @@ const workspaceInvitation = {
 describe('POST /api/invitations/[id]/resend', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'admin@example.com' } })
+    mockGetSession.mockResolvedValue({
+      user: { id: 'user-1', email: 'admin@example.com' },
+      session: { id: 'session' },
+    })
     mockGetInvitationById.mockResolvedValue(workspaceInvitation)
     mockResolveInvitationAdmissionOrganizationId.mockResolvedValue('organization-1')
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
