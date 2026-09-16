@@ -651,13 +651,14 @@ export function MothershipChat({
     }
   }, [messages])
 
-  /**
-   * Always keep the last row in the rendered window. It is the live/streaming
-   * row; unmounting it (by scrolling far enough up that it leaves the overscan
-   * window) and remounting it mid-stream would reset its smooth-text reveal
-   * state and re-fire the fade-in animation — a visible flash. Pinning it costs
-   * one extra always-mounted row.
-   */
+  /** Keep the current user and assistant mounted while the measured virtual range catches up. */
+  let lastUserIndex = -1
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index]?.role === 'user') {
+      lastUserIndex = index
+      break
+    }
+  }
   const lastIndex = messages.length - 1
   const lastRowKey = lastIndex >= 0 ? rowKeyByIndex[lastIndex] : undefined
   useEffect(() => {
@@ -667,12 +668,12 @@ export function MothershipChat({
   const rangeExtractor = useCallback(
     (range: Range) => {
       const indexes = defaultRangeExtractor(range)
-      if (lastIndex >= 0 && !indexes.includes(lastIndex)) {
-        indexes.push(lastIndex)
+      for (const index of [lastUserIndex, lastIndex]) {
+        if (index >= 0 && !indexes.includes(index)) indexes.push(index)
       }
-      return indexes
+      return indexes.sort((a, b) => a - b)
     },
-    [lastIndex]
+    [lastIndex, lastUserIndex]
   )
 
   const virtualizer = useVirtualizer({
@@ -790,14 +791,7 @@ export function MothershipChat({
    */
   // The send commit appends the user message AND the live-assistant placeholder together,
   // so the LAST row is never the user's — track the newest user message wherever it sits.
-  let lastUserMessageId: string | undefined
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const candidate = messages[i]
-    if (candidate?.role === 'user') {
-      lastUserMessageId = candidate.id
-      break
-    }
-  }
+  const lastUserMessageId = messages[lastUserIndex]?.id
   const scrolledForUserMsgRef = useRef<string | undefined>(undefined)
   useLayoutEffect(() => {
     if (!lastUserMessageId || scrolledForUserMsgRef.current === lastUserMessageId) return

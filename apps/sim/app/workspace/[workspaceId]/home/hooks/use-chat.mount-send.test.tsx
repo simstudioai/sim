@@ -21,8 +21,10 @@
 import { act, type ReactNode, StrictMode, useEffect, useState } from 'react'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useResourcePanelController } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 
 const { mockRequestJson, mockExecuteWorkflow, navigationMocks } = vi.hoisted(() => ({
   mockRequestJson: vi.fn(),
@@ -42,6 +44,10 @@ const { mockRequestJson, mockExecuteWorkflow, navigationMocks } = vi.hoisted(() 
 }))
 
 vi.mock('next/navigation', () => navigationMocks)
+vi.mock('@/lib/auth/auth-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/auth-client')>()),
+  useSession: () => ({ data: { user: { id: 'test-viewer' } } }),
+}))
 vi.unmock('@/stores/execution/store')
 vi.unmock('@/stores/terminal')
 vi.unmock('@/stores/terminal/console/store')
@@ -68,6 +74,7 @@ import type { CopilotChatAbortBody, CopilotChatStopBody } from '@/lib/api/contra
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
+import { createSearchResource } from '@/lib/mothership/resources/search'
 import {
   executeRunToolOnClient,
   isRunToolActiveForId,
@@ -250,6 +257,7 @@ function renderUseChat(
 ): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
+  selectMode: (mode: 'agent' | 'assistant') => void
 } {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -275,6 +283,16 @@ function renderUseChat(
       return result
     },
     unmount: () => act(() => root.unmount()),
+    selectMode: (mode) => {
+      requestMode = mode
+      act(() =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <Probe />
+          </QueryClientProvider>
+        )
+      )
+    },
   }
 }
 
@@ -294,6 +312,7 @@ function renderUseChatInChat(
 ): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
+  navigate: (nextChatId: string, nextHistory: MothershipChatHistory) => void
 } {
   navigationMocks.usePathname.mockReturnValue(`/workspace/ws-1/chat/${chatId}`)
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -325,6 +344,18 @@ function renderUseChatInChat(
       return result
     },
     unmount: () => act(() => root.unmount()),
+    navigate: (nextChatId, nextHistory) => {
+      chatId = nextChatId
+      navigationMocks.usePathname.mockReturnValue(`/workspace/ws-1/chat/${chatId}`)
+      queryClient.setQueryData(mothershipChatKeys.detail(chatId), nextHistory)
+      act(() =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <Probe />
+          </QueryClientProvider>
+        )
+      )
+    },
   }
 }
 
@@ -457,6 +488,117 @@ describe('useChat remount send recovery', () => {
     })
     await waitFor(() => state.postBodies.length === 1)
     expect(state.postBodies[0]).toMatchObject({ chatId: 'chat-a', mode: selected })
+  })
+
+  it('retains an admitted Home chat through resource URL updates, mode changes and follow-ups', async () => {
+    const chatId = '11111111-1111-4111-8111-111111111111'
+    const organizationId = '22222222-2222-4222-8222-222222222222'
+    window.history.replaceState(null, '', `/o/${organizationId}/home`)
+    navigationMocks.usePathname.mockImplementation(() => window.location.pathname)
+    const search = createSearchResource({
+      query: 'Orion',
+      scope: { kind: 'organization', organizationId },
+    })
+    const history: MothershipChatHistory = {
+      id: chatId,
+      mode: 'assistant',
+      title: 'Orion conversation',
+      messages: [],
+      resources: [],
+      activeStreamId: null,
+    }
+    mockRequestJson.mockImplementation((contract) => {
+      if (contract.path === '/api/mothership/chat/resources') {
+        history.resources = [search]
+        return Promise.resolve({ success: true })
+      }
+      return Promise.resolve({ chat: structuredClone(history) })
+    })
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        state.postBodies.push(body)
+        history.messages.push({
+          id: body.userMessageId,
+          role: 'user',
+          content: body.message,
+          requestMode: body.mode,
+        })
+        return new Response('', {
+          headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chatId },
+        })
+      }
+      return fetchStub(input, init)
+    })
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const root = createRoot(document.createElement('div'))
+    mountedRoots.push(root)
+    let result: ReturnType<typeof useChat> | undefined
+    let mode: 'agent' | 'assistant' = 'assistant'
+    function Probe() {
+      const controller = useResourcePanelController()
+      result = useChat({ organizationId }, undefined, {
+        requestMode: mode,
+        activeResourceState: controller.activeResourceState,
+        onResourceEvent: controller.onResourceEvent,
+      })
+      return null
+    }
+    const render = () =>
+      root.render(
+        <NuqsTestingAdapter
+          hasMemory
+          onUrlUpdate={({ queryString }) =>
+            window.history.replaceState(null, '', `${window.location.pathname}${queryString}`)
+          }
+        >
+          <QueryClientProvider client={queryClient}>
+            <Probe />
+          </QueryClientProvider>
+        </NuqsTestingAdapter>
+      )
+    const current = () => {
+      if (!result) throw new Error('Hook not mounted')
+      return result
+    }
+    await act(async () => render())
+    await act(async () => current().sendMessage('Find Orion'))
+    await waitFor(() => !current().isSending && current().resolvedChatId === chatId)
+    await act(async () => current().addResource(search))
+    await waitFor(() => current().resources.length === 1)
+    await act(async () => {
+      mode = 'agent'
+      render()
+    })
+    await act(async () => current().sendMessage('Follow up in Build'))
+    await waitFor(() => !current().isSending)
+    await act(async () => {
+      mode = 'assistant'
+      render()
+    })
+    await act(async () =>
+      current().sendMessage('Inspect this image', [
+        { id: 'image', key: 'image-key', filename: 'image.png', media_type: 'image/png', size: 1 },
+      ])
+    )
+    await waitFor(
+      () =>
+        !current().isSending &&
+        current().messages.filter((message) => message.role === 'user').length === 3
+    )
+    expect(state.postBodies).toHaveLength(3)
+    expect(state.postBodies[0]).toMatchObject({ createNewChat: true })
+    expect(state.postBodies.slice(1)).toEqual([
+      expect.objectContaining({ chatId, createNewChat: false, mode: 'agent' }),
+      expect.objectContaining({
+        chatId,
+        createNewChat: false,
+        mode: 'assistant',
+        fileAttachments: [expect.objectContaining({ filename: 'image.png' })],
+      }),
+    ])
+    expect(current().resources).toEqual([search])
+    expect(window.location.pathname).toBe(`/o/${organizationId}/chat/${chatId}`)
   })
 
   it('sends and recovers an image-only organization turn', async () => {
@@ -799,6 +941,469 @@ describe('useChat remount send recovery', () => {
       queryClient.setQueryData(mothershipChatKeys.detail(history.id), { ...history, resources: [] })
     })
     await waitFor(() => getResult().resources.length === 0)
+  })
+
+  it.each(['initial', 'refetch'] as const)(
+    'keeps Search results when a pre-save %s response arrives after the resource write',
+    async (load) => {
+      const history: MothershipChatHistory = {
+        id: 'chat-search-save',
+        mode: 'assistant',
+        title: 'Search',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      }
+      const oldHistory = Promise.withResolvers<{ chat: MothershipChatHistory }>()
+      const savedResource = Promise.withResolvers<{ success: true }>()
+      const search = createSearchResource({
+        query: 'Orion',
+        scope: { kind: 'workspace', workspaceId: '11111111-1111-4111-8111-111111111111' },
+      })
+      let historyReads = 0
+      mockRequestJson.mockImplementation((contract) => {
+        if (contract.path === '/api/mothership/chat/resources') return savedResource.promise
+        return ++historyReads === 1
+          ? oldHistory.promise
+          : Promise.resolve({ chat: { ...history, title: 'Hydrated Search', resources: [search] } })
+      })
+      const { getResult } = renderUseChatInChat(
+        history.id,
+        load === 'initial' ? undefined : history
+      )
+      if (load === 'refetch') {
+        await act(async () => {
+          void queryClient.refetchQueries({ queryKey: mothershipChatKeys.detail(history.id) })
+        })
+      }
+      await act(async () => getResult().addResource(search))
+      expect(getResult().resources).toEqual([search])
+      await act(async () => savedResource.resolve({ success: true }))
+      await act(async () => oldHistory.resolve({ chat: history }))
+      await act(async () => {
+        await sleep(20)
+      })
+      expect(getResult().resources).toEqual([search])
+      expect(getResult().isChatHistoryPending).toBe(false)
+      expect(
+        queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(history.id))
+          ?.title
+      ).toBe('Hydrated Search')
+      expect(queryClient.getQueryState(mothershipChatKeys.detail(history.id))?.error).toBeNull()
+    }
+  )
+
+  it('keeps a closed Search tab absent through an in-flight add and delayed delete', async () => {
+    const search = createSearchResource({
+      query: 'Orion',
+      scope: { kind: 'workspace', workspaceId: '11111111-1111-4111-8111-111111111111' },
+    })
+    const history: MothershipChatHistory = {
+      id: 'chat-close-search',
+      mode: 'assistant',
+      title: 'Search',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    const added = Promise.withResolvers<{ success: true }>()
+    const deleted = Promise.withResolvers<{ success: true }>()
+    const staleRead = Promise.withResolvers<{ chat: MothershipChatHistory }>()
+    let deleteStarted = false
+    let historyReads = 0
+    mockRequestJson.mockImplementation((contract) => {
+      if (contract.path === '/api/mothership/chat/resources') {
+        if (contract.method === 'DELETE') {
+          deleteStarted = true
+          return deleted.promise
+        }
+        return added.promise
+      }
+      return ++historyReads === 1 ? staleRead.promise : Promise.resolve({ chat: history })
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await act(async () => getResult().addResource(search))
+    await act(async () => getResult().removeResource(search.type, search.id, search.workspaceId))
+    expect(getResult().resources).toEqual([])
+    await act(async () => added.resolve({ success: true }))
+    await waitFor(() => deleteStarted && historyReads === 1)
+    await act(async () => staleRead.resolve({ chat: { ...history, resources: [search] } }))
+    await act(async () => {
+      await sleep(20)
+    })
+    expect(getResult().resources).toEqual([])
+    expect(
+      queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(history.id))
+        ?.resources
+    ).toEqual([search])
+    expect(queryClient.getQueryState(mothershipChatKeys.detail(history.id))?.error).toBeNull()
+    await act(async () => deleted.resolve({ success: true }))
+    await act(async () => {
+      await sleep(20)
+    })
+    expect(getResult().resources).toEqual([])
+    expect(
+      queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(history.id))
+        ?.resources
+    ).toEqual([])
+  })
+
+  it('keeps a newer search query while the prior query save refreshes history', async () => {
+    const search = createSearchResource({
+      query: 'Orion',
+      scope: { kind: 'workspace', workspaceId: '11111111-1111-4111-8111-111111111111' },
+    })
+    const latest = createSearchResource({ ...search.search!, query: 'release blockers' })
+    const history: MothershipChatHistory = {
+      id: 'chat-search-update',
+      mode: 'assistant',
+      title: 'Search',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    const first = Promise.withResolvers<{ success: true }>()
+    const second = Promise.withResolvers<{ success: true }>()
+    let writes = 0
+    let reads = 0
+    mockRequestJson.mockImplementation((contract) => {
+      if (contract.path === '/api/mothership/chat/resources')
+        return ++writes === 1 ? first.promise : second.promise
+      return Promise.resolve({ chat: { ...history, resources: [++reads === 1 ? search : latest] } })
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+    await act(async () => getResult().addResource(search))
+    await act(async () => getResult().addResource(latest))
+    await act(async () => first.resolve({ success: true }))
+    await waitFor(() => writes === 2 && reads === 1)
+    await act(async () => {
+      await sleep(20)
+    })
+    expect(getResult().resources).toEqual([latest])
+    await act(async () => second.resolve({ success: true }))
+    await act(async () => {
+      await sleep(20)
+    })
+    expect(getResult().resources).toEqual([latest])
+    expect(reads).toBeGreaterThanOrEqual(2)
+    expect(
+      queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(history.id))
+        ?.resources
+    ).toEqual([latest])
+    expect(queryClient.getQueryState(mothershipChatKeys.detail(history.id))?.error).toBeNull()
+  })
+
+  it.each(['during', 'after'] as const)(
+    'preserves a tab reorder when the add-triggered history arrives %s the reorder write',
+    async (arrival) => {
+      const table = { type: 'table' as const, id: 'table-order', title: 'Contacts' }
+      const refreshedTable = { ...table, title: 'Updated contacts' }
+      const search = createSearchResource({
+        query: 'Orion',
+        scope: { kind: 'workspace', workspaceId: '11111111-1111-4111-8111-111111111111' },
+      })
+      const history: MothershipChatHistory = {
+        id: 'chat-resource-reorder',
+        mode: 'agent',
+        title: 'Search',
+        messages: [],
+        activeStreamId: null,
+        resources: [table],
+      }
+      const added = Promise.withResolvers<{ success: true }>()
+      const reordered = Promise.withResolvers<{ success: true }>()
+      const staleRead = Promise.withResolvers<{ chat: MothershipChatHistory }>()
+      let reorderStarted = false
+      let reads = 0
+      mockRequestJson.mockImplementation((contract) => {
+        if (contract.path === '/api/mothership/chat/resources') {
+          if (contract.method === 'PATCH') {
+            reorderStarted = true
+            return reordered.promise
+          }
+          return added.promise
+        }
+        return ++reads === 1
+          ? staleRead.promise
+          : Promise.resolve({ chat: { ...history, resources: [search, refreshedTable] } })
+      })
+      const { getResult } = renderUseChatInChat(history.id, history)
+      await act(async () => getResult().addResource(search))
+      await act(async () => getResult().reorderResources([search, table]))
+      await act(async () => added.resolve({ success: true }))
+      await waitFor(() => reorderStarted && reads === 1)
+      if (arrival === 'after') {
+        await act(async () => reordered.resolve({ success: true }))
+        await waitFor(() => reads === 2)
+      }
+      await act(async () =>
+        staleRead.resolve({ chat: { ...history, resources: [refreshedTable, search] } })
+      )
+      await act(async () => {
+        await sleep(20)
+      })
+      expect(queryClient.getQueryState(mothershipChatKeys.detail(history.id))?.error).toBeNull()
+
+      expect(getResult().resources).toEqual([search, refreshedTable])
+      if (arrival === 'during') {
+        await act(async () => reordered.resolve({ success: true }))
+        await waitFor(() => reads === 2)
+      }
+      expect(getResult().resources).toEqual([search, refreshedTable])
+    }
+  )
+
+  it.each([false, true])(
+    'keeps the owning optimistic user through lagging resource history (model output: %s)',
+    async (hasOutput) => {
+      state.postBehavior = 'task'
+      const history: MothershipChatHistory = {
+        id: 'chat-lagging-user',
+        mode: 'assistant',
+        title: 'Search',
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      }
+      const search = createSearchResource({
+        query: 'Orion acceptance policy',
+        scope: { kind: 'workspace', workspaceId: '11111111-1111-4111-8111-111111111111' },
+      })
+      const staleHistory = Promise.withResolvers<{ chat: MothershipChatHistory }>()
+      let historyReads = 0
+      mockRequestJson.mockImplementation((contract) => {
+        if (contract.path === '/api/mothership/chat/resources')
+          return Promise.resolve({ success: true })
+        historyReads++
+        return staleHistory.promise
+      })
+      if (!hasOutput) {
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input) === '/api/mothership/chat' && init?.method === 'POST') {
+            state.postBodies.push(JSON.parse(String(init.body)))
+            return new Response(new ReadableStream<Uint8Array>(), {
+              headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': history.id },
+            })
+          }
+          return fetchStub(input, init)
+        })
+      }
+      const { getResult, navigate } = renderUseChatInChat(history.id, history)
+      await act(async () => {
+        void getResult().sendMessage('Orion acceptance policy')
+      })
+      await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
+      if (hasOutput) {
+        await waitFor(() =>
+          getResult().messages.some(
+            (message) => message.role === 'assistant' && message.contentBlocks?.length
+          )
+        )
+      }
+      const sentUser = queryClient
+        .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(history.id))!
+        .messages.find((message) => message.role === 'user')!
+      const liveAssistant = queryClient
+        .getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(history.id))!
+        .messages.find((message) => message.role === 'assistant')!
+      await act(async () => getResult().addResource(search))
+      await waitFor(() => historyReads > 0)
+      await act(async () =>
+        staleHistory.resolve({
+          chat: {
+            ...history,
+            title: 'Hydrated during run',
+            activeStreamId: sentUser.id,
+            messages: [liveAssistant],
+            resources: [search],
+          },
+        })
+      )
+      await waitFor(
+        () =>
+          queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(history.id))
+            ?.title === 'Hydrated during run'
+      )
+      expect(getResult().messages.map((message) => message.id)).toEqual([
+        sentUser.id,
+        liveAssistant.id,
+      ])
+      expect(getResult().messages[0].content).toBe('Orion acceptance policy')
+      await act(async () =>
+        queryClient.setQueryData(mothershipChatKeys.detail(history.id), {
+          ...history,
+          activeStreamId: sentUser.id,
+          messages: [sentUser, liveAssistant],
+          resources: [search],
+        })
+      )
+      expect(getResult().messages.filter((message) => message.id === sentUser.id)).toHaveLength(1)
+      navigate('chat-other', { ...history, id: 'chat-other', messages: [] })
+      await waitFor(() => getResult().messages.length === 0)
+      expect(getResult().messages.some((message) => message.id === sentUser.id)).toBe(false)
+    }
+  )
+
+  it('captures Search Fast independently for each queued turn and omits it from Build requests', async () => {
+    state.postBehavior = 'task'
+    const { getResult } = renderUseChat({ organizationId: 'org-a' }, 'assistant')
+    await act(async () => {
+      void getResult().sendMessage('Fast search', undefined, undefined, {
+        requestMode: 'assistant',
+        assistantFast: true,
+      })
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).toEqual(
+      expect.objectContaining({ mode: 'assistant', assistantFast: true })
+    )
+    expect(state.postBodies[0]).not.toHaveProperty('modelSelection')
+    expect(state.postBodies[0]).not.toHaveProperty('effort')
+    await act(async () => {
+      void getResult().sendMessage('Astra search', undefined, undefined, {
+        requestMode: 'assistant',
+        assistantFast: false,
+      })
+    })
+    await act(async () => {
+      void getResult().sendMessage('Next Fast search', undefined, undefined, {
+        requestMode: 'assistant',
+        assistantFast: true,
+      })
+    })
+    expect(allQueuedMessages().map((message) => message.assistantFast)).toEqual([false, true])
+    await act(async () => {
+      void getResult().sendNow(allQueuedMessages()[0].id)
+    })
+    await waitFor(() => state.postBodies.length === 2)
+    expect(state.postBodies[1]).toEqual(
+      expect.objectContaining({ mode: 'assistant', message: 'Astra search' })
+    )
+    expect(state.postBodies[1]).not.toHaveProperty('assistantFast')
+    expect(state.postBodies[1]).not.toHaveProperty('modelSelection')
+    expect(state.postBodies[1]).not.toHaveProperty('effort')
+    await act(async () => {
+      void getResult().sendNow(allQueuedMessages()[0].id)
+    })
+    await waitFor(() => state.postBodies.length === 3)
+    expect(state.postBodies[2]).toEqual(
+      expect.objectContaining({
+        mode: 'assistant',
+        assistantFast: true,
+        message: 'Next Fast search',
+      })
+    )
+    expect(state.postBodies[2]).not.toHaveProperty('modelSelection')
+    expect(state.postBodies[2]).not.toHaveProperty('effort')
+  })
+
+  it('keeps each queued harness and attachment payload when the composer changes mode mid-stream', async () => {
+    state.postBehavior = 'task'
+    const { getResult, selectMode } = renderUseChat({ organizationId: 'org-a' }, 'agent')
+    await act(async () => {
+      void getResult().sendMessage('Current Build response')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    selectMode('assistant')
+    expect(getResult().isSending).toBe(true)
+    expect(state.postBodies).toHaveLength(1)
+    await act(async () => {
+      void getResult().sendMessage('Queued search')
+    })
+    selectMode('agent')
+    const attachments = [
+      {
+        id: 'file-a',
+        key: 'attachment-key',
+        filename: 'notes.txt',
+        media_type: 'text/plain',
+        size: 4,
+      },
+    ]
+    const contexts = [{ kind: 'skill' as const, skillId: 'builtin-research', label: 'research' }]
+    await act(async () => {
+      void getResult().sendMessage('Queued build', attachments, contexts)
+    })
+    expect(allQueuedMessages().map((message) => message.requestMode)).toEqual([
+      'assistant',
+      'agent',
+    ])
+    selectMode('assistant')
+    await act(async () => {
+      void getResult().sendNow(allQueuedMessages()[0].id)
+    })
+    await waitFor(() => state.postBodies.length === 2)
+    expect(state.postBodies[1]).toEqual(
+      expect.objectContaining({ mode: 'assistant', message: 'Queued search' })
+    )
+    expect(state.postBodies[1]).not.toHaveProperty('modelSelection')
+    await act(async () => {
+      void getResult().sendNow(allQueuedMessages()[0].id)
+    })
+    await waitFor(() => state.postBodies.length === 3)
+    expect(state.postBodies[2]).toEqual(
+      expect.objectContaining({
+        mode: 'agent',
+        message: 'Queued build',
+        fileAttachments: attachments,
+        contexts,
+      })
+    )
+  })
+
+  it('leaves default Search routing entirely server-selected', async () => {
+    const { getResult } = renderUseChat({ organizationId: 'org-a' }, 'assistant')
+    await act(async () => {
+      void getResult().sendMessage('Default Astra search')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).not.toHaveProperty('assistantFast')
+    expect(state.postBodies[0]).not.toHaveProperty('modelSelection')
+    expect(state.postBodies[0]).not.toHaveProperty('effort')
+  })
+
+  it('surfaces an explicit admission rejection without reconnecting or marking the user turn stopped', async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/mothership/chat' && init?.method === 'POST')
+        return Response.json(
+          { error: 'Fast Search is unavailable for this request' },
+          { status: 400 }
+        )
+      return fetchStub(input, init)
+    })
+    vi.stubGlobal('fetch', fetch)
+    const { getResult } = renderUseChat({ organizationId: 'org-a' }, 'assistant')
+    await act(async () => {
+      await getResult().sendMessage('Find Orion', undefined, undefined, { assistantFast: true })
+    })
+    expect(getResult().error).toBe('Fast Search is unavailable for this request')
+    expect(getResult().isSending).toBe(false)
+    expect(getResult().isReconnecting).toBe(false)
+    expect(
+      getResult()
+        .messages.filter((message) => message.role === 'user')
+        .map((message) => message.content)
+    ).toEqual(['Find Orion'])
+    expect(
+      getResult()
+        .messages.flatMap((message) => message.contentBlocks ?? [])
+        .some((block) => block.type === 'stopped')
+    ).toBe(false)
+    expect(fetch.mock.calls.some(([input]) => String(input).includes('/stream'))).toBe(false)
+  })
+
+  it('never forwards Search Fast on a Build request', async () => {
+    const { getResult } = renderUseChat({ organizationId: 'org-a' }, 'agent')
+    await act(async () => {
+      void getResult().sendMessage('Build', undefined, undefined, {
+        requestMode: 'agent',
+        assistantFast: true,
+      })
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).not.toHaveProperty('assistantFast')
+    expect(state.postBodies[0]).toHaveProperty('modelSelection')
+    expect(state.postBodies[0]).toHaveProperty('effort')
   })
 
   it('preserves a visible workflow watch when Stop persists the partial response', async () => {

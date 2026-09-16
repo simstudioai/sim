@@ -13,7 +13,10 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
-import { searchResourceFromToolResult } from '@/lib/mothership/resources/search-tool-result'
+import {
+  searchResourceFromToolResult,
+  searchResultFromToolResult,
+} from '@/lib/mothership/resources/search-tool-result'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { routeExecution } from '@/lib/mothership/tools/server/router'
 
@@ -150,7 +153,15 @@ export async function executeAgentCliService(
       stdout: invocation.kind === 'stdout' ? invocation.stdout : JSON.stringify(output ?? null),
       stderr: message || '',
       ...(searchResource
-        ? { resources: [{ op: 'upsert' as const, resource: searchResource }] }
+        ? {
+            resources: [
+              {
+                op: 'upsert' as const,
+                resource: searchResource,
+                searchResult: searchResultFromToolResult(output, target.userId),
+              },
+            ],
+          }
         : {}),
     }
     const files = sessionKey

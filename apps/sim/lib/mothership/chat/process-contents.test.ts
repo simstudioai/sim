@@ -1912,3 +1912,42 @@ describe('organization skill mention targets', () => {
     expect(getSkillUseCase).not.toHaveBeenCalled()
   })
 })
+
+it('resolves organization built-in templates without choosing or reading a workspace', async () => {
+  resolveInvocationWorkspace.mockClear()
+  getSkillUseCase.mockClear()
+  const result = await processContextsServer(
+    [{ kind: 'skill', skillId: 'builtin-research', label: 'research' }],
+    'user-1',
+    '',
+    undefined,
+    'chat-1',
+    undefined,
+    'org-1'
+  )
+  expect(result).toEqual([
+    expect.objectContaining({
+      type: 'skill',
+      tag: '@research',
+      content: expect.stringContaining('Research'),
+    }),
+  ])
+  expect(resolveInvocationWorkspace).not.toHaveBeenCalled()
+  expect(getSkillUseCase).not.toHaveBeenCalled()
+})
+
+it('does not treat a forged built-in identifier as a global template', async () => {
+  resolveInvocationWorkspace.mockRejectedValueOnce(new Error('Workspace target required'))
+  getSkillUseCase.mockClear()
+  const result = await processContextsServer(
+    [{ kind: 'skill', skillId: 'builtin-forged', label: 'forged' }],
+    'user-1',
+    '',
+    undefined,
+    'chat-1',
+    undefined,
+    'org-1'
+  )
+  expect(result).toEqual([])
+  expect(getSkillUseCase).not.toHaveBeenCalled()
+})

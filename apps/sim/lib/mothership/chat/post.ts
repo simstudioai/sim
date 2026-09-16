@@ -268,6 +268,7 @@ const ChatMessageSchema = z
     model: z.string().optional().default(DEFAULT_MODEL),
     mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
     assistantSearch: workspaceSearchFiltersSchema.optional(),
+    assistantFast: z.boolean().optional(),
     prefetch: z.boolean().optional(),
     createNewChat: z.boolean().optional().default(false),
     implicitFeedback: z.string().optional(),
@@ -314,6 +315,20 @@ const ChatMessageSchema = z
       })
       .optional(),
   })
+  .superRefine((body, ctx) => {
+    if (body.assistantFast !== undefined && body.mode !== 'assistant')
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Fast Search requires Assistant mode',
+        path: ['assistantFast'],
+      })
+    if (body.assistantFast && body.modelSelection)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Fast Search cannot include another model selection',
+        path: ['assistantFast'],
+      })
+  })
   .refine(
     (body) => body.message.length > 0 || (!!body.organizationId && !!body.fileAttachments?.length),
     { message: 'Message is required', path: ['message'] }
@@ -358,6 +373,7 @@ type UnifiedChatBranch =
         commands?: string[]
         prefetch?: boolean
         implicitFeedback?: string
+        assistantFast?: boolean
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
         desktopLocalFilesystem?: boolean
@@ -395,6 +411,7 @@ type UnifiedChatBranch =
         userPermission?: string
         userTimezone?: string
         userMetadata?: { name?: string; email?: string; timezone?: string }
+        assistantFast?: boolean
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
         effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
@@ -775,6 +792,7 @@ async function resolveBranch(params: {
             provider: payloadParams.provider,
             contexts: payloadParams.contexts,
             assistantSearch: payloadParams.assistantSearch,
+            assistantFast: payloadParams.assistantFast,
             mcpServerIds: payloadParams.mcpServerIds,
             fileAttachments: payloadParams.fileAttachments,
             commands: payloadParams.commands,
@@ -841,6 +859,7 @@ async function resolveBranch(params: {
           contexts: payloadParams.contexts,
           workspaceContext: payloadParams.workspaceContext,
           assistantSearch: payloadParams.assistantSearch,
+          assistantFast: payloadParams.assistantFast,
           mcpServerIds: payloadParams.mcpServerIds,
           fileAttachments: payloadParams.fileAttachments,
           chatId: payloadParams.chatId,
@@ -1310,6 +1329,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 chatId: actualChatId,
                 contexts: turnContexts,
                 assistantSearch: body.mode === 'assistant' ? body.assistantSearch : undefined,
+                assistantFast: body.assistantFast,
                 mcpServerIds,
                 fileAttachments,
                 userPermission: userPermission ?? undefined,
@@ -1343,6 +1363,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 mcpServerIds,
                 fileAttachments,
                 assistantImages: assistantImages?.content,
+                assistantFast: body.assistantFast,
                 workspaceContext,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,

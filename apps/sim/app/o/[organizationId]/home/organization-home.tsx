@@ -59,6 +59,16 @@ function OrganizationHomeContent({
   const rememberedMode = useOrganizationChatModeStore(
     (state) => state.modes[`${userId}:${organization.id}`]
   )
+  const assistantFast = useOrganizationChatModeStore(
+    (state) => state.assistantFast?.[`${userId}:${organization.id}`] ?? false
+  )
+  const rememberAssistantFast = useOrganizationChatModeStore((state) => state.setAssistantFast)
+  const changeAssistantFast = useCallback(
+    (enabled: boolean) => {
+      if (userId) rememberAssistantFast(userId, organization.id, enabled)
+    },
+    [userId, organization.id, rememberAssistantFast]
+  )
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const requestMode =
@@ -116,6 +126,9 @@ function OrganizationHomeContent({
     organizationId: organization.id,
     requestMode,
   })
+  useEffect(() => {
+    if (chat.error) toast.error(chat.error)
+  }, [chat.error])
   const { sendMessage } = chat
   const { mutate: markRead } = useMarkMothershipChatRead({ organizationId: organization.id })
   const firstName = userName?.split(' ')[0] ?? ''
@@ -139,10 +152,15 @@ function OrganizationHomeContent({
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
           : {}),
+        ...(requestMode === 'assistant'
+          ? {
+              assistantFast: handoff.assistantFast ?? assistantFast,
+            }
+          : {}),
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [chatId, organization.id, requestMode, sendMessage])
+  }, [chatId, organization.id, requestMode, sendMessage, assistantFast])
 
   const send = (
     message: string,
@@ -155,14 +173,12 @@ function OrganizationHomeContent({
     if (requestMode === 'agent') panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
       requestMode,
+      ...(requestMode === 'assistant' ? { assistantFast } : {}),
       ...(assistantSearch ? { assistantSearch } : {}),
     })
   }
-  const modeChangeDisabled =
-    chat.isSending || chat.isReconnecting || Boolean(chat.messageQueue?.length)
   const changeMode = (mode: ChatRequestMode) => {
-    if (!canBuild || !searchAccess.memberScoped || modeChangeDisabled || mode === requestMode)
-      return
+    if (!canBuild || !searchAccess.memberScoped || mode === requestMode) return
     setSelectedMode(mode)
     if (userId) rememberMode(userId, organization.id, mode)
   }
@@ -201,9 +217,10 @@ function OrganizationHomeContent({
     ) : (
       <Composer
         requestMode={requestMode}
+        assistantFast={assistantFast}
+        onAssistantFastChange={changeAssistantFast}
         showModeSelector={canBuild && searchAccess.memberScoped}
         onModeChange={changeMode}
-        modeChangeDisabled={modeChangeDisabled}
         value={draft}
         restoredContexts={restoredContexts}
         files={files}
@@ -238,7 +255,10 @@ function OrganizationHomeContent({
           onEditQueuedMessage={(id) => {
             const queued = chat.editQueuedMessage(id)
             if (queued) {
+              const queuedMode = queued.requestMode ?? requestMode
+              setSelectedMode(queuedMode)
               setDraft(queued.content)
+              if (queuedMode === 'assistant') changeAssistantFast(queued.assistantFast ?? false)
               setRestoredContexts(queued.contexts ?? [])
               files.restoreAttachedFiles(
                 (queued.fileAttachments ?? []).map((file) => ({
@@ -269,9 +289,7 @@ function OrganizationHomeContent({
           {/* Asymmetric padding biases the group up so the full cluster (heading + input + steps) sits at the optical center */}
           <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
             <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
-              {requestMode === 'assistant'
-                ? `Search ${organization.name}`
-                : `What should we get done${firstName ? `, ${firstName}` : ''}?`}
+              What should we get done{firstName ? `, ${firstName}` : ''}?
             </h1>
             <div className='relative w-full max-w-chat'>
               {composer}
@@ -292,20 +310,12 @@ function OrganizationHomeContent({
       )}
     </div>
   )
-  const latestQuestion = [...chat.messages]
-    .reverse()
-    .find((message) => message.role === 'user' && message.origin !== 'task')
-  const latestQuestionMode = latestQuestion?.requestMode ?? savedMode ?? requestMode
   return (
     <ChatResourcePanel
+      allowBuildControls={requestMode === 'agent' && canBuild}
       organizationId={organization.id}
       chat={chat}
       panel={panel}
-      searchRequest={
-        latestQuestion && latestQuestionMode === 'assistant'
-          ? { messageId: latestQuestion.id, query: latestQuestion.content.trim() }
-          : undefined
-      }
       onSummarize={(message, filters) => send(message, undefined, undefined, filters)}
     >
       {content}

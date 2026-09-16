@@ -169,3 +169,38 @@ it('restores named workflow tabs across owners and ignores empty or wrong-owner 
   )
   expect(props().tabs.map((tab) => tab.title)).toEqual(['Saved A', 'Saved B'])
 })
+
+it('shows organization Build controls immediately and hides them again in Search', async () => {
+  const render = async (allowBuildControls: boolean) =>
+    act(async () =>
+      root.render(
+        <ResourceTabs
+          organizationId='org-a'
+          allowBuildControls={allowBuildControls}
+          resources={[first]}
+          activeId={getChatResourceSelectionId(first)}
+          desktopScopeId='org-chat'
+        />
+      )
+    )
+  await render(false)
+  expect(props().newTabControl).toBeUndefined()
+  await render(true)
+  expect(props().newTabControl).toBeTruthy()
+  await render(false)
+  expect(props().newTabControl).toBeUndefined()
+})
+
+it('does not assume Build capability for an organization owner without an explicit grant', async () => {
+  await act(async () =>
+    root.render(
+      <ResourceTabs
+        organizationId='org-a'
+        resources={[]}
+        activeId={null}
+        desktopScopeId='org-chat'
+      />
+    )
+  )
+  expect(props().newTabControl).toBeUndefined()
+})

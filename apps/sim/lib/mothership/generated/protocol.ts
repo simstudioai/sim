@@ -140,6 +140,7 @@ export const ChatPayloadSchema = z
     organizationId: z.string().min(1).max(200).optional(),
     mode: z.enum(["agent", "assistant"]).optional(),
     assistantSearch: AssistantSearch.optional(),
+    assistantFast: z.boolean().optional(),
     assistantImages: z.array(AssistantImage).max(5).optional(),
     /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
     workflowId: z.string().optional(),
@@ -177,6 +178,10 @@ export const ChatPayloadSchema = z
     inventory: WorkspaceInventorySchema.optional(),
   })
   .superRefine((value, ctx) => {
+    if (value.assistantFast !== undefined && value.mode !== "assistant")
+      ctx.addIssue({ code: "custom", message: "Fast Search requires Assistant mode" });
+    if (value.assistantFast && value.modelSelection)
+      ctx.addIssue({ code: "custom", message: "Fast Search cannot include another model selection" });
     if (Boolean(value.workspaceId) === Boolean(value.organizationId))
       ctx.addIssue({ code: "custom", message: "Exactly one workspaceId or organizationId is required" });
     if (value.organizationId && !value.mode)
@@ -232,6 +237,7 @@ export interface ChatRequest extends StreamResponseReceipt {
   organizationId?: string | undefined;
   mode?: "agent" | "assistant" | undefined;
   assistantSearch?: AssistantSearch | undefined;
+  assistantFast?: boolean | undefined;
   assistantImages?: AssistantImage[] | undefined;
   /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
   workflowId?: string | undefined;

@@ -2,7 +2,10 @@
 // Regenerate with `bun run contracts:sync` in the worker.
 
 import { z } from "zod";
-import { workspaceSearchFiltersSchema } from "./sim-assistant-tools.generated";
+import {
+  workspaceKnowledgeSearchDataSchema,
+  workspaceSearchFiltersSchema,
+} from "./sim-assistant-tools.generated";
 
 export const ResourceType = z.enum([
   "search",
@@ -47,7 +50,14 @@ export type ResourceAddress = z.infer<typeof ResourceAddress>;
 
 /** Refreshing a collection never invents an entity or opens a panel. */
 export const ResourceChange = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("upsert"), resource: ResourceAddress, readOnly: z.literal(true).optional() }),
+  z.object({
+    op: z.literal("upsert"),
+    resource: ResourceAddress,
+    readOnly: z.literal(true).optional(),
+    searchResult: z
+      .object({ actorUserId: z.string().min(1), data: workspaceKnowledgeSearchDataSchema })
+      .optional(),
+  }),
   z.object({ op: z.literal("remove"), resource: ResourceAddress }),
   z.object({
     op: z.literal("clear_view"),

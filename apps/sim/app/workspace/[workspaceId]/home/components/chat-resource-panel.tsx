@@ -1,8 +1,7 @@
 'use client'
 
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback } from 'react'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
-import { createSearchResource } from '@/lib/mothership/resources/search'
 import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
@@ -19,10 +18,10 @@ const MothershipView = lazy(() =>
 interface ChatResourcePanelProps {
   workspaceId?: string
   organizationId?: string
+  allowBuildControls?: boolean
   chat: ReturnType<typeof useChat>
   panel: ReturnType<typeof useChatResourcePanel>
   children: ReactNode
-  searchRequest?: { messageId: string; query: string }
   onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
 }
 
@@ -30,10 +29,10 @@ interface ChatResourcePanelProps {
 export function ChatResourcePanel({
   workspaceId,
   organizationId,
+  allowBuildControls,
   chat,
   panel,
   children,
-  searchRequest,
   onSummarize,
 }: ChatResourcePanelProps) {
   useBrowserTabResources(panel.desktopTabResourceOptions)
@@ -62,31 +61,6 @@ export function ChatResourcePanel({
     handleResourceResizePointerDown,
     handleResourceInteraction,
   } = panel
-  const searchInitialized = useRef(false)
-  const lastSearchMessageId = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    if (chat.resolvedChatId && chat.isChatHistoryPending) return
-    const initialHistory = !searchInitialized.current
-    searchInitialized.current = true
-    if (!searchRequest?.query || searchRequest.messageId === lastSearchMessageId.current) return
-    lastSearchMessageId.current = searchRequest.messageId
-    if (initialHistory && resources.some((resource) => resource.type === 'search')) return
-    const scope = organizationId
-      ? { kind: 'organization' as const, organizationId }
-      : workspaceId
-        ? { kind: 'workspace' as const, workspaceId }
-        : undefined
-    if (!scope) return
-    addResourceFromUser(createSearchResource({ query: searchRequest.query, scope }))
-  }, [
-    searchRequest,
-    organizationId,
-    workspaceId,
-    resources,
-    addResourceFromUser,
-    chat.resolvedChatId,
-    chat.isChatHistoryPending,
-  ])
   const summarize = useCallback(
     (message: string, filters: WorkspaceSearchFilters) => {
       if (onSummarize) onSummarize(message, filters)
@@ -114,6 +88,7 @@ export function ChatResourcePanel({
               ref={mothershipRef}
               workspaceId={workspaceId}
               organizationId={organizationId}
+              allowBuildControls={allowBuildControls}
               chatId={resolvedChatId}
               desktopScopeId={desktopScopeId}
               resources={resources}

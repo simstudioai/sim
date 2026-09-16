@@ -5,7 +5,15 @@ import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ request: vi.fn(), summarize: vi.fn(), divider: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  viewerId: 'reader',
+  request: vi.fn(),
+  summarize: vi.fn(),
+  divider: vi.fn(),
+}))
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: mocks.viewerId } } }),
+}))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request, contractUrl: vi.fn() }))
 vi.mock('@/lib/browser-agent/transport', () => ({ beginBrowserPanelDividerDrag: mocks.divider }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
@@ -25,8 +33,10 @@ vi.mock(
   })
 )
 
+import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { SearchResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/search-resource-content'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 let container: HTMLDivElement
 let root: Root
@@ -34,6 +44,7 @@ let client: QueryClient
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.viewerId = 'reader'
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'requestAnimationFrame',
@@ -105,6 +116,50 @@ async function render(query: string) {
   })
 }
 describe('shared Search resource content', () => {
+  it('renders live authorized tool data without searching twice and refetches with a fresh viewer cache', async () => {
+    const key = knowledgeKeys.search(
+      resourceScopeKey({ kind: 'organization', organizationId: 'org' }),
+      'release',
+      { source: 'google_drive' },
+      12,
+      'reader'
+    )
+    client.setQueryData(key, {
+      query: 'release',
+      results: [
+        {
+          documentId: 'live-doc',
+          knowledgeBaseId: 'index',
+          knowledgeBaseName: 'Sources',
+          documentName: 'Authorized live result',
+          sourceUrl: 'https://example.test/live',
+          connectorType: 'google_drive',
+          sourceModifiedAt: null,
+          author: null,
+          content: 'live evidence',
+          chunkIndex: 0,
+          similarity: 0.9,
+        },
+      ],
+      retrieval: { status: 'complete', timedOutLegs: [] },
+    })
+    await render('release')
+    expect(container.textContent).toContain('Authorized live result')
+    expect(mocks.request).not.toHaveBeenCalled()
+    mocks.viewerId = 'another-reader'
+    await render('release')
+    expect(mocks.request).toHaveBeenCalledOnce()
+    expect(container.textContent).not.toContain('Authorized live result')
+    await act(async () => root.unmount())
+    client.clear()
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    root = createRoot(container)
+    await render('release')
+    expect(mocks.request).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toContain('Result for release')
+    expect(container.textContent).not.toContain('Authorized live result')
+  })
+
   it('queries the authorized raw search endpoint without waiting for or requesting a model answer', async () => {
     await render('release')
     expect(container.textContent).toContain('Result for release')

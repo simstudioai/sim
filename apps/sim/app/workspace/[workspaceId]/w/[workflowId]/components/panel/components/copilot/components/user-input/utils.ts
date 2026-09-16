@@ -187,6 +187,9 @@ function sameIds(a: string[] | undefined, b: string[] | undefined): boolean {
  * Assumes c.kind === context.kind (must be checked before calling).
  */
 export function areContextsEqual(c: ChatContext, context: ChatContext): boolean {
+  const owner = 'workspaceId' in c ? c.workspaceId : undefined
+  const otherOwner = 'workspaceId' in context ? context.workspaceId : undefined
+  if (owner !== otherOwner) return false
   switch (c.kind) {
     case 'past_chat': {
       const ctx = context as PastChatContext

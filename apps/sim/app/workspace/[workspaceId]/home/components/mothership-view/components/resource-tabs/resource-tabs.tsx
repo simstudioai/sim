@@ -211,6 +211,8 @@ function useResourceNameLookup(
 }
 
 interface ResourceTabsProps {
+  organizationId?: string
+  allowBuildControls?: boolean
   workspaceId?: string
   desktopScopeId: string
   chatId?: string
@@ -234,6 +236,8 @@ interface ResourceTabsProps {
  * component the browser and terminal panels nested inside this one use.
  */
 export function ResourceTabs({
+  organizationId,
+  allowBuildControls = !organizationId,
   workspaceId,
   desktopScopeId,
   chatId,
@@ -609,10 +613,11 @@ export function ResourceTabs({
           // Offered before the chat exists too: a resource opened while composing
           // the first prompt is context for that prompt, and gating on a chat id
           // meant the panel could be opened but not filled.
-          workspaceId ? (
+          allowBuildControls && (workspaceId || organizationId) ? (
             <div className={cn(resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}>
               <AddResourceDropdown
                 workspaceId={workspaceId}
+                organizationId={organizationId}
                 onAdd={handleAdd}
                 excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
                 onRequestOpen={onRequestAddResourceOpen}

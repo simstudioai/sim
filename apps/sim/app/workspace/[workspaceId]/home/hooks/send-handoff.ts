@@ -11,9 +11,12 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
 import { STREAM_STORAGE_KEY } from '@/lib/mothership/constants'
+import type {
+  ChatRequestMode,
+  FileAttachmentForApi,
+} from '@/app/workspace/[workspaceId]/home/types'
 import type { QueuedSendHandoffSeed } from '@/stores/mothership-queue/types'
 import type { ChatContext } from '@/stores/panel'
-import type { ChatRequestMode, FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
 const QUEUED_SEND_HANDOFF_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff`
 const QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff-claim`
@@ -31,6 +34,7 @@ export interface QueuedSendHandoffState extends QueuedSendHandoffSeed {
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantFast?: boolean
   requestedAt: number
   resolveAttempts?: number
 }
@@ -161,6 +165,7 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       return null
     }
 
+    if (parsed.assistantFast !== undefined && typeof parsed.assistantFast !== 'boolean') return null
     const assistantSearch = workspaceSearchFiltersSchema.safeParse(parsed.assistantSearch ?? {})
     if (!assistantSearch.success) return null
 
@@ -181,6 +186,7 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
         : {}),
       ...(parsed.requestMode === 'assistant' ? { requestMode: 'assistant' } : {}),
       ...(parsed.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
+      ...(parsed.assistantFast !== undefined ? { assistantFast: parsed.assistantFast } : {}),
       requestedAt: parsed.requestedAt,
       ...(typeof parsed.resolveAttempts === 'number' &&
       Number.isFinite(parsed.resolveAttempts) &&

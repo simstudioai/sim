@@ -27,5 +27,6 @@ export type AssistantImage = z.infer<typeof AssistantImage>;
 export const AssistantSettings = z.strictObject({
   mode: z.literal("assistant"),
   search: AssistantSearch.optional(),
+  fast: z.boolean().optional(),
 });
 export type AssistantSettings = z.infer<typeof AssistantSettings>;

@@ -18,6 +18,7 @@ import {
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
+import { filterOutContext } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
 
 function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): string {
@@ -488,6 +489,156 @@ it('addresses selected organization resources to their discovery workspace', () 
     act(() => result().insertResource({ type: 'table', id: 'table-1', title: 'Accounts' }))
     expect(result().getActiveContexts()).toEqual([
       { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'ws-1' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('retains the explicitly selected skill workspace before the editor workspace changes', () => {
+  const { result, unmount } = renderPromptEditor({
+    workspaceId: 'previous-workspace',
+    organizationId: 'org-1',
+  })
+  try {
+    act(() =>
+      result().handleSkillSelect(
+        {
+          id: 'skill-1',
+          workspaceId: 'selected-workspace',
+          userId: null,
+          name: 'Review',
+          description: '',
+          content: '',
+          canEdit: false,
+          createdAt: '',
+          updatedAt: '',
+        },
+        'selected-workspace'
+      )
+    )
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'skill-1', label: 'Review', workspaceId: 'selected-workspace' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('preserves an explicit cross-workspace resource owner in the organization mention list', () => {
+  const { result, unmount } = renderPromptEditor({ workspaceId: '', organizationId: 'org-1' })
+  try {
+    act(() =>
+      result().insertResource({
+        type: 'file',
+        id: 'report.csv',
+        title: 'Report · Finance',
+        workspaceId: 'finance',
+      })
+    )
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'file', fileId: 'report.csv', label: 'Report · Finance', workspaceId: 'finance' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('keeps duplicate built-in skills scoped and reuses the same chip when selected again', () => {
+  const { result, unmount } = renderPromptEditor({ workspaceId: '', organizationId: 'org-1' })
+  const skill = {
+    id: 'built-in',
+    workspaceId: null,
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  try {
+    act(() => result().handleSkillSelect(skill, 'sales'))
+    act(() => result().handleSkillSelect(skill, 'finance'))
+    act(() => result().handleSkillSelect(skill, 'sales'))
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'built-in', label: 'Review', workspaceId: 'sales' },
+      { kind: 'skill', skillId: 'built-in', label: 'Review (2)', workspaceId: 'finance' },
+    ])
+    expect(result().value).not.toContain('Review (3)')
+    expect(
+      filterOutContext(result().getActiveContexts(), {
+        kind: 'skill',
+        skillId: 'built-in',
+        label: 'Review',
+        workspaceId: 'sales',
+      })
+    ).toEqual([{ kind: 'skill', skillId: 'built-in', label: 'Review (2)', workspaceId: 'finance' }])
+  } finally {
+    unmount()
+  }
+})
+
+it('auto-registers unique organization skill names with their owner but leaves ambiguous names unresolved', () => {
+  const skill = {
+    id: 'built-in',
+    workspaceId: 'sales',
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  const unique = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+    initialValue: '/Review ',
+    availableSkills: [skill],
+  })
+  try {
+    expect(unique.result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'built-in', label: 'Review', workspaceId: 'sales' },
+    ])
+  } finally {
+    unique.unmount()
+  }
+  const ambiguous = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+    initialValue: '/Review ',
+    availableSkills: [skill, { ...skill, workspaceId: 'finance' }],
+  })
+  try {
+    expect(ambiguous.result().getActiveContexts()).toEqual([])
+  } finally {
+    ambiguous.unmount()
+  }
+})
+
+it('inserts a canonical built-in skill globally without inheriting a workspace', () => {
+  const skill = {
+    id: 'builtin-research',
+    workspaceId: null,
+    userId: null,
+    name: 'research',
+    description: '',
+    content: '',
+    canEdit: false,
+    readOnly: true,
+    createdAt: '',
+    updatedAt: '',
+  }
+  const { result, unmount } = renderPromptEditor({
+    workspaceId: 'sales',
+    organizationId: 'org-1',
+    availableSkills: [skill],
+  })
+  try {
+    act(() => result().handleSkillSelect(skill, 'finance'))
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'builtin-research', label: 'research' },
     ])
   } finally {
     unmount()

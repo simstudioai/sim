@@ -211,10 +211,26 @@ const DropdownMenuSubTrigger = React.forwardRef<
     inset?: boolean
     asChild?: boolean
   }
->(({ className, inset, children, asChild, ...props }, ref) => {
+>(({ className, inset, children, asChild, onPointerLeave, ...props }, ref) => {
+  const handlePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+    onPointerLeave?.(event)
+    if (event.defaultPrevented) return
+    const submenuId = event.currentTarget.getAttribute('aria-controls')
+    const submenu = submenuId && event.currentTarget.ownerDocument.getElementById(submenuId)
+    /** Direct portal entry must not depend on Radix's last in-parent pointer direction. */
+    if (event.relatedTarget instanceof Node && submenu && submenu.contains(event.relatedTarget)) {
+      event.preventDefault()
+    }
+  }
   if (asChild) {
     return (
-      <DropdownMenuPrimitive.SubTrigger ref={ref} asChild className={className} {...props}>
+      <DropdownMenuPrimitive.SubTrigger
+        ref={ref}
+        asChild
+        className={className}
+        {...props}
+        onPointerLeave={handlePointerLeave}
+      >
         {children}
       </DropdownMenuPrimitive.SubTrigger>
     )
@@ -222,6 +238,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   return (
     <DropdownMenuPrimitive.SubTrigger
       ref={ref}
+      onPointerLeave={handlePointerLeave}
       className={cn(
         /* An open submenu keeps its trigger on the selected surface — including while
            the pointer is on it, so walking into the submenu doesn't drop the trigger

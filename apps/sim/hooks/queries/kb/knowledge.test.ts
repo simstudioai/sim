@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   getQueryData: vi.fn(),
 }))
 
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'reader' } } }),
+}))
+
 vi.mock('@tanstack/react-query', () => ({
   keepPreviousData: Symbol('keepPreviousData'),
   useInfiniteQuery: vi.fn(),

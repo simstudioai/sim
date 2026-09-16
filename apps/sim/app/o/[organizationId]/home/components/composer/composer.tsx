@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   Button,
   Chip,
@@ -13,6 +13,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Slash } from '@sim/emcn/icons'
+import { useQueries } from '@tanstack/react-query'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
   isAssistantImageType,
@@ -21,6 +22,7 @@ import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
+import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
@@ -28,12 +30,14 @@ import {
   PromptEditor,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
+import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import {
   escapeRegex,
   SKILL_CHIP_TRIGGER,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { getSkillsQueryOptions } from '@/hooks/queries/skills'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
@@ -47,9 +51,10 @@ const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
 
 interface ComposerProps {
   requestMode?: ChatRequestMode
+  assistantFast?: boolean
+  onAssistantFastChange?: (enabled: boolean) => void
   onModeChange?: (mode: ChatRequestMode) => void
   showModeSelector?: boolean
-  modeChangeDisabled?: boolean
   value: string
   files: ReturnType<typeof useFileAttachments>
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
@@ -69,8 +74,9 @@ interface ComposerProps {
 export function Composer({
   requestMode = 'assistant',
   onModeChange,
+  assistantFast = false,
+  onAssistantFastChange,
   showModeSelector = false,
-  modeChangeDisabled = false,
   value,
   files,
   isInitialView,
@@ -82,17 +88,24 @@ export function Composer({
 }: ComposerProps) {
   const imagesOnly = requestMode === 'assistant'
   const { organization } = useOrganizationContext()
-  const [contextWorkspaceId, setContextWorkspaceId] = useState('')
-  const [pendingPicker, setPendingPicker] = useState<{
-    kind: 'resources' | 'skills'
-    anchor: { left: number; top: number }
-  } | null>(null)
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
-  const workspaces = allWorkspaces.filter(
+  const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
     (workspace) => workspace.organizationId === organization.id
   )
+  const skillQueries = useQueries({
+    queries: workspaces.map((workspace) => getSkillsQueryOptions(workspace.id)),
+  })
+  const skills = imagesOnly
+    ? []
+    : organizationSkillOptions(
+        workspaces.map((workspace, index) => ({
+          ...workspace,
+          skills: skillQueries[index].isPlaceholderData ? [] : (skillQueries[index].data ?? []),
+        }))
+      )
   const editor = usePromptEditor({
-    workspaceId: contextWorkspaceId,
+    workspaceId: '',
+    availableSkills: skills,
     organizationId: organization.id,
     contextsEnabled: !imagesOnly,
     initialValue: value,
@@ -132,12 +145,6 @@ export function Composer({
     editorRef.current.setValue(restoredText, { chipify: false })
     editorRef.current.setContexts(restoredContexts)
   }, [restoredContexts])
-  useEffect(() => {
-    if (!pendingPicker) return
-    if (pendingPicker.kind === 'resources') editorRef.current.openResourceMenu(pendingPicker.anchor)
-    else editorRef.current.insertSlashTrigger()
-    setPendingPicker(null)
-  }, [pendingPicker])
   useChatInputFocus({ textareaRef })
   const voice = useVoiceInput({
     organizationId: organization.id,
@@ -163,34 +170,23 @@ export function Composer({
   }
 
   const contextPicker = (kind: 'resources' | 'skills', icon: typeof Plus, label: string) => (
-    <DropdownMenu>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Chip shape='round' leftIcon={icon} aria-label={label} />
-          </DropdownMenuTrigger>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='top'>{label}</Tooltip.Content>
-      </Tooltip.Root>
-      <DropdownMenuContent side='top' align='start'>
-        <div className='px-2 py-1 text-[var(--text-muted)] text-xs'>Choose a workspace</div>
-        {workspaces.map((workspace) => (
-          <DropdownMenuItem
-            key={workspace.id}
-            onSelect={(event) => {
-              const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-              setContextWorkspaceId(workspace.id)
-              setPendingPicker({ kind, anchor: { left: rect.left, top: rect.top } })
-            }}
-          >
-            {workspace.name}
-          </DropdownMenuItem>
-        ))}
-        {!workspaces.length && (
-          <DropdownMenuItem disabled>No accessible workspaces</DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Chip
+          shape='round'
+          leftIcon={icon}
+          aria-label={label}
+          onClick={(event) => {
+            if (kind === 'skills') editor.insertSlashTrigger()
+            else {
+              const rect = event.currentTarget.getBoundingClientRect()
+              editor.openResourceMenu({ left: rect.left, top: rect.top })
+            }
+          }}
+        />
+      </Tooltip.Trigger>
+      <Tooltip.Content side='top'>{label}</Tooltip.Content>
+    </Tooltip.Root>
   )
 
   return (
@@ -240,10 +236,7 @@ export function Composer({
             {showModeSelector && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Chip
-                    aria-label='Conversation mode'
-                    disabled={isSending || modeChangeDisabled || !onModeChange}
-                  >
+                  <Chip aria-label='Conversation mode' disabled={!onModeChange}>
                     {requestMode === 'assistant' ? 'Search' : 'Build'}
                   </Chip>
                 </DropdownMenuTrigger>
@@ -253,9 +246,8 @@ export function Composer({
                       key={mode}
                       role='menuitemradio'
                       aria-checked={mode === requestMode}
-                      disabled={isSending || modeChangeDisabled}
                       onSelect={() => {
-                        if (isSending || modeChangeDisabled || mode === requestMode) return
+                        if (mode === requestMode) return
                         if (
                           mode === 'assistant' &&
                           (editor.getActiveContexts().length > 0 ||
@@ -283,6 +275,17 @@ export function Composer({
               audioLevelsRef={voice.audioLevelsRef}
               isListening={voice.isListening}
               onToggle={voice.toggleListening}
+            />
+          )
+        }
+        beforeSubmitControl={
+          imagesOnly &&
+          onAssistantFastChange && (
+            <FastModeToggle
+              enabled={assistantFast}
+              onChange={onAssistantFastChange}
+              label='Search Fast mode'
+              description='Faster and cheaper'
             />
           )
         }

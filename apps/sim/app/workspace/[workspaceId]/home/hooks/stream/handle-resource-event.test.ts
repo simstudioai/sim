@@ -525,3 +525,65 @@ it('opens an organization Search tab and retains its address without requiring a
   })
   expect(deps.addResource).not.toHaveBeenCalled()
 })
+
+it('seeds only fresh matching search effects and never seeds replayed or foreign evidence', () => {
+  const deps = makeStreamLoopDeps({
+    workspaceId: undefined,
+    organizationId: 'org',
+    viewerId: 'reader',
+  })
+  const resource = {
+    type: 'search' as const,
+    id: 'search:organization:org',
+    title: 'Search results',
+    search: {
+      query: 'policy',
+      scope: { kind: 'organization' as const, organizationId: 'org' },
+      topK: 8,
+    },
+  }
+  const data = {
+    query: 'policy',
+    results: [],
+    retrieval: { status: 'complete' as const, timedOutLegs: [] },
+  }
+  const searchResult = { actorUserId: 'reader', data }
+  const event: ResourceEvent = {
+    ...removeEvent('file', 'unused'),
+    payload: { op: 'upsert', resource, searchResult },
+  }
+  const key = knowledgeKeys.search(
+    resourceScopeKey(resource.search.scope),
+    'policy',
+    undefined,
+    8,
+    'reader'
+  )
+  handleResourceEvent({ deps } as StreamLoopContext, event)
+  expect(deps.queryClient.setQueryData).toHaveBeenCalledWith(key, data)
+  expect(deps.queryClient.cancelQueries).toHaveBeenCalledWith(
+    { queryKey: key, exact: true },
+    { revert: false }
+  )
+  expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
+  vi.mocked(deps.queryClient.setQueryData).mockClear()
+  handleResourceEvent({ deps } as StreamLoopContext, {
+    ...event,
+    payload: { ...event.payload, replay: true },
+  })
+  expect(deps.queryClient.setQueryData).not.toHaveBeenCalled()
+  expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: key })
+  handleResourceEvent({ deps } as StreamLoopContext, {
+    ...event,
+    payload: {
+      op: 'upsert',
+      resource,
+      searchResult: { actorUserId: 'reader', data: { ...data, query: 'different' } },
+    },
+  })
+  expect(deps.queryClient.setQueryData).not.toHaveBeenCalled()
+  handleResourceEvent({ deps: { ...deps, viewerId: 'other-viewer' } } as StreamLoopContext, event)
+  expect(deps.queryClient.setQueryData).not.toHaveBeenCalled()
+  handleResourceEvent({ deps: { ...deps, organizationId: 'other' } } as StreamLoopContext, event)
+  expect(deps.queryClient.setQueryData).not.toHaveBeenCalled()
+})

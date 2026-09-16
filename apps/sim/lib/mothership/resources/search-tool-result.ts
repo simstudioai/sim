@@ -1,12 +1,15 @@
 import { z } from 'zod'
-import { searchWorkspaceInputSchema } from '@/lib/api/contracts/mothership-assistant-tools'
+import {
+  searchWorkspaceInputSchema,
+  workspaceKnowledgeSearchDataSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 
 const successfulSearch = z.object({
   success: z.literal(true),
-  data: z.object({ query: z.string().trim().min(1).max(2000) }),
+  data: z.object({ query: z.string().trim().min(1).max(2000) }).passthrough(),
 })
 
 /** Project only an authorized successful search; the result carries its secret-safe query. */
@@ -30,4 +33,12 @@ export function searchResourceFromToolResult(
     filters: intersectWorkspaceSearchFilters(requestedFilters, context.assistantSearch),
     topK,
   })
+}
+
+/** Live-only panel data is carried beside the address, never stored as a chat resource. */
+export function searchResultFromToolResult(output: unknown, actorUserId?: string) {
+  const result = successfulSearch.safeParse(output)
+  if (!result.success || !actorUserId) return undefined
+  const parsed = workspaceKnowledgeSearchDataSchema.safeParse(result.data.data)
+  return parsed.success ? { actorUserId, data: parsed.data } : undefined
 }
