@@ -16,6 +16,11 @@ import {
   useAvailableResources,
   useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+import type { AvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
+import {
+  mergeOrganizationResourceInventories,
+  OrganizationResourceInventory,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/organization-resource-inventory'
 import {
   getResourceConfig,
   MENTION_PREVIEW_DEFAULT_LIMIT,
@@ -32,6 +37,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
@@ -60,6 +66,7 @@ const EMPTY_TERMINAL_TABS = [] as const
 
 interface PlusMenuDropdownProps {
   workspaceId: string
+  organizationId?: string
   /**
    * Starts hydrating the resource lists before the menu opens. The editor sets
    * this on focus: `@`-mention confirmation reads the candidate list
@@ -78,7 +85,16 @@ interface PlusMenuDropdownProps {
 
 export const PlusMenuDropdown = React.memo(
   React.forwardRef<PlusMenuHandle, PlusMenuDropdownProps>(function PlusMenuDropdown(
-    { workspaceId, warm, onResourceSelect, onClose, textareaRef, pendingCursorRef, mentionQuery },
+    {
+      workspaceId,
+      organizationId,
+      warm,
+      onResourceSelect,
+      onClose,
+      textareaRef,
+      pendingCursorRef,
+      mentionQuery,
+    },
     ref
   ) {
     const [open, setOpen] = useState(false)
@@ -99,15 +115,28 @@ export const PlusMenuDropdown = React.memo(
         : EMPTY_TERMINAL_TABS
     })
 
-    // Gated so an idle chat surface never fetches the workspace lists.
-    const {
-      groups: availableResources,
-      structureFolders,
-      isHydrating,
-    } = useAvailableResources(workspaceId, {
-      enabled: open || !!warm,
+    const inventoryEnabled = open || !!warm
+    const workspaceInventory = useAvailableResources(workspaceId, {
+      enabled: inventoryEnabled && !organizationId,
       includeFolderMentions: true,
     })
+    const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(
+      Boolean(organizationId) && inventoryEnabled
+    )
+    const workspaces = allWorkspaces.filter(
+      (workspace) => workspace.organizationId === organizationId
+    )
+    const [inventories, setInventories] = useState<Record<string, AvailableResources>>({})
+    const receiveInventory = useCallback((workspaceId: string, inventory: AvailableResources) => {
+      setInventories((current) =>
+        current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
+      )
+    }, [])
+    const combined = organizationId
+      ? mergeOrganizationResourceInventories(workspaces, inventories)
+      : workspaceInventory
+    const { groups: availableResources, structureFolders } = combined
+    const isHydrating = combined.isHydrating || Boolean(organizationId && workspacesPending)
 
     const doOpen = useCallback(
       (anchor: { left: number; top: number }, options?: { mention?: boolean }) => {
@@ -283,11 +312,11 @@ export const PlusMenuDropdown = React.memo(
       e.preventDefault()
       const textarea = textareaRef.current
       if (!textarea) return
+      textarea.focus()
       if (pendingCursorRef.current !== null) {
         textarea.setSelectionRange(pendingCursorRef.current, pendingCursorRef.current)
         pendingCursorRef.current = null
       }
-      textarea.focus()
     }
 
     // Radix's FocusScope normally focuses the content on open and traps focus inside.
@@ -299,6 +328,15 @@ export const PlusMenuDropdown = React.memo(
 
     return (
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+        {organizationId &&
+          inventoryEnabled &&
+          workspaces.map((workspace) => (
+            <OrganizationResourceInventory
+              key={workspace.id}
+              workspaceId={workspace.id}
+              onChange={receiveInventory}
+            />
+          ))}
         <DropdownMenuTrigger asChild>
           <div
             className='pointer-events-none fixed size-0'
@@ -340,7 +378,8 @@ export const PlusMenuDropdown = React.memo(
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
               <ResourceMenuSections
-                sections={treeSections}
+                flat={Boolean(organizationId)}
+                sections={organizationId ? [] : treeSections}
                 groups={visibleResources}
                 onSelect={handleSelect}
                 subContentClassName='max-w-[min(300px,calc(100vw-32px))]'
@@ -359,7 +398,7 @@ export const PlusMenuDropdown = React.memo(
                      therefore every keyboard path — indexing exactly what it did. */
                   const startsSection = index === 0 || filteredItems[index - 1]?.type !== type
                   return (
-                    <React.Fragment key={`${type}:${item.id}`}>
+                    <React.Fragment key={`${type}:${item.workspaceId ?? ''}:${item.id}`}>
                       {startsSection && <DropdownMenuLabel>{config.label}</DropdownMenuLabel>}
                       <button
                         type='button'
@@ -377,6 +416,11 @@ export const PlusMenuDropdown = React.memo(
                         )}
                       >
                         {config.renderDropdownItem({ item })}
+                        {typeof item.workspaceName === 'string' && (
+                          <span className='ml-auto text-[var(--text-muted)] text-xs'>
+                            {item.workspaceName}
+                          </span>
+                        )}
                       </button>
                     </React.Fragment>
                   )

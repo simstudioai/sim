@@ -1,6 +1,7 @@
 import type { MothershipResource, MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import {
   getChatResourceKey,
+  mergeChatResource,
   mergePendingChatResourceUpdate,
 } from '@/lib/mothership/resources/types'
 
@@ -144,6 +145,26 @@ export class ResourcePersistenceQueue {
     workspaceId?: string
   ): boolean {
     return this.desiredUpdates.has(this.getKey(scopeId, type, id, workspaceId))
+  }
+
+  /** Projects writes still in flight over server history, including queued removals. */
+  applyPendingUpdates(scopeId: string, resources: MothershipResource[]): MothershipResource[] {
+    const remaining = new Map(
+      this.getScopedKeys(this.desiredUpdates, scopeId).map((key) => [
+        key,
+        this.desiredUpdates.get(key)!,
+      ])
+    )
+    const projected: MothershipResource[] = []
+    for (const resource of resources) {
+      const key = this.getKey(scopeId, resource.type, resource.id, resource.workspaceId)
+      if (this.pendingRemovals.has(key)) continue
+      const update = remaining.get(key)
+      projected.push(update ? mergeChatResource(resource, update) : resource)
+      remaining.delete(key)
+    }
+    for (const update of remaining.values()) projected.push(mergeChatResource(undefined, update))
+    return projected
   }
 
   getPendingResourceKeys(scopeId: string): Set<string> {

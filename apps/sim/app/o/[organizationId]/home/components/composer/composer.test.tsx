@@ -1,9 +1,11 @@
 /** @vitest-environment jsdom */
 import { act, type ComponentProps, useState } from 'react'
 import { toast } from '@sim/emcn'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 const mocks = vi.hoisted(() => ({
   speech: vi.fn<typeof useSpeechToText>(),
@@ -12,32 +14,34 @@ const mocks = vi.hoisted(() => ({
   submit: vi.fn(),
   contexts: vi.fn(),
   upload: vi.fn(),
+  skillQuery: vi.fn(),
+  resourceMenu: vi.fn(),
+  openResourceMenu: vi.fn(),
+  workspaces: [
+    {
+      id: 'workspace-a',
+      name: 'Team',
+      organizationId: 'organization-a',
+      workspaceMode: 'grandfathered_shared',
+    },
+    {
+      id: 'workspace-other',
+      name: 'Other org',
+      organizationId: 'organization-b',
+      workspaceMode: 'organization',
+    },
+  ],
 }))
 
 vi.mock('@/hooks/queries/workspace', () => ({
-  useWorkspacesQuery: () => ({
-    data: [
-      {
-        id: 'workspace-a',
-        name: 'Team',
-        organizationId: 'organization-a',
-        workspaceMode: 'grandfathered_shared',
-      },
-      {
-        id: 'workspace-other',
-        name: 'Other org',
-        organizationId: 'organization-b',
-        workspaceMode: 'organization',
-      },
-    ],
-  }),
+  useWorkspacesQuery: () => ({ data: mocks.workspaces }),
 }))
 vi.mock('@/hooks/queries/skills', () => ({
-  useSkills: (workspaceId: string) => ({
-    data:
-      workspaceId === 'workspace-a'
-        ? [{ id: 'skill-a', name: 'review', description: 'Review a draft' }]
-        : [],
+  useSkills: () => ({ data: [] }),
+  getSkillsQueryOptions: (workspaceId: string) => ({
+    queryKey: ['composer-test-skills', workspaceId],
+    queryFn: () => mocks.skillQuery(workspaceId),
+    staleTime: Number.POSITIVE_INFINITY,
   }),
 }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
@@ -46,7 +50,21 @@ vi.mock('@/blocks/integration-matcher', () => ({
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/plus-menu-dropdown',
-  () => ({ PlusMenuDropdown: () => null })
+  async () => {
+    const { forwardRef, useImperativeHandle } = await import('react')
+    return {
+      PlusMenuDropdown: forwardRef((props, ref) => {
+        mocks.resourceMenu(props)
+        useImperativeHandle(ref, () => ({
+          open: mocks.openResourceMenu,
+          close: vi.fn(),
+          moveActive: vi.fn(),
+          selectActive: () => 'empty',
+        }))
+        return null
+      }),
+    }
+  }
 )
 
 vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
@@ -62,9 +80,38 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 
 let root: Root
 let container: HTMLDivElement
+let queryClient: QueryClient
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.workspaces = [
+    {
+      id: 'workspace-a',
+      name: 'Team',
+      organizationId: 'organization-a',
+      workspaceMode: 'grandfathered_shared',
+    },
+    {
+      id: 'workspace-other',
+      name: 'Other org',
+      organizationId: 'organization-b',
+      workspaceMode: 'organization',
+    },
+  ]
+  mocks.skillQuery.mockResolvedValue([
+    {
+      id: 'skill-a',
+      workspaceId: 'workspace-a',
+      userId: 'user-a',
+      name: 'review',
+      description: 'Review a draft',
+      content: 'Review carefully.',
+      canEdit: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+  ])
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   HTMLElement.prototype.scrollIntoView = vi.fn()
   vi.stubGlobal(
@@ -116,6 +163,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
+  queryClient.clear()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -126,11 +174,17 @@ async function render(
   requestMode: 'agent' | 'assistant' = 'assistant',
   controls: Pick<
     ComponentProps<typeof Composer>,
-    'isSending' | 'showModeSelector' | 'onModeChange' | 'modeChangeDisabled' | 'restoredContexts'
+    | 'isSending'
+    | 'showModeSelector'
+    | 'onModeChange'
+    | 'restoredContexts'
+    | 'assistantFast'
+    | 'onAssistantFastChange'
   > = { isSending: false }
 ) {
   function Harness() {
     const [value, setValue] = useState(initialValue)
+    const [assistantFast, setAssistantFast] = useState(controls.assistantFast ?? false)
     const files = useFileAttachments({
       userId: 'user-a',
       organizationId: 'organization-a',
@@ -139,9 +193,10 @@ async function render(
     return (
       <Composer
         requestMode={requestMode}
+        assistantFast={assistantFast}
+        onAssistantFastChange={controls.onAssistantFastChange ?? setAssistantFast}
         showModeSelector={controls.showModeSelector}
         onModeChange={controls.onModeChange}
-        modeChangeDisabled={controls.modeChangeDisabled}
         restoredContexts={controls.restoredContexts}
         value={value}
         files={files}
@@ -158,7 +213,13 @@ async function render(
       />
     )
   }
-  await act(async () => root.render(<Harness />))
+  await act(async () =>
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <Harness />
+      </QueryClientProvider>
+    )
+  )
 }
 
 describe('organization voice composer', () => {
@@ -169,7 +230,7 @@ describe('organization voice composer', () => {
       const mic = container.querySelector<HTMLButtonElement>('button[aria-label="Voice input"]')!
       expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
       expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
-      expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
+      expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Search Fast mode')
       await act(async () => mic.click())
       expect(mocks.toggleListening).toHaveBeenCalledOnce()
       const speech = mocks.speech.mock.calls.at(-1)![0]
@@ -335,23 +396,19 @@ it('uploads an agent document with explicit mode while Assistant remains image-o
   expect(container.querySelector('button[aria-label="Model and reasoning effort"]')).not.toBeNull()
 })
 
-it('discovers an organization-owned legacy workspace and sends its scoped skill context', async () => {
+it('shows a flat custom skill row with its workspace label and sends scoped context', async () => {
   await render(true, '', 'agent')
   const slash = container.querySelector<HTMLButtonElement>('button[aria-label="Skills"]')!
   expect(slash.previousElementSibling?.getAttribute('aria-label')).toBe('Attach file')
   expect(slash.previousElementSibling?.previousElementSibling?.getAttribute('aria-label')).toBe(
     'Add resources'
   )
-  await act(async () =>
-    slash.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-  )
+  await act(async () => slash.click())
+  expect(mocks.skillQuery).toHaveBeenCalledExactlyOnceWith('workspace-a')
   expect(document.body.textContent).not.toContain('Other org')
-  const workspace = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-    (item) => item.textContent === 'Team'
-  )!
-  await act(async () => workspace.click())
-  const skill = [...document.querySelectorAll<HTMLElement>('button')].find(
-    (item) => item.textContent === 'review'
+  expect(document.body.textContent).not.toContain('Choose a workspace')
+  const skill = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (item) => item.textContent === 'reviewTeam'
   )!
   expect(skill).toBeDefined()
   await act(async () => skill.click())
@@ -394,7 +451,13 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
       />
     )
   }
-  await act(async () => root.render(<Harness />))
+  await act(async () =>
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <Harness />
+      </QueryClientProvider>
+    )
+  )
   await act(async () => restore())
   expect(container.querySelector('textarea')!.value).toBe('\u2003review fix this')
   await act(async () =>
@@ -413,6 +476,7 @@ it.each([true, false])(
       showModeSelector: canChoose,
       onModeChange: vi.fn(),
     })
+    expect(mocks.skillQuery).not.toHaveBeenCalled()
     expect(container.querySelector('[aria-label="Skills"]')).toBeNull()
     expect(container.querySelector('[aria-label="Add resources"]')).toBeNull()
     expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
@@ -422,18 +486,85 @@ it.each([true, false])(
   }
 )
 
-it('lists organization-owned legacy workspaces in the resource picker', async () => {
+it('opens the shared flat organization resource menu and preserves the selected owner', async () => {
   await render(true, '', 'agent')
   const plus = container.querySelector<HTMLButtonElement>('button[aria-label="Add resources"]')!
+  await act(async () => plus.click())
+  expect(mocks.openResourceMenu).toHaveBeenCalledOnce()
+  const menu = mocks.resourceMenu.mock.calls.at(-1)![0]
+  expect(menu.organizationId).toBe('organization-a')
+  expect(menu.workspaceId).toBe('')
+  expect(document.body.textContent).not.toContain('Choose a workspace')
   await act(async () =>
-    plus.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    menu.onResourceSelect({
+      type: 'file',
+      id: 'report.txt',
+      title: 'Report',
+      workspaceId: 'workspace-a',
+    })
   )
-  const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(
-    (item) => item.textContent
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
   )
-  expect(items).toContain('Team')
-  expect(items).not.toContain('Other org')
-  expect(items).not.toContain('No accessible workspaces')
+  expect(mocks.contexts).toHaveBeenLastCalledWith([
+    { kind: 'file', fileId: 'report.txt', label: 'Report', workspaceId: 'workspace-a' },
+  ])
+})
+
+it('deduplicates canonical built-ins returned by multiple accessible workspace skill lists', async () => {
+  mocks.workspaces.push({
+    id: 'workspace-b',
+    name: 'Second team',
+    organizationId: 'organization-a',
+    workspaceMode: 'organization',
+  })
+  mocks.skillQuery.mockResolvedValue([
+    {
+      id: 'builtin-research',
+      workspaceId: null,
+      userId: null,
+      name: 'research',
+      description: '',
+      content: '',
+      canEdit: false,
+      readOnly: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+  ])
+  await render(true, '', 'agent')
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Skills"]')!.click()
+  )
+  expect(mocks.skillQuery.mock.calls.map(([workspaceId]) => workspaceId).sort()).toEqual([
+    'workspace-a',
+    'workspace-b',
+  ])
+  const researchRows = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].filter(
+    (row) => row.textContent === 'research'
+  )
+  expect(researchRows).toHaveLength(1)
+  expect(document.body.textContent).not.toContain('Second team')
+})
+
+it('shows global built-ins once with no workspace label and submits no invented workspace', async () => {
+  mocks.workspaces = []
+  await render(true, '', 'agent')
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Skills"]')!.click()
+  )
+  const rows = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+  const research = rows.filter((row) => row.textContent === 'research')
+  expect(research).toHaveLength(1)
+  expect(rows).toHaveLength(4)
+  expect(mocks.skillQuery).not.toHaveBeenCalled()
+  await act(async () => research[0].click())
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
+  )
+  expect(mocks.contexts).toHaveBeenLastCalledWith([
+    { kind: 'skill', skillId: 'builtin-research', label: 'research' },
+  ])
 })
 
 it('offers a text-only controlled mode picker after the staging input controls', async () => {
@@ -458,16 +589,64 @@ it('offers a text-only controlled mode picker after the staging input controls',
   expect(container.querySelector('textarea')!.value).toBe('Preserved draft')
 })
 
-it('disables the mode picker when the parent has queued messages', async () => {
-  await render(true, '', 'agent', {
-    isSending: false,
+it('allows changing the next message mode while a response is streaming', async () => {
+  const onModeChange = vi.fn()
+  await render(false, 'Next question', 'agent', {
+    isSending: true,
     showModeSelector: true,
-    onModeChange: vi.fn(),
-    modeChangeDisabled: true,
+    onModeChange,
   })
-  expect(
-    container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!.disabled
-  ).toBe(true)
+  const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
+  expect(mode.disabled).toBe(false)
+  await act(async () =>
+    mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  const search = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+    (item) => item.textContent === 'Search'
+  )!
+  await act(async () => search.click())
+  expect(onModeChange).toHaveBeenCalledExactlyOnceWith('assistant')
+  expect(container.querySelector('textarea')!.value).toBe('Next question')
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
+it('opens resources, attaches files, and inserts skills while streaming', async () => {
+  await render(false, 'Next question', 'agent', { isSending: true })
+  for (const label of ['Add resources', 'Attach file', 'Skills']) {
+    expect(container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.disabled).toBe(
+      false
+    )
+  }
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Add resources"]')!.click()
+  )
+  expect(mocks.openResourceMenu).toHaveBeenCalled()
+  const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+  const selectFile = vi.spyOn(input, 'click')
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Attach file"]')!.click()
+  )
+  expect(selectFile).toHaveBeenCalledOnce()
+  await paste([new File(['image'], 'follow-up.png', { type: 'image/png' })])
+  expect(container.querySelector('img')?.getAttribute('alt')).toBe('follow-up.png')
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Skills"]')!.click()
+  )
+  const research = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (item) => item.textContent === 'research'
+  )!
+  await act(async () => research.click())
+  await act(async () =>
+    container
+      .querySelector('textarea')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  expect(mocks.submit).toHaveBeenCalledWith(expect.stringContaining('/research'), [
+    expect.objectContaining({ name: 'follow-up.png', uploading: false }),
+  ])
+  expect(mocks.contexts).toHaveBeenCalledWith([
+    expect.objectContaining({ kind: 'skill', skillId: 'builtin-research' }),
+  ])
 })
 
 it.each(['skill', 'file'] as const)(
@@ -502,3 +681,37 @@ it.each(['skill', 'file'] as const)(
     expect(container.querySelector('textarea')!.value).toBe(before)
   }
 )
+
+describe('Search Fast control', () => {
+  it('defaults off without a model picker and sits immediately before Send', async () => {
+    await render(true)
+    const fast = container.querySelector<HTMLButtonElement>('[aria-label="Search Fast mode"]')!
+    expect(fast.getAttribute('aria-pressed')).toBe('false')
+    expect(fast.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
+    expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
+    await act(async () => fast.click())
+    expect(fast.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('can enable Search Fast while preserving the attached image', async () => {
+    await render(true)
+    await paste([new File(['image'], 'screenshot.png', { type: 'image/png' })])
+    const fast = container.querySelector<HTMLButtonElement>('[aria-label="Search Fast mode"]')!
+    expect(fast.disabled).toBe(false)
+    await act(async () => fast.click())
+    expect(fast.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('img')?.getAttribute('alt')).toBe('screenshot.png')
+  })
+})
+
+it('keeps Build Fast independent of Search Fast', async () => {
+  useMothershipEffortStore.getState().setModel('gpt-6-astra')
+  useMothershipEffortStore.getState().setFastMode(false)
+  await render(true, 'Build', 'agent')
+  expect(container.querySelector('[aria-label="Search Fast mode"]')).toBeNull()
+  const fast = container.querySelector<HTMLButtonElement>('[aria-label="Fast mode"]')!
+  await act(async () => fast.click())
+  expect(useMothershipEffortStore.getState().modelSelection.fastMode).toBe(true)
+  expect(container.querySelector('[aria-label="Model and reasoning effort"]')).not.toBeNull()
+  useMothershipEffortStore.getState().setFastMode(false)
+})

@@ -355,6 +355,7 @@ export interface MothershipHandoff {
   /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantFast?: boolean
 }
 
 type MothershipHandoffOwner = string | { organizationId: string }
@@ -415,6 +416,7 @@ export class MothershipHandoffStorage {
       ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
+      ...(handoff.assistantFast !== undefined ? { assistantFast: handoff.assistantFast } : {}),
       workspaceId,
       organizationId,
       timestamp: Date.now(),
@@ -487,6 +489,7 @@ export class MothershipHandoffStorage {
       return null
     }
 
+    if (data.assistantFast !== undefined && typeof data.assistantFast !== 'boolean') return null
     const assistantSearch = workspaceSearchFiltersSchema.safeParse(data.assistantSearch ?? {})
     if (!assistantSearch.success) return null
 
@@ -497,6 +500,7 @@ export class MothershipHandoffStorage {
         ? { requestMode: data.requestMode }
         : {}),
       ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
+      ...(data.assistantFast !== undefined ? { assistantFast: data.assistantFast } : {}),
       ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
         ? { fileAttachments: data.fileAttachments }
         : {}),

@@ -353,6 +353,40 @@ describe('handleUnifiedChatPost', () => {
     expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 
+  it('forwards the closed Fast Search preset through payload construction', async () => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Find the policy',
+          organizationId: 'org-1',
+          mode: 'assistant',
+          assistantFast: true,
+        }),
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'assistant', assistantFast: true }),
+      expect.anything()
+    )
+  })
+
+  it.each([
+    { mode: 'agent', assistantFast: true },
+    { mode: 'assistant', assistantFast: true, modelSelection: { model: 'gpt-6-astra' } },
+  ])('refuses invalid Fast Search admission before creating a chat: %j', async (options) => {
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: 'Find the policy', organizationId: 'org-1', ...options }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(resolveOrCreateChat).not.toHaveBeenCalled()
+    expect(admitTurn).not.toHaveBeenCalled()
+  })
+
   it('runs a private organization Assistant with its own billing scope and no workspace authority', async () => {
     getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     const response = await handleUnifiedChatPost(
@@ -403,9 +437,13 @@ describe('handleUnifiedChatPost', () => {
     )
   })
 
-  it.each(['Describe this image', ''])(
-    'prepares organization image bytes and persists canonical metadata (message: %s)',
-    async (message) => {
+  it.each([
+    ['Describe this image', false],
+    ['', false],
+    ['Describe with Fast', true],
+  ] as const)(
+    'prepares organization image bytes and persists canonical metadata (message: %s, fast: %s)',
+    async (message, assistantFast) => {
       getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
       dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
       const key = 'assistant/org-1/user-1/upload-1/image.png'
@@ -416,6 +454,7 @@ describe('handleUnifiedChatPost', () => {
             message,
             organizationId: 'org-1',
             mode: 'assistant',
+            assistantFast,
             fileAttachments: [
               { id: 'forged-id', key, filename: 'forged.txt', media_type: 'text/plain', size: 0 },
             ],
@@ -432,6 +471,7 @@ describe('handleUnifiedChatPost', () => {
       expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
         expect.objectContaining({
           message,
+          assistantFast,
           assistantImages: [
             {
               type: 'image',

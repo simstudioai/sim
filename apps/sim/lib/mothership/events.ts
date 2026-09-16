@@ -41,6 +41,7 @@ export interface MothershipSendMessageDetail {
   /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantFast?: boolean
 }
 
 /**
@@ -58,7 +59,8 @@ export function sendMothershipMessage(
   fileAttachments?: FileAttachmentForApi[],
   resumeUserMessageId?: string,
   requestMode?: ChatRequestMode,
-  assistantSearch?: WorkspaceSearchFilters
+  assistantSearch?: WorkspaceSearchFilters,
+  assistantFast?: boolean
 ): boolean {
   const trimmed = message.trim()
   if (!trimmed && !fileAttachments?.length) {
@@ -72,6 +74,7 @@ export function sendMothershipMessage(
     ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
     ...(requestMode ? { requestMode } : {}),
     ...(assistantSearch ? { assistantSearch } : {}),
+    ...(assistantFast !== undefined ? { assistantFast } : {}),
   })
   logger.info('Dispatched mothership message event', { messageLength: trimmed.length, consumed })
   return consumed

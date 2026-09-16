@@ -56,7 +56,14 @@ describe('scoped CLI service adapter', () => {
     boundary.sink.mockImplementation(async (_sink, _session, result) => result)
   })
   it('publishes the same Search address through the Agent CLI service', async () => {
-    boundary.route.mockResolvedValue({ success: true, data: { query: 'safe policy' } })
+    boundary.route.mockResolvedValue({
+      success: true,
+      data: {
+        query: 'safe policy',
+        results: [],
+        retrieval: { status: 'complete', timedOutLegs: [] },
+      },
+    })
     const result = await executeAgentCliService(
       service('search_workspace', { query: 'policy', topK: 4 }),
       organization
@@ -64,6 +71,14 @@ describe('scoped CLI service adapter', () => {
     expect(result.resources).toEqual([
       {
         op: 'upsert',
+        searchResult: {
+          actorUserId: 'actor',
+          data: {
+            query: 'safe policy',
+            results: [],
+            retrieval: { status: 'complete', timedOutLegs: [] },
+          },
+        },
         resource: expect.objectContaining({
           type: 'search',
           id: 'search:organization:org',

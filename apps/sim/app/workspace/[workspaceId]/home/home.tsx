@@ -240,6 +240,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
         ...(detail.requestMode ? { requestMode: detail.requestMode } : {}),
         ...(detail.assistantSearch ? { assistantSearch: detail.assistantSearch } : {}),
+        ...(detail.assistantFast !== undefined ? { assistantFast: detail.assistantFast } : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -276,6 +277,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           : {}),
         ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
+        ...(handoff.assistantFast !== undefined ? { assistantFast: handoff.assistantFast } : {}),
       })
       return
     }

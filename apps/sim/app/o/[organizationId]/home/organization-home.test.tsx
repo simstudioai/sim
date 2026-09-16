@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, type ComponentProps, type ReactNode } from 'react'
+import { toast } from '@sim/emcn'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -76,7 +77,7 @@ let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
-  useOrganizationChatModeStore.setState({ modes: {} })
+  useOrganizationChatModeStore.setState({ modes: {}, assistantFast: {} })
   mocks.resourcePanel.mockImplementation(({ children }: { children: ReactNode }) => children)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
@@ -355,7 +356,7 @@ describe('organization home', () => {
       'Find our launch plan',
       undefined,
       undefined,
-      { requestMode: 'assistant' }
+      { requestMode: 'assistant', assistantFast: false }
     )
     expect(composerProps().value).toBe('')
   })
@@ -387,7 +388,7 @@ describe('organization home', () => {
         }),
       ],
       undefined,
-      { requestMode: 'assistant' }
+      { requestMode: 'assistant', assistantFast: false }
     )
     expect(composerProps().files.attachedFiles).toEqual([])
   })
@@ -430,26 +431,35 @@ describe('organization home', () => {
       undefined,
       {
         requestMode: 'assistant',
+        assistantFast: false,
       }
     )
   })
 
-  it('resumes image-only handoffs without dropping their attachments', async () => {
-    const attachments = [
-      {
-        id: 'image-a',
-        key: 'image-key',
-        filename: 'screenshot.png',
-        media_type: 'image/png',
-        size: 5,
-      },
-    ]
-    mocks.consume.mockReturnValueOnce({ message: '', fileAttachments: attachments })
-    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
-    expect(mocks.send).toHaveBeenCalledWith('', attachments, undefined, {
-      requestMode: 'assistant',
-    })
-  })
+  it.each([false, true])(
+    'resumes image-only handoffs preserving Fast=%s and attachments',
+    async (assistantFast) => {
+      const attachments = [
+        {
+          id: 'image-a',
+          key: 'image-key',
+          filename: 'screenshot.png',
+          media_type: 'image/png',
+          size: 5,
+        },
+      ]
+      mocks.consume.mockReturnValueOnce({
+        message: '',
+        fileAttachments: attachments,
+        assistantFast,
+      })
+      await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
+      expect(mocks.send).toHaveBeenCalledWith('', attachments, undefined, {
+        requestMode: 'assistant',
+        assistantFast,
+      })
+    }
+  )
   it('resumes a scoped handoff with the original search filters', async () => {
     const assistantSearch = { documentIds: ['document-a'] }
     mocks.consume.mockReturnValueOnce({ message: 'Summarize', assistantSearch })
@@ -461,6 +471,7 @@ describe('organization home', () => {
     )
     expect(mocks.send).toHaveBeenCalledWith('Summarize', undefined, undefined, {
       requestMode: 'assistant',
+      assistantFast: false,
       assistantSearch,
     })
   })
@@ -492,7 +503,7 @@ describe('Home permission-selected harness', () => {
     await act(async () => renderHome(<OrganizationHome />))
     expect(composerProps().requestMode).toBe('agent')
     expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
-      expect.objectContaining({ searchRequest: undefined }),
+      expect.not.objectContaining({ searchRequest: expect.anything() }),
       undefined
     )
     expect(mocks.send).not.toHaveBeenCalled()
@@ -502,7 +513,7 @@ describe('Home permission-selected harness', () => {
     await act(async () => renderHome(<OrganizationHome />))
     expect(composerProps().requestMode).toBe('assistant')
     expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
-      expect.objectContaining({ searchRequest: undefined }),
+      expect.not.objectContaining({ searchRequest: expect.anything() }),
       undefined
     )
     expect(mocks.send).not.toHaveBeenCalled()
@@ -513,7 +524,7 @@ describe('Home permission-selected harness', () => {
     expect(composerProps().requestMode).toBe('assistant')
     expect(mocks.send).not.toHaveBeenCalled()
   })
-  it('shows fast results for the latest user query while the Assistant is still working', async () => {
+  it('does not start panel retrieval from the latest user query while the Assistant is working', async () => {
     mocks.chat.mockReturnValue({
       resources: [],
       messages: [
@@ -530,10 +541,11 @@ describe('Home permission-selected harness', () => {
     expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
       expect.objectContaining({
         organizationId: 'organization-a',
-        searchRequest: { messageId: '3', query: 'Orion release checks' },
       }),
       undefined
     )
+    expect(mocks.addResource).not.toHaveBeenCalled()
+    expect(mocks.resourcePanel.mock.lastCall![0]).not.toHaveProperty('searchRequest')
     expect(mocks.chat).toHaveBeenLastCalledWith(
       { organizationId: 'organization-a' },
       'search-a',
@@ -580,6 +592,7 @@ describe('same-chat mode selection', () => {
     await act(async () => composerProps().onSubmit('Keep this draft'))
     expect(mocks.send).toHaveBeenLastCalledWith('Keep this draft', undefined, undefined, {
       requestMode: 'assistant',
+      assistantFast: false,
     })
     expect(useOrganizationChatModeStore.getState().modes['reader:organization-a']).toBe('assistant')
   })
@@ -597,17 +610,20 @@ describe('same-chat mode selection', () => {
     expect(useOrganizationChatModeStore.getState().modes['reader:organization-a']).toBe('assistant')
   })
   it.each(['isSending', 'isReconnecting', 'messageQueue'] as const)(
-    'blocks changes while %s is active',
+    'changes the next message mode while %s is active without sending or navigating',
     async (field) => {
       mocks.chat.mockReturnValue({
         ...mocks.chat(),
         [field]: field === 'messageQueue' ? [{ id: 'queued' }] : true,
       })
       await act(async () => renderHome(<OrganizationHome />))
-      expect(composerProps().modeChangeDisabled).toBe(true)
       await act(async () => composerProps().onModeChange?.('assistant'))
-      expect(composerProps().requestMode).toBe('agent')
-      expect(useOrganizationChatModeStore.getState().modes).toEqual({})
+      expect(composerProps().requestMode).toBe('assistant')
+      expect(useOrganizationChatModeStore.getState().modes['reader:organization-a']).toBe(
+        'assistant'
+      )
+      expect(mocks.send).not.toHaveBeenCalled()
+      expect(mocks.push).not.toHaveBeenCalled()
     }
   )
   it('offers only Search without a picker when creation is forbidden', async () => {
@@ -618,6 +634,41 @@ describe('same-chat mode selection', () => {
     await act(async () => composerProps().onModeChange?.('agent'))
     expect(composerProps().requestMode).toBe('assistant')
   })
+
+  it.each(['agent', 'assistant'] as const)(
+    'restores a queued %s message into its original mode',
+    async (mode) => {
+      mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+      mocks.chat.mockReturnValue({
+        ...mocks.chat(),
+        isSending: true,
+        editQueuedMessage: () => ({
+          id: 'queued-a',
+          content: 'Queued follow-up',
+          requestMode: mode,
+        }),
+      })
+      await act(async () =>
+        renderHome(
+          <OrganizationHome
+            chatId='chat-a'
+            requestMode={mode === 'agent' ? 'assistant' : 'agent'}
+          />
+        )
+      )
+      await act(async () => mocks.renderer.mock.lastCall![0].onEditQueuedMessage('queued-a'))
+      expect(composerProps().requestMode).toBe(mode)
+      expect(composerProps().value).toBe('Queued follow-up')
+      expect(mocks.send).not.toHaveBeenCalled()
+      await act(async () => composerProps().onSubmit(composerProps().value))
+      expect(mocks.send).toHaveBeenLastCalledWith(
+        'Queued follow-up',
+        undefined,
+        undefined,
+        expect.objectContaining({ requestMode: mode })
+      )
+    }
+  )
 })
 
 it('does not seed results for a Build turn just because Search is selected next', async () => {
@@ -629,12 +680,12 @@ it('does not seed results for a Build turn just because Search is selected next'
   await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='agent' />))
   await act(async () => composerProps().onModeChange?.('assistant'))
   expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
-    expect.objectContaining({ searchRequest: undefined }),
+    expect.not.objectContaining({ searchRequest: expect.anything() }),
     undefined
   )
 })
 
-it('keeps the latest submitted Search query when the next turn is switched to Build', async () => {
+it('does not start a new panel search when the next turn is switched to Build', async () => {
   mocks.chat.mockReturnValue({
     ...mocks.chat(),
     messages: [
@@ -645,9 +696,7 @@ it('keeps the latest submitted Search query when the next turn is switched to Bu
   await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
   await act(async () => composerProps().onModeChange?.('agent'))
   expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
-    expect.objectContaining({
-      searchRequest: { messageId: 'user-1', query: 'Find the release note' },
-    }),
+    expect.not.objectContaining({ searchRequest: expect.anything() }),
     undefined
   )
 })
@@ -663,10 +712,88 @@ it('fills the Build draft from suggested actions without sending', async () => {
   expect(mocks.send).not.toHaveBeenCalled()
 })
 
-it('shows staging Search heading and setup steps instead of Build suggestions', async () => {
-  await act(async () => renderHome(<OrganizationHome />))
+it('keeps the Home greeting and shows Search setup steps instead of Build suggestions', async () => {
+  await act(async () => renderHome(<OrganizationHome userName='Ada' />))
   await act(async () => composerProps().onModeChange?.('assistant'))
-  expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+  expect(container.querySelector('h1')?.textContent).toBe('What should we get done, Ada?')
   expect(container.textContent).toContain('Get started')
   expect(container.textContent).not.toContain('Suggested actions')
+})
+
+describe('Search Fast preference and images', () => {
+  it('is available without Build permission and sends the captured org/user choice', async () => {
+    mocks.context.mockReturnValue({ ...mocks.context(), canBuild: false })
+    await act(async () => renderHome(<OrganizationHome userName='Reader' />))
+    expect(composerProps().assistantFast).toBe(false)
+    expect(composerProps().showModeSelector).toBe(false)
+    await act(async () => composerProps().onAssistantFastChange?.(true))
+    expect(useOrganizationChatModeStore.getState().assistantFast).toEqual({
+      'reader:organization-a': true,
+    })
+    await act(async () => composerProps().onSubmit('Find Orion'))
+    expect(mocks.send).toHaveBeenCalledWith('Find Orion', undefined, undefined, {
+      requestMode: 'assistant',
+      assistantFast: true,
+    })
+  })
+
+  it('keeps Fast enabled and sends attached images without changing the preference', async () => {
+    const notice = vi.spyOn(toast, 'info').mockReturnValue('notice')
+    useOrganizationChatModeStore.getState().setAssistantFast('reader', 'organization-a', true)
+    await act(async () =>
+      renderHome(<OrganizationHome userName='Reader' requestMode='assistant' />)
+    )
+    const images = [new File(['image'], 'screenshot.png', { type: 'image/png' })]
+    await act(async () =>
+      composerProps().files.processFiles(
+        Object.assign(images, { item: (index: number) => images[index] ?? null })
+      )
+    )
+    expect(composerProps().assistantFast).toBe(true)
+    expect(notice).not.toHaveBeenCalled()
+    await act(async () => composerProps().onSubmit('Describe this'))
+    expect(mocks.send).toHaveBeenCalledWith(
+      'Describe this',
+      [expect.objectContaining({ filename: 'screenshot.png' })],
+      undefined,
+      { requestMode: 'assistant', assistantFast: true }
+    )
+    notice.mockRestore()
+  })
+})
+
+it('keeps Search Fast enabled for follow-up turns with historical images', async () => {
+  useOrganizationChatModeStore.getState().setAssistantFast('reader', 'organization-a', true)
+  mocks.chat.mockReturnValue({
+    ...mocks.chat(),
+    messages: [
+      {
+        id: 'image-turn',
+        role: 'user',
+        content: 'Inspect',
+        attachments: [{ id: 'image', filename: 'image.png', media_type: 'image/png' }],
+      },
+    ],
+  })
+  mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  await act(async () =>
+    renderHome(<OrganizationHome chatId='with-images' requestMode='assistant' />)
+  )
+  expect(composerProps().assistantFast).toBe(true)
+  await act(async () => composerProps().onSubmit('Follow up'))
+  expect(mocks.send).toHaveBeenCalledWith('Follow up', undefined, undefined, {
+    requestMode: 'assistant',
+    assistantFast: true,
+  })
+})
+
+it('shows rejected Search requests through the existing error toast', async () => {
+  const error = vi.spyOn(toast, 'error').mockReturnValue('notice')
+  mocks.chat.mockReturnValue({
+    ...mocks.chat(),
+    error: 'Fast Search is unavailable for this request',
+  })
+  await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
+  expect(error).toHaveBeenCalledWith('Fast Search is unavailable for this request')
+  error.mockRestore()
 })

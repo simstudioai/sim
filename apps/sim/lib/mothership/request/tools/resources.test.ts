@@ -142,3 +142,31 @@ describe('handleResourceSideEffects', () => {
     }
   )
 })
+
+it('emits authorized Search results beside the persisted address, never inside it', async () => {
+  const resource: MothershipResource = {
+    type: 'search',
+    id: 'search:organization:org',
+    title: 'Search results',
+    search: { query: 'policy', scope: { kind: 'organization', organizationId: 'org' } },
+  }
+  const data = { query: 'policy', results: [], retrieval: { status: 'complete', timedOutLegs: [] } }
+  const result = { success: true, output: { success: true, data }, resources: [resource] }
+  const onEvent = vi.fn()
+  await handleResourceSideEffects(
+    'search_workspace',
+    {},
+    result,
+    result,
+    'chat',
+    onEvent,
+    () => false,
+    undefined,
+    'reader'
+  )
+  expect(mocks.persistChatResources).toHaveBeenLastCalledWith('chat', [resource])
+  expect(onEvent).toHaveBeenCalledWith({
+    type: 'resource',
+    payload: { op: 'upsert', resource, searchResult: { actorUserId: 'reader', data } },
+  })
+})

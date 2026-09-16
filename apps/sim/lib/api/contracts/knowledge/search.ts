@@ -1,5 +1,16 @@
 import { z } from 'zod'
-import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/mothership-assistant-tools'
+import {
+  workspaceKnowledgeSearchDataSchema,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
+
+export {
+  type WorkspaceKnowledgeSearchData,
+  type WorkspaceKnowledgeSearchResult,
+  workspaceKnowledgeSearchDataSchema,
+  workspaceKnowledgeSearchResultSchema,
+} from '@/lib/api/contracts/mothership-assistant-tools'
+
 import {
   resolvedSecretTraceProvenanceSchema,
   resourceOwnerSchema,
@@ -166,23 +177,6 @@ export const internalKnowledgeSearchContract = defineRouteContract({
   },
 })
 
-/** One document a workspace search matched, with the best chunk of it. */
-export const workspaceKnowledgeSearchResultSchema = z.object({
-  documentId: z.string(),
-  knowledgeBaseId: z.string(),
-  knowledgeBaseName: z.string(),
-  documentName: z.string().nullable(),
-  sourceUrl: z.string().nullable(),
-  connectorType: z.string().nullable(),
-  sourceModifiedAt: z.string().nullable(),
-  /** The person behind the document, from its author-like tag; null when the source names none. */
-  author: z.string().nullable(),
-  content: z.string(),
-  chunkIndex: z.number(),
-  similarity: z.number(),
-})
-export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
-
 export { workspaceSearchFiltersSchema }
 
 export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
@@ -209,16 +203,6 @@ export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
     }
   })
 export type WorkspaceKnowledgeSearchBody = z.input<typeof workspaceKnowledgeSearchBodySchema>
-
-export const workspaceKnowledgeSearchDataSchema = z.object({
-  query: z.string(),
-  results: z.array(workspaceKnowledgeSearchResultSchema),
-  retrieval: z.object({
-    status: z.enum(['complete', 'partial']),
-    timedOutLegs: z.array(z.enum(['vector', 'keyword', 'tags'])).max(3),
-  }),
-})
-export type WorkspaceKnowledgeSearchData = z.output<typeof workspaceKnowledgeSearchDataSchema>
 
 /**
  * The search a signed-in person runs from the composer: what their own

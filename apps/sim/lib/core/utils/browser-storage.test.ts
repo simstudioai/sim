@@ -18,6 +18,7 @@ describe('MothershipHandoffStorage', () => {
       message: 'Find the policy',
       resumeUserMessageId: 'original-send',
       requestMode: 'assistant' as const,
+      assistantFast: true,
     }
     expect(MothershipHandoffStorage.store(handoff, { organizationId: 'org-1' })).toBe(true)
     expect(MothershipHandoffStorage.consume('org-1')).toBeNull()

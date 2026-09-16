@@ -35,6 +35,7 @@ export interface QueuedMessage {
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantFast?: boolean
 }
 
 export const ToolCallStatus = {

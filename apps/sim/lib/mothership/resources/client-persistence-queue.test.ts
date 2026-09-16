@@ -65,6 +65,28 @@ describe('ResourcePersistenceQueue', () => {
     expect(queue.inFlight.size).toBe(0)
   })
 
+  it('projects the latest view clear and pending removal only over their owning chat', async () => {
+    const write = deferred<unknown>()
+    const removal = deferred<unknown>()
+    const queue = new ResourcePersistenceQueue({ persist: () => write.promise, onError })
+    const saved = { ...TABLE_RESOURCE, viewId: 'saved-view' }
+    queue.enqueue({ ...TABLE_RESOURCE, clearViewId: true }, 'chat-1', 'chat-1', saved)
+    expect(queue.applyPendingUpdates('chat-1', [saved])).toEqual([TABLE_RESOURCE])
+    expect(queue.applyPendingUpdates('chat-2', [saved])).toEqual([saved])
+    queue
+      .remove('table', TABLE_RESOURCE.id, 'chat-1')
+      .scheduleDelete('chat-1', () => removal.promise)
+    expect(queue.applyPendingUpdates('chat-1', [saved])).toEqual([])
+    write.resolve({ success: true })
+    await vi.waitFor(() =>
+      expect(queue.hasPendingUpsert('chat-1', 'table', TABLE_RESOURCE.id)).toBe(false)
+    )
+    expect(queue.applyPendingUpdates('chat-1', [saved])).toEqual([])
+    removal.resolve({ success: true })
+    await queue.flush('chat-1')
+    expect(queue.applyPendingUpdates('chat-1', [saved])).toEqual([saved])
+  })
+
   it('retains the newest desired state after a failure for a later retry', async () => {
     const first = deferred<unknown>()
     const persist = vi

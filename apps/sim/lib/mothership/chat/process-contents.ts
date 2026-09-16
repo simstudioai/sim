@@ -50,6 +50,7 @@ import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { workflowDelegationPolicy } from '@/lib/workflows/application/authorization'
 import { readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
+import { getBuiltinSkillById } from '@/lib/workflows/skills/builtin-skills'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getBlockRegistry } from '@/blocks/registry'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -134,6 +135,15 @@ export async function processContextsServer(
   const resolveContext = async (ctx: ChatContext) => {
     try {
       if (ctx.kind === 'skill' && ctx.skillId) {
+        // Global code-owned templates do not require an arbitrary workspace.
+        const builtin = organizationId ? getBuiltinSkillById(ctx.skillId) : undefined
+        if (builtin)
+          return {
+            type: 'skill' as const,
+            tag: ctx.label ? `@${ctx.label}` : '@',
+            content: builtin.content,
+          }
+
         const target = organizationId
           ? await resolveInvocationWorkspace({ userId, organizationId, chatId }, ctx.workspaceId)
           : { workspaceId: currentWorkspaceId }

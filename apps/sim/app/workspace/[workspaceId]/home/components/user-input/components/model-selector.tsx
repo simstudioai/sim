@@ -11,10 +11,9 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-  Tooltip,
 } from '@sim/emcn'
-import { Zap } from '@sim/emcn/icons'
 import { MOTHERSHIP_EFFORT_OPTIONS, MOTHERSHIP_MODEL_OPTIONS } from '@/lib/mothership/model-options'
+import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
 /** Shared model, reasoning effort, and fast-mode controls for chat composers. */
@@ -27,25 +26,11 @@ export function ModelSelector() {
   return (
     <div className='flex items-center'>
       {modelSelection.model === 'gpt-6-astra' && (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Chip
-              shape='round'
-              aria-label='Fast mode'
-              aria-pressed={modelSelection.fastMode}
-              onClick={() => setFastMode(!modelSelection.fastMode)}
-              leftAdornment={
-                <Zap
-                  className='size-[14px] text-[var(--text-icon)]'
-                  fill={modelSelection.fastMode ? 'currentColor' : 'none'}
-                />
-              }
-            />
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            {modelSelection.fastMode ? 'Turn off Fast mode' : 'Turn on Fast mode'}
-          </Tooltip.Content>
-        </Tooltip.Root>
+        <FastModeToggle
+          enabled={modelSelection.fastMode}
+          onChange={setFastMode}
+          description='Faster responses at a higher price'
+        />
       )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

@@ -17,6 +17,7 @@ import {
   persistChatResources,
   removeChatResources,
 } from '@/lib/mothership/resources/persistence'
+import { searchResultFromToolResult } from '@/lib/mothership/resources/search-tool-result'
 import { changeStoredChatResources } from '@/lib/mothership/resources/store'
 
 const logger = createLogger('CopilotResourceEffects')
@@ -35,7 +36,8 @@ export async function handleResourceSideEffects(
   chatId: string,
   onEvent: ((event: StreamEvent) => void | Promise<void>) | undefined,
   isAborted: () => boolean,
-  workspaceId?: string
+  workspaceId?: string,
+  actorUserId?: string
 ): Promise<void> {
   // Cheap early exit so we don't emit a span for tools that can never
   // produce resources (most of them). The span only shows up for tools
@@ -176,6 +178,11 @@ export async function handleResourceSideEffects(
               payload: {
                 op: MothershipStreamV1ResourceOp.upsert,
                 resource,
+                ...(toolName === 'search_workspace' && resource.type === 'search'
+                  ? {
+                      searchResult: searchResultFromToolResult(projectedResult.output, actorUserId),
+                    }
+                  : {}),
               },
             })
           }

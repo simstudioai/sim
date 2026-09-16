@@ -91,6 +91,7 @@ function shouldShowStreamingFilePanel(
 interface MothershipViewProps {
   workspaceId?: string
   organizationId?: string
+  allowBuildControls?: boolean
   chatId?: string
   desktopScopeId: string
   onTableViewContextChange?: (tableId: string, context: MothershipTableViewContext) => void
@@ -112,6 +113,7 @@ export const MothershipView = memo(
     {
       workspaceId,
       organizationId,
+      allowBuildControls,
       chatId,
       desktopScopeId,
       resources,
@@ -227,6 +229,8 @@ export const MothershipView = memo(
       >
         <div className='flex min-h-0 flex-1 flex-col'>
           <ResourceTabs
+            organizationId={organizationId}
+            allowBuildControls={allowBuildControls}
             workspaceId={workspaceId}
             desktopScopeId={desktopScopeId}
             chatId={chatId}

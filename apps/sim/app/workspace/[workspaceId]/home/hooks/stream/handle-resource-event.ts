@@ -1,3 +1,4 @@
+import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/knowledge/search'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import {
   type MothershipStreamV1EventType,
@@ -78,9 +79,27 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     }
     const scopeKey =
       search.scope.kind === 'workspace' ? search.scope.workspaceId : resourceScopeKey(search.scope)
-    void queryClient.invalidateQueries({
-      queryKey: knowledgeKeys.search(scopeKey, search.query, search.filters, search.topK),
-    })
+    const queryKey = knowledgeKeys.search(
+      scopeKey,
+      search.query,
+      search.filters,
+      search.topK,
+      ctx.deps.viewerId
+    )
+    const preview =
+      payload.op === 'upsert' &&
+      !payload.replay &&
+      !ctx.deps.options.deferFlushes &&
+      Boolean(ctx.deps.viewerId) &&
+      payload.searchResult?.actorUserId === ctx.deps.viewerId
+        ? workspaceKnowledgeSearchDataSchema.safeParse(payload.searchResult?.data)
+        : undefined
+    if (preview?.success && preview.data.query === search.query) {
+      void queryClient.cancelQueries({ queryKey, exact: true }, { revert: false })
+      queryClient.setQueryData(queryKey, preview.data)
+    } else {
+      void queryClient.invalidateQueries({ queryKey })
+    }
     if (payload.replay || ctx.deps.options.deferFlushes) {
       const chatId = ctx.deps.chatIdRef.current
       if (chatId)

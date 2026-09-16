@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixtures = vi.hoisted(() => ({
+  workspaces: [] as Array<{ id: string; name: string; organizationId: string }>,
   browserAvailable: vi.fn(() => true),
   terminalAvailable: vi.fn(() => true),
   resources: { data: [{ id: 'resource-1', name: 'Example' }], isPending: false },
@@ -50,6 +51,9 @@ vi.mock('@/lib/browser-agent/transport', () => ({
 }))
 vi.mock('@/lib/terminal/transport', () => ({
   isTerminalAvailable: fixtures.terminalAvailable,
+}))
+vi.mock('@/hooks/queries/workspace', () => ({
+  useWorkspacesQuery: () => ({ data: fixtures.workspaces, isPending: false }),
 }))
 vi.mock('@/hooks/queries/workflows', () => ({ useWorkflows: () => fixtures.resources }))
 vi.mock('@/hooks/queries/tables', () => ({ useTablesList: () => fixtures.resources }))
@@ -102,7 +106,7 @@ const PREFERENCES: DesktopPreferences = {
   terminalEnabled: true,
 }
 
-function openMenu(mention = false, mentionQuery?: string) {
+function openMenu(mention = false, mentionQuery?: string, organizationId?: string) {
   const ref = createRef<PlusMenuHandle>()
   const onResourceSelect = vi.fn()
   act(() =>
@@ -110,6 +114,7 @@ function openMenu(mention = false, mentionQuery?: string) {
       <PlusMenuDropdown
         ref={ref}
         workspaceId='workspace-1'
+        organizationId={organizationId}
         mentionQuery={mentionQuery}
         onResourceSelect={onResourceSelect}
         onClose={vi.fn()}
@@ -151,6 +156,7 @@ describe('PlusMenuDropdown desktop resources', () => {
       }
     )
     vi.clearAllMocks()
+    fixtures.workspaces = []
     fixtures.resources.data = [{ id: 'resource-1', name: 'Example' }]
     for (const folders of [fixtures.folders, fixtures.tableFolders, fixtures.knowledgeFolders]) {
       folders.data = []
@@ -378,5 +384,23 @@ describe('PlusMenuDropdown desktop resources', () => {
     expect(menuItems().map((item) => item.textContent)).toEqual(
       expect.arrayContaining(['Tables', 'Knowledge Bases'])
     )
+  })
+  it('keeps organization mentions flat and keyboard selection carries the chosen workspace', () => {
+    fixtures.workspaces = [
+      { id: 'sales', name: 'Sales', organizationId: 'org-1' },
+      { id: 'finance', name: 'Finance', organizationId: 'org-1' },
+      { id: 'foreign', name: 'Foreign', organizationId: 'org-2' },
+    ]
+    const { ref, onResourceSelect } = openMenu(true, 'Finance', 'org-1')
+    expect(document.body.textContent).toContain('Finance')
+    expect(document.body.textContent).not.toContain('Foreign')
+    expect(document.body.textContent).not.toContain('Choose a workspace')
+    act(() => {
+      ref.current?.selectActive()
+    })
+    expect(onResourceSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'finance' })
+    )
+    expect(onResourceSelect.mock.calls[0][0].title).not.toContain('Finance')
   })
 })

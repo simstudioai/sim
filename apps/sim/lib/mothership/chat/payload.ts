@@ -73,6 +73,7 @@ interface BuildPayloadParams {
   chatId?: string
   prefetch?: boolean
   implicitFeedback?: string
+  assistantFast?: boolean
   assistantSearch?: WorkspaceSearchFilters
   workspaceContext?: string
   vfs?: VfsSnapshotV1
@@ -453,6 +454,9 @@ export async function buildCopilotRequestPayload(
     ...(params.organizationId ? { organizationId: params.organizationId } : {}),
     userId,
     mode: isAssistant ? 'assistant' : 'agent',
+    ...(isAssistant && params.assistantFast !== undefined
+      ? { assistantFast: params.assistantFast }
+      : {}),
     ...((isAssistant || params.organizationId) && params.assistantSearch
       ? { assistantSearch: params.assistantSearch }
       : {}),

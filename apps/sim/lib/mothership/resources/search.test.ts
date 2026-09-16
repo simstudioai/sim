@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
 import { ResourceAddress } from '@/lib/mothership/generated/resources'
 import { createSearchResource, searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
-import { searchResourceFromToolResult } from '@/lib/mothership/resources/search-tool-result'
+import {
+  searchResourceFromToolResult,
+  searchResultFromToolResult,
+} from '@/lib/mothership/resources/search-tool-result'
 import { mergeChatResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
 
 const context = {
@@ -76,4 +79,23 @@ describe('Search resource addresses', () => {
         .success
     ).toBe(false)
   })
+})
+
+it('projects complete authorized search data separately and strips extra tool-only fields', () => {
+  const data = {
+    query: 'policy',
+    results: [],
+    retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+    privateDebug: 'not retained',
+  }
+  expect(searchResultFromToolResult({ success: true, data }, 'reader')).toEqual({
+    actorUserId: 'reader',
+    data: {
+      query: 'policy',
+      results: [],
+      retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+    },
+  })
+  expect(searchResultFromToolResult({ success: false, data })).toBeUndefined()
+  expect(searchResultFromToolResult({ success: true, data: { query: 'policy' } })).toBeUndefined()
 })

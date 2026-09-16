@@ -7,6 +7,7 @@ interface InputToolbarProps {
   leadingControls: ReactNode
   showModelSelector?: boolean
   voiceControl?: ReactNode
+  beforeSubmitControl?: ReactNode
   submitControl: ReactNode
 }
 
@@ -15,6 +16,7 @@ export function InputToolbar({
   leadingControls,
   showModelSelector = true,
   voiceControl,
+  beforeSubmitControl,
   submitControl,
 }: InputToolbarProps) {
   return (
@@ -23,6 +25,7 @@ export function InputToolbar({
       <div className='flex items-center gap-1.5'>
         {showModelSelector && <ModelSelector />}
         {voiceControl}
+        {beforeSubmitControl}
         {submitControl}
       </div>
     </div>

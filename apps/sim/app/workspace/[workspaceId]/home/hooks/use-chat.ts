@@ -27,6 +27,7 @@ import {
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
+import { useSession } from '@/lib/auth/auth-client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
@@ -67,6 +68,7 @@ import {
   isEphemeralResource,
   type MothershipResourceUpdate,
   mergeChatResource,
+  reorderStoredChatResources,
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
@@ -181,6 +183,7 @@ export interface SendMessageOptions {
   /** Assistant searches the workspace and acts through the caller's connected accounts. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantFast?: boolean
 }
 
 /**
@@ -206,6 +209,7 @@ interface StartSendMessageOptions {
   resumeUserMessageId?: string
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantFast?: boolean
 }
 
 /** Stop must preserve send admission even when it precedes the first response byte. */
@@ -224,6 +228,7 @@ interface WithdrawnSend {
   userMessageId: string
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantFast?: boolean
 }
 
 export interface UseChatReturn {
@@ -637,6 +642,8 @@ export function useChat(
   const workspaceId = typeof owner === 'string' ? owner : undefined
   const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
   const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
+  const session = useSession()
+  const viewerId = session.data?.user?.id
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -702,17 +709,40 @@ export function useChat(
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
   const resourcePersistenceQueueRef = useRef<ResourcePersistenceQueue | null>(null)
+  const refreshResourceHistory = useCallback(
+    async (chatId: string) => {
+      /** Cancel pre-write reads without rolling back newer optimistic changes. */
+      const query = { queryKey: mothershipChatKeys.detail(chatId), exact: true }
+      await queryClient.cancelQueries(query, { revert: false })
+      queryClient.setQueryData<MothershipChatHistory>(query.queryKey, (current) => {
+        const queue = resourcePersistenceQueueRef.current
+        if (!current || !queue) return current
+        const resources = queue.applyPendingUpdates(chatId, current.resources)
+        const pendingOrder = pendingResourceReordersRef.current.get(chatId)
+        return {
+          ...current,
+          resources: pendingOrder
+            ? (reorderStoredChatResources(resources, pendingOrder) ?? resources)
+            : resources,
+        }
+      })
+      void queryClient.invalidateQueries(query)
+    },
+    [queryClient]
+  )
   if (!resourcePersistenceQueueRef.current) {
     resourcePersistenceQueueRef.current = new ResourcePersistenceQueue({
-      persist: (chatId, update) => {
+      persist: async (chatId, update) => {
         const { clearViewId, ...resource } = update
-        return requestJson(addMothershipChatResourceContract, {
+        const result = await requestJson(addMothershipChatResourceContract, {
           body: {
             chatId,
             resource,
             ...(clearViewId === true ? { clearViewId: true as const } : {}),
           },
         })
+        await refreshResourceHistory(chatId)
+        return result
       },
       onError: (error) => {
         logger.warn('Failed to persist resource; will retry on next hydration', error)
@@ -1057,12 +1087,18 @@ export function useChat(
             continue
           }
 
-          pendingResourceReordersRef.current.delete(chatId)
-          if (pendingOrder.length === 0) return
+          if (pendingOrder.length === 0) {
+            pendingResourceReordersRef.current.delete(chatId)
+            return
+          }
           try {
             await requestJson(reorderMothershipChatResourcesContract, {
               body: { chatId, resources: pendingOrder },
             })
+            await refreshResourceHistory(chatId)
+            if (pendingResourceReordersRef.current.get(chatId) === pendingOrder) {
+              pendingResourceReordersRef.current.delete(chatId)
+            }
           } catch (error) {
             // 400 is the server rejecting the body's identity set — a tab was
             // closed after this order was captured. Replaying it verbatim can
@@ -1070,8 +1106,8 @@ export function useChat(
             // re-establish the order. Everything else (offline, 401, 5xx) is
             // transient and keeps the body for the next retry.
             const unsatisfiable = isApiClientError(error) && error.status === 400
-            if (!unsatisfiable && !pendingResourceReordersRef.current.has(chatId)) {
-              pendingResourceReordersRef.current.set(chatId, pendingOrder)
+            if (unsatisfiable && pendingResourceReordersRef.current.get(chatId) === pendingOrder) {
+              pendingResourceReordersRef.current.delete(chatId)
             }
             logger.warn(
               unsatisfiable
@@ -1091,7 +1127,7 @@ export function useChat(
       pendingResourceReorderFlushesRef.current.set(chatId, tracked)
       return tracked
     },
-    [resourcePersistenceQueue]
+    [refreshResourceHistory, resourcePersistenceQueue]
   )
 
   const flushPendingResources = useCallback(
@@ -1199,10 +1235,23 @@ export function useChat(
   )
   requestModeRef.current =
     options?.requestMode ?? chatHistory?.mode ?? (organizationId ? 'assistant' : 'agent')
+  const pendingTurn =
+    chatHistory?.id === (initialChatId ?? chatIdRef.current) ? activeTurnRef.current : null
   const messages = useMemo(() => {
-    const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
+    const source = chatHistory?.messages.map(toDisplayMessage) ?? [...pendingMessages]
+    /** A resource-history read can lag admission; keep this chat's own optimistic user visible. */
+    if (pendingTurn && !source.some((message) => message.id === pendingTurn.userMessageId)) {
+      const assistantIndex = source.findIndex(
+        (message) => message.id === pendingTurn.assistantMessageId
+      )
+      source.splice(
+        assistantIndex < 0 ? source.length : assistantIndex,
+        0,
+        pendingTurn.optimisticUserMessage
+      )
+    }
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))
-  }, [chatHistory, pendingMessages])
+  }, [chatHistory, pendingMessages, pendingTurn])
   const addResource = useCallback(
     (resourceUpdate: MothershipResourceUpdate): boolean => {
       // The single fan-in for tab creation, so the invariant lives here.
@@ -1290,6 +1339,13 @@ export function useChat(
       const existing = resourcesRef.current.find(matches)
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
+      if (persistChatId) {
+        queryClient.setQueryData<MothershipChatHistory>(
+          mothershipChatKeys.detail(persistChatId),
+          (current) =>
+            current && { ...current, resources: current.resources.filter((r) => !matches(r)) }
+        )
+      }
       const {
         inFlight: inFlightAdd,
         scheduleDelete,
@@ -1305,8 +1361,8 @@ export function useChat(
       if (wasPending && !inFlightAdd && !wasPersisted) return
 
       if (!persistChatId) return
-      scheduleDelete(persistChatId, () =>
-        requestJson(removeMothershipChatResourceContract, {
+      scheduleDelete(persistChatId, async () => {
+        const result = await requestJson(removeMothershipChatResourceContract, {
           body: {
             chatId: persistChatId,
             resourceType,
@@ -1314,9 +1370,11 @@ export function useChat(
             workspaceId: resourceWorkspaceId,
           },
         })
-      )
+        await refreshResourceHistory(persistChatId)
+        return result
+      })
     },
-    [resourcePersistenceQueue]
+    [queryClient, refreshResourceHistory, resourcePersistenceQueue]
   )
 
   /**
@@ -1814,7 +1872,15 @@ export function useChat(
     // A stored panel this client cannot open is kept out of the tab strip
     // rather than restored onto an error, but stays in the stored set so the
     // desktop app still gets it back.
-    const restorableResources = persistedResources.filter(canDisplayResource)
+    const updatedResources = resourcePersistenceQueue.applyPendingUpdates(
+      chatHistory.id,
+      persistedResources
+    )
+    const pendingOrder = pendingResourceReordersRef.current.get(chatHistory.id)
+    const projectedResources = pendingOrder
+      ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
+      : updatedResources
+    const restorableResources = projectedResources.filter(canDisplayResource)
     undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
     // Keyed on everything the server holds, not just what is restorable, so a
     // resource being hidden cannot make it look local-only and get re-added.
@@ -1831,7 +1897,10 @@ export function useChat(
     // keep their current on-screen position — hydration reruns on every send
     // and stream completion, and appending them at the end made those tabs
     // visibly jump/flash each time.
-    const mergedResources = [...restorableResources]
+    const localOnlyKeys = new Set(localOnly.map(getChatResourceKey))
+    const mergedResources = restorableResources.filter(
+      (r) => !localOnlyKeys.has(getChatResourceKey(r))
+    )
     for (const resource of localOnly) {
       const currentIndex = resourcesRef.current.findIndex(
         (r) => getChatResourceKey(r) === getChatResourceKey(resource)
@@ -2008,6 +2077,7 @@ export function useChat(
       }
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
+        viewerId,
         workspaceId,
         organizationId,
         queryClient,
@@ -2152,6 +2222,7 @@ export function useChat(
       return { sawStreamError: settledError, sawComplete: state.sawCompleteEvent }
     },
     [
+      viewerId,
       workspaceId,
       queryClient,
       addResource,
@@ -3056,7 +3127,8 @@ export function useChat(
       contexts?: ChatContext[],
       resumeUserMessageId?: string,
       requestMode?: ChatRequestMode,
-      assistantSearch?: WorkspaceSearchFilters
+      assistantSearch?: WorkspaceSearchFilters,
+      assistantFast?: boolean
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3079,6 +3151,7 @@ export function useChat(
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
         ...(requestMode ? { requestMode } : {}),
         ...(assistantSearch ? { assistantSearch } : {}),
+        ...(assistantFast !== undefined ? { assistantFast } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3242,6 +3315,9 @@ export function useChat(
           ...(contexts ? { contexts } : {}),
           ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
           ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+          ...(options?.assistantFast !== undefined
+            ? { assistantFast: options?.assistantFast }
+            : {}),
           requestedAt: Date.now(),
         })
       }
@@ -3521,6 +3597,9 @@ export function useChat(
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
             ...(options?.requestMode ? { mode: options.requestMode } : {}),
             ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+            ...(options?.requestMode === 'assistant' && options.assistantFast
+              ? { assistantFast: true }
+              : {}),
             ...(options?.requestMode !== 'assistant' && workflowIdRef.current
               ? { workflowId: workflowIdRef.current }
               : {}),
@@ -3528,8 +3607,12 @@ export function useChat(
             // subagent) — the server gates the features on these flags.
             ...desktopChatCapabilities,
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            effort: useMothershipEffortStore.getState().effort,
-            modelSelection: useMothershipEffortStore.getState().modelSelection,
+            ...(options?.requestMode !== 'assistant'
+              ? {
+                  effort: useMothershipEffortStore.getState().effort,
+                  modelSelection: useMothershipEffortStore.getState().modelSelection,
+                }
+              : {}),
           }),
           signal: abortController.signal,
         })
@@ -3614,7 +3697,17 @@ export function useChat(
             }
             return consumedByTranscript
           }
-          throw new Error(errorData.error || `Request failed: ${response.status}`)
+          /** An explicit rejection never admitted a run, so there is nothing to reconnect. */
+          setError(
+            typeof errorData.error === 'string'
+              ? errorData.error
+              : `Request failed: ${response.status}`
+          )
+          finalize({
+            error: true,
+            ...(streamTargetChatId ? { targetChatId: streamTargetChatId } : {}),
+          })
+          return consumedByTranscript
         }
 
         if (queuedSendHandoff) {
@@ -3751,7 +3844,8 @@ export function useChat(
           send.fileAttachments,
           send.userMessageId,
           send.requestMode,
-          send.assistantSearch
+          send.assistantSearch,
+          send.assistantFast
         )
       ) {
         return
@@ -3764,6 +3858,7 @@ export function useChat(
           resumeUserMessageId: send.userMessageId,
           ...(send.requestMode ? { requestMode: send.requestMode } : {}),
           ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
+          ...(send.assistantFast !== undefined ? { assistantFast: send.assistantFast } : {}),
         },
         organizationId ? { organizationId } : workspaceId!
       )
@@ -3795,6 +3890,7 @@ export function useChat(
             contexts,
             requestMode: options?.requestMode ?? existing.requestMode,
             assistantSearch: options?.assistantSearch ?? existing.assistantSearch,
+            assistantFast: options?.assistantFast ?? existing.assistantFast,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
@@ -3830,7 +3926,8 @@ export function useChat(
             contexts,
             options?.resumeUserMessageId,
             options?.requestMode,
-            options?.assistantSearch
+            options?.assistantSearch,
+            options?.assistantFast
           )
         )
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
@@ -3854,6 +3951,7 @@ export function useChat(
         userMessageId: result.userMessageId,
         ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
         ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+        ...(options?.assistantFast !== undefined ? { assistantFast: options?.assistantFast } : {}),
       }
       if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
@@ -3869,7 +3967,8 @@ export function useChat(
             contexts,
             result.userMessageId,
             options?.requestMode,
-            options?.assistantSearch
+            options?.assistantSearch,
+            options?.assistantFast
           )
         )
     },
@@ -4072,6 +4171,7 @@ export function useChat(
       contexts: handoff.contexts,
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
+      ...(handoff.assistantFast !== undefined ? { assistantFast: handoff.assistantFast } : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -4462,6 +4562,9 @@ export function useChat(
             contexts: dispatched.contexts,
             ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
             ...(dispatched.assistantSearch ? { assistantSearch: dispatched.assistantSearch } : {}),
+            ...(dispatched.assistantFast !== undefined
+              ? { assistantFast: dispatched.assistantFast }
+              : {}),
             userMessageId: withdrawnUserMessageId,
           })
           return
@@ -4506,6 +4609,9 @@ export function useChat(
               : {}),
             ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
             ...(liveMsg.assistantSearch ? { assistantSearch: liveMsg.assistantSearch } : {}),
+            ...(liveMsg.assistantFast !== undefined
+              ? { assistantFast: liveMsg.assistantFast }
+              : {}),
           }
         )
 

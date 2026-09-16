@@ -105,6 +105,7 @@ export const useMothershipQueueStore = create<MothershipQueueState>()(
               contexts: patch.contexts,
               requestMode: patch.requestMode,
               assistantSearch: patch.assistantSearch,
+              assistantFast: patch.assistantFast,
             }
             return { queues: setQueueForChat(state.queues, chatKey, next) }
           }),

@@ -14,6 +14,10 @@ export function toReplayEnvelope(
   envelope: PersistedStreamEventEnvelope
 ): PersistedStreamEventEnvelope {
   if (envelope.type === 'resource') {
+    if (envelope.payload.op === 'upsert') {
+      const { searchResult: _searchResult, ...payload } = envelope.payload
+      return { ...envelope, payload: { ...payload, replay: true } }
+    }
     return { ...envelope, payload: { ...envelope.payload, replay: true } }
   }
   if (
