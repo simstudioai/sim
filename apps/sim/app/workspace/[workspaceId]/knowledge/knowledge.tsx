@@ -8,6 +8,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/constants'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -194,6 +195,14 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
 }
 
 export function Knowledge() {
+  return (
+    <PermissionAccessBoundary configKey='hideKnowledgeBaseTab'>
+      <KnowledgeContent />
+    </PermissionAccessBoundary>
+  )
+}
+
+function KnowledgeContent() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string

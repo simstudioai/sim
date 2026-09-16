@@ -13,12 +13,14 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
-import { ArrowUpRight, Building, ChevronLeft } from '@sim/emcn/icons'
+import { ArrowUpRight, Building, ChevronLeft, Lock } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import { useWorkspaceAccessRequestFeatures } from '@/components/access-requests/permission-access-boundary'
 import {
   type DesktopSettingsSurface,
   getOrganizationSettingsHref,
+  getSettingsPermissionConfigKey,
   isSelfHostedOverrideEnabled,
   ORGANIZATION_PLANE_UNIFIED_SECTIONS,
 } from '@/components/settings/navigation'
@@ -124,6 +126,8 @@ export function SettingsSidebar({
   })
 
   const { config: permissionConfig } = usePermissionConfig()
+  const accessRequests = useWorkspaceAccessRequestFeatures()
+  const accessRequestsEnabled = accessRequests.data?.enabled === true
   const forkingAvailable = useForkingAvailable(workspaceId)
   const { canAdmin: canAdminWorkspace } = useUserPermissionsContext()
 
@@ -136,7 +140,6 @@ export function SettingsSidebar({
       : null
   const subscriptionAccess = getSubscriptionAccessState(hostContext.ownerBilling)
   const inboxEntitled = inboxConfig?.entitled ?? false
-  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
   const isEnterprisePlan = subscriptionAccess.isEnterprise
 
@@ -164,6 +167,11 @@ export function SettingsSidebar({
       ) {
         return false
       }
+      if (item.id === 'organization') {
+        return Boolean(
+          hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationMember
+        )
+      }
       if (item.requiresSelfHosted && hosted) {
         return false
       }
@@ -184,22 +192,26 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.id === 'secrets' && permissionConfig.hideSecretsTab) {
+      if (item.id === 'secrets' && permissionConfig.hideSecretsTab && !accessRequestsEnabled) {
         return false
       }
-      if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
+      if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab && !accessRequestsEnabled) {
         return false
       }
-      if (item.id === 'inbox' && permissionConfig.hideInboxTab) {
+      if (item.id === 'inbox' && permissionConfig.hideInboxTab && !accessRequestsEnabled) {
         return false
       }
-      if (item.id === 'mcp' && permissionConfig.disableMcpTools) {
+      if (item.id === 'mcp' && permissionConfig.disableMcpTools && !accessRequestsEnabled) {
         return false
       }
-      if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
+      if (
+        item.id === 'custom-tools' &&
+        permissionConfig.disableCustomTools &&
+        !accessRequestsEnabled
+      ) {
         return false
       }
-      if (item.id === 'sandboxes' && permissionConfig.hideSandboxesTab) {
+      if (item.id === 'sandboxes' && permissionConfig.hideSandboxesTab && !accessRequestsEnabled) {
         return false
       }
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
@@ -227,10 +239,6 @@ export function SettingsSidebar({
       }
 
       const orgAdminSatisfied = isOrgAdminOrOwner || item.allowNonOrgAdmin
-
-      if (item.requiresTeam && (!hasTeamPlan || !orgAdminSatisfied)) {
-        return false
-      }
 
       if (
         item.requiresEnterprise &&
@@ -264,7 +272,6 @@ export function SettingsSidebar({
     deployment,
     hosted,
     billingEnabled,
-    hasTeamPlan,
     hasEnterprisePlan,
     isEnterprisePlan,
     subscriptionAccess.hasUsableMaxAccess,
@@ -275,6 +282,7 @@ export function SettingsSidebar({
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
     permissionConfig,
+    accessRequestsEnabled,
     isSuperUser,
     generalSettings?.superUserModeEnabled,
     forkingAvailable,
@@ -408,6 +416,10 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const accessFeature = getSettingsPermissionConfigKey(item.id)
+                    const permissionRestricted = accessFeature
+                      ? permissionConfig[accessFeature]
+                      : false
                     const section = item.id as SettingsSection
                     const href = getSettingsHref({ section })
                     const selfHostedUnlocked = isSelfHostedOverrideEnabled(
@@ -432,6 +444,12 @@ export function SettingsSidebar({
                           className='sidebar-collapse-hide text-[var(--text-body)]'
                           tooltipEnabled={!showCollapsedTooltips}
                         />
+                        {permissionRestricted && (
+                          <Lock
+                            className={cn('sidebar-collapse-hide ml-auto', chipContentIconClass)}
+                            aria-hidden
+                          />
+                        )}
                         {isLocked && (
                           <ChipTag
                             variant='mono'
@@ -458,8 +476,11 @@ export function SettingsSidebar({
                         replace
                         scroll={false}
                         aria-current={active ? 'page' : undefined}
+                        aria-label={
+                          permissionRestricted ? `${item.label}: access required` : undefined
+                        }
                         className={itemClassName}
-                        onIntent={() => handleIntent(section)}
+                        onIntent={() => !permissionRestricted && handleIntent(section)}
                         onNavigate={(event) => {
                           if (active) {
                             event.preventDefault()

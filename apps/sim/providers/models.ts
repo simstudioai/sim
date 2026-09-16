@@ -5048,9 +5048,8 @@ interface ModelCatalogEntry {
 
 /**
  * Lowercased model ID → catalog position metadata, built once from the static
- * provider catalog. Dynamic providers contribute nothing here because their model
- * lists are populated at runtime (not at module load), and only catalog models are
- * ever reordered by release date.
+ * provider catalog, including built-in models of dynamic providers. Models added
+ * by runtime discovery are excluded.
  */
 const MODEL_CATALOG_INDEX: Map<string, ModelCatalogEntry> = new Map(
   Object.entries(PROVIDER_DEFINITIONS).flatMap(([providerId, provider]) =>
@@ -5067,6 +5066,13 @@ const MODEL_CATALOG_INDEX: Map<string, ModelCatalogEntry> = new Map(
     })
   )
 )
+
+/** Returns built-in public models, excluding names added by runtime discovery. */
+export function getStaticProviderModels(providerId: string): ModelDefinition[] {
+  return (PROVIDER_DEFINITIONS[providerId]?.models ?? []).filter(
+    (model) => MODEL_CATALOG_INDEX.get(model.id.toLowerCase())?.providerId === providerId
+  )
+}
 
 /**
  * Reorders model IDs so that, within each provider, newer models (by release date)

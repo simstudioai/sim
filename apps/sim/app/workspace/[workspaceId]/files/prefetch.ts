@@ -1,7 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { listWorkspaceFileFoldersContract } from '@/lib/api/contracts/workspace-file-folders'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import { authorizeResourcePrefetch } from '@/app/workspace/[workspaceId]/lib/authorize-resource-prefetch'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { seedWorkspaceFiles } from '@/app/workspace/[workspaceId]/lib/seed-workspace-files'
 import {
@@ -35,6 +37,7 @@ export async function prefetchFilesBrowser(
   if (!userId) return
   const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
   if (!hostContext) return
+  if (!(await authorizeResourcePrefetch(listAllWorkspaceFiles, workspaceId))) return
 
   await Promise.all([
     queryClient.prefetchQuery({

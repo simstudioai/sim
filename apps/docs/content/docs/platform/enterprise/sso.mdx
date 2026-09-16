@@ -81,7 +81,7 @@ An organization can run several identity providers at once: Okta for `eng.acme.c
 
 ### 4. Copy the callback URL
 
-Copy **Callback URL** for OIDC or **ACS URL (Reply URL)** for SAML. This is the endpoint that receives your identity provider's authentication response. Register it in your IdP before saving. If you set a SAML **Callback URL override** under Advanced options, the copyable ACS URL uses that override.
+Copy **Callback URL** for OIDC or **ACS URL (Reply URL)** for SAML. This is the endpoint that receives your identity provider's authentication response. Register it in your IdP before saving. On Sim Cloud, `<your-sim-domain>` is `www.sim.ai`; self-hosted deployments use their own domain. If you set a SAML **Callback URL override** under Advanced options, the copyable ACS URL uses that override.
 
 **OIDC providers** (Okta, Microsoft Entra ID, Google Workspace, Auth0):
 ```
@@ -140,7 +140,11 @@ The first time someone signs in through the new provider, Sim links it to their 
    ```
 4. Under **Assignments**, grant access to the relevant users or groups
 5. Copy the **Client ID** and **Client Secret** from the app's **General** tab
-6. Copy your Okta organization domain from the account menu in the Admin Console, e.g. `dev-1234567.okta.com`. The Admin Console's `-admin` hostname is a different URL. See [Find your Okta domain](https://developer.okta.com/docs/guides/find-your-domain/main/).
+6. To open Sim from the Okta dashboard, set **Login initiated by** to **Either Okta or App**, show the app icon to users, choose **Redirect to app to initiate login (OIDC Compliant)**, and set **Initiate login URI** to the provider's **Initiate login URL** from Sim:
+   ```
+   https://<your-sim-domain>/sso/launch/okta
+   ```
+7. Copy your Okta organization domain from the account menu in the Admin Console, e.g. `dev-1234567.okta.com`. The Admin Console's `-admin` hostname is a different URL. See [Find your Okta domain](https://developer.okta.com/docs/guides/find-your-domain/main/).
 
 **In Sim:**
 
@@ -304,6 +308,8 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 4. After authenticating, they are returned to Sim
 5. If **First sign-in** is **Automatic**, Sim adds them to the organization as a Member, growing a Team seat count or validating available fixed-seat capacity
 6. They land in an accessible workspace, or see a clear no-access state until an admin grants workspace access
+
+People can also open Sim straight from an OIDC identity provider's app dashboard, such as the Okta tile. Open **Sign-in**, select the provider, and copy its **Initiate login URL** from **Identity provider**. Set it as the app's initiate login URI in your identity provider. Sim starts sign-in through that provider without asking for an email, and only when the provider's domain is verified and the request comes from its own issuer. People who are already signed in go straight to Sim.
 
 With **Automatic** provisioning, no invitation is required for organization membership. The join follows the organization's seat policy and does not infer a role from IdP claims: every newly provisioned user starts as a Member. Team subscriptions grow their billed seat count with membership; fixed-seat plans reject the join when capacity is full. With **Invite only**, SSO proves identity but does not create new membership or workspace access; new access must be granted separately, while existing organization membership and workspace access remain available.
 

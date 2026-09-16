@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import type { SimDesktopApi } from '@sim/desktop-bridge'
-import { Chip } from '@sim/emcn'
-import { ArrowUpRight, RefreshCw, Server, Wordmark } from '@sim/emcn/icons'
+import { observeDesktopTitleBar, type SimDesktopApi } from '@sim/desktop-bridge'
+import { Chip, LogoPage, SimWordmark, StatusPageContent } from '@sim/emcn'
 import { createRoot } from 'react-dom/client'
 import { initializeShellPage } from '@/renderer/shell'
 import '@/renderer/shell.css'
@@ -58,59 +57,58 @@ function OfflinePage({ isSimCloud }: OfflinePageProps) {
   }
 
   return (
-    <div className='flex min-h-screen flex-col pt-[38px]'>
-      <header className='mx-auto w-full max-w-[1460px] px-8 py-4 [-webkit-app-region:drag] md:px-20'>
-        <Wordmark
-          role='img'
-          aria-label='Sim'
-          className='my-1.5 h-[18px] w-[37px] text-[var(--text-body)]'
-        />
-      </header>
-      <main className='flex flex-1 items-center justify-center px-4 pb-16'>
-        <div className='flex w-full max-w-[440px] flex-col items-center gap-3 text-center'>
-          <h1 id='title' className='text-balance text-4xl leading-tight tracking-tight'>
-            {copy.title}
-          </h1>
-          <p className='text-[var(--text-muted)] text-base'>{copy.message}</p>
-          <div className='mt-3 flex flex-wrap justify-center gap-2'>
-            <Chip
-              id='retry'
-              variant='primary'
-              leftIcon={RefreshCw}
-              onClick={() => bridge?.offlineRetry()}
-            >
-              Retry
-            </Chip>
-            {isSimCloud ? (
-              <Chip id='status' leftIcon={ArrowUpRight} onClick={checkStatus}>
-                Check status
-              </Chip>
-            ) : null}
-            <Chip id='server' leftIcon={Server} onClick={() => bridge?.server?.open()}>
-              Change server
-            </Chip>
-          </div>
+    <LogoPage
+      center
+      className='desktop-title-bar-page'
+      titleBar={
+        <div aria-hidden className='desktop-login-window-drag-region desktop-window-drag-region' />
+      }
+      logo={
+        <span role='img' aria-label='Sim' className='flex h-[30px] items-center'>
+          <SimWordmark />
+        </span>
+      }
+    >
+      <StatusPageContent
+        titleId='title'
+        title={copy.title}
+        description={copy.message}
+        detail={
           <p
             id='detail'
             role='status'
-            className='max-w-full break-words font-mono text-[var(--text-muted)] text-caption'
+            className='max-w-full break-words text-[var(--text-muted)] text-caption'
           >
             {actionError || detail}
           </p>
-        </div>
-      </main>
-    </div>
+        }
+      >
+        <Chip id='retry' variant='primary' onClick={() => bridge?.offlineRetry()}>
+          Retry
+        </Chip>
+        {isSimCloud ? (
+          <Chip id='status' onClick={checkStatus}>
+            Check status
+          </Chip>
+        ) : null}
+        <Chip id='server' onClick={() => bridge?.server?.open()}>
+          Change server
+        </Chip>
+      </StatusPageContent>
+    </LogoPage>
   )
 }
 
-initializeShellPage()
 const container = document.getElementById('root')
 if (!container) throw new Error('Offline page root is missing')
-const root = createRoot(container)
-root.render(<OfflinePage isSimCloud={false} />)
-void bridge?.server
-  ?.getConfiguration()
-  .then(({ isSimCloud }) => {
-    root.render(<OfflinePage isSimCloud={isSimCloud} />)
-  })
-  .catch(() => {})
+void initializeShellPage().then(() => {
+  observeDesktopTitleBar(document.documentElement, navigator.userAgent, bridge)
+  const root = createRoot(container)
+  root.render(<OfflinePage isSimCloud={false} />)
+  void bridge?.server
+    ?.getConfiguration()
+    .then(({ isSimCloud }) => {
+      root.render(<OfflinePage isSimCloud={isSimCloud} />)
+    })
+    .catch(() => {})
+})

@@ -4,7 +4,11 @@
 
 import { schemaMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
-import { batchDeleteByWorkspaceAndTimestamp, chunkedBatchDelete } from '@/lib/cleanup/batch-delete'
+import {
+  batchDeleteByWorkspaceAndTimestamp,
+  chunkedBatchDelete,
+  selectRowsByIdChunks,
+} from '@/lib/cleanup/batch-delete'
 
 /**
  * Minimal stand-in for the drizzle client `chunkedBatchDelete` calls. Only the DELETE path is
@@ -76,5 +80,74 @@ describe('chunkedBatchDelete onBatch contract', () => {
     // The wrapper spreads `...rest` into chunkedBatchDelete; `onBatch` must survive that hop.
     expect(onBatch).toHaveBeenCalled()
     expect(order[0]).toBe('onBatch')
+  })
+})
+
+describe('shared cleanup row budgets', () => {
+  it('caps selection across ID chunks and subsequent owner scopes', async () => {
+    const budget = { remaining: 3 }
+    const select = vi.fn(async (_ids: string[], limit: number) =>
+      [{ id: 'one' }, { id: 'two' }].slice(0, limit)
+    )
+    expect(await selectRowsByIdChunks(['a', 'b'], select, { chunkSize: 1, budget })).toHaveLength(3)
+    expect(select.mock.calls.map(([, limit]) => limit)).toEqual([3, 1])
+    expect(await selectRowsByIdChunks(['c'], select, { budget })).toEqual([])
+    expect(select).toHaveBeenCalledTimes(2)
+  })
+
+  it('charges restored rows as attempts and uses the remaining limit for each delete batch', async () => {
+    const budget = { remaining: 3 }
+    const select = vi.fn(async (_ids: string[], limit: number) =>
+      [{ id: 'one' }, { id: 'two' }].slice(0, limit)
+    )
+    const options = {
+      tableDef: schemaMock.folder as never,
+      workspaceIds: ['a'],
+      tableName: 'folder',
+      dbClient: createDbClient(() => {}),
+      selectChunk: select,
+      budget,
+      batchSize: 2,
+    }
+    const result = await chunkedBatchDelete(options)
+    expect(result).toMatchObject({ deleted: 2, failed: 1 })
+    expect(select.mock.calls.map(([, limit]) => limit)).toEqual([2, 1])
+    await chunkedBatchDelete({ ...options, workspaceIds: ['b'] })
+    expect(select).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops on an error after charging selected rows', async () => {
+    const budget = { remaining: 2 }
+    const onDelete = vi.fn()
+    await expect(
+      chunkedBatchDelete({
+        tableDef: schemaMock.folder as never,
+        workspaceIds: ['a', 'b'],
+        tableName: 'folder',
+        budget,
+        dbClient: createDbClient(onDelete),
+        selectChunk: async () => [{ id: 'one' }],
+        onBatch: async () => {
+          throw new Error('storage failed')
+        },
+      })
+    ).rejects.toThrow('storage failed')
+    expect(budget.remaining).toBe(1)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('passes budgets through the timestamp helper', async () => {
+    const onDelete = vi.fn()
+    await batchDeleteByWorkspaceAndTimestamp({
+      tableDef: schemaMock.folder as never,
+      workspaceIdCol: schemaMock.folder.workspaceId as never,
+      timestampCol: schemaMock.folder.deletedAt as never,
+      workspaceIds: ['a'],
+      retentionDate: new Date(0),
+      tableName: 'folder',
+      budget: { remaining: 0 },
+      dbClient: createDbClient(onDelete, [{ id: 'one' }]),
+    })
+    expect(onDelete).not.toHaveBeenCalled()
   })
 })

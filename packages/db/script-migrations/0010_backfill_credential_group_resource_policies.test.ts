@@ -358,9 +358,9 @@ describe('Credential Group resource policy lifecycle', () => {
 
     expect(migration).toContain('CREATE TABLE "resource_policy"')
     expect(migration).not.toContain('credential_group_resource_policy_lifecycle')
-    expect(packageJson.scripts['db:push']).toContain(
-      'scripts/reconcile-credential-group-resource-policies.ts'
-    )
+    expect(packageJson.scripts['db:push']).toContain('scripts/push.ts')
+    const pushSource = await readFile(new URL('../scripts/push.ts', import.meta.url), 'utf8')
+    expect(pushSource).toContain('scripts/reconcile-credential-group-resource-policies.ts')
     expect(helperSource).not.toContain('LegacyResourcePolicy')
     expect(helperSource).not.toContain("document ? 'grants'")
   })

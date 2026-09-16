@@ -25,8 +25,7 @@
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
-import { organization, subscription, user, userStats, userStatsColumns } from '@sim/db/schema'
+import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
@@ -156,7 +155,7 @@ export const POST = withRouteHandler(
           .limit(1)
 
         if (!existingStats) {
-          await db.insert(withInsertColumns(userStats, userStatsColumns)).values({
+          await db.insert(userStats).values({
             id: generateShortId(),
             userId: entityId,
           })

@@ -665,13 +665,15 @@ describe('registerIpcHandlers', () => {
     expect(deps.settings.chooseBrowserDownloadDirectory).toHaveBeenCalledTimes(1)
   })
 
-  it('reports native fullscreen state only to the app origin', async () => {
+  it('reports native fullscreen state only to the app origin and bundled pages', async () => {
     const { invoke } = collectHandlers()
     const getWindowState = invoke.get('desktop:window-state:get')
 
     expect(await getWindowState?.(evilEvent)).toEqual({ isFullScreen: false })
     expect(await getWindowState?.(appEvent)).toEqual({ isFullScreen: true })
     expect(deps.getWindowState).toHaveBeenCalledWith(appSender)
+    expect(await getWindowState?.(localPageEvent)).toEqual({ isFullScreen: true })
+    expect(deps.getWindowState).toHaveBeenCalledWith(localPageSender)
   })
 
   it('restricts shell-control channels to bundled local pages', () => {

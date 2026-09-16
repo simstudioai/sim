@@ -159,6 +159,12 @@ export type TableRowsResponse = Pick<
 interface RowMutationContext {
   workspaceId: string
   tableId: string
+  /**
+   * Suppresses the error toast for callers that render the failure themselves —
+   * the row modal shows it inline, and two copies of the same sentence read as
+   * two separate failures. The cache self-heal on a 423 still runs.
+   */
+  suppressErrorToast?: boolean
 }
 
 type UpdateTableRowParams = Pick<TableRowParamsInput, 'rowId'> &
@@ -809,16 +815,22 @@ function notifyRowWriteError(error: Error, onUpgrade: () => void): void {
 function handleTableLockRejection(
   error: unknown,
   queryClient: ReturnType<typeof useQueryClient>,
-  tableId: string
+  tableId: string,
+  options?: { silent?: boolean }
 ): boolean {
   if (!isApiClientError(error) || error.status !== 423) return false
   void queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
   void queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-  toast.error(error.message, { duration: 5000 })
+  // `silent` only drops the toast; the refetches above are what un-stale the grid.
+  if (!options?.silent) toast.error(error.message, { duration: 5000 })
   return true
 }
 
-export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
+export function useCreateTableRow({
+  workspaceId,
+  tableId,
+  suppressErrorToast,
+}: RowMutationContext) {
   const queryClient = useQueryClient()
   const router = useRouter()
 
@@ -866,7 +878,9 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) => {
-      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
+        return
+      if (suppressErrorToast) return
       notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables')))
     },
     onSettled: () => {
@@ -1065,7 +1079,11 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
  * Update a single row in a table.
  * Uses optimistic updates for instant UI feedback on inline cell edits.
  */
-export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) {
+export function useUpdateTableRow({
+  workspaceId,
+  tableId,
+  suppressErrorToast,
+}: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -1150,8 +1168,10 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       if (context?.didBumpRunState) {
         queryClient.setQueryData(tableKeys.activeDispatches(tableId), context.runStateSnapshot)
       }
-      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
+        return
       if (isValidationError(error)) return
+      if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
   })
@@ -1234,7 +1254,11 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
 /**
  * Delete a single row from a table.
  */
-export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) {
+export function useDeleteTableRow({
+  workspaceId,
+  tableId,
+  suppressErrorToast,
+}: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -1245,8 +1269,10 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onError: (error) => {
-      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
+        return
       if (isValidationError(error)) return
+      if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
@@ -1259,7 +1285,11 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
  * Delete multiple rows from a table.
  * Returns both deleted ids and failure details for partial-failure UI.
  */
-export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext) {
+export function useDeleteTableRows({
+  workspaceId,
+  tableId,
+  suppressErrorToast,
+}: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -1294,8 +1324,10 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       return { deletedRowIds }
     },
     onError: (error) => {
-      if (handleTableLockRejection(error, queryClient, tableId)) return
+      if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
+        return
       if (isValidationError(error)) return
+      if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {

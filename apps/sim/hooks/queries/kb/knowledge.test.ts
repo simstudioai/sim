@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   useMutation: vi.fn(),
   useQuery: vi.fn(),
   invalidateQueries: vi.fn(),
+  getQueryData: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
@@ -16,7 +17,14 @@ vi.mock('@tanstack/react-query', () => ({
   useInfiniteQuery: vi.fn(),
   useMutation: mocks.useMutation,
   useQuery: mocks.useQuery,
-  useQueryClient: vi.fn(() => ({ invalidateQueries: mocks.invalidateQueries })),
+  useQueryClient: vi.fn(() => ({
+    invalidateQueries: mocks.invalidateQueries,
+    getQueryData: mocks.getQueryData,
+  })),
+}))
+
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'reader' } } }),
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -202,13 +210,18 @@ describe('knowledge query placeholder scope', () => {
     ).toBeUndefined()
   })
 
-  it('does not reuse results from a different query, workspace, or filter', () => {
+  it('partitions search cache entries by filter and reader', () => {
     const query = captureQuery(() =>
       useWorkspaceKnowledgeSearch('workspace-1', 'new query', { source: 'slack' })
     )
-    expect(query.placeholderData).toBeUndefined()
+    expect(query.queryKey).toEqual(
+      knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 'reader')
+    )
     expect(knowledgeKeys.search('workspace-1', 'query', { source: 'slack' })).not.toEqual(
       knowledgeKeys.search('workspace-1', 'query', { source: 'gitlab' })
+    )
+    expect(knowledgeKeys.search('workspace-1', 'query', {}, 'reader')).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', {}, 'another-reader')
     )
   })
 })

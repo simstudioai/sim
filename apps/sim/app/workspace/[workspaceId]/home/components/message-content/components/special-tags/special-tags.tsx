@@ -5,6 +5,7 @@ import { cn, Expandable, ExpandableContent, SecretReveal, Tooltip, toast } from 
 import { ArrowRight, Check, ChevronDown, SquareArrowUpRight, TerminalWindow } from '@sim/emcn/icons'
 import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
+import { MemberLimitRequestAction } from '@/components/access-requests/member-limit-request-action'
 import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -76,6 +77,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceUsageGate } from '@/hooks/queries/workspace-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 export interface OptionsItemData {
@@ -3184,6 +3186,9 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       ? buildHostedUpgradeUrl()
       : HOSTED_BILLING_SETTINGS_URL
   const canManageBilling = !hosted || canManageWorkspaceBilling(hostContext, session?.user?.id)
+  const usageGate = useWorkspaceUsageGate(
+    data.action === 'increase_limit' && !canManageBilling ? hostContext.workspace.id : undefined
+  )
   const unavailableMessage = hostContext.hostOrganizationId
     ? 'Contact an organization admin to manage this workspace’s usage limits.'
     : 'Only the workspace owner can manage this workspace’s usage limits.'
@@ -3225,7 +3230,16 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           {hosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
-        <p className='mt-2 text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
+        <div className='mt-2 flex flex-col items-start gap-2'>
+          <p className='text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
+          {usageGate.isSuccess &&
+            usageGate.data.isExceeded &&
+            usageGate.data.scope === 'member' && (
+              <MemberLimitRequestAction
+                scope={{ kind: 'workspace', workspaceId: hostContext.workspace.id }}
+              />
+            )}
+        </div>
       )}
     </div>
   )

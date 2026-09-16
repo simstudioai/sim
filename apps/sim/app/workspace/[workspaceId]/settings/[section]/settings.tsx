@@ -3,6 +3,8 @@
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
+import { getSettingsPermissionConfigKey } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { captureEvent } from '@/lib/posthog/client'
@@ -128,7 +130,17 @@ interface SettingsPageProps {
   section: SettingsSection
 }
 
-export function SettingsPage({ section }: SettingsPageProps) {
+export function SettingsPage(props: SettingsPageProps) {
+  const configKey = getSettingsPermissionConfigKey(props.section)
+  if (!configKey) return <SettingsPageContent {...props} />
+  return (
+    <PermissionAccessBoundary configKey={configKey}>
+      <SettingsPageContent {...props} />
+    </PermissionAccessBoundary>
+  )
+}
+
+function SettingsPageContent({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { billingEnabled } = useDeploymentShape()
@@ -138,7 +150,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const normalizedSection: SettingsSection =
     (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
-    !billingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
+    !billingEnabled && normalizedSection === 'billing'
       ? 'general'
       : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
         ? 'general'
@@ -192,7 +204,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'teammates' && <Teammates />}
-      {billingEnabled && effectiveSection === 'organization' && organizationId && (
+      {effectiveSection === 'organization' && organizationId && (
         <TeamManagement
           organizationId={organizationId}
           billingHref={`/workspace/${hostContext.workspace.id}/settings/billing`}

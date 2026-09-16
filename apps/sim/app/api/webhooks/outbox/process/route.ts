@@ -19,6 +19,7 @@ import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connec
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
+import { permissionAccessRequestOutboxHandlers } from '@/lib/permission-access-requests/notifications'
 import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
@@ -44,6 +45,7 @@ const handlers = {
   ...directGrantOutboxHandlers,
   ...knowledgeDocumentProcessingOutboxHandlers,
   ...organizationResourceCleanupOutboxHandlers,
+  ...permissionAccessRequestOutboxHandlers,
   ...workspaceFileLiveDocOutboxHandlers,
   ...workspaceFileStorageCleanupOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,

@@ -123,4 +123,37 @@ describe('search pipeline diagnostics', () => {
     expect(logs.info).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it.each([false, true])('counts partial completion separately (empty=%s)', async (empty) => {
+    const result = { results: empty ? [] : ['private result'] }
+    expect(
+      await withSearchDiagnostics({ surface: 'dashboard' }, async () => {
+        annotateSearchDiagnostics({
+          retrievalStatus: 'partial',
+          timedOutLegs: ['vector'],
+          resultCount: result.results.length,
+        })
+        return result
+      })
+    ).toBe(result)
+    expect(logs.info).toHaveBeenCalledWith(
+      'Knowledge search completed',
+      expect.objectContaining({
+        outcome: 'partial',
+        retrievalStatus: 'partial',
+        timedOutLegs: ['vector'],
+      })
+    )
+    expect(JSON.stringify(logs.info.mock.calls)).not.toContain('private result')
+  })
+
+  it('keeps a later failure distinct from partial retrieval', async () => {
+    await expect(
+      withSearchDiagnostics({}, async () => {
+        annotateSearchDiagnostics({ retrievalStatus: 'partial' })
+        throw new Error('metadata failed')
+      })
+    ).rejects.toThrow('metadata failed')
+    expect(logs.info.mock.calls[0][1].outcome).toBe('error')
+  })
 })

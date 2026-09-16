@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   credential,
   credentialGroup,
@@ -12,7 +11,6 @@ import {
   knowledgeExternalGroup,
   knowledgeExternalGroupMember,
   organization,
-  organizationColumns,
   permissions,
   user,
   workspace,
@@ -71,7 +69,7 @@ export async function seedKnowledgeAclFixture(
       updatedAt: now,
     },
   ])
-  await db.insert(withInsertColumns(organization, organizationColumns)).values({
+  await db.insert(organization).values({
     id: ids.organizationId,
     name: 'ACL integration organization',
     slug: ids.organizationId,

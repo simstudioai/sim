@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { HERO_ARTWORK } from '@/app/(landing)/components/hero/components/hero-platform-stage/hero-artwork.generated'
 import { HeroPlatformStage } from '@/app/(landing)/components/hero/components/hero-platform-stage/hero-platform-stage'
 
-vi.mock('@sim/emcn', () => ({ cn: (...values: string[]) => values.join(' ') }))
+vi.mock('@sim/emcn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn')>()),
+  cn: (...values: string[]) => values.join(' '),
+}))
 vi.mock('@/app/(landing)/components/hero/components/hero-platform-loop', () => ({
   HeroPlatformLoopMount: () => null,
 }))

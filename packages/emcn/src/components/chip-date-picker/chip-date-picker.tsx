@@ -1,12 +1,13 @@
 'use client'
 
-import { forwardRef, useState } from 'react'
+import { forwardRef, useContext, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Calendar, formatDateLabel, formatDateRangeLabel } from '../calendar/calendar'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
 import { chipContentLabelClass, chipIconSlotClass } from '../chip/chip-chrome'
+import { InsideModalContext } from '../modal/modal'
 import { OverflowText } from '../overflow-text/overflow-text'
 import { POPOVER_ANIMATION_CLASSES } from '../popover/popover-animation'
 
@@ -45,6 +46,10 @@ interface ChipDatePickerSingleProps extends ChipDatePickerBaseProps {
    * defaults to the runtime's local day (mirrors `Calendar`'s `today`).
    */
   today?: string
+  /** Adds a time-of-day field, emitting `YYYY-MM-DDTHH:mm`; the popover stays open while it is set. */
+  showTime?: boolean
+  /** Label beside the time field when `showTime` is set. Defaults to `Time`. */
+  timeLabel?: string
 }
 
 interface ChipDatePickerRangeProps extends ChipDatePickerBaseProps {
@@ -67,7 +72,8 @@ export type ChipDatePickerProps = ChipDatePickerSingleProps | ChipDatePickerRang
  * `chipVariants` (filled + border) and the owned chevron for visual parity with
  * the other chip field controls; `ghost` renders the bare toolbar pill instead.
  *
- * `mode='single'` (default) commits on day click. `mode='range'` opens the
+ * `mode='single'` (default) commits on day click; with `showTime` it also emits the
+ * time of day and stays open while it is set. `mode='range'` opens the
  * range calendar — start/end staged behind Clear/Cancel/Apply, with optional
  * time-of-day inputs — and commits via `onRangeChange`.
  *
@@ -89,6 +95,12 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
       className,
     } = props
 
+    /**
+     * Inside a modal dialog the calendar must be modal too: a non-modal popover
+     * portaled to `body` inherits the dialog's `pointer-events: none` body lock
+     * and cannot be clicked. Outside dialogs it stays non-modal.
+     */
+    const insideModal = useContext(InsideModalContext)
     const [open, setOpen] = useState(false)
 
     const triggerText =
@@ -98,7 +110,7 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
         : formatDateLabel(props.value))
 
     return (
-      <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Root open={open} onOpenChange={setOpen} modal={insideModal}>
         <PopoverPrimitive.Trigger asChild disabled={disabled}>
           <button
             ref={ref}
@@ -154,9 +166,11 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(
               <Calendar
                 value={props.value}
                 today={props.today}
+                showTime={props.showTime}
+                timeLabel={props.timeLabel}
                 onChange={(next) => {
                   props.onChange?.(next)
-                  setOpen(false)
+                  if (!props.showTime) setOpen(false)
                 }}
               />
             )}

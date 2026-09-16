@@ -7,8 +7,9 @@ import type { ConfigStore, DesktopSettings } from '@/main/config'
 import { canonicalOrigin, isSimCloudOrigin, validateOriginInput } from '@/main/config'
 import { showShellDialog } from '@/main/dialogs'
 import { attachLocalPageProtocol, localPageUrl } from '@/main/local-pages'
+import { attachShellTheme, backgroundColorFor, getShellTheme } from '@/main/shell-theme'
 import { attachShellWindowSizing } from '@/main/shell-window'
-import { backgroundColorFor, setupPermissionHandlers } from '@/main/window'
+import { setupPermissionHandlers } from '@/main/window'
 import { createSecureWebPreferences } from '@/main/window-preferences'
 
 const logger = createLogger('DesktopServerWindow')
@@ -103,13 +104,7 @@ export interface ServerWindowHandle {
  */
 export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
   let win: BrowserWindow | null = null
-  /**
-   * Serializes the destructive part of a change, the way the sign-out
-   * coordinator guards its own teardown. The picker re-enables its button
-   * while a request is pending, and the IPC boundary is reachable regardless
-   * of what the page does, so without this two changes could interleave their
-   * teardown and their write and let the later write pick the next server.
-   */
+  /** Prevents concurrent IPC requests from interleaving server teardown and persistence. */
   let changeInFlight = false
 
   const getConfiguration = (): DesktopServerConfiguration => {
@@ -149,12 +144,7 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
       title: 'Sim Server',
       frame: false,
       show: false,
-      // System preference only, unlike the main window: that one pre-paints for
-      // the web app it is about to load, whose theme the user picked in Sim.
-      // This window loads a bundled page that follows `prefers-color-scheme`,
-      // so honouring the stored web-app theme here would pre-paint dark behind
-      // a page about to render light whenever the two disagree.
-      backgroundColor: backgroundColorFor(undefined, nativeTheme.shouldUseDarkColors),
+      backgroundColor: backgroundColorFor(getShellTheme(), nativeTheme.shouldUseDarkColors),
       // Modal only when there is a live parent to attach to. A shell whose
       // window is gone (or never opened, because the origin failed to load)
       // still has to be able to reach this.
@@ -169,6 +159,7 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
     // ways out must therefore work without the page: Escape is handled here,
     // and a page that fails to load closes the window instead of leaving a
     // blank sheet nothing can dismiss.
+    attachShellTheme(win)
     const opened = win
     let closed = false
     const closeOpened = () => {

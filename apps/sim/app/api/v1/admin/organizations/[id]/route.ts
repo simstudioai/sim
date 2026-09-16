@@ -38,7 +38,7 @@ import {
   recordAuditBatch,
 } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, organizationColumns, subscription } from '@sim/db/schema'
+import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNull, not, or } from 'drizzle-orm'
 import {
@@ -93,7 +93,7 @@ export const GET = withRouteHandler(
 
     try {
       const [orgData] = await db
-        .select(organizationColumns)
+        .select()
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -144,7 +144,7 @@ export const PATCH = withRouteHandler(
 
     try {
       const [existing] = await db
-        .select(organizationColumns)
+        .select()
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -183,7 +183,7 @@ export const PATCH = withRouteHandler(
         .update(organization)
         .set(updateData)
         .where(eq(organization.id, organizationId))
-        .returning(organizationColumns)
+        .returning()
 
       const updatedFields = auditUpdatedFields(updateData)
       logger.info(`Admin API: Updated organization ${organizationId}`, { updatedFields })

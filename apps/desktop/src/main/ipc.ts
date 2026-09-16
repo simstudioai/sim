@@ -376,6 +376,7 @@ export interface IpcDeps {
  * - `app-origin`: only the remote app origin (main window pages).
  * - `local-page`: only the bundled pages served from the shell's own scheme
  *   (offline, server) — shell control.
+ * - `app-or-local-page`: read-only window state used by both hosted and bundled pages.
  * - `browser-page`: only the built-in browser's own tabs, identified by
  *   WebContents rather than by URL. These carry reports from the browser
  *   preload about untrusted pages, so they are the one inbound surface whose
@@ -383,7 +384,7 @@ export interface IpcDeps {
  *   as an instruction.
  * - `any`: sender-independent channels that validate their input instead.
  */
-type ChannelGate = 'app-origin' | 'local-page' | 'browser-page' | 'any'
+type ChannelGate = 'app-origin' | 'local-page' | 'app-or-local-page' | 'browser-page' | 'any'
 
 /**
  * A desktop surface the user can switch off. Channels that drive one are
@@ -816,7 +817,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     },
     'desktop:window-state:get': {
       kind: 'invoke',
-      gate: 'app-origin',
+      gate: 'app-or-local-page',
+      deviationReason:
+        'Bundled offline pages share the app title-bar geometry and need their own native fullscreen state.',
       passSender: true,
       denied: { isFullScreen: false },
       handler: (sender) => deps.getWindowState(sender as WebContents),
@@ -1857,6 +1860,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const senderAllowed = (event: IpcMainEvent | IpcMainInvokeEvent, gate: ChannelGate): boolean => {
     if (gate === 'any') return true
     if (gate === 'app-origin') return isAppOriginSender(event, deps.appOrigin())
+    if (gate === 'app-or-local-page') {
+      return (
+        isAppOriginSender(event, deps.appOrigin()) || isLocalPageSender(event, deps.isLocalPageUrl)
+      )
+    }
     if (gate === 'browser-page') return isAgentWebContents(event.sender)
     return isLocalPageSender(event, deps.isLocalPageUrl)
   }

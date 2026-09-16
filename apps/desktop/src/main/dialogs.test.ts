@@ -121,7 +121,7 @@ describe('showShellDialog', () => {
     resize?.(sender(win), Number.NaN)
     expect(win.setContentSize).not.toHaveBeenCalled()
     resize?.(sender(win), 100000)
-    expect(win.setContentSize).toHaveBeenCalledWith(500, 820)
+    expect(win.setContentSize).toHaveBeenCalledWith(440, 820)
     respond(win, 0)
     await result
   })

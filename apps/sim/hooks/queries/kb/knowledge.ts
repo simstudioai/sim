@@ -55,6 +55,7 @@ import {
   type WorkspaceKnowledgeSearchData,
 } from '@/lib/api/contracts/knowledge'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import {
   type ResourceScope,
@@ -1208,6 +1209,9 @@ export function useWorkspaceKnowledgeSearch(
   query: string,
   filters?: WorkspaceSearchFilters
 ) {
+  const { data: session } = useSession()
+  const queryClient = useQueryClient()
+  const userId = session?.user?.id
   const trimmed = query.trim()
   const scope =
     typeof owner === 'string'
@@ -1218,7 +1222,7 @@ export function useWorkspaceKnowledgeSearch(
   const scopeKey =
     scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters),
+    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters, userId),
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
@@ -1228,8 +1232,18 @@ export function useWorkspaceKnowledgeSearch(
         },
         signal
       ),
-    enabled: Boolean(scope) && trimmed.length > 0,
+    enabled: Boolean(scope && userId) && trimmed.length > 0,
     staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
     retry: false,
+    placeholderData: (previous, previousQuery) =>
+      userId &&
+      previousQuery?.state.status === 'success' &&
+      !previousQuery.state.isInvalidated &&
+      knowledgeKeys
+        .searchQuery(scopeKey, trimmed, userId)
+        .every((part, index) => previousQuery.queryKey[index] === part) &&
+      queryClient.getQueryData(previousQuery.queryKey) === previous
+        ? previous
+        : undefined,
   })
 }

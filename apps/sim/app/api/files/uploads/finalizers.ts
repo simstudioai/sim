@@ -1,8 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
-import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import type { V2File } from '@/lib/api/contracts/v2/files'
@@ -367,7 +366,7 @@ async function insertOrLoadFileMetadata(
 
   const now = new Date()
   const [inserted] = await db
-    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
+    .insert(workspaceFiles)
     .values({
       id: generateId(),
       key: input.key,
@@ -384,7 +383,7 @@ async function insertOrLoadFileMetadata(
       contentUpdatedAt: now,
     })
     .onConflictDoNothing()
-    .returning(workspaceFileColumns)
+    .returning()
 
   if (inserted) return { file: inserted, created: true }
 
@@ -399,7 +398,7 @@ async function insertOrLoadFileMetadata(
 
 async function findFileMetadataByKey(key: string): Promise<FileMetadataRecord | undefined> {
   const [file] = await db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(eq(workspaceFiles.key, key))
     .orderBy(sql`${workspaceFiles.deletedAt} IS NULL DESC`)

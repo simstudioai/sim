@@ -11,7 +11,10 @@ const { getAllMeta, getBySlug } = vi.hoisted(() => ({
   getBySlug: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({ cn: (...values: string[]) => values.join(' ') }))
+vi.mock('@sim/emcn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn')>()),
+  cn: (...values: string[]) => values.join(' '),
+}))
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('Not found')

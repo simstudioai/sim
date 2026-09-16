@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, lt, notExists, sql } from 'drizzle-orm'
+import { consumeRowBudget, type RowBudget } from '@/lib/cleanup/batch-delete'
 import type {
   SnapshotService as ISnapshotService,
   SnapshotCreationResult,
@@ -103,7 +104,7 @@ export class SnapshotService implements ISnapshotService {
   }
 
   /** Only invoked from the cleanup-logs background job, so it runs on the cleanup pool. */
-  async cleanupOrphanedSnapshots(olderThanDays: number): Promise<number> {
+  async cleanupOrphanedSnapshots(olderThanDays: number, budget?: RowBudget): Promise<number> {
     const cleanupDb = dbFor('cleanup')
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays)
@@ -115,6 +116,7 @@ export class SnapshotService implements ISnapshotService {
     let stoppedEarly = false
 
     for (let batch = 0; batch < MAX_BATCHES; batch++) {
+      if (budget?.remaining === 0) break
       const candidates = await cleanupDb
         .select({ id: workflowExecutionSnapshots.id })
         .from(workflowExecutionSnapshots)
@@ -129,10 +131,11 @@ export class SnapshotService implements ISnapshotService {
             )
           )
         )
-        .limit(BATCH_SIZE)
+        .limit(Math.min(BATCH_SIZE, budget?.remaining ?? BATCH_SIZE))
 
       if (candidates.length === 0) break
 
+      consumeRowBudget(budget, candidates.length)
       const ids = candidates.map((c) => c.id)
       const deleted = await cleanupDb
         .delete(workflowExecutionSnapshots)

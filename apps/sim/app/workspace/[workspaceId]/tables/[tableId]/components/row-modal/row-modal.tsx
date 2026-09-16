@@ -12,7 +12,6 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  ChipTimePicker,
   Label,
   toast,
 } from '@sim/emcn'
@@ -20,17 +19,26 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { resolveCurrencyCode } from '@/lib/table/currency'
+import { isEmptyCellValue } from '@/lib/table/deps'
 import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
+import type { RowInsertTarget } from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
 import { type TimezoneState, useTimezoneState } from '@/hooks/queries/general-settings'
-import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
+import {
+  useCreateTableRow,
+  useDeleteTableRow,
+  useDeleteTableRows,
+  useUpdateTableRow,
+} from '@/hooks/queries/tables'
 import {
   cleanCellValue,
   dateValueToLocalParts,
   formatValueForInput,
   localPartsToDateValue,
+  storageToDisplay,
   todayLocalCalendarDate,
 } from '../../utils'
 import { SelectValueEditor } from '../select-field'
@@ -38,47 +46,89 @@ import { SelectValueEditor } from '../select-field'
 const logger = createLogger('RowModal')
 
 export interface RowModalProps {
-  mode: 'edit' | 'delete'
+  mode: 'add' | 'edit' | 'delete'
   isOpen: boolean
   onClose: () => void
   table: TableInfo
   row?: TableRow
   rowIds?: string[]
+  /** Where add mode inserts the row; appends when omitted. */
+  insertAt?: RowInsertTarget
   onSuccess: () => void
 }
 
+/** Structural equality for a cleaned cell value vs what the row already holds. */
+function cellValueUnchanged(next: unknown, previous: unknown): boolean {
+  if (next === previous) return true
+  const nextEmpty = next === null || next === undefined
+  const previousEmpty = previous === null || previous === undefined
+  if (nextEmpty || previousEmpty) return nextEmpty && previousEmpty
+  if (typeof next === 'object' || typeof previous === 'object') {
+    return JSON.stringify(next) === JSON.stringify(previous)
+  }
+  return false
+}
+
+/**
+ * Builds the write payload. Only fields the user actually touched are sent, so
+ * an untouched empty column is left absent instead of being written as `null` —
+ * and in edit mode a field whose value is unchanged is dropped too, leaving a
+ * no-op save with nothing to write. Toggles are the exception on insert: they
+ * always carry a concrete boolean, so a required checkbox the user never
+ * clicked still has to reach the server as `false`.
+ */
 function cleanRowData(
   columns: ColumnDefinition[],
   rowData: Record<string, unknown>,
   timeZone: string,
-  dateEditorsReady: boolean
+  dateEditorsReady: boolean,
+  options: { mode: 'add' | 'edit'; baseline?: Record<string, unknown> }
 ): Record<string, unknown> {
   const cleanData: Record<string, unknown> = {}
 
   columns.forEach((col) => {
-    const value = rowData[col.name]
-    if (columnTypeOf(col).editor === 'date' && !dateEditorsReady) {
+    const columnId = getColumnId(col)
+    const definition = columnTypeOf(col)
+    if (definition.editor === 'date' && !dateEditorsReady) {
       return
     }
+    const touched = columnId in rowData
+    const alwaysSend = options.mode === 'add' && definition.editor === 'toggle'
+    if (!touched && !alwaysSend) return
+    const value = rowData[columnId]
+    let cleaned: unknown
     try {
-      cleanData[col.name] = cleanCellValue(value, col, timeZone)
+      cleaned = cleanCellValue(value, col, timeZone)
     } catch {
       throw new Error(`Invalid JSON for field: ${col.name}`)
     }
+    if (options.baseline && cellValueUnchanged(cleaned, options.baseline[columnId])) return
+    cleanData[columnId] = cleaned
   })
 
   return cleanData
 }
 
 /**
- * Modal for editing a row's values or confirming row deletion.
+ * Modal for adding a complete row, editing a row's values, or confirming row
+ * deletion. Adding inserts every value in one request, so it works on a table
+ * whose update lock blocks filling in a blank row from the grid.
  *
- * `rowData` is initialized from the `row` prop at mount time only. Both call-sites
- * conditionally mount this component per open, so each open gets fresh state. If a
+ * `rowData` is initialized from the `row` prop at mount time only. Every call-site
+ * conditionally mounts this component per open, so each open gets fresh state. If a
  * call-site ever keeps it mounted across target-row changes, it must supply a `key`
  * prop (e.g. the row id) so React remounts with the new row's values.
  */
-export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess }: RowModalProps) {
+export function RowModal({
+  mode,
+  isOpen,
+  onClose,
+  table,
+  row,
+  rowIds,
+  insertAt,
+  onSuccess,
+}: RowModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const tableId = table.id
@@ -97,33 +147,58 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     mode === 'edit' && row ? row.data : {}
   )
   const [error, setError] = useState<string | null>(null)
-  const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
-  const deleteRowMutation = useDeleteTableRow({ workspaceId, tableId })
-  const deleteRowsMutation = useDeleteTableRows({ workspaceId, tableId })
+  // This modal renders its own failure in `<ChipModalError>`; without the flag
+  // every rejection would also arrive as a toast saying the same sentence.
+  const rowMutationContext = { workspaceId, tableId, suppressErrorToast: true }
+  const createRowMutation = useCreateTableRow(rowMutationContext)
+  const updateRowMutation = useUpdateTableRow(rowMutationContext)
+  const deleteRowMutation = useDeleteTableRow(rowMutationContext)
+  const deleteRowsMutation = useDeleteTableRows(rowMutationContext)
   const isSubmitting =
-    updateRowMutation.isPending || deleteRowMutation.isPending || deleteRowsMutation.isPending
+    createRowMutation.isPending ||
+    updateRowMutation.isPending ||
+    deleteRowMutation.isPending ||
+    deleteRowsMutation.isPending
+  const isAddMode = mode === 'add'
 
   const timezoneBlockedMessage = getTimezoneEditBlockedMessage(timezoneState)
   const hasEditableColumn = columns.some(
     (column) => columnTypeOf(column).editor !== 'date' || dateEditorsReady
   )
+  /** Toggles always save a boolean, so only other required columns can be left empty. */
+  const missingRequiredValue = columns.some(
+    (column) =>
+      column.required &&
+      columnTypeOf(column).editor !== 'toggle' &&
+      isEmptyCellValue(rowData[getColumnId(column)])
+  )
+  const canSubmit = hasEditableColumn && !missingRequiredValue
 
   const handleFormSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setError(null)
-    if (!hasEditableColumn) return
+    if (!canSubmit) return
 
     try {
-      const cleanData = cleanRowData(columns, rowData, timeZone, dateEditorsReady)
+      const cleanData = cleanRowData(columns, rowData, timeZone, dateEditorsReady, {
+        mode: isAddMode ? 'add' : 'edit',
+        baseline: isAddMode ? undefined : row?.data,
+      })
 
-      if (row) {
-        await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
+      if (isAddMode) {
+        await createRowMutation.mutateAsync({ data: cleanData, ...insertAt })
+      } else if (row) {
+        // Nothing changed — close instead of writing an empty patch.
+        if (Object.keys(cleanData).length > 0) {
+          await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
+        }
       }
 
       onSuccess()
     } catch (err) {
-      logger.error('Failed to edit row:', err)
-      setError(getErrorMessage(err, 'Failed to edit row'))
+      const action = isAddMode ? 'add' : 'edit'
+      logger.error(`Failed to ${action} row:`, err)
+      setError(getErrorMessage(err, `Failed to ${action} row`))
     }
   }
 
@@ -182,20 +257,25 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   }
 
   return (
-    <ChipModal open={isOpen} onOpenChange={handleClose} srTitle='Edit Row' size='lg'>
-      <ChipModalHeader onClose={handleClose}>Edit Row</ChipModalHeader>
+    <ChipModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      srTitle={isAddMode ? 'Add Row' : 'Edit Row'}
+      size='lg'
+    >
+      <ChipModalHeader onClose={handleClose}>{isAddMode ? 'Add Row' : 'Edit Row'}</ChipModalHeader>
       <ChipModalBody>
         <p className='px-2 text-[var(--text-tertiary)] text-small'>
-          Update values for {table?.name ?? 'table'}
+          {isAddMode ? 'Fill in values for' : 'Update values for'} {table?.name ?? 'table'}
         </p>
         <form onSubmit={handleFormSubmit} className='contents'>
-          <button type='submit' hidden disabled={isSubmitting || !hasEditableColumn} />
+          <button type='submit' hidden disabled={isSubmitting || !canSubmit} />
           {columns.map((column) =>
             columnTypeOf(column).editor === 'date' && !dateEditorsReady ? (
               <TimezoneBlockedColumnField
-                key={column.name}
+                key={getColumnId(column)}
                 column={column}
-                value={rowData[column.name]}
+                value={rowData[getColumnId(column)]}
                 status={timezoneState.status}
                 onAttemptEdit={() => {
                   if (timezoneBlockedMessage) toast.error(timezoneBlockedMessage)
@@ -203,11 +283,13 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
               />
             ) : (
               <ColumnField
-                key={column.name}
+                key={getColumnId(column)}
                 column={column}
-                value={rowData[column.name]}
+                value={rowData[getColumnId(column)]}
                 timeZone={timeZone}
-                onChange={(value) => setRowData((prev) => ({ ...prev, [column.name]: value }))}
+                onChange={(value) =>
+                  setRowData((prev) => ({ ...prev, [getColumnId(column)]: value }))
+                }
               />
             )
           )}
@@ -218,9 +300,15 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         onCancel={handleClose}
         cancelDisabled={isSubmitting}
         primaryAction={{
-          label: isSubmitting ? 'Updating...' : 'Update Row',
+          label: isAddMode
+            ? isSubmitting
+              ? 'Adding...'
+              : 'Add Row'
+            : isSubmitting
+              ? 'Updating...'
+              : 'Update Row',
           onClick: () => handleFormSubmit(),
-          disabled: isSubmitting || !hasEditableColumn,
+          disabled: isSubmitting || !canSubmit,
         }}
       />
     </ChipModal>
@@ -355,24 +443,25 @@ function ColumnField({ column, value, timeZone, onChange }: ColumnFieldProps) {
         : localPartsToDateValue(day, time, timeZone)
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
-        <div className='flex items-center gap-2'>
-          <ChipDatePicker
-            value={parts.day ?? undefined}
-            today={pickerToday}
-            onChange={(day) => onChange(valueFromParts(day, parts.time))}
-            placeholder='Select date'
-            className='flex-1'
-          />
-          <ChipTimePicker
-            value={parts.time?.slice(0, 5)}
-            onChange={(time) => onChange(valueFromParts(parts.day ?? pickerToday, time))}
-            placeholder='Add time'
-            className='w-[110px]'
-          />
-          {offsetParts && (
-            <span className='text-[var(--text-tertiary)] text-small'>{offsetParts.offset}</span>
-          )}
-        </div>
+        <ChipDatePicker
+          value={parts.day ? (parts.time ? `${parts.day}T${parts.time}` : parts.day) : undefined}
+          label={
+            storedValue
+              ? offsetParts
+                ? storedValue
+                : storageToDisplay(storedValue, { seconds: true })
+              : undefined
+          }
+          today={pickerToday}
+          showTime
+          timeLabel={offsetParts ? `Time (${offsetParts.offset})` : undefined}
+          onChange={(picked) => {
+            const [day, time] = picked.split('T')
+            onChange(valueFromParts(day, time ?? null))
+          }}
+          placeholder='Select date'
+          fullWidth
+        />
       </ChipModalField>
     )
   }

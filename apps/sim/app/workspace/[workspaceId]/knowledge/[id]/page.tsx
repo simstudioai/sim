@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import KnowledgeBaseLoading from '@/app/workspace/[workspaceId]/knowledge/[id]/loading'
 
@@ -22,7 +23,9 @@ export default async function KnowledgeBasePage({ params, searchParams }: PagePr
 
   return (
     <Suspense fallback={<KnowledgeBaseLoading />}>
-      <KnowledgeBase id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
+      <PermissionAccessBoundary configKey='hideKnowledgeBaseTab'>
+        <KnowledgeBase id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
+      </PermissionAccessBoundary>
     </Suspense>
   )
 }

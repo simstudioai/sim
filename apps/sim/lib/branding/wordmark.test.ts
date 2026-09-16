@@ -3,13 +3,9 @@
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from '@sim/emcn'
 import { describe, expect, it } from 'vitest'
-import {
-  EMAIL_WORDMARK_CANVAS,
-  EMAIL_WORDMARK_SIZE,
-  WORDMARK_PATHS,
-  WORDMARK_VIEW_BOX,
-} from '@/lib/branding/wordmark'
+import { EMAIL_WORDMARK_CANVAS, EMAIL_WORDMARK_SIZE } from '@/lib/branding/wordmark'
 
 const WORDMARK_PNG = path.join(
   import.meta.dirname,

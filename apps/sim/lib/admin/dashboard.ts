@@ -1,10 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   member,
   organization,
-  organizationColumns,
   organizationMemberUsageLimit,
   outboxEvent,
   permissions,
@@ -12,7 +10,6 @@ import {
   usageLog,
   user,
   userStats,
-  userStatsColumns,
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -654,11 +651,7 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
 async function getDashboardOrganizationSummary(organizationId: string) {
   const [[org], [memberCountRow], [externalCountRow], latestSubscription, provisionings] =
     await Promise.all([
-      db
-        .select(organizationColumns)
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1),
+      db.select().from(organization).where(eq(organization.id, organizationId)).limit(1),
       db.select({ value: count() }).from(member).where(eq(member.organizationId, organizationId)),
       db
         .select({ value: countDistinct(permissions.userId) })
@@ -1284,7 +1277,7 @@ export async function updateDashboardOrganizationLimits(
   const providerBacked = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
     const [org] = await tx
-      .select(organizationColumns)
+      .select()
       .from(organization)
       .where(eq(organization.id, organizationId))
       .for('update')
@@ -1418,7 +1411,7 @@ export async function grantDashboardOrganizationBalance(
       }),
       operation: async () => {
         const [org] = await tx
-          .select(organizationColumns)
+          .select()
           .from(organization)
           .where(eq(organization.id, organizationId))
           .for('update')
@@ -1526,7 +1519,7 @@ export async function grantDashboardUserBalance(
         ? null
         : getPerUserMinimumLimit(initialSubscription).toString()
     await tx
-      .insert(withInsertColumns(userStats, userStatsColumns))
+      .insert(userStats)
       .values({
         id: generateId(),
         userId,

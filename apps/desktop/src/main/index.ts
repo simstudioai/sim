@@ -78,6 +78,7 @@ import {
   readSessionUserId,
   resolveStartRoute,
 } from '@/main/session-lifecycle'
+import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
@@ -110,6 +111,7 @@ function main(): void {
 
   const userDataPath = app.getPath('userData')
   const config = createConfigStore(join(userDataPath, 'settings.json'))
+  setShellTheme(config.get('themeBackground'))
   initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
   const recoveryOrigin = getAccountDataTeardownOrigin()
   if (isAccountDataTeardownRequired() && recoveryOrigin && !config.isPersistenceAvailable()) {

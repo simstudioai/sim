@@ -1,6 +1,5 @@
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
-import { workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
+import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -197,7 +196,7 @@ export async function planForkFileCopies(params: {
     selectors.length === 0
       ? []
       : await tx
-          .select(workspaceFileColumns)
+          .select()
           .from(workspaceFiles)
           .where(
             and(
@@ -363,7 +362,7 @@ export async function executeForkFileBlobCopies(
         await db.transaction(async (tx) => {
           assertForkCopyActive(control)
           const [inserted] = await tx
-            .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
+            .insert(workspaceFiles)
             .values({
               id: task.targetFileId,
               key: task.targetKey,

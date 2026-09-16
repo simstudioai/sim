@@ -10,7 +10,7 @@ import { getActivityAttentionKey } from '@/app/workspace/[workspaceId]/home/comp
 import { getToolIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
-const MAX_SUMMARY_ACTIONS = 2
+const MAX_SUMMARY_ACTIONS = 3
 
 /** Summarize completed actions without describing failed or skipped work as successful. */
 export function getToolActivitySummary(tools: ToolCallData[]): string {
@@ -31,35 +31,29 @@ export function getToolActivitySummary(tools: ToolCallData[]): string {
   const summaryLabel = summary ? summary[0].toUpperCase() + summary.slice(1) : 'Tool activity'
   return [
     additionalActions > 0 ? `${summaryLabel} +${additionalActions} more` : summaryLabel,
-    ...getToolActivityOutcomes(tools),
+    ...getToolActivityInterruptions(tools),
   ].join(' · ')
 }
 
-function getToolActivityOutcomes(tools: ToolCallData[]): string[] {
-  let failed = 0
+function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
   let stopped = 0
   let skipped = 0
   for (const tool of tools) {
-    if (tool.status === ToolCallStatus.error || tool.status === ToolCallStatus.rejected) failed++
-    else if (tool.status === ToolCallStatus.cancelled || tool.status === ToolCallStatus.interrupted)
+    if (tool.status === ToolCallStatus.cancelled || tool.status === ToolCallStatus.interrupted)
       stopped++
     else if (tool.status === ToolCallStatus.skipped) skipped++
   }
-  return [
-    ...(failed ? [`${failed} failed`] : []),
-    ...(stopped ? [`${stopped} stopped`] : []),
-    ...(skipped ? [`${skipped} skipped`] : []),
-  ]
+  return [...(stopped ? [`${stopped} stopped`] : []), ...(skipped ? [`${skipped} skipped`] : [])]
 }
 
-/** Keep earlier parallel failures visible while the latest action continues. */
+/** Keep earlier interruptions visible while the latest action continues. */
 export function getActiveToolActivityTitle(
   label: string,
   tool: ToolCallData,
   tools: ToolCallData[]
 ): string {
   return tool.status === ToolCallStatus.executing || tool.status === ToolCallStatus.success
-    ? [label, ...getToolActivityOutcomes(tools)].join(' · ')
+    ? [label, ...getToolActivityInterruptions(tools)].join(' · ')
     : label
 }
 

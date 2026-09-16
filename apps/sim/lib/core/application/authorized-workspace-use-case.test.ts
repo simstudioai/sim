@@ -40,6 +40,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
+import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION } from '@/lib/resource-policies/registry'
@@ -490,6 +491,37 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
             keyId: 'workspace-key-1',
           },
         },
+      })
+    )
+  })
+})
+
+describe('projected audit workspace attribution', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it.each([
+    { override: undefined, expected: 'workspace-1' },
+    { override: 'workspace-2', expected: 'workspace-2' },
+    { override: null, expected: null },
+  ])('records the canonical workspace override $override', ({ override, expected }) => {
+    recordProjectedUseCaseAuditEntries(
+      operation,
+      'workspace-1',
+      sessionPrincipal,
+      undefined,
+      [
+        {
+          action: AuditAction.FILE_UPDATED,
+          resourceType: AuditResourceType.FILE,
+          workspaceId: override,
+        },
+      ],
+      'organization-1'
+    )
+    expect(mocks.recordAudit).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        workspaceId: expected,
+        metadata: expect.objectContaining({ organizationId: 'organization-1' }),
       })
     )
   })

@@ -8,6 +8,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -133,6 +134,14 @@ type TableResourceItem =
   | { kind: 'folder'; folder: WorkflowFolder }
 
 export function Tables() {
+  return (
+    <PermissionAccessBoundary configKey='hideTablesTab'>
+      <TablesContent />
+    </PermissionAccessBoundary>
+  )
+}
+
+function TablesContent() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string

@@ -1,11 +1,10 @@
-import { cn } from '@sim/emcn'
+import { cn, SimWordmark } from '@sim/emcn'
 import Link from 'next/link'
 import { ConsentPreferencesTrigger } from '@/app/_shell/consent/consent-preferences-trigger'
 import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
 import { FooterWordmarkLoop } from '@/app/(landing)/components/footer/components/footer-wordmark-loop'
 import { ThemeToggle } from '@/app/(landing)/components/footer/components/theme-toggle'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
-import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
 /**

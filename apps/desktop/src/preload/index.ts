@@ -53,6 +53,10 @@ import {
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { contextBridge, ipcRenderer } from 'electron'
+import { exposeShellTheme, observeAppTheme } from '@/preload/shell-theme'
+
+exposeShellTheme()
+observeAppTheme()
 
 const VERSION_ARG_PREFIX = '--sim-desktop-version='
 

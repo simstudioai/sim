@@ -24,6 +24,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
@@ -264,6 +265,14 @@ function formatFileType(storedType: string | null, filename: string): string {
 }
 
 export function Files() {
+  return (
+    <PermissionAccessBoundary configKey='hideFilesTab'>
+      <FilesContent />
+    </PermissionAccessBoundary>
+  )
+}
+
+function FilesContent() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
   const downloadSourceRef = useRef<FileDownloadSource | null>(null)

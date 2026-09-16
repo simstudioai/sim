@@ -1,5 +1,4 @@
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
 import * as schema from '@sim/db/schema'
 import type { BetterAuthOptions } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
@@ -12,12 +11,6 @@ import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 
 type BetterAuthAdapter = ReturnType<ReturnType<typeof drizzleAdapter>>
 
-/** Better Auth's implicit reads, INSERT defaults, and RETURNING must use live columns. */
-const AUTH_SCHEMA = {
-  ...schema,
-  organization: withInsertColumns(schema.organization, schema.organizationColumns),
-}
-
 /**
  * Builds every Better Auth adapter surface, including transactional callbacks,
  * with Sim's write invariants applied to the actual Drizzle connection in use.
@@ -29,7 +22,7 @@ export function createSimAuthAdapter(
 ): BetterAuthAdapter {
   const base = drizzleAdapter(database, {
     provider: 'pg',
-    schema: AUTH_SCHEMA,
+    schema,
     transaction: false,
   })(options)
   const guarded = guardSubscriptionPlanWrites(guardOAuthProviderWrites(base, database))

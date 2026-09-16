@@ -27,6 +27,7 @@ import {
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
 import {
+  PermissionAccessRequestEmail,
   ScheduleDisabledEmail,
   type SubprocessorChange,
   SubprocessorChangeEmail,
@@ -162,6 +163,13 @@ export async function renderUsageLimitReachedEmail(params: {
   ctaLink: string
 }): Promise<string> {
   return await render(UsageLimitReachedEmail(params))
+}
+
+export async function renderPermissionAccessRequestEmail(params: {
+  kind: 'created' | 'decided'
+  requestLink: string
+}): Promise<string> {
+  return await render(PermissionAccessRequestEmail(params))
 }
 
 export async function renderScheduleDisabledEmail(params: {

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { exposeShellTheme } from '@/preload/shell-theme'
 import type { ShellWindowApi } from '@/shared/shell'
 
 const api: ShellWindowApi = {
@@ -12,3 +13,4 @@ const api: ShellWindowApi = {
 }
 
 contextBridge.exposeInMainWorld('simShell', api)
+exposeShellTheme()

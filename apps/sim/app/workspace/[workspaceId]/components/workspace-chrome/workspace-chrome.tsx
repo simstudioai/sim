@@ -1,11 +1,11 @@
 'use client'
 
 import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
+import { applyDesktopTitleBarMode, type DesktopTitleBarMode } from '@sim/desktop-bridge'
 import { cn } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, PanelLeft } from '@sim/emcn/icons'
 import { usePathname } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
-import { applyDesktopTitleBarMode, type DesktopTitleBarMode } from '@/app/_shell/desktop-title-bar'
 import { SidebarChromeProvider } from '@/app/workspace/[workspaceId]/components/workspace-chrome/sidebar-chrome-context'
 import { useSidebarPeek } from '@/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'

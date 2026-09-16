@@ -17,6 +17,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'reader' } } }),
+}))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push }),
   usePathname: () => '/o/organization-a/search',
@@ -31,9 +34,6 @@ vi.mock('@/hooks/queries/kb/knowledge', () => ({ useWorkspaceKnowledgeSearch: mo
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useSearchIndex: () => ({ data: { knowledgeBaseId: 'index-a' }, isPending: false }),
   useSearchSourceOverview: () => ({ data: { providers: [], hasSearchableDocuments: true } }),
-}))
-vi.mock('@/app/workspace/[workspaceId]/home/components/search-sources', () => ({
-  isIndexing: () => false,
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags',

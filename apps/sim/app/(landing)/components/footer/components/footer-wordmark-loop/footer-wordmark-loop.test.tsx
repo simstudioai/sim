@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { WORDMARK_PATHS } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { WORDMARK_PATHS } from '@/lib/branding/wordmark'
 import { FooterWordmarkLoop } from '@/app/(landing)/components/footer/components/footer-wordmark-loop/footer-wordmark-loop'
 
 const SHAPES = ['metaballs', 'relay', 'compass', 'corners', 'burst', 'squeeze', 'thinking'] as const

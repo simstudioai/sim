@@ -4,14 +4,7 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { db } from '@sim/db'
-import {
-  knowledgeBase,
-  organization,
-  user,
-  workspace,
-  workspaceFileColumns,
-  workspaceFiles,
-} from '@sim/db/schema'
+import { knowledgeBase, organization, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { eq, inArray } from 'drizzle-orm'
@@ -100,10 +93,7 @@ async function parse(ids: Fixture, filePath: string, headers?: Record<string, st
 }
 
 async function identityFor(file: UserFile): Promise<WorkspaceFileSecretProvenanceIdentity> {
-  const [record] = await db
-    .select(workspaceFileColumns)
-    .from(workspaceFiles)
-    .where(eq(workspaceFiles.key, file.key))
+  const [record] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.key, file.key))
   if (!record || record.context !== 'execution') {
     throw new Error('Parser copy has no canonical execution metadata')
   }

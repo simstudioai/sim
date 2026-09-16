@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  resolveTriggerRunOptions,
   type TriggerInputKind,
   type TriggerRunOption,
   validateTriggerInput,
 } from '@/lib/workflows/triggers/run-options'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
+import { buildStartBlockOutput } from '@/executor/utils/start-block'
+import type { SerializedBlock } from '@/serializer/types'
 
 function makeOption(overrides: Partial<TriggerRunOption>): TriggerRunOption {
   const inputKind: TriggerInputKind = overrides.inputKind ?? 'fields'
@@ -24,6 +27,99 @@ function makeOption(overrides: Partial<TriggerRunOption>): TriggerRunOption {
 }
 
 const fields = (...f: InputFormatField[]): InputFormatField[] => f
+
+describe('file inputs through workflow run options', () => {
+  const workspaceId = '11111111-1111-4111-8111-111111111111'
+  const file = {
+    id: 'file-1',
+    name: 'photo.png',
+    url: 'https://storage.example.com/photo.png',
+    type: 'image/png',
+    size: 128,
+    key: `workspace/${workspaceId}/photo.png`,
+    context: 'workspace',
+  }
+  const inputFormat = fields(
+    { name: 'input', type: 'string', value: '' },
+    { name: 'conversationId', type: 'string', value: '' },
+    { name: 'files', type: 'file[]', value: '' }
+  )
+  const block = {
+    type: 'start_trigger',
+    name: 'Start',
+    subBlocks: { inputFormat: { value: inputFormat } },
+  }
+
+  it('advertises and accepts attachments that survive Start normalization', () => {
+    const [option] = resolveTriggerRunOptions({ start: block })
+    expect(option.inputSchema).toMatchObject({ properties: { files: { type: 'array' } } })
+    const workflowInput = { input: 'Rotate this image', conversationId: 'c1', files: [file] }
+    expect(validateTriggerInput(option, workflowInput)).toEqual({ ok: true })
+
+    const serialized: SerializedBlock = {
+      id: 'start',
+      position: { x: 0, y: 0 },
+      config: { tool: 'start_trigger', params: { inputFormat } },
+      inputs: {},
+      outputs: {},
+      enabled: true,
+      metadata: { id: 'start_trigger', name: 'Start', category: 'triggers' },
+    }
+    const output = buildStartBlockOutput({
+      resolution: { blockId: 'start', block: serialized, path: option.path },
+      workspaceId,
+      workflowInput,
+    })
+    expect(output.files).toEqual([file])
+    expect(output.input).toBe('Rotate this image')
+  })
+
+  it('rejects text attachments before execution with an actionable field error', () => {
+    const [option] = resolveTriggerRunOptions({ start: block })
+    const result = validateTriggerInput(option, { files: JSON.stringify([file]) })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('files')
+    expect(result.error).toContain('expected array')
+  })
+
+  it('generates valid mock input from empty file defaults', () => {
+    const [option] = resolveTriggerRunOptions({ start: block })
+    expect(option.mockPayload).toMatchObject({ files: [] })
+    expect(validateTriggerInput(option, option.mockPayload)).toEqual({ ok: true })
+  })
+
+  it('preserves uploaded files stored as JSON in editor defaults', () => {
+    const [option] = resolveTriggerRunOptions({
+      start: {
+        ...block,
+        subBlocks: {
+          inputFormat: {
+            value: [{ name: 'files', type: 'file[]', value: JSON.stringify([file]) }],
+          },
+        },
+      },
+    })
+    expect(option.mockPayload).toEqual({ files: [file] })
+    expect(validateTriggerInput(option, option.mockPayload)).toEqual({ ok: true })
+  })
+
+  it('normalizes an editor file URL to canonical metadata in the sample payload', () => {
+    const { key, ...editorFile } = file
+    editorFile.url = `/api/files/serve/s3/${encodeURIComponent(key)}?context=workspace`
+    const [option] = resolveTriggerRunOptions({
+      start: {
+        ...block,
+        subBlocks: {
+          inputFormat: {
+            value: [{ name: 'files', type: 'file[]', value: JSON.stringify([editorFile]) }],
+          },
+        },
+      },
+    })
+    expect(option.mockPayload).toEqual({ files: [{ ...editorFile, key }] })
+    expect(validateTriggerInput(option, option.mockPayload)).toEqual({ ok: true })
+  })
+})
 
 describe('validateTriggerInput', () => {
   describe('fields', () => {

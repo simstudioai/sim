@@ -1,7 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query'
+import { listTableDefinitionsUseCase } from '@/lib/table/application/tables'
 import { listTables } from '@/lib/table/service'
 import { toTableListItem } from '@/lib/table/wire'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import { authorizeResourcePrefetch } from '@/app/workspace/[workspaceId]/lib/authorize-resource-prefetch'
 import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-keys'
@@ -33,6 +35,7 @@ export async function prefetchTables(
   if (!userId) return
   const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
   if (!hostContext) return
+  if (!(await authorizeResourcePrefetch(listTableDefinitionsUseCase, workspaceId))) return
 
   await Promise.all([
     queryClient.prefetchQuery({

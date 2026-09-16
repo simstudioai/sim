@@ -10,12 +10,13 @@
  */
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemAction,
   DropdownMenuItemLabel,
   DropdownMenuTrigger,
 } from './dropdown-menu'
@@ -127,5 +128,75 @@ describe('menu row labels', () => {
     expect(label?.textContent).toBe('A long workflow label')
     expect(label?.className).toContain('text-clip')
     expect(label?.className).not.toContain('truncate')
+  })
+})
+
+describe('menu row actions', () => {
+  it('moves focus to an action and back without selecting the row', () => {
+    const onSelect = vi.fn()
+    openMenu(
+      <DropdownMenuItem
+        onSelect={onSelect}
+        action={<DropdownMenuItemAction aria-label='Options'>More</DropdownMenuItemAction>}
+      >
+        A workflow
+      </DropdownMenuItem>
+    )
+    const item = row()
+    const action = row('button[aria-label="Options"]')
+    act(() => {
+      item.focus()
+      item.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    })
+    expect(document.activeElement).toBe(action)
+    act(() => {
+      action.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
+    })
+    expect(document.activeElement).toBe(item)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('invokes an action without navigating its asChild row or closing the menu', () => {
+    const onSelect = vi.fn()
+    const onAction = vi.fn()
+    openMenu(
+      <DropdownMenuItem
+        asChild
+        onSelect={onSelect}
+        actionOpen
+        action={
+          <DropdownMenuItemAction aria-label='Options' onClick={onAction}>
+            More
+          </DropdownMenuItemAction>
+        }
+      >
+        <a href='#workflow'>A workflow</a>
+      </DropdownMenuItem>
+    )
+    act(() => row('button[aria-label="Options"]').click())
+    expect(onAction).toHaveBeenCalledOnce()
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(row('a').getAttribute('href')).toBe('#workflow')
+    expect(document.querySelector('[role="menu"]')).not.toBeNull()
+  })
+
+  it('keeps focus on the row when its action is disabled', () => {
+    openMenu(
+      <DropdownMenuItem
+        action={
+          <DropdownMenuItemAction disabled aria-label='Options'>
+            More
+          </DropdownMenuItemAction>
+        }
+      >
+        A workflow
+      </DropdownMenuItem>
+    )
+    const item = row()
+    act(() => {
+      item.focus()
+      item.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    })
+    expect(document.activeElement).toBe(item)
   })
 })

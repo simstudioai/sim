@@ -13,6 +13,7 @@ import {
 } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -138,6 +139,14 @@ function ConnectedItem({ href, blockType, name, description, icon: Icon }: Conne
 }
 
 export function Integrations() {
+  return (
+    <PermissionAccessBoundary configKey='hideIntegrationsTab'>
+      <IntegrationsContent />
+    </PermissionAccessBoundary>
+  )
+}
+
+function IntegrationsContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''

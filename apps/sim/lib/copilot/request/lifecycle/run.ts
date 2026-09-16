@@ -4,7 +4,7 @@ import type { PermissionType } from '@sim/platform-authz/workspace'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
+import { isPlainRecord, omit } from '@sim/utils/object'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
 import {
   type AttributedBillingRequestEnvelope,
@@ -72,6 +72,7 @@ import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -95,11 +96,12 @@ class CopilotModelContentProjectionError extends Error {
   }
 }
 
-async function omitUnsafeInitialCopilotAttachments(
+async function prepareInitialCopilotAttachmentsForModel(
   payload: Record<string, unknown>,
   workspaceId?: string
 ): Promise<Record<string, unknown>> {
   let projected = payload
+  let omittedCount = 0
   for (const key of ['attachments', 'fileAttachments'] as const) {
     if (!Object.hasOwn(projected, key)) continue
     const attachments = projected[key]
@@ -129,6 +131,7 @@ async function omitUnsafeInitialCopilotAttachments(
     }
 
     if (safeAttachments.length === attachments.length) continue
+    omittedCount += attachments.length - safeAttachments.length
     logger.warn('Omitting Copilot attachments with unsafe secret provenance', {
       attachmentCount: attachments.length,
       omittedCount: attachments.length - safeAttachments.length,
@@ -136,14 +139,36 @@ async function omitUnsafeInitialCopilotAttachments(
     projected =
       safeAttachments.length > 0 ? { ...projected, [key]: safeAttachments } : omit(projected, [key])
   }
-  return projected
-}
+  if (omittedCount === 0) return projected
 
-async function filterInitialCopilotAttachmentsForModel(
-  payload: Record<string, unknown>,
-  workspaceId?: string
-): Promise<Record<string, unknown>> {
-  return omitUnsafeInitialCopilotAttachments(payload, workspaceId)
+  if (typeof projected.message === 'string') {
+    projected = {
+      ...projected,
+      message: appendUnavailableAttachmentNotice(projected.message, omittedCount),
+    }
+  }
+  if (Array.isArray(projected.messages)) {
+    const messages: unknown[] = [...projected.messages]
+    let notified = false
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const message = messages[index]
+      if (!isPlainRecord(message) || message.role !== 'user' || typeof message.content !== 'string')
+        continue
+      messages[index] = {
+        ...message,
+        content: appendUnavailableAttachmentNotice(message.content, omittedCount),
+      }
+      notified = true
+      break
+    }
+    if (!notified) {
+      messages.push({ role: 'user', content: appendUnavailableAttachmentNotice('', omittedCount) })
+    }
+    projected = { ...projected, messages }
+  } else if (typeof projected.message !== 'string') {
+    projected = { ...projected, message: appendUnavailableAttachmentNotice('', omittedCount) }
+  }
+  return projected
 }
 
 async function ensureModelEgressRegistry(
@@ -412,7 +437,7 @@ export async function runCopilotLifecycle(
         }),
       }
     }
-    const modelSafeRequestPayload = await filterInitialCopilotAttachmentsForModel(
+    const modelSafeRequestPayload = await prepareInitialCopilotAttachmentsForModel(
       requestPayload,
       lifecycleOptions.workspaceId
     )

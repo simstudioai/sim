@@ -9,7 +9,7 @@ const { getTableById, loadWorkspace } = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
 }))
 
-vi.mock('@/lib/table', () => ({ getTableById }))
+vi.mock('@/lib/table/service', () => ({ getTableById }))
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: loadWorkspace,
 }))
