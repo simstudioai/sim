@@ -2,21 +2,9 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { BarChart, CHART_PADDING, ChartFrame, DonutChart, LineChart, RadarChart } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BarChart } from '@/components/charts/bar-chart'
-import { CHART_PADDING } from '@/components/charts/chart-geometry'
-import { RadarChart } from '@/components/charts/radar-chart'
-
-/**
- * Rendered-geometry guards for the chart family.
- *
- * These assert against the real SVG the components emit rather than against the
- * geometry helpers in isolation: the two clipping bugs this file exists for — a
- * y-axis label cut off at the container's left edge, and a radar caption painting
- * over the section beside it — were both invisible to a unit test of the maths,
- * because each came from a *callsite* combining correct helpers wrongly.
- */
 
 let container: HTMLDivElement
 let root: Root
@@ -116,7 +104,7 @@ describe('BarChart rendered geometry', () => {
       expect(labels.length).toBe(2)
       for (const label of labels) {
         const anchorX = Number(label.getAttribute('x'))
-        // Right-anchored: the glyphs run leftward from the anchor.
+        /** Right-anchored: the glyphs run leftward from the anchor. */
         expect(anchorX - textExtent(label.textContent ?? '')).toBeGreaterThanOrEqual(0)
       }
     }
@@ -172,14 +160,7 @@ describe('BarChart rendered geometry', () => {
 describe('RadarChart rendered geometry', () => {
   const LONG = 'Knowledge Base Sync'
 
-  /**
-   * Every caption long, not just the first.
-   *
-   * The first axis sits at twelve o'clock, where a caption is centred and has the
-   * whole half-width to spend — the one position that cannot overflow horizontally.
-   * A fixture that only made that one long proved nothing about the axes that
-   * actually run out of room.
-   */
+  /** Every axis needs a long caption; the centered first axis cannot expose side overflow. */
   function axesOf(count: number) {
     return Array.from({ length: count }, (_, index) => ({
       label: `${LONG} ${index}`,
@@ -212,7 +193,7 @@ describe('RadarChart rendered geometry', () => {
       expect(left).toBeGreaterThanOrEqual(0)
       expect(right).toBeLessThanOrEqual(width)
 
-      // An 'auto' baseline sits the glyphs above y; 'middle' centres them on it.
+      /** An 'auto' baseline sits the glyphs above y; 'middle' centres them on it. */
       const capHeight = 9
       const top =
         caption.getAttribute('dominant-baseline') === 'middle' ? y - capHeight / 2 : y - capHeight
@@ -256,5 +237,117 @@ describe('RadarChart rendered geometry', () => {
     act(() => root.render(<RadarChart axes={axesOf(2)} color='#5b8def' />))
     expect(container.querySelector('svg')).toBeNull()
     expect(container.textContent).toContain('No data')
+  })
+})
+
+describe('Dashboard chart states', () => {
+  it('previews, pins, and clears a distribution without changing its proportions', () => {
+    const segments = [
+      { label: 'Completed', value: 90, color: 'blue' },
+      { label: 'Failed', value: 10, color: 'red' },
+    ]
+    mountAtWidth(400, <DonutChart label='Outcomes' segments={segments} />)
+    const failed = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Highlight Failed: 10"]'
+    )!
+    const completedArc = container.querySelector('circle[stroke="blue"]')!
+    act(() => failed.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })))
+    expect(completedArc.getAttribute('opacity')).toBe('0.2')
+    expect(completedArc.getAttribute('stroke-dasharray')).toBe('90 10')
+    act(() => failed.click())
+    act(() => failed.dispatchEvent(new MouseEvent('mouseout', { bubbles: true })))
+    expect(failed.getAttribute('aria-pressed')).toBe('true')
+    expect(completedArc.getAttribute('opacity')).toBe('0.2')
+    act(() => failed.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    expect(failed.getAttribute('aria-pressed')).toBe('false')
+    expect(completedArc.getAttribute('opacity')).toBe('1')
+    act(() => failed.focus())
+    expect(completedArc.getAttribute('opacity')).toBe('0.2')
+    act(() => failed.blur())
+    expect(completedArc.getAttribute('opacity')).toBe('1')
+    act(() => failed.click())
+    act(() => root.render(<DonutChart label='Outcomes' segments={segments.slice(0, 1)} />))
+    expect(completedArc.getAttribute('opacity')).toBe('1')
+    expect(container.querySelector('text')?.textContent).toBe('90')
+  })
+
+  it.each([1, 2])('labels short daily series with calendar dates (%s buckets)', (count) => {
+    const svg = mountAtWidth(
+      400,
+      <BarChart
+        label=''
+        data={dailySeries(count, 0)}
+        color='blue'
+        xAxisFormat='date'
+        timeZone='UTC'
+      />
+    )
+    expect(svg.textContent).toContain('Jan 1')
+    expect(svg.textContent).not.toContain('00:00')
+    if (count === 2) expect(svg.textContent).toContain('Jan 2')
+  })
+
+  it('reserves the same chart frame for loading, errors, and data', () => {
+    const content = (
+      <DonutChart label='Outcomes' segments={[{ label: 'Completed', value: 5, color: 'blue' }]} />
+    )
+    mountAtWidth(
+      320,
+      <ChartFrame title='Outcomes' height={160} loading>
+        {content}
+      </ChartFrame>
+    )
+    expect(container.querySelector('section')?.getAttribute('aria-busy')).toBe('true')
+    expect(container.querySelector('svg')?.getAttribute('height')).toBe('160')
+    expect(container.querySelector('circle')).toBeNull()
+    act(() =>
+      root.render(
+        <ChartFrame title='Outcomes' height={160} error='Unavailable'>
+          {content}
+        </ChartFrame>
+      )
+    )
+    expect(container.querySelector('svg')?.getAttribute('height')).toBe('160')
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Unavailable')
+    act(() =>
+      root.render(
+        <ChartFrame title='Outcomes' height={160}>
+          {content}
+        </ChartFrame>
+      )
+    )
+    expect(container.querySelector('svg')?.getAttribute('height')).toBe('160')
+    expect(container.textContent).toContain('Completed')
+    expect(
+      container.querySelector('circle[stroke-dasharray]')?.getAttribute('stroke-dasharray')
+    ).toBe('100 0')
+  })
+
+  it('recovers when a selected line series disappears during refresh', () => {
+    const data = dailySeries(3, 10)
+    mountAtWidth(
+      400,
+      <LineChart
+        label='Runs'
+        color='blue'
+        data={data}
+        series={[{ id: 'extra', label: 'Extra', color: 'red', data }]}
+      />
+    )
+    const extra = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Extra')
+    )
+    expect(extra).toBeDefined()
+    act(() => extra?.click())
+    act(() => extra?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })))
+    act(() => root.render(<LineChart label='Runs' color='blue' data={data} />))
+    expect(container.querySelector('path[stroke="blue"]')?.getAttribute('opacity')).toBe('1')
+    act(() =>
+      container
+        .querySelector('svg')
+        ?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 60, clientY: 40 }))
+    )
+    expect(container.textContent).toContain('Runs')
+    expect(container.querySelector('table')?.textContent).toContain('10')
   })
 })

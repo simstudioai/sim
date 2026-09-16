@@ -1,36 +1,31 @@
 'use client'
 
 import { memo, useId, useMemo, useState } from 'react'
-import { Button, cn } from '@sim/emcn'
-import {
-  formatChartCompactNumber,
-  formatChartLatency,
-  formatChartTimestamp,
-} from '@/components/charts/chart-format'
 import {
   CHART_AXIS_LABEL_GAP,
   CHART_DEFAULT_HEIGHT,
   CHART_GRID_FRACTIONS,
   CHART_TICK_FILL,
   CHART_TICK_FONT_SIZE,
+  ChartDataTable,
+  ChartLegend,
+  ChartTooltip,
+  ChartTooltipRow,
   chartPlotBand,
+  cn,
+  estimateTooltipHeight,
+  estimateTooltipWidth,
+  formatChartCompactNumber,
+  formatChartLatency,
+  formatChartTimestamp,
   formatTimeTick,
+  positionChartTooltip,
   resolveChartPadding,
   resolveSpanMs,
   resolveTimeTickIndices,
-} from '@/components/charts/chart-geometry'
-import {
-  ChartTooltip,
-  ChartTooltipRow,
-  estimateTooltipHeight,
-  estimateTooltipWidth,
-  positionChartTooltip,
-} from '@/components/charts/chart-tooltip'
-import {
   useChartWidth,
   useIsDarkTheme,
-  useResolvedChartColors,
-} from '@/components/charts/use-chart-theme'
+} from '@sim/emcn'
 
 export interface LineChartPoint {
   timestamp: string
@@ -55,14 +50,7 @@ interface LineChartProps {
   height?: number
 }
 
-/**
- * Smoothed path through `points`, with every control point clamped into the plot
- * band so a curve between two near-axis samples cannot bow over an axis rule.
- *
- * At module scope because the base line and each extra series need the identical
- * curve: the two copies had drifted apart before, and a clamp fixed in one drew a
- * different shape from the other.
- */
+/** Clamp control points to keep smoothed curves within the plot band. */
 function buildSmoothPath(
   points: ReadonlyArray<{ x: number; y: number }>,
   yMin: number,
@@ -95,25 +83,13 @@ function LineChartComponent({
   series,
   height = CHART_DEFAULT_HEIGHT,
 }: LineChartProps) {
-  /*
-    `useId`, not `useRef(generateShortId())`: a ref initializer is evaluated on
-    every render and all but the first result thrown away, and React already has
-    a hook whose whole job is a stable unique id.
-  */
   const uniqueId = useId().replace(/:/g, '')
   const [containerRef, containerWidth] = useChartWidth()
   const width = containerWidth ?? 0
   const isDark = useIsDarkTheme()
-  const [hoverSeriesId, setHoverSeriesId] = useState<string | null>(null)
-  const [activeSeriesId, setActiveSeriesId] = useState<string | null>(null)
+  const [legendHoverSeriesId, setLegendHoverSeriesId] = useState<string | null>(null)
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
-
-  const colorTokens: Record<string, string> = { base: color }
-  for (const s of series ?? []) {
-    const id = s.id || s.label || ''
-    if (id) colorTokens[id] = s.color
-  }
-  const resolvedColors = useResolvedChartColors(colorTokens)
 
   const hasExternalWrapper = !label || label === ''
 
@@ -125,6 +101,10 @@ function LineChartComponent({
       ).map((s, idx) => ({ ...s, id: s.id || s.label || String(idx) })),
     [series, label, color, data]
   )
+
+  const activeSeriesId = allSeries.some((item) => item.id === selectedSeriesId)
+    ? selectedSeriesId
+    : null
 
   const { maxValue, minValue, valueRange } = useMemo(() => {
     const flatValues = allSeries.flatMap((s) => s.data.map((d) => d.value))
@@ -156,10 +136,6 @@ function LineChartComponent({
     }
   }, [allSeries, unit])
 
-  /**
-   * The two y-axis tick labels, resolved once so the gutter that has to hold them is
-   * measured from the same strings the axis draws.
-   */
   const yAxisLabels = useMemo(() => {
     const unitSuffix = (unit || '').trim()
     const isLatency = unitSuffix.toLowerCase() === 'latency'
@@ -189,15 +165,7 @@ function LineChartComponent({
     [data, chartWidth, chartHeight, minValue, valueRange, yMin, yMax, padding.left, padding.top]
   )
 
-  /**
-   * The hovered sample, derived from the stored cursor rather than stored beside it.
-   *
-   * Clamped here rather than relying on the stored x having been clamped at mousemove
-   * time: `padding.left` follows the axis labels and `chartWidth` follows the
-   * container, so either can move with no pointer event at all — a sidebar collapse
-   * mid-hover otherwise pushed the ratio past 1 and indexed off the end, and the dot,
-   * the rule and the tooltip all vanished until the cursor moved again.
-   */
+  /** Re-clamp the cursor after layout changes, which can occur without a pointer event. */
   const hoverIndex =
     hoverPos === null || scaledPoints.length === 0
       ? null
@@ -236,10 +204,32 @@ function LineChartComponent({
     ]
   )
 
+  const validLegendHoverId =
+    scaledSeries.find((item) => item.id === legendHoverSeriesId)?.id ?? null
+  let hoverSeriesId = validLegendHoverId
+  if (hoverPos && hoverIndex !== null) {
+    hoverSeriesId = activeSeriesId
+    if (!activeSeriesId) {
+      let nearestDistance = Number.POSITIVE_INFINITY
+      let nearestSeriesId: string | null = null
+      for (const item of scaledSeries.slice(1)) {
+        const point = item.pts[hoverIndex]
+        if (!point) continue
+        const distance = Math.abs(point.y - hoverPos.y)
+        if (distance < nearestDistance) {
+          nearestDistance = distance
+          nearestSeriesId = item.id
+        }
+      }
+      hoverSeriesId = nearestDistance <= 12 ? nearestSeriesId : null
+    }
+  }
+
   const getSeriesById = (id?: string | null) => scaledSeries.find((s) => s.id === id)
-  const visibleSeries = activeSeriesId
-    ? scaledSeries.filter((s) => s.id === activeSeriesId)
-    : scaledSeries
+  const visibleSeries =
+    activeSeriesId && !validLegendHoverId
+      ? scaledSeries.filter((s) => s.id === activeSeriesId)
+      : scaledSeries
 
   const pathD = useMemo(() => buildSmoothPath(scaledPoints, yMin, yMax), [scaledPoints, yMin, yMax])
 
@@ -266,12 +256,6 @@ function LineChartComponent({
           'flex w-full items-center justify-center',
           !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'
         )}
-        /*
-          Height only. `width` is floored at CHART_MIN_WIDTH for the plot geometry,
-          and pinning the empty state to it pushed a narrow container into horizontal
-          overflow to centre two words — this branch draws no axes, so it has nothing
-          to protect from compressing.
-        */
         style={{ height }}
       >
         <p className='text-[var(--text-muted)] text-sm'>No data</p>
@@ -283,13 +267,7 @@ function LineChartComponent({
     <div
       ref={containerRef}
       className={cn(
-        /*
-          `overflow-x-auto`, not `overflow-hidden`: `useChartWidth` floors the SVG at
-          CHART_MIN_WIDTH, so in a narrower container the chart is wider than its box.
-          Hiding that silently cut off the rightmost bars and axis labels — and
-          contradicted the constant's own note that the chart "scrolls rather than
-          compresses". At or above the floor there is no overflow and nothing changes.
-        */
+        /** Scroll below the minimum plot width without introducing a vertical scrollbar. */
         'w-full overflow-x-auto overflow-y-hidden',
         !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4 shadow-card'
       )}
@@ -298,95 +276,41 @@ function LineChartComponent({
         <div className='mb-3 flex items-center gap-3'>
           <h4 className='text-[var(--text-primary)] text-sm'>{label}</h4>
           {allSeries.length > 1 && (
-            <div className='flex items-center gap-2'>
-              {scaledSeries.slice(1).map((s) => {
-                const isActive = activeSeriesId ? activeSeriesId === s.id : true
-                const isHovered = hoverSeriesId === s.id
-                const dimmed = activeSeriesId ? !isActive : false
-                return (
-                  <Button
-                    key={`legend-${s.id}`}
-                    type='button'
-                    variant='ghost'
-                    aria-pressed={activeSeriesId === s.id}
-                    aria-label={`Toggle ${s.label}`}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-transparent px-1.5 py-0.5 text-micro',
-                      dimmed ? 'opacity-40' : isHovered ? 'opacity-100' : 'opacity-90'
-                    )}
-                    style={{ color: resolvedColors[s.id || ''] || s.color }}
-                    onMouseEnter={() => setHoverSeriesId(s.id || null)}
-                    onMouseLeave={() => setHoverSeriesId((prev) => (prev === s.id ? null : prev))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setActiveSeriesId((prev) => (prev === s.id ? null : s.id || null))
-                      }
-                    }}
-                    onClick={() =>
-                      setActiveSeriesId((prev) => (prev === s.id ? null : s.id || null))
-                    }
-                  >
-                    <span
-                      aria-hidden='true'
-                      className='inline-block size-[6px] rounded-xs'
-                      style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
-                    />
-                    <span className='text-[var(--text-muted)]'>{s.label}</span>
-                  </Button>
-                )
-              })}
-            </div>
+            <ChartLegend
+              layout='row'
+              items={scaledSeries.slice(1)}
+              selectedId={activeSeriesId}
+              highlightedId={hoverSeriesId ?? activeSeriesId}
+              onHighlight={setLegendHoverSeriesId}
+              onSelect={setSelectedSeriesId}
+            />
           )}
         </div>
       )}
       <div className='relative' style={{ width, height }}>
+        <ChartDataTable
+          label={label || 'Values by date'}
+          series={allSeries.map((item) => ({
+            label: item.label || unit || 'Value',
+            data: item.data,
+          }))}
+        />
         <svg
+          aria-hidden='true'
           width={width}
           height={height}
           className='overflow-hidden'
-          onMouseMove={(e) => {
+          onMouseMove={(event) => {
             if (scaledPoints.length === 0) return
-            const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
-            const x = e.clientX - rect.left
-            const clamped = Math.max(padding.left, Math.min(width - padding.right, x))
-            const ratio = (clamped - padding.left) / (chartWidth || 1)
-            const i = Math.round(ratio * (scaledPoints.length - 1))
-            setHoverPos({ x: clamped, y: e.clientY - rect.top })
-            const cursorY = e.clientY - rect.top
-            if (activeSeriesId) {
-              setHoverSeriesId(activeSeriesId)
-            } else {
-              let best: { id: string | null; dy: number } = {
-                id: null,
-                dy: Number.POSITIVE_INFINITY,
-              }
-              for (const s of scaledSeries.slice(1)) {
-                const pt = s.pts[i]
-                if (!pt) continue
-                const dy = Math.abs(pt.y - cursorY)
-                if (dy < best.dy) best = { id: s.id || null, dy }
-              }
-              setHoverSeriesId(best.dy <= 12 ? best.id : null)
-            }
+            const rect = event.currentTarget.getBoundingClientRect()
+            setHoverPos({ x: event.clientX - rect.left, y: event.clientY - rect.top })
           }}
-          onMouseLeave={() => {
-            setHoverPos(null)
-            setHoverSeriesId(null)
-          }}
+          onMouseLeave={() => setHoverPos(null)}
         >
           <defs>
             <linearGradient id={`area-${uniqueId}`} x1='0' x2='0' y1='0' y2='1'>
-              <stop
-                offset='0%'
-                stopColor={resolvedColors.base || color}
-                stopOpacity={isDark ? 0.25 : 0.45}
-              />
-              <stop
-                offset='100%'
-                stopColor={resolvedColors.base || color}
-                stopOpacity={isDark ? 0.03 : 0.08}
-              />
+              <stop offset='0%' stopColor={color} stopOpacity={isDark ? 0.25 : 0.45} />
+              <stop offset='100%' stopColor={color} stopOpacity={isDark ? 0.03 : 0.08} />
             </linearGradient>
             <clipPath id={`clip-${uniqueId}`}>
               <rect
@@ -447,11 +371,11 @@ function LineChartComponent({
               )
             })()}
 
-          {visibleSeries.map((s, idx) => {
+          {visibleSeries.map((s) => {
             const isActive = activeSeriesId ? activeSeriesId === s.id : true
             const isHovered = hoverSeriesId ? hoverSeriesId === s.id : false
             const baseOpacity = isActive ? 1 : 0.12
-            const strokeOpacity = isHovered ? 1 : baseOpacity
+            const strokeOpacity = hoverSeriesId ? (isHovered ? 1 : 0.2) : baseOpacity
             const sw = (() => {
               switch ((s.id || '').toLowerCase()) {
                 case 'p50':
@@ -474,10 +398,11 @@ function LineChartComponent({
                   y1={y}
                   x2={width - padding.right}
                   y2={y}
-                  stroke={resolvedColors[s.id || ''] || s.color}
+                  stroke={s.color}
                   strokeWidth={sw}
                   strokeLinecap='round'
                   opacity={strokeOpacity}
+                  className='transition-opacity duration-150 motion-reduce:transition-none'
                   strokeDasharray={s.dashed ? '5 4' : undefined}
                 />
               )
@@ -488,14 +413,15 @@ function LineChartComponent({
                 key={s.id}
                 d={p}
                 fill='none'
-                stroke={resolvedColors[s.id || ''] || s.color}
+                stroke={s.color}
                 strokeWidth={sw}
                 strokeLinecap='round'
                 clipPath={`url(#clip-${uniqueId})`}
                 style={{ mixBlendMode: isDark ? 'screen' : 'normal' }}
                 strokeDasharray={s.dashed ? '5 4' : undefined}
                 opacity={strokeOpacity}
-                onClick={() => setActiveSeriesId((prev) => (prev === s.id ? null : s.id || null))}
+                className='transition-opacity duration-150 motion-reduce:transition-none'
+                onClick={() => setSelectedSeriesId((prev) => (prev === s.id ? null : s.id || null))}
               />
             )
           })}
@@ -515,7 +441,7 @@ function LineChartComponent({
                     y1={padding.top}
                     x2={pt.x}
                     y2={height - padding.bottom}
-                    stroke={resolvedColors[active.id || ''] || active.color}
+                    stroke={active.color}
                     strokeOpacity='0.35'
                     strokeDasharray='3 3'
                   />
@@ -524,14 +450,7 @@ function LineChartComponent({
                       const s = getSeriesById(activeSeriesId)
                       const spt = s?.pts?.[hoverIndex]
                       if (!s || !spt) return null
-                      return (
-                        <circle
-                          cx={spt.x}
-                          cy={spt.y}
-                          r='3'
-                          fill={resolvedColors[s.id || ''] || s.color}
-                        />
-                      )
+                      return <circle cx={spt.x} cy={spt.y} r='3' fill={s.color} />
                     })()}
                 </g>
               )
@@ -643,7 +562,7 @@ function LineChartComponent({
                   return (
                     <ChartTooltipRow
                       key={`tt-${s.id}`}
-                      color={resolvedColors[s.id || ''] || s.color}
+                      color={s.color}
                       label={showLabel ? seriesLabel : undefined}
                       value={fmt(val)}
                     />

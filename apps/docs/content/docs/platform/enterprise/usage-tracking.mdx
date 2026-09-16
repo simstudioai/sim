@@ -1,23 +1,21 @@
 ---
-title: Usage Tracking
-description: See where your organization's credits go, by member, workspace, and model
+title: Insights
+description: Explore organization credit usage, workflow performance, and recorded chat activity
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Usage tracking shows how your organization consumes credits across every part of the platform — which members, which workspaces, which models, and which product features. Use it to monitor spend against your commitment, find what is driving it, and export the underlying events for chargeback.
+Insights shows how your organization consumes credits across every part of the platform — which members, which workspaces, which models, and which product features. Use it to monitor spend against your commitment, find what is driving it, and export the underlying events for chargeback.
 
-All figures are in **credits** (1 credit = $0.005). See [cost calculation](/platform/costs) for how credits are derived.
+Spend figures are in **credits** (1 credit = $0.005). See [cost calculation](/platform/costs) for how credits are derived.
 
 ---
 
 ## Viewing usage
 
-Go to **Settings → Organization → Usage tracking** in your workspace.
-
-<Image src="/static/enterprise/usage-tracking-overview.png" alt="Usage tracking Overview tab showing the period selector, credits used against the organization limit, a daily usage chart, and a Sources section pairing a ranked list of sources with a radar chart of the same mix" width={900} height={781} className="mx-auto h-auto w-full max-w-xl" />
+Go to **Settings → Organization → Insights** in your workspace.
 
 The period selector applies to every tab:
 
@@ -36,7 +34,8 @@ The period selector applies to every tab:
 
 | Tab | Answers |
 |-----|---------|
-| **Overview** | How much have we used, against what limit, and what kind of work was it |
+| **Overview** | Credit consumption, recorded activity, workflow failure rate, and usage by source |
+| **Activity** | Run trends and performance, grouped by workspace, workflow, chat member, or trigger |
 | **Members** | Which people are driving usage |
 | **Workspaces** | Which workspaces are driving usage — select one to drill in |
 | **Models** | Which models we are paying for |
@@ -46,6 +45,22 @@ Selecting a workspace opens its detail view, which splits that workspace's usage
 <Image src="/static/enterprise/usage-tracking-workspace-detail.png" alt="A workspace's detail view with a Sources section listing Sim Chat and Workflow, and a Workflows section ranking individual workflows by credits" width={900} height={598} className="mx-auto h-auto w-full max-w-xl" />
 
 **Sources** adds up to the workspace's total, while **Workflows** covers only the workflow-run part of it. In the example above, Sources totals 4,435 credits but the workflows list only accounts for the 161 credits under Workflow — the other 4,274 came from Chat, which no workflow produced.
+
+---
+
+## Activity and performance
+
+The **Activity** tab shows workflow runs, recorded chat runs, members with chat activity, and workflow failure rate. Group the breakdown by **Workspaces**, **Workflows**, **Members**, or **Triggers**, and sort by run volume, failure count, or average workflow duration. Member breakdowns rank chat runs only. Results are paginated; totals and sorting include the whole selected period, not just the visible page. Select a workspace to narrow the activity view, then use **All workspaces** to clear that filter.
+
+- **Workflow runs** count retained execution records whose start time falls in the selected period, including runs that are still running, paused, or cancelled.
+- **Recorded chat runs** count distinct recorded execution IDs across workspace and organization chats. Continuations count once, in the period containing their first retained start. Calls without a persisted chat run are not included.
+- **Members with chat activity** count distinct users attributed to those chat runs. This measures recorded chat activity, not logins, all active users, or people billed for automated workflows.
+- **Workflow failure rate** is failed runs divided by completed plus failed runs. Paused, cancelled, and unfinished runs do not enter the denominator. A dash means there are no completed or failed runs to measure.
+- **Average duration** uses the recorded duration of completed or failed workflows. Missing durations are excluded; a dash means no duration is available.
+
+Activity follows retained history and current organization/workspace ownership. Deleting history or moving a workspace can change historical activity totals. Status and duration reflect the latest recorded outcome, even for a run that started in an earlier period. The activity view does not read chat transcripts or workflow trace payloads.
+
+Credit totals continue to come from the billing ledger. Activity counts need not match billing-event counts, and the credit export does not export activity. Exact per-chat cost, connector/skill adoption, and generated-artifact attribution are not available in this view.
 
 ---
 
@@ -102,9 +117,9 @@ When a workspace or organization supplies its own provider key, Sim does not cha
 
 ## Exporting
 
-**Export** downloads the events behind the current period and filters as a CSV with columns `Date, Source, Description, Workflow, Credits`. Credits are exported as plain numbers so the column can be summed, and carry decimals — an individual event often costs a fraction of a credit.
+**Export credits** downloads the events behind the current period and filters as a CSV with columns `Date, Source, Description, Workflow, Credits`. Credits are exported as plain numbers so the column can be summed, and carry decimals — an individual event often costs a fraction of a credit.
 
-**All events** opens the full ledger — every credit-consuming event, newest first, with its own filters and export.
+**Credit events** opens the full ledger — every credit-consuming event, newest first, with its own filters and export.
 
 Very large exports are capped. When that happens the download still succeeds and Sim tells you it was truncated; narrow the date range to capture everything.
 
@@ -112,7 +127,7 @@ Very large exports are capped. When that happens the download still succeeds and
 
 <FAQ items={[
   {
-    question: "Who can view usage tracking?",
+    question: "Who can view Insights?",
     answer: "Organization owners and admins. On Sim Cloud you must be on the Enterprise plan. Regular members cannot see organization usage, including their own."
   },
   {
@@ -158,4 +173,4 @@ USAGE_MONITORING_ENABLED=true
 NEXT_PUBLIC_USAGE_MONITORING_ENABLED=true
 ```
 
-Once enabled, usage tracking is viewable in **Settings → Organization → Usage tracking** for organization owners and admins.
+Once enabled, Insights is viewable in **Settings → Organization → Insights** for organization owners and admins.

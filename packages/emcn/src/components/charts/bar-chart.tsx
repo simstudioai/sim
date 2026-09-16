@@ -1,36 +1,30 @@
 'use client'
 
 import { memo, useId, useMemo, useState } from 'react'
-import { cn } from '@sim/emcn'
-import {
-  formatChartCompactNumber,
-  formatChartLatency,
-  formatChartTimestamp,
-} from '@/components/charts/chart-format'
 import {
   CHART_AXIS_LABEL_GAP,
   CHART_DEFAULT_HEIGHT,
   CHART_GRID_FRACTIONS,
   CHART_TICK_FILL,
   CHART_TICK_FONT_SIZE,
+  ChartDataTable,
+  ChartTooltip,
+  ChartTooltipRow,
   chartPlotBand,
+  cn,
+  estimateTooltipHeight,
+  estimateTooltipWidth,
+  formatChartCompactNumber,
+  formatChartLatency,
+  formatChartTimestamp,
   formatTimeTick,
+  positionChartTooltip,
   resolveChartPadding,
   resolveSpanMs,
   resolveTimeTickIndices,
-} from '@/components/charts/chart-geometry'
-import {
-  ChartTooltip,
-  ChartTooltipRow,
-  estimateTooltipHeight,
-  estimateTooltipWidth,
-  positionChartTooltip,
-} from '@/components/charts/chart-tooltip'
-import {
   useChartWidth,
   useIsDarkTheme,
-  useResolvedChartColors,
-} from '@/components/charts/use-chart-theme'
+} from '@sim/emcn'
 
 export interface BarChartPoint {
   timestamp: string
@@ -47,6 +41,8 @@ interface BarChartProps {
   height?: number
   /** Display bucket dates in this zone; omitted uses the viewer’s local zone. */
   timeZone?: string
+  /** Calendar buckets retain date labels even for a single day. */
+  xAxisFormat?: 'auto' | 'date'
   /** Bucket drawn at full opacity, e.g. the period in progress. */
   highlightIndex?: number
 }
@@ -59,17 +55,10 @@ function formatBarValue(value: number | undefined, unit: string | undefined): st
   if (suffix === 'latency') return formatChartLatency(value)
   if (suffix.includes('ms')) return `${Math.round(value)}ms`
   if (suffix === 'credits') return formatChartCompactNumber(value)
-  return `${Math.round(value)}${unit ?? ''}`
+  return `${Math.round(value).toLocaleString()}${unit ?? ''}`
 }
 
-/**
- * Discrete time buckets as bars.
- *
- * The sibling of {@link LineChart}, and deliberately built from the same geometry,
- * tooltip, and theme modules: a smoothed line implies a continuous signal between
- * samples, which is wrong for a calendar bucket like a day's spend, but the two must
- * still line up pixel-for-pixel when stacked in one card.
- */
+/** Discrete time buckets using the shared chart geometry and tooltip. */
 function BarChartComponent({
   data,
   label,
@@ -78,12 +67,8 @@ function BarChartComponent({
   height = CHART_DEFAULT_HEIGHT,
   highlightIndex,
   timeZone,
+  xAxisFormat = 'auto',
 }: BarChartProps) {
-  /*
-    `useId`, not `useRef(generateShortId())`: a ref initializer is evaluated on
-    every render and all but the first result thrown away, and React already has
-    a hook whose whole job is a stable unique id.
-  */
   const uniqueId = useId().replace(/:/g, '')
   const [containerRef, containerWidth] = useChartWidth()
   const width = containerWidth ?? 0
@@ -91,39 +76,26 @@ function BarChartComponent({
   const isDark = useIsDarkTheme()
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
 
-  const resolvedColors = useResolvedChartColors({ base: color })
-  const resolvedColor = resolvedColors.base || color
-
   const hasExternalWrapper = !label
 
-  /**
-   * The track is read against its own background, so its opacity is per-theme
-   * rather than one shared value. `--border` is the platform's neutral track
-   * token — the same one the proportional row meters use — but it resolves to
-   * `#444` on dark and `#d8d8d8` on light, and a strength that reads as a column
-   * on near-black is a half-percent delta on white. Hover keeps the same ratio.
-   */
+  /** Tracks need stronger opacity on light backgrounds to remain visible. */
   const trackOpacity = isDark ? 0.12 : 0.3
   const trackHoverOpacity = isDark ? 0.22 : 0.5
 
   const maxValue = useMemo(() => {
     const peak = Math.max(...data.map((d) => d.value), 0)
-    return peak <= 0 ? 1 : peak * 1.1
-  }, [data])
+    return peak <= 0 ? 1 : unit ? peak * 1.1 : Math.ceil(peak * 1.1)
+  }, [data, unit])
 
-  const padding = resolveChartPadding([formatBarValue(maxValue, unit), '0'])
+  const maximumLabel = unit ? formatBarValue(maxValue, unit) : formatChartCompactNumber(maxValue)
+  const padding = resolveChartPadding([maximumLabel, '0'])
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
 
-  /** Slot geometry: every bucket owns an equal slice, with the bar centred in it. */
   const slot = data.length > 0 ? Math.max(1, chartWidth) / data.length : 0
   const barWidth = Math.max(1, Math.min(24, slot * 0.7))
 
-  /**
-   * Bars own a slot, so the hovered bucket is which slot the cursor is in — not the
-   * nearest sample, which is how a line chart resolves it. Derived, so a resize
-   * mid-hover cannot leave an index disagreeing with the slot geometry.
-   */
+  /** Derive the hovered slot after resizing so the index stays within the current geometry. */
   const hoverIndex =
     hoverPos === null || data.length === 0 || slot <= 0
       ? null
@@ -138,13 +110,7 @@ function BarChartComponent({
         return {
           x,
           y,
-          /*
-           * A zero bucket draws nothing. The clamp above keeps a *drawn* bar off the
-           * axis rule, but applied to zero it floored the bar at the 3px band and
-           * every empty day rendered as a small amount of usage — the densified zeros
-           * this chart exists to show honestly. Only the track represents an empty
-           * bucket.
-           */
+          /** Empty buckets must stay at zero despite the plot-band clamp. */
           height: point.value > 0 ? Math.max(0, height - padding.bottom - y) : 0,
           point,
         }
@@ -167,21 +133,15 @@ function BarChartComponent({
 
   if (data.length === 0) {
     return (
-      // Keeps the measurement ref: dropping it here left the observer watching a
-      // detached node, so a resize while empty was never seen and the next non-empty
-      // render laid out at the stale width.
+      /** Keeps the measurement ref: dropping it here left the observer watching a */
+      /** detached node, so a resize while empty was never seen and the next non-empty */
+      /** render laid out at the stale width. */
       <div
         ref={containerRef}
         className={cn(
           'flex w-full items-center justify-center',
           !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'
         )}
-        /*
-          Height only. `width` is floored at CHART_MIN_WIDTH for the plot geometry,
-          and pinning the empty state to it pushed a narrow container into horizontal
-          overflow to centre two words — this branch draws no axes, so it has nothing
-          to protect from compressing.
-        */
         style={{ height }}
       >
         <p className='text-[var(--text-muted)] text-sm'>No data</p>
@@ -196,13 +156,7 @@ function BarChartComponent({
     <div
       ref={containerRef}
       className={cn(
-        /*
-          `overflow-x-auto`, not `overflow-hidden`: `useChartWidth` floors the SVG at
-          CHART_MIN_WIDTH, so in a narrower container the chart is wider than its box.
-          Hiding that silently cut off the rightmost bars and axis labels — and
-          contradicted the constant's own note that the chart "scrolls rather than
-          compresses". At or above the floor there is no overflow and nothing changes.
-        */
+        /** Scroll below the minimum plot width without introducing a vertical scrollbar. */
         'w-full overflow-x-auto overflow-y-hidden',
         !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4 shadow-card'
       )}
@@ -213,7 +167,13 @@ function BarChartComponent({
         </div>
       )}
       <div className='relative' style={{ width, height }}>
+        <ChartDataTable
+          label={label || 'Values by date'}
+          series={[{ label: unit || 'Value', data }]}
+          timeZone={timeZone}
+        />
         <svg
+          aria-hidden='true'
           width={width}
           height={height}
           className='overflow-hidden'
@@ -226,8 +186,8 @@ function BarChartComponent({
         >
           <defs>
             <linearGradient id={`bar-${uniqueId}`} x1='0' x2='0' y1='0' y2='1'>
-              <stop offset='0%' stopColor={resolvedColor} stopOpacity={isDark ? 0.9 : 1} />
-              <stop offset='100%' stopColor={resolvedColor} stopOpacity={isDark ? 0.35 : 0.55} />
+              <stop offset='0%' stopColor={color} stopOpacity={isDark ? 0.9 : 1} />
+              <stop offset='100%' stopColor={color} stopOpacity={isDark ? 0.35 : 0.55} />
             </linearGradient>
           </defs>
 
@@ -253,15 +213,7 @@ function BarChartComponent({
             />
           ))}
 
-          {/*
-            A full-height track keeps an empty bucket visible and gives every slot
-            the same hover target, so a run of zero days reads as zero rather than
-            as missing data.
-
-            Drawn outside the blend group below: the bars want `screen` on dark so
-            the gradient stays luminous, but a track composited that way is only
-            legible against a dark background, and on white it disappears.
-          */}
+          {/** Tracks preserve empty buckets and hover targets; keep them outside the screen blend. */}
           <g>
             {bars.map((bar, index) => (
               <rect
@@ -273,6 +225,7 @@ function BarChartComponent({
                 rx='2'
                 fill='var(--border)'
                 fillOpacity={hoverIndex === index ? trackHoverOpacity : trackOpacity}
+                className='transition-[fill-opacity] duration-150 motion-reduce:transition-none'
               />
             ))}
           </g>
@@ -289,6 +242,7 @@ function BarChartComponent({
                     height={bar.height}
                     rx='2'
                     fill={`url(#bar-${uniqueId})`}
+                    className='transition-opacity duration-150 motion-reduce:transition-none'
                     opacity={
                       highlightIndex !== undefined && highlightIndex !== index
                         ? 0.55
@@ -314,7 +268,9 @@ function BarChartComponent({
                 textAnchor='middle'
                 fill={CHART_TICK_FILL}
               >
-                {Number.isNaN(date.getTime()) ? '' : formatTimeTick(date, spanMs, timeZone)}
+                {Number.isNaN(date.getTime())
+                  ? ''
+                  : formatTimeTick(date, spanMs, timeZone, xAxisFormat)}
               </text>
             )
           })}
@@ -326,9 +282,9 @@ function BarChartComponent({
             fontSize={CHART_TICK_FONT_SIZE}
             fill={CHART_TICK_FILL}
           >
-            {/* Same formatter the tooltip uses, or the axis and the hover disagree
+            {/** Same formatter the tooltip uses, or the axis and the hover disagree
                 about what the numbers mean on any non-`credits` unit. */}
-            {formatBarValue(maxValue, unit)}
+            {maximumLabel}
           </text>
           <text
             x={padding.left - CHART_AXIS_LABEL_GAP}
@@ -367,7 +323,7 @@ function BarChartComponent({
             })
             return (
               <ChartTooltip left={left} top={top} date={date || undefined}>
-                <ChartTooltipRow color={resolvedColor} value={value} />
+                <ChartTooltipRow color={color} value={value} />
               </ChartTooltip>
             )
           })()}

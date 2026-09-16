@@ -1,25 +1,20 @@
 'use client'
 
 import { memo, useId, useMemo, useState } from 'react'
-import { truncate } from '@sim/utils/string'
 import {
   CHART_GRID_FRACTIONS,
   CHART_TICK_FILL,
   CHART_TICK_FONT_SIZE,
-  estimateAxisLabelWidth,
-} from '@/components/charts/chart-geometry'
-import {
   ChartTooltip,
   ChartTooltipRow,
+  estimateAxisLabelWidth,
   estimateTooltipHeight,
   estimateTooltipWidth,
   positionChartTooltip,
-} from '@/components/charts/chart-tooltip'
-import {
   useChartWidth,
   useIsDarkTheme,
-  useResolvedChartColors,
-} from '@/components/charts/use-chart-theme'
+} from '@sim/emcn'
+import { truncate } from '@sim/utils/string'
 
 export interface RadarChartAxis {
   label: string
@@ -40,25 +35,10 @@ const LABEL_GUTTER = 52
 /** Gap between the outer ring and a caption anchored beyond it. */
 const LABEL_GAP = 12
 
-/**
- * The web's rings: the family's gridline fractions plus the outer ring, which is this
- * chart's axis rule. Read from the constant rather than divided into `RING_COUNT`
- * even steps — the arithmetic agreed with the siblings only while the fractions
- * happened to be uniform, which is exactly the drift `chart-geometry` exists to stop.
- */
-const RING_FRACTIONS = [...CHART_GRID_FRACTIONS, 1] as const
-
-/**
- * Caption budget. A long source name would otherwise run past the container, and the
- * svg paints outside its box so it would not even clip — it would overlap the section
- * beside it. The hover row carries the full name.
- */
+/** Cap captions to prevent overflow; tooltips retain the full label. */
 const MAX_LABEL_LENGTH = 16
 
-/**
- * Polar coordinates for an axis. `-90°` puts the first axis at twelve o'clock, so a
- * list read top-down and the web read clockwise start in the same place.
- */
+/** Start at twelve o’clock so categories follow clockwise in list order. */
 function axisPoint(index: number, count: number, radius: number, cx: number, cy: number) {
   const angle = (index / count) * Math.PI * 2 - Math.PI / 2
   return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius }
@@ -68,43 +48,17 @@ function polygon(points: ReadonlyArray<{ x: number; y: number }>): string {
   return points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ')
 }
 
-/**
- * Shape of a distribution across a handful of named categories.
- *
- * The third member of the chart family, and built from the same tokens, tooltip, and
- * theme hooks as {@link BarChart} and {@link LineChart}. It answers a question the
- * other two cannot: a bar list ranks categories but says nothing about balance, and
- * "one source dominates" versus "spend is spread evenly" is legible here at a glance
- * and nowhere else on the panel.
- *
- * Every axis is scaled against the largest value rather than against its own range,
- * so the polygon's area is proportional to the real distribution — normalising each
- * axis independently would draw a balanced pentagon for any input at all.
- */
+/** Compares category values on a shared radial scale normalized to the largest value. */
 function RadarChartComponent({ axes, color, height = 200 }: RadarChartProps) {
   const uniqueId = useId().replace(/:/g, '')
   const [containerRef, containerWidth] = useChartWidth()
   const isDark = useIsDarkTheme()
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
-  const resolvedColors = useResolvedChartColors({ base: color })
-  const resolvedColor = resolvedColors.base || color
-
   const width = containerWidth ?? 0
   const cx = width / 2
   const cy = height / 2
-  /*
-    One memo over the whole web: hovering re-renders this component on every wedge
-    enter and leave, and none of this geometry can move under a hover. Guarding only
-    the point projection left the costlier half — a per-glyph estimate of every
-    caption — running on each of those renders.
-
-    The horizontal budget is the caption's own estimated width, the same
-    `estimateAxisLabelWidth` the sibling charts use to size a gutter around SVG text
-    they cannot measure. A 16-glyph caption runs to ~84px, so a fixed inset let every
-    side caption run past the plot; budgeting the radius against the real caption
-    width is what keeps them inside the box the svg clips to.
-  */
+  /** Reserve caption width and reuse geometry during hover updates. */
   const { maxValue, radius, points } = useMemo(() => {
     const labelWidth = axes.reduce(
       (max, axis) => Math.max(max, estimateAxisLabelWidth(truncate(axis.label, MAX_LABEL_LENGTH))),
@@ -134,7 +88,7 @@ function RadarChartComponent({ axes, color, height = 200 }: RadarChartProps) {
     return <div ref={containerRef} className='w-full' style={{ height }} />
   }
 
-  /*
+  /**
     Three axes are the fewest that enclose an area; below that the "polygon" is a
     line or a point and reads as a rendering fault rather than as a distribution.
   */
@@ -153,32 +107,18 @@ function RadarChartComponent({ axes, color, height = 200 }: RadarChartProps) {
   const hovered = hoverIndex !== null ? points[hoverIndex] : null
 
   return (
-    /*
-      Two boxes, like the siblings: the outer one scrolls, the inner one is the
-      positioning context. `relative` on the scroll container itself left the
-      absolutely-positioned tooltip anchored to the viewport of the scroll rather than
-      to the plot — below CHART_MIN_WIDTH it stayed nailed while the web slid under it.
-
-      Captions are inside the plot by construction, since `radius` is budgeted against
-      `labelWidth`, so the horizontal scroll never cuts one off.
-    */
+    /** Anchor tooltips to the plot so they scroll with it. */
     <div ref={containerRef} className='w-full overflow-x-auto overflow-y-hidden'>
       <div className='relative' style={{ width, height }}>
         <svg width={width} height={height} className='overflow-hidden'>
           <defs>
-            {/*
-              Radial rather than the siblings' vertical linear gradient — a shape with
-              radial symmetry lit from the top reads as a rendering error. The stop
-              opacities stay in the family's range, and light is the more opaque theme
-              because dark composites through `screen` below.
-            */}
             <radialGradient id={`radar-${uniqueId}`}>
-              <stop offset='0%' stopColor={resolvedColor} stopOpacity={isDark ? 0.32 : 0.45} />
-              <stop offset='100%' stopColor={resolvedColor} stopOpacity={isDark ? 0.1 : 0.14} />
+              <stop offset='0%' stopColor={color} stopOpacity={isDark ? 0.32 : 0.45} />
+              <stop offset='100%' stopColor={color} stopOpacity={isDark ? 0.1 : 0.14} />
             </radialGradient>
           </defs>
 
-          {RING_FRACTIONS.map((fraction) => (
+          {[...CHART_GRID_FRACTIONS, 1].map((fraction) => (
             <polygon
               key={`${uniqueId}-ring-${fraction}`}
               points={polygon(
@@ -207,7 +147,7 @@ function RadarChartComponent({ axes, color, height = 200 }: RadarChartProps) {
             <polygon
               points={polygon(points.map((point) => point.value))}
               fill={`url(#radar-${uniqueId})`}
-              stroke={resolvedColor}
+              stroke={color}
               strokeWidth={isDark ? 1.7 : 2}
               strokeLinejoin='round'
             />
@@ -217,27 +157,17 @@ function RadarChartComponent({ axes, color, height = 200 }: RadarChartProps) {
                 cx={point.value.x}
                 cy={point.value.y}
                 r={hoverIndex === index ? 3 : 2}
-                fill={resolvedColor}
+                fill={color}
               />
             ))}
           </g>
 
-          {points.map((point, index) => (
+          {points.map((point) => (
             <text
               key={`${uniqueId}-label-${point.axis.label}`}
               x={point.label.x}
               y={point.label.y}
-              /*
-                Anchored away from the centre so a caption never crosses the web: the
-                left half ends at its x, the right half starts at it, and the two axes
-                on the vertical centreline are centred.
-
-                The baseline follows the same logic. `auto` is alphabetic, so glyphs sit
-                *above* their anchor — right for the caption at twelve o'clock, but it
-                left the one at six o'clock riding ~3px off the ring instead of the
-                LABEL_GAP it was given, and it vertically misaligned every caption beside
-                the web from its own vertex.
-              */
+              /** Anchor captions outward; vertical alignment must preserve the caption gap. */
               textAnchor={
                 Math.abs(point.label.x - cx) < 1 ? 'middle' : point.label.x > cx ? 'start' : 'end'
               }
@@ -255,18 +185,7 @@ function RadarChartComponent({ axes, color, height = 200 }: RadarChartProps) {
             </text>
           ))}
 
-          {/*
-            Hit targets last so they sit above the painted web, and wedge-sized — a
-            vertex-sized target is far too small to hover on a 200px chart.
-
-            An arc sector, not a triangle. A triangle's far edge is the chord, which
-            along its own spoke reaches only `reach·cos(π/n)` — at three axes that is
-            50px against a 74px radius, so the largest value's vertex, the one a reader
-            aims at, sat outside its own target and outside every other. Sectors tile
-            identically and reach `reach` in every direction. The sweep flag is 1
-            because SVG's y grows downward, and the arc is never a major one: 2π/n ≤
-            2π/3 < π for the three-or-more axes this chart requires.
-          */}
+          {/** Arc sectors cover the outer vertices; triangular targets leave gaps at low axis counts. */}
           {points.map((point, index) => {
             const half = Math.PI / axes.length
             const angle = (index / axes.length) * Math.PI * 2 - Math.PI / 2
@@ -294,14 +213,7 @@ function RadarChartComponent({ axes, color, height = 200 }: RadarChartProps) {
         {hovered &&
           (() => {
             const value = hovered.axis.display ?? String(hovered.axis.value)
-            /*
-              Beside the hovered vertex, through the same placer the siblings use, so
-              the box flips and clamps identically. Centring it on the web instead put
-              a filled panel over the densest part of the gradient — the concentration
-              this chart exists to show. The padding passed is the caption gap rather
-              than the axis-bearing charts' gutters: a radar has no axis rules to keep
-              clear of.
-            */
+            /** Place tooltips beside the vertex, using caption clearance instead of axis gutters. */
             const { left, top } = positionChartTooltip({
               anchorX: hovered.value.x,
               anchorY: hovered.value.y,
@@ -315,7 +227,7 @@ function RadarChartComponent({ axes, color, height = 200 }: RadarChartProps) {
             })
             return (
               <ChartTooltip left={left} top={top} date={hovered.axis.label}>
-                <ChartTooltipRow color={resolvedColor} value={value} />
+                <ChartTooltipRow color={color} value={value} />
               </ChartTooltip>
             )
           })()}

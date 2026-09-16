@@ -25,19 +25,22 @@ export const PERIOD_OPTIONS: ComboboxOption[] = USAGE_WINDOW_PRESETS.map((preset
 }))
 
 export const USAGE_OVERVIEW_TAB = 'overview' as const
-export type UsageTab = typeof USAGE_OVERVIEW_TAB | 'member' | 'workspace' | 'model' | 'byok'
+export type UsageTab =
+  | typeof USAGE_OVERVIEW_TAB
+  | 'activity'
+  | 'member'
+  | 'workspace'
+  | 'model'
+  | 'byok'
 
 /**
- * The panel reads as one question per tab, in the order an admin asks them:
- * how much (Overview, which also answers *what kind* via its source mix), then who,
- * then where, then on what.
- *
- * Workflows is deliberately not a tab. A workflow is only meaningful inside its
- * workspace, and a flat org-wide workflow list is dominated by a bucket of usage that
- * has no workflow at all — so it lives as the Workspaces drill-down instead.
+ * Activity ranks retained executions; the member, workspace, and model tabs rank
+ * ledger spend. Workflow spend remains within the workspace drill-down because
+ * charges from other sources do not carry workflow attribution.
  */
 export const USAGE_TAB_ORDER: readonly UsageTab[] = [
   USAGE_OVERVIEW_TAB,
+  'activity',
   'member',
   'workspace',
   'model',
@@ -51,6 +54,7 @@ export const USAGE_TAB_ORDER: readonly UsageTab[] = [
 
 export const USAGE_TAB_LABELS: Record<UsageTab, string> = {
   overview: 'Overview',
+  activity: 'Activity',
   member: 'Members',
   workspace: 'Workspaces',
   model: 'Models',

@@ -496,16 +496,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/settings/usage/events/page.tsx": {
-      "modules": 1562,
+      "modules": 1595,
       "gateways": {
-        "apps/sim/lib/auth/index.ts": 1413,
+        "apps/sim/lib/auth/index.ts": 1441,
         "apps/sim/triggers/index.ts": 487,
         "apps/sim/triggers/registry.ts": 485,
         "apps/sim/blocks/registry.ts": 363,
         "apps/sim/blocks/registry-maps.ts": 360,
-        "apps/sim/lib/webhooks/providers/index.ts": 121,
-        "apps/sim/lib/webhooks/providers/registry.ts": 118,
-        "apps/sim/lib/workflows/lifecycle.ts": 50
+        "apps/sim/lib/webhooks/providers/index.ts": 120,
+        "apps/sim/lib/webhooks/providers/registry.ts": 117,
+        "apps/sim/lib/workflows/lifecycle.ts": 52
       }
     },
     "app/workspace/[workspaceId]/skills/[skillId]/page.tsx": {

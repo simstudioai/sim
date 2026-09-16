@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/hooks/queries/organization-search-stats', () => ({
   useOrganizationSearchStats: mocks.query,
 }))
-vi.mock('@/components/charts', () => ({
+vi.mock('@sim/emcn', () => ({
   BarChart: (props: unknown) => {
     mocks.chart(props)
     return <div>Daily chart</div>
