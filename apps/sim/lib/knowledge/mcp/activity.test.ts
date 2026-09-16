@@ -19,6 +19,7 @@ const activity: SearchMcpActivityInput = {
   userId: 'actor',
   authKind: 'personal_api_key',
   oauthClientId: null,
+  clientName: null,
   toolName: 'read_document',
   outcome: 'success',
   durationMs: 42,

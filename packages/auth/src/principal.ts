@@ -52,6 +52,8 @@ export interface OAuthAccessTokenPrincipal {
   kind: 'oauth_access_token'
   userId: string
   clientId: string
+  /** Admission-time display metadata only; never grants authority or enters workflow payloads. */
+  clientName?: string
   /** The `oauth_access_token` row id, never the token itself. */
   tokenId: string
   scopes: readonly string[]
@@ -291,7 +293,7 @@ export type WorkflowExecutionPrincipal =
 type SerializedWorkflowExecutionPrincipal =
   | SessionPrincipal
   | PersonalApiKeyPrincipal
-  | (Omit<OAuthAccessTokenPrincipal, 'expiresAt'> & { expiresAt: string })
+  | (Omit<OAuthAccessTokenPrincipal, 'expiresAt' | 'clientName'> & { expiresAt: string })
   | WorkspaceApiKeyPrincipal
   | SystemPrincipal
   | (Omit<SubjectDelegatedPrincipal, 'issuedAt' | 'expiresAt'> & {
@@ -398,7 +400,10 @@ export function serializePrincipal(principal: WorkflowExecutionPrincipal): Seria
       return {
         version: 1,
         principal: {
-          ...principal,
+          kind: principal.kind,
+          userId: principal.userId,
+          clientId: principal.clientId,
+          tokenId: principal.tokenId,
           scopes: [...principal.scopes],
           expiresAt: principal.expiresAt.toISOString(),
         },

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { oauthClient, organizationSearchMcpInvocation } from '@sim/db/schema'
+import { organizationSearchMcpInvocation } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -13,6 +13,7 @@ export type SearchMcpActivityInput = Pick<
   | 'userId'
   | 'authKind'
   | 'oauthClientId'
+  | 'clientName'
   | 'toolName'
   | 'outcome'
   | 'durationMs'
@@ -32,9 +33,7 @@ export async function recordOrganizationSearchMcpActivity(
         userId: input.userId,
         authKind: input.authKind,
         oauthClientId: input.oauthClientId,
-        clientName: input.oauthClientId
-          ? sql`(SELECT left(${oauthClient.name}, 256) FROM ${oauthClient} WHERE ${oauthClient.clientId} = ${input.oauthClientId})`
-          : null,
+        clientName: input.clientName,
         toolName: input.toolName,
         outcome: input.outcome,
         durationMs: input.durationMs,

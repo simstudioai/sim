@@ -82,7 +82,7 @@ function payload(result: CallToolResult): unknown {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.tools.clear()
-  mocks.rateLimit.mockResolvedValue(null)
+  mocks.rateLimit.mockReset().mockResolvedValue(null)
   mocks.search.mockResolvedValue({ results: [] })
   mocks.read.mockResolvedValue({
     knowledgeBaseId: 'index-1',
@@ -339,6 +339,7 @@ describe('MCP tool completion records', () => {
           kind: 'oauth_access_token',
           userId: 'oauth-person',
           clientId: 'registered-client',
+          clientName: 'Registered app',
           tokenId: 'private-token-id',
           scopes: ['search:read'],
           expiresAt: new Date(Date.now() + 60000),
@@ -355,6 +356,7 @@ describe('MCP tool completion records', () => {
       userId: 'oauth-person',
       authKind: 'oauth_access_token',
       oauthClientId: 'registered-client',
+      clientName: 'Registered app',
       toolName: 'search',
       outcome: 'success',
       durationMs: expect.any(Number),
@@ -426,7 +428,9 @@ describe('MCP tool completion records', () => {
     'records cancelled %s calls without executing the operation',
     async (toolName) => {
       create()
+      mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))
       await call(toolName, { query: 'private query', documentId: 'doc-1' }, AbortSignal.abort())
+      expect(mocks.rateLimit).not.toHaveBeenCalled()
       expect(mocks.search).not.toHaveBeenCalled()
       expect(mocks.read).not.toHaveBeenCalled()
       expect(mocks.chat).not.toHaveBeenCalled()
@@ -436,4 +440,19 @@ describe('MCP tool completion records', () => {
       )
     }
   )
+
+  it('records cancellation during rate-limit admission instead of an exhausted bucket', async () => {
+    create()
+    const controller = new AbortController()
+    mocks.rateLimit.mockImplementationOnce(async () => {
+      controller.abort()
+      return new Response(null, { status: 429 })
+    })
+    await call('search', { query: 'private query' }, controller.signal)
+    expect(mocks.search).not.toHaveBeenCalled()
+    await mocks.afterResponse.mock.calls[0][0]()
+    expect(mocks.recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'cancelled' })
+    )
+  })
 })

@@ -83,7 +83,9 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     const signal = AbortSignal.any([request.signal, toolSignal])
     let outcome: SearchMcpActivityInput['outcome'] = 'error'
     try {
+      signal.throwIfAborted()
       const limited = await v2RateLimits.publicApi.enforce(request, auth, operation)
+      signal.throwIfAborted()
       if (limited) {
         outcome = 'rate_limited'
         const retryAfter = parseRetryAfter(
@@ -96,7 +98,6 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
             : `API rate limit exceeded. Retry in ${Math.ceil(retryAfter / 1000)} seconds.`
         )
       }
-      signal.throwIfAborted()
       const result = await run(new ResolvedSecretTraceRegistry(), signal)
       outcome = signal.aborted ? 'cancelled' : result.isError ? 'error' : 'success'
       return result
@@ -122,6 +123,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
         userId: resolvePrincipalSubjectUserId(principal) ?? null,
         authKind: principal.kind,
         oauthClientId: principal.kind === 'oauth_access_token' ? principal.clientId : null,
+        clientName: principal.kind === 'oauth_access_token' ? (principal.clientName ?? null) : null,
         outcome,
         durationMs: Math.round(performance.now() - startedAt),
         createdAt: new Date(),

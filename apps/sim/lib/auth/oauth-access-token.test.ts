@@ -18,6 +18,7 @@ function row(overrides: Record<string, unknown> = {}) {
     id: 'token-1',
     userId: 'user-1',
     clientId: 'sim-cli',
+    clientName: 'Sim CLI',
     scopes: ['offline_access', 'api:read'],
     resource: null,
     expiresAt: new Date(Date.now() + 60_000),
@@ -80,6 +81,7 @@ describe('verifyOAuthAccessToken', () => {
       kind: 'oauth_access_token',
       userId: 'user-1',
       clientId: 'sim-cli',
+      clientName: 'Sim CLI',
       tokenId: 'token-1',
       scopes: ['offline_access', 'api:read'],
       expiresAt: expect.any(Date),
@@ -90,6 +92,13 @@ describe('verifyOAuthAccessToken', () => {
       { kind: 'oauth_access_token', clientId: 'sim-cli' },
       { preserveExisting: true }
     )
+  })
+
+  it('does not invent a display name for an unnamed OAuth client', async () => {
+    queueTableRows(schemaMock.oauthAccessToken, [row({ clientName: null })])
+    const principal = await verifyOAuthAccessToken('sim_oat_secret')
+    expect(principal).not.toHaveProperty('clientName')
+    expect(principal.clientId).toBe('sim-cli')
   })
 
   it('refuses a credential that is not one of ours without a database read', async () => {

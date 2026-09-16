@@ -525,66 +525,68 @@ describe('organization Search MCP with real ingestion and current access', () =>
     await db
       .delete(organizationSearchMcpInvocation)
       .where(eq(organizationSearchMcpInvocation.organizationId, organizationId))
+    const clientName = 'MCP fixture client'.repeat(20)
     await db
       .update(oauthClient)
-      .set({ name: 'MCP fixture client' })
+      .set({ name: clientName })
       .where(eq(oauthClient.clientId, oauthClientId))
-    await aliceOAuth.listTools()
-    expect(fixtures.afterResponse).toHaveLength(0)
-    await search(aliceOAuth)
-    await value(aliceOAuth, 'read_document', { documentId })
-    expect((await call(bob, 'read_document', { documentId })).isError).toBe(true)
-    expect(fixtures.afterResponse).toHaveLength(3)
-    await flushAfterResponse()
-    const rows = await db
-      .select()
-      .from(organizationSearchMcpInvocation)
-      .where(eq(organizationSearchMcpInvocation.organizationId, organizationId))
-      .orderBy(organizationSearchMcpInvocation.createdAt)
-      .limit(10)
-    expect(rows).toHaveLength(3)
-    expect(rows).toMatchObject([
-      {
-        organizationId,
-        userId: aliceId,
-        authKind: 'oauth_access_token',
-        oauthClientId,
-        clientName: 'MCP fixture client',
-        toolName: 'search',
-        outcome: 'success',
-      },
-      {
-        organizationId,
-        userId: aliceId,
-        authKind: 'oauth_access_token',
-        oauthClientId,
-        clientName: 'MCP fixture client',
-        toolName: 'read_document',
-        outcome: 'success',
-      },
-      {
-        organizationId,
-        userId: bobId,
-        authKind: 'personal_api_key',
-        oauthClientId: null,
-        clientName: null,
-        toolName: 'read_document',
-        outcome: 'error',
-      },
-    ])
-    expect(rows.every((row) => row.durationMs >= 0)).toBe(true)
-    expect(JSON.stringify(rows)).not.toContain(documentId)
-    expect(JSON.stringify(rows)).not.toContain(oauthTokens.alice)
-    await db
-      .update(oauthClient)
-      .set({ name: 'Renamed client' })
-      .where(eq(oauthClient.clientId, oauthClientId))
-    const [historical] = await db
-      .select()
-      .from(organizationSearchMcpInvocation)
-      .where(eq(organizationSearchMcpInvocation.id, rows[0].id))
-      .limit(1)
-    expect(historical.clientName).toBe('MCP fixture client')
+    try {
+      await aliceOAuth.listTools()
+      expect(fixtures.afterResponse).toHaveLength(0)
+      await search(aliceOAuth)
+      await value(aliceOAuth, 'read_document', { documentId })
+      expect((await call(bob, 'read_document', { documentId })).isError).toBe(true)
+      expect(fixtures.afterResponse).toHaveLength(3)
+      await db
+        .update(oauthClient)
+        .set({ name: 'Renamed client' })
+        .where(eq(oauthClient.clientId, oauthClientId))
+      await flushAfterResponse()
+      const rows = await db
+        .select()
+        .from(organizationSearchMcpInvocation)
+        .where(eq(organizationSearchMcpInvocation.organizationId, organizationId))
+        .orderBy(organizationSearchMcpInvocation.createdAt)
+        .limit(10)
+      expect(rows).toHaveLength(3)
+      expect(rows).toMatchObject([
+        {
+          organizationId,
+          userId: aliceId,
+          authKind: 'oauth_access_token',
+          oauthClientId,
+          clientName: clientName.slice(0, 256),
+          toolName: 'search',
+          outcome: 'success',
+        },
+        {
+          organizationId,
+          userId: aliceId,
+          authKind: 'oauth_access_token',
+          oauthClientId,
+          clientName: clientName.slice(0, 256),
+          toolName: 'read_document',
+          outcome: 'success',
+        },
+        {
+          organizationId,
+          userId: bobId,
+          authKind: 'personal_api_key',
+          oauthClientId: null,
+          clientName: null,
+          toolName: 'read_document',
+          outcome: 'error',
+        },
+      ])
+      expect(rows.every((row) => row.durationMs >= 0)).toBe(true)
+      expect(JSON.stringify(rows)).not.toContain(documentId)
+      expect(JSON.stringify(rows)).not.toContain(oauthTokens.alice)
+    } finally {
+      await db
+        .update(oauthClient)
+        .set({ name: 'Search MCP OAuth fixture' })
+        .where(eq(oauthClient.clientId, oauthClientId))
+    }
   })
 
   it('enforces current document and organization access on Search OAuth clients', async () => {
