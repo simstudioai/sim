@@ -8,12 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { requestJson } = vi.hoisted(() => ({ requestJson: vi.fn() }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson }))
-vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
-  permissionGroupKeys: {
-    all: ['permissionGroups'],
-    userConfig: (workspaceId: string) => ['permissionGroups', 'userConfig', workspaceId],
-  },
-}))
 
 import {
   discoverAccessRequestsContract,
@@ -21,11 +15,11 @@ import {
   resolveAccessRequestContract,
 } from '@/lib/api/contracts/access-requests'
 import {
-  accessRequestKeys,
   useDiscoverAccessRequests,
   useMyAccessRequests,
   useResolveAccessRequest,
 } from '@/hooks/queries/access-requests'
+import { accessRequestKeys } from '@/hooks/queries/utils/access-request-keys'
 import { workspaceUsageKeys } from '@/hooks/queries/utils/workspace-usage-keys'
 
 describe('access request query lifecycle', () => {
