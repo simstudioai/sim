@@ -74,6 +74,19 @@ describe('embedded downloads', () => {
     )
   })
 
+  it('never resolves an invalid caller working directory against the server cwd', async () => {
+    const cancel = vi.fn()
+    const writeFile = vi.fn()
+    const source = new ReadableStream<Uint8Array>({ cancel })
+    await expect(
+      embedStore.run(embedded({ workingDirectory: 'relative', writeFile }), () =>
+        saveToFile(source, 'out.zip', false)
+      )
+    ).rejects.toThrow('must be absolute')
+    expect(writeFile).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
   it('cancels an unconsumed download when the host cannot save it', async () => {
     const cancel = vi.fn()
     const source = new ReadableStream<Uint8Array>({ cancel })

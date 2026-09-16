@@ -6,19 +6,27 @@
  */
 
 import { omit } from '@sim/utils/object'
+import { z } from 'zod'
 import { mothershipBlockDetailSchema } from '@/lib/api/contracts/mothership-catalog'
 import { type V2BlockDetail, v2BlockDetailSchema } from '@/lib/api/contracts/v2/catalog'
+import { projectBlockOutputs } from '@/lib/catalog/projection/block-detail'
 import { resolveDeniedBlockOperations } from '@/lib/integrations/tool-projection'
 import { withModelHints } from '@/lib/mothership/agent-cli/model-hints'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
+import { getTableQueryAvailability } from '@/lib/table/query-availability'
+import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { inputFormatValueSchema } from '@/lib/workflows/input-format-schema'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
 export interface CurationViewer {
   workspaceId: string
   userId: string
 }
+
+const { $schema: _schemaVersion, ...inputFormatSchema } = z.toJSONSchema(inputFormatValueSchema)
 
 function parseBlockDetail(stdout: string): V2BlockDetail | null {
   try {
@@ -75,7 +83,30 @@ export async function curateBlockDetail(
   if (permitted.exitCode !== 0) return permitted
   const detail = parseBlockDetail(permitted.stdout)
   if (!detail) return permitted
-  const enriched = withModelHints(detail)
+  const hasInputFormat = detail.inputSchema.some((field) => field.type === 'input-format')
+  let enriched = withModelHints(
+    hasInputFormat
+      ? {
+          ...detail,
+          inputSchema: detail.inputSchema.map((field) =>
+            field.type === 'input-format' ? { ...field, valueSchema: inputFormatSchema } : field
+          ),
+          outputs: projectBlockOutputs(getBlockOutputs(detail.id)),
+        }
+      : detail
+  )
+  if (detail.toolIds.includes('table_query_rows_v2')) {
+    const workspace = await resolveActiveWorkspaceApplicationContext(viewer.workspaceId)
+    enriched = {
+      ...enriched,
+      operationAvailability: {
+        table_query_rows_v2: await getTableQueryAvailability({
+          userId: viewer.userId,
+          orgId: workspace.workspaceOrganizationId,
+        }),
+      },
+    }
+  }
   if (enriched === detail) return permitted
   return { ...permitted, stdout: JSON.stringify(mothershipBlockDetailSchema.parse(enriched)) }
 }

@@ -15,15 +15,28 @@ export async function observePrivateFile(
     buffer: Buffer
     name: string
     path: string
-    source: 'sandbox' | 'upload'
+    source: 'sandbox' | 'upload' | 'knowledge'
     contentType?: string
+    knowledge?: {
+      documentId: string
+      knowledgeBaseId: string
+      processingStatus: string
+      indexReady: boolean
+      sourceAvailable: boolean
+    }
   },
   flags: AgentCliFlags,
   options: { offset?: number; limit?: number },
   signal?: AbortSignal
 ) {
   const type = file.contentType ?? getMimeTypeFromExtension(getFileExtension(file.name))
-  const metadata = { name: file.name, path: file.path, type, source: file.source }
+  const metadata = {
+    name: file.name,
+    path: file.path,
+    type,
+    source: file.source,
+    ...file.knowledge,
+  }
   const textRange = options.offset !== undefined || options.limit !== undefined
   const visual = flags.render !== undefined || flags.pages !== undefined
   if (visual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))) {
@@ -88,7 +101,10 @@ export async function observePrivateFile(
       representation: 'binary',
       bytes: file.buffer.length,
       contentAvailable: false,
-      note: 'Content was not inspected: this file has no model-readable decoder. Process its mounted sandbox path with run_code.',
+      note:
+        file.source === 'knowledge'
+          ? 'Content was not inspected: this original has no model-readable decoder.'
+          : 'Content was not inspected: this file has no model-readable decoder. Process its mounted sandbox path with run_code.',
     })
   )
 }

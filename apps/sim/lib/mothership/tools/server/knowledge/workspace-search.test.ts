@@ -36,12 +36,13 @@ vi.mock('@/lib/knowledge/application/read-search-document', () => ({
   },
 }))
 
+import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { annotateSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
 import {
   readDocumentServerTool,
   searchWorkspaceServerTool,
 } from '@/lib/mothership/tools/server/knowledge/workspace-search'
-import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { annotateSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const context = {
@@ -84,6 +85,20 @@ describe('Assistant retrieval tools', () => {
       hasMore: false,
       next: null,
     })
+  })
+  it('returns a safe permanent configuration failure instead of empty results or opaque error', async () => {
+    mocks.search.mockRejectedValue(new EmbeddingConfigurationError())
+    const result = await searchWorkspaceServerTool.execute({ query: 'policy' }, context)
+    expect(result).toMatchObject({
+      success: false,
+      retryable: false,
+      capability: 'semantic_retrieval',
+      reason: 'provider_not_configured',
+      recovery: expect.stringContaining('authorized original'),
+      message: expect.stringContaining('embedding provider is not configured'),
+    })
+    expect(result).not.toHaveProperty('data')
+    expect(result).not.toHaveProperty('results')
   })
   it('returns empty incomplete retrieval as a recoverable search outcome and logs coverage', async () => {
     mocks.search.mockImplementation(async () => {

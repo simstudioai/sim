@@ -1,3 +1,4 @@
+import { tableSuccess } from '@/tools/table/response'
 import type { TableCreateParams, TableCreateResponse } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -48,13 +49,10 @@ export const tableCreateTool: InternalToolConfig<TableCreateParams, TableCreateR
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        table: data.table,
-        message: data.message || 'Table created successfully',
-      },
-    }
+    return tableSuccess({
+      table: data.table,
+      message: data.message || 'Table created successfully',
+    })
   },
 
   outputs: {

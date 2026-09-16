@@ -10,7 +10,6 @@ import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type {
@@ -73,6 +72,10 @@ import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
+import {
+  getTableQueryAvailability,
+  TABLE_QUERY_UNAVAILABLE_REASON,
+} from '@/lib/table/query-availability'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -107,7 +110,7 @@ export class TableRowsValidationError extends OrchestrationError {
 
 export class TableV2FeatureDisabledError extends OrchestrationError {
   constructor() {
-    super('forbidden', 'The v2 table query API is not enabled for this workspace')
+    super('forbidden', TABLE_QUERY_UNAVAILABLE_REASON)
     this.name = 'TableV2FeatureDisabledError'
   }
 }
@@ -492,13 +495,15 @@ export const queryTableRows = defineAuthorizedTableUseCase({
       if (input.requireV2Feature) {
         const orgId = await getWorkspaceOrganizationId(context.workspaceId)
         if (
-          !(await isFeatureEnabled('tables-v2-api', {
-            // An actorless run has no user to match a per-user rule against, and a
-            // missing one resolves the admin clause to `false` without a query — so
-            // the gate only ever narrows here, never widens.
-            userId: resolvePrincipalSubjectUserId(principal),
-            orgId,
-          }))
+          !(
+            await getTableQueryAvailability({
+              // An actorless run has no user to match a per-user rule against, and a
+              // missing one resolves the admin clause to `false` without a query — so
+              // the gate only ever narrows here, never widens.
+              userId: resolvePrincipalSubjectUserId(principal),
+              orgId,
+            })
+          ).enabled
         ) {
           throw new TableV2FeatureDisabledError()
         }

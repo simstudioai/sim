@@ -1,7 +1,7 @@
 import { once } from 'node:events'
 import { createWriteStream, rmSync, type WriteStream } from 'node:fs'
 import { link, lstat, mkdtemp, readlink, rename, rm } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, posix, resolve } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
@@ -203,10 +203,15 @@ export async function saveToFile(
   body: ReadableStream<Uint8Array>,
   target: string,
   force: boolean
-): Promise<void> {
+): Promise<string> {
   const embedded = embedStore.getStore()
   if (embedded) {
     try {
+      if (embedded.workingDirectory) {
+        if (!posix.isAbsolute(embedded.workingDirectory))
+          throw new SimApiError('The caller working directory must be absolute.', 0)
+        target = posix.resolve(embedded.workingDirectory, target)
+      }
       embedded.identity.signal?.throwIfAborted()
       if (!embedded.writeFile) {
         throw new SimApiError(
@@ -220,9 +225,11 @@ export async function saveToFile(
       /** The host releases its reader; refusal and early failure must also close the source. */
       await body.cancel().catch(() => {})
     }
-    return
+    return target
   }
-  return saveStagedFile(body, target, force)
+  target = resolve(target)
+  await saveStagedFile(body, target, force)
+  return target
 }
 
 /** Streams a fetch body to stdout without closing the process-wide stream. */
@@ -317,9 +324,7 @@ export function attachFileGet(files: Command): void {
           return
         }
 
-        const target = options.outputFile
-
-        await saveToFile(response.body, target, Boolean(options.force))
+        const target = await saveToFile(response.body, options.outputFile, Boolean(options.force))
         printProtocolResult(profile.output, {
           id: fileId,
           path: target,

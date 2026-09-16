@@ -174,3 +174,92 @@ describe('runEmbeddedCli', () => {
     expect(JSON.parse(b.stdout).data[0].id).toBe(wsB)
   })
 })
+
+describe('embedded artifact destinations', () => {
+  it.each([undefined, 'relative.zip', '/tmp/explicit.zip'])(
+    'returns the usable artifact path for %s without inheriting host cwd',
+    async (requested) => {
+      const files = new Map<string, Uint8Array>()
+      const expected =
+        requested === '/tmp/explicit.zip'
+          ? requested
+          : `/home/user/${requested ?? 'Handbook.simkb.zip'}`
+      const bytes = new Uint8Array([80, 75, 3, 4])
+      const result = await runEmbeddedCli(
+        ['knowledge', 'export', 'kb', ...(requested ? ['--output-file', requested] : [])],
+        {
+          ...IDENTITY,
+          transport: async () =>
+            new Response(bytes, {
+              headers: {
+                'content-type': 'application/zip',
+                'content-disposition': 'attachment; filename="Handbook.simkb.zip"',
+              },
+            }),
+        },
+        {
+          workingDirectory: '/home/user',
+          writeFile: async (path, body) => {
+            files.set(path, new Uint8Array(await new Response(body).arrayBuffer()))
+          },
+        }
+      )
+      expect(result.exitCode, result.stderr).toBe(0)
+      expect(JSON.parse(result.stdout).path).toBe(expected)
+      expect(files.get(expected)).toEqual(bytes)
+      expect(files.size).toBe(1)
+      expect(result.stdout).not.toContain(process.cwd())
+    }
+  )
+
+  it('uses the same destination contract for downloads and @path readback', async () => {
+    const files = new Map<string, Uint8Array>()
+    const body = JSON.stringify({ title: 'downloaded' })
+    const transport = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'POST') return Response.json({ data: { id: 'tool-result' } })
+      return new Response(body, { headers: { 'content-type': 'application/json' } })
+    })
+    const options = {
+      workingDirectory: '/home/user',
+      writeFile: async (path: string, stream: ReadableStream<Uint8Array>) => {
+        files.set(path, new Uint8Array(await new Response(stream).arrayBuffer()))
+      },
+      readFile: async (path: string) => {
+        const file = files.get(path)
+        if (!file) throw new Error('missing')
+        return file
+      },
+    }
+    const saved = await runEmbeddedCli(
+      ['files', 'get', 'file', '--output-file', 'input.json'],
+      { ...IDENTITY, transport },
+      options
+    )
+    expect(saved.exitCode, saved.stderr).toBe(0)
+    const path = JSON.parse(saved.stdout).path
+    expect(path).toBe('/home/user/input.json')
+    const consumed = await runEmbeddedCli(
+      ['tables', 'rows', 'create', 'table', '--data', `@${path}`],
+      { ...IDENTITY, transport },
+      options
+    )
+    expect(consumed.exitCode, consumed.stderr).toBe(0)
+    expect(JSON.parse(String(transport.mock.calls.at(-1)?.[1]?.body)).data).toEqual({
+      title: 'downloaded',
+    })
+  })
+
+  it('refuses archive bytes in embedded stdout and has no server-disk fallback', async () => {
+    const identity = {
+      ...IDENTITY,
+      transport: async () =>
+        new Response(new Uint8Array([80, 75]), { headers: { 'content-type': 'application/zip' } }),
+    }
+    const stdout = await runEmbeddedCli(['knowledge', 'export', 'kb', '-o', '-'], identity)
+    expect(stdout.exitCode).toBe(1)
+    expect(stdout.stdout).toBe('')
+    const noWriter = await runEmbeddedCli(['knowledge', 'export', 'kb'], identity)
+    expect(noWriter.exitCode).toBe(1)
+    expect(noWriter.stderr).toContain('no machine to write to')
+  })
+})

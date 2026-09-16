@@ -1,6 +1,8 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableBatchInsertParams, TableBatchInsertResponse } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -20,12 +22,7 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     rows: {
       type: 'array',
       required: true,
@@ -57,14 +54,11 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        rows: data.rows,
-        insertedCount: data.insertedCount,
-        message: data.message || 'Rows inserted successfully',
-      },
-    }
+    return tableSuccess({
+      rows: data.rows,
+      insertedCount: data.insertedCount,
+      message: data.message || 'Rows inserted successfully',
+    })
   },
 
   outputs: {

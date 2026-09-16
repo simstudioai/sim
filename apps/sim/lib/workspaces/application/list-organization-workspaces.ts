@@ -8,6 +8,8 @@ import {
 } from '@/lib/permission-groups/capabilities'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
+import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
+import { getTableQueryAvailability } from '@/lib/table/query-availability'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 export const organizationWorkspaceOperations = {
@@ -75,7 +77,20 @@ export const listOrganizationWorkspaces = {
         name: workspace.name,
         role: permissionType,
         ...(input.workspaceId
-          ? { capabilityDetail: 'full' as const, capabilities }
+          ? {
+              capabilityDetail: 'full' as const,
+              capabilities,
+              operationAvailability: createToolAccessGate(config?.deniedTools)(
+                'table_query_rows_v2'
+              )
+                ? {
+                    table_query_rows_v2: await getTableQueryAvailability({
+                      userId: context.userId,
+                      orgId: context.organizationId,
+                    }),
+                  }
+                : {},
+            }
           : {
               capabilityDetail: 'restrictions' as const,
               copilotAllowed: capabilities['copilot.use'] === true,

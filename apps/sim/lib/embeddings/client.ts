@@ -31,6 +31,7 @@ import {
   ollamaEmbeddingModelName,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
+import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
 import { isOllamaServerConfigured } from '@/lib/embeddings/ollama-model-catalog.server'
 import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
@@ -384,7 +385,7 @@ async function resolveProvider(
       throw new Error(`OpenRouter transport does not support catalog provider: ${info.provider}`)
     }
     if (!options.apiKey) {
-      throw new Error('OPENROUTER_API_KEY is not configured')
+      throw new EmbeddingConfigurationError()
     }
     return {
       adapter: getAdapterFactory('openrouter')({
@@ -413,7 +414,7 @@ async function resolveProvider(
    */
   if (info.provider === 'ollama') {
     if (!isOllamaServerConfigured()) {
-      throw new Error('OLLAMA_URL must be configured for Ollama embeddings')
+      throw new EmbeddingConfigurationError()
     }
     const baseUrl = getOllamaUrl().replace(/\/+$/, '')
     const modelName = ollamaEmbeddingModelName(model)

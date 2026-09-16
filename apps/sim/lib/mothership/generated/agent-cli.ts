@@ -64,7 +64,7 @@ export const AgentCliRequest = z.object({
   workspaceId: z.uuid().optional(),
   invocation: AgentCliInvocation,
   sink: AgentCliSandboxFileSink.optional(),
-  curate: z.literal("block").optional(),
+  curate: z.enum(["block", "knowledge-documents"]).optional(),
 });
 export type AgentCliRequest = z.infer<typeof AgentCliRequest>;
 
