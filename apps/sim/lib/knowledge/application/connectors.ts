@@ -355,8 +355,7 @@ function rethrowConnectorCredentialError(error: unknown): never {
           'Google denied service-account access (access_denied). Ask your Workspace administrator to check API access policies and domain-wide delegation.'
         break
       default:
-        message =
-          "Google rejected service-account authorization. Check the JSON key and, if using domain-wide delegation, its numeric client ID, required scopes, and delegated user's Workspace email."
+        throw error
     }
     throw new OrchestrationError('validation', message)
   }

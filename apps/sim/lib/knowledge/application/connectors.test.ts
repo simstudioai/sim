@@ -1661,7 +1661,6 @@ describe('organization connector credential authorization', () => {
     [400, 'invalid_grant', 'JSON key'],
     [400, 'invalid_scope', 'scopes'],
     [403, 'access_denied', 'API access policies'],
-    [401, 'unknown-private-code', 'Google rejected service-account authorization'],
   ])('classifies Google %s %s without exposing provider text', async (status, code, guidance) => {
     mocks.resolveTokenBundle.mockRejectedValueOnce(
       new ServiceAccountTokenError(status, 'private provider payload', code)
@@ -1671,8 +1670,19 @@ describe('organization connector credential authorization', () => {
     )
     expect(error).toMatchObject({ code: 'validation', message: expect.stringContaining(guidance) })
     expect((error as Error).message).not.toContain('private provider payload')
-    expect((error as Error).message).not.toContain('unknown-private-code')
   })
+
+  it.each([400, 401, 403])(
+    'preserves unrecognized Google %s responses instead of assuming a configuration error',
+    async (status) => {
+      for (const code of [undefined, 'unknown-private-code', 'server_error']) {
+        const error = new ServiceAccountTokenError(status, 'private provider payload', code)
+        mocks.resolveTokenBundle.mockRejectedValueOnce(error)
+        await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(error)
+        expect(internalOrchestrationErrorPolicy.project(error)).toBeNull()
+      }
+    }
+  )
 
   it.each([429, 500, 503])(
     'preserves Google %s failures instead of blaming configuration',
