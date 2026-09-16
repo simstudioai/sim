@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { V2BlockDetail } from '@/lib/api/contracts/v2/catalog'
+import { mothershipBlockDetailSchema } from '@/lib/api/contracts/mothership-catalog'
+import { type V2BlockDetail, v2BlockDetailSchema } from '@/lib/api/contracts/v2/catalog'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const { permissionConfig, denied } = vi.hoisted(() => ({
   permissionConfig: { current: null as { deniedTools?: string[] } | null },
@@ -94,6 +96,61 @@ describe('curateBlockDetail', () => {
     expect(curated.operationInputSchema).toEqual({ send: [] })
     expect(curated.inputSchema[0].options).toEqual([{ id: 'send' }])
     expect(curated.toolIds).toEqual(['slack_send'])
+  })
+
+  it('adds canonical model hints only on the internal curated response', async () => {
+    const models = Object.values(PROVIDER_DEFINITIONS)
+      .flatMap((provider) => provider.models)
+      .filter((model) => model.sunset?.status !== 'deprecated')
+    const original = {
+      ...blockDetail(),
+      inputSchema: [
+        {
+          id: 'model',
+          type: 'combobox',
+          options: [...models.map((model) => ({ id: model.id })), { id: 'private-local-model' }],
+        },
+      ],
+    }
+    const publicShape = v2BlockDetailSchema.parse(original)
+    expect(publicShape).toEqual(original)
+    const result = await curateBlockDetail(ok(JSON.stringify(original)), viewer)
+    const detail = mothershipBlockDetailSchema.parse(JSON.parse(result.stdout))
+    const field = detail.inputSchema[0]!
+    expect(field.optionsAvailability).toContain(
+      'deployment, provider credentials and model permissions'
+    )
+    expect(field.options).toHaveLength(original.inputSchema[0]!.options.length)
+    for (const model of models) {
+      const option = field.options!.find((option) => option.id === model.id)!
+      expect(option.recommended).toBe(model.recommended || undefined)
+      expect(option.speedOptimized).toBe(model.speedOptimized || undefined)
+      expect(option.sunset).toEqual(model.sunset)
+      expect(option).not.toHaveProperty('runnable')
+      expect(option).not.toHaveProperty('pricing')
+    }
+    expect(field.options!.at(-1)).toEqual({ id: 'private-local-model' })
+    expect(v2BlockDetailSchema.parse(detail)).toEqual(original)
+  })
+
+  it('applies denied operation projection before adding model hints', async () => {
+    permissionConfig.current = { deniedTools: ['slack_canvas'] }
+    denied.current.needsProjection.set('slack', new Set(['canvas']))
+    const original = blockDetail()
+    original.inputSchema.push({
+      id: 'model',
+      type: 'combobox',
+      options: [{ id: 'claude-sonnet-5' }],
+    })
+    const result = await curateBlockDetail(ok(JSON.stringify(original)), viewer)
+    const detail = mothershipBlockDetailSchema.parse(JSON.parse(result.stdout))
+    expect(Object.keys(detail.operations)).toEqual(['send'])
+    expect(detail.inputSchema[0]!.options).toEqual([{ id: 'send' }])
+    expect(detail.inputSchema[1]!.optionsAvailability).toBeDefined()
+    denied.current.fullyDenied.add('slack')
+    const blocked = await curateBlockDetail(ok(JSON.stringify(original)), viewer)
+    expect(blocked.exitCode).toBe(1)
+    expect(blocked.stdout).not.toContain('recommended')
   })
 
   it('refuses a fully denied block', async () => {
