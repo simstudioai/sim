@@ -8,7 +8,10 @@ import {
 } from '@/components/settings/navigation'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import {
+  isOrganizationGovernanceActive,
+  isOrganizationOnEnterprisePlan,
+} from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
@@ -77,19 +80,29 @@ async function resolveOrganizationSurfaceContext(
   if (!row) return null
 
   const deployment = getDeploymentShape()
-  const [config, [{ memberCount }], connectedAccountsAvailable, searchAccess, hasEnterprisePlan] =
-    await Promise.all([
-      getUserPermissionConfigForOrganization(organizationId),
-      db
-        .select({ memberCount: count() })
-        .from(member)
-        .where(eq(member.organizationId, organizationId)),
-      isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }),
-      resolveKnowledgeAccessAvailability({ organizationId }),
-      deployment.hosted && access.isAdmin
-        ? isOrganizationOnEnterprisePlan(organizationId)
-        : Promise.resolve(false),
-    ])
+  const [
+    config,
+    [{ memberCount }],
+    connectedAccountsAvailable,
+    searchAccess,
+    hasEnterprisePlan,
+    governanceActive,
+  ] = await Promise.all([
+    getUserPermissionConfigForOrganization(organizationId),
+    db
+      .select({ memberCount: count() })
+      .from(member)
+      .where(eq(member.organizationId, organizationId)),
+    isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }),
+    resolveKnowledgeAccessAvailability({ organizationId }),
+    deployment.hosted && access.isAdmin
+      ? isOrganizationOnEnterprisePlan(organizationId)
+      : Promise.resolve(false),
+    /** Access Control stays listed while a payment is failing, because its rules still apply. */
+    deployment.hosted && access.isAdmin
+      ? isOrganizationGovernanceActive(organizationId)
+      : Promise.resolve(false),
+  ])
   return {
     organization: {
       id: row.id,
@@ -112,7 +125,11 @@ async function resolveOrganizationSurfaceContext(
     },
     connectedAccountsAvailable,
     searchAccess,
-    settingsFeatures: getOrganizationSettingsFeatures(hasEnterprisePlan, deployment),
+    settingsFeatures: getOrganizationSettingsFeatures(
+      hasEnterprisePlan,
+      deployment,
+      governanceActive
+    ),
     deployment,
   }
 }

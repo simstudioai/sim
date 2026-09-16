@@ -3,7 +3,10 @@ import {
   isOrganizationSettingsSectionAvailable,
   type OrganizationSettingsSection,
 } from '@/components/settings/navigation'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import {
+  isOrganizationGovernanceActive,
+  isOrganizationOnEnterprisePlan,
+} from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
@@ -33,12 +36,22 @@ export async function authorizeOrganizationSettingsSection({
 
   const deployment = getDeploymentShape()
   const needsEnterprisePlan = deployment.hosted && section !== 'members' && section !== 'billing'
-  const hasEnterprisePlan = needsEnterprisePlan
-    ? await isOrganizationOnEnterprisePlan(organizationId)
-    : false
+  /**
+   * Access Control is the one section whose availability follows governance rather than the plan
+   * gate, and it is the only one that reads it — so the extra lookup is scoped to that section
+   * instead of being paid on every settings page.
+   */
+  const [hasEnterprisePlan, governanceActive] = needsEnterprisePlan
+    ? await Promise.all([
+        isOrganizationOnEnterprisePlan(organizationId),
+        section === 'access-control'
+          ? isOrganizationGovernanceActive(organizationId)
+          : Promise.resolve(false),
+      ])
+    : [false, false]
 
   return isOrganizationSettingsSectionAvailable(
     section,
-    getOrganizationSettingsFeatures(hasEnterprisePlan, deployment)
+    getOrganizationSettingsFeatures(hasEnterprisePlan, deployment, governanceActive)
   )
 }

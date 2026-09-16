@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { permissionGroup, permissionGroupWorkspace, workspace } from '@sim/db/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
+import { isOrganizationGovernanceActive } from '@/lib/billing'
 import type { DbOrTx } from '@/lib/db/types'
 import type {
   AllMembersConflict,
@@ -32,13 +32,11 @@ export async function authorizeOrgAccessControl(
   }
 
   /**
-   * The feature gate, deliberately, not the governance reader: the Access Control settings page is
-   * gated on the same plan check, so reading governance here would open the API for a past-due
-   * organization whose page still 404s. Restrictions keep applying through a dunning window —
-   * that is what the governance reader is for — but managing them follows the page.
+   * Governance, not the plan gate: an organization whose restrictions still apply has to be able
+   * to see and loosen them, so this matches what the Access Control page now allows.
    */
-  const entitled = await isOrganizationOnEnterprisePlan(organizationId)
-  if (!entitled) {
+  const governed = await isOrganizationGovernanceActive(organizationId)
+  if (!governed) {
     return NextResponse.json({ error: 'Access Control is an Enterprise feature' }, { status: 403 })
   }
 

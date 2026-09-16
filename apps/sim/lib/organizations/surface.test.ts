@@ -19,6 +19,8 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockEnterprisePlan,
+  /** The nav lists Access Control on governance; these tests drive both from one knob. */
+  isOrganizationGovernanceActive: mockEnterprisePlan,
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   resolveKnowledgeAccessAvailability: mockSearchAccess,

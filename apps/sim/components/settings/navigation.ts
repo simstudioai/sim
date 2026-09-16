@@ -1014,18 +1014,27 @@ export function resolveOrganizationSectionAccess({
 export interface OrganizationSettingsFeatures {
   billingEnabled: boolean
   hasEnterprisePlan: boolean
+  /**
+   * Whether the organization's permission-group regime is in force, which outlives the plan gate
+   * through a failing payment — see `isOrganizationGovernanceActive`. Only Access Control reads
+   * it, because only that section edits something that keeps applying while the gate is closed.
+   */
+  governanceActive: boolean
   hosted: boolean
   selfHosted: Partial<Record<OrganizationSettingsSection, boolean>>
 }
 
 export function getOrganizationSettingsFeatures(
   hasEnterprisePlan: boolean,
-  deployment: DeploymentShape
+  deployment: DeploymentShape,
+  /** Defaults to the plan gate, so a caller with no reason to distinguish the two keeps its behavior. */
+  governanceActive: boolean = hasEnterprisePlan
 ): OrganizationSettingsFeatures {
   const { features } = deployment
   return {
     billingEnabled: deployment.billingEnabled,
     hasEnterprisePlan,
+    governanceActive,
     hosted: deployment.hosted,
     selfHosted: {
       'connected-accounts': true,
@@ -1055,6 +1064,12 @@ export function isOrganizationSettingsSectionAvailable(
   /* Sim Search itself is enterprise on the hosted product; self-hosted gates it by flag, not by section. */
   if (section === 'integrations' || section === 'search-slack')
     return !features.hosted || features.hasEnterprisePlan
+  /**
+   * Access Control follows governance rather than the plan gate: its restrictions keep applying
+   * through a failing payment, so hiding the page that edits them would leave an organization
+   * governed by rules it cannot see or loosen until the invoice clears.
+   */
+  if (section === 'access-control' && features.hosted) return features.governanceActive
   if (features.hosted) return features.hasEnterprisePlan
   return features.selfHosted[section] ?? false
 }

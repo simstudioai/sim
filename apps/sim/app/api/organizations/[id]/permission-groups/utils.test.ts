@@ -4,13 +4,13 @@
 import { resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsOrganizationAdminOrOwner, mockIsOrganizationOnEnterprisePlan } = vi.hoisted(() => ({
+const { mockIsOrganizationAdminOrOwner, mockIsOrganizationGovernanceActive } = vi.hoisted(() => ({
   mockIsOrganizationAdminOrOwner: vi.fn<() => Promise<boolean>>(),
-  mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
+  mockIsOrganizationGovernanceActive: vi.fn<() => Promise<boolean>>(),
 }))
 
 vi.mock('@/lib/billing', () => ({
-  isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
+  isOrganizationGovernanceActive: mockIsOrganizationGovernanceActive,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -29,7 +29,7 @@ describe('authorizeOrgAccessControl', () => {
 
   it('returns a 403 when the user is not an organization admin/owner', async () => {
     mockIsOrganizationAdminOrOwner.mockResolvedValue(false)
-    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
+    mockIsOrganizationGovernanceActive.mockResolvedValue(true)
 
     const response = await authorizeOrgAccessControl('user-1', 'org-1')
 
@@ -37,12 +37,12 @@ describe('authorizeOrgAccessControl', () => {
     expect(response?.status).toBe(403)
     await expect(response?.json()).resolves.toEqual({ error: 'Admin permissions required' })
     // Entitlement is only checked after the admin gate passes.
-    expect(mockIsOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
+    expect(mockIsOrganizationGovernanceActive).not.toHaveBeenCalled()
   })
 
   it('returns a 403 when the organization is not on an enterprise plan', async () => {
     mockIsOrganizationAdminOrOwner.mockResolvedValue(true)
-    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(false)
+    mockIsOrganizationGovernanceActive.mockResolvedValue(false)
 
     const response = await authorizeOrgAccessControl('user-1', 'org-1')
 
@@ -54,7 +54,7 @@ describe('authorizeOrgAccessControl', () => {
 
   it('returns null when the user is an admin and the org is entitled', async () => {
     mockIsOrganizationAdminOrOwner.mockResolvedValue(true)
-    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
+    mockIsOrganizationGovernanceActive.mockResolvedValue(true)
 
     const response = await authorizeOrgAccessControl('user-1', 'org-1')
 

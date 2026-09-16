@@ -30,8 +30,6 @@
 npx sim-setup
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
-
 ### Desktop: [macOS](https://sim.ai/api/desktop/update/download)
 
 <a href="https://sim.ai/api/desktop/update/download" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Download-macOS-3B3B3B?logo=apple&logoColor=white&labelColor=1A1A1A" alt="Download Sim for macOS"></a>

@@ -231,6 +231,7 @@ describe('settings navigation boundaries', () => {
     ).toEqual({
       billingEnabled: false,
       hasEnterprisePlan: true,
+      governanceActive: true,
       hosted: false,
       selfHosted: {
         'connected-accounts': true,
@@ -492,6 +493,7 @@ describe('settings navigation boundaries', () => {
     const hostedFree = {
       billingEnabled: true,
       hasEnterprisePlan: false,
+      governanceActive: false,
       hosted: true,
       selfHosted: {},
     }

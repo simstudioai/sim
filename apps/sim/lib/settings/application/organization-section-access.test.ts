@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   canOpen: vi.fn(),
   enterprise: vi.fn(),
+  governance: vi.fn(),
   groups: vi.fn(),
   search: vi.fn(),
 }))
@@ -21,6 +22,7 @@ vi.mock('@/lib/organizations/settings-access', () => ({
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mocks.enterprise,
+  isOrganizationGovernanceActive: mocks.governance,
 }))
 
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
@@ -31,6 +33,7 @@ describe('organization settings authorization', () => {
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mocks.canOpen.mockResolvedValue(true)
     mocks.enterprise.mockResolvedValue(true)
+    mocks.governance.mockResolvedValue(true)
     mocks.groups.mockResolvedValue(true)
     mocks.search.mockResolvedValue(true)
   })
@@ -56,6 +59,49 @@ describe('organization settings authorization', () => {
       expect(mocks.enterprise).not.toHaveBeenCalled()
     }
   )
+
+  /**
+   * Access Control configures restrictions that keep applying while a payment is failing, so the
+   * page that edits them has to stay reachable — otherwise an organization is governed by rules
+   * nobody can see or loosen until the invoice clears.
+   */
+  it('opens Access Control for an organization still being governed', async () => {
+    mocks.enterprise.mockResolvedValue(false)
+    mocks.governance.mockResolvedValue(true)
+
+    await expect(
+      authorizeOrganizationSettingsSection({
+        organizationId: 'target',
+        userId: 'viewer',
+        section: 'access-control',
+      })
+    ).resolves.toBe(true)
+  })
+
+  it('closes Access Control once nothing governs the organization', async () => {
+    mocks.enterprise.mockResolvedValue(false)
+    mocks.governance.mockResolvedValue(false)
+
+    await expect(
+      authorizeOrganizationSettingsSection({
+        organizationId: 'target',
+        userId: 'viewer',
+        section: 'access-control',
+      })
+    ).resolves.toBe(false)
+  })
+
+  /** Every other section keeps reading the plan gate, and pays no extra lookup for this one. */
+  it('reads governance for no section but Access Control', async () => {
+    await authorizeOrganizationSettingsSection({
+      organizationId: 'target',
+      userId: 'viewer',
+      section: 'audit-logs',
+    })
+
+    expect(mocks.governance).not.toHaveBeenCalled()
+    expect(mocks.enterprise).toHaveBeenCalledWith('target')
+  })
 
   it.each([
     { groups: false, search: false, connectedAccounts: false, integrations: false },
