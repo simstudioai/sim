@@ -500,12 +500,12 @@ export const BrowserClickAt: ToolCatalogEntry = {
       x: {
         type: 'number',
         description:
-          'X in CSS pixels within the current viewport. When read off a browser_screenshot, divide the image pixel value by scale and add clip.x when present.',
+          "X in CSS pixels within the current viewport. When read off a browser_screenshot, follow its caption's X mapping and crop origin.",
       },
       y: {
         type: 'number',
         description:
-          'Y in CSS pixels within the current viewport, converted from screenshot pixels the same way as x.',
+          "Y in CSS pixels within the current viewport. When read off a browser_screenshot, follow its caption's Y mapping and crop origin.",
       },
     },
     required: ['x', 'y'],
@@ -1519,7 +1519,7 @@ export const BrowserScreenshot: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          "Optional element id from the current tab's latest browser_snapshot. When present, capture only the visible portion of that top-page element without scrolling or changing layout. Scroll explicitly first if needed. Framed elements are rejected; use a viewport screenshot for them. Use the returned clip offset when converting image coordinates.",
+          "Optional element id from the current tab's latest browser_snapshot. When present, capture only the visible portion of that top-page element without scrolling or changing layout. Scroll explicitly first if needed. Framed elements are rejected; use a viewport screenshot for them. Follow the image caption's coordinate mapping, including its crop origin.",
       },
     },
   },

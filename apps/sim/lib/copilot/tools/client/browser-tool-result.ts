@@ -58,7 +58,7 @@ export function sanitizeBrowserToolResultForModel(
       : null
     : { x: 0, y: 0 }
   const content = [
-    `Screenshot${location}. This is the rendered ${clip ? 'element' : 'viewport'} only — it carries no element ids, so use browser_snapshot before interacting.`,
+    `Screenshot${location}. This is the rendered ${clip ? 'element' : 'viewport'} only — it carries no element ids. Use browser_snapshot for element-ref actions and the mapping below for coordinate actions.`,
     viewportSize && `Viewport: ${viewportSize.width} × ${viewportSize.height} CSS pixels.`,
     imageSize && `Encoded image: ${imageSize.width} × ${imageSize.height} pixels.`,
     hasScale && `Image scale: X=${scaleX}, Y=${scaleY} encoded image pixels per CSS pixel.`,

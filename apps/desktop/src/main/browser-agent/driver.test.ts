@@ -3507,7 +3507,7 @@ describe('credential protection', () => {
     const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 9999, y: 5 })
 
     expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/divide image pixels by its scale/)
+    expect(result.error).toMatch(/X\/Y coordinate mapping and crop origin/)
   })
 
   it('inserts text into the focused editable at the caret', async () => {
