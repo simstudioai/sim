@@ -98,10 +98,14 @@ print(value)
         return self.run_script('wait-for-ecs-cutover.sh', ['app-pipeline', DIGEST, since], responses)
 
     def test_waits_for_every_target(self):
-        result, calls = self.poll({'get-deployment-target:target-two': [
-            {'text': 'InProgress'}, {'text': 'Succeeded'}]})
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls.count('--target-id target-two'), 2)
+        targets = ('target-one', 'target-two')
+        for pending_target in targets:
+            with self.subTest(pending_target=pending_target):
+                result, calls = self.poll({f'get-deployment-target:{pending_target}': [
+                    {'text': 'InProgress'}, {'text': 'Succeeded'}]})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for target in targets:
+                    self.assertEqual(calls.count(f'--target-id {target}'), 2)
 
     def test_rejects_stale_execution_inside_former_clock_skew_window(self):
         result, calls = self.poll({'list-pipeline-executions': {'json': [execution(start=999)]}})
