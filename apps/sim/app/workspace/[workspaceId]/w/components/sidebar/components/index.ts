@@ -1,3 +1,4 @@
+export { SidebarRowActions } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 export { ChatNavigationLink } from './chat-navigation-link/chat-navigation-link'
 export {
   CollapsedChatFlyoutItem,

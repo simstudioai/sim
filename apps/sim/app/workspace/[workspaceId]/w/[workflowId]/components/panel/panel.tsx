@@ -10,17 +10,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemAction,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Duplicate,
   Layout,
   MoreHorizontal,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverScrollArea,
-  PopoverSection,
-  PopoverTrigger,
   Trash,
   toast,
 } from '@sim/emcn'
@@ -913,63 +909,55 @@ export const Panel = memo(function Panel() {
                     <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
                       <Plus className='size-[14px]' />
                     </Button>
-                    <Popover
+                    <DropdownMenu
                       open={isCopilotHistoryOpen}
                       onOpenChange={(open) => {
                         setIsCopilotHistoryOpen(open)
                         if (open) loadCopilotChats()
                       }}
                     >
-                      <PopoverTrigger asChild>
-                        <Button variant='ghost' className='p-0'>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant='ghost' className='p-0' aria-label='Chat history'>
                           <BubbleChatDelay className='size-[14px]' />
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align='end'
+                        side='bottom'
+                        sideOffset={8}
+                        className='max-h-[280px] w-[220px]'
+                      >
                         {copilotChatList.length === 0 ? (
-                          <div className='px-1.5 py-4 text-center text-caption text-muted-foreground'>
-                            No chats yet
-                          </div>
+                          <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
                         ) : (
-                          <PopoverScrollArea>
-                            <PopoverSection className='pt-0'>Recent</PopoverSection>
-                            <div className='flex flex-col gap-0.5'>
-                              {copilotChatList.map((chat) => (
-                                <div key={chat.id} className='group'>
-                                  <PopoverItem
-                                    active={copilotChatId === chat.id}
-                                    onClick={() => handleCopilotSelectChat(chat)}
+                          <>
+                            <DropdownMenuLabel>Recent</DropdownMenuLabel>
+                            {copilotChatList.map((chat) => (
+                              <DropdownMenuItem
+                                key={chat.id}
+                                active={copilotChatId === chat.id}
+                                actionOpen={copilotChatId === chat.id}
+                                onSelect={() => handleCopilotSelectChat(chat)}
+                                action={
+                                  <DropdownMenuItemAction
+                                    aria-label='Delete chat'
+                                    onClick={() => handleCopilotDeleteChat(chat.id)}
                                   >
-                                    <ConversationListItem
-                                      title={chat.title || 'New Chat'}
-                                      isActive={Boolean(chat.activeStreamId)}
-                                      titleClassName='text-small'
-                                      actions={
-                                        <div
-                                          className={`flex shrink-0 items-center gap-1 ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
-                                        >
-                                          <Button
-                                            variant='ghost'
-                                            className='size-[16px] p-0'
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleCopilotDeleteChat(chat.id)
-                                            }}
-                                            aria-label='Delete chat'
-                                          >
-                                            <Trash className='size-[10px]' />
-                                          </Button>
-                                        </div>
-                                      }
-                                    />
-                                  </PopoverItem>
-                                </div>
-                              ))}
-                            </div>
-                          </PopoverScrollArea>
+                                    <Trash />
+                                  </DropdownMenuItemAction>
+                                }
+                              >
+                                <ConversationListItem
+                                  title={chat.title || 'New Chat'}
+                                  isActive={Boolean(chat.activeStreamId)}
+                                  titleClassName='text-small'
+                                />
+                              </DropdownMenuItem>
+                            ))}
+                          </>
                         )}
-                      </PopoverContent>
-                    </Popover>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 
