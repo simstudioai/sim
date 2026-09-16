@@ -108,6 +108,21 @@ describe('prepareSessionForCreation', () => {
     ).rejects.toThrow(SSO_REQUIRED_MESSAGE)
   })
 
+  it('refuses the sign-in when the requirement itself cannot be read', async () => {
+    setEnvFlags({ isBillingEnabled: false, isSsoEnabled: true })
+    const { executor, limit } = transactionExecutor()
+    limit.mockResolvedValueOnce([{ email: 'member@example.com', suspendedAt: null }])
+    limit.mockResolvedValueOnce([{ organizationId: 'org-1', role: 'member' }])
+    limit.mockRejectedValueOnce(new Error('connection reset'))
+
+    /** Failing open here would make a transient database error a way around the requirement. */
+    await expect(
+      runWithAuthDatabase(executor, () =>
+        prepareSessionForCreation(session, { path: '/sign-in/email' })
+      )
+    ).rejects.toThrow('connection reset')
+  })
+
   it('admits the same member through the identity provider', async () => {
     setEnvFlags({ isBillingEnabled: false, isSsoEnabled: true })
     const { executor, limit } = transactionExecutor()

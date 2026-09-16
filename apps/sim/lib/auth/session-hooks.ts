@@ -47,26 +47,31 @@ export async function prepareSessionForCreation<T extends Session>(
     })
   }
 
+  const memberships = await executor
+    .select({ organizationId: member.organizationId, role: member.role })
+    .from(member)
+    .where(eq(member.userId, session.userId))
+    .limit(MEMBERSHIP_SCAN_LIMIT)
+
+  const [membership] = memberships
+  if (!membership) return { data: session }
+
+  /**
+   * Outside the fallback below on purpose: a requirement that cannot be read is not a requirement
+   * that does not apply, and admitting a password sign-in because a lookup failed is exactly the
+   * bypass the setting exists to prevent. The read runs on the transaction that is creating the
+   * session, so a failure here means that write is failing too.
+   */
+  await assertSsoRequirementSatisfied(session.userId, memberships, context?.path, executor)
+
   try {
-    const memberships = await executor
-      .select({ organizationId: member.organizationId, role: member.role })
-      .from(member)
-      .where(eq(member.userId, session.userId))
-      .limit(MEMBERSHIP_SCAN_LIMIT)
-
-    const [membership] = memberships
-    if (!membership) return { data: session }
-
-    await assertSsoRequirementSatisfied(session.userId, memberships, context?.path, executor)
-
     const expiresAt = await clampExpiryForSession(session, membership.organizationId, executor)
     return {
       data: { ...session, expiresAt, activeOrganizationId: membership.organizationId },
     }
   } catch (error) {
-    /** A refused sign-in is the policy working; only unexpected failures fall through. */
-    if (error instanceof APIError) throw error
-    logger.error('Error setting active organization', { error, userId: session.userId })
-    return { data: session }
+    /** Session policy is an expiry clamp; failing to read it must not cost a valid sign-in. */
+    logger.error('Error clamping session expiry', { error, userId: session.userId })
+    return { data: { ...session, activeOrganizationId: membership.organizationId } }
   }
 }

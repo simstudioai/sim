@@ -9,7 +9,7 @@ import { updateOrganizationSsoPolicyContract } from '@/lib/api/contracts/organiz
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { hasSignInCapableSsoProvider } from '@/lib/auth/sso/verified-provider'
-import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
+import { invalidateSsoPolicyCache, isSsoRequiredForOrganization } from '@/lib/auth/sso-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { isBillingEnabled, isSsoEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -53,12 +53,14 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
+    const [hasVerifiedProvider, isEnforced] = await Promise.all([
+      hasSignInCapableSsoProvider(organizationId),
+      isSsoRequiredForOrganization(organizationId),
+    ])
+
     return NextResponse.json({
       success: true,
-      data: {
-        requireSso: org.requireSso,
-        hasVerifiedProvider: await hasSignInCapableSsoProvider(organizationId),
-      },
+      data: { requireSso: org.requireSso, hasVerifiedProvider, isEnforced },
     })
   }
 )
@@ -108,7 +110,14 @@ export const PUT = withRouteHandler(
       )
     }
 
-    const entitled = await isOrganizationFeatureEntitled(organizationId, isSsoEnabled)
+    /**
+     * Only turning the requirement on needs the entitlement. Turning it off must stay possible
+     * after an organization loses SSO, or the stored setting would resume enforcing the moment
+     * the entitlement came back, with no administrator action behind it.
+     */
+    const entitled = requireSso
+      ? await isOrganizationFeatureEntitled(organizationId, isSsoEnabled)
+      : true
     if (!entitled) {
       return NextResponse.json(
         {
@@ -170,7 +179,12 @@ export const PUT = withRouteHandler(
 
     return NextResponse.json({
       success: true,
-      data: { requireSso, hasVerifiedProvider: verifiedProvider },
+      data: {
+        requireSso,
+        hasVerifiedProvider: verifiedProvider,
+        /** Everything the requirement needs was just checked, so storing it is enforcing it. */
+        isEnforced: requireSso,
+      },
     })
   }
 )

@@ -13,14 +13,16 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnterprise, mockRecordAudit, mockInvalidate } = vi.hoisted(() => ({
+const { mockIsEnterprise, mockRecordAudit, mockInvalidate, mockIsRequired } = vi.hoisted(() => ({
   mockIsEnterprise: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockInvalidate: vi.fn(),
+  mockIsRequired: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/sso-policy', () => ({
   invalidateSsoPolicyCache: mockInvalidate,
+  isSsoRequiredForOrganization: mockIsRequired,
 }))
 
 /**
@@ -60,6 +62,7 @@ describe('sso policy route', () => {
       session: { token: 'tok-1' },
     })
     mockIsEnterprise.mockResolvedValue(true)
+    mockIsRequired.mockResolvedValue(true)
   })
 
   describe('GET', () => {
@@ -75,6 +78,19 @@ describe('sso policy route', () => {
       expect(response.status).toBe(403)
     })
 
+    it('reports a stored requirement that nothing can satisfy as not enforced', async () => {
+      queueTableRows(member, [{ id: 'member-1' }])
+      queueTableRows(organization, [{ requireSso: true }])
+      queueTableRows(ssoProvider, [])
+      mockIsRequired.mockResolvedValue(false)
+
+      const response = await GET(createMockRequest('GET'), routeContext)
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        data: { requireSso: true, hasVerifiedProvider: false, isEnforced: false },
+      })
+    })
+
     it('reports the requirement and whether a provider can satisfy it', async () => {
       queueTableRows(member, [{ id: 'member-1' }])
       queueTableRows(organization, [{ requireSso: true }])
@@ -83,7 +99,7 @@ describe('sso policy route', () => {
       const response = await GET(createMockRequest('GET'), routeContext)
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toMatchObject({
-        data: { requireSso: true, hasVerifiedProvider: true },
+        data: { requireSso: true, hasVerifiedProvider: true, isEnforced: true },
       })
     })
   })
@@ -125,6 +141,20 @@ describe('sso policy route', () => {
       expect(mockInvalidate).toHaveBeenCalledWith(ORG_ID)
       expect(mockRecordAudit).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'organization.sso_policy.updated' })
+      )
+    })
+
+    it('can always be turned off, even after the organization loses the entitlement', async () => {
+      queueTableRows(member, [{ role: 'owner' }])
+      queueTableRows(organization, [{ name: 'Acme' }])
+      queueTableRows(ssoProvider, [])
+      mockIsEnterprise.mockResolvedValue(false)
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID }])
+
+      const response = await PUT(createMockRequest('PUT', { requireSso: false }), routeContext)
+      expect(response.status).toBe(200)
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ requireSso: false })
       )
     })
 

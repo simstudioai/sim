@@ -226,7 +226,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard
 
 vi.mock('@/ee/sso/hooks/sso-policy', () => ({
   useOrganizationSsoPolicy: () => ({
-    data: { isEnterprise: true, requireSso: false, hasVerifiedProvider: true },
+    data: { requireSso: false, hasVerifiedProvider: true, isEnforced: false },
   }),
   useUpdateOrganizationSsoPolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))

@@ -82,13 +82,13 @@ export function RequireSsoSection({ organizationId }: RequireSsoSectionProps) {
             options={OPTIONS}
           />
           <p className='text-[var(--text-muted)] text-caption'>
-            {!data.hasVerifiedProvider
-              ? data.requireSso
-                ? 'No identity provider serves a verified domain, so the requirement is not enforced. Add one, or switch back to any method.'
-                : 'Add an identity provider on a verified domain to require single sign-on.'
-              : data.requireSso
-                ? 'Members sign in through your identity provider. Password and email sign-in are refused.'
-                : 'Members can sign in with a password, email code, or your identity provider.'}
+            {data.requireSso && !data.isEnforced
+              ? 'Nothing can satisfy the requirement right now, so it is not enforced. Restore an identity provider on a verified domain, or switch back to any method.'
+              : !data.hasVerifiedProvider
+                ? 'Add an identity provider on a verified domain to require single sign-on.'
+                : data.requireSso
+                  ? 'Members sign in through your identity provider. Password and email sign-in are refused.'
+                  : 'Members can sign in with a password, email code, or your identity provider.'}
           </p>
         </SettingRow>
       </SettingsSection>

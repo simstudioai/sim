@@ -98,7 +98,7 @@ describe('RequireSsoSection', () => {
     root = createRoot(container)
     mockUpdatePolicy.mockResolvedValue(undefined)
     mockPolicyState.mockReturnValue({
-      data: { isEnterprise: true, requireSso: false, hasVerifiedProvider: true },
+      data: { requireSso: false, hasVerifiedProvider: true, isEnforced: false },
     })
   })
 
@@ -120,7 +120,7 @@ describe('RequireSsoSection', () => {
 
   it('turns the requirement off without a confirmation step', async () => {
     mockPolicyState.mockReturnValue({
-      data: { isEnterprise: true, requireSso: true, hasVerifiedProvider: true },
+      data: { requireSso: true, hasVerifiedProvider: true, isEnforced: true },
     })
     render()
 
@@ -136,9 +136,20 @@ describe('RequireSsoSection', () => {
     expect(container.textContent).toContain('Failed to load the sign-in requirement')
   })
 
+  it('says the requirement is stored but not enforced when nothing can satisfy it', () => {
+    mockPolicyState.mockReturnValue({
+      data: { requireSso: true, hasVerifiedProvider: false, isEnforced: false },
+    })
+    render()
+
+    expect(container.textContent).toContain('it is not enforced')
+    /** Switching back must stay available, or the setting would be stranded. */
+    expect(button('Any method').disabled).toBe(false)
+  })
+
   it('cannot be turned on without a provider that could satisfy it', () => {
     mockPolicyState.mockReturnValue({
-      data: { isEnterprise: true, requireSso: false, hasVerifiedProvider: false },
+      data: { requireSso: false, hasVerifiedProvider: false, isEnforced: false },
     })
     render()
 

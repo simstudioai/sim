@@ -164,9 +164,12 @@ export const updateOrganizationSsoPolicyBodySchema = z.object({
 export type UpdateOrganizationSsoPolicyBody = z.input<typeof updateOrganizationSsoPolicyBodySchema>
 
 const organizationSsoPolicyDataSchema = z.object({
+  /** The stored setting. */
   requireSso: z.boolean(),
   /** Whether an identity provider could satisfy the requirement today. */
   hasVerifiedProvider: z.boolean(),
+  /** Whether sign-in actually enforces it — false once the organization cannot satisfy it. */
+  isEnforced: z.boolean(),
 })
 
 export type OrganizationSsoPolicy = z.output<typeof organizationSsoPolicyDataSchema>
