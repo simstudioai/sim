@@ -2458,6 +2458,13 @@
       "when": 1789583796385,
       "tag": "0351_copilot_run_activity_index",
       "breakpoints": true
+    },
+    {
+      "idx": 352,
+      "version": "7",
+      "when": 1789588587193,
+      "tag": "0352_search_document_lookup",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,25 @@ import { defineWorkspaceOperation } from '@/lib/core/application/workspace-opera
  * silently substituting the key's owner.
  */
 export const chatOperations = {
+  continue: defineWorkspaceOperation({
+    id: 'chat.continue',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'copilot.use',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  }),
+  /**
+   * permission-group-exempt: Stopping existing work remains available after Copilot is disabled.
+   */
+  cancel: defineWorkspaceOperation({
+    id: 'chat.cancel',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  }),
   send: defineWorkspaceOperation({
     id: 'chat.send',
     oauthScope: 'api:write',

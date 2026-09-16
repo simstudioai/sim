@@ -106,6 +106,7 @@ vi.mock('@/lib/messaging/email/unsubscribe', () => ({
 vi.mock('@sim/platform-authz/workspace', () => ({ isOrgAdminRole: mockIsOrgAdminRole }))
 
 import {
+  getOrgUsageLimit,
   getUserUsageLimit,
   maybeSendUsageThresholdEmail,
   syncUsageLimitsFromSubscription,
@@ -200,6 +201,101 @@ describe('getUserUsageLimit', () => {
 
     await expect(getUserUsageLimit('user-1', null)).resolves.toBe(10)
   })
+
+  it.each([
+    { plan: 'enterprise', configured: '12.005', seats: 3, expected: 12.005 },
+    { plan: 'enterprise', configured: '0', seats: 3, expected: 0 },
+    { plan: 'enterprise', configured: null, seats: 3, expected: 0 },
+    { plan: 'team', configured: '10', seats: 3, expected: 60 },
+    { plan: 'team', configured: '80', seats: 3, expected: 80 },
+    { plan: 'team', configured: null, seats: 0, expected: 20 },
+  ])(
+    'reads the $plan organization limit once for configured=$configured and seats=$seats',
+    async ({ plan, configured, seats, expected }) => {
+      mockIsOrgScopedSubscription.mockReturnValue(true)
+      queueTableRows(schemaMock.organization, [{ orgUsageLimit: configured }])
+      await expect(
+        getUserUsageLimit('user-1', {
+          referenceId: 'org-1',
+          plan,
+          seats,
+          status: 'active',
+          periodStart: null,
+          periodEnd: null,
+        })
+      ).resolves.toBe(expected)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    }
+  )
+
+  it('still rejects a missing organization without adopting the display fallback', async () => {
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+    queueTableRows(schemaMock.organization, [])
+    await expect(
+      getUserUsageLimit('user-1', {
+        referenceId: 'org-missing',
+        plan: 'team',
+        seats: 3,
+        status: 'active',
+        periodStart: null,
+        periodEnd: null,
+      })
+    ).rejects.toThrow('Organization not found: org-missing for user: user-1')
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retain an organization cap between calls', async () => {
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+    const subscription = {
+      referenceId: 'org-1',
+      plan: 'enterprise',
+      seats: 1,
+      status: 'active',
+      periodStart: null,
+      periodEnd: null,
+    }
+    queueTableRows(schemaMock.organization, [{ orgUsageLimit: '50' }])
+    queueTableRows(schemaMock.organization, [{ orgUsageLimit: '20' }])
+    await expect(getUserUsageLimit('user-1', subscription)).resolves.toBe(50)
+    await expect(getUserUsageLimit('user-1', subscription)).resolves.toBe(20)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+  })
+
+  it('propagates a failed organization limit read', async () => {
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+    const failure = new Error('database unavailable')
+    dbChainMockFns.limit.mockRejectedValueOnce(failure)
+    await expect(
+      getUserUsageLimit('user-1', {
+        referenceId: 'org-1',
+        plan: 'team',
+        seats: 3,
+        status: 'active',
+        periodStart: null,
+        periodEnd: null,
+      })
+    ).rejects.toBe(failure)
+  })
+})
+
+describe('getOrgUsageLimit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it.each([
+    { plan: 'team', expected: { limit: 60, minimum: 60 } },
+    { plan: 'enterprise', expected: { limit: 0, minimum: 0 } },
+  ])(
+    'preserves the public $plan fallback for a missing organization',
+    async ({ plan, expected }) => {
+      queueTableRows(schemaMock.organization, [])
+      await expect(getOrgUsageLimit('org-missing', plan, 3)).resolves.toEqual(expected)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    }
+  )
 })
 
 describe('syncUsageLimitsFromSubscription', () => {

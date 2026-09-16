@@ -29,6 +29,8 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({ isOrgScopedSubscription: v
 
 import {
   CumulativeUsageContextMismatchError,
+  getBillingPeriodUsageCost,
+  getBillingPeriodUsageCostByUser,
   type RecordCumulativeUsageParams,
   recordCumulativeUsage,
 } from '@/lib/billing/core/usage-log'
@@ -256,6 +258,54 @@ describe.skipIf(!databaseUrl)('Cumulative billing with PostgreSQL', () => {
     )
     expect(await ledgerRows()).toHaveLength(33)
     expect(await recordCumulativeUsage(usage(0.8))).toEqual({ billed: false, delta: 0, total: 0.8 })
+  })
+
+  it('reads committed pooled and member charges freshly after concurrent executions', async () => {
+    if (!database) throw new Error('PostgreSQL fixture is unavailable')
+    const { billingEntity, billingPeriod } = usage(0)
+    if (!billingEntity || !billingPeriod) throw new Error('Billing fixture scope is missing')
+    const readPool = () =>
+      getBillingPeriodUsageCost(billingEntity, billingPeriod, undefined, database)
+    expect(await readPool()).toBe(0)
+    await Promise.all(
+      Array.from({ length: 64 }, (_, index) =>
+        recordCumulativeUsage({
+          ...usage(0.005, `concurrent:${index}`),
+          userId: `member-${index % 4}`,
+        })
+      )
+    )
+    expect(await readPool()).toBeCloseTo(0.32, 9)
+    const members = await getBillingPeriodUsageCostByUser(
+      billingEntity,
+      billingPeriod,
+      undefined,
+      database
+    )
+    expect(members).toEqual(
+      new Map(Array.from({ length: 4 }, (_, index) => [`member-${index}`, 0.08]))
+    )
+    await recordCumulativeUsage({ ...usage(0.105, 'concurrent:0'), userId: 'member-0' })
+    expect(await readPool()).toBeCloseTo(0.42, 9)
+    expect(
+      await getBillingPeriodUsageCost(
+        { type: 'organization', id: 'other-payer' },
+        billingPeriod,
+        undefined,
+        database
+      )
+    ).toBe(0)
+    expect(
+      await getBillingPeriodUsageCost(
+        billingEntity,
+        {
+          start: billingPeriod.end,
+          end: new Date('2026-11-01T00:00:00.000Z'),
+        },
+        undefined,
+        database
+      )
+    ).toBe(0)
   })
 
   it.each([0.2, 0.8])(

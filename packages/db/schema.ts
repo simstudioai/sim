@@ -3343,6 +3343,10 @@ export const embeddingSearch = pgTable(
   },
   (table) => ({
     knowledgeBaseIdx: index('embedding_search_kb_idx').on(table.knowledgeBaseId),
+    documentLookupIdx: index('embedding_search_document_lookup_idx')
+      .on(table.documentId, table.knowledgeBaseId, table.id)
+      .concurrently()
+      .where(sql`${table.enabled}`),
     binaryIdx: index('embedding_search_binary_hnsw_idx')
       .using('hnsw', table.binary.op('bit_hamming_ops'))
       .with({ m: 16, ef_construction: 64 }),
