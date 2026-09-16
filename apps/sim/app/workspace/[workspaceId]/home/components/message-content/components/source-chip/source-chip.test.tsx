@@ -7,7 +7,7 @@ vi.mock('@/lib/browser-agent/open-in-panel', () => ({
   shouldOpenInBrowserPanel: () => false,
   openInBrowserPanel: vi.fn(),
 }))
-vi.mock('@/lib/integrations', () => ({ blockTypeToIconMap: {} }))
+vi.mock('@/lib/integrations/icon-mapping', () => ({ blockTypeToIconMap: {} }))
 
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import { SourceChip } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'

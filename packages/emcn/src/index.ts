@@ -5,6 +5,7 @@ export * from './components'
  * the COMPONENT; the icon stays available from `@sim/emcn/icons`.
  */
 export { Calendar, type CalendarProps } from './components/calendar/calendar'
+export * from './components/charts'
 /**
  * `Code` exists in BOTH `./components` (the code editor) and `./icons` (a
  * glyph). Same resolution as `Calendar` and `Table`: the barrel yields the
@@ -40,6 +41,7 @@ export {
   TableHead,
   TableHeader,
   TableRow,
+  tableVariants,
 } from './components/table/table'
 export {
   type ClipboardContent,

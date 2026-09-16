@@ -1,13 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
-import { CHART_PADDING, resolveChartPadding } from '@/components/charts/chart-geometry'
+
 import {
+  CHART_PADDING,
   estimateTooltipHeight,
   estimateTooltipWidth,
   positionChartTooltip,
-} from '@/components/charts/chart-tooltip'
+  resolveChartPadding,
+} from '@sim/emcn'
+import { describe, expect, it } from 'vitest'
 
 const WIDTH = 800
 const HEIGHT = 166
@@ -92,13 +94,7 @@ describe('estimateTooltipHeight', () => {
     expect(estimateTooltipHeight(0, false)).toBe(estimateTooltipHeight(1, false))
   })
 
-  /**
-   * The estimate is what the clamp measures against, and the chart clips its overflow,
-   * so it must never come in under the real box — an underestimate cuts the bottom off
-   * rather than moving the box up. Measured here against the box model the tooltip's
-   * own class string implies: `border` + `py-1.5`, a `text-micro` date with `mb-1`,
-   * and one `text-xs` row per value, every line at the ambient 1.5 line-height.
-   */
+  /** Estimates must cover the rendered box, including inherited line-height and padding. */
   it('never comes in under the box the tooltip actually renders', () => {
     const chrome = 2 + 6 + 6
     const dateLine = 10 * 1.5 + 4

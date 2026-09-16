@@ -31,7 +31,7 @@ describe('unified settings navigation', () => {
       { id: 'billing', label: 'Subscription', section: 'account' },
       { id: 'teammates', label: 'Teammates', section: 'workspace' },
       { id: 'organization', label: 'Members', section: 'organization' },
-      { id: 'usage', label: 'Usage tracking', section: 'organization' },
+      { id: 'usage', label: 'Insights', section: 'organization' },
       { id: 'secrets', label: 'Secrets', section: 'workspace' },
       { id: 'connected-accounts', label: 'Connected accounts', section: 'organization' },
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },

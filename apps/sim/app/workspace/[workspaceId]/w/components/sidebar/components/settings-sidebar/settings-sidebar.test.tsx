@@ -210,7 +210,7 @@ describe('workspace SettingsSidebar organization rollout', () => {
 
       expect(workspaceLink('organization')).toHaveTextContent('Members')
       expect(workspaceLink('billing')).toHaveTextContent('Subscription')
-      expect(workspaceLink('usage')).toHaveTextContent('Usage tracking')
+      expect(workspaceLink('usage')).toHaveTextContent('Insights')
       expect(workspaceLink('sso')).toHaveTextContent('Single sign-on')
       expect(workspaceLink('connected-accounts')).toHaveTextContent('Connected accounts')
       expect(container.querySelector('a[href^="/o/"]')).toBeNull()

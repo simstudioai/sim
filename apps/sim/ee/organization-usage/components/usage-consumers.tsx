@@ -1,9 +1,8 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { cn, disclosureChevronClass } from '@sim/emcn'
+import { cn, disclosureChevronClass, formatChartCompactNumber } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
-import { formatChartCompactNumber } from '@/components/charts'
 import {
   AnthropicIcon,
   AzureIcon,

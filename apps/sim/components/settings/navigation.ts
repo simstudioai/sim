@@ -476,11 +476,11 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Usage tracking',
+    label: 'Insights',
     icon: ChartColumn,
     unified: {
       id: 'usage',
-      description: 'Monitor credit usage across your organization.',
+      description: 'Explore usage and activity across your organization.',
       group: 'organization',
       order: 1,
       /**

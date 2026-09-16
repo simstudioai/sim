@@ -407,12 +407,28 @@ export function densifyUsageSeries(
     if (row.bucketStart) byBucket.set(row.bucketStart.slice(0, 10), row)
   }
 
+  return usageBucketTimestamps(window, bucket, timezone).map((timestamp) => {
+    const row = byBucket.get(timestamp.slice(0, 10))
+    return {
+      timestamp,
+      cost: toNumber(row?.cost),
+      events: Math.round(toNumber(row?.events)),
+    }
+  })
+}
+
+/** Calendar-aligned buckets shared by credit and activity series, including empty days. */
+export function usageBucketTimestamps(
+  window: UsageAnalyticsWindow,
+  bucket: UsageBucket,
+  timezone: string
+): string[] {
   const { start, end } = usageWindowBounds(window)
   const first = truncateToBucket(localCalendarDate(start, timezone), bucket)
   // The window is half-open, so the last bucket is the one holding its final instant.
   const last = truncateToBucket(localCalendarDate(new Date(end.getTime() - 1), timezone), bucket)
 
-  const points: UsageSeriesPoint[] = []
+  const points: string[] = []
   const cursor = civilDate(first)
   let guard = 0
 
@@ -420,12 +436,7 @@ export function densifyUsageSeries(
   while (civilKey(cursor) <= last && guard < 1000) {
     guard += 1
     const key = civilKey(cursor)
-    const row = byBucket.get(key)
-    points.push({
-      timestamp: `${key}T00:00:00`,
-      cost: toNumber(row?.cost),
-      events: Math.round(toNumber(row?.events)),
-    })
+    points.push(`${key}T00:00:00`)
     if (bucket === 'day') cursor.setUTCDate(cursor.getUTCDate() + 1)
     else if (bucket === 'week') cursor.setUTCDate(cursor.getUTCDate() + 7)
     else cursor.setUTCMonth(cursor.getUTCMonth() + 1)

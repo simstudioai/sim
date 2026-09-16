@@ -4,11 +4,12 @@
  * serialized projection of `BlockConfig` consumed by landing + workspace UIs.
  */
 
+import type { IntegrationMetadata } from '@sim/deployment-config/integration-metadata'
 import type { IntegrationLandingContent } from '@/app/(landing)/integrations/data/types'
 import type { BlockConfig, IntegrationTag } from '@/blocks/types'
 
 /** Normalized authentication mode surfaced in the catalog. */
-export type AuthType = 'oauth' | 'api-key' | 'none'
+export type AuthType = IntegrationMetadata['authType']
 
 /** Trigger entry enriched from the trigger registry at generation time. */
 interface TriggerInfo {
@@ -30,22 +31,16 @@ export interface FAQItem {
 }
 
 /**
- * Catalog projection of a `BlockConfig`. Direct `BlockConfig` fields are
- * referenced via indexed access so the two stay in lockstep; the remaining
- * fields are generation-time enrichments (see `scripts/generate-docs.ts`).
+ * Public catalog entry: shared identity and authentication metadata plus
+ * descriptions, operations, triggers, and landing content.
  */
-export interface Integration {
-  type: BlockConfig['type']
-  name: BlockConfig['name']
+export interface Integration extends IntegrationMetadata {
   description: BlockConfig['description']
   longDescription: NonNullable<BlockConfig['longDescription']>
   category: BlockConfig['category']
   integrationType: NonNullable<BlockConfig['integrationType']>
-  bgColor: BlockConfig['bgColor']
   /** Tags sourced from the block's `*BlockMeta` export at generation time. */
   tags?: IntegrationTag[]
-  /** URL slug derived from `name`. */
-  slug: string
   /** Name of the React icon component (resolved client-side via `blockTypeToIconMap`). */
   iconName: string
   /** Canonical docs URL for the integration. */
@@ -56,13 +51,6 @@ export interface Integration {
   /** Triggers enriched with details from the trigger registry. */
   triggers: TriggerInfo[]
   triggerCount: number
-  /** Authentication mode inferred from `BlockConfig.subBlocks`. */
-  authType: AuthType
-  /**
-   * OAuth service id from the block's `oauth-input` subBlock (a service key in
-   * `OAUTH_PROVIDERS`). Present exactly when `authType` is `'oauth'`.
-   */
-  oauthServiceId?: string
   /** Hand-authored landing content baked in at generation time (see `landing-content.ts`). */
   landingContent?: IntegrationLandingContent
 }
