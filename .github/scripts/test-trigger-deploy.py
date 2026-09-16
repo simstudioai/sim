@@ -48,7 +48,17 @@ if isinstance(response, list):
 if response.get('error'):
     sys.stderr.write(response['error'])
     sys.exit(254)
+if response.get('advance_clock'):
+    clock = root / 'clock'
+    value = int(clock.read_text()) if clock.exists() else 1000
+    clock.write_text(str(value + response['advance_clock']))
 print(response.get('text', json.dumps(response.get('json'))))
+''')
+            (root / 'docker').write_text('''#!/usr/bin/env python3
+import os, pathlib, sys
+root = pathlib.Path(os.environ['FIXTURE_DIR'])
+with (root / 'calls').open('a') as stream:
+    stream.write('docker ' + ' '.join(sys.argv[1:]) + '\\n')
 ''')
             (root / 'date').write_text('''#!/usr/bin/env python3
 import os, pathlib
@@ -58,15 +68,17 @@ path.write_text(str(value + 1))
 print(value)
 ''')
             (root / 'sleep').write_text('#!/bin/sh\nexit 0\n')
-            for name in ('aws', 'date', 'sleep'):
+            for name in ('aws', 'date', 'sleep', 'docker'):
                 (root / name).chmod(0o755)
             result = subprocess.run(
                 ['bash', str(SCRIPTS / script), *args],
                 env={**os.environ, 'PATH': f'{root}:{os.environ["PATH"]}',
-                     'FIXTURE_DIR': str(root), 'POLL_INTERVAL': '1', 'OVERALL_TIMEOUT': '12'},
+                     'FIXTURE_DIR': str(root), 'POLL_INTERVAL': '1', 'OVERALL_TIMEOUT': '12',
+                     'GITHUB_OUTPUT': str(root / 'outputs')},
                 capture_output=True, text=True, timeout=10,
             )
             calls = (root / 'calls').read_text() if (root / 'calls').exists() else ''
+            result.github_output = (root / 'outputs').read_text() if (root / 'outputs').exists() else ''
             return result, calls
 
     def poll(self, updates=None, since='1000'):
@@ -99,6 +111,32 @@ print(value)
             execution(1000, identifier='execution-old'), execution(1001)]}})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--pipeline-execution-id execution-current', calls)
+
+    def test_changed_image_rejects_newer_different_execution(self):
+        result, calls = self.poll({'list-pipeline-executions': {'json': [
+            execution(), execution(1001, digest=OTHER_DIGEST, identifier='execution-newer')]}})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('deployment was superseded', result.stderr)
+        self.assertNotIn('get-pipeline-execution ', calls)
+
+    def test_rechecks_latest_digest_after_cutover(self):
+        result, calls = self.poll({'list-pipeline-executions': [
+            {'json': [execution()]},
+            {'json': [execution(), execution(1001, digest=OTHER_DIGEST, identifier='execution-newer')]},
+        ]})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('deployment was superseded', result.stderr)
+        self.assertIn('get-deployment-target ', calls)
+        self.assertNotIn('Traffic cutover complete', result.stdout)
+
+    def test_rechecks_execution_identity_for_same_digest_after_cutover(self):
+        result, _ = self.poll({'list-pipeline-executions': [
+            {'json': [execution()]},
+            {'json': [execution(), execution(1001, identifier='execution-newer')]},
+        ]})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('newer pipeline execution appeared', result.stdout)
+        self.assertNotIn('Traffic cutover complete', result.stdout)
 
     def test_iso_timestamps(self):
         result, _ = self.poll({'list-pipeline-executions': {'json': [
@@ -181,6 +219,32 @@ print(value)
             with self.subTest(response=response):
                 result, _ = self.run_script('get-ecr-image-digest.sh', ['app', 'deploy', '--allow-missing'], {'batch-get-image': response})
                 self.assertNotEqual(result.returncode, 0)
+
+    def test_tag_move_uses_push_boundary_and_final_manifest_digest(self):
+        result, calls = self.run_script('promote-app-image.sh', ['registry', 'app', 'commit-dev', 'dev'], {
+            'batch-get-image': [
+                {'advance_clock': 30, 'json': {'images': [{'imageId': {'imageDigest': DIGEST}}], 'failures': []}},
+                {'json': {'images': [{'imageId': {'imageDigest': OTHER_DIGEST}}], 'failures': []}},
+            ]})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('retag_epoch=1030', result.github_output)
+        self.assertIn(f'app_image_digest={OTHER_DIGEST}', result.github_output)
+        self.assertIn('app_image_changed=true', result.github_output)
+        self.assertEqual([line.split()[0] for line in calls.splitlines()], ['ecr', 'docker', 'ecr'])
+        self.assertIn('registry/app:commit-dev', calls)
+
+    def test_tag_move_aborts_before_docker_when_ecr_read_fails(self):
+        result, calls = self.run_script('promote-app-image.sh', ['registry', 'app', 'commit', 'deploy'], {
+            'batch-get-image': {'error': 'AccessDeniedException'}})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('docker', calls)
+        self.assertEqual(result.github_output, '')
+
+    def test_same_digest_tag_move_reports_unchanged(self):
+        result, _ = self.run_script('promote-app-image.sh', ['registry', 'app', 'commit', 'deploy'], {
+            'batch-get-image': {'json': {'images': [{'imageId': {'imageDigest': DIGEST}}], 'failures': []}}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('app_image_changed=false', result.github_output)
 
 
 if __name__ == '__main__':

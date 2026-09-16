@@ -30,13 +30,12 @@ aws_read() {
   aws --cli-connect-timeout 10 --cli-read-timeout 30 "$@"
 }
 
-EXECUTION_ID=''
-while [ -z "$EXECUTION_ID" ]; do
-  check_deadline 'the matching pipeline execution'
+find_execution() {
+  local executions
   executions=$(aws_read codepipeline list-pipeline-executions \
     --pipeline-name "$PIPELINE" --max-items 30 \
     --query 'pipelineExecutionSummaries' --output json)
-  EXECUTION_ID=$(printf '%s\n' "$executions" | SINCE="$SINCE_EPOCH" DIGEST="$DIGEST" python3 -c '
+  printf '%s\n' "$executions" | SINCE="$SINCE_EPOCH" DIGEST="$DIGEST" python3 -c '
 import datetime, json, os, sys
 since = int(os.environ["SINCE"])
 def epoch(execution):
@@ -52,9 +51,17 @@ if since == 0:
         raise SystemExit("ERROR: unchanged app tag does not match the latest pipeline execution; cutover is unverified")
     selected = executions[0]
 else:
-    selected = next((e for e in executions if epoch(e) >= since and matches(e)), None)
+    selected = executions[0] if executions and epoch(executions[0]) >= since else None
+    if selected and not matches(selected):
+        raise SystemExit("ERROR: latest pipeline execution does not match this app digest; deployment was superseded or its source is unverified")
 print(selected["pipelineExecutionId"] if selected else "")
-')
+'
+}
+
+EXECUTION_ID=''
+while [ -z "$EXECUTION_ID" ]; do
+  check_deadline 'the matching pipeline execution'
+  EXECUTION_ID=$(find_execution)
   if [ -z "$EXECUTION_ID" ]; then
     log 'No matching execution since this push; waiting'
     sleep "$POLL_INTERVAL"
@@ -112,6 +119,11 @@ while true; do
       esac
     done
     if [ "$all_ok" = 1 ]; then
+      LATEST_EXECUTION_ID=$(find_execution)
+      if [ "$LATEST_EXECUTION_ID" != "$EXECUTION_ID" ]; then
+        log 'ERROR: a newer pipeline execution appeared during cutover; not promoting'
+        exit 1
+      fi
       log 'Traffic cutover complete on every ECS target'
       exit 0
     fi
