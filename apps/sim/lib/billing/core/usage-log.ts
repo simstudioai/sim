@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { db, dbReplica } from '@sim/db'
-import { usageDailyCost, usageLog, workflow } from '@sim/db/schema'
+import { usageLog, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, lt, lte, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, lte, notInArray, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
@@ -203,92 +203,38 @@ async function resolveBillingContext(
 }
 
 /**
- * Exact attributed costs from the ledger's transactional daily projection.
- * Reporting windows use whole UTC days plus disjoint ledger boundary ranges,
- * so arbitrary timestamps retain their precision within one statement snapshot.
- * The selected columns are user_id, source, and numeric cost.
+ * Returns attributed ledger usage for a billing entity/period. The ledger is
+ * the sole source of truth for usage — there is no userStats baseline.
  */
-export function billingPeriodUsageRows(
-  billingEntity: BillingEntity,
-  billingPeriod: UsageQueryPeriod,
-  source?: UsageLogSource | UsageLogSource[],
-  userIds?: readonly string[]
-): SQL {
-  if (userIds && userIds.length > 1_000) {
-    throw new Error('Billing usage user filter cannot exceed 1,000 users')
-  }
-  const scopeConditions = (table: typeof usageDailyCost | typeof usageLog) => [
-    eq(table.billingEntityType, billingEntity.type),
-    eq(table.billingEntityId, billingEntity.id),
-    source
-      ? Array.isArray(source)
-        ? inArray(table.source, source)
-        : eq(table.source, source)
-      : undefined,
-    userIds ? inArray(table.userId, [...userIds]) : undefined,
-  ]
-  const projectedRows = (conditions: (SQL | undefined)[]) => sql`
-    SELECT ${usageDailyCost.userId} AS user_id, ${usageDailyCost.source} AS source,
-      ${usageDailyCost.cost} AS cost
-    FROM ${usageDailyCost} WHERE ${and(...scopeConditions(usageDailyCost), ...conditions)}
-  `
-  if (billingPeriod.source !== 'reporting') {
-    return projectedRows([
-      eq(usageDailyCost.billingPeriodStart, billingPeriod.start),
-      eq(usageDailyCost.billingPeriodEnd, billingPeriod.end),
-    ])
-  }
-
-  const ledgerRange = (start: Date, end: Date) => sql`
-    SELECT ${usageLog.userId} AS user_id, ${usageLog.source} AS source, ${usageLog.cost} AS cost
-    FROM ${usageLog} WHERE ${and(
-      ...scopeConditions(usageLog),
-      gte(usageLog.createdAt, start),
-      lt(usageLog.createdAt, end)
-    )}
-  `
-  const fullDaysStart = new Date(billingPeriod.start)
-  fullDaysStart.setUTCHours(0, 0, 0, 0)
-  if (fullDaysStart < billingPeriod.start) fullDaysStart.setUTCDate(fullDaysStart.getUTCDate() + 1)
-  const fullDaysEnd = new Date(billingPeriod.end)
-  fullDaysEnd.setUTCHours(0, 0, 0, 0)
-  if (fullDaysStart >= fullDaysEnd) {
-    return ledgerRange(billingPeriod.start, billingPeriod.end)
-  }
-
-  const ranges = [
-    projectedRows([
-      gte(usageDailyCost.usageDate, fullDaysStart.toISOString().slice(0, 10)),
-      lt(usageDailyCost.usageDate, fullDaysEnd.toISOString().slice(0, 10)),
-    ]),
-  ]
-  if (billingPeriod.start < fullDaysStart) {
-    ranges.push(ledgerRange(billingPeriod.start, fullDaysStart))
-  }
-  if (fullDaysEnd < billingPeriod.end) {
-    ranges.push(ledgerRange(fullDaysEnd, billingPeriod.end))
-  }
-  return sql.join(ranges, sql` UNION ALL `)
-}
-
-/** The ledger remains authoritative; its projection is updated in the same transaction. */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
   billingPeriod: UsageQueryPeriod,
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<number> {
-  const startedAt = performance.now()
-  const [row] = await executor
-    .select({ cost: sql<string>`COALESCE(SUM(period_usage.cost), 0)` })
-    .from(sql`(${billingPeriodUsageRows(billingEntity, billingPeriod, source)}) AS period_usage`)
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    ...(billingPeriod.source === 'reporting'
+      ? [gte(usageLog.createdAt, billingPeriod.start), lt(usageLog.createdAt, billingPeriod.end)]
+      : [
+          eq(usageLog.billingPeriodStart, billingPeriod.start),
+          eq(usageLog.billingPeriodEnd, billingPeriod.end),
+        ]),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
 
-  logger.info('Billing period usage read completed', {
-    durationMs: Math.round(performance.now() - startedAt),
-    billingEntityType: billingEntity.type,
-    periodSource: billingPeriod.source ?? 'stamped',
-    projection: 'usage_daily_cost',
-  })
+  const [row] = await executor
+    .select({
+      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+    })
+    .from(usageLog)
+    .where(and(...conditions))
+
   return Number.parseFloat(row?.cost ?? '0')
 }
 
@@ -357,10 +303,25 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
 ): Promise<{ total: number; subset: number }> {
   const [row] = await executor
     .select({
-      total: sql<string>`COALESCE(SUM(period_usage.cost), 0)`,
-      subset: sql<string>`COALESCE(SUM(period_usage.cost) FILTER (WHERE ${inArray(sql`period_usage.source`, source)}), 0)`,
+      total: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      subset: sql<string>`COALESCE(SUM(${usageLog.cost}) FILTER (WHERE ${inArray(usageLog.source, source)}), 0)`,
     })
-    .from(sql`(${billingPeriodUsageRows(billingEntity, billingPeriod)}) AS period_usage`)
+    .from(usageLog)
+    .where(
+      and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        ...(billingPeriod.source === 'reporting'
+          ? [
+              gte(usageLog.createdAt, billingPeriod.start),
+              lt(usageLog.createdAt, billingPeriod.end),
+            ]
+          : [
+              eq(usageLog.billingPeriodStart, billingPeriod.start),
+              eq(usageLog.billingPeriodEnd, billingPeriod.end),
+            ])
+      )
+    )
 
   return {
     total: Number.parseFloat(row?.total ?? '0'),
@@ -376,15 +337,34 @@ export async function getBillingPeriodUsageCostByUser(
   userIds?: readonly string[]
 ): Promise<Map<string, number>> {
   if (userIds?.length === 0) return new Map()
+  if (userIds && userIds.length > 1_000) {
+    throw new Error('Billing usage user filter cannot exceed 1,000 users')
+  }
+  const conditions = [
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    ...(billingPeriod.source === 'reporting'
+      ? [gte(usageLog.createdAt, billingPeriod.start), lt(usageLog.createdAt, billingPeriod.end)]
+      : [
+          eq(usageLog.billingPeriodStart, billingPeriod.start),
+          eq(usageLog.billingPeriodEnd, billingPeriod.end),
+        ]),
+  ]
+  if (source) {
+    conditions.push(
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
+    )
+  }
+  if (userIds) conditions.push(inArray(usageLog.userId, [...userIds]))
+
   const rows = await executor
     .select({
-      userId: sql<string>`period_usage.user_id`,
-      cost: sql<string>`COALESCE(SUM(period_usage.cost), 0)`,
+      userId: usageLog.userId,
+      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
-    .from(
-      sql`(${billingPeriodUsageRows(billingEntity, billingPeriod, source, userIds)}) AS period_usage`
-    )
-    .groupBy(sql`period_usage.user_id`)
+    .from(usageLog)
+    .where(and(...conditions))
+    .groupBy(usageLog.userId)
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
 }
@@ -407,34 +387,35 @@ export async function getStampedPeriodRangeUsageCostByUser(
   executor: DbClient = db
 ): Promise<Map<string, number>> {
   const conditions = [
-    eq(usageDailyCost.billingEntityType, billingEntity.type),
-    eq(usageDailyCost.billingEntityId, billingEntity.id),
-    gte(usageDailyCost.billingPeriodStart, range.from),
-    lte(usageDailyCost.billingPeriodEnd, range.to),
+    eq(usageLog.billingEntityType, billingEntity.type),
+    eq(usageLog.billingEntityId, billingEntity.id),
+    gte(usageLog.billingPeriodStart, range.from),
+    lte(usageLog.billingPeriodEnd, range.to),
   ]
   if (source) {
     conditions.push(
-      Array.isArray(source)
-        ? inArray(usageDailyCost.source, source)
-        : eq(usageDailyCost.source, source)
+      Array.isArray(source) ? inArray(usageLog.source, source) : eq(usageLog.source, source)
     )
   }
 
   const rows = await executor
     .select({
-      userId: usageDailyCost.userId,
-      cost: sql<string>`COALESCE(SUM(${usageDailyCost.cost}), 0)`,
+      userId: usageLog.userId,
+      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
-    .from(usageDailyCost)
+    .from(usageLog)
     .where(and(...conditions))
-    .groupBy(usageDailyCost.userId)
+    .groupBy(usageLog.userId)
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
 }
 
 /**
- * Records idempotent billing events. Database triggers maintain the cost
- * projection in the same transaction, including writes from older app versions.
+ * Records usage as append-only billing events.
+ *
+ * This intentionally avoids per-event userStats updates: userStats is retained
+ * as the pre-cutover period baseline and for low-frequency billing trackers,
+ * but usage writes no longer contend on the user_stats row.
  */
 export async function recordUsage(params: RecordUsageParams): Promise<void> {
   // The usage ledger is written regardless of BILLING_ENABLED so it is the

@@ -13,7 +13,6 @@ const {
   mockLt,
   mockOr,
   mockGetOrganizationSubscription,
-  mockBillingPeriodUsageRows,
 } = vi.hoisted(() => ({
   schemaTables: {
     organizationMemberUsageLimit: {
@@ -47,7 +46,6 @@ const {
   mockLt: vi.fn((field: unknown, value: unknown) => ({ operator: 'lt', field, value })),
   mockOr: vi.fn((...conditions: unknown[]) => ({ operator: 'or', conditions })),
   mockGetOrganizationSubscription: vi.fn(),
-  mockBillingPeriodUsageRows: vi.fn(() => ({ query: 'attributed usage' })),
 }))
 
 vi.mock('@sim/db/schema', () => schemaTables)
@@ -64,10 +62,6 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@/lib/billing/core/billing', () => ({
   getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
-
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  billingPeriodUsageRows: mockBillingPeriodUsageRows,
 }))
 
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
@@ -105,7 +99,7 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
       start: new Date('2026-06-01T00:00:00.000Z'),
       end: new Date('2026-07-01T00:00:00.000Z'),
     }
-    dbChainMockFns.from.mockResolvedValueOnce([{ cost: '4.5' }])
+    queueTableRows(schemaTables.usageLog, [{ cost: '4.5' }])
     mockGetOrganizationSubscription.mockResolvedValue({
       periodStart: new Date('2026-07-01T00:00:00.000Z'),
       periodEnd: new Date('2026-08-01T00:00:00.000Z'),
@@ -115,13 +109,11 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
       getOrgMemberUsageForBillingPeriod('snapshot-org', 'actor-2', billingPeriod)
     ).resolves.toBe(4.5)
 
-    expect(mockBillingPeriodUsageRows).toHaveBeenCalledWith(
-      { type: 'organization', id: 'snapshot-org' },
-      billingPeriod,
-      undefined,
-      ['actor-2']
-    )
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityType', 'organization')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityId', 'snapshot-org')
     expect(mockEq).toHaveBeenCalledWith('usageLog.userId', 'actor-2')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', billingPeriod.start)
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodEnd', billingPeriod.end)
     expect(mockEq).toHaveBeenCalledWith('workspace.organizationId', 'snapshot-org')
     expect(mockIsNull).toHaveBeenCalledWith('usageLog.billingEntityType')
     expect(mockIsNull).toHaveBeenCalledWith('usageLog.billingEntityId')
@@ -129,6 +121,23 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
     expect(mockGte).toHaveBeenCalledWith('usageLog.createdAt', 'workspace.organizationAssignedAt')
     expect(mockGte).toHaveBeenCalledWith('usageLog.createdAt', billingPeriod.start)
     expect(mockLt).toHaveBeenCalledWith('usageLog.createdAt', billingPeriod.end)
+    expect(dbChainMockFns.leftJoin).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'workspace.id' }),
+      expect.anything()
+    )
+
+    const mixedHistoryCall = mockOr.mock.calls.find(
+      (conditions) =>
+        conditions.length === 2 &&
+        conditions.every(
+          (condition) =>
+            typeof condition === 'object' &&
+            condition !== null &&
+            'operator' in condition &&
+            condition.operator === 'and'
+        )
+    )
+    expect(mixedHistoryCall).toBeDefined()
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
   })
 
@@ -138,18 +147,17 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
       end: new Date('2026-08-13T00:00:00.000Z'),
       source: 'reporting' as const,
     }
-    dbChainMockFns.from.mockResolvedValueOnce([{ cost: '18.25' }])
+    queueTableRows(schemaTables.usageLog, [{ cost: '18.25' }])
 
     await expect(
       getOrgMemberUsageForBillingPeriod('contract-org', 'actor-2', billingPeriod)
     ).resolves.toBe(18.25)
 
-    expect(mockBillingPeriodUsageRows).toHaveBeenCalledWith(
-      { type: 'organization', id: 'contract-org' },
-      billingPeriod,
-      undefined,
-      ['actor-2']
-    )
+    expect(mockEq).toHaveBeenCalledWith('usageLog.userId', 'actor-2')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityType', 'organization')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityId', 'contract-org')
+    expect(mockGte).toHaveBeenCalledWith('usageLog.createdAt', billingPeriod.start)
+    expect(mockLt).toHaveBeenCalledWith('usageLog.createdAt', billingPeriod.end)
     expect(mockEq).not.toHaveBeenCalledWith('workspace.organizationId', 'contract-org')
     expect(mockIsNull).not.toHaveBeenCalledWith('usageLog.billingEntityType')
   })
@@ -183,24 +191,21 @@ describe('getOrgMemberUsageForCurrentPeriod', () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')
     mockGetOrganizationSubscription.mockResolvedValue({ periodStart, periodEnd })
-    dbChainMockFns.from.mockResolvedValueOnce([{ cost: '5' }])
+    queueTableRows(schemaTables.usageLog, [{ cost: '5' }])
 
     const result = await getOrgMemberUsageForCurrentPeriod('org-1', 'user-2')
 
     expect(result).toBe(5)
     expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('org-1')
-    expect(mockBillingPeriodUsageRows).toHaveBeenCalledWith(
-      { type: 'organization', id: 'org-1' },
-      expect.objectContaining({ start: periodStart, end: periodEnd }),
-      undefined,
-      ['user-2']
-    )
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityId', 'org-1')
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', periodStart)
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodEnd', periodEnd)
   })
 
   it('uses a prefetched subscription without a second lookup', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
     const periodEnd = new Date('2026-07-01T00:00:00.000Z')
-    dbChainMockFns.from.mockResolvedValueOnce([{ cost: '5' }])
+    queueTableRows(schemaTables.usageLog, [{ cost: '5' }])
 
     const result = await getOrgMemberUsageForCurrentPeriod('org-1', 'user-2', {
       periodStart,
@@ -209,26 +214,17 @@ describe('getOrgMemberUsageForCurrentPeriod', () => {
 
     expect(result).toBe(5)
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
-    expect(mockBillingPeriodUsageRows).toHaveBeenCalledWith(
-      { type: 'organization', id: 'org-1' },
-      expect.objectContaining({ start: periodStart, end: periodEnd }),
-      undefined,
-      ['user-2']
-    )
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', periodStart)
   })
 
   it('falls back to the all-time window when the org has no subscription period', async () => {
-    dbChainMockFns.from.mockResolvedValueOnce([{ cost: '7' }])
+    queueTableRows(schemaTables.usageLog, [{ cost: '7' }])
 
     const result = await getOrgMemberUsageForCurrentPeriod('org-1', 'user-2', null)
 
     expect(result).toBe(7)
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
-    expect(mockBillingPeriodUsageRows).toHaveBeenCalledWith(
-      { type: 'organization', id: 'org-1' },
-      expect.objectContaining(defaultBillingPeriod()),
-      undefined,
-      ['user-2']
-    )
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', defaultBillingPeriod().start)
+    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodEnd', defaultBillingPeriod().end)
   })
 })

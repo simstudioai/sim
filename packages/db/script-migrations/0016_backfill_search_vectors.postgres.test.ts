@@ -342,18 +342,14 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
       FOR EACH ROW EXECUTE FUNCTION cancel_projection_upgrade()`)
     try {
       await expect(runScriptMigrations(sql)).rejects.toMatchObject({ code: '57014' })
-      expect(
-        await sql`SELECT name FROM script_migrations
-          WHERE name IN ('0015_backfill_embedding_search', '0016_backfill_search_vectors')`
-      ).toHaveLength(0)
+      expect(await sql`SELECT name FROM script_migrations WHERE name >= '0015'`).toHaveLength(0)
     } finally {
       await sql.unsafe('DROP TRIGGER cancel_projection_upgrade ON embedding_search')
       await sql.unsafe('DROP FUNCTION cancel_projection_upgrade()')
     }
     await runScriptMigrations(sql)
     expect(
-      await sql`SELECT name FROM script_migrations
-        WHERE name IN ('0015_backfill_embedding_search', '0016_backfill_search_vectors') ORDER BY name`
+      await sql`SELECT name FROM script_migrations WHERE name >= '0015' ORDER BY name`
     ).toEqual([
       { name: '0015_backfill_embedding_search' },
       { name: '0016_backfill_search_vectors' },
