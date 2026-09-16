@@ -48,6 +48,7 @@ const context = {
   organizationId: 'org-1',
   allowPersonalApiKeys: true,
   credentialId: 'credential-1',
+  credentialType: 'oauth:gmail' as const,
   credentialGroupId: 'group-1',
   credentialGroupEnrollmentId: 'enrollment-1',
 }
@@ -69,7 +70,10 @@ function storedPolicy(workspaceIds: string[] = ['workspace-1']) {
     id: 'policy-1',
     organizationId: 'org-1',
     revision: 1,
-    document: buildOrganizationAccountAccessPolicy('group-1', workspaceIds),
+    document: buildOrganizationAccountAccessPolicy(
+      'group-1',
+      workspaceIds.map((workspaceId) => ({ workspaceId, access: { mode: 'all' as const } }))
+    ),
   }
 }
 
@@ -249,6 +253,23 @@ describe('requireCredentialGroupCredentialAccess', () => {
       requireAccess(executorPrincipal(), { ...context, organizationId: undefined })
     ).rejects.toThrow('Reconnect this account')
   })
+
+  it.each([executorPrincipal, copilotPrincipal])(
+    'rechecks the canonical integration even when the workspace still has other grants',
+    async (makePrincipal) => {
+      await expect(requireAccess(makePrincipal())).resolves.toBeUndefined()
+      mocks.requirePolicy.mockResolvedValue({
+        document: buildOrganizationAccountAccessPolicy('group-1', [
+          {
+            workspaceId: 'workspace-1',
+            access: { mode: 'selected', credentialTypes: ['oauth:google-calendar'] },
+          },
+        ]),
+      })
+      await expect(requireAccess(makePrincipal())).rejects.toMatchObject({ code: 'forbidden' })
+      expect(mocks.requirePolicy).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it('rechecks the org feature flag before credential use', async () => {
     mocks.isAvailable.mockResolvedValue(false)

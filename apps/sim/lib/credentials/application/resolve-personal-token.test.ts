@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   decrypt: vi.fn(),
   audit: vi.fn(),
   enrollment: vi.fn(),
+  policy: vi.fn(),
+  available: vi.fn(),
 }))
 vi.mock('@/lib/credentials/application/credential-context', () => ({
   resolveCredentialApplicationContext: mocks.context,
@@ -27,6 +29,12 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mocks.audit,
 }))
 
+vi.mock('@/lib/resource-policies/repository', () => ({ requireResourcePolicy: mocks.policy }))
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: mocks.available,
+}))
+
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { resolvePersonalToken } from '@/lib/credentials/application/resolve-personal-token'
 
 const principal = { kind: 'session', userId: 'owner', sessionId: 'session' } as const
@@ -116,6 +124,45 @@ describe('authorized personal token resolution', () => {
     expect(mocks.decrypt).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
   })
+  it('authorizes organization token type before decrypting and rechecks revocation', async () => {
+    const organizationToken = { ...current, workspaceId: null, organizationId: 'org' }
+    mocks.context.mockResolvedValue({
+      ...context,
+      workspaceOrganizationId: 'org',
+      credential: organizationToken,
+    })
+    mocks.access.mockResolvedValue({
+      credential: organizationToken,
+      member: null,
+      hasWorkspaceAccess: true,
+      canWriteWorkspace: false,
+      isAdmin: true,
+    })
+    mocks.enrollment.mockResolvedValue({ credentialGroupId: 'group' })
+    mocks.available.mockResolvedValue(true)
+    mocks.policy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group', [
+        {
+          workspaceId: 'ws',
+          access: { mode: 'selected', credentialTypes: ['personal_token:gitlab'] },
+        },
+      ]),
+    })
+    await expect(resolvePersonalToken.execute({ principal, input })).resolves.toMatchObject({
+      accessToken: 'secret',
+    })
+    mocks.decrypt.mockClear()
+    mocks.policy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group', [
+        { workspaceId: 'ws', access: { mode: 'selected', credentialTypes: ['oauth:gmail'] } },
+      ]),
+    })
+    await expect(resolvePersonalToken.execute({ principal, input })).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(mocks.decrypt).not.toHaveBeenCalled()
+  })
+
   it('refuses revoked workspace access before secret resolution', async () => {
     mocks.permission.mockResolvedValue(null)
     await expect(resolvePersonalToken.execute({ principal, input })).rejects.toThrow(

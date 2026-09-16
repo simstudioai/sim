@@ -1,16 +1,19 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { CredentialGroupApplicationContext } from '@/lib/credential-groups/application/authorization'
 import { resolveCredentialGroupWorkspaceContext } from '@/lib/credential-groups/application/context'
+import type { OrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import {
   organizationAccountAccessPolicyCodec,
   organizationAccountPolicyAllowsWorkspace,
 } from '@/lib/credential-groups/application/workspace-access-policy'
+import type { OrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 export interface OrganizationAccountsWorkspaceContext extends CredentialGroupApplicationContext {
   organizationId: string
+  workspaceAccessPolicy?: OrganizationAccountAccessPolicy
 }
 
 /** Resolves the singleton using the executing workspace's current organization. */
@@ -31,12 +34,15 @@ export async function resolveOrganizationAccountsWorkspaceContext(
 }
 
 /** Uses live policy and ownership; cached selections and deployment snapshots never grant access. */
-export async function requireOrganizationAccountsWorkspaceAccess(context: {
-  workspaceId: string
-  workspaceOrganizationId: string | null
-  organizationId: string
-  credentialGroupId: string
-}): Promise<void> {
+export async function requireOrganizationAccountsWorkspaceAccess(
+  context: {
+    workspaceId: string
+    workspaceOrganizationId: string | null
+    organizationId: string
+    credentialGroupId: string
+  },
+  credentialType?: OrganizationCredentialType
+): Promise<OrganizationAccountAccessPolicy> {
   if (context.organizationId !== context.workspaceOrganizationId) {
     throw new OrchestrationError('forbidden', 'Connected accounts belong to another organization')
   }
@@ -54,10 +60,15 @@ export async function requireOrganizationAccountsWorkspaceAccess(context: {
     resourceId: context.credentialGroupId,
     codec: organizationAccountAccessPolicyCodec,
   })
-  if (!organizationAccountPolicyAllowsWorkspace(policy.document, context.workspaceId)) {
+  if (
+    !organizationAccountPolicyAllowsWorkspace(policy.document, context.workspaceId, credentialType)
+  ) {
     throw new OrchestrationError(
       'forbidden',
-      'An organization admin must allow this workspace to use connected accounts'
+      credentialType
+        ? `This workspace is not allowed to use ${credentialType} credentials`
+        : 'An organization admin must allow this workspace to use Credential Groups'
     )
   }
+  return policy.document
 }

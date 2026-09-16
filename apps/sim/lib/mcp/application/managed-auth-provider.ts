@@ -15,12 +15,15 @@ export async function loadManagedMcpAuthProvider(
 ): Promise<OAuthClientProvider> {
   const current = await loadManagedMcpRuntimeCredential(credentialId, workspaceId)
   if (current.scope.kind === 'organization') {
-    await requireOrganizationAccountsWorkspaceAccess({
-      workspaceId,
-      workspaceOrganizationId: current.scope.organizationId,
-      organizationId: current.scope.organizationId,
-      credentialGroupId: current.credentialGroupId,
-    })
+    await requireOrganizationAccountsWorkspaceAccess(
+      {
+        workspaceId,
+        workspaceOrganizationId: current.scope.organizationId,
+        organizationId: current.scope.organizationId,
+        credentialGroupId: current.credentialGroupId,
+      },
+      current.credentialType
+    )
   }
   const clientRow = await getOrCreateOauthRow({
     mcpServerId: current.mcpServerId,

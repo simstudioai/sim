@@ -30,6 +30,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.permission,
 }))
 
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import { listManagedMcpConnectionsUseCase } from '@/lib/mcp/application/managed-connections'
 
 const principal: SessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
@@ -60,7 +61,11 @@ describe('managed MCP connection catalog', () => {
       billedAccountUserId: 'owner-1',
     })
     mocks.permission.mockResolvedValue('read')
-    mocks.requireAccess.mockResolvedValue(undefined)
+    mocks.requireAccess.mockResolvedValue(
+      buildOrganizationAccountAccessPolicy('group-1', [
+        { workspaceId: 'workspace-1', access: { mode: 'all' } },
+      ])
+    )
   })
 
   it('uses organization ownership and workspace access before exposing credential operations', async () => {

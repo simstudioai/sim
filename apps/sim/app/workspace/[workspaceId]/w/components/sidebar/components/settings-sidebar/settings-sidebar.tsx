@@ -156,8 +156,7 @@ export function SettingsSidebar({
         return Boolean(
           hostContext.hostOrganizationId &&
             isOrgAdminOrOwner &&
-            hostContext.features?.credentialGroups &&
-            !hostContext.features?.organizationSearch
+            hostContext.features?.credentialGroups
         )
       }
       if (

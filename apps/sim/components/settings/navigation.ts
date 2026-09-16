@@ -509,11 +509,11 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'Connected accounts',
+    label: 'Credential Groups',
     icon: GridOffset,
     unified: {
       id: 'connected-accounts',
-      description: 'Manage accounts shared with your organization’s workflows.',
+      description: 'Manage integrations and workspace access for workflows and Chat.',
       group: 'organization',
       order: 1,
       organizationSection: 'connected-accounts',
@@ -913,8 +913,8 @@ export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSet
   if (id === 'connected-accounts') {
     return {
       id,
-      label: 'Connected accounts',
-      description: 'Manage accounts shared with your organization’s workflows.',
+      label: 'Credential Groups',
+      description: 'Manage integrations and workspace access for workflows and Chat.',
       icon: GridOffset,
       group,
     }
