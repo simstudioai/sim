@@ -16,7 +16,7 @@
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { and, asc, eq, sql } from 'drizzle-orm'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { isOrganizationGovernanceActive } from '@/lib/billing/core/subscription'
 import {
   getAllowedIntegrationsFromEnv,
   isAccessControlEnabled,
@@ -222,14 +222,13 @@ async function resolveUserAccessControlContextForOrganization(
   if (!organizationId) return inactiveUserAccessControlContext(null)
 
   /**
-   * `'throw'` because an unentitled organization resolves to `config: null`,
-   * and `null` is not a smaller permission set — it is *no* permission group at
-   * all: every capability allowed, every allowlist off. Under the lenient
-   * default a single subscription-read failure would be indistinguishable from
-   * a genuine plan lapse and would turn the whole regime off for the request.
-   * Throwing surfaces the outage as an error instead.
+   * The governance reader, not the feature gate: an unentitled organization resolves to
+   * `config: null`, and `null` is not a smaller permission set — it is *no* permission group at
+   * all: every capability allowed, every allowlist off. So neither a read failure nor a payment
+   * one may answer here; both would be indistinguishable from a genuine plan lapse and would lift
+   * the whole regime. It throws on the first and keeps governing through the second.
    */
-  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId, 'throw')
+  const isEnterprise = await isOrganizationGovernanceActive(organizationId)
   if (!isEnterprise) {
     return inactiveUserAccessControlContext(organizationId)
   }
@@ -316,7 +315,7 @@ export async function getUserPermissionConfigForOrganization(
  * part of the entitlement cache key, so this read cannot reuse a preflight
  * result. A permission-group lock alone only serializes group writes.
  *
- * `'throw'` for the same reason as in
+ * Reads governance rather than feature entitlement, for the same reason as in
  * {@link resolveUserAccessControlContextForOrganization}.
  */
 export async function isOrganizationPermissionRegimeActive(
@@ -325,8 +324,8 @@ export async function isOrganizationPermissionRegimeActive(
 ): Promise<boolean> {
   if (!isHosted && !isAccessControlEnabled) return false
   return executor
-    ? isOrganizationOnEnterprisePlan(organizationId, 'throw', executor)
-    : isOrganizationOnEnterprisePlan(organizationId, 'throw')
+    ? isOrganizationGovernanceActive(organizationId, executor)
+    : isOrganizationGovernanceActive(organizationId)
 }
 
 /**

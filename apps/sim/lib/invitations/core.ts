@@ -1875,6 +1875,10 @@ export async function listPendingInvitationsForEmail(
   return Promise.all(rows.map((row) => hydrateInvitation(row)))
 }
 
+/**
+ * Pending grants for these workspaces. Terminal invitations were filtered on the client, so
+ * accepted and revoked rows — and the addresses on them — left the server for no reason.
+ */
 export async function listInvitationsForWorkspaces(workspaceIds: string[]) {
   if (workspaceIds.length === 0) return []
   return db
@@ -1895,5 +1899,10 @@ export async function listInvitationsForWorkspaces(workspaceIds: string[]) {
     })
     .from(invitationWorkspaceGrant)
     .innerJoin(invitation, eq(invitation.id, invitationWorkspaceGrant.invitationId))
-    .where(inArray(invitationWorkspaceGrant.workspaceId, workspaceIds))
+    .where(
+      and(
+        inArray(invitationWorkspaceGrant.workspaceId, workspaceIds),
+        eq(invitation.status, 'pending')
+      )
+    )
 }

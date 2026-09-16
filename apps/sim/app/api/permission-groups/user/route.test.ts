@@ -21,6 +21,8 @@ vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({ isOrganizationAdminOrOwner: mocks.admin }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mocks.enterprise,
+  /** Permission resolution reads the governance axis; these tests drive both from one knob. */
+  isOrganizationGovernanceActive: mocks.enterprise,
 }))
 vi.mock('@/lib/permission-groups/resolve.server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/permission-groups/resolve.server')>()),
@@ -167,10 +169,11 @@ describe('user permission policy shared read', () => {
     expect(await (await get()).json()).toEqual({ ...unrestricted, entitled: true })
   })
   it('does not turn policy infrastructure failures into unrestricted access', async () => {
-    mocks.enterprise.mockImplementation(async (_organizationId, onError) => {
-      if (onError === 'throw') throw new Error('unavailable')
-      return false
-    })
+    /**
+     * The governance reader has no lenient mode — answering `false` on a failed read would mean
+     * "no permission group", which denies nothing — so a failure here is simply a rejection.
+     */
+    mocks.enterprise.mockRejectedValue(new Error('unavailable'))
     expect((await get()).status).toBe(500)
     await expect(
       readUserPermissionConfig.execute({ principal, input: { workspaceId: 'workspace' } })

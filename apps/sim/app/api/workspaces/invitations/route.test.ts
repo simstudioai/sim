@@ -35,7 +35,11 @@ const {
   mockFindPendingGrantWorkspaceIds,
   mockFindPendingOrganizationInvitation,
   mockGetInvitePlanCategoryForUser,
+  mockListInvitationsForWorkspaces,
+  mockListAccessibleWorkspaceRowsForUser,
 } = vi.hoisted(() => ({
+  mockListInvitationsForWorkspaces: vi.fn().mockResolvedValue([]),
+  mockListAccessibleWorkspaceRowsForUser: vi.fn().mockResolvedValue([]),
   MockConflictingPendingInvitationError: class extends Error {},
   mockGetWorkspaceInvitePolicy: vi.fn(),
   mockValidateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
@@ -89,7 +93,11 @@ vi.mock('@/lib/invitations/send', () => ({
 
 vi.mock('@/lib/invitations/core', () => ({
   normalizeEmail: (email: string) => email.trim().toLowerCase(),
-  listInvitationsForWorkspaces: vi.fn().mockResolvedValue([]),
+  listInvitationsForWorkspaces: mockListInvitationsForWorkspaces,
+}))
+
+vi.mock('@/lib/workspaces/utils', () => ({
+  listAccessibleWorkspaceRowsForUser: mockListAccessibleWorkspaceRowsForUser,
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
@@ -112,6 +120,71 @@ const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
 
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
 import { POST } from '@/app/api/workspaces/invitations/batch/route'
+import { GET } from '@/app/api/workspaces/invitations/route'
+
+describe('GET /api/workspaces/invitations', () => {
+  const invitation = (workspaceId: string) => ({
+    id: `inv-${workspaceId}`,
+    workspaceId,
+    email: 'invitee@example.com',
+    token: `token-${workspaceId}`,
+    status: 'pending',
+    permission: 'admin',
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
+      { workspace: { id: 'ws-managed' }, permissionType: 'admin', viaOrgAdmin: false },
+      /** An org admin: the row reader promotes these to `admin` before the route sees them. */
+      { workspace: { id: 'ws-org-admin' }, permissionType: 'admin', viaOrgAdmin: true },
+      { workspace: { id: 'ws-read-only' }, permissionType: 'read', viaOrgAdmin: false },
+    ])
+    mockListInvitationsForWorkspaces.mockResolvedValue([
+      invitation('ws-managed'),
+      invitation('ws-org-admin'),
+      invitation('ws-read-only'),
+    ])
+  })
+
+  /**
+   * The token stands in for being the invitee or an admin on the invitation detail route, which
+   * answers with the invitee's address and every workspace the invitation grants — so a reader of
+   * one workspace must not be handed it for every invitation they can see.
+   */
+  it('returns the token only for workspaces the caller may manage', async () => {
+    const response = await GET(createMockRequest('GET'))
+
+    expect(response.status).toBe(200)
+    const { invitations } = await response.json()
+    expect(invitations).toEqual([
+      expect.objectContaining({ workspaceId: 'ws-managed', token: 'token-ws-managed' }),
+      expect.objectContaining({ workspaceId: 'ws-org-admin', token: 'token-ws-org-admin' }),
+      expect.not.objectContaining({ token: expect.anything() }),
+    ])
+    expect(invitations[2]).toMatchObject({
+      workspaceId: 'ws-read-only',
+      email: 'invitee@example.com',
+    })
+  })
+
+  it('asks only for the workspaces the caller can reach', async () => {
+    await GET(createMockRequest('GET'))
+
+    expect(mockListInvitationsForWorkspaces).toHaveBeenCalledWith([
+      'ws-managed',
+      'ws-org-admin',
+      'ws-read-only',
+    ])
+  })
+
+  it('refuses an unauthenticated caller', async () => {
+    mockGetSession.mockResolvedValue(null)
+
+    expect((await GET(createMockRequest('GET'))).status).toBe(401)
+  })
+})
 
 afterAll(resetEnvFlagsMock)
 

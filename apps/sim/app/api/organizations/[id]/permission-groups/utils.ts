@@ -31,6 +31,12 @@ export async function authorizeOrgAccessControl(
     return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
   }
 
+  /**
+   * The feature gate, deliberately, not the governance reader: the Access Control settings page is
+   * gated on the same plan check, so reading governance here would open the API for a past-due
+   * organization whose page still 404s. Restrictions keep applying through a dunning window —
+   * that is what the governance reader is for — but managing them follows the page.
+   */
   const entitled = await isOrganizationOnEnterprisePlan(organizationId)
   if (!entitled) {
     return NextResponse.json({ error: 'Access Control is an Enterprise feature' }, { status: 403 })

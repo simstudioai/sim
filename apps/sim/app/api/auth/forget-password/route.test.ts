@@ -64,6 +64,7 @@ vi.mock('@sim/logger', () => ({
   setRequestAuth: vi.fn(),
 }))
 
+import { APIError } from 'better-auth/api'
 import { POST } from '@/app/api/auth/forget-password/route'
 
 describe('Forget Password API Route', () => {
@@ -210,6 +211,24 @@ describe('Forget Password API Route', () => {
     expect(mockRequestPasswordReset).not.toHaveBeenCalled()
   })
 
+  /**
+   * The route answers identically whether or not an account exists, so a refusal must not become a
+   * status the success path never produces — that alone would tell a caller which addresses are
+   * registered. It is logged rather than surfaced.
+   */
+  it('answers a refusal Better Auth raises the way it answers a success', async () => {
+    mockRequestPasswordReset.mockRejectedValue(
+      new APIError('BAD_REQUEST', { message: 'invalid email' })
+    )
+
+    const response = await POST(createMockRequest('POST', { email: 'someone@example.com' }))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ success: true })
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalled()
+  })
+
   it('should handle auth service error with message', async () => {
     const errorMessage = 'User not found'
 
@@ -223,7 +242,9 @@ describe('Forget Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(500)
-    expect(data.message).toBe(errorMessage)
+    /** An unrecognized failure is ours, and its wording is not for an unauthenticated caller. */
+    expect(data.message).toBe('Failed to send password reset email. Please try again later.')
+    expect(data.message).not.toContain(errorMessage)
 
     expect(mockLogger.error).toHaveBeenCalledWith('Error requesting password reset:', {
       error: expect.any(Error),
