@@ -23,12 +23,12 @@ const DIMENSIONS = [
   { value: 'workflow', label: 'Workflows' },
   { value: 'member', label: 'Members' },
   { value: 'trigger', label: 'Triggers' },
-]
+] as const
 const SORTS = [
   { value: 'runs', label: 'Most runs' },
   { value: 'failures', label: 'Most failures' },
   { value: 'duration', label: 'Longest duration' },
-]
+] as const
 
 interface ActivityPanelProps {
   organizationId: string

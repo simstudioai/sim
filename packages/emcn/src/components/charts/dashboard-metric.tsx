@@ -29,7 +29,10 @@ export function DashboardMetric({ label, value, description, loading }: Dashboar
       </div>
       <div className='flex h-6 items-center text-[var(--text-body)] text-base tabular-nums'>
         {loading ? (
-          <span className='h-4 w-14 rounded bg-[var(--surface-3)]' aria-label='Loading value' />
+          <>
+            <span className='h-4 w-14 rounded bg-[var(--surface-3)]' aria-hidden='true' />
+            <span className='sr-only'>Loading value</span>
+          </>
         ) : (
           value
         )}

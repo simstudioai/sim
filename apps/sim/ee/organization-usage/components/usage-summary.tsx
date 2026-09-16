@@ -25,8 +25,8 @@ export function UsageSummary({
       summary?.series.map((point) => ({ timestamp: point.timestamp, value: point.credits })) ?? [],
     [summary]
   )
-  const used = summary?.totals.credits ?? 0
-  const previous = summary?.previousTotals?.credits ?? 0
+  const used = !isError ? (summary?.totals.credits ?? 0) : 0
+  const previous = !isError ? (summary?.previousTotals?.credits ?? 0) : 0
   const delta = previous > 0 ? ((used - previous) / previous) * 100 : null
   const hasLimit = limitCredits != null && limitCredits > 0
   return (

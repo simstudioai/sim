@@ -252,6 +252,7 @@ function LineChartComponent({
   if (data.length === 0) {
     return (
       <div
+        ref={containerRef}
         className={cn(
           'flex w-full items-center justify-center',
           !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'

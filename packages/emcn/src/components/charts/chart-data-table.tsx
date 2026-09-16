@@ -32,7 +32,11 @@ export function ChartDataTable({ label, series, timeZone }: ChartDataTableProps)
           <tr key={timestamp}>
             <th scope='row'>{formatChartTimestamp(timestamp, timeZone)}</th>
             {series.map((item, index) => (
-              <td key={item.label}>{values[index].get(timestamp)?.toLocaleString() ?? '—'}</td>
+              <td key={item.label}>
+                {values[index]
+                  .get(timestamp)
+                  ?.toLocaleString(undefined, { maximumSignificantDigits: 21 }) ?? '—'}
+              </td>
             ))}
           </tr>
         ))}
