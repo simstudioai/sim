@@ -43,10 +43,20 @@ export const AgentCliStdoutInvocation = z.object({
 });
 export type AgentCliStdoutInvocation = z.infer<typeof AgentCliStdoutInvocation>;
 
+/** Internal product operations reuse Sim's authorized handlers; public CLI operations stay native. */
+export const AgentCliServiceInvocation = z.object({
+  kind: z.literal("service"),
+  name: z.enum(["list_workspaces", "search_workspace", "read_document", "settings", "search_sources"]),
+  input: z.record(z.string(), z.json()),
+  inputFiles: z.partialRecord(z.enum(["input", "changes"]), z.string().min(1).max(1000)).optional(),
+});
+export type AgentCliServiceInvocation = z.infer<typeof AgentCliServiceInvocation>;
+
 export const AgentCliInvocation = z.discriminatedUnion("kind", [
   AgentCliCliInvocation,
   AgentCliAugmentationInvocation,
   AgentCliStdoutInvocation,
+  AgentCliServiceInvocation,
 ]);
 export type AgentCliInvocation = z.infer<typeof AgentCliInvocation>;
 

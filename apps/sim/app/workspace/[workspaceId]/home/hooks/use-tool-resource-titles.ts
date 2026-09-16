@@ -20,7 +20,7 @@ export function useToolResourceTitles(blocks: ContentBlock[]): ContentBlock[] {
       if (
         event.type === 'updated' &&
         event.action.type === 'success' &&
-        isResourceNameQuery(event.query.queryKey, workspaceId)
+        isResourceNameQuery(event.query.queryKey)
       )
         refresh()
     })

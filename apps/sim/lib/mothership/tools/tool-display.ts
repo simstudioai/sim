@@ -844,12 +844,55 @@ function terminalTitle(args: ToolArgs): string {
   return TERMINAL_OPERATION_TITLES[operation] ?? 'Using terminal'
 }
 
+/** CLI services reuse the historical domain title formatter, including parsed input on replay. */
+function cliServiceDisplay(
+  name: string,
+  args: ToolArgs
+): { name: string; input: Record<string, unknown> } | undefined {
+  const settings =
+    /^cli_settings_(account|organization|workspace)_(list|get|open|describe|update|execute)$/.exec(
+      name
+    )
+  const sources = /^cli_search_sources_(list|get|setup|approve|providers)$/.exec(name)
+  const retrieval = {
+    cli_workspaces_list: 'list_workspaces',
+    cli_search_query: 'search_workspace',
+    cli_search_read: 'read_document',
+  } as Record<string, string>
+  const serviceName = settings
+    ? 'settings'
+    : sources
+      ? 'search_sources'
+      : Object.hasOwn(retrieval, name)
+        ? retrieval[name]
+        : undefined
+  if (!serviceName) return undefined
+  const invocation = recordArg(recordArg(args, 'request'), 'invocation')
+  if (invocation?.kind === 'service' && invocation.name === serviceName)
+    return { name: serviceName, input: recordArg(invocation, 'input') ?? {} }
+  const positional = cliFirstPositional(name, args)
+  return {
+    name: serviceName,
+    input: settings
+      ? { scope: settings[1], action: settings[2], section: positional }
+      : sources
+        ? {
+            action: sources[1],
+            connectorType: cliFlag(args, '--connector-type'),
+            approved: cliFlag(args, '--approved') !== 'false',
+          }
+        : {},
+  }
+}
+
 /**
  * Resolve a tool-call display title from its name and arguments. Argument-aware
  * cases come first, then the static map, then a humanized fallback. This never
  * returns an empty string.
  */
 export function getToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
+  const service = cliServiceDisplay(name, args)
+  if (service) return getToolDisplayTitle(service.name, service.input)
   const mcpToolMatch = name.match(/^mcp-[^-]+-(.+)$/)
   if (mcpToolMatch?.[1]) {
     return humanizeToolName(mcpToolMatch[1])
@@ -1456,11 +1499,12 @@ export function cliFirstPositional(
   const tokens: string[] = []
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i]
-    if (token === '--output') {
+    if (token === '--output' || token === '--workspace' || token === '-w') {
       i++
       continue
     }
-    if (token.startsWith('--output=')) continue
+    if (token.startsWith('--output=') || token.startsWith('--workspace=') || /^-w.+/.test(token))
+      continue
     if (token.startsWith('-')) break
     tokens.push(token)
   }
@@ -1474,24 +1518,38 @@ export function cliFirstPositional(
 
 /** Prefer the worker's parsed invocation; raw args remain a streaming/legacy display fallback. */
 function cliFlag(args: ToolArgs, flag: string): string | undefined {
+  return stringArg({ value: cliFlagValue(args, flag) }, 'value') || undefined
+}
+
+/** Reads canonical flag values including resource ids, without treating them as display text. */
+export function cliFlagValue(args: ToolArgs, flag: string): string | undefined {
+  return cliFlagValues(args, flag)[0]
+}
+
+/** Variadic filters retain every selected target rather than naming only the first one. */
+export function cliFlagValues(args: ToolArgs, flag: string): string[] {
   const invocation = recordArg(recordArg(args, 'request'), 'invocation')
   if (invocation?.kind === 'augmentation') {
-    return stringArg(recordArg(invocation, 'flags'), flag.slice(2)) || undefined
+    const value = recordArg(invocation, 'flags')?.[flag.replace(/^-+/, '')]
+    return typeof value === 'string' && value.trim() ? [value.trim()] : []
   }
   const argv =
     invocation?.kind === 'cli' ? stringArrayArg(invocation, 'argv') : stringArrayArg(args, 'args')
+  const values: string[] = []
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i]
     if (token === '--') break
-    const value =
-      token === flag
-        ? argv[i + 1]
-        : token.startsWith(`${flag}=`)
-          ? token.slice(flag.length + 1)
-          : undefined
-    if (value !== undefined) return stringArg({ value }, 'value') || undefined
+    if (token === flag) {
+      for (let next = i + 1; next < argv.length && !argv[next].startsWith('-'); next++) {
+        values.push(argv[next])
+      }
+    } else if (token.startsWith(`${flag}=`)) {
+      values.push(token.slice(flag.length + 1))
+    } else if (flag === '-w' && /^-w.+/.test(token)) {
+      values.push(token.slice(2))
+    }
   }
-  return undefined
+  return values.map((value) => value.trim()).filter(Boolean)
 }
 
 /**
@@ -1734,7 +1792,7 @@ export function refineStreamingCliToolName(streamingArgs: string): string | null
   const path: string[] = []
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i] ?? ''
-    if (token === '--output') {
+    if (token === '--output' || token === '--workspace' || token === '-w') {
       i++
       continue
     }
@@ -1743,7 +1801,7 @@ export function refineStreamingCliToolName(streamingArgs: string): string | null
   }
   for (let length = Math.min(path.length, 4); length >= 1; length--) {
     const candidate = `cli_${path.slice(0, length).join('_').replace(/-/g, '_')}`
-    if (CLI_TOOL_TITLES[candidate]) return candidate
+    if (CLI_TOOL_TITLES[candidate] || cliServiceDisplay(candidate, undefined)) return candidate
   }
   return null
 }

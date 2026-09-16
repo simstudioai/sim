@@ -1,5 +1,6 @@
 import { Check, Clock, cn, X } from '@sim/emcn'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
+import { resolveResourceDisplayName } from '@/lib/mothership/tools/client/resource-display'
 import { useMothershipTaskStatus } from '@/hooks/queries/mothership-tasks'
 
 interface TaskPillProps {
@@ -8,8 +9,10 @@ interface TaskPillProps {
 
 function describeTarget(task: TaskBlockInfo): string {
   if (task.kind === 'workflow_run') {
-    const id = typeof task.target.executionId === 'string' ? task.target.executionId : ''
-    return `workflow run ${id.slice(0, 8)}`
+    const workspaceId =
+      typeof task.target.workspaceId === 'string' ? task.target.workspaceId : undefined
+    const name = resolveResourceDisplayName('workflow', task.target.workflowId, { workspaceId })
+    return name ? `workflow run · ${name}` : 'workflow run'
   }
   const at = typeof task.target.firesAt === 'string' ? new Date(task.target.firesAt) : null
   return at
@@ -18,9 +21,9 @@ function describeTarget(task: TaskBlockInfo): string {
 }
 
 /**
- * The "watching" pill under a turn that armed a background task (mothership
+ * Read-only background-watch status under a turn that armed a background task (mothership
  * docs/revamp/21-background-tasks.md §6.4). Pending until the task's notification lands
- * in this chat, then it shows the outcome. Read-only.
+ * in this chat, then it shows the outcome. The full notification remains available as detail.
  */
 export function TaskPill({ task: recorded }: TaskPillProps) {
   const { data } = useMothershipTaskStatus(recorded)
@@ -31,13 +34,20 @@ export function TaskPill({ task: recorded }: TaskPillProps) {
   const pending = task.status === undefined || task.status === 'pending'
   const failed = task.status === 'failed' || task.status === 'expired'
   const Icon = pending ? Clock : failed ? X : Check
+  const label = {
+    pending: 'Watching',
+    completed: 'Completed',
+    failed: 'Failed',
+    stopped: 'Stopped',
+    expired: 'Expired',
+  }[task.status ?? 'pending']
+  const target = describeTarget(task)
   return (
     <div
-      className={cn(
-        'my-1 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-[12px]',
-        'border-[var(--border)] bg-[var(--bg)] text-[var(--text-secondary)]'
-      )}
-      title={task.note}
+      className='my-1 flex max-w-full items-center gap-2 text-[12px] text-[var(--text-secondary)]'
+      title={[task.summary, task.note].filter(Boolean).join('\n')}
+      role='status'
+      aria-label={`Background watch: ${label} ${target}`}
     >
       <Icon
         className={cn(
@@ -47,8 +57,7 @@ export function TaskPill({ task: recorded }: TaskPillProps) {
         )}
       />
       <span className='truncate'>
-        {pending ? 'Watching' : task.status} {describeTarget(task)}
-        {task.summary ? ` · ${task.summary}` : ` · ${task.note}`}
+        Background watch · {label} {target}
       </span>
     </div>
   )

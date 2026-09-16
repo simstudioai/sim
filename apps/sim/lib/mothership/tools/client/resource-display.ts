@@ -4,6 +4,8 @@ import type { ResourceAddress } from '@/lib/mothership/generated/resources'
 import {
   blockDisplayName,
   cliFirstPositional,
+  cliFlagValue,
+  cliFlagValues,
   getToolDisplayTitle,
 } from '@/lib/mothership/tools/tool-display'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -26,7 +28,7 @@ export interface ToolResourceContext {
 
 type NamedResource = ResourceAddress['type'] | 'skill' | 'customtool' | 'mcpserver' | 'workspace'
 
-/** Use the chat workspace's existing inventories; naming never fetches a resource. */
+/** Use the addressed workspace's existing inventories; naming never fetches a resource. */
 function inventoryKeys(type: NamedResource, workspaceId: string): readonly QueryKey[] {
   switch (type) {
     case 'workflow':
@@ -53,7 +55,11 @@ function inventoryKeys(type: NamedResource, workspaceId: string): readonly Query
     case 'mcpserver':
       return [mcpKeys.serversList(workspaceId)]
     case 'workspace':
-      return [workspaceKeys.list()]
+      return getQueryClient()
+        .getQueryCache()
+        .findAll({ queryKey: workspaceKeys.all })
+        .filter((query) => query.queryKey[1] === 'list' || query.queryKey[1] === 'adminList')
+        .map((query) => query.queryKey)
     default:
       return []
   }
@@ -80,11 +86,17 @@ export function resolveResourceDisplayName(
 ): string | undefined {
   const resourceId = stringValue(id)
   if (!resourceId) return undefined
-  const resource = context.resources?.find((item) => item.type === type && item.id === resourceId)
+  const resource = context.resources?.find(
+    (item) =>
+      item.type === type &&
+      item.id === resourceId &&
+      (!context.workspaceId || !item.workspaceId || item.workspaceId === context.workspaceId)
+  )
   const title = stringValue(resource?.title)
   const fallback = title && title !== resourceId ? title : undefined
-  if (!context.workspaceId) return fallback
-  for (const key of inventoryKeys(type, context.workspaceId)) {
+  const workspaceId = context.workspaceId ?? resource?.workspaceId
+  if (!workspaceId && type !== 'workspace') return fallback
+  for (const key of inventoryKeys(type, workspaceId ?? '')) {
     for (const row of inventoryRows(getQueryClient().getQueryData(key))) {
       if (!isRecordLike(row) || row.id !== resourceId) continue
       const name = stringValue(row.name) ?? stringValue(row.title)
@@ -96,8 +108,7 @@ export function resolveResourceDisplayName(
 
 /** Only successful inventory writes should refresh labels, never chat or tool-stream writes. */
 export function isResourceNameQuery(key: QueryKey, workspaceId?: string): boolean {
-  if (!workspaceId) return false
-  if (key[0] === workspaceKeys.all[0]) return key[1] === 'list'
+  if (key[0] === workspaceKeys.all[0]) return key[1] === 'list' || key[1] === 'adminList'
   return (
     [
       workflowKeys.all[0],
@@ -111,7 +122,7 @@ export function isResourceNameQuery(key: QueryKey, workspaceId?: string): boolea
       mcpKeys.all[0],
     ].some((root) => root === key[0]) &&
     (key[1] === 'list' || key[1] === 'servers') &&
-    key.includes(workspaceId)
+    (!workspaceId || key.includes(workspaceId))
   )
 }
 
@@ -132,27 +143,62 @@ export function resolveNamedCliToolDisplayTitle(
   args: Record<string, unknown> | undefined,
   context: ToolResourceContext
 ): string | undefined {
+  if (!name.startsWith('cli_')) return undefined
   const target = cliFirstPositional(name, args)
-  if (!target) return undefined
-  if (name === 'cli_files_read' && target.includes('/')) return getToolDisplayTitle(name, args)
+  const domain = Object.entries(CLI_RESOURCE_DOMAINS).find(([key]) =>
+    name.startsWith(`cli_${key}_`)
+  )
+  const resource = domain?.[1]
+  const folder = domain && name.startsWith(`cli_${domain[0]}_folders_`)
+  const type = folder ? (domain[0] === 'files' ? 'filefolder' : 'folder') : resource?.type
+  const workflowIds = cliFlagValues(args, '--workflow')
+    .flatMap((value) => value.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean)
+  const request = isRecordLike(args?.request) ? args.request : undefined
+  const explicitWorkspace =
+    stringValue(request?.workspaceId) ??
+    cliFlagValue(args, '--workspace') ??
+    cliFlagValue(args, '-w')
+  const addressed = context.resources?.find(
+    (item) =>
+      ((item.type === type && item.id === target) ||
+        (item.type === 'workflow' && workflowIds.includes(item.id)) ||
+        (name.startsWith('cli_logs_') && item.type === 'log' && item.id === target)) &&
+      (!explicitWorkspace || item.workspaceId === explicitWorkspace)
+  )
+  const workspaceId = explicitWorkspace ?? addressed?.workspaceId ?? context.workspaceId
+  const scoped = { ...context, workspaceId }
+  const workspaceName =
+    workspaceId && workspaceId !== context.workspaceId
+      ? (resolveResourceDisplayName('workspace', workspaceId, scoped) ??
+        context.resources?.find((item) => item.workspaceId === workspaceId && item.workspaceName)
+          ?.workspaceName)
+      : undefined
+  const inWorkspace = (title: string): string =>
+    workspaceName ? `${title} in ${workspaceName}` : title
+  const base = getToolDisplayTitle(name, args)
   if (name === 'cli_blocks_get' || name === 'cli_blocks_tips') {
-    const block = getBlock(target)
-    if (!block) return undefined
-    const base = getToolDisplayTitle(name, args)
-    return base.replace(blockDisplayName(target), () => block.name)
+    const block = target ? getBlock(target) : undefined
+    return block && target ? base.replace(blockDisplayName(target), () => block.name) : undefined
   }
-  for (const [domain, resource] of Object.entries(CLI_RESOURCE_DOMAINS)) {
-    if (!name.startsWith(`cli_${domain}_`)) continue
-    const folder = name.startsWith(`cli_${domain}_folders_`)
-    const type = folder ? (domain === 'files' ? 'filefolder' : 'folder') : resource.type
-    const resolvedName = resolveResourceDisplayName(type, target, context)
-    if (!resolvedName) return undefined
-    const base = getToolDisplayTitle(name, args)
-    const noun = folder ? `${resource.noun} folder` : resource.noun
-    const pattern = new RegExp(`\\b${noun}\\b`)
-    return pattern.test(base)
-      ? base.replace(pattern, () => resolvedName)
-      : `${base}: ${resolvedName}`
+  if (name.startsWith('cli_logs_')) {
+    const names = workflowIds.map((id) => resolveResourceDisplayName('workflow', id, scoped))
+    const workflow =
+      names.length && names.every(Boolean)
+        ? names.join(', ')
+        : resolveResourceDisplayName('log', target, scoped)
+    const title = workflow ? `${base} for ${workflow}` : base
+    return workflow || workspaceName ? inWorkspace(title) : undefined
   }
-  return undefined
+  if (!resource) return undefined
+  if (name === 'cli_files_read' && target?.includes('/')) return inWorkspace(base)
+  const resolvedName = type && resolveResourceDisplayName(type, target, scoped)
+  if (!resolvedName) return workspaceName ? inWorkspace(base) : undefined
+  const noun = folder ? `${resource.noun} folder` : resource.noun
+  const pattern = new RegExp(`\\b${noun}\\b`)
+  const title = pattern.test(base)
+    ? base.replace(pattern, () => resolvedName)
+    : `${base}: ${resolvedName}`
+  return resource.type === 'workspace' ? title : inWorkspace(title)
 }

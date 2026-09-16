@@ -1029,3 +1029,62 @@ describe('settings and search source activity fallbacks', () => {
     expect(getToolDisplayTitle('search_sources')).toBe('Checking search sources')
   })
 })
+
+describe('CLI service display titles', () => {
+  it.each(['account', 'organization', 'workspace'])(
+    'reuses settings titles for %s scope',
+    (scope) => {
+      for (const action of ['list', 'get', 'open', 'describe', 'update', 'execute']) {
+        const name = `cli_settings_${scope}_${action}`
+        const input = { scope, action, section: 'members', operation: 'invite-member' }
+        expect(
+          getToolDisplayTitle(name, {
+            request: { invocation: { kind: 'service', name: 'settings', input } },
+          })
+        ).toBe(getToolDisplayTitle('settings', input))
+        expect(
+          refineStreamingCliToolName(
+            JSON.stringify({ args: ['settings', scope, action, 'members'] })
+          )
+        ).toBe(name)
+        expect(
+          getToolDisplayTitle(name, { args: ['settings', scope, action, 'members'] })
+        ).toContain(`${scope} settings: Members`)
+      }
+    }
+  )
+
+  it.each(['list', 'get', 'setup', 'approve', 'providers'])(
+    'reuses search source %s titles',
+    (action) => {
+      const name = `cli_search_sources_${action}`
+      const input = { action, connectorType: 'google_drive', approved: false }
+      expect(
+        getToolDisplayTitle(name, {
+          request: { invocation: { kind: 'service', name: 'search_sources', input } },
+        })
+      ).toBe(getToolDisplayTitle('search_sources', input))
+      expect(
+        refineStreamingCliToolName(JSON.stringify({ args: ['search', 'sources', action] }))
+      ).toBe(name)
+    }
+  )
+
+  it('names discovery and retrieval without exposing ids', () => {
+    for (const [path, title] of [
+      ['workspaces list', 'Listing workspaces'],
+      ['search query', 'Searching documents'],
+      ['search read', 'Reading document'],
+    ]) {
+      const name = `cli_${path.replaceAll(' ', '_')}`
+      expect(getToolDisplayTitle(name)).toBe(title)
+      expect(refineStreamingCliToolName(JSON.stringify({ args: path.split(' ') }))).toBe(name)
+    }
+    expect(
+      getToolDisplayTitle('cli_search_sources_approve', {
+        args: ['search', 'sources', 'approve', '--approved', 'false'],
+      })
+    ).toBe('Disabling search sources')
+    expect(refineStreamingCliToolName('{"args":["settings","organization","invented"]}')).toBeNull()
+  })
+})
