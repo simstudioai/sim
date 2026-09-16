@@ -6,7 +6,9 @@
  */
 
 import { omit } from '@sim/utils/object'
+import { mothershipBlockDetailSchema } from '@/lib/api/contracts/mothership-catalog'
 import { type V2BlockDetail, v2BlockDetailSchema } from '@/lib/api/contracts/v2/catalog'
+import { withModelHints } from '@/lib/mothership/agent-cli/model-hints'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 import { resolveDeniedBlockOperations } from '@/lib/mothership/integration-tool-projection'
@@ -27,7 +29,7 @@ function parseBlockDetail(stdout: string): V2BlockDetail | null {
   }
 }
 
-export async function curateBlockDetail(
+async function curatePermittedBlockDetail(
   result: AgentCliRawResult,
   viewer: CurationViewer
 ): Promise<AgentCliRawResult> {
@@ -62,4 +64,18 @@ export async function curateBlockDetail(
       toolIds: detail.toolIds.filter(isToolAllowed),
     }),
   }
+}
+
+/** Static hints follow the existing authorized read and per-viewer operation projection. */
+export async function curateBlockDetail(
+  result: AgentCliRawResult,
+  viewer: CurationViewer
+): Promise<AgentCliRawResult> {
+  const permitted = await curatePermittedBlockDetail(result, viewer)
+  if (permitted.exitCode !== 0) return permitted
+  const detail = parseBlockDetail(permitted.stdout)
+  if (!detail) return permitted
+  const enriched = withModelHints(detail)
+  if (enriched === detail) return permitted
+  return { ...permitted, stdout: JSON.stringify(mothershipBlockDetailSchema.parse(enriched)) }
 }

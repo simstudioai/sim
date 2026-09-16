@@ -15,7 +15,7 @@ Use [Slack](https://www.slack.com/) to send and manage messages, work with canva
 
 ## Stream Trigger Responses
 
-Custom-bot Slack triggers can stream workflow outputs directly back into the conversation that started a run. Enable **Stream response to Slack** on a Message, App Mention, or Assistant Thread Started trigger, then select the outputs to deliver.
+Custom-bot Slack triggers can stream workflow outputs directly back into the conversation that started a run. Turn on **Enable agent session** (`streamResponse`) on a Message, App Mention, or Assistant Thread Started trigger, then select the outputs to deliver in **Outputs to stream** (`streamOutputs`).
 
 - A selected Agent output streams immediately as it is generated. If the Agent later calls a tool, any pre-tool commentary already streamed remains visible.
 - A selected non-streaming block output is sent when that block invocation completes.
@@ -24,7 +24,11 @@ Custom-bot Slack triggers can stream workflow outputs directly back into the con
 - Optional thinking and tool-call updates appear as Slack tasks in a timeline or plan.
 - Slack Agent Sessions remain in processing state for the run, return to active when it finishes, and the native Slack stop button cancels active workflow executions.
 
-Automatic trigger responses require a custom bot created by the Slack setup wizard. They are not available with the shared Sim Slack app.
+Automatic trigger responses require a custom bot created by the Slack setup wizard. They are not available with the shared Sim Slack app. Where the deployment enables shared-app triggers, the Sim app can receive its subscribed event subset without automatic streaming.
+
+The **Set Assistant Status** (`set_status`) action changes the assistant-thread indicator; it does not enable agent-session streaming. A separate Send Message action for an output already selected on the trigger sends an additional message.
+
+Testing a block with sample input verifies its logic. To verify a Slack integration, check the real event's deployed workflow run and any execution or delivery errors, then confirm the reply in the originating conversation or thread.
 
 ## AI-Generated Content
 
