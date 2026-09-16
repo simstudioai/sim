@@ -1658,6 +1658,9 @@ describe('organization connector credential authorization', () => {
         body: { error: expect.stringContaining('(unauthorized_client)') },
       })
       expect((error as Error).message).toContain('numeric client ID')
+      expect((error as Error).message).toContain(
+        "exact domain-wide delegation scopes in this connector's service-account setup section"
+      )
       expect((error as Error).message).not.toContain('private provider payload')
       expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledOnce()
     }
@@ -1665,7 +1668,11 @@ describe('organization connector credential authorization', () => {
 
   it.each([
     [400, 'invalid_grant', 'JSON key'],
-    [400, 'invalid_scope', 'scopes'],
+    [
+      400,
+      'invalid_scope',
+      "exact domain-wide delegation scopes in this connector's service-account setup section",
+    ],
     [403, 'access_denied', 'API access policies'],
   ])('classifies Google %s %s without exposing provider text', async (status, code, guidance) => {
     mocks.resolveTokenBundle.mockRejectedValueOnce(

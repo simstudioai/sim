@@ -339,7 +339,7 @@ function rethrowConnectorCredentialError(error: unknown): never {
     switch (error.errorCode) {
       case 'unauthorized_client':
         message =
-          "Google rejected service-account authorization (unauthorized_client). In Google Admin, authorize the JSON key's numeric client ID with every scope listed in this connector's setup guide. Verify the delegated user's Workspace email and allow time for recent delegation changes to propagate."
+          "Google rejected service-account authorization (unauthorized_client). In Google Admin, authorize the JSON key's numeric client ID with the exact domain-wide delegation scopes in this connector's service-account setup section. Verify the delegated user's Workspace email and allow time for recent delegation changes to propagate."
         break
       case 'invalid_grant':
         message =
@@ -347,7 +347,7 @@ function rethrowConnectorCredentialError(error: unknown): never {
         break
       case 'invalid_scope':
         message =
-          "Google rejected the service-account scopes (invalid_scope). Verify the scopes listed in this connector's setup guide are authorized in Google Admin."
+          "Google rejected the service-account scopes (invalid_scope). In Google Admin, authorize the exact domain-wide delegation scopes in this connector's service-account setup section."
         break
       case 'access_denied':
         message =
