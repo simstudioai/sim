@@ -38,6 +38,7 @@ function transactionExecutor() {
         from: () => ({
           where: () => ({ limit }),
           innerJoin: () => ({ where: () => ({ limit }) }),
+          leftJoin: () => ({ where: () => ({ limit }) }),
         }),
       }),
     },
@@ -76,7 +77,6 @@ describe('prepareSessionForCreation', () => {
     limit.mockResolvedValueOnce([{ email: 'member@example.com', suspendedAt: null }])
     limit.mockResolvedValueOnce([{ organizationId: 'org-1' }])
     limit.mockResolvedValueOnce([{ settings: { maxSessionHours: 24 } }])
-    limit.mockResolvedValueOnce([{ userId: 'owner-1' }])
     limit.mockResolvedValueOnce([{ billingBlocked: false, billingBlockedReason: null }])
     limit.mockResolvedValueOnce([{ plan: 'enterprise', status: 'active' }])
 
@@ -89,7 +89,7 @@ describe('prepareSessionForCreation', () => {
         expiresAt: new Date('2026-09-09T00:00:00Z'),
       },
     })
-    expect(limit).toHaveBeenCalledTimes(6)
+    expect(limit).toHaveBeenCalledTimes(5)
     expect(db.select).not.toHaveBeenCalled()
   })
 
