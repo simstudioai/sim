@@ -322,15 +322,14 @@ export async function resolveConnectorCredentialAccessToken(input: {
 }): Promise<ConnectorAccessToken | null> {
   const identity = await resolveAuthorizedConnectorCredentialIdentity(input)
   if (!identity) return null
-  const resolved = await resolveConnectorAccessToken({
+  return resolveConnectorValidationAccessToken({
     auth: input.auth,
     accessMode: input.accessMode,
     connector: { credentialId: input.credentialId, encryptedApiKey: null },
     userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
     requestId: input.requestId,
     sourceConfig: input.sourceConfig,
-  }).catch(rethrowConnectorCredentialError)
-  return resolved
+  })
 }
 
 /** Exposes actionable credential refusals without returning raw provider payloads. */
@@ -360,6 +359,20 @@ function rethrowConnectorCredentialError(error: unknown): never {
     throw new OrchestrationError('validation', message)
   }
   rethrowGitHubInstallationSourceError(error)
+}
+
+/** Applies setup error handling to initial tokens and later delegated user probes. */
+async function resolveConnectorValidationAccessToken(
+  params: Parameters<typeof resolveConnectorAccessToken>[0]
+): Promise<ConnectorAccessToken | null> {
+  const resolved = await resolveConnectorAccessToken(params).catch(rethrowConnectorCredentialError)
+  const getDelegatedAccessToken = resolved?.getDelegatedAccessToken
+  if (!resolved || !getDelegatedAccessToken) return resolved
+  return {
+    ...resolved,
+    getDelegatedAccessToken: (subject) =>
+      getDelegatedAccessToken(subject).catch(rethrowConnectorCredentialError),
+  }
 }
 
 export async function validateConnectorSourceConfig(input: {
@@ -449,14 +462,14 @@ export async function validateConnectorSourceConfig(input: {
     if (identity.kind === 'oauth') tokenUserId = identity.userId
   }
 
-  const resolved = await resolveConnectorAccessToken({
+  const resolved = await resolveConnectorValidationAccessToken({
     auth: connectorConfig.auth,
     accessMode,
     connector: input.connector,
     userId: tokenUserId,
     requestId: input.requestId,
     sourceConfig: input.sourceConfig,
-  }).catch(rethrowConnectorCredentialError)
+  })
   if (!resolved) {
     return {
       message: 'Failed to refresh access token. Please reconnect your account.',
