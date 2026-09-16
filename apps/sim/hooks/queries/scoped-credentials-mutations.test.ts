@@ -24,7 +24,7 @@ const reconnectFields = {
   botToken: 'xoxb-new-bot-token',
   displayName: 'Support Bot',
   description: 'Reconnected Slack bot',
-}
+} as const
 const credential = {
   id: CREDENTIAL_ID,
   workspaceId: WORKSPACE_ID,
@@ -39,7 +39,7 @@ const credential = {
   createdBy: 'user-1',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
-}
+} as const
 
 beforeEach(() => {
   vi.clearAllMocks()
