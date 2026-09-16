@@ -347,6 +347,9 @@ jobs:
       - name: Lint code
         run: bun run lint:check
 
+      - name: Test Trigger deployment gates
+        run: python3 .github/scripts/test-trigger-deploy.py
+
       # Every zero-argument `check:*` script, run concurrently. The list is derived in
       # scripts/run-audits.ts, which also writes the per-audit timing table to the job
       # summary and annotates failures. Audits needing a base ref stay separate below.

@@ -215,18 +215,14 @@ jobs:
         env:
           ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || matrix.ecr_repo_secret == 'ECR_PII' && secrets.ECR_PII || '' }}
 
-      # App leg only: stamp the trigger epoch and capture the :dev digest BEFORE the
-      # build/push overwrites it. Stamping the epoch pre-build (not after the push,
-      # like it was) guarantees it precedes the :dev push that triggers the pipeline,
-      # so the dev ECS execution's startTime can't land before the epoch and get
-      # rejected by the cutover poll. The digest read uses the ECR API so an absent
-      # tag ("None", first deploy → changed) is distinct from a read error.
+      # Capture the previous tag and timestamp before the build pushes :dev.
+      # Only a missing tag is allowed; failed reads abort before deployment.
       - name: Capture pre-build :dev state
         id: prevdigest
         if: matrix.ecr_repo_secret == 'ECR_APP'
         run: |
           echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
-          PREV="$(aws ecr batch-get-image --repository-name "${{ steps.ecr-repo.outputs.name }}" --image-ids imageTag=dev --query 'images[0].imageId.imageDigest' --output text 2>/dev/null)" || PREV="__ERR__"
+          PREV=$(bash .github/scripts/get-ecr-image-digest.sh "${{ steps.ecr-repo.outputs.name }}" dev --allow-missing)
           echo "digest=${PREV}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
@@ -255,9 +251,7 @@ jobs:
           fi
           echo "$NEW" > dev-meta/digest.txt
           echo "${{ steps.prevdigest.outputs.epoch }}" > dev-meta/retag_epoch.txt
-          # PREV=__ERR__ (read failed) falls through to changed=true (wait) — the safe
-          # direction. A real no-op is detected when the read succeeds and matches.
-          if [ "$PREV" != "__ERR__" ] && [ "$NEW" = "$PREV" ]; then
+          if [ "$NEW" = "$PREV" ]; then
             echo "false" > dev-meta/app_image_changed.txt
             echo "ℹ️ :dev already points at ${NEW}; no ECS dev deploy will be triggered."
           else
@@ -283,7 +277,7 @@ jobs:
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
-      version: ${{ steps.deploy.outputs.version }}
+      version: ${{ steps.deploy.outputs.deploymentVersion }}
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -319,23 +313,16 @@ jobs:
             echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
             exit 1
           fi
-          bunx trigger.dev@4.4.3 deploy --env preview --branch dev-sim --skip-promotion 2>&1 | tee deploy.log
-          # Anchor on the "version" keyword and take the FIRST match: with
-          # --skip-promotion the CLI can print the unchanged current version AFTER
-          # the one it just deployed, and dashboard URLs carry other IDs — so a bare
-          # last-match could promote the wrong version. Fall back to a bare
-          # first-match only if no version-labelled line is present.
-          CLEAN=$(sed -E 's/\x1b\[[0-9;]*m//g' deploy.log)
-          VERSION=$(printf '%s\n' "$CLEAN" | grep -oiE 'version[[:space:]]+v?20[0-9]{6}\.[0-9]+' | grep -oE '20[0-9]{6}\.[0-9]+' | head -n1 || true)
-          if [ -z "$VERSION" ]; then
-            VERSION=$(printf '%s\n' "$CLEAN" | grep -oE '20[0-9]{6}\.[0-9]+' | head -n1 || true)
-          fi
-          if [ -z "$VERSION" ]; then
-            echo "ERROR: could not parse deployed version from deploy output" >&2
+          bunx trigger.dev@4.5.12 deploy --env preview --branch dev-sim --skip-promotion
+
+      - name: Validate deployment version output
+        env:
+          VERSION: ${{ steps.deploy.outputs.deploymentVersion }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
+            echo "ERROR: Trigger.dev did not report a valid deploymentVersion output" >&2
             exit 1
           fi
-          echo "Captured deployed version: $VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
   # Dev: promote the skip-promoted preview version at the dev ECS traffic cutover.
   # Dev has no promote-images gate (build-dev pushes :dev directly), so the digest,
@@ -354,7 +341,7 @@ jobs:
       !cancelled() &&
       github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
       needs.deploy-trigger-dev.result == 'success'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Dev bake is 5 min and dev deploys don't queue behind a bake (serialized by the
     # ci-<ref> group), so a 20-min poll is ample; the 40-min job leaves ~20 min for
     # setup + promote above it (mirrors the prod 90-vs-70 margin), and the 40-min
@@ -370,7 +357,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.13
+          bun-version: 1.4.1
 
       - name: Cache Bun dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -384,30 +371,15 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
-      # Tolerate a missing artifact: it's only uploaded by the app leg, so its
-      # absence means the app image didn't build → no ECS deploy happened.
       - name: Download dev cutover metadata
-        id: meta
-        continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dev-cutover-meta
           path: dev-meta
 
-      - name: Determine whether an app deploy happened
-        id: appdeploy
-        run: |
-          if [ -f dev-meta/app_image_changed.txt ]; then
-            echo "deployed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deployed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No app-image metadata (app leg did not build); skipping dev task promotion."
-          fi
-
       - name: Configure AWS credentials
-        if: steps.appdeploy.outputs.deployed == 'true'
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
@@ -415,22 +387,21 @@ jobs:
           role-duration-seconds: 2400
 
       - name: Wait for ECS traffic cutover
-        if: steps.appdeploy.outputs.deployed == 'true'
         env:
           OVERALL_TIMEOUT: "1200"
         run: |
           set -eo pipefail
           CHANGED=$(cat dev-meta/app_image_changed.txt)
-          if [ "$CHANGED" != "true" ]; then
-            echo "App image unchanged — no dev ECS deploy triggered; promoting immediately."
-            exit 0
-          fi
           DIGEST=$(cat dev-meta/digest.txt)
           EPOCH=$(cat dev-meta/retag_epoch.txt)
+          case "$CHANGED" in
+            true) ;;
+            false) EPOCH=0 ;;
+            *) echo "ERROR: invalid app image change metadata" >&2; exit 1 ;;
+          esac
           bash .github/scripts/wait-for-ecs-cutover.sh sim-dev-us-east-1-app-deployment "$DIGEST" "$EPOCH"
 
       - name: Promote Trigger.dev version
-        if: steps.appdeploy.outputs.deployed == 'true'
         working-directory: ./apps/sim
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
@@ -447,7 +418,7 @@ jobs:
             exit 1
           fi
           echo "Promoting Trigger.dev version $VERSION (preview / dev-sim)"
-          bunx trigger.dev@4.4.3 promote "$VERSION" --env preview --branch dev-sim
+          bunx trigger.dev@4.5.12 promote "$VERSION" --env preview --branch dev-sim
 
   # Main/staging: build & upload the Trigger.dev task version WITHOUT promoting it
   # (--skip-promotion). New runs keep executing the OLD promoted version until
@@ -460,12 +431,14 @@ jobs:
     name: Deploy Trigger.dev
     needs: [migrate]
     if: >-
+      !cancelled() &&
+      needs.migrate.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
-      version: ${{ steps.deploy.outputs.version }}
+      version: ${{ steps.deploy.outputs.deploymentVersion }}
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -473,7 +446,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.13
+          bun-version: 1.4.1
 
       - name: Cache Bun dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -487,7 +460,7 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Deploy to Trigger.dev (skip promotion)
         id: deploy
@@ -502,24 +475,16 @@ jobs:
             echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
             exit 1
           fi
-          bunx trigger.dev@4.4.3 deploy --env "$TRIGGER_ENV" --skip-promotion 2>&1 | tee deploy.log
-          # Extract the deployed version (e.g. 20260715.2) tied to THIS invocation.
-          # Anchor on the "version" keyword and take the FIRST match: with
-          # --skip-promotion the CLI can print the unchanged current version AFTER
-          # the one it just deployed, and dashboard URLs carry other IDs — so a bare
-          # last-match could promote the wrong version. Fall back to a bare
-          # first-match only if no version-labelled line is present.
-          CLEAN=$(sed -E 's/\x1b\[[0-9;]*m//g' deploy.log)
-          VERSION=$(printf '%s\n' "$CLEAN" | grep -oiE 'version[[:space:]]+v?20[0-9]{6}\.[0-9]+' | grep -oE '20[0-9]{6}\.[0-9]+' | head -n1 || true)
-          if [ -z "$VERSION" ]; then
-            VERSION=$(printf '%s\n' "$CLEAN" | grep -oE '20[0-9]{6}\.[0-9]+' | head -n1 || true)
-          fi
-          if [ -z "$VERSION" ]; then
-            echo "ERROR: could not parse deployed version from deploy output" >&2
+          bunx trigger.dev@4.5.12 deploy --env "$TRIGGER_ENV" --skip-promotion
+
+      - name: Validate deployment version output
+        env:
+          VERSION: ${{ steps.deploy.outputs.deploymentVersion }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
+            echo "ERROR: Trigger.dev did not report a valid deploymentVersion output" >&2
             exit 1
           fi
-          echo "Captured deployed version: $VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
   # Main/staging: build AMD64 images and push sha-tagged images to ECR + GHCR.
   # Runs in parallel with tests — only immutable sha tags are pushed here, and
@@ -639,7 +604,6 @@ jobs:
 
       - name: Build and push images
         if: steps.meta.outputs.skip != 'true'
-        id: build
         uses: ./.github/actions/docker-build
         with:
           provider: ${{ vars.CI_PROVIDER }}
@@ -647,25 +611,6 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           max-cache-size-mb: ${{ matrix.cache_mb }}
-
-      # Publish the app image digest so promote-trigger-* can correlate this push
-      # to its ECS CodePipeline execution. promote-images retags this same sha
-      # image to latest/staging (preserving the digest), so the pipeline's ECR
-      # source revision equals this digest — the only durable key (the deploy tag
-      # is floating). App leg only.
-      - name: Publish app image digest
-        if: matrix.ecr_repo_secret == 'ECR_APP'
-        run: |
-          mkdir -p digest
-          echo "${{ steps.build.outputs.digest }}" > digest/app-image-digest.txt
-
-      - name: Upload app image digest
-        if: matrix.ecr_repo_secret == 'ECR_APP'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: app-image-digest
-          path: digest/app-image-digest.txt
-          retention-days: 1
 
   # Promote the sha-tagged ECR images to the deploy tags once tests and
   # migrations pass. Pushing the ECR latest/staging tag is what triggers
@@ -697,10 +642,13 @@ jobs:
       # promote-trigger passes it to the poll script so a stale pipeline execution
       # reusing the same image digest can't satisfy the cutover gate.
       retag_epoch: ${{ steps.promote.outputs.retag_epoch }}
-      # 'false' when the app deploy tag didn't move to a new digest (no ECS deploy).
-      # promote-trigger promotes immediately in that case instead of waiting.
+      # Unchanged tags verify the latest execution's cutover without an epoch bound.
       app_image_changed: ${{ steps.promote.outputs.app_image_changed }}
+      app_image_digest: ${{ steps.promote.outputs.app_image_digest }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
@@ -751,31 +699,8 @@ jobs:
             ECR_TAG="staging"
           fi
 
-          # Detect whether the APP deploy tag actually moves to a new digest. If
-          # this commit's app image is byte-identical to the currently-deployed one
-          # (e.g. a commit that doesn't touch the app image — docs/CI-only), the
-          # retag is a no-op, ECR fires no push event, and no ECS app deploy runs.
-          # promote-trigger reads this to promote immediately instead of waiting for
-          # a cutover that will never happen.
-          #
-          # Read digests via the ECR API, which cleanly returns "None" for an absent
-          # tag (first deploy → changed) vs a non-zero exit on a real read error. On
-          # a read error we fall through to changed=true (wait) — the safe direction
-          # (old tasks stay current, job fails visibly) rather than promoting early.
           APP_REPO="${{ secrets.ECR_APP }}"
-          ecr_digest() { aws ecr batch-get-image --repository-name "$1" --image-ids imageTag="$2" --query 'images[0].imageId.imageDigest' --output text 2>/dev/null; }
-          NEW_APP_DIGEST="$(ecr_digest "$APP_REPO" "${{ github.sha }}")" || NEW_APP_DIGEST="__ERR__"
-          PREV_APP_DIGEST="$(ecr_digest "$APP_REPO" "${ECR_TAG}")" || PREV_APP_DIGEST="__ERR__"
-          if [ "$NEW_APP_DIGEST" = "__ERR__" ] || [ "$NEW_APP_DIGEST" = "None" ] || [ -z "$NEW_APP_DIGEST" ]; then
-            echo "ERROR: could not resolve the new app image digest for ${{ github.sha }}" >&2
-            exit 1
-          fi
-          if [ "$PREV_APP_DIGEST" != "__ERR__" ] && [ "$NEW_APP_DIGEST" = "$PREV_APP_DIGEST" ]; then
-            echo "app_image_changed=false" >> "$GITHUB_OUTPUT"
-            echo "ℹ️ App deploy tag ${ECR_TAG} already points at ${NEW_APP_DIGEST}; no ECS app deploy will be triggered."
-          else
-            echo "app_image_changed=true" >> "$GITHUB_OUTPUT"
-          fi
+          PREV_APP_DIGEST=$(bash .github/scripts/get-ecr-image-digest.sh "$APP_REPO" "$ECR_TAG" --allow-missing)
 
           # Verify every sha image exists before moving any deploy tag, so a
           # missing/expired image aborts the whole promotion up front.
@@ -791,10 +716,17 @@ jobs:
               "${REGISTRY}/${repo}:${{ github.sha }}"
           done
 
-  # Main/staging: promote the skip-promoted Trigger.dev version at the exact moment
-  # the ECS app deploy shifts traffic (CodeDeploy AllowTraffic on every target), so
-  # tasks and app cut over in lockstep. The promote-images retag is what triggers
-  # the ECS pipeline; this job correlates it via the app image digest + retag epoch
+          APP_DIGEST=$(bash .github/scripts/get-ecr-image-digest.sh "$APP_REPO" "$ECR_TAG")
+          echo "app_image_digest=$APP_DIGEST" >> "$GITHUB_OUTPUT"
+          if [ "$APP_DIGEST" = "$PREV_APP_DIGEST" ]; then
+            echo "app_image_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "app_image_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Main/staging: promote the parked Trigger.dev version after observing the ECS
+  # traffic cutover (CodeDeploy AllowTraffic on every target). The image retag
+  # triggers the ECS pipeline; this job correlates it via the digest + retag epoch
   # (rejecting a stale execution reusing the digest) and promotes at cutover.
   # Skipped when promote-images skipped the tag move (stale run) — tasks then
   # correctly stay on the old version. If the app deploy fails or never cuts over,
@@ -802,17 +734,15 @@ jobs:
   promote-trigger:
     name: Promote Trigger.dev
     needs: [promote-images, deploy-trigger]
-    # Require both upstreams to have SUCCEEDED explicitly (not just promoted==true):
-    # a job if without a status-check function keeps the implicit success() gate, but
-    # spelling it out removes any doubt that a failed promote-images/deploy-trigger
-    # can't reach this job and promote tasks with no app retag/cutover.
+    # Explicit results also suppress skip propagation from optional ancestors.
     if: >-
+      !cancelled() &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
       needs.promote-images.result == 'success' &&
       needs.deploy-trigger.result == 'success' &&
       needs.promote-images.outputs.promoted == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     # Must exceed the poll script's OVERALL_TIMEOUT (70 min, covering a prod deploy
     # queued behind a ~50-min bake) PLUS runner setup + the final promote step, so
     # the Actions timeout never kills the job before the script's own deadline.
@@ -827,7 +757,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.13
+          bun-version: 1.4.1
 
       - name: Cache Bun dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -841,13 +771,7 @@ jobs:
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Download app image digest
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: app-image-digest
-          path: digest
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
@@ -860,17 +784,21 @@ jobs:
           # MaxSessionDuration to be >= this value (roles are managed outside the repo).
           role-duration-seconds: 5400
 
-      # Skip the cutover wait when the app image didn't change (no ECS deploy was
-      # triggered) — otherwise the poll would hang until timeout. Promotion still
-      # runs below, immediately, since there is no app cutover to align with.
+      # An unchanged tag may belong to a failed or still-running earlier deploy.
+      # Verify its latest cutover rather than treating tag equality as success.
       - name: Wait for ECS traffic cutover
-        if: needs.promote-images.outputs.app_image_changed == 'true'
         env:
+          APP_IMAGE_CHANGED: ${{ needs.promote-images.outputs.app_image_changed }}
+          DIGEST: ${{ needs.promote-images.outputs.app_image_digest }}
           PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}-us-east-1-app-deployment
           RETAG_EPOCH: ${{ needs.promote-images.outputs.retag_epoch }}
         run: |
           set -eo pipefail
-          DIGEST=$(cat digest/app-image-digest.txt)
+          case "$APP_IMAGE_CHANGED" in
+            true) ;;
+            false) RETAG_EPOCH=0 ;;
+            *) echo "ERROR: invalid app image change metadata" >&2; exit 1 ;;
+          esac
           bash .github/scripts/wait-for-ecs-cutover.sh "$PIPELINE" "$DIGEST" "$RETAG_EPOCH"
 
       - name: Promote Trigger.dev version
@@ -891,7 +819,7 @@ jobs:
             exit 1
           fi
           echo "Promoting Trigger.dev version $VERSION ($TRIGGER_ENV)"
-          bunx trigger.dev@4.4.3 promote "$VERSION" --env "$TRIGGER_ENV"
+          bunx trigger.dev@4.5.12 promote "$VERSION" --env "$TRIGGER_ENV"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
