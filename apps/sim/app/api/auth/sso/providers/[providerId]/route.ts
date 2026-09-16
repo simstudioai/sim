@@ -16,6 +16,7 @@ import {
   setPrimarySsoProvider,
   setPrimarySsoProviderOperation,
 } from '@/lib/auth/sso/application/set-primary-provider'
+import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -104,6 +105,9 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
   if (removed.length === 0) {
     return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
   }
+
+  /** The organization may have just lost the provider its sign-in requirement depends on. */
+  if (organizationId) invalidateSsoPolicyCache(organizationId)
 
   logger.info('Deleted SSO provider', {
     providerId,

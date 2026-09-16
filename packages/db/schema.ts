@@ -1595,6 +1595,13 @@ export const organization = pgTable('organization', {
    * cache TTL instead of the 24h cookie-cache lifetime.
    */
   securityPolicyVersion: integer('security_policy_version').notNull().default(1),
+  /**
+   * Whether members must sign in through this organization's identity provider.
+   * Checked only when a session is created, so turning it on ends no session that
+   * already exists; signing everyone out stays the separate revoke action. Owners
+   * keep password sign-in as a break-glass path for a broken identity provider.
+   */
+  requireSso: boolean('require_sso').notNull().default(false),
   whitelabelSettings: json('whitelabel_settings').$type<{
     brandName?: string
     logoUrl?: string

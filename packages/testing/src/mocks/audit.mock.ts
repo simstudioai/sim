@@ -118,6 +118,7 @@ export const auditMock = {
     ORGANIZATION_UPDATED: 'organization.updated',
     ORGANIZATION_DELETED: 'organization.deleted',
     ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
+    ORGANIZATION_SSO_POLICY_UPDATED: 'organization.sso_policy.updated',
     ORGANIZATION_SESSIONS_REVOKED: 'organization.sessions.revoked',
     ORGANIZATION_DOMAIN_ADDED: 'organization.domain.added',
     ORGANIZATION_DOMAIN_VERIFIED: 'organization.domain.verified',

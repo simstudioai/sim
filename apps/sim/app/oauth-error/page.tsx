@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { SSO_REQUIRED_ERROR_CODE, SSO_REQUIRED_MESSAGE } from '@/lib/auth/constants'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 export const metadata: Metadata = {
@@ -40,6 +41,11 @@ const FRIENDLY: Record<string, string> = {
    */
   account_not_linked:
     'An account already exists for this email address. Sign in using the method you originally signed up with.',
+  /**
+   * The person's organization requires single sign-on, so a social sign-in is
+   * refused. Retrying the same provider can never succeed — name the way in.
+   */
+  [SSO_REQUIRED_ERROR_CODE]: SSO_REQUIRED_MESSAGE,
   /** The provider returned no email claim, so there is nothing to sign in as. */
   email_not_found:
     'Your identity provider didn’t share an email address with us, so we couldn’t complete sign-in. Please contact your administrator.',
