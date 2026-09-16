@@ -202,6 +202,19 @@ export default function LoginPage({
               return
             }
 
+            /**
+             * A policy refusal explains itself — an organization requiring single sign-on, or a
+             * suspended account. Leading with "Invalid email or password" would send the person
+             * to reset a password that is fine.
+             */
+            if (ctx.error.status === 403 && ctx.error.message) {
+              errorHandled = true
+              setResetSuccessMessage(null)
+              setPasswordErrors([ctx.error.message])
+              setShowValidationError(true)
+              return
+            }
+
             errorHandled = true
             const errorMessage: string[] = ['Invalid email or password']
 

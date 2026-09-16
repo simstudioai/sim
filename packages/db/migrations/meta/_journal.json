@@ -2444,6 +2444,13 @@
       "when": 1789518532535,
       "tag": "0349_permission_access_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1789579589946,
+      "tag": "0350_organization_require_sso",
+      "breakpoints": true
     }
   ]
 }

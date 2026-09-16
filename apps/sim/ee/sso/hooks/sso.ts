@@ -21,6 +21,8 @@ export const ssoKeys = {
   providers: () => [...ssoKeys.all, 'providers'] as const,
   providerList: (organizationId?: string) =>
     [...ssoKeys.providers(), organizationId ?? ''] as const,
+  policies: () => [...ssoKeys.all, 'policy'] as const,
+  policy: (organizationId?: string) => [...ssoKeys.policies(), organizationId ?? ''] as const,
 }
 
 /**

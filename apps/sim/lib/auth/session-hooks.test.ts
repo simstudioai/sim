@@ -16,6 +16,7 @@ vi.mock('@/lib/auth/access-control', () => ({
 import { runWithAuthDatabase } from '@/lib/auth/database-context'
 import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
+import { SSO_REQUIRED_MESSAGE } from '@/lib/auth/sso-policy'
 
 const createdAt = new Date('2026-09-08T00:00:00Z')
 const session: Session = {
@@ -33,7 +34,12 @@ function transactionExecutor() {
     limit,
     executor: {
       ...db,
-      select: vi.fn().mockReturnValue({ from: () => ({ where: () => ({ limit }) }) }),
+      select: vi.fn().mockReturnValue({
+        from: () => ({
+          where: () => ({ limit }),
+          innerJoin: () => ({ where: () => ({ limit }) }),
+        }),
+      }),
     },
   }
 }
@@ -85,6 +91,35 @@ describe('prepareSessionForCreation', () => {
     })
     expect(limit).toHaveBeenCalledTimes(6)
     expect(db.select).not.toHaveBeenCalled()
+  })
+
+  it('refuses a member signing in with a password when the organization requires SSO', async () => {
+    setEnvFlags({ isBillingEnabled: false, isSsoEnabled: true })
+    const { executor, limit } = transactionExecutor()
+    limit.mockResolvedValueOnce([{ email: 'member@example.com', suspendedAt: null }])
+    limit.mockResolvedValueOnce([{ organizationId: 'org-1', role: 'member' }])
+    limit.mockResolvedValueOnce([{ requireSso: true }])
+    limit.mockResolvedValueOnce([{ id: 'provider-1' }])
+
+    await expect(
+      runWithAuthDatabase(executor, () =>
+        prepareSessionForCreation(session, { path: '/sign-in/email' })
+      )
+    ).rejects.toThrow(SSO_REQUIRED_MESSAGE)
+  })
+
+  it('admits the same member through the identity provider', async () => {
+    setEnvFlags({ isBillingEnabled: false, isSsoEnabled: true })
+    const { executor, limit } = transactionExecutor()
+    limit.mockResolvedValueOnce([{ email: 'member@example.com', suspendedAt: null }])
+    limit.mockResolvedValueOnce([{ organizationId: 'org-1', role: 'member' }])
+    limit.mockResolvedValueOnce([{ settings: null }])
+
+    await expect(
+      runWithAuthDatabase(executor, () =>
+        prepareSessionForCreation(session, { path: '/sso/callback/okta' })
+      )
+    ).resolves.toMatchObject({ data: { activeOrganizationId: 'org-1' } })
   })
 
   it('refuses a suspended account before it can receive a session', async () => {
