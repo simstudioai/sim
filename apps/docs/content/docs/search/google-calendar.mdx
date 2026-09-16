@@ -86,6 +86,8 @@ Enter the Client ID and these exact comma-separated **OAuth scopes**:
 https://www.googleapis.com/auth/calendar.events.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly
 ```
 
+For a key shared with Drive and Gmail, use the [combined six-scope list](/search/google-drive#one-service-account-for-drive-gmail-and-calendar).
+
 Select **Authorize** and verify both scopes under **View details**. If you reuse a Drive or Gmail service account, retain its existing delegated scopes and add any missing Calendar scopes. An existing Drive authorization alone does not grant Calendar access. Delegation can take up to 24 hours to propagate; organizations requiring multi-party approval need another super administrator to approve the change. See [Google's delegation guide](https://knowledge.workspace.google.com/admin/apps/control-api-access-with-domain-wide-delegation).
 
 The **Directory administrator email** must be an active Workspace administrator with permission to read users. A super administrator has this permission; a custom administrator role can supply it. This identity lists the directory. Sim obtains a separate read-only Calendar token for each selected user; it does not read everyone's events as the administrator.
