@@ -746,6 +746,65 @@ describe('processDocumentAsync write guards', () => {
     expect(guardForStatusWrite('failed')).toBeDefined()
   })
 
+  it('records the failed embedding batch without exposing SQL, content or vectors', async () => {
+    armProviderSource()
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'document-1' }])
+    mockProcessDocument.mockResolvedValueOnce({
+      chunks: [{ text: 'private-content', metadata: { startIndex: 0, endIndex: 15 } }],
+      metadata: { chunkCount: 1, tokenCount: 3, characterCount: 15 },
+    })
+    mockGenerateEmbeddings.mockResolvedValueOnce({
+      embeddings: [[0.123456789]],
+      billableTokens: 0,
+      modelName: 'text-embedding-3-small',
+      pricingId: 'text-embedding-3-small',
+    })
+    const databaseError = new DrizzleQueryError(
+      'insert private SQL',
+      ['private-content', [0.123456789]],
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    )
+    dbChainMockFns.values.mockRejectedValueOnce(databaseError)
+
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'a.txt',
+          fileUrl: 'https://example.com/a.txt',
+          fileSize: 15,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
+    ).rejects.toBe(databaseError)
+
+    expect(mockLogError).toHaveBeenCalledWith('[document-1] Failed to insert embedding batch', {
+      knowledgeBaseId: 'knowledge-base-1',
+      operation: 'embedding.insert',
+      batchNumber: 1,
+      batchSize: 1,
+      totalChunks: 1,
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDimensions: 1536,
+      elapsedMs: expect.any(Number),
+      diagnostic: {
+        category: 'database',
+        code: '57014',
+        message: 'Database request failed (SQLSTATE 57014).',
+      },
+    })
+    const logs = JSON.stringify(mockLogError.mock.calls)
+    expect(logs).not.toContain('private')
+    expect(logs).not.toContain('0.123456789')
+    expect(guardForStatusWrite('failed')).toBeDefined()
+    expect(
+      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'completed')
+    ).toBe(false)
+  })
+
   it('accepts a legacy queuedAt-only payload only while the row has no token', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
