@@ -63,8 +63,8 @@ export function OrganizationAccessRequests({
           title='Allow users to request permissions'
           description={
             settings.data.allowRequests === false
-              ? 'New requests and approvals are paused. Request history remains available.'
-              : 'Members can ask administrators to review access and credit limits.'
+              ? 'New requests and approvals are paused.'
+              : 'Includes access and credit limit requests.'
           }
           trailing={
             <ChipSwitch

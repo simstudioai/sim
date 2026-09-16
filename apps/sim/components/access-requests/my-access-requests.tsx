@@ -127,7 +127,7 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
         ) : !catalog.data?.enabled ? (
           <EmptyState
             title='Access requests are unavailable'
-            description='Your organization is not accepting new access requests. Existing requests remain in My requests.'
+            description='Your organization is not accepting new requests.'
           />
         ) : (
           <div className={RESOURCE_LIST_STACK}>
@@ -143,9 +143,6 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
                 icon={entry.state === 'allowed' ? undefined : <Lock />}
                 iconVariant='plain'
                 title={entry.label}
-                description={
-                  entry.reason ?? (entry.state === 'allowed' ? 'Available to you' : undefined)
-                }
                 badge={
                   entry.state === 'allowed' ? (
                     <ChipTag variant='gray'>Available</ChipTag>
