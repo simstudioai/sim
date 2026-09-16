@@ -694,6 +694,7 @@ function WorkspaceHeaderImpl({
                         ) : (
                           <DropdownMenuItem
                             size='lg'
+                            actionOpen={isMenuOpen}
                             active={isActive || isMenuOpen || isKeyboardHighlighted}
                             onSelect={(event) => event.preventDefault()}
                             onPointerMove={preserveSearchFocus}

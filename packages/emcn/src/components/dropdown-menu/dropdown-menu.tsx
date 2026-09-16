@@ -327,28 +327,75 @@ const DropdownMenuItem = React.forwardRef<
       /**
        * Optional inline action rendered on the right edge of the item — e.g. a
        * "more" icon button. Reveals on hover/focus of the row, and the row stays
-       * highlighted while the cursor is over the action.
+       * highlighted while the cursor is over the action. ArrowRight moves from
+       * the row to its action; ArrowLeft returns to the row.
        */
       action?: React.ReactNode
-      /** Idle indicator sharing the action slot so the label never shifts. */
+      /** Keeps the action visible while its portaled menu is open. */
+      actionOpen?: boolean
+      /** Idle indicator sharing the action slot on hover-capable devices. */
       actionIndicator?: React.ReactNode
     }
 >(
   (
-    { className, size, inset, active, action, actionIndicator, asChild, children, ...props },
+    {
+      className,
+      size,
+      inset,
+      active,
+      action,
+      actionOpen,
+      actionIndicator,
+      asChild,
+      children,
+      ...props
+    },
     ref
   ) => {
+    const actionRef = React.useRef<HTMLDivElement>(null)
     const content = asChild ? children : withOverflowLabel(children)
     const stateClasses = active ? MENU_ROW_SELECTED_CLASS : MENU_ROW_HIGHLIGHT_CLASS
     if (action) {
       return (
-        <div className='group/dropdownitem relative'>
+        <div
+          className='group/dropdownitem relative'
+          onKeyDown={(event) => {
+            if (
+              event.defaultPrevented ||
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.shiftKey
+            )
+              return
+            const row = event.currentTarget.firstElementChild
+            const actionButton =
+              actionRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')
+            if (event.key === 'ArrowRight' && event.target === row && actionButton) {
+              event.preventDefault()
+              event.stopPropagation()
+              actionButton.focus()
+            } else if (
+              event.key === 'ArrowLeft' &&
+              row instanceof HTMLElement &&
+              event.target instanceof Node &&
+              actionRef.current?.contains(event.target)
+            ) {
+              event.preventDefault()
+              event.stopPropagation()
+              row.focus()
+            }
+          }}
+        >
           <DropdownMenuPrimitive.Item
             ref={ref}
             className={cn(
               dropdownMenuItemVariants({ size }),
               stateClasses,
-              'pr-[28px]',
+              actionIndicator || actionOpen
+                ? 'pr-[28px]'
+                : '[@media(hover:hover)]:group-focus-within/dropdownitem:pr-[28px] [@media(hover:hover)]:group-hover/dropdownitem:pr-[28px]',
+              actionIndicator ? '[@media(hover:none)]:pr-[52px]' : '[@media(hover:none)]:pr-[28px]',
               inset && 'pl-7',
               className
             )}
@@ -357,13 +404,24 @@ const DropdownMenuItem = React.forwardRef<
           >
             {content}
           </DropdownMenuPrimitive.Item>
-          <div className='-translate-y-1/2 absolute top-1/2 right-1 flex items-center'>
+          <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-1 flex size-[18px] items-center gap-1.5 [@media(hover:none)]:w-auto'>
             {actionIndicator && (
-              <div className='pointer-events-none absolute inset-0 flex items-center justify-center group-focus-within/dropdownitem:opacity-0 group-hover/dropdownitem:opacity-0'>
+              <div
+                className={cn(
+                  'pointer-events-none flex size-[18px] shrink-0 items-center justify-center [@media(hover:hover)]:group-focus-within/dropdownitem:opacity-0 [@media(hover:hover)]:group-hover/dropdownitem:opacity-0',
+                  actionOpen && '[@media(hover:hover)]:opacity-0'
+                )}
+              >
                 {actionIndicator}
               </div>
             )}
-            <div className='flex items-center opacity-0 transition-opacity group-focus-within/dropdownitem:opacity-100 group-hover/dropdownitem:opacity-100'>
+            <div
+              ref={actionRef}
+              className={cn(
+                'pointer-events-none absolute inset-0 flex items-center opacity-0 transition-opacity group-focus-within/dropdownitem:pointer-events-auto group-focus-within/dropdownitem:opacity-100 group-hover/dropdownitem:pointer-events-auto group-hover/dropdownitem:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:static [@media(hover:none)]:opacity-100',
+                actionOpen && 'pointer-events-auto opacity-100'
+              )}
+            >
               {action}
             </div>
           </div>

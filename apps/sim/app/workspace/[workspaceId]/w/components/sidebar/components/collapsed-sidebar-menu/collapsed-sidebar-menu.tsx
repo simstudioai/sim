@@ -257,6 +257,7 @@ export function CollapsedSidebarMenu({
       <DropdownMenuContent
         side='right'
         align='start'
+        className='w-[220px]'
         sideOffset={8}
         {...hover.contentProps}
         onPointerMoveCapture={isEditing ? holdRowFocus : undefined}
@@ -327,13 +328,13 @@ export function CollapsedChatFlyoutItem({
     <DropdownMenuItem
       asChild
       active={isCurrentRoute || isMenuOpen}
+      actionOpen={isMenuOpen}
       action={
         showActions ? (
           <DropdownMenuItemAction
             aria-label='Chat options'
             onPointerDown={onMorePointerDown}
             onClick={(e) => onMoreClick?.(e, chat.id)}
-            className={cn(isMenuOpen && 'opacity-100')}
           >
             <MoreHorizontal />
           </DropdownMenuItemAction>
@@ -409,6 +410,7 @@ export function CollapsedWorkflowFlyoutItem({
     <DropdownMenuItem
       asChild
       active={isCurrentRoute || actionsOpen}
+      actionOpen={actionsOpen}
       onPointerMove={actionsOpen ? holdRowFocus : undefined}
       onPointerLeave={actionsOpen ? holdRowFocus : undefined}
       action={
@@ -423,7 +425,6 @@ export function CollapsedWorkflowFlyoutItem({
               <DropdownMenuItemAction
                 aria-label='Workflow options'
                 onClick={() => setActionsOpen((prev) => !prev)}
-                className={cn(actionsOpen && 'opacity-100')}
               >
                 <MoreHorizontal />
               </DropdownMenuItemAction>

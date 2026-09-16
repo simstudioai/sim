@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { generateSubfolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SidebarRowActions } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -385,16 +386,13 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
     [handleToggleExpanded, shouldPreventClickRef, isEditing, onFolderClick, folder.id]
   )
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (isEditing) {
-        handleRenameKeyDown(e)
-      } else {
-        handleExpandKeyDown(e)
-      }
-    },
-    [isEditing, handleRenameKeyDown, handleExpandKeyDown]
-  )
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isEditing) {
+      handleRenameKeyDown(e)
+    } else if (e.target === e.currentTarget) {
+      handleExpandKeyDown(e)
+    }
+  }
 
   const handleMorePointerDown = useCallback(() => {
     if (isContextMenuOpen) {
@@ -503,6 +501,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={cn(
           chipVariants({ active: isSelected || isContextMenuOpen, fullWidth: true }),
+          'group/sidebar-row',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleFolderSelect}
@@ -548,34 +547,30 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
             >
               <OverflowText label={folder.name} className='flex-1 text-[var(--text-body)]' />
             </div>
-            <div className='relative size-[18px] shrink-0'>
-              {folder.locked && (
-                <span
-                  role='img'
-                  aria-label='Folder is locked'
-                  className={cn(
-                    'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
-                    !isAnyDragActive && 'group-hover:opacity-0',
-                    isContextMenuOpen && 'opacity-0'
-                  )}
-                >
-                  <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
-                </span>
-              )}
+            <SidebarRowActions
+              open={isContextMenuOpen}
+              revealOnHover={!isAnyDragActive}
+              indicator={
+                folder.locked ? (
+                  <Lock
+                    className='size-[14px] text-[var(--text-icon)]'
+                    role='img'
+                    aria-label='Folder is locked'
+                    aria-hidden={false}
+                  />
+                ) : undefined
+              }
+            >
               <button
                 type='button'
                 aria-label='Folder options'
                 onPointerDown={handleMorePointerDown}
                 onClick={handleMoreClick}
-                className={cn(
-                  'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
-                  !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
-                  isContextMenuOpen && 'pointer-events-auto opacity-100'
-                )}
+                className='flex size-[18px] items-center justify-center rounded-sm'
               >
                 <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
               </button>
-            </div>
+            </SidebarRowActions>
           </div>
         )}
       </div>

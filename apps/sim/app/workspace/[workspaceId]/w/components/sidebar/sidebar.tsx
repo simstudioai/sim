@@ -77,6 +77,7 @@ import {
   SidebarFooter,
   SidebarNavChip,
   type SidebarNavItemData,
+  SidebarRowActions,
   SidebarSection,
   SidebarTooltip,
   StatusNotice,
@@ -249,10 +250,13 @@ const SidebarChatItem = memo(function SidebarChatItem({
         chatId={chat.id}
         href={chat.href}
         isCurrentRoute={isCurrentRoute}
-        className={chipVariants({
-          active: isCurrentRoute || isSelected || isMenuOpen,
-          fullWidth: true,
-        })}
+        className={cn(
+          chipVariants({
+            active: isCurrentRoute || isSelected || isMenuOpen,
+            fullWidth: true,
+          }),
+          'group/sidebar-row'
+        )}
         onClick={(e) => {
           if (e.metaKey || e.ctrlKey) return
           if (e.shiftKey) {
@@ -269,28 +273,20 @@ const SidebarChatItem = memo(function SidebarChatItem({
       >
         <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
         {chat.id !== 'new' && (
-          <div className='relative flex size-[18px] shrink-0 items-center justify-center'>
-            {showStatusDot && (
-              <span
-                aria-hidden='true'
-                className={cn(
-                  'size-[6px] rounded-full transition-opacity',
-                  isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
-                )}
-                style={{
-                  backgroundColor: isActive ? '#EAB308' : 'var(--brand-accent)',
-                }}
-              />
-            )}
-            {!showStatusDot && isPinned && (
-              <Pin
-                aria-hidden='true'
-                className={cn(
-                  'absolute size-[12px] text-[var(--text-icon)] transition-opacity',
-                  isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
-                )}
-              />
-            )}
+          <SidebarRowActions
+            open={isMenuOpen}
+            indicator={
+              showStatusDot ? (
+                <span
+                  aria-hidden='true'
+                  className='size-[6px] rounded-full'
+                  style={{ backgroundColor: isActive ? '#EAB308' : 'var(--brand-accent)' }}
+                />
+              ) : isPinned ? (
+                <Pin aria-hidden='true' className='size-[12px] text-[var(--text-icon)]' />
+              ) : undefined
+            }
+          >
             <button
               type='button'
               aria-label='Chat options'
@@ -300,14 +296,11 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 e.stopPropagation()
                 onMoreClick(e, chat.id)
               }}
-              className={cn(
-                'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
-                isMenuOpen && 'opacity-100'
-              )}
+              className='flex size-[18px] items-center justify-center rounded-sm'
             >
               <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
             </button>
-          </div>
+          </SidebarRowActions>
         )}
       </ChatNavigationLink>
     </SidebarTooltip>
