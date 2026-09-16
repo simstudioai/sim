@@ -18,6 +18,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   unique,
@@ -3343,6 +3344,9 @@ export const embeddingSearch = pgTable(
   },
   (table) => ({
     knowledgeBaseIdx: index('embedding_search_kb_idx').on(table.knowledgeBaseId),
+    documentLookupIdx: index('embedding_search_document_lookup_idx')
+      .on(table.documentId, table.knowledgeBaseId, table.id)
+      .where(sql`${table.enabled}`),
     binaryIdx: index('embedding_search_binary_hnsw_idx')
       .using('hnsw', table.binary.op('bit_hamming_ops'))
       .with({ m: 16, ef_construction: 64 }),
@@ -4686,6 +4690,8 @@ export const usageLog = pgTable(
     metadata: jsonb('metadata'),
 
     cost: decimal('cost').notNull(),
+    /** The synchronous cost projection marks rows as they are accounted during bootstrap. */
+    costProjected: boolean('cost_projected').notNull().default(false),
     eventKey: text('event_key'),
     billingEntityType: billingEntityTypeEnum('billing_entity_type'),
     billingEntityId: text('billing_entity_id'),
@@ -4765,6 +4771,45 @@ export const usageLog = pgTable(
       table.createdAt
     ),
     executionIdIdx: index('usage_log_execution_id_idx').on(table.executionId),
+  })
+)
+
+/** Exact, transactionally maintained daily costs; ledger writes own this projection. */
+export const usageDailyCost = pgTable(
+  'usage_daily_cost',
+  {
+    billingEntityType: billingEntityTypeEnum('billing_entity_type').notNull(),
+    billingEntityId: text('billing_entity_id').notNull(),
+    billingPeriodStart: timestamp('billing_period_start').notNull(),
+    billingPeriodEnd: timestamp('billing_period_end').notNull(),
+    userId: text('user_id').notNull(),
+    source: usageLogSourceEnum('source').notNull(),
+    usageDate: date('usage_date').notNull(),
+    /** Stable ledger-ID shards keep concurrent charges from serializing on one payer row. */
+    shard: smallint('shard').notNull(),
+    cost: decimal('cost').notNull(),
+    entryCount: bigint('entry_count', { mode: 'number' }).notNull(),
+  },
+  (table) => ({
+    primaryKey: primaryKey({
+      name: 'usage_daily_cost_pk',
+      columns: [
+        table.billingEntityType,
+        table.billingEntityId,
+        table.billingPeriodStart,
+        table.billingPeriodEnd,
+        table.userId,
+        table.source,
+        table.usageDate,
+        table.shard,
+      ],
+    }),
+    entityDateIdx: index('usage_daily_cost_entity_date_idx').on(
+      table.billingEntityType,
+      table.billingEntityId,
+      table.usageDate
+    ),
+    shardBounds: check('usage_daily_cost_shard_bounds', sql`${table.shard} BETWEEN 0 AND 7`),
   })
 )
 

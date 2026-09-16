@@ -4,6 +4,7 @@ const commands = [
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-credential-group-resource-policies.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-oauth-provider.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0016_backfill_search_vectors.ts'],
+  ['bun', '--env-file=.env', 'run', './script-migrations/0017_backfill_usage_daily_cost.ts'],
 ]
 
 for (const command of commands) {

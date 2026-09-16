@@ -166,6 +166,10 @@ try {
     cwd: path.join(root, 'packages/db'),
     env: environment,
   })
+  run('bun', ['./script-migrations/0017_backfill_usage_daily_cost.ts'], {
+    cwd: path.join(root, 'packages/db'),
+    env: environment,
+  })
   run(
     'bunx',
     [

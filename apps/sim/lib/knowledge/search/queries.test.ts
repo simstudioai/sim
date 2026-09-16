@@ -573,6 +573,7 @@ describe('live repository authorization follows ranked candidates', () => {
     structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'release' }],
   }
 
+  const probePages: Array<Array<{ id: string }>> = []
   const candidatePages: Array<Array<{ id: string; initial_count: number }>> = []
   const rerankPages: Array<Array<ReturnType<typeof candidate>>> = []
   const keywordPages: Array<Array<ReturnType<typeof candidate>>> = []
@@ -585,17 +586,20 @@ describe('live repository authorization follows ranked candidates', () => {
 
   beforeEach(() => {
     resetDbChainMock()
+    probePages.length = 0
     candidatePages.length = 0
     rerankPages.length = 0
     keywordPages.length = 0
     dbChainMockFns.execute.mockImplementation(async (query) =>
-      render(query).sql.includes('WITH visible_search_documents')
-        ? (candidatePages.shift() ?? [])
-        : render(query).sql.includes('WITH scored_search_candidates')
-          ? (rerankPages.shift() ?? [])
-          : render(query).sql.includes('WITH visible_keyword_documents')
-            ? (keywordPages.shift() ?? [])
-            : []
+      render(query).sql.includes('CROSS JOIN LATERAL')
+        ? (probePages.shift() ?? [])
+        : render(query).sql.includes('WITH visible_search_documents')
+          ? (candidatePages.shift() ?? [])
+          : render(query).sql.includes('WITH scored_search_candidates')
+            ? (rerankPages.shift() ?? [])
+            : render(query).sql.includes('WITH visible_keyword_documents')
+              ? (keywordPages.shift() ?? [])
+              : []
     )
     getForConnectors.mockReset().mockResolvedValue(allowed)
   })
@@ -603,9 +607,8 @@ describe('live repository authorization follows ranked candidates', () => {
   afterEach(() => vi.useRealTimers())
 
   it('bounds broad vector ranking before metadata and reorders relaxed candidates before trimming', async () => {
-    queueTableRows(
-      schemaMock.embeddingSearch,
-      Array.from({ length: 200 }, (_, index) => candidate(`probe-${index}`, 'allowed-source'))
+    probePages.push(
+      Array.from({ length: 400 }, (_, index) => candidate(`probe-${index}`, 'allowed-source'))
     )
     queueCandidates(Array.from({ length: 400 }, (_, index) => ({ id: `candidate-${index}` })))
     queueRerank([
@@ -640,16 +643,18 @@ describe('live repository authorization follows ranked candidates', () => {
   })
 
   it('finishes empty scopes after the bounded probe without scanning HNSW or calling providers', async () => {
-    queueTableRows(schemaMock.embeddingSearch, [])
+    probePages.push([])
     expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([])
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.limit).toHaveBeenCalledExactlyOnceWith(200)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    const probe = render(dbChainMockFns.execute.mock.calls[0][0])
+    expect(probe.sql).toContain('CROSS JOIN LATERAL')
+    expect(probe.params.filter((value) => value === 400)).toHaveLength(2)
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
   it('reads vectors only for the bounded IDs when a broad scope has few candidates', async () => {
-    queueTableRows(schemaMock.embeddingSearch, [candidate('selected', 'allowed-source')])
+    probePages.push([candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
       { id: 'selected', content: 'Verified small scope', distance: 0.1 },
@@ -657,11 +662,13 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(await handleVectorOnlySearch({ ...params, structuredFilters: undefined })).toEqual([
       { id: 'selected', content: 'Verified small scope', distance: 0.1 },
     ])
-    expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
-    expect(JSON.stringify(dbChainMockFns.where.mock.calls[0][0])).not.toContain('<=>')
+    const probe = dbChainMockFns.execute.mock.calls[0][0]
+    expect(render(probe).sql).toContain('SELECT scoped_chunk.id')
+    expect(render(probe).sql).not.toContain('<=>')
+    expect(JSON.stringify(probe)).toContain('required_clause')
     expect(
       hasMockCondition(
-        dbChainMockFns.where.mock.calls[1][0],
+        dbChainMockFns.where.mock.calls[0][0],
         (node) =>
           node.type === 'inArray' &&
           node.column === schemaMock.embedding.id &&
@@ -673,11 +680,34 @@ describe('live repository authorization follows ranked candidates', () => {
     expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['allowed-source'], undefined)
   })
 
+  it.each([199, 200, 399])(
+    'ranks an exhausted scope of %s chunks once without repeating candidate search',
+    async (count) => {
+      const probe = Array.from({ length: count }, (_, index) => ({ id: `chunk-${index}` }))
+      probePages.push(probe)
+      queueTableRows(schemaMock.embedding, [candidate('chunk-0', 'allowed-source')])
+      queueTableRows(schemaMock.embedding, [
+        { id: 'chunk-0', content: 'Authorized passage', distance: 0.1 },
+      ])
+      const rows = await handleVectorOnlySearch({ ...params, structuredFilters: undefined })
+      expect(rows.map((row) => row.id)).toEqual(['chunk-0'])
+      expect(dbChainMockFns.execute).toHaveBeenCalledOnce()
+      expect(
+        hasMockCondition(
+          dbChainMockFns.where.mock.calls[0][0],
+          (node) =>
+            node.type === 'inArray' &&
+            node.column === schemaMock.embedding.id &&
+            Array.isArray(node.values) &&
+            node.values.length === count
+        )
+      ).toBe(true)
+      expect(dbChainMockFns.orderBy).toHaveBeenCalledOnce()
+    }
+  )
+
   it('scans the filtered projection when ANN cannot fill its limit', async () => {
-    queueTableRows(
-      schemaMock.embeddingSearch,
-      Array.from({ length: 200 }, (_, index) => ({ id: `probe-${index}` }))
-    )
+    probePages.push(Array.from({ length: 400 }, (_, index) => ({ id: `probe-${index}` })))
     queueCandidates([{ id: 'selected' }], 1)
     queueRerank([candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
@@ -697,15 +727,15 @@ describe('live repository authorization follows ranked candidates', () => {
   })
 
   it('advances past candidate pages that hydrate no current readable content', async () => {
-    const probe = Array.from({ length: 200 }, (_, index) => ({ id: `probe-${index}` }))
+    const probe = Array.from({ length: 400 }, (_, index) => ({ id: `probe-${index}` }))
     const identities = Array.from({ length: 400 }, (_, index) => ({ id: `candidate-${index}` }))
-    queueTableRows(schemaMock.embeddingSearch, probe)
+    probePages.push(probe)
     queueCandidates(identities)
     queueRerank(
       Array.from({ length: 20 }, (_, index) => candidate(`candidate-${index}`, 'allowed-source'))
     )
     queueTableRows(schemaMock.embedding, [])
-    queueTableRows(schemaMock.embeddingSearch, probe)
+    probePages.push(probe)
     queueCandidates(identities)
     queueRerank([candidate('selected', 'allowed-source')])
     queueTableRows(schemaMock.embedding, [
@@ -722,17 +752,17 @@ describe('live repository authorization follows ranked candidates', () => {
   })
 
   it('sorts hydrated candidates across pages by their original-vector distance', async () => {
-    const probe = Array.from({ length: 200 }, (_, index) =>
+    const probe = Array.from({ length: 400 }, (_, index) =>
       candidate(`probe-${index}`, 'allowed-source')
     )
-    queueTableRows(schemaMock.embeddingSearch, probe)
+    probePages.push(probe)
     queueCandidates(Array.from({ length: 400 }, (_, index) => ({ id: `candidate-${index}` })))
     queueRerank([
       { ...candidate('far', 'allowed-source'), distance: 0.7 },
       ...Array.from({ length: 19 }, (_, index) => candidate(`hidden-${index}`, 'allowed-source')),
     ])
     queueTableRows(schemaMock.embedding, [{ id: 'far', content: 'Far result', distance: 0.7 }])
-    queueTableRows(schemaMock.embeddingSearch, probe)
+    probePages.push(probe)
     queueCandidates(Array.from({ length: 400 }, (_, index) => ({ id: `candidate-${index}` })))
     queueRerank([
       candidate('near', 'allowed-source'),
