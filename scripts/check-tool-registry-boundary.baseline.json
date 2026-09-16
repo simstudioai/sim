@@ -93,16 +93,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/chat/[chatId]/page.tsx": {
-      "modules": 3068,
+      "modules": 3131,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1498,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 910,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 743,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 740,
+        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1529,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 968,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 802,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 797,
         "apps/sim/triggers/registry.ts": 485,
         "apps/sim/blocks/registry.ts": 330,
-        "apps/sim/lib/auth/index.ts": 267,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 201
+        "apps/sim/lib/auth/index.ts": 271,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 200
       }
     },
     "app/workspace/[workspaceId]/error.tsx": {
@@ -183,16 +183,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/home/page.tsx": {
-      "modules": 3068,
+      "modules": 3131,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1498,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 910,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 743,
-        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 740,
+        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1529,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 968,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 802,
+        "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 797,
         "apps/sim/triggers/registry.ts": 485,
         "apps/sim/blocks/registry.ts": 330,
-        "apps/sim/lib/auth/index.ts": 267,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 201
+        "apps/sim/lib/auth/index.ts": 271,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 200
       }
     },
     "app/workspace/[workspaceId]/integrations/[block]/page.tsx": {
