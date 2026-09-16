@@ -33,7 +33,7 @@ export interface LineChartPoint {
 }
 
 export interface LineChartMultiSeries {
-  id?: string
+  id: string
   label: string
   color: string
   data: LineChartPoint[]
@@ -94,11 +94,10 @@ function LineChartComponent({
   const hasExternalWrapper = !label || label === ''
 
   const allSeries = useMemo(
-    () =>
-      (Array.isArray(series) && series.length > 0
-        ? [{ id: 'base', label, color, data }, ...series]
-        : [{ id: 'base', label, color, data }]
-      ).map((s, idx) => ({ ...s, id: s.id || s.label || String(idx) })),
+    () => [
+      { id: 'base', sourceId: 'base', label, color, data },
+      ...(series ?? []).map((item) => ({ ...item, id: `series:${item.id}`, sourceId: item.id })),
+    ],
     [series, label, color, data]
   )
 
@@ -292,6 +291,7 @@ function LineChartComponent({
         <ChartDataTable
           label={label || 'Values by date'}
           series={allSeries.map((item) => ({
+            id: item.id,
             label: item.label || unit || 'Value',
             data: item.data,
           }))}
@@ -378,7 +378,7 @@ function LineChartComponent({
             const baseOpacity = isActive ? 1 : 0.12
             const strokeOpacity = hoverSeriesId ? (isHovered ? 1 : 0.2) : baseOpacity
             const sw = (() => {
-              switch ((s.id || '').toLowerCase()) {
+              switch (s.sourceId.toLowerCase()) {
                 case 'p50':
                   return isDark ? 1.5 : 1.7
                 case 'p90':
@@ -539,7 +539,7 @@ function LineChartComponent({
               const seriesIndex = allSeries.findIndex((x) => x.id === s.id)
               const v = allSeries[seriesIndex]?.data?.[hoverIndex]?.value
               const valueStr = fmt(v)
-              const labelStr = s.label || String(s.id || '')
+              const labelStr = s.label || s.sourceId
               const len = `${labelStr} ${valueStr}`.length
               return Math.max(m, len)
             }, 0)
@@ -557,7 +557,7 @@ function LineChartComponent({
                 {toDisplay.map((s) => {
                   const seriesIndex = allSeries.findIndex((x) => x.id === s.id)
                   const val = allSeries[seriesIndex]?.data?.[hoverIndex]?.value
-                  const seriesLabel = s.label || s.id
+                  const seriesLabel = s.label || s.sourceId
                   const showLabel =
                     seriesLabel && seriesLabel !== 'base' && seriesLabel.trim() !== ''
                   return (

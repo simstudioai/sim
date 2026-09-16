@@ -241,6 +241,29 @@ describe('RadarChart rendered geometry', () => {
 })
 
 describe('Dashboard chart states', () => {
+  it('preserves distinct cells when equally named series change order', () => {
+    const data = dailySeries(3, 10)
+    const first = { id: 'base', label: 'Runs', color: 'red', data: dailySeries(3, 20) }
+    const second = { id: 'second', label: 'Runs', color: 'green', data: dailySeries(3, 30) }
+    mountAtWidth(400, <LineChart label='Runs' color='blue' data={data} series={[first, second]} />)
+    const headers = [...container.querySelectorAll('thead th')]
+    const cells = [...container.querySelectorAll('tbody tr:first-child td')]
+    expect(cells.map((cell) => cell.textContent)).toEqual(['10', '20', '30'])
+    act(() => container.querySelector('button')?.click())
+    act(() =>
+      root.render(<LineChart label='Runs' color='blue' data={data} series={[second, first]} />)
+    )
+    const updatedHeaders = [...container.querySelectorAll('thead th')]
+    const updatedCells = [...container.querySelectorAll('tbody tr:first-child td')]
+    expect(updatedHeaders[2]).toBe(headers[3])
+    expect(updatedHeaders[3]).toBe(headers[2])
+    expect(updatedCells[1]).toBe(cells[2])
+    expect(updatedCells[2]).toBe(cells[1])
+    expect(updatedCells.map((cell) => cell.textContent)).toEqual(['10', '30', '20'])
+    expect(container.querySelector('path[stroke="red"]')?.getAttribute('opacity')).toBe('1')
+    expect(container.querySelector('path[stroke="green"]')).toBeNull()
+  })
+
   it('previews, pins, and clears a distribution without changing its proportions', () => {
     const segments = [
       { label: 'Completed', value: 90, color: 'blue' },

@@ -169,7 +169,7 @@ function BarChartComponent({
       <div className='relative' style={{ width, height }}>
         <ChartDataTable
           label={label || 'Values by date'}
-          series={[{ label: unit || 'Value', data }]}
+          series={[{ id: 'base', label: unit || 'Value', data }]}
           timeZone={timeZone}
         />
         <svg

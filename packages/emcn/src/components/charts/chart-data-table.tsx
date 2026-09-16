@@ -2,7 +2,7 @@ import { formatChartTimestamp } from '@sim/emcn'
 
 interface ChartDataTableProps {
   label: string
-  series: { label: string; data: { timestamp: string; value: number }[] }[]
+  series: { id: string; label: string; data: { timestamp: string; value: number }[] }[]
   timeZone?: string
 }
 
@@ -21,7 +21,7 @@ export function ChartDataTable({ label, series, timeZone }: ChartDataTableProps)
         <tr>
           <th scope='col'>Date</th>
           {series.map((item) => (
-            <th key={item.label} scope='col'>
+            <th key={item.id} scope='col'>
               {item.label}
             </th>
           ))}
@@ -32,7 +32,7 @@ export function ChartDataTable({ label, series, timeZone }: ChartDataTableProps)
           <tr key={timestamp}>
             <th scope='row'>{formatChartTimestamp(timestamp, timeZone)}</th>
             {series.map((item, index) => (
-              <td key={item.label}>
+              <td key={item.id}>
                 {values[index]
                   .get(timestamp)
                   ?.toLocaleString(undefined, { maximumSignificantDigits: 21 }) ?? '—'}

@@ -10,6 +10,7 @@ describe('Chart accessibility', () => {
         label='Cost'
         series={[
           {
+            id: 'credits',
             label: 'Credits',
             data: [
               { timestamp: '2026-01-01T00:00:00Z', value: 0.00000123456789 },
