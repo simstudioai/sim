@@ -1889,9 +1889,25 @@ export async function processDocumentAsync(
                   }
 
                   logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-                  for (const batch of batches) {
+                  for (const [batchIndex, batch] of batches.entries()) {
                     signal.throwIfAborted()
-                    await tx.insert(embedding).values(batch)
+                    const insertStartedAt = Date.now()
+                    try {
+                      await tx.insert(embedding).values(batch)
+                    } catch (error) {
+                      logger.error(`[${documentId}] Failed to insert embedding batch`, {
+                        knowledgeBaseId,
+                        operation: 'embedding.insert',
+                        batchNumber: batchIndex + 1,
+                        batchSize: batch.length,
+                        totalChunks: embeddingRecords.length,
+                        embeddingModel: kbEmbeddingModel,
+                        embeddingDimensions: kbEmbedding.dimensions,
+                        elapsedMs: Date.now() - insertStartedAt,
+                        diagnostic: getConnectorFailureDiagnostic(error),
+                      })
+                      throw error
+                    }
                   }
                   const provenanceRecords = embeddingRecords.flatMap((record, index) => {
                     const provenance = chunkProvenances[index]

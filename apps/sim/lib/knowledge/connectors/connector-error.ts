@@ -125,13 +125,14 @@ export function getConnectorFailureDiagnostic(error: unknown): ConnectorFailureD
   const context = sourceError?.diagnostic
   if (directoryError) {
     const status = diagnostic?.status ? ` (HTTP ${diagnostic.status})` : ''
+    const code = diagnostic?.code ? ` Error code: ${diagnostic.code}.` : ''
     const reason = context?.reasons.length ? ` Google reason: ${context.reasons.join(', ')}.` : ''
     return {
       ...diagnostic,
       ...context,
       category: diagnostic?.category ?? 'directory',
       phase: 'directory',
-      message: `Directory permission sync failed${status}.${context ? ` Operation: ${context.operation}.` : ''}${reason} Group membership could not be fully verified.`,
+      message: `Directory permission sync failed${status}.${context ? ` Operation: ${context.operation}.` : ''}${reason}${code} Group membership could not be fully verified.`,
     }
   }
   if (!diagnostic || !context) return diagnostic
