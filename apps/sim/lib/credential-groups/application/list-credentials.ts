@@ -10,6 +10,7 @@ import {
   requireOrganizationAccountsWorkspaceAccess,
   resolveOrganizationAccountsWorkspaceContext,
 } from '@/lib/credential-groups/application/organization-workspace-access'
+import { organizationAccountPolicyAllowsWorkspace } from '@/lib/credential-groups/application/workspace-access-policy'
 import {
   CredentialGroupCredentialCursorNotFoundError,
   type CredentialGroupCredentialReference,
@@ -43,7 +44,7 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
   async authorizeResource({ principal, context }) {
     requireCredentialGroupWorkflowActor(principal)
-    await requireOrganizationAccountsWorkspaceAccess(context)
+    context.workspaceAccessPolicy = await requireOrganizationAccountsWorkspaceAccess(context)
   },
   execute: async ({ input, context }): Promise<ListCredentialGroupCredentialsResult> => {
     if (
@@ -69,14 +70,17 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
     if (credentialProviderIds.some((providerId) => !providerId.trim())) {
       throw new OrchestrationError('validation', 'Credential provider IDs must not be empty')
     }
-    const activeOptions = context.options.filter((option) => option.status === 'active')
-    const activeProviderIds = new Set(
-      activeOptions.map((option) => {
-        if (!isCredentialGroupProvider(option.provider)) {
-          throw new Error(`Credential Group provider is not registered: ${option.provider}`)
-        }
-        return getCredentialGroupProviderId(option.provider)
+    const policy = context.workspaceAccessPolicy
+    if (!policy) throw new Error('Credential listing requires workspace policy authorization')
+    const activeOptions = context.options
+      .filter((option) => option.status === 'active')
+      .map((option) => {
+        if (!isCredentialGroupProvider(option.provider))
+          throw new Error(`Unsupported credential provider: ${option.provider}`)
+        return { ...option, provider: option.provider }
       })
+    const activeProviderIds = new Set(
+      activeOptions.map((option) => getCredentialGroupProviderId(option.provider))
     )
     const invalidProviderIds = credentialProviderIds.filter(
       (providerId) => !activeProviderIds.has(providerId)
@@ -88,12 +92,29 @@ export const listCredentialGroupCredentials = defineAuthorizedWorkspaceUseCase({
       )
     }
 
+    const allowedOptions = activeOptions.filter((option) =>
+      organizationAccountPolicyAllowsWorkspace(
+        policy,
+        context.workspaceId,
+        `oauth:${option.provider}`
+      )
+    )
+    const allowedProviders = new Set(
+      allowedOptions.map((option) => getCredentialGroupProviderId(option.provider))
+    )
+    if (credentialProviderIds.some((providerId) => !allowedProviders.has(providerId))) {
+      throw new OrchestrationError(
+        'forbidden',
+        'This workspace is not allowed to use the requested credential provider'
+      )
+    }
+
     let page
     try {
       page = await listCredentialGroupCredentialReferences({
         organizationId: context.organizationId,
         credentialGroupId: context.credentialGroupId,
-        credentialGroupOptionIds: activeOptions.map((option) => option.id),
+        credentialGroupOptionIds: allowedOptions.map((option) => option.id),
         limit: input.limit,
         cursor: input.cursor,
         email,

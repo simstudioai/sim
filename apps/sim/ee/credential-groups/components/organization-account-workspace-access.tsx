@@ -2,26 +2,29 @@
 
 import { useState } from 'react'
 import { Chip, toast } from '@sim/emcn'
-import { Workspaces } from '@sim/emcn/icons'
+import { Plus, Workspaces } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationAccountWorkspaceAccess as WorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
 import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { CredentialGroupAddResourceModal } from '@/ee/credential-groups/components/credential-group-add-resource-modal'
+import { OrganizationWorkspaceGrantModal } from '@/ee/credential-groups/components/organization-workspace-grant-modal'
 import {
   useOrganizationAccountWorkspaceAccess,
   useUpdateOrganizationAccountWorkspaceAccess,
 } from '@/hooks/queries/organization-accounts'
+
+type Grant = WorkspaceAccess['grants'][number]
+type GrantEditor =
+  | { mode: 'create'; revision: number }
+  | { mode: 'edit'; grant: Grant; revision: number }
 
 interface OrganizationAccountWorkspaceAccessProps {
   organizationId: string
@@ -40,7 +43,8 @@ export function OrganizationAccountWorkspaceAccess({
         onRetry={() => void access.refetch()}
       />
     )
-  if (!access.data) return null
+  if (!access.data)
+    return <p className='text-[var(--text-muted)] text-caption'>Loading workspace access…</p>
   return (
     <WorkspaceAccessForm
       key={organizationId}
@@ -56,112 +60,139 @@ interface WorkspaceAccessFormProps extends OrganizationAccountWorkspaceAccessPro
 
 function WorkspaceAccessForm({ organizationId, access }: WorkspaceAccessFormProps) {
   const update = useUpdateOrganizationAccountWorkspaceAccess()
-  const [showAddWorkspace, setShowAddWorkspace] = useState(false)
-
-  const selectedIds = access.workspaceIds
-  const selected = new Set(selectedIds)
-  const workspacesById = new Map(access.workspaces.map((workspace) => [workspace.id, workspace]))
-  if (selected.size !== selectedIds.length)
+  const [editor, setEditor] = useState<GrantEditor | null>(null)
+  const byId = new Map(access.workspaces.map((workspace) => [workspace.id, workspace]))
+  const grantsById = new Map(access.grants.map((grant) => [grant.workspaceId, grant]))
+  const typesById = new Map(access.credentialTypes.map((type) => [type.id, type.label]))
+  if (grantsById.size !== access.grants.length)
     throw new Error('Workspace access contains duplicate workspaces')
-  for (const id of selectedIds) {
-    if (!workspacesById.has(id))
-      throw new Error(`Workspace access references unavailable workspace ${id}`)
+  for (const grant of access.grants) {
+    if (!byId.has(grant.workspaceId))
+      throw new Error(`Workspace access references unavailable workspace ${grant.workspaceId}`)
+    if (grant.access.mode === 'selected') {
+      for (const type of grant.access.credentialTypes) {
+        if (!typesById.has(type)) throw new Error(`Unknown credential type ${type}`)
+      }
+    }
   }
-  const allowedWorkspaces = access.workspaces.filter((workspace) => selected.has(workspace.id))
-  const availableWorkspaces = access.workspaces.filter((workspace) => !selected.has(workspace.id))
+  const allowedWorkspaces = access.workspaces.filter((workspace) => grantsById.has(workspace.id))
+  const availableWorkspaces = access.workspaces.filter((workspace) => !grantsById.has(workspace.id))
 
-  const updateAccess = async (workspaceIds: string[]) => {
+  const save = async (grants: WorkspaceAccess['grants'], revision: number) => {
     try {
-      await update.mutateAsync({
-        organizationId,
-        revision: access.revision,
-        workspaceIds,
-      })
-      setShowAddWorkspace(false)
+      await update.mutateAsync({ organizationId, revision, grants })
+      setEditor(null)
       toast.success('Workspace access updated')
     } catch (error) {
       toast.error(getErrorMessage(error, 'Could not update workspace access'))
     }
   }
+  const saveGrant = (grant: Grant) => {
+    if (!editor) throw new Error('Workspace access editor is not open')
+    if (!byId.has(grant.workspaceId)) throw new Error('Selected workspace is unavailable')
+    if (editor.mode === 'create') {
+      if (grantsById.has(grant.workspaceId)) throw new Error('Workspace already has access')
+      if (access.grants.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT)
+        throw new Error(
+          `Workspace access cannot exceed ${ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT} workspaces`
+        )
+      void save([...access.grants, grant], editor.revision)
+    } else {
+      if (grant.workspaceId !== editor.grant.workspaceId)
+        throw new Error('Cannot change the workspace of an existing grant')
+      void save(
+        access.grants.map((existing) =>
+          existing.workspaceId === grant.workspaceId ? grant : existing
+        ),
+        editor.revision
+      )
+    }
+  }
 
   return (
-    <SettingsPanel>
+    <>
       <SettingsSection
-        label='Workspace access'
+        label='Workspaces'
         action={
           <Chip
-            onClick={() => {
-              update.reset()
-              setShowAddWorkspace(true)
-            }}
+            leftAdornment={<Plus className='size-[14px]' />}
             disabled={
               update.isPending ||
-              availableWorkspaces.length === 0 ||
-              selectedIds.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT
+              !availableWorkspaces.length ||
+              access.grants.length >= ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT
             }
+            onClick={() => {
+              update.reset()
+              setEditor({ mode: 'create', revision: access.revision })
+            }}
           >
-            Add workspaces
+            Add workspace
           </Chip>
         }
       >
         {update.error && (
-          <p role='alert' className='mb-3 px-0.5 text-[var(--text-error)] text-caption'>
+          <p role='alert' className='mb-3 text-[var(--text-error)] text-caption'>
             {update.error.message}
           </p>
         )}
-        {allowedWorkspaces.length === 0 ? (
+        {!allowedWorkspaces.length ? (
           <SettingsEmptyState variant='inline'>No workspaces have access</SettingsEmptyState>
         ) : (
           <div className={RESOURCE_LIST_STACK}>
-            {allowedWorkspaces.map((workspace) => (
-              <SettingsResourceRow
-                key={workspace.id}
-                icon={<Workspaces className='text-[var(--text-icon)]' aria-hidden />}
-                iconFilled
-                title={workspace.name}
-                description='Authorized workflows can use every connected account in this organization'
-                disabled={update.isPending}
-                trailing={
-                  update.isPending ? undefined : (
-                    <RowActionsMenu
-                      label={`${workspace.name} actions`}
-                      actions={[
-                        {
-                          label: 'Remove',
-                          destructive: true,
-                          onSelect: () =>
-                            void updateAccess(selectedIds.filter((id) => id !== workspace.id)),
-                        },
-                      ]}
-                    />
-                  )
-                }
-              />
-            ))}
+            {allowedWorkspaces.map((workspace) => {
+              const grant = grantsById.get(workspace.id)!
+              return (
+                <SettingsResourceRow
+                  key={workspace.id}
+                  icon={<Workspaces className='text-[var(--text-icon)]' aria-hidden />}
+                  iconFilled
+                  title={workspace.name}
+                  description={
+                    grant.access.mode === 'all'
+                      ? 'All integrations'
+                      : grant.access.credentialTypes
+                          .map((type) => typesById.get(type)!)
+                          .sort((a, b) => a.localeCompare(b))
+                          .join(', ')
+                  }
+                  trailing={
+                    <Chip
+                      disabled={update.isPending}
+                      onClick={() => {
+                        update.reset()
+                        setEditor({ mode: 'edit', grant, revision: access.revision })
+                      }}
+                    >
+                      Edit access
+                    </Chip>
+                  }
+                />
+              )
+            })}
           </div>
         )}
       </SettingsSection>
-      {showAddWorkspace && (
-        <CredentialGroupAddResourceModal
-          resourceType='workspace'
-          resources={availableWorkspaces}
+      {editor && (
+        <OrganizationWorkspaceGrantModal
+          {...(editor.mode === 'create'
+            ? ({ mode: 'create', workspaces: availableWorkspaces } as const)
+            : ({
+                mode: 'edit',
+                grant: editor.grant,
+                workspaceName: byId.get(editor.grant.workspaceId)!.name,
+                onRemove: () =>
+                  void save(
+                    access.grants.filter((grant) => grant.workspaceId !== editor.grant.workspaceId),
+                    editor.revision
+                  ),
+              } as const))}
+          credentialTypes={access.credentialTypes}
           disabled={update.isPending}
           error={update.error?.message}
-          onAdd={(ids) => {
-            for (const id of ids) {
-              if (!workspacesById.has(id)) throw new Error(`Workspace ${id} is unavailable`)
-              if (selected.has(id)) throw new Error(`Workspace ${id} already has access`)
-            }
-            if (selectedIds.length + ids.length > ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT) {
-              throw new Error(
-                `Workspace access cannot exceed ${ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT} workspaces`
-              )
-            }
-            void updateAccess([...selectedIds, ...ids])
-          }}
-          onClose={() => setShowAddWorkspace(false)}
+          onClose={() => setEditor(null)}
+          onSave={saveGrant}
         />
       )}
-    </SettingsPanel>
+    </>
   )
 }

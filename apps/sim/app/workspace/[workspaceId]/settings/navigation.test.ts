@@ -33,7 +33,7 @@ describe('unified settings navigation', () => {
       { id: 'organization', label: 'Members', section: 'organization' },
       { id: 'usage', label: 'Insights', section: 'organization' },
       { id: 'secrets', label: 'Secrets', section: 'workspace' },
-      { id: 'connected-accounts', label: 'Connected accounts', section: 'organization' },
+      { id: 'connected-accounts', label: 'Credential Groups', section: 'organization' },
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },
       { id: 'mcp', label: 'MCP tools', section: 'workspace' },
       { id: 'apikeys', label: 'Sim API keys', section: 'workspace' },

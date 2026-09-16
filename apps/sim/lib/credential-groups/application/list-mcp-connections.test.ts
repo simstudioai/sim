@@ -97,7 +97,10 @@ describe('listCredentialGroupMcpConnections', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.requirePolicy.mockResolvedValue({
-      document: buildOrganizationAccountAccessPolicy('group-1', ['workspace-1']),
+      document: buildOrganizationAccountAccessPolicy(
+        'group-1',
+        ['workspace-1'].map((workspaceId) => ({ workspaceId, access: { mode: 'all' as const } }))
+      ),
     })
     mocks.loadGroup.mockResolvedValue(groupContext)
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
@@ -142,6 +145,29 @@ describe('listCredentialGroupMcpConnections', () => {
     expect(mocks.listMcpConnections).not.toHaveBeenCalled()
   })
 
+  it('limits discovery to allowed MCP types and rejects an explicit restricted connector', async () => {
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        {
+          workspaceId: 'workspace-1',
+          access: { mode: 'selected', credentialTypes: ['mcp:fireflies'] },
+        },
+      ]),
+    })
+    await listCredentialGroupMcpConnections.execute({ principal: executorPrincipal(), input })
+    expect(mocks.listMcpConnections).toHaveBeenCalledWith(
+      expect.objectContaining({ allowedConnectorIds: ['fireflies'] })
+    )
+    mocks.listMcpConnections.mockClear()
+    await expect(
+      listCredentialGroupMcpConnections.execute({
+        principal: executorPrincipal(),
+        input: { ...input, connectorId: 'granola' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listMcpConnections).not.toHaveBeenCalled()
+  })
+
   it('lists bounded MCP connection references after authorization and entitlement checks', async () => {
     const result = await listCredentialGroupMcpConnections.execute({
       principal: executorPrincipal(),
@@ -160,6 +186,7 @@ describe('listCredentialGroupMcpConnections', () => {
       email: 'person@example.com',
       mcpServerId: 'mcp-server-1',
       connectorId: undefined,
+      allowedConnectorIds: ['fireflies', 'granola', 'databricks'],
     })
     expect(result).toEqual({
       mcpConnections: [

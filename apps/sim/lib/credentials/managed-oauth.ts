@@ -12,6 +12,10 @@ import {
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
+  type OrganizationCredentialType,
+  organizationOAuthCredentialType,
+} from '@/lib/credential-groups/credential-types'
+import {
   type CredentialGroupProviderAdapter,
   CredentialGroupProviderConfigurationError,
   type CredentialGroupProviderPolicy,
@@ -73,6 +77,7 @@ interface ResolveManagedOAuthTokenParams {
 }
 
 export interface ManagedOAuthCredentialApplicationContext extends WorkspaceAuthorizationContext {
+  credentialType: OrganizationCredentialType
   organizationId?: string
   credentialId: string
   credentialGroupId: string
@@ -196,9 +201,11 @@ export async function loadManagedOAuthCredentialApplicationContext(
       : row.workspaceId !== workspaceId
   )
     return null
+  if (!row.providerId) throw new Error('Managed OAuth credential is missing its provider')
   return {
     ...workspaceContext,
     ...(row.organizationId ? { organizationId: row.organizationId } : {}),
+    credentialType: organizationOAuthCredentialType(row.providerId),
     credentialId: row.id,
     credentialGroupId: row.credentialGroupId,
     credentialGroupEnrollmentId: row.credentialGroupEnrollmentId,

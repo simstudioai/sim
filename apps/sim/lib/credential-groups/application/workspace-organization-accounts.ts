@@ -77,7 +77,16 @@ export const getWorkspaceOrganizationAccounts = defineAuthorizedWorkspaceUseCase
     result.allowed = organizationAccountPolicyAllowsWorkspace(policy.document, context.workspaceId)
     if (!result.allowed) return result
     result.providers = group.options
-      .filter((option) => option.status === 'active')
+      .filter((option) => {
+        if (option.status !== 'active') return false
+        if (!isCredentialGroupProvider(option.provider))
+          throw new Error(`Unsupported organization provider: ${option.provider}`)
+        return organizationAccountPolicyAllowsWorkspace(
+          policy.document,
+          context.workspaceId,
+          `oauth:${option.provider}`
+        )
+      })
       .map((option) => {
         if (!isCredentialGroupProvider(option.provider))
           throw new Error(`Unsupported organization provider: ${option.provider}`)
@@ -95,11 +104,17 @@ export const getWorkspaceOrganizationAccounts = defineAuthorizedWorkspaceUseCase
           isNull(mcpServers.deletedAt)
         )
       )
-    result.mcpProviders = servers.map((server) => {
+    result.mcpProviders = servers.flatMap((server) => {
       if (!server.connectorId)
         throw new Error('Organization MCP provider is missing its connector ID')
       const connector = getManagedMcpConnector(server.connectorId)
-      return { id: connector.id, label: connector.name }
+      return organizationAccountPolicyAllowsWorkspace(
+        policy.document,
+        context.workspaceId,
+        `mcp:${connector.id}`
+      )
+        ? [{ id: connector.id, label: connector.name }]
+        : []
     })
     return result
   },

@@ -38,9 +38,12 @@ import {
   updateOrganizationAccountsContract,
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
+import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { slackSearchKeys } from '@/hooks/queries/slack-search'
+import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
+import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 export const ORGANIZATION_ACCOUNTS_STALE_TIME = 30_000
 
@@ -63,6 +66,9 @@ export function useDisconnectPersonalOrganizationAccount(organizationId: string)
     onSuccess: async () => {
       await Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+        invalidateSelectorQueries(queryClient),
         queryClient.invalidateQueries({
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
@@ -145,6 +151,9 @@ export function useConfigureOrganizationMcp() {
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+        invalidateSelectorQueries(queryClient),
       ]),
   })
 }
@@ -171,6 +180,9 @@ export function useUpdateOrganizationAccounts() {
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+        invalidateSelectorQueries(queryClient),
         queryClient.invalidateQueries({
           queryKey: slackSearchKeys.organizationManifests(organizationId),
         }),
@@ -205,9 +217,13 @@ export function useWorkspaceOrganizationAccounts(workspaceId?: string, enabled =
     },
   })
 }
-export function useOrganizationAccountWorkspaceAccess(organizationId: string) {
+export function useOrganizationAccountWorkspaceAccess(
+  organizationId: string,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: organizationAccountsKeys.access(organizationId),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
     staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
     queryFn: ({ signal }) =>
       requestJson(getOrganizationAccountWorkspaceAccessContract, {
@@ -233,6 +249,9 @@ export function useUpdateOrganizationAccountWorkspaceAccess() {
           queryKey: organizationAccountsKeys.access(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+        invalidateSelectorQueries(queryClient),
       ]),
   })
 }
@@ -322,6 +341,9 @@ export function useRevokeOrganizationAccountEnrollment() {
     onSuccess: (_, { organizationId }) =>
       Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+        invalidateSelectorQueries(queryClient),
         queryClient.invalidateQueries({
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
@@ -345,6 +367,9 @@ export function useAddOrganizationAccountMcpProvider() {
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+        invalidateSelectorQueries(queryClient),
       ]),
   })
 }
@@ -367,6 +392,9 @@ export function useRemoveOrganizationAccountMcpProvider() {
           queryKey: organizationAccountsKeys.detail(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+        invalidateSelectorQueries(queryClient),
       ]),
   })
 }
