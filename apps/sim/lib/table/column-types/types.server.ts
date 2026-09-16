@@ -32,11 +32,13 @@ export type ColumnCellMigration = (context: ColumnCellMigrationContext) => Promi
 
 export interface ColumnTypeServerDefinition {
   /**
-   * Table IDs named by this column's type-specific metadata. The server
-   * registry uses this to validate cross-table references in one batch before
-   * a schema is persisted. Omitted by types that do not reference tables.
+   * Rewrites this column's table references through a source-to-target identity map.
+   * Omitted by types that do not reference tables.
    */
-  readonly referencedTableIds?: (column: ColumnDefinition) => readonly string[]
+  readonly remapReferencedTableIds?: (
+    column: ColumnDefinition,
+    tableIdMap: ReadonlyMap<string, string>
+  ) => ColumnDefinition
   /**
    * Rewrites cells into this type's canonical storage shape when a column is
    * converted **to** it. Omitted when the stored bytes are already correct.

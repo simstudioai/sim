@@ -13,7 +13,9 @@ import {
   canWriteRowsWithChip,
   chipRowCount,
   drainTargetForChip,
+  expandToDisplayColumns,
   horizontalEdgeScrollVelocity,
+  isSameReferencePreviewTarget,
   selectedColumnIds,
 } from './utils'
 
@@ -25,6 +27,42 @@ function columns(count: number): DisplayColumn[] {
 }
 
 const rowIds = (count: number) => Array.from({ length: count }, (_, i) => `r${i}`)
+
+describe('expandToDisplayColumns', () => {
+  it('attaches the referenced table name to reference display columns', () => {
+    const [column] = expandToDisplayColumns(
+      [
+        {
+          id: 'account-column',
+          name: 'Account',
+          type: 'reference',
+          referenceTableId: 'accounts-table',
+        },
+      ],
+      [],
+      new Map([['accounts-table', 'Accounts']])
+    )
+
+    expect(column).toMatchObject({ referenceTableName: 'Accounts' })
+  })
+})
+
+describe('isSameReferencePreviewTarget', () => {
+  const target = {
+    sourceRowId: 'source-row',
+    sourceColumnKey: 'account-column',
+    referenceTableId: 'accounts-table',
+    referenceRowId: 'account-row',
+  }
+
+  it('matches only the same source cell and referenced row', () => {
+    expect(isSameReferencePreviewTarget(target, target)).toBe(true)
+    expect(isSameReferencePreviewTarget(null, target)).toBe(false)
+    for (const key of Object.keys(target) as Array<keyof typeof target>) {
+      expect(isSameReferencePreviewTarget({ ...target, [key]: 'different' }, target)).toBe(false)
+    }
+  })
+})
 
 describe('horizontalEdgeScrollVelocity', () => {
   const getVelocity = (pointerX: number) =>

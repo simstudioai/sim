@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import { useQuery } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { queryClient, cacheStore } = vi.hoisted(() => {
@@ -25,6 +27,7 @@ const { queryClient, cacheStore } = vi.hoisted(() => {
           .filter(([k]) => k.startsWith(prefix))
           .map(([k, v]) => [JSON.parse(k), v])
       }),
+      fetchQuery: vi.fn(),
       removeQueries: vi.fn(),
     },
   }
@@ -57,13 +60,26 @@ vi.mock('@sim/emcn', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }))
 
-import type { TableViewWire } from '@/lib/api/contracts/tables'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
 import {
+  getTableRowContract,
+  listTableNamesContract,
+  type TableViewWire,
+} from '@/lib/api/contracts/tables'
+import { useReferenceRowPreview } from '@/hooks/queries/table-reference-preview'
+import {
+  TABLE_DETAIL_STALE_TIME,
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
+  useBatchUpdateTableRows,
   useDeleteColumn,
+  useDeleteTableRow,
+  useDeleteTableRows,
   useRestoreTable,
+  useTableNames,
   useUpdateColumn,
+  useUpdateTableRow,
   useUpdateTableView,
 } from '@/hooks/queries/tables'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
@@ -89,6 +105,328 @@ function getCache<T>(key: readonly unknown[]): T | undefined {
 beforeEach(() => {
   cacheStore.clear()
   vi.clearAllMocks()
+})
+
+describe('useTableNames', () => {
+  it('loads only the requested table names once with a canonical cache key', async () => {
+    vi.mocked(requestJson).mockResolvedValueOnce({
+      success: true,
+      data: { tables: [{ id: TABLE_ID, name: 'Accounts' }] },
+    })
+
+    useTableNames(WORKSPACE_ID, ['tbl-2', TABLE_ID, 'tbl-2'])
+
+    const options = vi.mocked(useQuery).mock.calls.at(-1)?.[0] as {
+      enabled: boolean
+      queryKey: readonly unknown[]
+      queryFn: (context: { signal: AbortSignal }) => Promise<unknown>
+    }
+    const signal = new AbortController().signal
+    await expect(options.queryFn({ signal })).resolves.toEqual([{ id: TABLE_ID, name: 'Accounts' }])
+    expect(options).toMatchObject({
+      enabled: true,
+      queryKey: tableKeys.names(WORKSPACE_ID, [TABLE_ID, 'tbl-2']),
+    })
+    expect(options.queryKey.slice(0, tableKeys.namesRoot().length)).toEqual(tableKeys.namesRoot())
+    expect(options.queryKey.slice(0, tableKeys.lists().length)).not.toEqual(tableKeys.lists())
+    expect(requestJson).toHaveBeenCalledWith(listTableNamesContract, {
+      body: { workspaceId: WORKSPACE_ID, tableIds: [TABLE_ID, 'tbl-2'] },
+      signal,
+    })
+  })
+
+  it('does not fetch when there are no referenced tables', () => {
+    useTableNames(WORKSPACE_ID, [])
+
+    const options = vi.mocked(useQuery).mock.calls.at(-1)?.[0] as { enabled: boolean }
+    expect(options.enabled).toBe(false)
+  })
+})
+
+describe('useReferenceRowPreview', () => {
+  function getQueryOptions() {
+    return vi.mocked(useQuery).mock.calls.at(-1)?.[0] as {
+      enabled: boolean
+      gcTime: number
+      queryKey: readonly unknown[]
+      refetchOnMount: 'always'
+      refetchOnReconnect: boolean
+      refetchOnWindowFocus: boolean
+      staleTime: number
+      queryFn: (context: { signal: AbortSignal }) => Promise<unknown>
+    }
+  }
+
+  it('isolates each opening and fetches only the referenced row', async () => {
+    const row = { id: 'row-1', data: { name: 'Acme' } }
+    const table = { id: TABLE_ID, name: 'Accounts', schema: { columns: [] } }
+    const signal = new AbortController().signal
+    queryClient.fetchQuery.mockResolvedValueOnce(table)
+    vi.mocked(requestJson).mockResolvedValueOnce({ data: { row } })
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: row.id,
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+
+    const options = getQueryOptions()
+    expect(options).toMatchObject({
+      enabled: true,
+      gcTime: 0,
+      queryKey: tableKeys.referencePreview(TABLE_ID, row.id, 'source-row-1', 'account'),
+      refetchOnMount: 'always',
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
+      staleTime: Number.POSITIVE_INFINITY,
+    })
+    await expect(options.queryFn({ signal })).resolves.toEqual({
+      table,
+      row,
+      referenceTables: [],
+    })
+    expect(options).not.toHaveProperty('placeholderData')
+    expect(queryClient.fetchQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: tableKeys.detail(TABLE_ID),
+        staleTime: TABLE_DETAIL_STALE_TIME,
+      })
+    )
+    expect(requestJson).toHaveBeenCalledOnce()
+    expect(requestJson).toHaveBeenCalledWith(getTableRowContract, {
+      params: { tableId: TABLE_ID, rowId: row.id },
+      query: { workspaceId: WORKSPACE_ID },
+      signal,
+    })
+  })
+
+  it('loads nested reference table names in one request before resolving the preview', async () => {
+    const row = { id: 'row-1', data: { owner: 'owner-row-1' } }
+    const table = {
+      id: TABLE_ID,
+      name: 'Accounts',
+      schema: {
+        columns: [
+          {
+            id: 'owner-1',
+            name: 'Owner',
+            type: 'reference',
+            referenceTableId: 'tbl-owners',
+          },
+          {
+            id: 'owner-2',
+            name: 'Backup owner',
+            type: 'reference',
+            referenceTableId: 'tbl-owners',
+          },
+        ],
+      },
+    }
+    const referenceTables = [{ id: 'tbl-owners', name: 'Owners' }]
+    const signal = new AbortController().signal
+    queryClient.fetchQuery.mockResolvedValueOnce(table).mockResolvedValueOnce(referenceTables)
+    vi.mocked(requestJson).mockResolvedValueOnce({ data: { row } })
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: row.id,
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+
+    await expect(getQueryOptions().queryFn({ signal })).resolves.toEqual({
+      table,
+      row,
+      referenceTables,
+    })
+    expect(queryClient.fetchQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ queryKey: tableKeys.names(WORKSPACE_ID, ['tbl-owners']) })
+    )
+  })
+
+  it('does not fetch until every referenced-row identity is available', () => {
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: undefined,
+    })
+
+    expect(getQueryOptions().enabled).toBe(false)
+  })
+
+  it('returns a null row when the referenced row no longer exists', async () => {
+    const table = { id: TABLE_ID, name: 'Accounts', schema: { columns: [] } }
+    queryClient.fetchQuery.mockResolvedValueOnce(table)
+    vi.mocked(requestJson).mockRejectedValueOnce({ status: 404 })
+    vi.mocked(isApiClientError).mockReturnValueOnce(true)
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: 'missing-row',
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+
+    await expect(
+      getQueryOptions().queryFn({ signal: new AbortController().signal })
+    ).resolves.toEqual({
+      table,
+      row: null,
+      referenceTables: [],
+    })
+  })
+
+  it('propagates non-not-found row errors', async () => {
+    const error = new Error('Failed to load row')
+    queryClient.fetchQuery.mockResolvedValueOnce({
+      id: TABLE_ID,
+      name: 'Accounts',
+      schema: { columns: [] },
+    })
+    vi.mocked(requestJson).mockRejectedValueOnce(error)
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: 'row-1',
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+
+    await expect(getQueryOptions().queryFn({ signal: new AbortController().signal })).rejects.toBe(
+      error
+    )
+  })
+
+  it('returns a not-found preview when the referenced table no longer exists', async () => {
+    queryClient.fetchQuery.mockRejectedValueOnce({ status: 404 })
+    vi.mocked(requestJson).mockRejectedValueOnce({ status: 404 })
+    vi.mocked(isApiClientError).mockReturnValueOnce(true).mockReturnValueOnce(true)
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: 'row-1',
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+
+    await expect(
+      getQueryOptions().queryFn({ signal: new AbortController().signal })
+    ).resolves.toEqual({
+      table: null,
+      row: null,
+      referenceTables: [],
+    })
+    expect(requestJson).not.toHaveBeenCalledWith(listTableNamesContract, expect.anything())
+  })
+
+  it('propagates non-not-found table errors', async () => {
+    const error = new Error('Failed to load table')
+    queryClient.fetchQuery.mockRejectedValueOnce(error)
+    vi.mocked(requestJson).mockResolvedValueOnce({
+      success: true,
+      data: { row: { id: 'row-1', data: {} } },
+    })
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: 'row-1',
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+
+    await expect(getQueryOptions().queryFn({ signal: new AbortController().signal })).rejects.toBe(
+      error
+    )
+  })
+
+  it('uses the source cell to identify each preview opening', () => {
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: 'row-1',
+      sourceRowId: 'source-row-1',
+      sourceColumnKey: 'account',
+    })
+    const firstOpening = getQueryOptions().queryKey
+
+    useReferenceRowPreview({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      rowId: 'row-1',
+      sourceRowId: 'source-row-2',
+      sourceColumnKey: 'account',
+    })
+
+    expect(getQueryOptions().queryKey).not.toEqual(firstOpening)
+  })
+})
+
+describe('useBatchUpdateTableRows', () => {
+  it('invalidates matching reference previews after a batch write settles', () => {
+    const hook = useBatchUpdateTableRows({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    const updates = [
+      { rowId: 'row-1', data: { name: 'Acme' } },
+      { rowId: 'row-2', data: { name: 'Globex' } },
+    ]
+
+    hook.onSettled?.(undefined, null, { updates }, undefined)
+
+    expect(queryClient.invalidateQueries.mock.calls.map(([options]) => options?.queryKey)).toEqual([
+      tableKeys.referencePreviewsForRow(TABLE_ID, 'row-1'),
+      tableKeys.referencePreviewsForRow(TABLE_ID, 'row-2'),
+    ])
+  })
+})
+
+describe('reference preview invalidation', () => {
+  function expectPreviewInvalidation(rowIds: string[]) {
+    const invalidatedKeys = queryClient.invalidateQueries.mock.calls.map(([options]) =>
+      JSON.stringify(options?.queryKey)
+    )
+    for (const rowId of rowIds) {
+      expect(invalidatedKeys).toContain(
+        JSON.stringify(tableKeys.referencePreviewsForRow(TABLE_ID, rowId))
+      )
+    }
+    expect(invalidatedKeys).not.toContain(
+      JSON.stringify(tableKeys.referencePreviewsForRow(TABLE_ID, 'untouched-row'))
+    )
+    expect(invalidatedKeys).not.toContain(
+      JSON.stringify(tableKeys.referencePreviewsForRow('other-table', rowIds[0]))
+    )
+  }
+
+  it('invalidates a referenced row after an update settles', () => {
+    const hook = useUpdateTableRow({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    hook.onSettled?.(undefined, null, { rowId: 'row-1', data: { name: 'Acme' } }, undefined)
+
+    expectPreviewInvalidation(['row-1'])
+  })
+
+  it('invalidates a referenced row after a delete settles', () => {
+    const hook = useDeleteTableRow({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    hook.onSettled?.(undefined, null, 'row-1', undefined)
+
+    expectPreviewInvalidation(['row-1'])
+  })
+
+  it('invalidates every referenced row after a bulk delete settles', () => {
+    const hook = useDeleteTableRows({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    hook.onSettled?.(undefined, null, ['row-1', 'row-2'], undefined)
+
+    expectPreviewInvalidation(['row-1', 'row-2'])
+  })
 })
 
 describe('useUpdateTableView autosave ordering', () => {
@@ -268,7 +606,7 @@ describe('useDeleteColumn optimistic update', () => {
     expect(getCache(ROWS_KEY)).toEqual(originalRows)
   })
 
-  it('invalidates schema, rows, and lists in onSettled', () => {
+  it('invalidates schema, rows, lists, and mounted reference previews in onSettled', () => {
     const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
     hook.onSettled?.(undefined, null, 'age', undefined)
 
@@ -278,6 +616,7 @@ describe('useDeleteColumn optimistic update', () => {
         tableKeys.detail(TABLE_ID),
         tableKeys.rowsRoot(TABLE_ID),
         tableKeys.lists(),
+        tableKeys.referencePreviewsForTable(TABLE_ID),
       ])
     )
   })
@@ -336,6 +675,15 @@ describe('useUpdateColumn optimistic update', () => {
     )
     expect(detail?.schema.columns[0]).toMatchObject({ id: 'age', name: 'years' })
   })
+
+  it('invalidates mounted previews when the referenced table schema changes', () => {
+    const hook = useUpdateColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    hook.onSettled?.(undefined, null, { columnName: 'age', updates: { name: 'years' } }, undefined)
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: tableKeys.referencePreviewsForTable(TABLE_ID),
+    })
+  })
 })
 
 describe('useRestoreTable cache invalidation', () => {
@@ -362,7 +710,7 @@ describe('useRestoreTable cache invalidation', () => {
     })
   })
 
-  it('invalidates lists, table detail, and row data for the restored table', () => {
+  it('invalidates names, previews, lists, table detail, and row data for the restored table', () => {
     const hook = useRestoreTable()
     hook.onSettled?.(undefined, null, TABLE_ID, undefined)
 
@@ -370,8 +718,10 @@ describe('useRestoreTable cache invalidation', () => {
     expect(calls).toEqual(
       expect.arrayContaining([
         tableKeys.lists(),
+        tableKeys.namesRoot(),
         tableKeys.detail(TABLE_ID),
         tableKeys.rowsRoot(TABLE_ID),
+        tableKeys.referencePreviewsForTable(TABLE_ID),
       ])
     )
   })

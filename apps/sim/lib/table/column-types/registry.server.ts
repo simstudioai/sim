@@ -14,7 +14,11 @@
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types/registry'
+import {
+  COLUMN_TYPE_REGISTRY,
+  collectColumnReferencedTableIds,
+  columnReferencedTableIds,
+} from '@/lib/table/column-types/registry'
 import type { ColumnType } from '@/lib/table/column-types/types'
 import type {
   ColumnCellMigration,
@@ -291,9 +295,27 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
   currency: COLUMN_TYPE_REGISTRY.currency,
   reference: {
     ...COLUMN_TYPE_REGISTRY.reference,
-    referencedTableIds: (column) =>
-      typeof column.referenceTableId === 'string' ? [column.referenceTableId] : [],
+    remapReferencedTableIds: (column, tableIdMap) => {
+      const [referenceTableId] = columnReferencedTableIds(column)
+      if (!referenceTableId) return column
+      const remappedTableId = tableIdMap.get(referenceTableId)
+      return remappedTableId && remappedTableId !== referenceTableId
+        ? { ...column, referenceTableId: remappedTableId }
+        : column
+    },
   },
+}
+
+/** Rewrites each column's table references through a source-to-target identity map. */
+export function remapColumnReferencedTableIds(
+  columns: readonly ColumnDefinition[],
+  tableIdMap: ReadonlyMap<string, string>
+): ColumnDefinition[] {
+  return columns.map(
+    (column) =>
+      COLUMN_TYPE_SERVER_REGISTRY[column.type].remapReferencedTableIds?.(column, tableIdMap) ??
+      column
+  )
 }
 
 /**
@@ -307,13 +329,7 @@ export async function assertColumnReferencesInWorkspace(
   workspaceId: string,
   columns: readonly ColumnDefinition[]
 ): Promise<void> {
-  const referencedTableIds = [
-    ...new Set(
-      columns.flatMap(
-        (column) => COLUMN_TYPE_SERVER_REGISTRY[column.type].referencedTableIds?.(column) ?? []
-      )
-    ),
-  ]
+  const referencedTableIds = collectColumnReferencedTableIds(columns)
   if (referencedTableIds.length === 0) return
 
   const targets = await trx

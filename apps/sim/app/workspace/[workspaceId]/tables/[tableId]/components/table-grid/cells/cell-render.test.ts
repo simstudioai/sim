@@ -32,6 +32,7 @@ describe('resolveCellRender', () => {
         exec: undefined,
         column: column('ttl'),
         waitingOnLabels: undefined,
+        referenceColumnsEnabled: false,
         timezoneStatus,
       })
       expect(kind).toEqual({ kind: 'text', text: value })
@@ -48,6 +49,7 @@ describe('resolveCellRender', () => {
       exec: undefined,
       column: column('date'),
       waitingOnLabels: undefined,
+      referenceColumnsEnabled: false,
       timezoneStatus: 'error',
     })
     expect(kind).toEqual({ kind: 'date', text: stored, raw: true })

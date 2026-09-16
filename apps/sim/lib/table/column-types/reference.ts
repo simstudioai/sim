@@ -15,6 +15,14 @@ export const referenceColumnType: ColumnTypeDefinition = {
   workflowInputType: 'string',
   editor: 'text',
   expandable: false,
+  referencePreview: {
+    getRowId(value) {
+      return typeof value === 'string' && value.length > 0 ? value : null
+    },
+  },
+
+  referencedTableIds: (column) =>
+    typeof column.referenceTableId === 'string' ? [column.referenceTableId] : [],
 
   coerce: stringColumnType.coerce,
 

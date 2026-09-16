@@ -13,7 +13,7 @@ import { tableJobs, tableViews, userTableDefinitions, userTableRows } from '@sim
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, type Column, count, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, type Column, count, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import type { V2TableSortBy } from '@/lib/api/contracts/v2/tables'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import {
@@ -359,6 +359,26 @@ export async function listTables(
     .orderBy(...listOrderBy(TABLE_SORTS[sortBy], sortOrder))
 
   return hydrateTableRows(tables)
+}
+
+/** Lists active table IDs and names without materializing their schemas. */
+export async function listActiveTableNames(
+  workspaceId: string,
+  tableIds: readonly string[]
+): Promise<Array<Pick<TableDefinition, 'id' | 'name'>>> {
+  await assertTableReferenceColumnsEnabled()
+  if (tableIds.length === 0) return []
+
+  return db
+    .select({ id: userTableDefinitions.id, name: userTableDefinitions.name })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        inArray(userTableDefinitions.id, [...tableIds]),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
 }
 
 /** Loads at most two active exact-name matches so callers can fail on corrupt ambiguity. */

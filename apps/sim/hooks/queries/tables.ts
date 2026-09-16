@@ -64,6 +64,7 @@ import {
   type InsertTableRowBodyInput,
   listActiveDispatchesContract,
   listTableJobsContract,
+  listTableNamesContract,
   listTableRowsContract,
   listTablesContract,
   listTableViewsContract,
@@ -190,6 +191,22 @@ async function fetchTable(
   return response.data.table
 }
 
+function normalizeTableIds(tableIds: readonly string[]) {
+  return [...new Set(tableIds)].sort()
+}
+
+async function fetchTableNames(
+  workspaceId: string,
+  tableIds: readonly string[],
+  signal?: AbortSignal
+) {
+  const response = await requestJson(listTableNamesContract, {
+    body: { workspaceId, tableIds: normalizeTableIds(tableIds) },
+    signal,
+  })
+  return response.data.tables
+}
+
 async function fetchTableRows({
   workspaceId,
   tableId,
@@ -229,6 +246,27 @@ function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tabl
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
 }
 
+function invalidateReferencePreviews(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  rowIds: ReadonlySet<string>
+) {
+  for (const rowId of rowIds) {
+    queryClient.invalidateQueries({ queryKey: tableKeys.referencePreviewsForRow(tableId, rowId) })
+  }
+}
+
+function invalidateTableNames(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.namesRoot() })
+}
+
+function invalidateReferenceTablePreviews(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string
+) {
+  queryClient.invalidateQueries({ queryKey: tableKeys.referencePreviewsForTable(tableId) })
+}
+
 /**
  * Invalidate only the row-count surfaces — the table detail and the tables
  * list, both of which carry the unfiltered `rowCount`. Deliberately leaves
@@ -253,6 +291,7 @@ function invalidateTableSchema(queryClient: ReturnType<typeof useQueryClient>, t
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+  invalidateReferenceTablePreviews(queryClient, tableId)
 }
 
 /**
@@ -270,6 +309,7 @@ function invalidateTableSchemaOnly(
 ) {
   queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
   queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+  invalidateReferenceTablePreviews(queryClient, tableId)
 }
 
 /**
@@ -304,6 +344,31 @@ export function useTablesList(
       typeof refetchInterval === 'function'
         ? (query) => refetchInterval(query.state.data)
         : (refetchInterval ?? false),
+  })
+}
+
+/**
+ * Shared id→name options so non-component callers — the row preview resolving its own
+ * Reference columns — read the same cache entry the grid fills instead of re-fetching.
+ */
+export function getTableNamesQueryOptions(workspaceId: string, tableIds: readonly string[]) {
+  const normalized = normalizeTableIds(tableIds)
+  return {
+    queryKey: tableKeys.names(workspaceId, normalized),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchTableNames(workspaceId, normalized, signal),
+    staleTime: TABLE_LIST_STALE_TIME,
+  }
+}
+
+export function useTableNames(
+  workspaceId: string | undefined,
+  referencedTableIds: readonly string[]
+) {
+  const tableIds = normalizeTableIds(referencedTableIds)
+  return useQuery({
+    ...getTableNamesQueryOptions(workspaceId ?? '', tableIds),
+    enabled: Boolean(workspaceId && tableIds.length > 0),
   })
 }
 
@@ -617,6 +682,7 @@ export function useCreateTable(workspaceId: string) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
     },
   })
 }
@@ -666,6 +732,8 @@ export function useRenameTable(workspaceId: string) {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
+      invalidateReferenceTablePreviews(queryClient, variables.tableId)
     },
   })
 }
@@ -776,6 +844,8 @@ export function useDeleteTable(workspaceId: string) {
     },
     onSettled: (_data, _error, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
+      invalidateReferenceTablePreviews(queryClient, tableId)
       queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
       queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
     },
@@ -1174,6 +1244,9 @@ export function useUpdateTableRow({
       if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
+    onSettled: (_data, _error, { rowId }) => {
+      invalidateReferencePreviews(queryClient, tableId, new Set([rowId]))
+    },
   })
 }
 
@@ -1248,6 +1321,10 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
+    onSettled: (_data, _error, { updates }) => {
+      const rowIds = new Set(updates.map(({ rowId }) => rowId))
+      invalidateReferencePreviews(queryClient, tableId, rowIds)
+    },
   })
 }
 
@@ -1275,8 +1352,9 @@ export function useDeleteTableRow({
       if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
+    onSettled: (_data, _error, rowId) => {
       invalidateRowCount(queryClient, tableId)
+      invalidateReferencePreviews(queryClient, tableId, new Set([rowId]))
     },
   })
 }
@@ -1330,8 +1408,9 @@ export function useDeleteTableRows({
       if (suppressErrorToast) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
+    onSettled: (_data, _error, rowIds) => {
       invalidateRowCount(queryClient, tableId)
+      invalidateReferencePreviews(queryClient, tableId, new Set(rowIds))
     },
   })
 }
@@ -1858,8 +1937,12 @@ export function useRestoreTable() {
     onSettled: (_data, _error, tableId) => {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.namesRoot() }),
         queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) }),
         queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) }),
+        queryClient.invalidateQueries({
+          queryKey: tableKeys.referencePreviewsForTable(tableId),
+        }),
       ])
     },
   })
@@ -1977,6 +2060,7 @@ export function useImportCsv() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
     },
   })
 }
@@ -2021,6 +2105,7 @@ export function useImportFileAsTable() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
     },
   })
 }
@@ -2688,6 +2773,8 @@ export function useBulkDeleteTables(workspaceId: string) {
     },
     onSettled: (_data, _error, { tableIds = [] }) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      invalidateTableNames(queryClient)
+      queryClient.invalidateQueries({ queryKey: tableKeys.referencePreviews() })
       queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
       for (const tableId of tableIds) {
         queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
