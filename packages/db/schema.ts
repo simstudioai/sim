@@ -6009,6 +6009,9 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     membersCompleted: integer('members_completed').notNull().default(0),
     membersIncomplete: integer('members_incomplete').notNull().default(0),
     membersFailed: integer('members_failed').notNull().default(0),
+    /** Null on historical runs that did not record document failure counts. */
+    docsFailed: integer('docs_failed'),
+    processingDispatchFailed: integer('processing_dispatch_failed'),
     docsListed: integer('docs_listed').notNull().default(0),
     docsAdded: integer('docs_added').notNull().default(0),
     docsUpdated: integer('docs_updated').notNull().default(0),

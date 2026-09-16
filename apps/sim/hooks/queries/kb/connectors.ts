@@ -476,7 +476,7 @@ export function useOrganizationSearchOverview(
     enabled: Boolean(organizationId) && (options?.enabled ?? true),
     staleTime: CONNECTOR_LIST_STALE_TIME,
     refetchInterval: (query) =>
-      query.state.data?.providers.some((provider) => provider.isSyncing)
+      query.state.data?.providers.some((provider) => provider.isSyncing || provider.hasPendingSync)
         ? SEARCH_SOURCE_SUMMARY_POLL_MS
         : false,
   })

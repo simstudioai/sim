@@ -1063,6 +1063,41 @@ describe('shared connector sync history', () => {
     }
   )
 
+  it.each([
+    { docsFailed: 0, processingDispatchFailed: 0, continuing: true },
+    { docsFailed: 1, processingDispatchFailed: 0, continuing: false },
+    { docsFailed: 0, processingDispatchFailed: 1, continuing: false },
+    { docsFailed: null, processingDispatchFailed: null, continuing: false },
+    { docsFailed: undefined, processingDispatchFailed: undefined, continuing: false },
+  ])('requires known healthy member counters for continuation: %j', (fields) => {
+    lifecycle.detail.current = {
+      memberSyncLogs: [
+        {
+          ...makeLog({ status: 'partial' }),
+          membersCompleted: 1,
+          membersIncomplete: 1,
+          membersFailed: 0,
+          docsFailed: fields.docsFailed,
+          processingDispatchFailed: fields.processingDispatchFailed,
+          docsTombstoned: 0,
+          docsPurged: 0,
+        },
+      ],
+    }
+    const container = renderComponent(
+      <ConnectorSyncHistory
+        connector={makeConnector({ accessMode: 'members' })}
+        knowledgeBaseId='knowledge-1'
+      />
+    )
+    expect(container.textContent).toContain(fields.continuing ? 'Continuing' : 'Partial')
+    expect(container.textContent).not.toContain(fields.continuing ? 'Partial' : 'Continuing')
+    if (fields.continuing) expect(container.textContent).not.toContain('No changes')
+    if (fields.docsFailed) expect(container.textContent).toContain('1 failed')
+    if (fields.processingDispatchFailed)
+      expect(container.textContent).toContain('1 failed to queue')
+  })
+
   it('loads the member engine history rather than the content history', () => {
     lifecycle.detail.current = {
       syncLogs: [makeLog({ status: 'completed', docsAdded: 999 })],
@@ -1129,11 +1164,35 @@ describe('SyncHistory', () => {
     expect(container.textContent).not.toContain('No changes')
   })
 
-  it('renders a continued listing as partial with the work already completed', () => {
-    const container = render(makeLog({ status: 'partial', docsAdded: 3 }))
-    expect(container.textContent).toContain('Partial')
+  it('distinguishes a continued listing from a partial failure', () => {
+    const container = render(makeLog({ status: 'partial', docsAdded: 3, listedCount: null }))
+    expect(container.textContent).toContain('Continuing')
     expect(container.textContent).toContain('3 added')
     expect(container.textContent).not.toContain('In progress…')
+  })
+
+  it('keeps permission failures visible even when document processing succeeded', () => {
+    const container = render(
+      makeLog({
+        status: 'partial',
+        listedCount: 4,
+        errorMessage: 'Some document permissions could not be verified.',
+      })
+    )
+    expect(container.textContent).toContain('Some document permissions could not be verified.')
+    expect(container.textContent).toContain('Partial')
+    expect(container.textContent).not.toContain('No changes')
+    expect(container.textContent).not.toContain('Continuing')
+  })
+
+  it.each([
+    { docsFailed: 1, listedCount: null },
+    { docsFailed: 0, listedCount: 4 },
+    { docsFailed: 0 },
+  ])('does not label failed, finished, or legacy partial logs as continuing: %j', (fields) => {
+    const container = render(makeLog({ status: 'partial', ...fields }))
+    expect(container.textContent).toContain('Partial')
+    expect(container.textContent).not.toContain('Continuing')
   })
 
   it('keeps completion accessible without repeating decorative status on every row', () => {

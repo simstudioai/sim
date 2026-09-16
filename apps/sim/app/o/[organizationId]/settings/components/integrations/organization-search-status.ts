@@ -16,9 +16,11 @@ export function organizationSearchStatusLabel(provider: OrganizationSearchProvid
     const error =
       provider.issue === 'account_sync_incomplete'
         ? 'Some accounts are not up to date'
-        : provider.issue === 'document_indexing_failed'
-          ? 'Some documents failed to index'
-          : 'Sync failed'
+        : provider.issue === 'permission_sync_incomplete'
+          ? 'Some permissions could not be verified'
+          : provider.issue === 'document_indexing_failed'
+            ? 'Some documents failed to index'
+            : 'Sync failed'
     return provider.isSyncing ? `Indexing · ${error}` : error
   }
   return STATUS_LABELS[provider.status]

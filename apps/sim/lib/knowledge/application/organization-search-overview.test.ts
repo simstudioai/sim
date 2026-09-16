@@ -64,7 +64,9 @@ const health = {
   hasError: false,
   hasAccountError: false,
   hasDocumentError: false,
+  hasPermissionError: false,
   hasIndexing: false,
+  hasPendingSync: false,
   hasWaiting: false,
   hasUnstarted: false,
 }
@@ -90,11 +92,25 @@ describe('organization Search administration overview', () => {
       mocks.availability.mockResolvedValue({ memberScoped, sourceMirrored: true })
       const result = await readOrganizationSearchOverview.execute({ principal, input })
       expect(result.providers).toEqual([
-        { connectorType, approved: true, sourceCount: 0, status, issue: null, isSyncing: false },
+        {
+          connectorType,
+          approved: true,
+          sourceCount: 0,
+          status,
+          issue: null,
+          isSyncing: false,
+          hasPendingSync: false,
+        },
       ])
     }
   )
   it.each([
+    {
+      hasPermissionError: true,
+      hasAccountError: false,
+      hasDocumentError: false,
+      issue: 'permission_sync_incomplete',
+    },
     { hasAccountError: true, hasDocumentError: false, issue: 'account_sync_incomplete' },
     { hasAccountError: false, hasDocumentError: true, issue: 'document_indexing_failed' },
     { hasAccountError: false, hasDocumentError: false, issue: 'sync_failed' },
@@ -129,9 +145,32 @@ describe('organization Search administration overview', () => {
         status: 'needs_attention',
         issue: 'sync_failed',
         isSyncing: true,
+        hasPendingSync: false,
       },
     ])
     expect(organizationSearchOverviewSchema.parse(result)).toEqual(result)
+  })
+
+  it('includes member document and dispatch failures in provider health queries', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(knowledgeConnector, [{ ...health }])
+    await readOrganizationSearchOverview.execute({ principal, input })
+    const selection = dbChainMockFns.select.mock.calls.find(([fields]) => fields?.hasError)?.[0]
+    const { params } = renderFragment(selection?.hasError)
+    expect(params).toContain('knowledgeConnectorMemberSyncLog.docsFailed')
+    expect(params).toContain('knowledgeConnectorMemberSyncLog.processingDispatchFailed')
+    expect(params).not.toContain(undefined)
+  })
+
+  it('keeps unfinished work observable without presenting an idle worker as indexing', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(knowledgeConnector, [{ ...health, hasPendingSync: true, hasUnstarted: true }])
+    const result = await readOrganizationSearchOverview.execute({ principal, input })
+    expect(result.providers[0]).toMatchObject({
+      status: 'needs_setup',
+      isSyncing: false,
+      hasPendingSync: true,
+    })
   })
 
   it.each(['admin', 'owner'])(
@@ -155,6 +194,7 @@ describe('organization Search administration overview', () => {
             status: 'active',
             issue: null,
             isSyncing: false,
+            hasPendingSync: false,
           },
           {
             connectorType: 'gmail',
@@ -163,6 +203,7 @@ describe('organization Search administration overview', () => {
             status: 'waiting_for_connections',
             issue: null,
             isSyncing: false,
+            hasPendingSync: false,
           },
           {
             connectorType: 'github',
@@ -171,6 +212,7 @@ describe('organization Search administration overview', () => {
             status: 'paused',
             issue: null,
             isSyncing: false,
+            hasPendingSync: false,
           },
         ],
       })
@@ -223,6 +265,7 @@ describe('organization Search administration overview', () => {
         status: 'paused',
         issue: null,
         isSyncing: false,
+        hasPendingSync: false,
       },
     ])
   })
@@ -256,6 +299,7 @@ describe('organization Search administration overview', () => {
         status: 'paused',
         issue: null,
         isSyncing: false,
+        hasPendingSync: false,
       },
       {
         connectorType: 'gmail',
@@ -264,6 +308,7 @@ describe('organization Search administration overview', () => {
         status: 'paused',
         issue: null,
         isSyncing: false,
+        hasPendingSync: false,
       },
     ])
   })

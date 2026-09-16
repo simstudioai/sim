@@ -78,6 +78,7 @@ async function getJson<T>(
  */
 async function drainV2<T>(url: string, accessToken: string, what: string): Promise<T[]> {
   const items: T[] = []
+  const cursors = new Set<string>()
   let cursor: string | undefined
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const query = new URLSearchParams({ limit: String(PAGE_SIZE) })
@@ -86,11 +87,19 @@ async function drainV2<T>(url: string, accessToken: string, what: string): Promi
       `${url}?${query.toString()}`,
       accessToken
     )
-    items.push(...(body.results ?? []))
-    cursor = extractCursor(body._links?.next)
-    if (!cursor) return items
+    if (!Array.isArray(body.results)) {
+      throw new Error(`Confluence returned invalid ${what}`)
+    }
+    items.push(...body.results)
+    const next = body._links?.next
+    if (!next) return items
+    cursor = extractCursor(next)
+    if (!cursor || cursors.has(cursor)) {
+      throw new Error(`Confluence returned an invalid or repeated ${what} continuation`)
+    }
+    cursors.add(cursor)
   }
-  throw new Error(`Confluence ${what} exceeded ${MAX_PAGES} pages`)
+  throw new Error(`Confluence ${what} exceeded ${MAX_PAGES} pages (${items.length} entries)`)
 }
 
 /**

@@ -284,6 +284,59 @@ describe('listSpaceReadPrincipals', () => {
 
     await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow('403')
   })
+
+  it.each([
+    '/wiki/api/v2/spaces/1/permissions?cursor=next',
+    '/wiki/api/v2/spaces/1/permissions?limit=250',
+  ])(
+    'rejects a repeated or missing cursor without publishing partial permissions: %s',
+    async (next) => {
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ results: [], _links: { next: '?cursor=next' } }))
+        .mockResolvedValueOnce(jsonResponse({ results: [], _links: { next } }))
+
+      await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
+        'invalid or repeated space permissions continuation'
+      )
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it('rejects a cursor cycle rather than making a hundred repeated requests', async () => {
+    for (const cursor of ['first', 'second', 'first']) {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ results: [], _links: { next: `?cursor=${cursor}` } })
+      )
+    }
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow('repeated')
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+  })
+
+  it('rejects a malformed collection instead of treating it as a verified empty grant', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({}))
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
+      'invalid space permissions'
+    )
+  })
+
+  it('keeps the request bound for a provider that keeps issuing distinct continuations', async () => {
+    let page = 0
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({
+        results: [
+          {
+            principal: { type: 'user', id: 'reader' },
+            operation: { key: 'read', targetType: 'space' },
+          },
+        ],
+        _links: { next: `?cursor=${++page}` },
+      })
+    )
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
+      'exceeded 100 pages (100 entries)'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(100)
+  })
 })
 
 describe('getReadRestriction', () => {
