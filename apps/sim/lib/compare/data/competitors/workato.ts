@@ -49,9 +49,9 @@ export const workatoProfile: CompetitorProfile = {
         'Agent Studio ships ready-made departmental agents (Genies) for IT, Sales, HR, Support, CX, and Marketing that customers can deploy and customize directly, alongside the option to build a custom agent from scratch.',
       shortDescription: 'Ready-made departmental agents (Genies) for IT, Sales, HR, and more.',
       source: {
-        url: 'https://docs.workato.com/agentic/agentic.html',
-        label: 'Agentic | Workato docs',
-        asOf: '2026-07-02',
+        url: 'https://www.workato.com/agentstudio',
+        label: 'Agent Studio | Workato',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -531,14 +531,14 @@ export const workatoProfile: CompetitorProfile = {
         value:
           "Text-only natively. Workato's own 'AI by Workato' utility connector has no generation actions, but a pre-built OpenAI connector adds a native 'Generate Images' (DALL-E) action for image generation. No native video or audio generation block exists.",
         detail:
-          "Workato's own 'AI by Workato' utility connector (built on Anthropic/OpenAI models) exposes only text/analysis actions: analyze image (vision/analysis, not generation), categorize text, draft email, parse text, summarize text, translate text. Generative-media capability beyond image generation would have to be assembled via generic HTTP/connector calls to third-party providers (e.g., ElevenLabs) rather than a first-party block.",
+          "Workato's own 'AI by Workato' utility connector (built on Anthropic/OpenAI models) exposes only text/analysis actions: analyze text, categorize text, draft email, parse text, summarize text, translate text. Generative-media capability beyond image generation would have to be assembled via generic HTTP/connector calls to third-party providers (e.g., ElevenLabs) rather than a first-party block.",
         shortValue: 'Image generation via OpenAI connector, no native video/audio',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/connectors/ai-by-workato.html',
             label: 'AI by Workato | Workato docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.workato.com/platform/ai-by-workato',
@@ -926,32 +926,32 @@ export const workatoProfile: CompetitorProfile = {
       },
       dataResidency: {
         value:
-          "Yes, for enterprise customers: Workato enterprise customers can choose the region where their organization's automation data is stored and processed, from regional data centers (US, EU/Frankfurt, Japan, Singapore, Australia, Israel, China, South Korea). Once stored, data remains isolated in that region and is not shared or transferred across regions; there is no ongoing per-workspace or per-project residency toggle. Self-service (non-enterprise) users can't choose a region and are hosted in one of Workato's US data centers. Using more than one region requires signing up for and maintaining a separate Workato account in each desired region.",
+          "Yes, for enterprise customers: Workato enterprise customers can choose the region where their organization's automation data is stored and processed, from regional data centers (US, EU/Frankfurt, Japan, Singapore, Australia, Israel, China, South Korea, and the United Kingdom). Once stored, data remains isolated in that region and is not shared or transferred across regions; there is no ongoing per-workspace or per-project residency toggle. Self-service (non-enterprise) users can't choose a region and are hosted in one of Workato's US data centers. Using more than one region requires signing up for and maintaining a separate Workato account in each desired region.",
         shortValue: 'Enterprise customers pick a region; self-service defaults to US',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/datacenter/datacenter-overview.html',
             label: 'Data center overview | Workato Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
       rbac: {
         value:
-          "Yes: RBAC 2.0 separates environment-level and project-level roles and permissions, and supports custom collaborator roles for granular access to projects, folders, and tools, following least-privilege principles. Availability of some custom-role features depends on the customer's pricing plan.",
+          'Yes: RBAC 2.0 separates environment-level and project-level roles and permissions, and supports custom collaborator roles for granular access to projects, folders, and tools, following least-privilege principles.',
         shortValue: 'RBAC 2.0 with custom collaborator roles',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html',
             label: 'Manage workspace collaborators with role-based access control | Workato docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.workato.com/product-hub/changelog/rbac-2-0-enhanced-role-based-access-control/',
             label: 'RBAC 2.0: Enhanced Role-Based Access Control | Workato Product Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1115,31 +1115,36 @@ export const workatoProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          'Partial: Workato has a large first-party catalog of native, Workato-built connectors, plus an open Community Library where any developer with Connector SDK access can build and publish a connector that other users install, alongside an invite-only Partner Connector tier that does get dedicated Workato code review. This is a genuine public marketplace for third-party executable connector code, unlike a vendor with no such marketplace at all.',
+          "Partial: Workato has a large first-party catalog of native, Workato-built connectors, plus an open Community Library where any developer with Connector SDK access can build and publish an open- or closed-source connector for others to install, subject to a Workato review before the listing goes live. This is a genuine public marketplace for third-party executable connector code, unlike a vendor with no such marketplace at all, but current docs do not describe a distinct, code-reviewed 'Partner Connector' tier separate from that community pipeline.",
         detail:
-          "Workato's docs distinguish three tiers: native connectors are built and maintained by Workato directly; Partner Connectors go through Workato's partnership program with dedicated developer accounts and code review by Workato engineers on the initial version and subsequent updates; and Community Connectors are built by any community member and published to the Community Library, reviewed within roughly one business day per Workato's own docs, but explicitly labeled 'intended as examples only.' Installing a community connector requires full Connector SDK privileges, and Workato tells users to independently evaluate and test a community connector's code before releasing it workspace-wide, since 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' Community connectors can also be published open-source (installable, viewable, and modifiable by anyone) or closed-source. This is structurally different from a vendor where every executable integration is first-party authored and code-reviewed through the vendor's own repository, with no public listing where an arbitrary third party can publish code for other users to install. No publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) exists; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical, industry-wide concern rather than a Workato-specific incident.",
-        shortValue: 'Partial: first-party catalog plus an open, lightly-vetted marketplace',
+          "Workato's current docs describe two connector-contribution paths, not three formally reviewed tiers: native connectors are built and maintained by Workato directly, and Community Connectors are built by any community member with full Connector SDK privileges and published to the Community Library, where Workato notifies the developer by email once the connector has been reviewed — no stated turnaround time (e.g. a one-business-day SLA) is documented anywhere. Separately, a technology-partner program exists for ISVs building a connector to their own application: partners get a dedicated developer account plus tools and training, but current docs do not describe this as a distinct, code-reviewed 'Partner Connector' tier with its own review process or SLA. Workato's Acceptable Use Policy for the Community states that, 'notwithstanding any Security Review conducted or any label provided by Workato, Workato does not certify, warrant or support any Community Listings, Partner Connectors or No Code Connectors.' The Community Library's public asset listings also carry a blanket disclaimer that 'COMMUNITY ASSETS ARE INTENDED AS EXAMPLES ONLY,' describing shared library assets as 'a reusable set of templates, best practices and guidelines' rather than certified solutions. Installing a community connector requires full Connector SDK privileges, and community connectors can be published open-source (installable, viewable, and modifiable by anyone) or closed-source. This is still structurally different from a vendor where every executable integration is first-party authored and code-reviewed through the vendor's own repository, with no public listing where an arbitrary third party can publish code for other users to install. No publicly documented incident (e.g., a malicious published community connector or a credential leak traced to one) exists; a Workato blog post on general AI/MCP security risk raises malicious lookalike marketplace tools as a theoretical, industry-wide concern rather than a Workato-specific incident.",
+        shortValue: 'Partial: native catalog plus open marketplace, no reviewed Partner tier',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/developing-connectors/community/community.html',
             label: 'Community connectors | Workato Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.workato.com/developing-connectors/community/community-listing.html',
             label: 'Contributing your connector | Workato Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.workato.com/product-hub/community-connectors/',
             label: 'Workato Community Connectors: What you need to know',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.workato.com/developing-connectors/sdk/quickstart/sharing.html',
             label: 'Workato Docs: Sharing a connector (open-source vs. closed-source)',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://assets.ctfassets.net/khy5qy7zbpmq/72IAM00Ydce3JM5EWjMJdu/9faed8b7e263383f48b8a7afc92e96ad/Workato_Community_Policy_2026-01-13.pdf',
+            label: 'Acceptable Use Policy for the Community | Workato',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1198,14 +1203,14 @@ export const workatoProfile: CompetitorProfile = {
         value:
           'Yes: proactive email (and Slack/voice via Admin app) alerts on job failure, configurable and throttled',
         detail:
-          'Workato sends error-notification emails automatically to the workspace owner by default, and admins can configure additional recipients under Workspace admin > Settings > Debug and logs > Error alerts. Notifications are throttled (default one minute per error type per recipe, with an optional one-hour throttle) to reduce noise. Beyond email, the Admin connector/Workbot integration can push failure notifications to Slack, or trigger a custom email or phone call/IVR (via Twilio) when a key recipe goes down, and Workbot lets teams watch for failures across all or specific recipes directly in Slack.',
+          'Workato sends error-notification emails automatically to the workspace owner by default, and admins can configure additional recipients under Workspace admin > Settings > Error alerts. Notifications are throttled (default one minute per error type per recipe, with an optional one-hour throttle) to reduce noise. Beyond email, the Admin connector/Workbot integration can push failure notifications to Slack, or trigger a custom email or phone call/IVR (via Twilio) when a key recipe goes down, and Workbot lets teams watch for failures across all or specific recipes directly in Slack.',
         shortValue: 'Throttled email, Slack, and voice failure alerts',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/recipes/error-notifications.html',
             label: 'Errors notifications emails | Workato Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.workato.com/the-connector/new-feature-manage-exceptions-with-workatos-admin-app/',
@@ -1243,14 +1248,14 @@ export const workatoProfile: CompetitorProfile = {
         value:
           "Yes: Workato recipes can run as background jobs you check on later, rather than only blocking synchronously. A recipe run creates a job with an ID, and the Workato Jobs API lets you list jobs and fetch an individual job's status and details afterward. Workato also has explicit async patterns inside recipes: Callable Recipes support a 'fire-and-forget' async function call alongside a synchronous variant, a 'Wait for async calls' action to rejoin parallel async jobs, and a resume-token mechanism for jobs paused while awaiting external input.",
         detail:
-          'The public Jobs API returns metadata/status only (job state, timestamps, step summaries) via job_id, not a rich step-by-step output payload; full run-time data is viewed on the job details page in the UI rather than returned by the API.',
+          "The public Jobs API returns full per-step run-time detail: the 'Get a job' endpoint's `lines` array includes each step's adapter, operation, and input/output data alongside job state and timestamps; the separate 'List jobs' endpoint returns metadata/status only, without run-time data.",
         shortValue: 'Yes: async job_id + pollable Jobs API',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.workato.com/workato-api/jobs.html',
             label: 'Workato API - Jobs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.workato.com/connectors/recipe-functions/actions/call-recipe-function-asynchronously.html',
@@ -1338,14 +1343,14 @@ export const workatoProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Email support (support@workato.com), an official documentation/help center, and a public community forum ("Systematic Community") for peer discussion; no dedicated live-chat channel is documented',
+          "Email support (support@workato.com), an official documentation/help center, and a public community forum ('Workato Builders Community,' rebranded from the earlier 'Systematic Community' and now also linking to a Slack community) for peer discussion; no dedicated live-chat channel is documented",
         shortValue: 'Email, docs, and community forum',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://systematic.workato.com/',
-            label: 'Workato Systematic Community',
-            asOf: '2026-07-02',
+            url: 'https://community.workato.com',
+            label: 'Workato Builders Community',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1357,23 +1362,23 @@ export const workatoProfile: CompetitorProfile = {
       },
       community: {
         value:
-          'No published community size metrics. Workato operates a public forum ("Systematic Community") with active discussion, but no member count, Slack/Discord size, or GitHub star count is published, and the core product is closed source so no GitHub stars apply',
+          "No published community size metrics. Workato operates a public forum ('Workato Builders Community,' rebranded from the earlier 'Systematic Community,' with a linked Slack community) with active discussion, but no member count, Slack/Discord size, or GitHub star count is published, and the core product is closed source so no GitHub stars apply",
         shortValue: 'No published size metrics; closed-source',
         confidence: 'unknown',
         sources: [
           {
-            url: 'https://systematic.workato.com/',
-            label: 'Workato Systematic Community',
-            asOf: '2026-07-02',
+            url: 'https://community.workato.com',
+            label: 'Workato Builders Community',
+            asOf: '2026-09-15',
           },
         ],
       },
       companyMaturity: {
         value:
-          'Founded 2013; ~$421M total funding; last priced at $5.7B (2021), secondary markets ~$1.7B (mid-2025); ~1,400 employees',
+          'Founded 2013; ~$421M total funding; last priced at $5.7B (Series E, Nov 2021); ~1,468 employees (as of Aug 2026)',
         detail:
-          'Workato was founded in 2013 by Gautham Viswanathan and Vijay Tella (Palo Alto, CA). It has raised approximately $421M in total funding across rounds including a $200M Series E in late 2021 at a $5.7B valuation; secondary-market pricing as of mid-2025 implied a lower valuation near $1.7B. Employee count is approximately 1,414 as of May 2026, a mature, well-funded, late-stage private company with no IPO.',
-        shortValue: 'Founded 2013; ~$421M raised; ~1,400 employees',
+          'Workato was founded in 2013 by Gautham Viswanathan and Vijay Tella (Palo Alto, CA). It has raised approximately $421M in total funding across rounds including a $200M Series E in November 2021 at a $5.7B valuation (an earlier January 2021 round was priced near $1.7B, a figure sometimes mistaken for a later secondary-market price). Employee count is approximately 1,468 as of August 2026, a mature, well-funded, late-stage private company with no IPO.',
+        shortValue: 'Founded 2013; ~$421M raised; ~1,468 employees',
         confidence: 'verified',
         sources: [
           {
@@ -1384,12 +1389,12 @@ export const workatoProfile: CompetitorProfile = {
           {
             url: 'https://techcrunch.com/2021/11/10/workato-storms-to-a-5-7b-valuation-after-raising-200m-for-its-enterprise-automation-platform/',
             label: 'Workato storms to a $5.7B valuation after raising $200M | TechCrunch',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://tracxn.com/d/companies/workato/__OtQBgvGNY2vOc7gmJydkZ3zQ6CHQGUY1_fzhOK4C3xU',
             label: 'Workato - 2026 Company Profile, Team, Funding & Competitors | Tracxn',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

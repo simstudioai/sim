@@ -99,9 +99,10 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         "Agent Builder's Guardrails node is backed by a separately installable, open-source package that can be used outside AgentKit entirely, adding jailbreak detection alongside PII masking and other safety checks. Sim's Guardrails block covers PII masking and hallucination/RAG scoring too, but it's a built-in workflow block, not a standalone library you can drop into an unrelated codebase.",
       shortDescription: 'Standalone open-source package adds jailbreak detection to PII masking.',
       source: {
-        url: 'https://guardrails.openai.com/',
-        label: 'OpenAI Guardrails',
-        asOf: '2026-07-02',
+        url: 'https://github.com/openai/openai-guardrails-python',
+        label:
+          'GitHub: openai/openai-guardrails-python (MIT license, pip install openai-guardrails)',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -218,7 +219,12 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           {
             url: 'https://developers.openai.com/cookbook/examples/agentkit/agentkit_walkthrough',
             label: 'OpenAI Cookbook: AgentKit walkthrough',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://openai.com/index/introducing-agentkit/',
+            label: 'Introducing AgentKit | OpenAI',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -551,9 +557,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       agentSkills: {
         value:
-          "No: Agent Builder/AgentKit has no dedicated feature for defining a reusable, named prompt or knowledge snippet that multiple agents can share by reference. A distinct 'Agent Skills' concept exists only in the unrelated Codex product line, not in AgentKit.",
+          "No: Agent Builder/AgentKit has no dedicated feature for defining a reusable, named prompt or knowledge snippet that multiple agents can share by reference. A distinct 'Agent Skills' concept exists as an open agent-skills standard shared across ChatGPT and Codex, not inside AgentKit or Agent Builder.",
         detail:
-          'OpenAI recommends migrating reusable prompts to code-managed, versioned helper files instead, which is the opposite direction of a built-in skills feature.',
+          'OpenAI recommends migrating reusable prompts to code-managed, versioned helper files instead, which is the opposite direction of a built-in skills feature. Agent Skills itself is documented as extending both ChatGPT and Codex with task-specific capabilities, available in the ChatGPT desktop app, Codex CLI/IDE extension, and, when bundled as plugins, across ChatGPT on web, desktop, and mobile — it is a shared platform concept, not a Codex-only one, and still has no equivalent inside Agent Builder/AgentKit.',
         shortValue: 'No dedicated cross-agent skill/snippet feature',
         confidence: 'estimated',
         sources: [
@@ -563,9 +569,9 @@ export const openaiAgentkitProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://developers.openai.com/codex/skills',
-            label: 'Agent Skills - Codex | OpenAI Developers',
-            asOf: '2026-07-02',
+            url: 'https://learn.chatgpt.com/docs/build-skills',
+            label: 'Build skills | ChatGPT Learn (formerly "Agent Skills - Codex")',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -610,7 +616,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           "No dedicated node in the visual Agent Builder canvas. Its node palette (Start, Agent, Note, File search, Guardrails, MCP, If/else, While, Human approval, Transform, Set state) has no fan-out/fan-in or 'parallel branches' node; If/else and While are the only branching/looping constructs, and both execute sequentially. Concurrent multi-agent execution requires writing code against the separate Agents SDK (e.g. Python asyncio to run agents in parallel and merge results), not the no-code builder.",
         detail:
-          'OpenAI developer community threads on Agent Builder confirm the canvas lacks a fan-out block and point developers to the Agents SDK for true concurrent branch execution.',
+          "OpenAI developer community threads on Agent Builder confirm the canvas lacks a fan-out block, forcing sequential workarounds via Set State; OpenAI's own node reference and guides otherwise direct developers toward the Agents SDK for concurrent multi-agent execution.",
         shortValue: 'No visual parallel-branch node; only via Agents SDK code',
         confidence: 'estimated',
         sources: [
@@ -622,7 +628,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           {
             url: 'https://community.openai.com/t/agent-builder-fan-out-block/1364947',
             label: 'OpenAI Community: Agent Builder Fan Out block',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -746,10 +752,10 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       extensibilitySdk: {
         value:
-          'Official Agents SDK (Python + TypeScript/JS); Apps SDK (MCP-based) for building integrations; ChatGPT Apps directory as a community marketplace',
+          "Official Agents SDK (Python + TypeScript/JS); Apps SDK (MCP-based, rebranded 'Plugins' in OpenAI's developer docs) for building integrations; ChatGPT Apps directory — now published as the universal Plugins directory shared by ChatGPT and Codex — as a community marketplace",
         detail:
-          "Agents SDK ships as open-source client libraries for Python (openai-agents-python) and TypeScript/JavaScript (openai-agents-js). It defaults to OpenAI's own Responses/Chat Completions APIs but is provider-agnostic in practice: built-in provider-integration points plus best-effort beta LiteLLM/Any-LLM adapters let it call 100+ non-OpenAI providers (this is a code-level capability, distinct from Agent Builder's OpenAI-only model selector). Custom integrations are built as MCP servers using the Apps SDK, an open standard on the Model Context Protocol; Agent Builder's MCP node connects to any third-party MCP server. A Connector Registry centralizes admin-managed connectors (Dropbox, Google Drive, SharePoint, Teams) plus third-party MCPs. Community apps go through a dashboard-based submission and review flow and, once approved, are listed in the ChatGPT Apps directory.",
-        shortValue: 'Agents SDK, Apps SDK, and app directory',
+          "Agents SDK ships as open-source client libraries for Python (openai-agents-python) and TypeScript/JavaScript (openai-agents-js). It defaults to OpenAI's own Responses/Chat Completions APIs but is provider-agnostic in practice: built-in provider-integration points plus best-effort beta LiteLLM/Any-LLM adapters let it call 100+ non-OpenAI providers (this is a code-level capability, distinct from Agent Builder's OpenAI-only model selector). Custom integrations are built as MCP servers using the Apps SDK — OpenAI's developer docs now brand this surface 'Plugins', combining reusable skills and an MCP server into one installable package — an open standard on the Model Context Protocol; Agent Builder's MCP node connects to any third-party MCP server. A Connector Registry centralizes admin-managed connectors (Dropbox, Google Drive, SharePoint, Teams) plus third-party MCPs. Community apps go through a dashboard-based submission and review flow and, once approved, are listed in the ChatGPT Apps directory, now called the universal plugin directory shared by ChatGPT and Codex; ChatGPT's own admin surfaces still refer to 'apps' alongside the newer 'plugins' terminology.",
+        shortValue: 'Agents SDK, Apps SDK/Plugins, app directory',
         confidence: 'verified',
         sources: [
           {
@@ -769,13 +775,14 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           },
           {
             url: 'https://developers.openai.com/apps-sdk',
-            label: 'Apps SDK overview',
-            asOf: '2026-07-02',
+            label: 'Plugins overview (formerly "Apps SDK overview") | OpenAI Developers',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.openai.com/apps-sdk/deploy/submission',
-            label: 'Apps SDK: Submit and maintain your app',
-            asOf: '2026-07-02',
+            label:
+              'Submit plugins (formerly "Apps SDK: Submit and maintain your app") | OpenAI Developers',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -865,21 +872,21 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     security: {
       compliance: {
         value:
-          'Yes: SOC 2 Type 2, FedRAMP Moderate Authorization (ChatGPT Enterprise and API Platform), PCI DSS v4.0.1, ISO/IEC 27001:2022, ISO 27017, ISO 27018, and ISO/IEC 27701:2019; supports customer HIPAA compliance via BAA and GDPR/CCPA via DPA; FERPA covered via a separate Student Data Privacy Agreement for ChatGPT Edu',
+          'Yes: SOC 2 Type 2, FedRAMP Moderate Authorization (ChatGPT Enterprise and API Platform), PCI DSS v4.0.1, ISO/IEC 27001:2022, ISO 27017, ISO 27018, ISO/IEC 27701:2019, and ISO/IEC 42001:2023 (AI management system); supports customer HIPAA compliance via BAA and GDPR/CCPA via DPA; FERPA covered via a separate Student Data Privacy Agreement for ChatGPT Edu',
         detail:
-          "OpenAI's most recent SOC 2 report covers January 1, 2025 through June 30, 2025 for Security, Availability, Confidentiality, and Privacy Trust Services Criteria across the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team. ChatGPT Enterprise and the API Platform hold FedRAMP Moderate (Class C) authorization per the FedRAMP Marketplace listing. OpenAI's trust portal lists PCI DSS v4.0.1 for payment-processing components, plus ISO/IEC 27001:2022, 27017:2015, 27018:2019, and 27701:2019 certifications, and lists GDPR and CCPA. OpenAI offers a Data Processing Addendum for GDPR/CCPA and a Business Associate Agreement for HIPAA-regulated customers on ChatGPT Enterprise/Edu and the API (not standard ChatGPT Business); this is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. FERPA compliance for ChatGPT Edu/for Teachers runs through a separate Student Data Privacy Agreement rather than the general DPA.",
+          "OpenAI's most recent SOC 2 report covers January 1, 2025 through June 30, 2025 for Security, Availability, Confidentiality, and Privacy Trust Services Criteria across the API Platform, ChatGPT Enterprise, ChatGPT Edu, and ChatGPT Team. ChatGPT Enterprise and the API Platform hold FedRAMP Moderate (Class C) authorization per the FedRAMP Marketplace listing. OpenAI's trust portal lists PCI DSS v4.0.1 for payment-processing components, plus ISO/IEC 27001:2022, 27017:2015, 27018:2019, and 27701:2019 certifications, and lists GDPR and CCPA. OpenAI also maintains an ISO/IEC 42001:2023 AI Management System certification, covering OpenAI's consumer and business AI products and models in its role as an AI producer and AI provider, per both the trust portal and OpenAI's security-and-privacy page. OpenAI offers a Data Processing Addendum for GDPR/CCPA and a Business Associate Agreement for HIPAA-regulated customers on ChatGPT Enterprise/Edu and the API (not standard ChatGPT Business); this is enablement rather than OpenAI itself being HIPAA-certified, since HIPAA has no formal certification body. FERPA compliance for ChatGPT Edu/for Teachers runs through a separate Student Data Privacy Agreement rather than the general DPA.",
         shortValue: 'SOC 2 Type 2, FedRAMP Moderate, ISO 27001, HIPAA BAA',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://trust.openai.com/',
             label: 'OpenAI Trust Portal (SafeBase)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://openai.com/security-and-privacy/',
             label: 'Security and privacy at OpenAI',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.fedramp.gov/marketplace/products/FR2533155773/',
@@ -898,39 +905,42 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Yes: data residency at rest available in US, Europe, UK, Japan, Canada, South Korea, Singapore, Australia, India, and UAE for eligible enterprise customers',
         detail:
-          'Eligible ChatGPT Enterprise, ChatGPT Edu, ChatGPT for Healthcare, and API platform customers can store content at rest in these regions; eligible customers can also opt into in-region GPU inference in the U.S. or Europe.',
+          "Eligible ChatGPT Enterprise, ChatGPT Edu, and API platform customers can store content at rest in these regions, per OpenAI's own data-residency announcement. That announcement does not name ChatGPT for Healthcare among the eligible products and does not mention in-region GPU inference; both sub-claims are not documented on this page and are not independently confirmed elsewhere, so they should be treated as unconfirmed rather than general until a primary source names them.",
         shortValue: '10 regions for eligible enterprise customers',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://openai.com/index/expanding-data-residency-access-to-business-customers-worldwide/',
             label: 'Expanding data residency access to business customers worldwide',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       rbac: {
         value:
-          'Yes, at the workspace level. Workspace Owners create custom roles and use per-role "Connected data" controls to allow or restrict which apps/connectors (and their actions) each role can use, with all apps disabled by default. A separate Global Admin Console (beta) adds a distinct Global admin role for centralizing access management across workspaces. Granular access scoped to individual Agent Builder workflows is not documented.',
+          'Yes, at the workspace level, for ChatGPT Enterprise, Edu, Healthcare, and Teachers workspaces (not standard ChatGPT Business). Workspace Owners create custom roles and use per-role "Plugins & connected data" controls to allow or restrict which apps/connectors (and their actions) each role can use, with new apps disabled by default until an admin enables them. Standalone ChatGPT Business workspaces instead get only a single workspace-wide app on/off toggle (apps enabled by default), with no per-role granularity. A separate Admin Console (formerly branded Global Admin Console) adds a distinct Global admin role for centralizing tenant-wide identity access (SSO, domains, SCIM, external-application access) across workspaces. Granular access scoped to individual Agent Builder workflows is not documented.',
         detail:
-          'ChatGPT Enterprise/Edu/Business workspaces let Workspace Owners create custom roles and, under each role\'s Connected data section, turn on "Allow members to use apps" and select which specific apps that role can access; when an admin enables an app, they can also set action controls (allow all actions, read-only, or a custom action set). All apps are disabled by default until an admin turns them on. The Global Admin Console is a newer, separate beta surface with its own Global admin role and an Access tab for centralizing SSO, domain, and external-application access across workspaces. This is workspace/role-level RBAC over apps and connectors, not permissions scoped to individual Agent Builder workflows.',
-        shortValue: 'Workspace-level RBAC via custom roles, per-app controls',
-        confidence: 'estimated',
+          'RBAC is available for ChatGPT Enterprise, Edu, Healthcare, and Teachers workspaces in all supported countries — not standard ChatGPT Business. In eligible workspaces, Workspace Owners create custom roles and, under each role\'s "Plugins & connected data" section, turn on "Allow members to use plugins" (shown as "Use apps" in FedRAMP workspaces) and select which specific apps that role can access; when an admin enables an app, they can also set action controls (allow all actions, read-only, or a custom action set). New plugins and apps are disabled by default in Enterprise/Edu until an admin turns them on, though new workspaces may start with a selected set of apps already enabled. Standalone ChatGPT Business workspaces are not eligible for custom-role RBAC: administrators there instead manage a single workspace-wide app on/off toggle, and apps are enabled by default. The Admin Console (formerly branded Global Admin Console) is a separate surface with its own Global admin role for centralizing tenant-wide SSO, domain, SCIM directory sync, and external-application access across workspaces. This is workspace/role-level RBAC over apps and connectors, not permissions scoped to individual Agent Builder workflows.',
+        shortValue: 'RBAC via custom roles; not standard Business',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://help.openai.com/en/articles/11750701-rbac',
-            label: 'RBAC | OpenAI Help Center',
-            asOf: '2026-07-08',
+            label:
+              'Managing feature access with role-based access control in ChatGPT | OpenAI Help Center',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.openai.com/en/articles/11509118-admin-controls-security-and-compliance-in-apps-enterprise-edu-and-business',
-            label: 'Admin Controls, Security, and Compliance in apps | OpenAI Help Center',
-            asOf: '2026-07-08',
+            label:
+              'Admin controls, security, and compliance for plugins and apps | OpenAI Help Center',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.openai.com/en/articles/12289294-global-admin-console',
-            label: 'Global Admin Console | OpenAI Help Center',
-            asOf: '2026-07-08',
+            label:
+              'Managing your tenant in Admin Console (formerly Global Admin Console) | OpenAI Help Center',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -958,21 +968,23 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          'Yes: ChatGPT Enterprise/Business workspaces support role-based access control (RBAC) that restricts which connectors/apps (and by extension their underlying stored credentials) a given custom role or permission group may use, per-app and per-role, with all apps disabled by default until an admin enables them for specific roles.',
+          'Yes, for ChatGPT Enterprise, Edu, Healthcare, and Teachers workspaces: custom-role RBAC restricts which connectors/apps (and by extension their underlying stored credentials) a given custom role or permission group may use, per-app and per-role, with new apps disabled by default until an admin enables them for specific roles. Standalone ChatGPT Business workspaces are not eligible for this per-role RBAC; they instead get only a single workspace-wide app on/off toggle (apps enabled by default), with no per-role credential/connector restriction.',
         detail:
-          'Granularity is at the connector/app level (e.g. this role may use Google Drive, that role may not) rather than restricting individual named credential instances within a connector type.',
-        shortValue: 'Yes, RBAC restricts connector access by role',
+          'Granularity is at the connector/app level (e.g. this role may use Google Drive, that role may not) rather than restricting individual named credential instances within a connector type. This per-role restriction is scoped to Enterprise, Edu, Healthcare, and Teachers workspaces; ChatGPT Business administrators can only turn a connector/app on or off for the whole workspace, not per role.',
+        shortValue: 'Yes, RBAC by role (not standard Business)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.openai.com/en/articles/11750701-rbac',
-            label: 'RBAC | OpenAI Help Center',
-            asOf: '2026-07-02',
+            label:
+              'Managing feature access with role-based access control in ChatGPT | OpenAI Help Center',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.openai.com/en/articles/11509118-admin-controls-security-and-compliance-in-apps-enterprise-edu-and-business',
-            label: 'Admin Controls, Security, and Compliance in apps | OpenAI Help Center',
-            asOf: '2026-07-02',
+            label:
+              'Admin controls, security, and compliance for plugins and apps | OpenAI Help Center',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1100,21 +1112,21 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Partial: pre-built Connector Registry entries (Dropbox, Google Drive, SharePoint, Teams) and the ChatGPT Apps directory go through OpenAI identity verification and app review, but Agent Builder's MCP node and the Agents SDK can connect to any third-party MCP server with no vendor vetting pipeline documented",
+          "Partial: pre-built Connector Registry entries (Dropbox, Google Drive, SharePoint, Teams) and the ChatGPT Apps directory — now published as the universal plugin directory shared by ChatGPT and Codex — go through OpenAI identity verification and app/plugin review, but Agent Builder's MCP node and the Agents SDK can connect to any third-party MCP server with no vendor vetting pipeline documented",
         detail:
-          "OpenAI's own Connector Registry connectors and ChatGPT Apps directory submissions require developer identity verification and pass through an OpenAI app-review process before listing, per the App submission guidelines. But Agent Builder's MCP node and the Agents SDK let a builder point at any hosted MCP server, first-party or community-run, with no OpenAI review of that server's code. This client-only MCP model mirrors the wider MCP ecosystem, where unreviewed community servers have shipped malicious behavior elsewhere (for example, an unofficial third-party Postmark MCP server was found in September 2025 silently BCC'ing all outgoing email to an attacker). No security incident specific to OpenAI's own Connector Registry, Apps directory, or Agent Builder MCP integration has been publicly reported.",
+          "OpenAI's own Connector Registry connectors and ChatGPT Apps directory submissions require developer identity verification and pass through an OpenAI review process before listing, per what OpenAI's developer docs now call the Plugin guidelines (formerly the App submission guidelines). But Agent Builder's MCP node and the Agents SDK let a builder point at any hosted MCP server, first-party or community-run, with no OpenAI review of that server's code. This client-only MCP model mirrors the wider MCP ecosystem, where unreviewed community servers have shipped malicious behavior elsewhere (for example, an unofficial third-party Postmark MCP server was found in September 2025 silently BCC'ing all outgoing email to an attacker). No security incident specific to OpenAI's own Connector Registry, Apps/plugin directory, or Agent Builder MCP integration has been publicly reported.",
         shortValue: 'Partial: reviewed first-party catalog, but open MCP server connections',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://developers.openai.com/apps-sdk/app-submission-guidelines',
-            label: 'App submission guidelines | Apps SDK | OpenAI Developers',
-            asOf: '2026-07-02',
+            label: 'Plugin guidelines (formerly "App submission guidelines") | OpenAI Developers',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.openai.com/apps-sdk/guides/security-privacy',
-            label: 'Security & Privacy | Apps SDK | OpenAI Developers',
-            asOf: '2026-07-02',
+            label: 'Security & Privacy | Plugins | OpenAI Developers',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://openai.com/index/developers-can-now-submit-apps-to-chatgpt/',
@@ -1197,7 +1209,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
       },
       dataDrains: {
         value:
-          "Yes: OpenAI's Compliance Logs Platform and Admin/Audit Logs API continuously export execution, audit, and usage data as immutable, time-windowed JSONL log files, with 13 pre-built turnkey integrations to eDiscovery, DLP, and SIEM vendors (e.g. CrowdStrike, GlobalRelay), beyond just viewing logs in-product.",
+          "Yes: OpenAI's Compliance Logs Platform and Admin/Audit Logs API continuously export execution, audit, and usage data as immutable, time-windowed JSONL log files, with 18 pre-built turnkey integrations to eDiscovery, DLP, and SIEM vendors (e.g. CrowdStrike, Microsoft Purview, Netskope, Palo Alto Networks, Varonis, Zscaler, Global Relay), beyond just viewing logs in-product.",
         detail:
           'This is an org-wide ChatGPT Enterprise/API Platform compliance feature, not something scoped specifically to Agent Builder workflow runs.',
         shortValue: 'Yes, continuous log export to SIEM/DLP/eDiscovery',
@@ -1206,7 +1218,7 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           {
             url: 'https://help.openai.com/en/articles/9261474-openai-compliance-platform-for-enterprise-and-edu-customers',
             label: 'OpenAI Compliance Platform for Enterprise and Edu Customers',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform',
@@ -1219,14 +1231,14 @@ export const openaiAgentkitProfile: CompetitorProfile = {
         value:
           'Yes: OpenAI\'s platform supports a background mode that flags a Responses API call to run asynchronously instead of blocking. The client immediately gets back a response ID marked "queued" and polls a status endpoint until the run reaches a terminal state like completed or failed.',
         detail:
-          'Background mode is a platform-level Responses API feature (used by Agents SDK/AgentKit flows), not unique to the Agent Builder canvas UI itself; an in-flight response can also be cancelled directly. Response data is retained only about 10 minutes for polling, and it is incompatible with Zero Data Retention projects.',
+          'Background mode is a platform-level Responses API feature (used by Agents SDK/AgentKit flows), not unique to the Agent Builder canvas UI itself; an in-flight response can also be cancelled directly. Response data is retained only about 10 minutes for polling. Zero Data Retention (ZDR) projects can still use background mode, but requests automatically run with `store=false`, so the same ~10-minute disk retention window for polling applies without persisting the response afterward.',
         shortValue: 'Background mode: async trigger + poll status',
         confidence: 'verified',
         sources: [
           {
             url: 'https://developers.openai.com/api/docs/guides/background',
             label: 'OpenAI: Background mode guide',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1300,16 +1312,16 @@ export const openaiAgentkitProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Community forum (community.openai.com), help center articles, and enterprise sales-led support; ChatGPT Enterprise includes 24/7 support',
+          'Community forum (community.openai.com), help center articles, and enterprise sales-led support; ChatGPT Enterprise plans document dedicated support with priority handling (24/7 coverage is referenced in enterprise sales materials, not in the general Help Center contact article cited here)',
         detail:
-          "OpenAI's Help Center documents standard support channels, and ChatGPT Enterprise plans include 24/7 support with SLAs.",
-        shortValue: 'Community forum plus 24/7 enterprise support',
+          "OpenAI's Help Center documents standard community/help-center contact channels (chat bubble, virtual assistant, Admin Portal for Team/Business/Enterprise admins) but does not itself state 24/7 coverage or Enterprise SLA hours; 24/7 support and priority handling for ChatGPT Enterprise are referenced in enterprise sales materials rather than in this general contact article.",
+        shortValue: 'Community forum, help center, enterprise support',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://help.openai.com/en/articles/6614161-how-can-i-contact-support',
             label: 'OpenAI Help Center: How can I contact support?',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1328,8 +1340,8 @@ export const openaiAgentkitProfile: CompetitorProfile = {
           },
           {
             url: 'https://openai.com/api-priority-processing/',
-            label: 'Priority Processing for API Customers',
-            asOf: '2026-07-02',
+            label: 'Fast mode (formerly Priority Processing) for API Customers',
+            asOf: '2026-09-15',
           },
         ],
       },

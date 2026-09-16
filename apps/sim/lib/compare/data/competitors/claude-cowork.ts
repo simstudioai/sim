@@ -26,7 +26,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       source: {
         url: 'https://claude.com/product/cowork',
         label: 'Claude Cowork product page (Claude)',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -38,7 +38,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       source: {
         url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -49,7 +49,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       source: {
         url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -61,7 +61,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       source: {
         url: 'https://claude.com/blog/cowork-for-enterprise',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -73,7 +73,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       source: {
         url: 'https://claude.com/blog/cowork-plugins',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -87,7 +87,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       source: {
         url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -98,19 +98,19 @@ export const claudeCoworkProfile: CompetitorProfile = {
       source: {
         url: 'https://claude.com/product/cowork',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
-      title: 'Cowork activity is not captured in audit logs / Compliance API',
+      title: 'Compliance API returns session transcripts, not a live per-action audit stream',
       description:
-        'Cowork activity does not appear in the Compliance API or standard data exports. OpenTelemetry (Team/Enterprise only) is the only visibility mechanism documented for streaming Cowork events to SIEM/observability tools; Anthropic does not document a way to reconcile it with Compliance API records, so it is not a full audit trail on its own.',
+        "Cowork sessions — both local sessions run through the Claude Desktop app and remote sessions started on claude.ai web or mobile — are retrievable through the Compliance API's session endpoints as full transcripts. The remaining limitation is granularity: the Compliance API returns session-level transcripts after the fact, not the live, per-tool-call, per-approval event stream (with a shared user identifier for SIEM correlation) that OpenTelemetry provides. A team wanting real-time visibility into individual connector calls, file edits, and approval decisions as they happen still needs the Team/Enterprise-only OpenTelemetry pipeline in addition to, not instead of, the Compliance API.",
       shortDescription:
-        'Cowork actions are absent from the Compliance API and standard data exports.',
+        'Captured in Compliance API as transcripts; OpenTelemetry adds real-time detail.',
       source: {
         url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -122,7 +122,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
       source: {
         url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
         label: 'Anthropic/Claude documentation',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -138,7 +138,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://www.anthropic.com/product/claude-cowork',
             label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -152,7 +152,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://www.anthropic.com/product/claude-cowork',
             label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -166,7 +166,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -174,14 +174,19 @@ export const claudeCoworkProfile: CompetitorProfile = {
         value:
           'Claude Desktop app (macOS, Windows, Linux beta); companion mobile messaging while desktop app stays active',
         detail:
-          "Tasks execute in an isolated virtual machine on the user's computer. Pro/Max users can message and monitor from a phone while the desktop app remains open.",
+          "Local sessions run the agent loop natively on the user's device, with shell commands and any code Claude writes executing inside a dedicated, isolated Linux VM on that same machine (Apple Virtualization.framework on macOS, Hyper-V on Windows); cloud sessions instead run entirely in a temporary sandbox on Anthropic's servers. Through the 'Dispatch' capability — in limited beta for Pro and Max plans on Claude Cowork — a user can message Claude from their phone and have it work on their desktop via a single persistent thread, provided the Claude Desktop app stays open and the computer stays awake; this differs from a full cloud session, which keeps working even when the computer is off.",
         shortValue: 'Desktop app (Mac/Windows/Linux beta) + mobile',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13947068-assign-tasks-from-anywhere-in-claude-cowork',
             label: 'Assign tasks from anywhere in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
+            label: 'Claude Cowork architecture overview',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -195,7 +200,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://claude.com/blog/cowork-plugins',
             label: 'Customize Cowork with plugins',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -206,7 +211,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
         shortValue: 'Closed-source proprietary product',
         confidence: 'verified',
         sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
+          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-09-15' },
         ],
       },
       environmentPromotion: {
@@ -227,7 +232,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://claude.com/blog/cowork-plugins',
             label: 'Customize Cowork with plugins',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -240,12 +245,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
             label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://fast.io/resources/claude-cowork-shared-workspace/',
             label: 'How to Set Up a Claude Cowork Shared Workspace',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -260,12 +265,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/anthropics/claude-code/issues/32637',
             label: '[BUG] Cowork destroys user files when reorganizing (GitHub issue)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -280,12 +285,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/12111783-create-and-edit-files-with-claude',
             label: 'Create and edit files with Claude',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://composio.dev/toolkits/excel/framework/claude-cowork',
             label: 'How to connect Excel to Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -293,19 +298,19 @@ export const claudeCoworkProfile: CompetitorProfile = {
         value:
           "No: Claude's document surface (Artifacts) is generated and edited by Claude itself. Artifacts remain view-only for the user (only Claude can edit the content), unlike a true inline WYSIWYG editor. Claude for Word is a separate Microsoft Word add-in, not an in-platform rich text editor for documents stored in Claude.",
         detail:
-          'Anthropic shipped faster inline-edit updates to Artifacts in October 2025, but this is Claude regenerating content, not a user-drivable rich text editor.',
+          'When a user requests a change to an Artifact, Claude regenerates the affected content itself rather than exposing direct inline editing controls, so this remains Claude-driven revision, not a user-drivable rich text editor.',
         shortValue: 'No: Artifacts are Claude-edited, not user WYSIWYG',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://unmarkdown.com/blog/claude-artifacts-vs-chatgpt-canvas',
             label: 'Claude Artifacts vs ChatGPT Canvas vs Gemini Gems',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/14465370-use-claude-for-word',
             label: 'Use Claude for Word',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -320,12 +325,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -333,19 +338,19 @@ export const claudeCoworkProfile: CompetitorProfile = {
         value:
           "No: Claude Cowork has no visual workflow builder, so there is no completed workflow to publish as a reusable block. The closest adjacent capability is org-wide Skills sharing: a member enables 'Share with organization' on a Skill (a SKILL.md instruction file, optionally with reference docs/scripts), and it becomes available to everyone in Customize > Skills. Recipients can enable and use a shared Skill but cannot edit its contents.",
         detail:
-          "This does not meet the bar of a published-workflow-as-block. A Skill is read-only prompt/instruction text Claude consults at runtime, not an encapsulated, deployed multi-step workflow with auto-derived inputs, hand-picked named outputs, and a hidden internal implementation that always tracks the source's latest version. Cowork Projects, the closest thing to a saved unit of work, explicitly do not support sharing for members of Team and Enterprise plans; separately, Anthropic notes projects are 'desktop-only and stored locally,' with no cloud sync.",
+          "This does not meet the bar of a published-workflow-as-block. A Skill is read-only prompt/instruction text Claude consults at runtime, not an encapsulated, deployed multi-step workflow with auto-derived inputs, hand-picked named outputs, and a hidden internal implementation that always tracks the source's latest version. Cowork Projects, the closest thing to a saved unit of work, do support 'Can view'/'Can edit' sharing with other members on Team and Enterprise plans, and a project created from scratch or imported from a Claude chat project syncs to the user's Claude account across devices; only a project created from an existing local folder stays on that computer and isn't synced. Either way, a Project is a container of files/instructions/memory a human works in, not a self-contained, callable block with defined inputs/outputs the way a published workflow step would be.",
         shortValue: 'No: no publish-workflow-as-block feature exists',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13119606-provision-and-manage-skills-for-your-organization',
             label: 'Provision and manage skills for your organization',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/14116274-organize-your-tasks-with-projects-in-claude-cowork',
             label: 'Organize your tasks with projects in Claude Cowork',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -361,7 +366,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -375,7 +380,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -389,7 +394,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://www.anthropic.com/product/claude-cowork',
             label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -403,7 +408,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -417,12 +422,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
             label: "Use connectors to extend Claude's capabilities",
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://claude.com/blog/cowork-for-enterprise',
             label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -436,7 +441,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
             label: 'Use Claude Cowork safely',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -451,7 +456,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
             label: 'Use Claude Cowork safely',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -465,7 +470,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://www.anthropic.com/news/claude-design-anthropic-labs',
             label: 'Introducing Claude Design by Anthropic Labs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -479,7 +484,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -502,12 +507,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://genaiunplugged.substack.com/p/claude-skills-reusable-workflows-code-cowork',
             label: 'Claude Skills 2.0: Reusable AI Workflows That Save Hours',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -522,12 +527,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://www.cometapi.com/how-do-i-take-a-claude-project-public-and-publish/',
             label: 'How do I take a Claude project public and publish',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/9547008-publish-and-share-artifacts',
             label: 'Publish and share artifacts',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -551,12 +556,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://code.claude.com/docs/en/workflows',
             label: 'Orchestrate subagents at scale with dynamic workflows',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -571,7 +576,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://www.anthropic.com/webinars/deploying-multi-agent-systems-using-mcp-and-a2a-with-claude-on-vertex-ai',
             label: 'Deploying multi-agent systems using MCP and A2A with Claude on Vertex AI',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -586,12 +591,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -608,7 +613,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
             label: "Use connectors to extend Claude's capabilities",
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -622,7 +627,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -636,12 +641,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13837440-use-plugins-in-claude',
             label: 'Use plugins in Claude',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
             label: 'Claude Cowork architecture overview',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -656,17 +661,17 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/14479288-claude-cowork-architecture-overview',
             label: 'Claude Cowork architecture overview',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/12111783-create-and-edit-files-with-claude',
             label: 'Create and edit files with Claude (network egress settings)',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
             label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -680,7 +685,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://claude.com/product/cowork',
             label: 'Claude Cowork product page (Claude)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -694,7 +699,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://claude.com/blog/cowork-plugins',
             label: 'Customize Cowork with plugins',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -716,7 +721,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
         shortValue: 'Included in Claude subscription plans',
         confidence: 'verified',
         sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
+          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-09-15' },
         ],
       },
       entryPaidPlan: {
@@ -726,7 +731,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
         shortValue: '$17/mo annual ($20/mo monthly)',
         confidence: 'verified',
         sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
+          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-09-15' },
         ],
       },
       freeTier: {
@@ -736,7 +741,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
         shortValue: 'Free plan excludes Cowork',
         confidence: 'verified',
         sources: [
-          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-07-02' },
+          { url: 'https://claude.com/pricing', label: 'Plans & Pricing', asOf: '2026-09-15' },
         ],
       },
       byok: {
@@ -759,56 +764,61 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://trust.anthropic.com/',
             label: 'Anthropic Trust Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/10015870-what-certifications-has-anthropic-obtained',
             label: 'What Certifications has Anthropic obtained?',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
       dataResidency: {
         value:
-          'No Cowork-specific residency controls; company-wide default is multi-region processing, US-based storage',
+          "No Cowork-specific residency controls; company-wide default is inference_geo: 'global' (inference may run in any available geography), with data at rest currently limited to a single available workspace geo, 'us'",
         detail:
-          "Anthropic's general policy processes data in the US, Europe, Asia, and Australia by default, with data at rest stored in the US. Guaranteed regional inference is only available via AWS Bedrock, GCP Vertex AI, or Microsoft Foundry deployments of the Claude API. This is not a Cowork feature.",
-        shortValue: 'US storage by default, no regional control',
-        confidence: 'estimated',
+          "Anthropic's current data-residency model uses two independent settings rather than a fixed default region list: an `inference_geo` API parameter, set to 'global' (any available geography, the default) or 'us' (US-only inference), and a `workspace geo` setting controlling data at rest, for which 'us' is currently the only available option. US-only guaranteed inference (`inference_geo: 'us'`) is available directly through the first-party Claude API and Claude Platform on AWS (at a 1.1x pricing multiplier); it is explicitly not applicable on Amazon Bedrock or Google Cloud Vertex AI, where the inference region instead follows the endpoint/inference-profile a customer chooses, and Microsoft Foundry offers a separate 'US Data Zone Standard' deployment type instead of the inference_geo parameter. This is not a Cowork-specific feature.",
+        shortValue: 'No Cowork control; global default inference, US-only workspace storage',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://platform.claude.com/docs/en/manage-claude/data-residency',
             label: 'Data residency - Claude Platform Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
       rbac: {
         value: 'Yes: GA enterprise feature (April 9, 2026)',
         detail:
-          'Enterprise/Team admins organize users into groups manually or via SCIM integration with existing identity providers, and assign roles defining which Claude capabilities (including Cowork) members can access.',
+          "Admins on Claude Enterprise plans organize users into groups — manually or via SCIM integration with existing identity providers — and assign each group a custom role defining which Claude capabilities (including Cowork) its members can access. Anthropic's announcement does not extend this group/custom-role RBAC to Team plan admins.",
         shortValue: 'GA enterprise RBAC (Apr 2026)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://claude.com/blog/cowork-for-enterprise',
             label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       auditLogging: {
         value:
-          'Limited: not in Compliance API/exports; OpenTelemetry is the primary visibility path',
+          'Yes: Cowork activity is captured in the Compliance API as session transcripts (local desktop sessions and remote web/mobile sessions), and Team/Enterprise customers can additionally stream a finer-grained per-action event feed via OpenTelemetry.',
         detail:
-          'Cowork activity is not captured in the Compliance API. Team/Enterprise customers can stream tool/file/skill/approval events via OpenTelemetry to SIEM tools, with a shared user identifier allowing correlation with, but not replacing, Compliance API records.',
-        shortValue: 'OTel only, not in Compliance API',
+          "The Compliance API's session endpoints return full transcripts of Cowork sessions run through the Claude Desktop app and of sessions started on claude.ai web or mobile that run in Anthropic's cloud, captured while the user is signed in with their Claude Enterprise account. Team/Enterprise customers can layer OpenTelemetry on top for a live, per-tool-call, per-approval event stream to SIEM tools — a capability the Compliance API's after-the-fact transcript model doesn't provide by itself.",
+        shortValue: 'Yes: Compliance API transcripts, plus OpenTelemetry real-time events',
         confidence: 'verified',
         sources: [
           {
             url: 'https://support.claude.com/en/articles/13364135-use-claude-cowork-safely',
             label: 'Use Claude Cowork safely',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://platform.claude.com/docs/en/manage-claude/compliance-api',
+            label: 'Compliance API - Claude Platform Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -822,7 +832,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://claude.com/blog/cowork-for-enterprise',
             label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -837,17 +847,17 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13930452-manage-custom-roles-on-enterprise-plans',
             label: 'Manage custom roles on Enterprise plans',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/13930458-set-up-role-based-permissions-on-enterprise-plans',
             label: 'Set up role-based permissions on Enterprise plans',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities',
             label: "Use connectors to extend Claude's capabilities",
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -860,27 +870,33 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://www.anthropic.com/news/claude-design-anthropic-labs',
             label: 'Introducing Claude Design by Anthropic Labs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       dataRetention: {
         value:
-          "Yes for org-wide Claude data, but this does not cover Cowork: Enterprise plan Owners/Primary Owners can set a custom data retention period (minimum 30 days) for conversation and project data in Organization settings > Data and Privacy, and data is kept indefinitely without customization. Cowork conversation history is stored locally on users' computers, is not subject to this standard retention policy, and cannot be centrally managed or exported by admins; Cowork activity is also not currently captured in the Compliance API.",
+          "Yes for org-wide Claude data, but this does not cover Cowork: Enterprise plan Owners/Primary Owners can set a custom data retention period (minimum 30 days) for conversation and project data in Organization settings > Data and Privacy, and data is kept indefinitely without customization. Cowork conversation history itself is stored locally on users' computers and isn't subject to the standard org-wide retention-period setting; however, Cowork sessions (local and remote) are retrievable centrally by admins as transcripts through the Compliance API's session endpoints, which sit outside — and aren't limited by — the org's custom retention-period configuration for chats and projects.",
         detail:
-          "This is an org-wide Claude Enterprise setting, not per-resource-type the way Sim's granular retention is, and it explicitly excludes Cowork. Cowork's local session history sits outside this policy entirely, stored only on-device. No Zero-Data-Retention addendum is described for conversation data.",
-        shortValue: 'Org retention is min 30 days, but Cowork history stays local, unmanaged',
+          "This is an org-wide Claude Enterprise setting, not per-resource-type the way Sim's granular retention is, and it explicitly excludes Cowork. Cowork's local session history is stored only on-device and sits outside this retention policy, though Compliance API session endpoints let admins centrally retrieve session transcripts (local and remote) independent of this org-wide setting. No Zero-Data-Retention addendum is described for conversation data.",
+        shortValue:
+          'Org retention min 30 days; Cowork history local but Compliance-API-retrievable',
         confidence: 'verified',
         sources: [
           {
             url: 'https://privacy.claude.com/en/articles/10440198-configure-custom-data-retention-controls-for-enterprise-plans',
             label: 'Configure custom data retention controls for Enterprise plans',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
             label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://platform.claude.com/docs/en/manage-claude/compliance-api',
+            label: 'Compliance API - Claude Platform Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -893,7 +909,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://mcpmanager.ai/blog/pii-redaction-for-mcp-servers/',
             label: 'PII Redaction for MCP Servers: 3 Methods to Block Sensitive Data',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -908,7 +924,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13132885-set-up-single-sign-on-sso',
             label: 'Set up single sign-on (SSO)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -943,7 +959,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13163631-configuring-session-security-settings',
             label: 'Configuring session security settings',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -958,17 +974,17 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://code.claude.com/docs/en/plugin-marketplaces',
             label: 'Create and distribute a plugin marketplace',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/anthropics/skills',
             label: 'anthropics/skills: Public repository for Agent Skills',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/',
             label: 'Snyk: ToxicSkills - malicious AI agent skills on ClawHub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -984,7 +1000,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://claude.com/blog/cowork-for-enterprise',
             label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -998,7 +1014,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1012,37 +1028,37 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
       dataDrains: {
         value:
-          "Yes: Claude Enterprise's Compliance API (GET /v1/compliance/activities) gives programmatic, ongoing access to the organization's activity feed and configuration state. Anthropic supports pull-based pipelines that continuously land this data in S3/Azure Blob and feed SIEM tools like Datadog Cloud SIEM. There is also a narrower manual CSV audit-log export in claude.ai org settings.",
+          "Yes: Claude Enterprise's Compliance API (GET /v1/compliance/activities) gives programmatic, ongoing access to the organization's activity feed and configuration state. Anthropic documents dozens of named third-party Compliance API integrations (e.g., Datadog Cloud SIEM, Cribl Stream, CrowdStrike, Elastic) for ingesting and normalizing the organization's activity feed into SIEM/observability tooling; a generic pull-to-S3/Azure-Blob landing pattern is not documented by Anthropic itself and should be treated as not publicly documented rather than confirmed. There is also a narrower manual CSV audit-log export in claude.ai org settings.",
         detail:
-          "This is a general Claude Enterprise platform feature (Compliance API), not a Cowork-specific setting. Cowork's own local session history is not centrally exportable by admins.",
-        shortValue: 'Yes: Compliance API to S3/SIEM (Datadog)',
+          "This is a general Claude Enterprise platform feature (Compliance API), not a Cowork-specific setting. Cowork's local session history is centrally retrievable by admins through the Compliance API's session-transcript endpoints (a Compliance Access Key is required), in addition to remote web/mobile session transcripts; this is separate from the org-wide chat/project data-retention setting, which does not govern these session endpoints.",
+        shortValue: 'Yes: Compliance API feeds Datadog and 70+ other SIEM tools',
         confidence: 'verified',
         sources: [
           {
             url: 'https://platform.claude.com/docs/en/manage-claude/compliance-api',
             label: 'Compliance API - Claude Platform Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.datadoghq.com/blog/cloud-siem-claude-compliance-api-integration/',
             label: 'Monitor Claude Enterprise activity with Datadog Cloud SIEM',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/15167101-get-started-with-claude-compliance-api-integrations',
             label: 'Get started with Claude Compliance API integrations',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/13455879-use-claude-cowork-on-team-and-enterprise-plans',
             label: 'Use Claude Cowork on Team and Enterprise plans',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1058,17 +1074,17 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork',
             label: 'Get started with Claude Cowork (Claude Help Center)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork (Claude Help Center)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.anthropic.com/product/claude-cowork',
             label: 'Claude Cowork product page (Anthropic)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1083,17 +1099,17 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://code.claude.com/docs/en/errors',
             label: 'Error reference: automatic retries and request timeout (Claude Code Docs)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.anthropic.com/news/higher-limits-spacex',
             label: 'Higher usage limits for Claude and a compute deal with SpaceX (Anthropic)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work',
             label: 'How do usage and length limits work? (Claude Help Center)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1109,13 +1125,13 @@ export const claudeCoworkProfile: CompetitorProfile = {
             url: 'https://code.claude.com/docs/en/errors',
             label:
               'Error reference: automatic retries, server errors, and checkpoint recovery (Claude Code Docs)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/anthropics/claude-code/issues/60577',
             label:
               'Transient 529 Overloaded API errors abort long-running tasks with no auto-recovery (GitHub issue)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1130,7 +1146,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork',
             label: 'Schedule recurring tasks in Claude Cowork',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1147,7 +1163,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://support.claude.com/en/articles/9015913-how-to-get-support',
             label: 'How to get support',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1160,16 +1176,16 @@ export const claudeCoworkProfile: CompetitorProfile = {
         sources: [],
       },
       community: {
-        value: 'City-based community program + open-source plugin repo (no dedicated forum found)',
+        value: 'City-based community program + official Discord server and subreddit.',
         detail:
-          "Anthropic runs a city-based 'Claude Community' program; an open-source knowledge-work-plugins repo exists for sharing Cowork/Claude Code plugins. There is no dedicated public discussion forum comparable to n8n's or Sim's community forum.",
-        shortValue: 'City meetups + open-source plugin repo',
-        confidence: 'estimated',
+          "Anthropic runs a city-based 'Claude Community' Ambassador program and a Claude Campus Program, and its official community page directs builders to a Claude Discord server ('real-time help, project sharing, and active discussions with thousands of developers') and to r/ClaudeAI ('long-form discussions, project showcases, and community knowledge that sticks around') as its dedicated online discussion spaces, alongside an open-source knowledge-work-plugins repo for sharing Cowork/Claude Code plugins.",
+        shortValue: 'City meetups + official Discord and subreddit',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://claude.com/community',
             label: 'Community | Claude by Anthropic',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1184,7 +1200,7 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://claude.com/blog/cowork-for-enterprise',
             label: 'Making Claude Cowork ready for enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1204,12 +1220,12 @@ export const claudeCoworkProfile: CompetitorProfile = {
           {
             url: 'https://anthropic.skilljar.com/introduction-to-claude-cowork',
             label: 'Introduction to Claude Cowork course',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.pearsonvue.com/us/en/anthropic.html',
             label: 'Claude Certification Program by Anthropic - Pearson VUE',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

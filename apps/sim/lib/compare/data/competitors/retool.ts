@@ -79,9 +79,9 @@ export const retoolProfile: CompetitorProfile = {
         'Retool is proprietary and closed-source. The self-hosted deployment can be forked and customized and bundles open-source dependencies, but still requires a Retool-issued license key to run. No OSS license covers the product itself.',
       shortDescription: 'Closed-source product; self-hosted still requires a Retool license key.',
       source: {
-        url: 'https://docs.retool.com/self-hosted/tutorials/docker',
-        label: 'Deploy Self-hosted Retool with Docker | Retool Docs',
-        asOf: '2026-07-08',
+        url: 'https://docs.retool.com/legal/open-source-license-disclosure',
+        label: 'Open Source License Disclosure | Retool Docs',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -93,7 +93,7 @@ export const retoolProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.retool.com/self-hosted/tutorials/docker',
         label: 'Deploy Self-hosted Retool with Docker | Retool Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -138,21 +138,26 @@ export const retoolProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'Yes: self-hosted deployment is available on Free, Team, and Business plans at the same pricing as cloud; Enterprise is required for unlimited users and advanced capabilities. A Retool-issued license key is required even when self-hosted.',
+          'Yes, but Enterprise plan only: Retool\'s pricing page marks Free, Team, and Business as "Plan not available on Self-host," leaving Enterprise as the only tier that supports self-hosting (spanning managed cloud, blessed self-hosted, custom self-hosted, and air-gapped deployment). Retool\'s self-hosting marketing page likewise frames self-hosting as an Enterprise capability. A Retool-issued license key is required to run self-hosted Retool regardless of deployment method.',
         detail:
-          'Self-hosted Retool is deployable via Docker (non-production/testing only) or Kubernetes/Helm (production).',
-        shortValue: 'Yes, on Free/Team/Business; license key required',
+          'Self-hosted Retool is deployable via Docker Compose (non-production/testing only) or Kubernetes/Helm (production), both gated to the Enterprise plan.',
+        shortValue: 'Yes, Enterprise plan only; license key required',
         confidence: 'verified',
         sources: [
           {
             url: 'https://retool.com/self-hosted',
             label: 'Retool Self Hosted',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.retool.com/self-hosted/tutorials/docker',
             label: 'Deploy Self-hosted Retool with Docker | Retool Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://retool.com/pricing',
+            label: 'Retool Pricing',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -165,7 +170,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/self-hosted/tutorials/docker',
             label: 'Deploy Self-hosted Retool with Docker | Retool Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/tryretool/retool-onpremise',
@@ -193,7 +198,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/legal/open-source-license-disclosure',
             label: 'Open Source License Disclosure | Retool Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -207,7 +212,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://retool.com/blog/git-branching-with-source-control',
             label: 'Introducing Source Control: Git-based branching and version control in Retool',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.retool.com/education/coe/customer-resources/environments',
@@ -218,21 +223,21 @@ export const retoolProfile: CompetitorProfile = {
       },
       versionControlDepth: {
         value:
-          'Branch-based editing, pull-request review, and release history for controlling which version is live, plus rollback and blue/green deployments.',
+          'Branch-based editing, pull-request review, and release history/versioning for controlling which version is live, plus rollback to a previous tagged release (described by third-party guides as a near-instant swap back to an earlier version, e.g. v1.1.9).',
         detail:
-          'Source Control supports branch-based editing that isolates changes without overwriting teammates, pull-request review before merging into a live app, and Retool Releases to control which Git commit is live vs draft. No dedicated diff/compare view or client-vs-server undo/redo distinction exists.',
-        shortValue: 'Branching, PR review, and release history',
+          'Source Control supports branch-based editing that isolates changes without overwriting teammates, pull-request review before merging into a live app, and Retool Releases to control which Git commit is live vs draft. Rollback restores a previous tagged release, described by a third-party delivery guide as a database-record swap that happens in milliseconds rather than a redeployed build. No dedicated diff/compare view, client-vs-server undo/redo distinction, or documented blue/green (parallel-environment traffic-switching) deployment mechanism exists in either cited source.',
+        shortValue: 'Branching, PR review, release history, and rollback',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://retool.com/blog/git-branching-with-source-control',
             label: 'Introducing Source Control: Git-based branching and version control in Retool',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://retoolers.io/blog-posts/staging-vs-production-in-retool-how-environments-and-versions-work',
             label: 'Staging vs Production in Retool: How Environments and Versions Work',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -292,7 +297,12 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/data-sources/guides/retool-database/link-tables',
             label: 'Link Retool Database tables (foreign keys) | Retool Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://community.retool.com/t/documentation-on-advanced-options-for-foreign-key-fields/15819',
+            label: 'Documentation on Advanced options for Foreign key fields (Retool Forum)',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.retool.com/queries/guides/sql/writes',
@@ -313,16 +323,16 @@ export const retoolProfile: CompetitorProfile = {
       },
       richTextEditor: {
         value:
-          "Not true WYSIWYG editing: Retool's Rich Text Editor component lets users type HTML-formatted text, and a separate Text component displays Markdown, but neither is a full WYSIWYG Markdown editor. Community members have built custom components (based on the CKEditor library) to get true WYSIWYG Markdown editing.",
+          "Not true WYSIWYG editing in Retool's classic app builder (Retool's component reference for this control is explicitly scoped to classic apps, with a separate doc track for the newer app builder): Retool's Rich Text Editor component lets users type HTML-formatted text, and a separate Text component displays Markdown, but neither is a full WYSIWYG Markdown editor. Community members have built custom components (based on the CKEditor library) to get true WYSIWYG Markdown editing. Whether the new React-based app builder has an equivalent rich-text/Markdown component is not publicly documented.",
         detail:
           'Multiple long-running Retool forum feature requests ask for WYSIWYG markdown editing, still unresolved.',
-        shortValue: 'No, native editor is HTML-input, not WYSIWYG markdown',
+        shortValue: 'No, classic-app editor is HTML-input, not WYSIWYG',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.retool.com/apps/reference/components/rich-text-editor',
             label: 'The Rich Text Editor component for classic apps',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://retool.com/blog/text-v2-app-documentation',
@@ -480,14 +490,14 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Native image generation only. No native video generation, text-to-speech, or speech-to-text block.',
         detail:
-          'Retool\'s AI query block includes a native "Generate image" action (model options: GPT Image 1, GPT Image 1 Mini, and GPT Image 1.5, all via OpenAI) that returns a base64-encoded image. There is no native video-generation, text-to-speech, or speech-to-text block; users build these via third-party APIs.',
+          'Retool\'s AI query block includes a native "Generate image" action (model options: GPT Image 1, GPT Image 1 Mini, GPT Image 1.5, and GPT Image 2, all via OpenAI) that returns a base64-encoded image. There is no native video-generation, text-to-speech, or speech-to-text block; users build these via third-party APIs.',
         shortValue: 'Image generation only, no video/TTS/STT',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.retool.com/queries/guides/ai/image',
             label: 'Retool AI image actions (docs)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.retool.com/t/speech-to-text-anybody/26774',
@@ -530,12 +540,17 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/agents/guides/chat-with-agent',
             label: 'Retool Agents chat',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://retool.com/build-enterprise-apps/agents',
             label: 'Retool Agents: Create a custom-built agent team',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.retool.com/apps/guides/forms-inputs/agent-chat',
+            label: 'Getting started with Agent Chat | Retool Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -657,7 +672,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/workflows/guides/blocks/javascript',
             label: 'Execute JavaScript with the Code block | Retool Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -665,7 +680,7 @@ export const retoolProfile: CompetitorProfile = {
         value:
           'Partial: the dependency set of a workflow Code block is user-configurable, but only at the package layer. In the workflow editor\'s Libraries tab, "Add Python library" picks from Retool\'s built-in library set, and "Modify requirements.txt" declares an arbitrary list of public PyPI packages with pinned versions; the JavaScript equivalent adds public npm packages via "Modify package.json". Package-level configuration only: there is no documented way to declare OS-level system packages or preinstalled CLI binaries for the runtime.',
         detail:
-          'Beyond the preloaded set (Lodash, Moment.js, UUID, Numbro, and PapaParse are the JavaScript libraries Retool documents by name; the Python built-in set is not enumerated in the docs, which describe "built-in support for many popular libraries" and expose the list only through an interactive browser), builders add their own dependencies per workflow. Private npm/PyPI registries are self-hosted only and require a configured code-executor service, the container that runs user-defined JavaScript and Python with installed custom libraries; Retool sandboxes environment creation with NsJail, which needs privileged container access, and self-hosted operators can disable that sandboxing entirely with CONTAINER_UNPRIVILEGED_MODE.',
+          'Retool\'s JavaScript Code blocks no longer preload any libraries by default: new workflows start with none configured, and Retool\'s docs say the editor no longer suggests Lodash (`_`), Moment.js (`moment`), Numbro (`numbro`), PapaParse (`Papa`), or UUID (`uuid`) in autocomplete, hover text, or AI-generated code. Workflows that already had these libraries configured keep them, but Retool recommends replacing them with custom per-workflow libraries added via "Modify package.json." The Python built-in set is not enumerated in the docs, which describe "built-in support for many popular libraries" and expose the list only through an interactive browser. Private npm/PyPI registries are self-hosted only and require a configured code-executor service, the container that runs user-defined JavaScript and Python with installed custom libraries; Retool sandboxes environment creation with NsJail, which needs privileged container access, and self-hosted operators can disable that sandboxing entirely with CONTAINER_UNPRIVILEGED_MODE.',
         shortValue: 'Packages only: per-workflow PyPI and npm libraries',
         confidence: 'verified',
         sources: [
@@ -677,7 +692,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/workflows/guides/blocks/javascript',
             label: 'Execute JavaScript with the Code block | Retool Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.retool.com/self-hosted/reference/environment-variables',
@@ -789,17 +804,17 @@ export const retoolProfile: CompetitorProfile = {
     security: {
       compliance: {
         value:
-          'Yes: SOC 2 Type 2, plus ISO/IEC 27001:2022, GDPR, and CCPA certifications, and HIPAA via a signed BAA on Enterprise (self-hosted) plans. Reports and certificates are downloadable via the self-serve Trust Center (SafeBase-powered). PCI and FedRAMP are not confirmed.',
+          "Yes: SOC 2 Type 2, plus ISO/IEC 27001:2022, GDPR, and CCPA certifications, listed on and downloadable via the self-serve Trust Center (SafeBase-powered). HIPAA is not among the certifications Retool's Trust Center lists, and Retool's security-practices documentation does not mention HIPAA or a Business Associate Agreement; whether Retool will sign a BAA on any plan, including self-hosted Enterprise, is not publicly documented. PCI and FedRAMP are also not confirmed.",
         detail:
-          'The Trust Center (SafeBase-powered) lists SOC 2 Type 2, ISO/IEC 27001:2022, GDPR, and CCPA certifications, and reports/certificates are downloadable from it self-serve. HIPAA compliance is available with a signed BAA on Enterprise (self-hosted) plans. PCI and FedRAMP are not confirmed.',
-        shortValue: 'SOC 2, ISO 27001, GDPR, CCPA; HIPAA via BAA',
-        confidence: 'estimated',
+          "The Trust Center (SafeBase-powered) Compliance section lists only SOC 2 Type 2, ISO/IEC 27001:2022, GDPR, and CCPA, and reports/certificates are downloadable from it self-serve. Neither the Trust Center nor Retool's Security Practices docs reference HIPAA or a Business Associate Agreement, so HIPAA/BAA support on any plan (including self-hosted Enterprise) is not publicly documented. PCI and FedRAMP are also not confirmed.",
+        shortValue: 'SOC 2, ISO 27001, GDPR, CCPA; no HIPAA documented',
+        confidence: 'verified',
         sources: [
-          { url: 'https://trust.retool.com/', label: 'Retool Trust Center', asOf: '2026-07-02' },
+          { url: 'https://trust.retool.com/', label: 'Retool Trust Center', asOf: '2026-09-15' },
           {
             url: 'https://docs.retool.com/legal/security',
             label: 'Security Practices | Retool Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -812,7 +827,7 @@ export const retoolProfile: CompetitorProfile = {
           {
             url: 'https://docs.retool.com/legal/security',
             label: 'Security Practices | Retool Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

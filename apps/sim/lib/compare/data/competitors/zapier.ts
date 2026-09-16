@@ -39,12 +39,12 @@ export const zapierProfile: CompetitorProfile = {
     {
       title: 'Hosted MCP server',
       description:
-        'Zapier MCP exposes 9,000+ app connections and 30,000+ actions as Model Context Protocol tools over Streamable HTTP, letting any MCP-compatible AI client call Zapier actions. Each tool call costs 2 tasks on all plans.',
-      shortDescription: 'Exposes 9,000+ apps and 30,000+ actions as MCP tools for any AI client.',
+        'Zapier MCP exposes 9,000+ app connections and 40,000+ actions as Model Context Protocol tools, letting any MCP-compatible AI client call Zapier actions. Each tool call costs 2 tasks on all plans.',
+      shortDescription: 'Exposes 9,000+ apps and 40,000+ actions as MCP tools for any AI client.',
       source: {
         url: 'https://zapier.com/blog/zapier-mcp-guide/',
         label: 'Zapier MCP: Perform 30,000+ actions in your AI tool',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -211,14 +211,14 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Server-persisted version history, rollback, and diff/compare; no branching; no native undo/redo',
         detail:
-          'Zapier keeps a full Zap version history and lets you restore any prior version, creating a new draft from that version. A compare view shows the published version next to the in-progress draft, and drafts let you edit a live Zap without turning it off. There is no branching model with named branches merged back, and no dedicated undo/redo inside the draft editor.',
-        shortValue: 'Version history, rollback, and diff. No branching or undo',
+          'Zapier keeps a full Zap version history and lets you restore any prior version, creating a new draft from that version. A compare view shows the published version next to the in-progress draft, and drafts let you edit a live Zap without turning it off. There is no branching model with named branches merged back, and no dedicated undo/redo inside the draft editor. Version history and rollback are available on paid plans only (Professional, Team, Enterprise) — the Free plan has neither.',
+        shortValue: 'Version history, rollback, diff; paid plans only',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.zapier.com/hc/en-us/articles/14094586364941-Restore-your-Zap-to-a-prior-version-with-version-rollback',
             label: 'Restore your Zap to a prior version with version rollback',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.zapier.com/product-updates/we-ve-added-version-history-for-your-zaps-18362',
@@ -233,7 +233,7 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://help.zapier.com/hc/en-us/articles/9693520498445-Create-Zap-drafts-and-versions',
             label: 'Create Zap drafts and versions',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -260,7 +260,7 @@ export const zapierProfile: CompetitorProfile = {
       },
       nativeFileStorage: {
         value:
-          "No: Zapier has no dedicated file-storage system with folder hierarchy, link-sharing, and recycle-bin recovery. 'Storage by Zapier' is a key-value data store (up to 25 KB per key, 500 keys per account) for small pieces of workflow data, not files. File handling happens per-step through connected apps like Google Drive or Dropbox.",
+          "No: Zapier has no dedicated file-storage system with folder hierarchy, link-sharing, and recycle-bin recovery. 'Storage by Zapier' is a key-value data store for small pieces of workflow data, not files — though Zapier's own docs disagree on the per-key size cap: the Storage by Zapier guide cites up to 25 KB per value, while the help center states values can be up to 1 MB (1,000,000 bytes); both sources agree on 500 keys per account. File handling happens per-step through connected apps like Google Drive or Dropbox.",
         detail:
           'Zapier does offer folder-level permissions for organizing Zaps/Tables/Interfaces assets within the product, but that is asset organization, not a file-storage system for arbitrary documents.',
         shortValue: 'No: only a key-value store, not file storage',
@@ -269,12 +269,12 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://zapier.com/blog/storage-by-zapier-guide/',
             label: 'Storage by Zapier: A memory bank for your workflows',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/8496293271053-Save-and-retrieve-data-from-Zaps-using-Storage-by-Zapier',
             label: 'Save and retrieve data from Zaps using Storage by Zapier',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -363,14 +363,14 @@ export const zapierProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'OpenAI (GPT family), Anthropic (Claude family), and Google (Gemini family), with BYOK for OpenAI and Anthropic only in Chatbots',
-        shortValue: 'OpenAI, Anthropic, and Google models; BYOK for OpenAI/Anthropic only',
+          'OpenAI, Anthropic (Claude), Google (Gemini), Moonshot AI (Kimi), Z.ai (GLM), Amazon Bedrock, and Azure OpenAI built into AI by Zapier, plus direct app-integration access to Grok (xAI), DeepSeek, Mistral AI, OpenRouter, and Groq; BYOK is limited to OpenAI and Anthropic and only within Chatbots',
+        shortValue: 'OpenAI, Anthropic, Google, Kimi, GLM, and more; limited BYOK',
         confidence: 'verified',
         sources: [
           {
             url: 'https://zapier.com/blog/ai-models-on-zapier/',
             label: 'Which AI models can you automate on Zapier?',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/21959873616013-Use-your-own-API-key-with-a-Zapier-Chatbot',
@@ -767,12 +767,17 @@ export const zapierProfile: CompetitorProfile = {
         detail:
           "Includes unlimited Zaps, multi-step Zaps, and premium app access, beyond the free tier's 2-step limit.",
         shortValue: 'Professional plan from $19.99/mo for 750 tasks',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.activepieces.com/blog/zapier-pricing',
             label: 'Zapier Pricing Breakdown (third-party)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://zapier.com/pricing',
+            label: 'Zapier Pricing (official; $19.99/mo annual, $29.99/mo monthly for 750 tasks)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -806,32 +811,32 @@ export const zapierProfile: CompetitorProfile = {
     security: {
       compliance: {
         value:
-          "SOC 2 Type II and SOC 3 certified, plus GDPR and CCPA compliance. Reports are published and available via the Zapier Trust Center (trust.zapier.com). Not HIPAA-compliant (no BAAs, PHI unsupported). Some third-party sources also cite ISO 27001 and PCI DSS, though these aren't confirmed on Zapier's trust page.",
+          "SOC 2 Type II and SOC 3 certified, plus GDPR and CCPA compliance. The SOC 3 report is published for general distribution via the Zapier Trust Center (trust.zapier.com); the SOC 2 Type II report is available to existing and prospective customers only on request under NDA. HIPAA/BAA support and EU-US/UK/Swiss-US Data Privacy Framework certification are not addressed on Zapier's public security/trust pages. Some third-party sources also cite ISO 27001 and PCI DSS, though these aren't confirmed on Zapier's trust page.",
         detail:
-          "Zapier maintains SOC 2 Type II, SOC 3, GDPR, and CCPA compliance, with enterprise customers auto-opted-out of AI data training and full reports published and available via the Zapier Trust Center. Zapier does not support regulated healthcare or PHI data under HIPAA and will not sign BAAs. It also certifies to the EU-US/UK/Swiss-US Data Privacy Framework. ISO 27001 and PCI DSS are cited by secondary sources only and are not listed on Zapier's trust or security page.",
-        shortValue: 'SOC 2 Type II, SOC 3, GDPR, CCPA; no HIPAA',
+          "Zapier maintains SOC 2 Type II, SOC 3, GDPR, and CCPA compliance, with enterprise customers auto-opted-out of AI data training. The SOC 3 report is published for general distribution via the Zapier Trust Center, while the SOC 2 Type II report is available to existing and prospective customers only on request under NDA (per trust.zapier.com). Whether Zapier supports regulated healthcare/PHI data under HIPAA or will sign BAAs, and whether it certifies to the EU-US/UK/Swiss-US Data Privacy Framework, are not addressed by any of Zapier's public security, compliance, or trust pages checked here — treat both as undocumented rather than a confirmed 'no'. ISO 27001 and PCI DSS are cited by secondary sources only and are not listed on Zapier's trust or security page.",
+        shortValue: 'SOC 2, SOC 3, GDPR, CCPA; HIPAA/DPF undocumented',
         confidence: 'verified',
         sources: [
           {
             url: 'https://zapier.com/blog/zapier-completes-soc-2-compliance-audit/',
             label: 'Zapier completes SOC 2 compliance audit',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
-          { url: 'https://trust.zapier.com/', label: 'Zapier Trust Center', asOf: '2026-07-02' },
+          { url: 'https://trust.zapier.com/', label: 'Zapier Trust Center', asOf: '2026-09-15' },
           {
             url: 'https://zapier.com/security-compliance',
             label: 'Zapier | Secure and Compliant AI Orchestration at Scale',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/8496181993613-Security-and-Compliance',
             label: 'Security and Compliance – Zapier Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://zapier.com/legal/data-privacy',
             label: 'Data Privacy Overview | Zapier',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -963,14 +968,14 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Yes: Zapier supports SAML 2.0 single sign-on (both Zapier-initiated and IdP-initiated), with Just-in-Time provisioning to auto-create user accounts on first login and optional Single Logout, on Team plans (SSO now included) and Enterprise plans.',
         detail:
-          'Documented integration guides exist for Okta, Google Workspace, Microsoft Entra, JumpCloud, Duo, and OneLogin.',
+          'Documented integration guides exist for Okta, Google Workspace, Microsoft Entra, JumpCloud, and OneLogin.',
         shortValue: 'Yes: SAML SSO with JIT auto-provisioning',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.zapier.com/hc/en-us/articles/8496279747085-Set-up-single-sign-on-with-SAML',
             label: 'Set up single sign-on with SAML',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/33678718215309-Team-plan-updates-SSO-is-now-included-and-new-user-limits',
@@ -1020,7 +1025,7 @@ export const zapierProfile: CompetitorProfile = {
         value:
           "Partial: Zapier's App Directory is an open developer ecosystem, not a closed first-party catalog. Any developer can build an integration on the Zapier Developer Platform and submit it for public listing. Zapier's review checks publishing/technical requirements (HTTPS-only endpoints, no hardcoded credentials, OAuth verification) rather than a deep security audit, and Zapier tells customers these apps are 'owned and operated by third parties' and that users are responsible for evaluating trust in the developer.",
         detail:
-          "Zapier's Partner Program docs describe review turnaround of up to 21 business days against publishing standards, and OAuth verification is framed as 'a helpful start' rather than a guarantee of an app's suitability. No security incident tied to a malicious third-party app published in the App Directory was found; separate publicly reported incidents (a February 2025 code-repository breach where customer data had been copied into repos for debugging, caused by a 2FA misconfiguration on an employee account, and a November 2025 npm supply-chain compromise of Zapier's own published developer-platform packages via the Shai-Hulud worm) involved Zapier's internal infrastructure and package registry, not the App Directory's third-party integration ecosystem.",
+          "Zapier's Partner Program docs describe review turnaround of up to 21 business days against publishing standards, and OAuth verification is framed as 'a helpful start' rather than a guarantee of an app's suitability. No security incident tied to a malicious third-party app published in the App Directory was found; separate publicly reported incidents (a February 2025 code-repository breach where customer data had been copied into repos for debugging, caused by a 2FA misconfiguration on an employee account, and a November 2025 npm supply-chain compromise of Zapier's own published developer-platform packages — Zapier's own incident report does not name the attacker or malware, describing it only as 'an apparent supply chain compromise') involved Zapier's internal infrastructure and package registry, not the App Directory's third-party integration ecosystem.",
         shortValue: 'Partial: open app directory, lighter technical review',
         confidence: 'verified',
         sources: [
@@ -1042,7 +1047,7 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://docs.zapier.com/platform/build-cli/inc-547',
             label: 'Unauthorized Access to Zapier NPM Packages (official incident report)',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.scworld.com/brief/cyber-incident-potentially-compromises-zapier-customer-data',
@@ -1055,9 +1060,9 @@ export const zapierProfile: CompetitorProfile = {
     observability: {
       tracingDepth: {
         value:
-          'Customer-facing per-run/per-step execution detail (Zap History) plus an account-level Analytics dashboard with success/error rate and task-usage metrics; no distributed-tracing spans or latency-percentile metrics',
+          'Customer-facing per-run/per-step execution detail (Zap History) plus an account-level Analytics dashboard (Enterprise only) with success/error rate and task-usage metrics; no distributed-tracing spans or latency-percentile metrics',
         detail:
-          "Zap History logs every Zap run (up to 60 days / 10,000 runs) with per-step input/output detail and run status. The Analytics dashboard (Team/Enterprise) shows success-vs-error run percentages and task usage over time. Log Streams push real-time webhook events to a customer's own endpoint for external monitoring or SIEM dashboards. There is no latency-percentile view or distributed trace graph.",
+          "Zap History logs every Zap run (up to 60 days / 10,000 runs) with per-step input/output detail and run status. The Analytics dashboard (Enterprise only) shows success-vs-error run percentages and task usage over time. Log Streams push real-time webhook events to a customer's own endpoint for external monitoring or SIEM dashboards. There is no latency-percentile view or distributed trace graph.",
         shortValue: 'Per-run/step history and analytics, no distributed tracing',
         confidence: 'verified',
         sources: [
@@ -1074,7 +1079,7 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://help.zapier.com/hc/en-us/articles/25444544607373-Review-your-account-usage-in-the-analytics-dashboard',
             label: 'Review your account usage in the analytics dashboard – Zapier',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.zapier.com/hc/en-us/articles/43732241361421-Set-up-log-streams-to-monitor-Zap-activity',
@@ -1112,35 +1117,41 @@ export const zapierProfile: CompetitorProfile = {
         value:
           'Yes: proactive default email alerts on Zap errors, configurable per-app frequency, plus auto-turn-off warnings and a dedicated "Zapier Manager" app for routing failure and pause events anywhere',
         detail:
-          'By default, Zapier emails the account owner when a Zap errors, with per-app notification frequency configurable. If a Zap crosses a 95% error-rate threshold over 7 days, Zapier auto-turns it off, first sending a warning email with a grace period (24 hours on Team, 72 hours on Enterprise). The Zapier Manager app can trigger a Zap whenever any other Zap errors, is turned off, or is paused, so alerts route to Slack, SMS, PagerDuty, or elsewhere. While Autoreplay is retrying, no error email is sent until the final attempt fails.',
+          'By default, Zapier emails the account owner when a Zap errors, with per-app notification frequency configurable. If a Zap crosses a 95% error-rate threshold over 7 days (and has run more than 20 times in that window), Zapier auto-turns it off, first sending a warning email with a grace period (24 hours on Team, 72 hours on Enterprise). The Zapier Manager app can trigger a Zap whenever any other Zap errors, is turned off, or is paused, so alerts route to Slack, SMS, PagerDuty, or elsewhere. While Autoreplay is retrying, no error email is sent until the final attempt fails.',
         shortValue: 'Default error emails, shutoff warnings, routable alerts',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.zapier.com/hc/en-us/articles/8496289225229-Manage-notifications-when-errors-occur-in-Zap-workflows',
             label: 'Manage notifications when errors occur in Zap workflows – Zapier',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://zapier.com/apps/email/integrations/zapier-manager/60539/send-emails-with-new-zap-errors',
             label: 'Send emails with new Zap errors (Zapier Manager template)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://zapier.com/apps/email/integrations/zapier-manager/152952/send-notification-emails-for-new-zaps-turned-off',
             label: 'Send notification emails for new Zaps turned off (Zapier Manager template)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://zapier.com/help/autoreplay/',
             label: 'Autoreplay Tasks - Integration Help & Support | Zapier',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/8496216132621-Zap-is-not-running',
+            label:
+              'Zap is not running – Zapier (95% error-rate/20-run threshold; 24h Team / 72h Enterprise grace period)',
+            asOf: '2026-09-15',
           },
         ],
       },
       dataDrains: {
         value:
-          "Yes: Zapier offers 'Log streams' (Enterprise) that continuously stream Zap configuration-change and run-outcome events to an external SIEM/monitoring destination such as Datadog or Splunk, in addition to an in-product account-wide audit log (Teams/Enterprise) for change and run-outcome history. (Note: a Zap Runs/Workflow API for programmatically pulling history exists only as an experimental, non-public feature, not generally available.)",
+          "Yes: Zapier offers 'Log streams' (Enterprise) that continuously stream Zap configuration-change and run-outcome events to an external SIEM/monitoring destination such as Datadog or Splunk, in addition to an in-product account-wide audit log (Teams/Enterprise) for asset and configuration change history (Zapier's Admin Center audit-log documentation does not describe run-outcome/execution-result logging in this in-product log). (Note: a Zap Runs/Workflow API for programmatically pulling history exists only as an experimental, non-public feature, not generally available.)",
         detail:
           "Log streams capture events only from when they're configured, not historical backfill.",
         shortValue: 'Yes: log streams to Datadog, Splunk, SIEM, plus in-product audit log',
@@ -1154,7 +1165,7 @@ export const zapierProfile: CompetitorProfile = {
           {
             url: 'https://zapier.com/blog/mpe-admin-center-audit-logs/',
             label: 'Complete Control: Multi-Product Experience & Admin Center',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },

@@ -25,7 +25,7 @@ export const langflowProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langflow.org/concepts-components',
         label: 'Langflow Docs: Components overview',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -37,7 +37,7 @@ export const langflowProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langflow.org/mcp-server',
         label: 'Langflow Docs: Use Langflow as an MCP server',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -48,7 +48,7 @@ export const langflowProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langflow.org/concepts-flows',
         label: 'Langflow Docs: Build flows',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -62,19 +62,19 @@ export const langflowProfile: CompetitorProfile = {
       source: {
         url: 'https://github.com/langflow-ai/langflow/issues/1864',
         label: 'GitHub Issue 1864: Collaborative/Access Control enhancement',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
       title: 'Lowest enterprise-readiness scores in third-party benchmark',
       description:
-        "n8n's 2026 AI Agent Development Tools report scored Langflow 35 percent on Codability and 30 percent on Enterprisiness, the lowest of the vendors evaluated, citing gaps in agent sandboxing, security guardrail maturity, and evaluation frameworks.",
+        "n8n's 2026 AI Agent Development Tools report scored Langflow 35 percent on Codability and 30 percent on Enterprisiness, the lowest of the 14 vendors evaluated on both axes. The report's Langflow vendor profile itself highlights back-end configuration strengths — memory management, logging, a file management system, and Nginx/Certbot reverse-proxy deployment — rather than calling out specific weaknesses; the report's broader scoring observations separately note that agent sandboxing, security guardrails, and LLM evaluation frameworks are underdeveloped across most vendors it surveyed, which is consistent with Langflow's low scores on the axes that partly measure those capabilities.",
       shortDescription:
         "Scored lowest on codability (35%) and enterprisiness (30%) in n8n's 2026 report.",
       source: {
         url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
         label: 'n8n: 2026 AI Agent Development Tools report',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -90,12 +90,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/concepts-components',
             label: 'Langflow Docs: Components overview',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/langflow-assistant',
             label: 'Langflow Docs: Langflow Assistant',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -106,9 +106,9 @@ export const langflowProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://docs.langflow.org/starter-projects-vector-store-rag',
-            label: 'Langflow Docs: Vector store RAG starter project',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/chat-with-rag',
+            label: 'Langflow Docs: Create a vector RAG chatbot',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -121,12 +121,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/get-started-installation',
             label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/langflow-ai/langflow',
             label: 'GitHub: langflow-ai/langflow',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -139,17 +139,17 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/get-started-installation',
             label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/deployment-kubernetes-dev',
             label: 'Langflow Docs: Kubernetes deployment',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/deployment-multi-worker',
             label: 'Langflow Docs: Deploy Langflow with multiple workers',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -160,14 +160,14 @@ export const langflowProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/starter-projects-basic-prompting',
-            label: 'Langflow Docs: Basic prompting starter project',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/concepts-flows',
+            label: 'Langflow Docs: Build flows',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.langflow.org/templates/use-langflow-to-build-local-rag-pipeline-with-ollama-and-chromadb',
             label: 'Langflow templates gallery example',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -180,7 +180,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow',
             label: 'GitHub: langflow-ai/langflow (License: MIT)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -202,7 +202,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/concepts-flows',
             label: 'Langflow Docs: Build flows',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -215,7 +215,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow/issues/1864',
             label: 'GitHub Issue 1864: Collaborative/Access Control enhancement',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -228,20 +228,21 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/concepts-file-management',
             label: 'Langflow Docs: Manage files',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       dataTables: {
         value:
-          "No: Langflow's documentation does not describe a native spreadsheet-like data table feature. It exposes Data and DataFrame object types used to pass structured data between components, not a persistent spreadsheet UI.",
-        shortValue: 'No native spreadsheet-style data table',
-        confidence: 'estimated',
+          "No: Langflow's documentation does not describe a native spreadsheet-like data table feature that persists as a browsable UI. It exposes JSON and Table object types (renamed from the older Data and DataFrame names as of Langflow version 1.9.0) used to pass structured data — including tabular, pandas-DataFrame-shaped data — between components at run time, not a persistent, browsable spreadsheet interface a user can open, edit, and revisit independent of a flow run.",
+        shortValue:
+          'No persistent spreadsheet UI; pass-through JSON/Table objects (formerly Data/DataFrame)',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/components-data',
-            label: 'Langflow Docs: Data components',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/concepts-objects',
+            label: 'Langflow Docs: Langflow data types',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -261,7 +262,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/run-flow',
             label: 'Langflow Docs: Run Flow component',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -276,12 +277,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/concepts-components',
             label: 'Langflow Docs: Components overview (grouping and saving components)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/langflow-ai/langflow/discussions/4406',
             label: 'GitHub Discussion 4406: How to save a custom component to the sidebar?',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -297,12 +298,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/components-models',
             label: 'Langflow Docs: Language Model component',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.langflow.org/blog/local-ai-using-ollama-with-agents',
             label: 'Langflow blog: Using Ollama with agents',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -315,12 +316,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/agents',
             label: 'Langflow Docs: Use Langflow agents',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/components-agents',
             label: 'Langflow Docs: Agents component',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -333,7 +334,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/langflow-assistant',
             label: 'Langflow Docs: Langflow Assistant',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -344,9 +345,9 @@ export const langflowProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/starter-projects-vector-store-rag',
-            label: 'Langflow Docs: Vector store RAG starter project',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/chat-with-rag',
+            label: 'Langflow Docs: Create a vector RAG chatbot',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -359,12 +360,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/mcp-client',
             label: 'Langflow Docs: Use Langflow as an MCP client',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/mcp-tools',
             label: 'Langflow Docs: MCP Tools component',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -377,12 +378,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/guardrails',
             label: 'Langflow Docs: Guardrails',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/bundles-cleanlab',
             label: 'Langflow Docs: Cleanlab bundle',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -397,7 +398,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow/discussions/4399',
             label: 'GitHub Discussion 4399: How to implement human in the loop?',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -419,7 +420,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/agents-tools',
             label: 'Langflow Docs: Configure tools for agents',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -433,7 +434,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://www.langflow.org/blog/how-to-build-your-own-gpt-5',
             label: 'Langflow blog: Build Your Own GPT-5 with Smart Model Routing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -451,14 +452,14 @@ export const langflowProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.langflow.org/embedded-chat-widget',
-            label: 'Langflow Docs: Embedded chat widget',
-            asOf: '2026-07-02',
+            url: 'https://docs.langflow.org/concepts-publish',
+            label: 'Langflow Docs: Embed a flow into a website',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/concepts-playground',
             label: 'Langflow Docs: Test flows in the Playground',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -478,7 +479,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/concepts-flows',
             label: 'Langflow Docs: Build flows (DAG execution order)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -491,12 +492,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow/issues/10658',
             label: 'GitHub langflow-ai/langflow Issue #10658: Add A2A Protocol Support',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/langflow-ai/langflow/issues/10241',
             label: 'GitHub langflow-ai/langflow Issue #10241: A2A (tracking issue)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -509,7 +510,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/loop',
             label: 'Langflow Docs: Loop component',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -524,7 +525,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/components-bundle-components',
             label: 'Langflow Docs: About bundles',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -538,12 +539,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/webhook',
             label: 'Langflow Docs: Trigger flows with webhooks',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/api-flows-run',
             label: 'Langflow Docs: Flow trigger endpoints',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -556,7 +557,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/components-custom-components',
             label: 'Langflow Docs: Create custom Python components',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -571,17 +572,17 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/install-custom-dependencies',
             label: 'Langflow Docs: Install custom dependencies',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/develop-application',
             label: 'Langflow Docs: Containerize a Langflow application',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/extensions-overview',
             label: 'Langflow Docs: Extensions overview',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -594,7 +595,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/api-reference-api-examples',
             label: 'Langflow Docs: Get started with the Langflow API',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -608,12 +609,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/components-custom-components',
             label: 'Langflow Docs: Create custom Python components',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/langflow-ai/langflow-embedded-chat',
             label: 'GitHub: langflow-ai/langflow-embedded-chat',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -626,7 +627,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/mcp-server',
             label: 'Langflow Docs: Use Langflow as an MCP server',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -634,31 +635,43 @@ export const langflowProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          "Langflow's core software is free and open source, with no license fee for self-hosting. Third-party sources describe Langflow Cloud as offering a free account tier plus a paid tier around $25 per month for higher usage limits, and separate enterprise pricing; Langflow's official pricing page does not confirm these figures directly.",
+          "Langflow's core software is free and open source, with no license fee for self-hosting. Third-party sources (Lindy and Automation Atlas) agree that Langflow Cloud offers a free account tier with no listed subscription fee, and that beyond that free tier, cloud and enterprise pricing is not publicly listed — Automation Atlas describes hosted Cloud/Enterprise as 'custom-priced and not publicly listed,' and Lindy states that costs instead come from the infrastructure, LLM API, and vector-database usage you connect to it. Langflow's own official pricing page likewise does not publish a paid-tier price, so no specific paid-tier dollar figure (including the roughly $25/month sometimes cited elsewhere) is confirmed by any of these sources.",
         detail:
-          "Based on third-party summaries; the official pricing page doesn't confirm these figures.",
-        shortValue: 'Free open-source core; cloud free tier plus paid/enterprise tiers',
+          'Grounded in explicit third-party statements that no paid-tier price is publicly listed, not merely an absence of evidence; the official pricing page also publishes no paid-tier figure.',
+        shortValue: 'Free open-source core; cloud/enterprise pricing not publicly listed',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.lindy.ai/blog/langflow-pricing',
             label: 'Lindy: Langflow Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://automationatlas.io/tools/langflow/',
             label: 'Automation Atlas: Langflow pricing summary',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          "Unknown: the exact entry paid-plan price and inclusions aren't confirmed on Langflow's own official pricing page. Third-party summaries cite a cloud paid tier starting around $25 per month.",
-        detail: 'Not confirmed against an official Langflow source.',
-        shortValue: 'Unverified; third parties cite roughly $25/month',
-        confidence: 'unknown',
-        sources: [],
+          "Unknown: the exact entry paid-plan price and inclusions aren't confirmed on Langflow's own official pricing page. No third-party source confirms a specific entry paid-plan price either — Lindy and Automation Atlas both describe Langflow Cloud's paid and enterprise tiers as custom-priced with no publicly listed figure, so the roughly $25/month figure sometimes cited elsewhere is not actually stated by either source.",
+        detail:
+          'Not confirmed against an official Langflow source, and no third-party source states a specific figure either.',
+        shortValue: 'Unverified; no paid-tier price publicly listed',
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://www.lindy.ai/blog/langflow-pricing',
+            label: 'Lindy: Langflow Pricing',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://automationatlas.io/tools/langflow/',
+            label: 'Automation Atlas: Langflow pricing summary',
+            asOf: '2026-09-15',
+          },
+        ],
       },
       freeTier: {
         value:
@@ -670,7 +683,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://www.lindy.ai/blog/langflow-pricing',
             label: 'Lindy: Langflow Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -683,7 +696,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/agents',
             label: 'Langflow Docs: Use Langflow agents',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -707,7 +720,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/get-started-installation',
             label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -720,7 +733,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/security',
             label: 'Langflow Docs: Security',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -733,7 +746,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/concepts-flows',
             label: 'Langflow Docs: Build flows',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -762,7 +775,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow-embedded-chat',
             label: 'GitHub: langflow-ai/langflow-embedded-chat',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -775,7 +788,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/concepts-file-management',
             label: 'Langflow Docs: Manage files',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -790,7 +803,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/guardrails',
             label: 'Langflow Docs: Guardrails',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -822,12 +835,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/api-keys-and-authentication',
             label: 'Langflow Docs: API keys and authentication',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/authentication-overview',
             label: 'Langflow Docs: Authentication and authorization overview',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -843,32 +856,32 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/components-bundle-components',
             label: 'Langflow Docs - About bundles',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/contributing-components',
             label: 'Langflow Docs - Contribute components',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/components-custom-components',
             label: 'Langflow Docs - Create custom Python components',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/security',
             label: 'Langflow Docs - Security',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/langflow-ai/langflow/security/advisories/GHSA-rvqx-wpfh-mfx7',
             label: 'GitHub Security Advisory GHSA-rvqx-wpfh-mfx7 (CVE-2025-3248)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.securityweek.com/recent-langflow-vulnerability-exploited-by-flodrix-botnet/',
             label: 'SecurityWeek - Langflow Vulnerability Exploited by Flodrix Botnet',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -885,12 +898,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/integrations-langfuse',
             label: 'Langflow Docs: Langfuse integration',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/integrations-langsmith',
             label: 'Langflow Docs: LangSmith integration',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -917,7 +930,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/integrations-langfuse',
             label: 'Langflow Docs: Langfuse integration',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -930,7 +943,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/api-monitor',
             label: 'Langflow Docs: Monitor endpoints',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -959,12 +972,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/get-started-installation',
             label: 'Langflow Docs: Install Langflow',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langflow.org/webhook',
             label: 'Langflow Docs: Trigger flows with webhooks',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -979,7 +992,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://docs.langflow.org/contributing-community',
             label: 'Langflow Docs: Join the Langflow community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -999,7 +1012,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langflow-ai/langflow',
             label: 'GitHub: langflow-ai/langflow',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1012,12 +1025,12 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://techcrunch.com/2024/04/04/datastax-acquires-logspace-the-startup-behind-the-langflow-low-code-tool-for-building-rag-based-chatbots/',
             label: 'TechCrunch: DataStax acquires Langflow (Logspace)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://newsroom.ibm.com/2025-02-25-ibm-to-acquire-datastax,-deepening-watsonx-capabilities-and-addressing-generative-ai-data-needs-for-the-enterprise',
             label: 'IBM Newsroom: IBM to acquire DataStax',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1030,7 +1043,7 @@ export const langflowProfile: CompetitorProfile = {
           {
             url: 'https://www.udemy.com/course/langchain-masterclass/',
             label: 'Udemy: Master LangChain with No-Code tools: Flowise and LangFlow',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

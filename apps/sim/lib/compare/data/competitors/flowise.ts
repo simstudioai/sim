@@ -25,7 +25,7 @@ export const flowiseProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.flowiseai.com/using-flowise/document-stores',
         label: 'Flowise Docs: Document Stores',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -37,19 +37,19 @@ export const flowiseProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.flowiseai.com/using-flowise/evaluations',
         label: 'Flowise Docs: Evaluations',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
       title: 'Larger existing open-source community, on the same Apache 2.0 license as Sim',
       description:
-        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is community scale: its GitHub repo has roughly 54,000 stars and an active Discord community built up since 2023.',
+        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is community scale: its GitHub repo has roughly 55,000 stars, built up since 2023. As of August 31, 2026, however, Flowise wound down operations, and its official core team no longer maintains a presence in GitHub or Discord (the repository is archived); the remaining community is self-organized rather than vendor-supported.',
       shortDescription:
-        'Same Apache 2.0 license as Sim, but a larger existing community: ~54k GitHub stars, active Discord.',
+        'Larger existing community (~55k stars), but official vendor support ended August 2026.',
       source: {
         url: 'https://github.com/FlowiseAI/Flowise',
-        label: 'GitHub: FlowiseAI/Flowise',
-        asOf: '2026-07-02',
+        label: 'GitHub: FlowiseAI/Flowise (archived, wound down)',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -63,7 +63,7 @@ export const flowiseProfile: CompetitorProfile = {
       source: {
         url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
         label: 'n8n: 2026 AI Agent Development Tools report',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -74,7 +74,7 @@ export const flowiseProfile: CompetitorProfile = {
       source: {
         url: 'https://github.com/FlowiseAI/Flowise/issues/2661',
         label: 'GitHub Issue #2661: Multi User Support (closed, not planned)',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -90,7 +90,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
             label: 'Flowise Docs: Custom JS Function',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -103,7 +103,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
             label: 'Flowise Docs: Custom JS Function',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -116,7 +116,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md',
             label: 'GitHub: Flowise LICENSE.md',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -129,12 +129,12 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.lindy.ai/blog/flowise-pricing',
             label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
             label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -147,7 +147,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://deepwiki.com/FlowiseAI/Flowise/11.1-marketplace-and-template-flows',
             label: 'DeepWiki: Marketplace & Template Flows',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -160,17 +160,17 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md',
             label: 'GitHub: Flowise LICENSE.md',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
             label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/configuration/sso',
             label: 'Flowise Docs: SSO',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -183,14 +183,25 @@ export const flowiseProfile: CompetitorProfile = {
       },
       versionControlDepth: {
         value:
-          'Yes: Flowise automatically saves a version snapshot every time you save a ChatFlow or Assistant, with a history view to restore prior versions. This is snapshot-and-restore depth, not full diff or branching.',
-        shortValue: 'Snapshot history with restore, no diff/branching shown',
+          "Not shipped: a pull request (FlowiseAI/Flowise #5024) proposed automatic version snapshotting for ChatFlows and Assistants — saving a snapshot on every save, with a history view and one-click restore — but it was never merged. It has sat open since August 2025, and Flowise's own August 2026 wind-down (code freeze July 29, 2026; repository archived August 13, 2026) means it now never will be. No FlowHistory entity or history UI exists anywhere in the shipped FlowiseAI/Flowise codebase. Flowise's only real durability/version mechanism is UpsertHistory for vector-store upsert runs, which is unrelated to flow/assistant editing history.",
+        shortValue: 'No: proposed in an unmerged 2025 PR, never shipped',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/FlowiseAI/Flowise/pull/5024',
-            label: 'GitHub PR #5024: Implement version control system for ChatFlows and Assistants',
-            asOf: '2026-07-02',
+            label:
+              'GitHub PR #5024: Implement version control system for ChatFlows and Assistants (open, unmerged)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/tree/main/packages/server/src/database/entities',
+            label: 'GitHub: packages/server/src/database/entities (no FlowHistory entity present)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/discussions/6727',
+            label: 'GitHub Discussion #6727: The Future of Flowise (wind-down announcement)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -205,7 +216,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
             label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -239,7 +250,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
             label: 'Flowise Docs: Agentflow V2 (Execute Flow node)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -254,12 +265,12 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
             label: 'Flowise Docs: Agentflow V2 (Execute Flow node)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
             label: 'Flowise Docs: Custom Tool',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -274,12 +285,12 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/integrations/langchain/llms',
             label: 'Flowise Docs: LLMs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/integrations/langchain/chat-models',
             label: 'Flowise Docs: Chat Models (incl. ChatAnthropic)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -292,7 +303,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
             label: 'Flowise Docs: Agentflow V2',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -305,7 +316,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/integrations/utilities/custom-js-function',
             label: 'Flowise Docs: Custom JS Function',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -320,12 +331,12 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/document-stores',
             label: 'Flowise Docs: Document Stores',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
             label: 'n8n: 2026 AI Agent Development Tools report',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -338,20 +349,20 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
             label: 'Flowise Docs: Tools & MCP',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       evaluationGuardrails: {
         value:
-          'Yes: Flowise has a built-in Evaluations feature that runs datasets through chatflows/agentflows and scores outputs with string-match, numeric, or LLM-as-judge evaluators, reporting pass/fail rate, average tokens consumed, and latency. There is no separate, dedicated "guardrail validation" block beyond this.',
-        shortValue: 'Yes, built-in dataset-based evaluation with LLM-judge scoring',
+          'Yes, on Cloud and Enterprise plans only: Flowise has a built-in Evaluations feature that runs datasets through chatflows/agentflows and scores outputs with string-match, numeric, or LLM-as-judge evaluators, reporting pass/fail rate, average tokens consumed, and latency. This is restricted to the paid Cloud and Enterprise tiers and is not available in the open-source self-hosted Community Edition. There is no separate, dedicated "guardrail validation" block beyond this.',
+        shortValue: 'Yes, Cloud/Enterprise only: built-in evaluation with LLM-judge scoring',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/using-flowise/evaluations',
             label: 'Flowise Docs: Evaluations',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -364,22 +375,34 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/tutorials/human-in-the-loop',
             label: 'Flowise Docs: Human In The Loop',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       generativeMedia: {
         value:
-          'Partial: Flowise supports speech-to-text nodes and multi-modal image inputs. Image and audio generation can be wired in via custom tools calling providers like Replicate (Stable Diffusion) or ElevenLabs, but the standard node library has no dedicated, built-in image, video, or text-to-speech generation node.',
+          'Partial: Flowise supports speech-to-text nodes, multi-modal image inputs, and a built-in per-chatflow Text-to-Speech configuration (with provider selection and a dedicated generate/voices/abort API) — so audio output generation is a native capability, not just a custom-tool workaround. Image and video generation, however, are not first-class node types; they can only be wired in via custom tools calling providers like Replicate (Stable Diffusion) or similar, with no dedicated, built-in image or video generation node in the standard library.',
         detail:
-          'Community GitHub issues show text-to-speech and native image generation as requested but not shipped as first-class nodes.',
-        shortValue: 'Partial: STT built in, image/TTS via custom tools only',
-        confidence: 'estimated',
+          'Community GitHub issues (e.g. #2385) originally requested text-to-speech as a feature; Flowise has since shipped a native per-chatflow Text-to-Speech configuration with provider selection and a dedicated /generate, /voices, and /abort API. Native image and video generation remain requested but not shipped as first-class node types.',
+        shortValue: 'Partial: native STT/TTS built in; image/video need custom tools',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/FlowiseAI/Flowise/issues/2385',
             label: 'GitHub Issue #2385: Text To Speech',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/controllers/text-to-speech/index.ts',
+            label:
+              'GitHub: packages/server/src/controllers/text-to-speech/index.ts (native TTS generation)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/routes/text-to-speech/index.ts',
+            label:
+              'GitHub: packages/server/src/routes/text-to-speech/index.ts (generate/voices/abort API)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -392,7 +415,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
             label: 'Flowise Docs: Tools & MCP',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -421,7 +444,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/embed',
             label: 'Flowise Docs: Embed',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -434,12 +457,12 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://n8n.io/reports/2026-ai-agent-development-tools/#vendors',
             label: 'n8n: 2026 AI Agent Development Tools report',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://docs.flowiseai.com/using-flowise/upsertion',
-            label: 'Flowise Docs: Upsertion',
-            asOf: '2026-07-02',
+            url: 'https://docs.flowiseai.com/using-flowise/document-stores',
+            label: 'Flowise Docs: Document Stores (per-chunk preview/edit)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -452,18 +475,18 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://github.com/FlowiseAI/Flowise/issues/4673',
             label: 'Flowise GitHub: "Not working parallel Node in AgentFlow 2" (#4673)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/FlowiseAI/Flowise/issues/4710',
             label:
               'Flowise GitHub: "Parallel Node Execution is causing State Contamination" (#4710)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
             label: 'Flowise Docs: Agentflow V2',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -476,7 +499,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://github.com/FlowiseAI/Flowise/issues/4283',
             label: 'Flowise GitHub: "Support the Google A2A (Agent2Agent) Protocol" (#4283, open)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -489,7 +512,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
             label: 'Flowise Docs: Agentflow V2 (Iteration and Loop nodes)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -504,20 +527,30 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/integrations',
             label: 'Flowise Docs: Integrations',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       triggerTypes: {
         value:
-          'Flowise flows are triggered via the chat widget or public URL, direct REST API prediction calls (/api/v1/prediction/{chatflowId}), and Custom MCP/tool invocations. There is no dedicated cron/schedule trigger or broad library of app-specific event triggers.',
-        shortValue: 'Chat, API/webhook-style prediction calls; no schedule trigger found',
+          'Flowise flows are triggered via the chat widget or public URL, direct REST API prediction calls (/api/v1/prediction/{chatflowId}), and — for Agentflows — a native per-flow cron schedule (a standard 5- or 6-field cron expression plus an IANA timezone, toggled on/off per flow, with a trigger-log history), run in-process via node-cron or, in queue mode, via BullMQ repeatable jobs. This scheduler is not documented on the public docs site. There is otherwise no broad library of app-specific event triggers.',
+        shortValue: 'Chat, API calls, plus an undocumented native cron scheduler',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://agentsapis.com/flowise-api/',
             label: 'Flowise API: Complete Developer Guide',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/database/entities/ScheduleRecord.ts',
+            label: 'GitHub: ScheduleRecord entity (native per-flow cron trigger)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/schedule/ScheduleBeat.ts',
+            label: 'GitHub: ScheduleBeat (node-cron / BullMQ scheduling engine)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -530,7 +563,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
             label: 'Flowise Docs: Custom Tool (JS function support, built-in/external modules)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -546,23 +579,23 @@ export const flowiseProfile: CompetitorProfile = {
             url: 'https://docs.flowiseai.com/configuration/environment-variables',
             label:
               'Flowise Docs: Environment Variables (TOOL_FUNCTION_BUILTIN_DEP, TOOL_FUNCTION_EXTERNAL_DEP, ALLOW_BUILTIN_DEP)',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/integrations/langchain/tools/custom-tool',
             label: 'Flowise Docs: Custom Tool (adding external npm dependencies)',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/server/.env.example',
             label: 'GitHub: Flowise packages/server/.env.example (shipped dependency allowlists)',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/components/src/utils.ts',
             label:
               'GitHub: packages/components/src/utils.ts (defaultAllowBuiltInDep, defaultAllowExternalDependencies, additive allowlists)',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -575,7 +608,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://agentsapis.com/flowise-api/',
             label: 'Flowise API: Complete Developer Guide',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -588,27 +621,39 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.npmjs.com/package/flowise-embed',
             label: 'npm: flowise-embed',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/contributing/building-node',
             label: 'Flowise Docs: Building Node',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       mcpPublishing: {
         value:
-          "No: Flowise's documentation covers only consuming external MCP servers as an MCP client. It has no capability for publishing a deployed Flowise flow itself as a callable MCP server for other AI tools.",
+          "Partially, and not documented publicly: Flowise's server code ships a native MCP Server feature — each chatflow/agentflow has its own MCP Server configuration that can be enabled (generating an access token), updated (tool name/description/status), disabled, and token-rotated via /api/v1/mcp-server/:id and /api/v1/mcp-server/:id/refresh, gated by the same chatflows:config/agentflows:config permission as other flow settings. A separate authenticated /api/v1/mcp-endpoint/:chatflowId route implements the actual MCP Streamable HTTP protocol (JSON-RPC initialize/tools/list/tools/call), so an external MCP client — including desktop clients like Claude Desktop or Cursor — can call the published flow as a tool using the generated bearer token. However, this capability is absent from docs.flowiseai.com's Tools & MCP page and other public documentation, so most users would not discover it there; third-party community wrapper packages (e.g. mcp-flowise) remain the only documented way to expose Flowise chatflows via MCP.",
         detail:
-          'Third-party community wrapper packages (e.g. mcp-flowise) expose Flowise chatflows via MCP externally, but this is not native.',
-        shortValue: 'No, cannot publish a flow as an MCP server',
+          "The native MCP Server capability is not documented on docs.flowiseai.com's Tools & MCP page or anywhere else in Flowise's public docs, so most users would not discover it there. Third-party community wrapper packages (e.g. mcp-flowise) remain the only publicly documented way to expose Flowise chatflows via MCP, even though Flowise's own server now ships this capability natively.",
+        shortValue: 'Partial: native MCP-server publishing ships, but undocumented',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.flowiseai.com/tutorials/tools-and-mcp',
             label: 'Flowise Docs: Tools & MCP',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/routes/mcp-server/index.ts',
+            label:
+              'GitHub: packages/server/src/routes/mcp-server/index.ts (native MCP Server config API)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/routes/mcp-endpoint/index.ts',
+            label:
+              'GitHub: packages/server/src/routes/mcp-endpoint/index.ts (MCP Streamable HTTP protocol endpoint)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -623,7 +668,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.lindy.ai/blog/flowise-pricing',
             label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -638,7 +683,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.lindy.ai/blog/flowise-pricing',
             label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -651,7 +696,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.lindy.ai/blog/flowise-pricing',
             label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -665,7 +710,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/configuration/environment-variables',
             label: 'Flowise Docs: Environment Variables',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -678,7 +723,13 @@ export const flowiseProfile: CompetitorProfile = {
           'The same third-party source also claims FedRAMP and PCI compliance for a small startup, an atypical combination not corroborated on flowiseai.com.',
         shortValue: 'Unknown, no official certifications published',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://security-profiles.nudgesecurity.com/app/flowiseai-com',
+            label: 'Nudge Security: Flowise security profile',
+            asOf: '2026-09-15',
+          },
+        ],
       },
       dataResidency: {
         value:
@@ -689,7 +740,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.lindy.ai/blog/flowise-pricing',
             label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -702,7 +753,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
             label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -715,7 +766,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
             label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -735,7 +786,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
             label: 'Flowise Docs: Workspaces',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -748,7 +799,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://github.com/FlowiseAI/Flowise/discussions/626',
             label: 'GitHub Discussion #626: remove the Powered by flowise watermark',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -776,7 +827,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/configuration/sso',
             label: 'Flowise Docs: SSO',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -798,12 +849,12 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/configuration/authorization/app-level',
             label: 'Flowise Docs: Application authorization (JWT expiry and session variables)',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://raw.githubusercontent.com/FlowiseAI/Flowise/main/packages/server/.env.example',
             label: 'GitHub: Flowise packages/server/.env.example (shipped JWT expiry defaults)',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -811,7 +862,7 @@ export const flowiseProfile: CompetitorProfile = {
         value:
           "Yes: Flowise's nodes (LLMs, tools, vector stores, document loaders) live in the packages/components/nodes folder of the core FlowiseAI/Flowise monorepo. New nodes are contributed via GitHub pull request and reviewed/merged by the Flowise team before shipping in an official release, rather than published independently by third parties into an open, unreviewed marketplace. The separate Marketplace feature distributes JSON chatflow/agentflow templates, not installable executable code.",
         detail:
-          "That PR-review process has not stopped a critical incident in vetted, first-party code: CVE-2025-59528 (CVSS 10.0) was an unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor. Patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. By contrast, Sim documents its own thirdPartyVetting fact as every one of its 302 blocks being first-party authored and code-reviewed with no public marketplace for third-party executable code either, so the two products share the same no-open-marketplace posture; the difference is that Flowise's own review pipeline has already shipped one CVSS-10 RCE into a first-party node, which is the concrete cost of that model rather than of an unreviewed community ecosystem.",
+          "That PR-review process has not stopped a critical incident in vetted, first-party code: CVE-2025-59528 (CVSS 10.0) was an unauthenticated remote code execution flaw in the official CustomMCP node, where user-supplied mcpServerConfig input was passed into a JavaScript Function() constructor. Patched in 3.0.6, but VulnCheck observed in-the-wild exploitation starting April 2026 against thousands of still-exposed instances. By contrast, Sim documents its own thirdPartyVetting fact as every one of its 356 blocks being first-party authored and code-reviewed with no public marketplace for third-party executable code either, so the two products share the same no-open-marketplace posture; the difference is that Flowise's own review pipeline has already shipped one CVSS-10 RCE into a first-party node, which is the concrete cost of that model rather than of an unreviewed community ecosystem.",
         shortValue:
           'Yes, PR-reviewed into the core repo, but that pipeline already shipped a CVSS-10 RCE',
         confidence: 'verified',
@@ -819,18 +870,24 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/contributing/building-node',
             label: 'Flowise Docs: Building Node',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.flowiseai.com/contributing',
+            label:
+              'Flowise Docs: Contributing (PR automatically notifies/assigns the Flowise team)',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/FlowiseAI/Flowise/security/advisories/GHSA-3gcm-f6qx-ff7p',
             label: 'GitHub Security Advisory GHSA-3gcm-f6qx-ff7p (CVE-2025-59528)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.csoonline.com/article/4155680/hackers-exploit-a-critical-flowise-flaw-affecting-thousands-of-ai-workflows.html',
             label:
               'CSO Online: Hackers exploit a critical Flowise flaw affecting thousands of AI workflows',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -846,7 +903,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://langfuse.com/integrations/no-code/flowise',
             label: 'Langfuse: Observability and Tracing for Flowise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -873,7 +930,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://langfuse.com/integrations/no-code/flowise',
             label: 'Langfuse: Observability and Tracing for Flowise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -886,7 +943,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
             label: 'Flowise Docs: Running Flowise using Queue',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -906,27 +963,37 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://docs.flowiseai.com/using-flowise/agentflowv2',
             label: 'Flowise Docs: Agentflow V2',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       unattendedExecution: {
         value:
-          'Yes, for the triggers Flowise has: a chat message, a REST API prediction call, or an MCP tool invocation all execute entirely on the Flowise server (self-hosted or Flowise Cloud), with no dependency on a client device staying open, awake, or connected. Flowise has no dedicated cron/schedule trigger of its own, so a genuinely unattended, time-based run has to come from an external scheduler (e.g. a cron job or another system calling the prediction API) rather than a built-in scheduling engine.',
+          "Yes, for the triggers Flowise has: a chat message, a REST API prediction call, or an MCP tool invocation all execute entirely on the Flowise server (self-hosted or Flowise Cloud), with no dependency on a client device staying open, awake, or connected. Flowise Agentflows can additionally be scheduled natively via a per-flow cron expression and timezone (toggled from the flow's settings, with a trigger-log history), which originates the run on a timer without any external caller — undocumented publicly, but present and active in the shipped server code since May 2026.",
         detail:
-          'Once a run is invoked by any supported means, closing the browser tab or disconnecting the calling client has no effect on that run completing server-side; the caveat is only that Flowise itself cannot originate a scheduled run without an outside trigger.',
-        shortValue: 'Yes for triggered runs; no built-in scheduler to originate one unattended',
+          "Once a run is invoked by any supported means, closing the browser tab or disconnecting the calling client has no effect on that run completing server-side. The only remaining caveat is discoverability: the native Agentflow cron scheduler is not covered in Flowise's public documentation, so most users would still reach for an external scheduler even though Flowise can originate a timed run itself.",
+        shortValue: 'Yes; also has a native, undocumented cron scheduler',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://agentsapis.com/flowise-api/',
             label: 'Flowise API: Complete Developer Guide',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.flowiseai.com/configuration/running-flowise-using-queue',
             label: 'Flowise Docs: Running Flowise using Queue',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/database/entities/ScheduleRecord.ts',
+            label: 'GitHub: ScheduleRecord entity (native per-flow cron trigger)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/schedule/ScheduleBeat.ts',
+            label: 'GitHub: ScheduleBeat (node-cron / BullMQ scheduling engine)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -941,7 +1008,7 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.lindy.ai/blog/flowise-pricing',
             label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -955,33 +1022,53 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.lindy.ai/blog/flowise-pricing',
             label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
       community: {
         value:
-          "Flowise's GitHub repository has approximately 54,000 stars (Apache 2.0 licensed core), with an active Discord community whose exact member count is not published.",
-        shortValue: '~54,000 GitHub stars, active Discord community',
+          "Flowise's GitHub repository has approximately 55,000 stars (Apache 2.0 licensed core) and a large Discord community, but as of August 31, 2026 Flowise wound down operations and its official core team no longer maintains a presence in either GitHub or Discord (the repo is archived); community activity going forward is self-organized rather than vendor-supported.",
+        shortValue: '~55k GitHub stars; official support ended, now community-run',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/FlowiseAI/Flowise',
-            label: 'GitHub: FlowiseAI/Flowise',
-            asOf: '2026-07-02',
+            label: 'GitHub: FlowiseAI/Flowise (archived, wound down)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/discussions/6727',
+            label: 'GitHub Discussion #6727: The Future of Flowise (wind-down announcement)',
+            asOf: '2026-09-15',
           },
         ],
       },
       companyMaturity: {
         value:
-          'Flowise was founded in April 2023 (Y Combinator-backed), raised approximately $500K in early funding, and was acquired by Workday in August 2025, bringing enterprise backing while keeping the open-source Community Edition intact.',
-        shortValue: 'Founded 2023 (YC), acquired by Workday Aug 2025',
+          'Flowise was founded in 2023 (Y Combinator S23-backed) and was acquired by Workday in August 2025. In August 2026, Flowise announced it was winding down operations: active feature development and pull-request review stopped July 29, 2026, the GitHub repository was moved to public-archive status on August 13, 2026 (issues/PRs locked, npm/Docker images marked deprecated), and official core-team presence in Discord and GitHub ended August 31, 2026. The Apache 2.0 source remains on GitHub for self-hosters and forks, but Flowise is no longer an actively maintained, vendor-supported product.',
+        shortValue: 'Founded 2023 (YC S23), Workday-acquired, now winding down',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.prnewswire.com/news-releases/workday-acquires-flowise-bringing-powerful-ai-agent-builder-capabilities-to-the-workday-platform-302530557.html',
             label: 'PR Newswire: Workday Acquires Flowise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.ycombinator.com/companies/flowiseai',
+            label: 'Y Combinator: FlowiseAI company profile (Summer 2023 batch)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise/discussions/6727',
+            label: 'GitHub Discussion #6727: The Future of Flowise (wind-down announcement)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/FlowiseAI/Flowise',
+            label: 'GitHub: FlowiseAI/Flowise (repository archived)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -994,7 +1081,17 @@ export const flowiseProfile: CompetitorProfile = {
           {
             url: 'https://www.coursera.org/learn/designing-a-customer-support-chatbot-using-flowise',
             label: 'Coursera: Designing a Customer Support Chatbot Using Flowise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.codecademy.com/learn/intro-to-ai-agents-with-flowise',
+            label: 'Codecademy: Intro to AI Agents with Flowise',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.udemy.com/course/flowise-training-build-ai-agents-chatbots-with-no-code/',
+            label: 'Udemy: AI Agent Builder Bootcamp (Flowise, LangFlow, RAG & more)',
+            asOf: '2026-09-15',
           },
         ],
       },

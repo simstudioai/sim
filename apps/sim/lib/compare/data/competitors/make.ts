@@ -38,7 +38,7 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://www.make.com/en/templates',
         label: 'Make Templates gallery',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -49,7 +49,7 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://www.make.com/en/ai-agents',
         label: 'Make AI Agents page',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -60,7 +60,7 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://help.make.com/mcp-toolboxes',
         label: 'MCP toolboxes - Make Help Center',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -73,7 +73,7 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://www.make.com/en/on-prem-agents',
         label: 'Make on-prem agents page',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -84,7 +84,7 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://www.make.com/master-service-agreement.pdf',
         label: 'Master Services Agreement for Make, Section 4.4 & 6.1 (Celonis)',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -96,18 +96,18 @@ export const makeProfile: CompetitorProfile = {
       source: {
         url: 'https://apps.make.com/code',
         label: 'Make Code app docs',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
       title: 'Granular RBAC gated to the Teams plan and above',
       description:
-        "Full team/role-based permission management ('Teams and team roles', letting admins manage unlimited team permissions for scenario apps, templates, and connections) is only listed as a feature starting on the Teams plan ($38/mo) and Enterprise; lower tiers (Free, Core, Pro) get unlimited users but no role-based access controls, unlike Sim, which ships admin/write/read roles on every tier.",
-      shortDescription: 'RBAC needs the Teams plan ($38/mo) or above.',
+        "Full team/role-based permission management ('Teams and team roles', letting admins manage unlimited team permissions for scenario apps, templates, and connections) is only listed as a feature starting on the Teams plan ($51/mo billed monthly, or $38/mo if billed annually) and Enterprise; lower tiers (Free, Core, Pro) get unlimited users but no role-based access controls, unlike Sim, which ships admin/write/read roles on every tier.",
+      shortDescription: 'RBAC needs the Teams plan ($51/mo monthly, or $38/mo annual).',
       source: {
         url: 'https://www.make.com/en/pricing',
         label: 'Make Pricing page',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -123,12 +123,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/ai-agents',
             label: 'Make AI Agents page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -143,12 +143,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://learn.g2.com/make-vs-zapier',
             label: 'Make vs. Zapier - G2 Learn',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.lindy.ai/blog/make-review',
             label: 'Make Review 2026 - Lindy',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -163,12 +163,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/on-prem-agents',
             label: 'Make on-prem agents page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/help/connections/using-an-on-premise-agent',
             label: 'On-premise agent help doc',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -183,7 +183,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/security',
             label: 'Make Security page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -197,12 +197,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/templates',
             label: 'Make Templates gallery',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/scenario-templates',
             label: 'Scenario templates help doc',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -216,7 +216,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/master-service-agreement.pdf',
             label: 'Master Services Agreement for Make, Section 6.1 (Celonis)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -231,22 +231,22 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/organizations',
             label: 'Organizations | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/teams',
             label: 'Teams | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.make.com/t/moving-scenarios-from-one-organization-to-another/78092',
             label: 'Moving scenarios from one organization to another - Make Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.make.com/t/migrate-connections-and-scenarios-between-teams-in-make/70733',
             label: 'Migrate Connections and Scenarios Between Teams in Make - Make Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -261,17 +261,17 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/restore-a-previous-scenario-version',
             label: 'Restore a previous scenario version | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/restore-and-recover-scenario',
             label: 'Restore and recover scenario | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/scenario-history',
             label: 'Scenario history | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -287,12 +287,12 @@ export const makeProfile: CompetitorProfile = {
             url: 'https://community.make.com/t/what-happens-if-2-people-are-editing-a-scenario-at-the-same-time/69301',
             label:
               'What happens if 2 people are editing a scenario at the same time? - Make Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/scenario-sharing',
             label: 'Scenario sharing - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -307,27 +307,27 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/working-with-files',
             label: 'Working with files - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       dataTables: {
         value:
-          'Yes: Make has a native Data Stores feature for storing structured records (fields/columns and items/rows), with a browsable table view in the UI for adding, viewing, updating, and deleting records. It behaves more like a key-value record store than a full spreadsheet: limits are size-based (1MB per store on Core, 10MB on Pro/Teams, custom on Enterprise, with per-record caps reported at 512KB-15MB depending on the source) rather than fixed row/column counts, and it lacks spreadsheet-style keyboard navigation (arrow-key cell movement, multi-cell copy-paste).',
+          "Yes: Make has a native Data Stores feature for storing structured records (fields/columns and items/rows), with a browsable table view in the UI for adding, viewing, updating, and deleting records. It behaves more like a key-value record store than a full spreadsheet: total data-storage allowance scales with the plan's credit allotment rather than a flat per-tier cap — every 1,000 monthly credits/operations equals 1 MB of storage (e.g., a 10,000-credit plan gets 10 MB, a 20,000-credit plan gets 20 MB), with a 1 MB minimum per individual data store and a hard ceiling of 1,000 data stores per organization on any plan; no separate per-record byte cap is documented. It also lacks spreadsheet-style keyboard navigation (arrow-key cell movement, multi-cell copy-paste).",
         detail:
           'UI supports a table/grid browse view and manual record add/edit, but bulk spreadsheet-like editing (arrow-key navigation, drag-fill, multi-cell paste) is not documented.',
-        shortValue: 'Yes: Data Stores (record/table store, size-capped)',
+        shortValue: 'Yes: Data Stores, storage scales with monthly credits',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.make.com/data-stores',
             label: 'Data stores - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/api-documentation/api-reference/data-stores',
             label: 'Data Stores - Make API Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -342,12 +342,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://apps.make.com/google-docs',
             label: 'Google Docs - Apps Documentation - Make',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/help/app/markdown',
             label: 'Markdown - Apps Documentation - Make',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -355,19 +355,19 @@ export const makeProfile: CompetitorProfile = {
         value:
           "Yes: Make's 'Call a Scenario' subscenario module lets a parent scenario invoke a saved sub-scenario as a step, passing structured inputs and, in synchronous mode, pausing until the sub-scenario finishes and returns outputs via a 'Return outputs' module.",
         detail:
-          "Make's Subscenarios feature supports two modes: synchronous, where the parent calls the sub-scenario and pauses execution until it completes and returns output; and asynchronous, where the parent continues immediately without waiting. Each call creates its own separately logged run, and an error in the sub-scenario propagates back to the parent's error handling. This is a dedicated composition feature, distinct from triggering an unrelated scenario via a plain webhook.",
+          "Make's Subscenarios feature supports two modes: synchronous, where the parent calls the sub-scenario and pauses execution until it completes and returns output; and asynchronous, where the parent continues immediately without waiting. Each call creates its own separately logged run. Make's Subscenarios documentation does not explicitly state whether an error in the sub-scenario propagates to the parent's own error handlers; in synchronous mode the parent is paused awaiting the sub-scenario's output, which would surface a failure to the parent's execution, but this specific behavior is undocumented and should be read as unconfirmed rather than a stated guarantee. This is a dedicated composition feature, distinct from triggering an unrelated scenario via a plain webhook.",
         shortValue: 'Yes: Call a Scenario module runs a sub-scenario as a step',
         confidence: 'verified',
         sources: [
           {
             url: 'https://help.make.com/subscenarios',
             label: 'Subscenarios - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/scenario-inputs-and-scenario-outputs',
             label: 'Scenario inputs and scenario outputs - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -382,17 +382,17 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/subscenarios',
             label: 'Subscenarios - Make Help Center',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/scenarios-for-ai-agents',
             label: 'Scenarios for AI agents - Make Help Center',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/custom-apps-documentation',
             label: 'Overview | Custom Apps Documentation | Make Developer Hub',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -400,7 +400,7 @@ export const makeProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: OpenAI, Anthropic Claude, Google Vertex AI (Gemini), Azure OpenAI, Mistral AI, Perplexity AI, Hugging Face, plus OpenAI-compatible custom models',
+          "Yes: OpenAI, Anthropic Claude, Gemini Enterprise Agent Platform (Google's Gemini), Azure OpenAI, Mistral AI, Perplexity AI, Hugging Face, plus OpenAI-compatible custom models",
         detail:
           "Make's AI Agents page lists these integrated providers; AI Agent configuration docs also mention support for 'various LLMs including OpenAI-compatible models.'",
         shortValue: 'OpenAI, Anthropic, Gemini, Azure, Mistral, and more',
@@ -409,12 +409,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/ai-agents',
             label: 'Make AI Agents page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/make-ai-agents-the-next-step-in-automation',
             label: 'Make AI Agents help doc',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -429,12 +429,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/ai-agents',
             label: 'Make AI Agents page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/make-ai-agents-the-next-step-in-automation',
             label: 'Make AI Agents help doc',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -447,21 +447,27 @@ export const makeProfile: CompetitorProfile = {
         sources: [],
       },
       knowledgeBaseRag: {
-        value: 'Yes: built-in Knowledge feature backed by a RAG vector database for AI Agents',
+        value:
+          "Yes: built-in Knowledge feature for AI Agents; Make's now-superseded documentation described it as backed by a RAG vector database, but that detail is unconfirmed against current docs",
         detail:
-          "Per Make's help docs, uploaded knowledge files are stored in a RAG vector database: files are chunked, converted to vectors, and the agent retrieves only relevant chunks at request time, reducing tokens used.",
-        shortValue: 'Built-in RAG store for agent knowledge files',
-        confidence: 'verified',
+          "Make's now-superseded AI Agents docs (marked by Make as reflecting a previous version) described uploaded knowledge files as chunked, converted to vectors, and stored in a RAG vector database. Make's current documentation for the successor 'Make AI Agent (New)' app still describes Knowledge as reference files 'stored in a database' the agent 'repeatedly consults' to reduce token usage — consistent with retrieval-based lookup — but no longer states the underlying chunking/embedding mechanism explicitly, so treat the vector-database detail as unconfirmed against current docs.",
+        shortValue: 'Database-backed knowledge; RAG/vector detail unconfirmed',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://help.make.com/knowledge',
             label: 'Make Knowledge help doc',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/ai-agents-configuration',
-            label: 'AI Agents configuration help doc',
-            asOf: '2026-07-02',
+            label: 'AI Agents configuration help doc (previous-version notice)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://help.make.com/introduction-to-make-ai-agent-new',
+            label: 'Introduction to Make AI Agent (New) - Make Help Center',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -475,7 +481,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/blog/model-context-protocol-mcp-server',
             label: 'Make blog: What is MCP Server?',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -490,7 +496,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/ai-agents',
             label: 'Make AI Agents page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -505,17 +511,17 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/integrations/human-in-the-loop-enterprise',
             label: 'Human in the Loop (Enterprise) Integration | Make',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://apps.make.com/human-in-the-loop-enterprise',
             label: 'Human in the Loop - Apps Documentation',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/blog/human-in-the-loop',
             label: 'What is human in the loop (HITL) in AI? | Make',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -530,12 +536,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/blog/faceless-youtube-videos-make-ai',
             label: 'How to Make Faceless YouTube Videos with AI + Make | Make blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.make.com/t/video-generation-systems-that-work-with-make/55168',
             label: 'Video generation systems that work with Make? - Make Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -573,14 +579,14 @@ export const makeProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://help.make.com/ai-agents-configuration',
-            label: 'AI Agents configuration - Make Help Center',
-            asOf: '2026-07-02',
+            url: 'https://help.make.com/create-ai-agents-for-different-triggers',
+            label: 'Create AI Agents for different triggers - Make Help Center',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://help.make.com/manage-ai-agents',
-            label: 'Manage AI agents - Make Help Center',
-            asOf: '2026-07-02',
+            url: 'https://help.make.com/introduction-to-make-ai-agent-new',
+            label: 'Introduction to Make AI Agent (New) - Make Help Center',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -604,7 +610,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/router',
             label: 'Make Help Center: Router',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -619,7 +625,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/blog/agentic-operating-system',
             label: 'Make Blog: What Is an Agentic Operating System? 2026 Guide',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -634,12 +640,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/iterator',
             label: 'Iterator - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/help/tools/flow-control',
             label: 'Flow control - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -655,7 +661,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/integrations',
             label: 'Make Integrations page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -670,12 +676,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/webhooks',
             label: 'Make Webhooks help doc',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page (execution interval limits)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -690,9 +696,9 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/blog/make-code-app',
             label: 'Make blog: Make Code App',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
-          { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-07-08' },
+          { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-09-15' },
         ],
       },
       codeSandboxRuntime: {
@@ -703,11 +709,11 @@ export const makeProfile: CompetitorProfile = {
         shortValue: 'Packages only: declared npm/PyPI dependencies, Enterprise plans',
         confidence: 'verified',
         sources: [
-          { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-08-10' },
+          { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-09-15' },
           {
             url: 'https://www.make.com/en/blog/make-code-app',
             label: 'Make blog: Make Code App',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -722,12 +728,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/webhooks',
             label: 'Make Webhooks help doc',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/api-documentation/api-reference/scenarios',
             label: 'Make Developer Hub: Scenarios API',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -735,30 +741,35 @@ export const makeProfile: CompetitorProfile = {
         value:
           'Apps SDK (VS Code extension + browser Apps Editor) for building custom apps/connectors, plus a Make Marketplace for publishing them; no dedicated first-party Node.js/Python client SDK found beyond the general REST API',
         detail:
-          "Make provides the 'Make Apps Editor', a JSON/config-based custom-app development environment available both as a browser-based editor inside Make's dashboard and as a VS Code extension (the Apps SDK) that syncs local files to Make via API. A custom app is built from five components: base, connections, modules, RPCs, and webhooks. Built apps can be submitted to the Make Apps Marketplace (beta), subject to a review process (roughly 4-6 weeks) and limited to services not already covered by Make's built-in app library. No official multi-language client SDK (published Node.js or Python packages) exists beyond the documented REST API; client access is via plain REST calls only.",
+          "Make provides the 'Make Apps Editor', a JSON/config-based custom-app development environment available both as a browser-based editor inside Make's dashboard and as a VS Code extension (the Apps SDK) that syncs local files to Make via API. A custom app is built from five components: base, connections, modules, RPCs, and webhooks. Built apps can be submitted to the Make Apps Marketplace (beta), subject to a Make QA code review (Make's own documentation describes 'multiple stages' but does not publish an expected turnaround time) and limited to services not already covered by Make's built-in app library. No official multi-language client SDK (published Node.js or Python packages) exists beyond the documented REST API; client access is via plain REST calls only.",
         shortValue: 'Apps SDK for custom connectors, no client SDK',
         confidence: 'verified',
         sources: [
           {
             url: 'https://developers.make.com/custom-apps-documentation',
             label: 'Overview | Custom Apps Documentation | Make Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/custom-apps-documentation/get-started/make-apps-editor/apps-sdk',
             label: 'Visual Studio Code | Custom Apps Documentation | Make Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/custom-apps-documentation/app-components',
             label:
               'App components (base, connections, modules, RPCs, webhooks) | Make Developer Hub',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/api-documentation',
             label: 'Make API documentation | Make Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://developers.make.com/custom-apps-documentation/app-review/overview',
+            label: 'App review overview - Make Developer Hub',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -773,17 +784,17 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/mcp',
             label: 'Make MCP Server | Make',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/get-started-with-make-mcp-server',
             label: 'Get started with Make MCP server - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/mcp-toolboxes',
             label: 'MCP toolboxes - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -800,21 +811,22 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       entryPaidPlan: {
-        value: 'Core plan. $12/month for 10,000 credits/month (lowest listed price point)',
+        value:
+          'Core plan: $16/month if billed monthly, or $12/month if billed annually (Make discounts annual billing 15%+, paid upfront for the year) — for 10,000 credits/month, the lowest listed price point either way.',
         detail:
           'Core adds over Free: unlimited active scenarios, scheduled scenarios down to 1-minute intervals, increased data transfer/file-size limits (5GB/100MB), and access to the Make API.',
-        shortValue: 'Core plan, $12/mo for 10,000 credits',
+        shortValue: 'Core plan, $16/mo monthly or $12/mo billed annually, 10,000 credits',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -828,7 +840,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -843,7 +855,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -860,17 +872,17 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/security',
             label: 'Make Security page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/privacy-and-gdpr',
             label: 'Make.com GDPR | General Data Protection Regulation | Make',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://community.make.com/t/information-security-compliance-soc2-iso27001-hipaa-etc/8052',
             label: 'Information Security Compliance (SOC2, ISO27001, HIPAA, etc.) - Make Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -885,12 +897,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/security',
             label: 'Make Security page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/organizations',
             label: 'Make Organizations help doc',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -905,7 +917,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -920,12 +932,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/security',
             label: 'Make Security page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -948,12 +960,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://community.make.com/t/connections-and-keys-access-management-within-teams/51912',
             label: 'Connections and Keys access management within teams - Make Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/white-label-documentation/manage-organizations-and-teams/manage-instance-level-user-access-roles',
             label: 'Manage instance-level user access roles - Make Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -968,12 +980,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://developers.make.com/white-label-documentation/customize-your-instance/rebrand-your-instance',
             label: 'Rebrand your instance - Make White Label Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/white-label-documentation',
             label: 'Make White Label - Make Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -988,12 +1000,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/scenario-history',
             label: 'Scenario history - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/white-label-documentation/manage-the-end-user-life-cycle/provision-new-users/define-the-organizations-license',
             label: "Define the organization's license - Make White Label Developer Hub",
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1017,12 +1029,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/single-sign-on',
             label: 'Single Sign-on - Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/white-label-documentation/manage-login/configure-single-sign-on',
             label: 'Configure Single Sign-on - Make White Label Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1046,7 +1058,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/set-the-length-of-your-session-timeout',
             label: 'Set the length of your session timeout - Make Help Center',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1061,12 +1073,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://developers.make.com/custom-apps-documentation/app-review/overview',
             label: 'App review overview - Make Developer Hub',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://developers.make.com/custom-apps-documentation/app-review/prerequisites',
             label: 'App review prerequisites - Make Developer Hub',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1083,12 +1095,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/scenario-history',
             label: 'Scenario history | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/help/scenarios/scenario-execution-history',
             label: 'Scenario execution history | Make',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1103,17 +1115,17 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/automatic-retry-of-incomplete-executions',
             label: 'Automatic retry of incomplete executions | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/incomplete-executions',
             label: 'Incomplete executions | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/manage-incomplete-executions',
             label: 'Manage incomplete executions | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1128,7 +1140,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/manage-your-email-preferences',
             label: 'Manage your email preferences | Make Help Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/introduction-to-errors-and-warnings',
@@ -1138,7 +1150,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://community.make.com/t/how-to-set-a-operation-threshold-warning-per-scenario/38251',
             label: 'How to set an operation threshold/warning per scenario - Make Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1162,25 +1174,25 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://developers.make.com/mcp-server',
             label: 'Make MCP Server docs (40-minute background run, retrieve output after finish)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/webhooks',
             label:
               'Make Help Center: Webhooks (instant parallel processing, default response codes)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/incomplete-executions',
             label:
               'Make Help Center: Incomplete executions (stores unfinished runs for later resolution)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       executionLimits: {
         value:
-          "Make's MCP Server enforces a per-call timeout of 25 seconds (OAuth authentication) or 40 seconds (MCP token authentication) before returning a timeout response, after which the called scenario continues running for up to 40 minutes in the background. Make does not publish a general per-module/API-call timeout figure or documented concurrent-execution caps per plan tier; the commonly cited ~40-second module timeout is user-reported, not officially documented. Make lets admins cap how many instant-trigger scenario runs can start per minute, a configurable rate limit available on all plans, though no specific default number is published.",
+          "Make's MCP Server enforces a per-call timeout of 25 seconds (OAuth authentication) or 40 seconds (MCP token authentication) before returning a timeout response, after which the called scenario continues running for up to 40 minutes in the background. Separately, Make's pricing page publishes a per-scenario execution-time ceiling of its own ('Maximum scenario execution time'): 5 minutes on Free and 40 minutes on Core, Pro, Teams, and Enterprise — a scenario-level limit distinct from any single module's timeout. Make does not publish a general per-module/API-call timeout figure separate from this scenario-level ceiling, nor documented concurrent-execution caps per plan tier; the commonly cited ~40-second module timeout is user-reported, not officially documented. Make lets admins cap how many instant-trigger scenario runs can start per minute, a configurable rate limit available on all plans, though no specific default number is published.",
         detail:
           "Per Make's MCP Server docs, the timeout before a timeout response is returned depends on the authentication method: 25 seconds for OAuth, 40 seconds for an MCP token; the called scenario itself keeps running in the background for up to 40 minutes. help.make.com/scenario-settings, sometimes cited for general module/API-call execution limits, does not document any timeout figure at all. Admins can cap instant-trigger scenario starts per minute via help.make.com/scenario-rate-limits-for-instant-triggers, but that page does not state a specific default numeric ceiling, and Make does not publicly document concurrent-execution-count limits per plan tier.",
         shortValue:
@@ -1190,17 +1202,22 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://developers.make.com/mcp-server',
             label: 'Make MCP Server docs: 25s/40s call timeout, 40-minute background run',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/scenario-rate-limits-for-instant-triggers',
             label: 'Make Help Center: Scenario rate limits for instant triggers',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/scenario-settings',
             label: 'Make Help Center: Scenario settings (no documented timeout figure)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.make.com/en/pricing',
+            label: 'Make Pricing page (Maximum scenario execution time by plan)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1215,12 +1232,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://help.make.com/error-handlers',
             label: 'Make Help Center: Error handlers (directive list)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/resume-error-handler',
             label: 'Make Help Center: Resume error handler',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://help.make.com/overview-of-error-handling',
@@ -1240,12 +1257,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/security',
             label: 'Make Security page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/on-prem-agents',
             label: 'Make on-prem agents page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1262,7 +1279,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/pricing',
             label: 'Make Pricing page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1277,7 +1294,7 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://www.make.com/en/security',
             label: 'Make Security page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1294,14 +1311,14 @@ export const makeProfile: CompetitorProfile = {
         value:
           'Founded 2012 (as Integromat, Prague, Czech Republic; bootstrapped, no VC rounds); acquired by Celonis for $100M+ in October 2020; rebranded to Make in 2022; operates as a business unit of Celonis, whose parent has raised ~$1.77B and is valued at ~$11-13B with 3,000+ employees (2024/2026 figures)',
         detail:
-          "Integromat was conceived in 2012 by Patrik Šimek in Prague and launched publicly in 2016. It grew to roughly $10M revenue entirely bootstrapped, with no VC funding raised, before Celonis (Germany/US) acquired it in October 2020 for a reported $100M+. TechCrunch's acquisition-day coverage cites 'more than 11,000 customers,' while a separate Latka estimate for the same year puts total registered users at 250K, a gap likely reflecting paying customers versus all signups rather than a contradiction. Sixteen months later, in February 2022, it was rebranded as 'Make' and now operates as a business unit within Celonis. Make has not disclosed separate headcount or funding figures as a standalone entity. Parent company Celonis (founded 2011 by Alex Rinke, Bastian Nominacher, and Martin Klenk) has raised approximately $1.77B in total funding, is valued at an estimated $11-13B, and reported 3,000+ staff across 20+ offices as of 2024.",
+          "Integromat was conceived in 2012 by Patrik Šimek in Prague and launched publicly in 2016. It grew to roughly $10M revenue entirely bootstrapped, with no VC funding raised, before Celonis (Germany/US) acquired it in October 2020 for a reported $100M+. TechCrunch's acquisition-day coverage cites 'more than 11,000 customers,' while a separate Latka estimate for the same year puts total registered users at 250K, a gap likely reflecting paying customers versus all signups rather than a contradiction. Sixteen months later, in February 2022, it was rebranded as 'Make' and now operates as a business unit within Celonis. Make has not disclosed separate headcount or funding figures as a standalone entity. Parent company Celonis (founded 2011 by Alex Rinke, Bastian Nominacher, and Martin Klenk) has raised approximately $1.77B in total funding, is valued at an estimated $11-13B, and reported 3,000+ staff as of its most recent disclosed figures; Wikipedia's infobox separately lists 17 office locations, but only as of 2021, with no more recent location count publicly available.",
         shortValue: 'Founded 2012, acquired by Celonis in 2020',
         confidence: 'verified',
         sources: [
           {
             url: 'https://techcrunch.com/2020/10/14/celonis-acquires-czech-startup-integromat-to-accelerate-move-to-process-automation/',
             label: 'Celonis acquires Czech startup Integromat | TechCrunch',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.businesswire.com/news/home/20220222005231/en/Integromat-Evolves-to-Make-Expanding-Its-Vision-to-Empower-Creators-to-Innovate-Without-Limits',
@@ -1311,12 +1328,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://en.wikipedia.org/wiki/Celonis',
             label: 'Celonis - Wikipedia',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://getlatka.com/companies/integromat',
             label: 'How Integromat hit $10M revenue and 250K customers in 2020 | Latka',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1331,12 +1348,12 @@ export const makeProfile: CompetitorProfile = {
           {
             url: 'https://academy.make.com/',
             label: 'Make Academy',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.make.com/en/blog/learn-automation-make-academy',
             label: 'Learning Automation: Introducing the New Make Academy',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

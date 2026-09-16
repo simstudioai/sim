@@ -44,13 +44,14 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     {
       title: 'Automatic fallback to a default model if a selected model is disabled',
       description:
-        "If an admin disables a non-default model tenant-wide, Copilot Studio automatically falls back to the default OpenAI model rather than failing the request. Admins choose among OpenAI GPT models, Anthropic Claude Sonnet 4 and Opus 4.1, any model in the Azure AI Model Catalog, or a bring-your-own-model connection to an Azure AI Foundry deployment, but Sim's own model-fallback only retries the same model with hosted keys, not a cross-model fallback like this.",
+        "If an admin disables a non-default model tenant-wide, Copilot Studio automatically falls back to the default OpenAI model rather than failing the request. Admins choose among OpenAI GPT models, Anthropic Claude models (currently Claude Sonnet 4.6, Claude Sonnet 5, and Claude Opus 4.6/4.7), any model in the Azure AI Model Catalog, or a bring-your-own-model connection to an Azure AI Foundry deployment, but Sim's own model-fallback only retries the same model with hosted keys, not a cross-model fallback like this.",
       shortDescription:
         'Falls back to the default OpenAI model automatically if a selected model is disabled.',
       source: {
-        url: 'https://www.microsoft.com/en-us/microsoft-copilot/blog/copilot-studio/anthropic-joins-the-multi-model-lineup-in-microsoft-copilot-studio/',
-        label: 'Anthropic joins the multi-model lineup in Microsoft Copilot Studio',
-        asOf: '2026-07-02',
+        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-select-agent-model',
+        label:
+          'Select a primary AI model for your agent - Microsoft Copilot Studio | Microsoft Learn',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -81,29 +82,28 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     },
     {
       title:
-        'Full ALM tooling (pipelines, environment variables) is gated to solution-aware agents',
+        "Full ALM tooling (pipelines, environment variables) requires moving an agent out of the tenant's shared Default Solution",
       description:
-        'Version history, environment promotion via pipelines, and environment variables only apply to agents built inside a Dataverse solution. Agents created outside a solution, the common default for individual makers experimenting in Copilot Studio, get none of this ALM tooling.',
+        "Version history, environment promotion via pipelines, and environment variables only apply to agents managed inside a custom Dataverse solution. Every agent is automatically placed in the environment's shared Default Solution when it's created — the common state for individual makers experimenting in Copilot Studio — and Microsoft's own ALM guidance treats that default solution as not fully participating in pipeline-based promotion and environment-variable tooling the way a custom solution does.",
       shortDescription:
-        'Pipelines and environment-variable promotion require building inside a solution.',
+        'Pipelines and environment-variable promotion require moving an agent out of the shared Default Solution into a custom one.',
       source: {
-        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/alm',
-        label:
-          'Establish an Application Lifecycle Management (ALM) strategy - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
+        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-solutions-overview',
+        label: 'Create and manage custom solutions - Microsoft Copilot Studio | Microsoft Learn',
+        asOf: '2026-09-15',
       },
     },
     {
-      title: 'Session transcript detail defaults to a 29-day window',
+      title: 'Session transcript detail defaults to a 28-day window',
       description:
-        "An agent's per-session transcripts, showing which topic fired, tools called, and knowledge consulted, are downloadable from the Analytics area for roughly the last 29 days by default. Retaining that detail longer requires a separate export pipeline, not a built-in retention setting.",
+        "An agent's per-session transcripts, showing which topic fired, tools called, and knowledge consulted, are downloadable from the Analytics area for roughly the last 28 days by default. Retaining that detail longer requires a separate export pipeline, not a built-in retention setting.",
       shortDescription:
-        'Detailed session transcripts default to ~29 days; longer retention needs a manual export.',
+        'Detailed session transcripts default to ~28 days; longer retention needs a manual export.',
       source: {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/analytics-transcripts-studio',
         label:
           'Understand downloaded session data from Copilot Studio - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -278,7 +278,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       versionControlDepth: {
         value:
-          'Solution-based promotion with Git integration and pipelines for solution-aware agents; no visual diff/compare view between two agent versions, and this ALM tooling does not apply to agents built outside a solution',
+          "Solution-based promotion with Git integration and pipelines for solution-aware agents; no visual diff/compare view between two agent versions, and this ALM tooling does not extend to agents left in the environment's shared Default Solution rather than moved into a custom one",
         detail:
           'Git integration lets a solution connect to a repository for version control and collaboration, and pipelines automate deployment between environments, but there is no dedicated side-by-side version-diff UI for an individual agent.',
         shortValue: 'Git-backed solution promotion, no visual diff view found',
@@ -288,7 +288,13 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/alm',
             label:
               'Establish an Application Lifecycle Management (ALM) strategy - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-solutions-overview',
+            label:
+              'Create and manage custom solutions - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -407,7 +413,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: agents can use OpenAI GPT models, Anthropic Claude Sonnet 4 and Opus 4.1, any model in the Azure AI Model Catalog, or a bring-your-own Azure AI Foundry model deployment for individual prompts',
+          "Yes: agents can use OpenAI GPT models (GPT-4.1 as the current tenant Default, plus GA models such as GPT-5 Chat and GPT-5.5 Chat, and preview/experimental models such as GPT-5 Reasoning, GPT-5 Auto, and GPT-5.5 Reasoning), Anthropic Claude models (the current GA lineup, including Claude Sonnet 4.6, Claude Sonnet 5, and Claude Opus 4.6/4.7; Microsoft periodically advances this lineup as newer versions supersede older ones, such as Claude Sonnet 4 and Opus 4.1, which no longer appear in Microsoft's current model table), external models from xAI and Mistral, any model in the Azure AI Model Catalog, or a bring-your-own Azure AI Foundry model deployment for individual prompts",
         detail:
           'Admins enable or restrict non-default models tenant-wide in the Microsoft 365 Admin Center. If a selected alternate model is disabled or unavailable, agents fall back automatically to the default OpenAI model. Google Gemini is not supported.',
         shortValue: 'OpenAI, Anthropic Claude, Azure AI Model Catalog, or bring-your-own model',
@@ -423,6 +429,12 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             label:
               'Bring your own model for your prompts - Microsoft Copilot Studio | Microsoft Learn',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-select-agent-model',
+            label:
+              'Select a primary AI model for your agent - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -581,16 +593,23 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       modelFallback: {
         value:
-          'Yes: Copilot Studio automatically falls back to the default OpenAI GPT-4o model when a selected alternate model, such as Anthropic Claude, is disabled or unavailable for the tenant',
+          "Yes: Copilot Studio automatically falls back to whichever model currently carries the tenant's 'Default' release tag when a selected alternate model, such as an Anthropic Claude model, is disabled or unavailable for the tenant. Microsoft documents a defined model-lifecycle taxonomy (Default, Generally Available, Preview, Experimental, Retired) and periodically promotes a newer generally-available model to the Default tag as it matures, retiring the previous one; as of September 2026, GPT-4.1 holds the Default tag after GPT-4o's retirement, illustrating that the specific fallback model changes over time rather than remaining permanently GPT-4o.",
         detail:
           'This is a multi-model fallback behavior, not a broader multi-provider retry-on-rate-limit policy beyond that single fallback path.',
-        shortValue: 'Falls back to the default OpenAI GPT-4o model automatically',
+        shortValue:
+          "Falls back to whichever model currently holds the tenant's 'Default' tag, not permanently GPT-4o",
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.microsoft.com/en-us/microsoft-copilot/blog/copilot-studio/anthropic-joins-the-multi-model-lineup-in-microsoft-copilot-studio/',
             label: 'Anthropic joins the multi-model lineup in Microsoft Copilot Studio',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/authoring-select-agent-model',
+            label:
+              'Select a primary AI model for your agent - Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -629,6 +648,11 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             label:
               'Publish an agent to Azure Bot Service channels - Microsoft Copilot Studio | Microsoft Learn',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-pages/getting-started/enable-agent',
+            label: 'Add an agent from the setup workspace - Power Pages | Microsoft Learn',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -867,7 +891,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/en-us/microsoft-365-copilot/pricing/copilot-studio',
             label: 'Microsoft 365 Copilot Pricing - AI Agents | Copilot Studio',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -906,9 +930,9 @@ export const microsoftCopilotProfile: CompetitorProfile = {
     security: {
       compliance: {
         value:
-          'Yes: Copilot Studio (listed by its former name, "Copilot Studios") is one of the Microsoft online services explicitly in scope of the Office 365 SOC 2 Type 2 attestation report, and is separately certified under HIPAA (Business Associate Agreement), HITRUST CSF, FedRAMP, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, with an audit report for each available from the Microsoft Service Trust Portal',
+          'Yes: Copilot Studio (listed by its former name, "Copilot Studios") is one of the Microsoft online services in scope of the Azure SOC 2 Type 2 attestation report per Microsoft\'s SOC 2 compliance offering page, and is separately certified under HIPAA (Business Associate Agreement), HITRUST CSF, FedRAMP, multiple ISO standards (9001, 20000-1, 22301, 27001, 27017, 27018, 27701), PCI DSS, CSA STAR, UK G-Cloud, Singapore MTCS Level 3, Korea K-ISMS, and Spain ENS, with an audit report for each available from the Microsoft Service Trust Portal',
         detail:
-          'Copilot Studio\'s own admin-certification page confirms SOC compliance without naming the specific report type, but Microsoft\'s dedicated SOC 2 Type 2 compliance offering page lists "Copilot Studios" by name among the in-scope Office 365 services, resolving which SOC report type applies. The wider certification list is the full set published on that admin-certification page, where each certification links to a corresponding audit report or certificate.',
+          'Copilot Studio\'s own admin-certification page confirms SOC compliance without naming the specific report type, but Microsoft\'s dedicated SOC 2 Type 2 compliance offering page lists "Copilot Studios" by name among the Microsoft online services in scope of the Azure SOC 2 Type 2 attestation report (a separate, more granular Office 365-specific applicability table on the same page does not itemize Copilot Studios by environment), resolving which SOC report type applies. The wider certification list is the full set published on that admin-certification page, where each certification links to a corresponding audit report or certificate.',
         shortValue: 'SOC 2 Type 2, HIPAA, FedRAMP, ISO, PCI DSS',
         confidence: 'verified',
         sources: [
@@ -921,7 +945,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
             label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1028,18 +1052,18 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       dataRetention: {
         value:
-          'Partial: conversation transcripts downloaded directly from Copilot Studio only cover the past 29 days, while the underlying Dataverse conversation-transcript and custom-analytics tables default to a 30-day retention period; extending retention beyond that default requires either an admin changing the Dataverse retention setting or exporting the data via Azure Synapse Link for Dataverse into Azure Data Lake Storage Gen2',
+          'Partial: conversation transcripts downloaded directly from Copilot Studio only cover the past 28 days, while the underlying Dataverse conversation-transcript and custom-analytics tables default to a 30-day retention period; extending retention beyond that default requires either an admin changing the Dataverse retention setting or exporting the data via Azure Synapse Link for Dataverse into Azure Data Lake Storage Gen2',
         detail:
-          "Copilot Studio's own download experience is capped at the past 29 days regardless of the underlying Dataverse retention window. Microsoft's custom-analytics guidance documents the 30-day default retention on the Dataverse-side bot/botcomponent/conversationtranscript tables and recommends Synapse Link as the export path for longer-term or custom-reporting needs.",
+          "Copilot Studio's own download experience is capped at the past 28 days regardless of the underlying Dataverse retention window. Microsoft's custom-analytics guidance documents the 30-day default retention on the Dataverse-side bot/botcomponent/conversationtranscript tables and recommends Synapse Link as the export path for longer-term or custom-reporting needs.",
         shortValue:
-          '29-day direct download; 30-day default Dataverse retention, extendable via export',
+          '28-day direct download; 30-day default Dataverse retention, extendable via export',
         confidence: 'verified',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/analytics-transcripts-studio',
             label:
               'Understand downloaded session data from Copilot Studio - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/custom-analytics-strategy',
@@ -1051,17 +1075,24 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          'Yes, but as a block rather than in-line redaction: Microsoft Purview inline Data Loss Prevention for Copilot Studio agents (public preview) scans prompts sent to an agent in real time for Sensitive Information Types (SSNs, credit card numbers, custom types), and blocks the prompt from being processed, with no AI response generated, if one is detected before the agent is invoked.',
+          "Partial, and narrower than a general Copilot Studio capability: Microsoft's dedicated Copilot Studio-Purview integration guidance documents only a sensitivity-label-based Endpoint DLP restriction for Copilot Studio agents — it applies only when an agent's knowledge source is SharePoint and only when the agent is published to Microsoft Teams, SharePoint, or Microsoft 365 Copilot, and it blocks processing of content carrying a specified sensitivity label rather than scanning free-text prompts for Sensitive Information Types. The broader feature that scans any prompt for SITs (SSNs, credit card numbers, custom types) and blocks it before a response is generated is documented for the general 'Microsoft 365 Copilot and Copilot Chat' experience; Microsoft's Copilot Studio-specific reference page does not list that capability as supported for standalone Copilot Studio agents on other knowledge sources or channels, such as a website widget.",
         detail:
-          'This stops sensitive content from reaching the agent at all rather than redacting it in-line and continuing. It is configured as a Purview DLP policy targeting the Copilot Studio location, separate from the product itself.',
-        shortValue: 'Purview inline DLP blocks prompts containing detected PII before invocation',
+          "The general SIT-scanning-and-blocking capability is configured as a Purview DLP policy targeting the 'Microsoft 365 Copilot and Copilot Chat' policy location, which Microsoft's dedicated Copilot Studio-Purview reference page does not list as a supported capability for Copilot Studio agents. The narrower, confirmed Copilot Studio capability instead uses Endpoint DLP with a sensitivity-label condition, gated to a SharePoint knowledge source and to agents published on Teams, SharePoint, or Microsoft 365 Copilot, and it blocks based on a label rather than scanning prompt text for SITs.",
+        shortValue:
+          'Confirmed only for SharePoint-scoped sensitivity labels, not general SIT prompt scanning',
         confidence: 'verified',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/purview/dlp-microsoft365-copilot-location-learn-about',
             label:
               'Microsoft Purview DLP for Microsoft 365 Copilot and Copilot Chat | Microsoft Learn',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/purview/ai-copilot-studio',
+            label:
+              'Use Microsoft Purview to manage data security & compliance for Microsoft Copilot Studio | Microsoft Learn',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1151,7 +1182,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         value:
           'Yes: per-session conversation transcripts show which topic fired, which knowledge sources were consulted, which tools were called, which child agents or MCP servers were invoked, what the orchestration plan was, and how long each step took, alongside an Analytics dashboard with conversation volume, engagement, satisfaction, and response-quality metrics over time',
         detail:
-          'Telemetry can additionally be sent to Azure Monitor Application Insights, where a dedicated Copilot Studio dashboard workbook surfaces total conversations, latency, exceptions, tool usage, and topic analytics in one view for deeper analysis.',
+          'Telemetry can additionally be sent to Azure Monitor Application Insights, where a dedicated Copilot Studio dashboard workbook surfaces total conversations, latency, exceptions, tool usage, and topic analytics in one view for deeper analysis. The Copilot Studio dashboard workbook itself is currently a preview feature within Application Insights.',
         shortValue: 'Per-session traces (topic/tools/knowledge/timing) plus a metrics dashboard',
         confidence: 'verified',
         sources: [
@@ -1159,13 +1190,13 @@ export const microsoftCopilotProfile: CompetitorProfile = {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/analytics-overview',
             label:
               'Monitor an agent overview (preview) - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-bot-framework-composer-capture-telemetry',
             label:
               'Capture telemetry with Application Insights - Microsoft Copilot Studio | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1318,7 +1349,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://www.microsoft.com/licensing/docs/view/Service-Level-Agreements-SLA-for-Online-Services?lang=1',
             label: 'Service Level Agreements (SLA) for Online Services - Microsoft Licensing',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://windowsnews.ai/article/microsoft-365-copilot-outage-exposes-ai-reliability-gaps-in-enterprise-slas.425641',
@@ -1345,7 +1376,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Microsoft Corporation. Founded April 4, 1975. Approximately 228,000 employees. Market capitalization approximately $2.8 trillion USD. Publicly traded (NASDAQ: MSFT) with quarterly revenue in the $80B+ range as of FY2026 SEC filings',
+          'Microsoft Corporation. Founded April 4, 1975. Approximately 228,000 employees. Market capitalization approximately $3.7 trillion USD as of September 2026. Publicly traded (NASDAQ: MSFT) with quarterly revenue in the $80B+ range as of FY2026 SEC filings',
         detail:
           "Copilot Studio is a product within Microsoft's Power Platform/Business Applications segment, backed by Microsoft's overall corporate scale, not an independent startup.",
         shortValue: 'Microsoft Corporation. Public, ~228,000 employees',
@@ -1359,7 +1390,7 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://stockanalysis.com/stocks/msft/market-cap/',
             label: 'Microsoft (MSFT) Market Cap - StockAnalysis.com',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

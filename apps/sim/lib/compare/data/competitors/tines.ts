@@ -574,14 +574,14 @@ export const tinesProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/university/advanced/looping/',
-            label: 'Looping in Tines | Tines University',
-            asOf: '2026-07-02',
+            url: 'https://www.tines.com/docs/actions/types/event-transformation/message-only/',
+            label: 'Event Transformation: Message Only mode | Docs | Tines',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.tines.com/docs/actions/types/send-to-story/',
             label: 'Send to Story | Docs | Tines',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -855,7 +855,7 @@ export const tinesProfile: CompetitorProfile = {
       },
       credentialGovernance: {
         value:
-          "Yes: credentials are scoped to Teams by default, and Team Admin/Editor roles control which teams a credential can be shared with. Sensitive settings like Access (where a credential can be used) and Domains (allowed outbound hosts/paths) are restricted to Team Admins or the credential's creator. Custom roles can extend the default viewer/builder/manager roles for finer-grained control.",
+          "Yes: credentials are scoped to Teams by default, and Team Admin/Editor roles control which teams a credential can be shared with. Sensitive settings like Access (where a credential can be used) are restricted to Team Admins (the 'Manage credentials' permission), and Domains (allowed outbound hosts/paths) can only be changed by the credential creator, users with the Team admin ('Manage credentials') role, or tenant owners. Enterprise Tenant Management customers can additionally create up to 25 custom roles that extend the default viewer/builder/manager roles for finer-grained, per-feature control; custom roles aren't available on lower plans and require contacting Tines to add them.",
         detail:
           "Governance operates at the team/role level with per-credential Access and Domain restrictions, not a credential-to-role assignment matrix like Sim's, but reaches a similar outcome.",
         shortValue: 'Yes: team-scoped credential access rules',
@@ -864,12 +864,17 @@ export const tinesProfile: CompetitorProfile = {
           {
             url: 'https://www.tines.com/docs/credentials/credential-configuration/access/',
             label: 'Access | Docs | Tines',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.tines.com/docs/admin/user-administration/custom-roles/',
             label: 'Custom roles | Docs | Tines',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.tines.com/docs/credentials/credential-configuration/domain-restriction/',
+            label: 'Domain restriction | Docs | Tines',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -890,16 +895,16 @@ export const tinesProfile: CompetitorProfile = {
       },
       dataRetention: {
         value:
-          'No: audit logs have a fixed two-year retention period, with no org-configurable retention window for logs or soft-deleted resources. Self-hosted deployments expose configurable event/rate limits via environment variables, but not data retention windows.',
+          'Yes: Tines audit logs retain data for up to two years by default, and tenant admins can lower that window to as little as 30 days from the settings cog — a genuine org-configurable retention control for audit logs. Self-hosted deployments separately expose configurable event/rate limits via environment variables; retention of workflow/execution data beyond audit logs is not documented as separately configurable.',
         detail:
-          'Org can extend retention indirectly by exporting audit logs to their own S3 bucket, but the in-product retention period itself is not shown as configurable.',
-        shortValue: 'No: fixed 2-year audit log retention',
-        confidence: 'estimated',
+          'Org can also extend retention indirectly by exporting audit logs to their own S3 bucket, on top of the in-product configurable window.',
+        shortValue: 'Yes: audit log retention configurable, 30 days–2 years',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.tines.com/docs/admin/audit-logs/',
             label: 'Audit logs | Docs | Tines',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1158,16 +1163,16 @@ export const tinesProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          '"Dedicated support and training" for Business/Enterprise plans, per the pricing page; specific mechanisms (named CSM/CSE role, SLA terms) are not publicly itemized',
+          "Yes: Tines publishes a public Support Reference Guide detailing three base support tiers — Community/Explore (community support only, no SLA), Standard (email support, Monday–Friday 9:00–17:00 local time, 2h/4h/24h response times for Critical/Major/Minor severity), and Enterprise (email and Slack support available 24 hours a day Monday–Friday, with Critical-severity issues additionally covered 24x7 including weekends; 1h/2h/24h response times for Critical/Major/Minor severity). Every paying customer also gets a named Customer Success Manager, who oversees account success and leads business reviews, and a Customer Success Engineer, who handles onboarding and workflow-building guidance. Optional add-on 'Care Plans' (Growth, Enhanced, Total) tighten SLAs further, down to a 30-minute Critical response and 24x7 Slack support on the Total tier. Training is separate: free self-paced Tines University courses for all customers, plus paid instructor-led training arranged through your CSM.",
         detail:
-          'The pricing page lists "Dedicated support and training" as a Business/Enterprise inclusion but does not name a specific role (e.g. Customer Success Manager/Engineer) or publish SLA terms.',
-        shortValue: 'Dedicated support and training for Business/Enterprise',
-        confidence: 'estimated',
+          "The pricing page no longer describes support inclusions after its 'Free edition / Paid editions' redesign; support tier and SLA specifics now live solely in the Support Reference Guide. Tines also publishes a quarterly SLA-adherence/CSAT scorecard (98.5-99% SLA adherence, 97-98% CSAT over the three months reported as of this check).",
+        shortValue: 'Named CSM/CSE roles; published SLA tables by plan and Care Plan tier',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.tines.com/pricing/',
-            label: 'Pricing | Tines',
-            asOf: '2026-07-08',
+            url: 'https://www.tines.com/support-reference-guide/',
+            label: 'Support Reference Guide | Tines',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1200,19 +1205,19 @@ export const tinesProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.crunchbase.com/organization/tines',
-            label: 'Tines: Crunchbase Company Profile',
-            asOf: '2026-07-02',
+            url: 'https://am.gs.com/en-us/advisors/news/press-release/2025/growth-equity-tines',
+            label: 'Tines Secures $125M in Series C Financing Led by Goldman Sachs Alternatives',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.irishtimes.com/business/2026/05/28/tines-doubled-revenue-ahead-of-125m-funding-round/',
             label: 'Tines doubled revenue ahead of $125m funding round: Irish Times',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://tracxn.com/d/companies/tines/__vhdOz5rrILYCmI2TCvs_islx2OCpdITCseVJD-QhsR0',
             label: 'Tines: Tracxn Company Profile',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

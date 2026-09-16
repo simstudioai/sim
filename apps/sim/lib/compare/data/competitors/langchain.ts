@@ -26,7 +26,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langchain.com/oss/python/langgraph/use-time-travel',
         label: 'Time travel - Docs by LangChain',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -38,7 +38,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
         label: 'Use the graph API - Docs by LangChain',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -50,7 +50,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://www.langchain.com/langsmith/evaluation',
         label: 'LangSmith Evaluations',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -62,7 +62,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langchain.com/langsmith/server-a2a',
         label: 'A2A endpoint in Agent Server - Docs by LangChain',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -74,7 +74,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langchain.com/oss/python/langgraph/studio',
         label: 'LangGraph Studio - Docs by LangChain',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -88,7 +88,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
         label: 'Use the graph API - Docs by LangChain',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -100,7 +100,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://github.com/langchain-ai/agent-chat-ui',
         label: 'langchain-ai/agent-chat-ui (GitHub)',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -112,7 +112,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langchain.com/oss/python/langchain/models',
         label: 'Models - Docs by LangChain',
-        asOf: '2026-07-04',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -124,7 +124,7 @@ export const langchainProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.langchain.com/langsmith/user-management',
         label: 'User management - Docs by LangChain',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -142,12 +142,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/langgraph/studio',
             label: 'LangGraph Studio - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/langchain-ai/deepagents',
             label: 'langchain-ai/deepagents (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -162,7 +162,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://academy.langchain.com/',
             label: 'LangChain Academy',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -177,7 +177,13 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
             label: 'Self-host standalone servers - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.langchain.com/blog/langgraph-platform-ga',
+            label:
+              'LangGraph Platform is now Generally Available (LangChain Blog, confirms 100k free self-hosted nodes/month on the Developer plan)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -185,14 +191,19 @@ export const langchainProfile: CompetitorProfile = {
         value:
           'Any environment that runs Python/Node for the open-source libraries themselves. LangGraph Platform (renamed LangSmith Deployment) additionally offers a managed cloud service, a standalone self-hosted container (Docker/Kubernetes/VM with a Redis + Postgres backend), and a hybrid model.',
         detail:
-          'Standalone container deployment requires a REDIS_URI (background task queue) and a DATABASE_URI (Postgres, for assistants/threads/runs/state). langgraph deploy (introduced March 2026) is the current production deployment path, superseding the older langgraph up Docker Compose flow.',
+          'Standalone container deployment requires a REDIS_URI (background task queue) and a DATABASE_URI (Postgres, for assistants/threads/runs/state). langgraph deploy (introduced March 16, 2026 via the langgraph-cli package) lets a single command build a Docker image locally, push it to a managed registry, and create or update a LangSmith Deployment, making it easy to integrate into CI/CD; the earlier langgraph up Docker Compose flow remains documented for standalone self-hosted deployment rather than being formally deprecated.',
         shortValue: 'OSS libraries anywhere, plus managed cloud, self-hosted container, or hybrid',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
             label: 'Self-host standalone servers - Docs by LangChain',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.langchain.com/blog/introducing-deploy-cli',
+            label: 'Introducing the LangGraph Deploy CLI (LangChain Blog)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -208,7 +219,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://blog.langchain.com/launching-langgraph-templates/',
             label: 'Launching LangGraph Templates (LangChain Blog)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -223,12 +234,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langchain-ai/langchain',
             label: 'langchain-ai/langchain (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/langchain-ai/langgraph',
             label: 'langchain-ai/langgraph (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -244,7 +255,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/assistants',
             label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -259,7 +270,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/assistants',
             label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -274,7 +285,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/blog/langgraph-studio-the-first-agent-ide',
             label: 'LangGraph Studio: The first agent IDE',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -289,7 +300,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/deepagents/overview',
             label: 'Deep Agents overview - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -314,7 +325,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://reference.langchain.com/python/deepagents/middleware/skills',
             label: 'skills | deepagents | LangChain Reference',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -329,7 +340,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/langgraph/use-subgraphs',
             label: 'Subgraphs - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -344,7 +355,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/use-remote-graph',
             label: 'How to interact with a deployment using RemoteGraph - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -361,7 +372,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/langchain',
             label: 'LangChain: Open Source AI Agent Framework',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -377,7 +388,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/langgraph',
             label: 'LangGraph: Agent Orchestration Framework for Reliable AI Agents',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -402,12 +413,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/langchain/retrieval',
             label: 'Retrieval - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langchain.com/oss/python/integrations/vectorstores',
             label: 'VectorStore Interface and Integrations - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -422,7 +433,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langchain-ai/langchain-mcp-adapters',
             label: 'langchain-ai/langchain-mcp-adapters (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://reference.langchain.com/python/langchain-mcp-adapters/interceptors',
+            label: 'interceptors - langchain_mcp_adapters - LangChain Reference',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -437,7 +453,13 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/langsmith/evaluation',
             label: 'LangSmith Evaluations',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.langchain.com/blog/introducing-align-evals',
+            label:
+              'Introducing Align Evals: Streamlining LLM Application Evaluation (LangChain Blog)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -453,7 +475,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/langchain/human-in-the-loop',
             label: 'Human-in-the-loop - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -478,7 +500,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/langchain/models',
             label: 'Models - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -493,7 +515,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://reference.langchain.com/python/langchain-core/runnables/fallbacks/RunnableWithFallbacks',
             label: 'RunnableWithFallbacks - LangChain Reference',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -508,7 +530,13 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://reference.langchain.com/python/deepagents/middleware/skills',
             label: 'skills | deepagents | LangChain Reference',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.langchain.com/oss/python/deepagents/customization',
+            label:
+              'Customization - Docs by LangChain (confirms Anthropic/Bedrock prompt-caching middleware registration and ordering)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -523,7 +551,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langchain-ai/agent-chat-ui',
             label: 'langchain-ai/agent-chat-ui (GitHub)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -539,7 +567,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://reference.langchain.com/python/langchain-core/documents/base/Document',
             label: 'Document - LangChain Reference',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -553,9 +581,9 @@ export const langchainProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://machinelearningplus.com/gen-ai/langgraph-map-reduce-parallel-execution/',
-            label: 'LangGraph Map-Reduce: Parallel Execution with Send API',
-            asOf: '2026-07-02',
+            url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
+            label: 'Use the graph API - Docs by LangChain',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -570,7 +598,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/server-a2a',
             label: 'A2A endpoint in Agent Server - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -586,7 +614,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/langgraph/use-graph-api',
             label: 'Use the graph API - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://reference.langchain.com/python/langgraph-sdk/schema/Config/recursion_limit',
+            label: 'recursion_limit - langgraph_sdk - LangChain Reference (confirms default of 25)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -602,7 +635,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/langchain',
             label: 'LangChain: Open Source AI Agent Framework',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -618,7 +651,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/server-api-ref',
             label: 'Agent Server API reference - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -642,27 +675,27 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/langsmith/sandboxes',
             label: 'LangSmith Sandboxes | Secure Runtime for Agent Code',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langchain.com/langsmith/sandbox-snapshots',
             label: 'Sandbox snapshots - Docs by LangChain',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langchain.com/langsmith/sandboxes',
             label: 'LangSmith Sandboxes (environment availability) - Docs by LangChain',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.langchain.com/blog/langsmith-sandboxes-generally-available',
             label: 'LangSmith Sandboxes are Generally Available (LangChain Blog)',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langchain.com/oss/python/deepagents/sandboxes',
             label: 'Sandboxes - Docs by LangChain',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -677,12 +710,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/server-api-ref',
             label: 'Agent Server API reference - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langchain.com/langsmith/server-a2a',
             label: 'A2A endpoint in Agent Server - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -698,12 +731,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langchain-ai/langchain',
             label: 'langchain-ai/langchain (GitHub)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://pypi.org/project/langchain-community/',
             label: 'langchain-community on PyPI (sunset notice)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -718,7 +751,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/server-api-ref',
             label: 'Agent Server API reference - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -735,13 +768,13 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'LangSmith Plus: $39/seat/month, up to 10,000 base traces/month included, then pay-as-you-go, unlimited seats, one complimentary dev deployment, email support',
+          'LangSmith Plus: $39/seat/month, up to 10,000 base traces/month included, then pay-as-you-go, ability to add unlimited seats, one free Serverless (Small) deployment included, plus Support Portal and Email Support access',
         detail:
           'The Developer plan below it is $0/seat/month (single seat, up to 5,000 base traces/month, community support only), so Plus is the first genuinely paid tier.',
         shortValue: '$39/seat/month, 10,000 base traces included',
@@ -750,7 +783,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -765,7 +798,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -783,21 +816,21 @@ export const langchainProfile: CompetitorProfile = {
     security: {
       compliance: {
         value:
-          "Yes: LangSmith is SOC 2 Type II certified, and is additionally stated to be HIPAA compliant and GDPR compliant. LangGraph Platform (now branded LangSmith Deployment) is publicly announced as carrying the same attestation, sharing LangSmith's infrastructure and compliance posture. No ISO 27001, PCI-DSS, or FedRAMP attestation was found on LangChain's own compliance materials.",
+          "Yes: LangSmith is SOC 2 Type II certified (the 2026 report, covering July 1, 2025 through June 30, 2026, expanded scope to Security, Availability, and Confidentiality across the entire LangSmith offering, audited by Advantage Partners with no exceptions noted), and is additionally ISO/IEC 27001:2022 certified (announced July 2, 2026, covering the systems, teams, and information assets supporting LangSmith and LangChain's LLM application tooling, also audited by Advantage Partners), and is stated to be HIPAA compliant and GDPR compliant. LangGraph Platform (now branded LangSmith Deployment) shares LangSmith's infrastructure and is covered by the same attestations. No PCI-DSS or FedRAMP attestation was found on LangChain's own compliance materials.",
         detail:
-          "LangChain's Trust Center (trust.langchain.com) is the canonical source for these claims but renders via client-side JavaScript, so it could not be directly verified by an automated fetch; the SOC 2 Type II certification is independently confirmed on a static docs page, while the HIPAA and GDPR claims rest on LangChain's own docs and Trust Center.",
-        shortValue: 'SOC 2 Type II, HIPAA, GDPR; no ISO/PCI/FedRAMP',
+          "LangChain's Trust Center (trust.langchain.com) is directly readable in a browser and lists Compliance: SOC 2 Type II, ISO/IEC 27001:2022, GDPR, and HIPAA, alongside its own update feed announcing the ISO/IEC 27001:2022 certification (July 2, 2026) and the 2026 SOC 2 Type II report (published September 3, 2026); the SOC 2 Type II certification is additionally confirmed on a static docs page, while the HIPAA and GDPR claims rest on LangChain's own docs and Trust Center.",
+        shortValue: 'SOC 2 Type II, ISO 27001:2022, HIPAA, GDPR; no PCI-DSS/FedRAMP found',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.langchain.com/langsmith/regions-faq',
             label: 'Regions FAQ - Docs by LangChain (confirms SOC 2 Type 2)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://trust.langchain.com/',
             label: 'LangChain Trust Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -812,7 +845,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/regions-faq',
             label: 'Regions FAQ - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -827,7 +860,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/blog/access-control-updates-for-langsmith',
             label: 'Role Based Access Control (RBAC) for LangSmith',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -861,7 +894,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/user-management',
             label: 'User management - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -885,7 +918,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -900,7 +933,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/mask-inputs-outputs',
             label: 'Prevent logging of sensitive data in traces - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -915,7 +948,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/user-management',
             label: 'User management - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -945,12 +978,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://support.langchain.com/articles/9515017706-session-timeout-configuration-for-langsmith-self-hosted',
             label: 'Session Timeout Configuration for LangSmith Self-Hosted',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://support.langchain.com/articles/8821869322-sso-authentication-and-token-issuance-in-langsmith',
             label: 'SSO Authentication and Token Issuance in LangSmith',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -966,13 +999,19 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/oss/python/security-policy',
             label: 'Security policy - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/advisories/GHSA-c67j-w6g6-q2cm',
             label:
               'LangChain serialization injection vulnerability (CVE-2025-68664) - GitHub Advisory Database',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://thehackernews.com/2025/12/critical-langchain-core-vulnerability.html',
+            label:
+              'Critical LangChain Core Vulnerability (The Hacker News, confirms "LangGrinch" nickname)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -989,12 +1028,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/observability-concepts',
             label: 'Observability concepts - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langchain.com/oss/python/langgraph/use-time-travel',
             label: 'Time travel - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1010,7 +1049,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/blog/fault-tolerance-in-langgraph',
             label: 'Fault Tolerance in LangGraph (LangChain Blog)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1034,7 +1073,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/export-backend',
             label: 'Export LangSmith telemetry to your observability backend - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1049,7 +1088,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/agent-server',
             label: 'Agent Server - Docs by LangChain',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1073,7 +1112,7 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://deepwiki.com/langchain-ai/langgraph/3.8-error-handling-and-retry-policies',
             label: 'Error Handling and Retry Policies | langchain-ai/langgraph | DeepWiki',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1088,12 +1127,12 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://docs.langchain.com/langsmith/assistants',
             label: 'Assistants - Docs by LangChain',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.langchain.com/langsmith/deploy-standalone-server',
             label: 'Self-host standalone servers - Docs by LangChain',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1110,27 +1149,28 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.langchain.com/join-community',
             label: 'LangChain Community Slack',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       sla: {
         value:
-          'Not publicly documented as a specific uptime percentage: LangSmith Enterprise lists "SLA guarantees" as an included feature, but no page publishes a concrete SLA number',
+          'Not publicly documented as a specific uptime percentage: LangSmith Enterprise lists "Support SLA" as an included feature, but no page publishes a concrete SLA percentage or response-time number.',
         detail:
-          'The LangSmith pricing page names "SLA guarantees" under the Enterprise tier without stating the specific percentage or terms publicly.',
-        shortValue: 'Enterprise includes SLA guarantees, exact terms not publicly stated',
+          'The LangSmith pricing page names "Support SLA" under the Enterprise tier without stating the specific percentage, response-time, or terms publicly.',
+        shortValue:
+          'Enterprise includes a "Support SLA"; exact terms/percentage not publicly stated',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.langchain.com/pricing',
             label: 'LangSmith Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1145,38 +1185,54 @@ export const langchainProfile: CompetitorProfile = {
           {
             url: 'https://github.com/langchain-ai/langchain',
             label: 'langchain-ai/langchain (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/langchain-ai/langgraph',
             label: 'langchain-ai/langgraph (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.langchain.com/blog/series-b',
             label: 'LangChain raises $125M to build the platform for agent engineering',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       companyMaturity: {
         value:
-          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $160M across seed, Series A, and Series B), with reported headcount in the roughly 260-325 employee range as of mid-2026',
+          'LangChain Inc. Founded 2022 by Harrison Chase. Raised a $125M Series B led by IVP in October 2025 at a $1.25B valuation (total raised approximately $160M across seed, Series A, and Series B), with headcount reported at approximately 429 employees as of August 2026 per Tracxn, up sharply from earlier-2026 snapshots reported by other trackers',
         detail:
-          "Prior rounds: a $10M seed from Benchmark (April 2023) and a $25M Series A led by Sequoia days later (reported at a ~$200M valuation). $10M + $25M + $125M totals approximately $160M; some third-party trackers report a higher ~$260M cumulative figure, which appears to double-count TechCrunch's July 2025 report of an in-progress raise (at a reported $1.1B valuation) as a separate round from its October 2025 close (the same round, at $1.25B) rather than an additional close, so $160M is the figure directly supported by LangChain's own funding announcement and primary reporting. Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary by snapshot date (163 to 325 across different 2026 trackers), reflecting rapid hiring.",
+          "Prior rounds: a $10M seed from Benchmark, publicly announced by co-founder Ankush Gola (April 2023), and a $25M Series A led by Sequoia Capital, announced on LangChain's own blog roughly ten months later alongside LangSmith's general availability (February 15, 2024; reported elsewhere at a ~$200M valuation). $10M + $25M + $125M totals approximately $160M; some third-party trackers report a higher ~$260M cumulative figure, which appears to double-count TechCrunch's July 2025 report of an in-progress raise (which TechCrunch described only as raising 'at a valuation of at least $1 billion,' not a specific $1.1B figure) as a separate round from its October 2025 close (the same round, at $1.25B) rather than an additional close, so $160M is the figure directly supported by LangChain's own funding announcements and primary reporting. Investors in the Series B include Sequoia, Benchmark, IVP, CapitalG, Sapphire Ventures, and strategic investors such as ServiceNow Ventures, Workday Ventures, Cisco Investments, Datadog Ventures, and Databricks Ventures. Employee-count sources vary significantly by snapshot date and tracker methodology: Tracxn reports 429 employees as of August 31, 2026, up substantially since 2025, when some third-party trackers reported headcount in the 150-200 range, consistent with the company's rapid hiring following its Series B.",
         shortValue:
-          'Founded 2022; $125M Series B (Oct 2025) at $1.25B valuation; ~260-325 employees',
+          'Founded 2022; $125M Series B (Oct 2025) at $1.25B valuation; ~429 employees (Aug 2026)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.langchain.com/blog/series-b',
             label: 'LangChain raises $125M to build the platform for agent engineering',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://techcrunch.com/2025/10/21/open-source-agentic-startup-langchain-hits-1-25b-valuation/',
             label: 'Open source agentic startup LangChain hits $1.25B valuation | TechCrunch',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.linkedin.com/posts/ankush-gola-77255866_announcing-our-10m-seed-round-led-by-benchmark-activity-7049070288507961345-RAVk',
+            label: 'Ankush Gola announcing the $10M Benchmark-led seed round (LinkedIn)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.langchain.com/blog/langsmith-ga',
+            label:
+              'Announcing the GA of LangSmith and Our Series A Led By Sequoia Capital (LangChain Blog)',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://tracxn.com/d/companies/langchain/__O9N2dOHcgRE9Nbcn5BFfkUHn-rVk6GTbq8oY-UJ0Ba4',
+            label: 'LangChain company profile - Tracxn (employee headcount)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1188,7 +1244,7 @@ export const langchainProfile: CompetitorProfile = {
         shortValue: 'Yes, free structured courses with certificates at LangChain Academy',
         confidence: 'verified',
         sources: [
-          { url: 'https://academy.langchain.com/', label: 'LangChain Academy', asOf: '2026-07-02' },
+          { url: 'https://academy.langchain.com/', label: 'LangChain Academy', asOf: '2026-09-15' },
         ],
       },
     },

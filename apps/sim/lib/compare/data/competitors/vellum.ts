@@ -18,14 +18,15 @@ export const vellumProfile: CompetitorProfile = {
     'Vellum is an enterprise AI development platform for building, evaluating, and deploying LLM prompts, workflows, and agents.',
   standoutFeatures: [
     {
-      title: 'HIPAA compliance with a signable BAA',
+      title: 'HIPAA compliance, corroborated by a third-party audit',
       description:
-        'Vellum is HIPAA compliant and enterprise customers can sign a Business Associate Agreement for handling protected health information, corroborated by a third-party Drata case study. Sim does not currently offer HIPAA compliance (both platforms hold SOC 2 Type 2).',
-      shortDescription: 'HIPAA compliant with a signable BAA; Sim does not offer HIPAA.',
+        "Vellum is HIPAA compliant, per both its own security documentation and a third-party Drata case study confirming Vellum achieved SOC 2 Type 1 and Type 2 attestations 'alongside HIPAA compliance.' Whether Vellum offers a signable Business Associate Agreement (BAA) for enterprise customers handling protected health information is not publicly documented on either source; enterprise customers should confirm BAA availability directly with Vellum's sales team. Sim does not currently offer HIPAA compliance (both platforms hold SOC 2 Type 2).",
+      shortDescription:
+        'HIPAA compliant per a third-party audit; BAA availability not publicly documented. Sim does not offer HIPAA.',
       source: {
         url: 'https://drata.com/customers/vellum',
         label: 'Vellum Case Study: Drata',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -106,9 +107,14 @@ export const vellumProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://skywork.ai/blog/vellum-ai-review-prompt-management-evaluations-orchestration/',
-            label: 'Vellum AI Review: Prompt Management, Evaluations & Orchestration',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/workflows/introduction',
+            label: 'Workflows Introduction - Vellum Documentation',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.vellum.ai/developers/workflows-sdk/introduction',
+            label: 'Workflows SDK Introduction - Vellum Documentation',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -157,10 +163,19 @@ export const vellumProfile: CompetitorProfile = {
         ],
       },
       templates: {
-        value: 'A templates page exists on vellum.ai; contents are not publicly detailed.',
-        shortValue: 'Exists; contents undocumented',
+        value:
+          'Not publicly documented: vellum.ai/templates, previously referenced as a templates page, now redirects to the vellum.ai homepage rather than showing distinct template content. No dedicated templates page for the B2B workflow/agent platform could be located as of this check.',
+        detail:
+          "This mirrors the broader mid-2026 site pivot described elsewhere in this profile, where vellum.ai's marketing pages now serve the unrelated consumer 'Personal Intelligence' product. Whether the enterprise workflow platform still offers templates through docs.vellum.ai or the in-app product is not confirmed.",
+        shortValue: 'No longer found; URL now redirects to the consumer homepage.',
         confidence: 'unknown',
-        sources: [],
+        sources: [
+          {
+            url: 'https://www.vellum.ai/templates',
+            label: 'Vellum Templates (redirects to homepage)',
+            asOf: '2026-09-15',
+          },
+        ],
       },
       license: {
         value:
@@ -391,14 +406,14 @@ export const vellumProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://skywork.ai/blog/vellum-ai-review-prompt-management-evaluations-orchestration/',
-            label: 'Vellum AI Review: Prompt Management, Evaluations & Orchestration',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/evaluation/online-evaluations',
+            label: 'Online Evaluations - Vellum Documentation',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.vellum.ai/product/evaluation/quantitative-evaluation',
             label: 'Vellum Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -487,21 +502,22 @@ export const vellumProfile: CompetitorProfile = {
       },
       kbChunkVisibility: {
         value:
-          "Yes: Vellum's Document Index search returns individual chunk-level results, and Advanced Chunking exposes per-chunk metadata (like source page range) alongside configurable chunk size and overlap settings, giving chunk-level visibility for debugging retrieval quality.",
+          "Yes: Vellum's Document Index search returns individual chunk-level results, and each search result includes per-chunk metadata (like the source page range where the chunk starts/ends), giving chunk-level visibility for debugging retrieval quality. Vellum's RAG-pipeline-evaluation guidance also recommends experimenting with different chunking sizes as a retrieval-tuning lever, though a dedicated 'Advanced Chunking' page with explicit overlap controls could not be located in current docs.",
         detail:
           'Documented under the Document Indexes / Search API and RAG pipeline evaluation docs; each search result object represents one matching chunk, not a whole document.',
-        shortValue: 'Search returns per-chunk results with metadata',
+        shortValue:
+          'Search returns per-chunk results with metadata; configurable overlap not confirmed.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/developers/client-sdk/document-indexes/search',
             label: 'Search - Vellum Documentation',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.vellum.ai/product/evaluation/evaluating-rag-pipelines',
             label: 'Evaluating RAG Pipelines - Vellum Documentation',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -596,14 +612,20 @@ export const vellumProfile: CompetitorProfile = {
       },
       customCodeSteps: {
         value:
-          "Vellum has a documented 'Code Execution Node' supporting custom Python or TypeScript code with a required main() function signature, an in-browser IDE, and support for public PyPI/npm packages. Newer 'Custom Nodes' are expected to eventually replace it.",
-        shortValue: 'Python/TypeScript code node with in-browser IDE',
+          "Vellum has a documented 'Code Execution Node' supporting custom Python or TypeScript code with a required main() function signature, an in-browser IDE, and support for public PyPI/npm packages. A separate, newer 'Custom Nodes' feature also exists, but Vellum's own documentation does not state that Custom Nodes are intended to replace Code Execution Nodes; the two currently appear to be documented as parallel capabilities.",
+        shortValue:
+          'Python/TypeScript code node with in-browser IDE; Custom Nodes exist separately, not documented as a replacement.',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/workflows/nodes/code-execution-node',
             label: 'Vellum Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.vellum.ai/blog/introducing-custom-docker-images-custom-nodes',
+            label: 'Introducing Custom Docker Images & Custom Nodes - Vellum Blog',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -697,7 +719,7 @@ export const vellumProfile: CompetitorProfile = {
         value:
           "Not publicly listed for the B2B enterprise platform: Vellum's current pricing page has been fully replaced by the unrelated consumer 'Personal Intelligence' product's plans. A September 2025 third-party pricing analysis, published before that switch, described the enterprise platform as execution-credit-based with per-tier seat caps (Free, Pro, Enterprise) rather than the prepaid-credit model now shown.",
         detail:
-          "Current pricing pages (vellum.ai/pricing, vellum.ai/docs/pricing) describe the consumer 'Personal Intelligence' product's plans (Base/Free and Pro $50/mo tiers with configurable vCPU/RAM/storage add-ons), not the enterprise workflow platform. The last third-party description of the enterprise platform's model itself states Vellum 'does not publicly list pricing details on its website,' so the figures below are third-party estimates, not Vellum-published prices.",
+          "Current pricing pages (vellum.ai/pricing) describe the consumer 'Personal Intelligence' product's plans, not the enterprise workflow platform: a free 'Start Free' tier, then three named paid tiers — Mighty ($30/month, 1 vCPU/2 GiB, 10 GB storage), Super ($100/month, 2.5 vCPU/5 GiB, 30 GB storage, plus a custom assistant email/subdomain), and Ultra ($200/month, 4 vCPU/8 GiB, 60 GB storage) — with a Custom Plan above that and self-hosting available at the cost of one's own infrastructure. The last third-party description of the enterprise platform's own pricing model states Vellum 'does not publicly list pricing details on its website,' so the enterprise-tier figures elsewhere in this profile are third-party estimates, not Vellum-published prices.",
         shortValue: 'Not publicly listed; third-party analysis describes credit-based tiers',
         confidence: 'unknown',
         sources: [
@@ -709,7 +731,7 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://www.vellum.ai/pricing',
             label: 'Vellum Pricing (now shows the consumer product)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -762,35 +784,36 @@ export const vellumProfile: CompetitorProfile = {
     security: {
       compliance: {
         value:
-          'SOC 2 Type 2 attested and HIPAA compliant, with a Business Associate Agreement (BAA) available for enterprise customers; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed',
+          "SOC 2 Type 2 attested and HIPAA compliant; a Business Associate Agreement (BAA) is not publicly documented as available to enterprise customers on either Vellum's security docs or its third-party Drata case study; no other certifications (ISO 27001, GDPR-specific attestation, PCI, FedRAMP) confirmed",
         detail:
-          'SOC 2 Type 2 is documented at docs.vellum.ai and corroborated by a third-party Drata customer case study noting Vellum achieved SOC 2 Type 1 and Type 2 attestations. Those same docs and case study state Vellum is HIPAA compliant and that enterprise customers can sign a Business Associate Agreement (BAA). No mention of ISO 27001, PCI, or FedRAMP certification was found.',
-        shortValue: 'SOC 2 Type 2 and HIPAA; no other certs',
-        confidence: 'verified',
+          "SOC 2 Type 2 is documented at docs.vellum.ai/product/security/data-privacy-and-storage ('Vellum maintains SOC 2 Type 2 compliance and is HIPAA compliant') and corroborated by a third-party Drata customer case study noting Vellum achieved SOC 2 Type 1 and Type 2 attestations 'alongside HIPAA compliance.' Neither source mentions a Business Associate Agreement anywhere on the page, so BAA availability should be treated as unconfirmed rather than assumed. No mention of ISO 27001, PCI, or FedRAMP certification was found on either source.",
+        shortValue:
+          'SOC 2 Type 2 and HIPAA confirmed; BAA availability unconfirmed; no other certs found.',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
             label: 'Vellum Docs: Data Privacy and Storage',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://drata.com/customers/vellum',
             label: 'Vellum Case Study: Drata',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       dataResidency: {
         value: 'Unknown: no specific region/residency options documented',
         detail:
-          "Docs describe data being stored 'in Vellum's infrastructure, isolated in a dedicated, encrypted container' but do not specify selectable residency regions.",
+          "Vellum's Data Privacy and Storage docs state that 'All data stored in Vellum, including documents in Document Indexes, is encrypted using AES-256 GCM encryption,' and that this 'industry-standard encryption protocol ensures that your sensitive information remains secure both in transit and at rest,' but the page does not specify selectable residency regions or a customer choice of storage location.",
         shortValue: 'No selectable residency regions documented',
         confidence: 'unknown',
         sources: [
           {
             url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
             label: 'Vellum Docs: Data Privacy and Storage',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -862,9 +885,9 @@ export const vellumProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.vellum.ai/product/security/data-privacy-and-storage',
-            label: 'Data Privacy and Storage - Vellum Documentation',
-            asOf: '2026-07-02',
+            url: 'https://docs.vellum.ai/product/organizations/data-retention-policies',
+            label: 'Data Retention Policies - Vellum Documentation',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -994,7 +1017,12 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://docs.vellum.ai/product/monitoring/webhooks',
             label: 'Webhook Integration - Vellum Documentation',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.vellum.ai/product/monitoring/datadog',
+            label: 'Datadog Integration - Vellum Documentation',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1071,10 +1099,10 @@ export const vellumProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Email, an in-app chat, a shared Slack channel for active customers, and a Discord community',
+          "Email, an in-app chat, and a shared Slack channel for active customers are documented for the enterprise workflow platform; a Discord community exists on vellum.ai but is tied to Vellum's separate consumer product and its association with the workflow platform is unconfirmed",
         detail:
-          "Vellum's help center lists email (support@vellum.ai), in-app chat via the dashboard's 'Get Help' button, and a shared Slack channel for active customers; the enterprise page separately links a public Discord community. vellum.ai/pricing has since been repurposed for a different 'personal AI assistant' product, so its 'priority support' mention describes that product's paid add-on, not the workflow platform's support tiers — no priority-support or SLA claim is made here.",
-        shortValue: 'Email, in-app chat, Slack (customers), Discord community',
+          "Vellum's help center lists email (support@vellum.ai), in-app chat via the dashboard's 'Get Help' button, and a shared Slack channel for active customers. vellum.ai/enterprise has been repurposed for the consumer 'personal AI assistant' product and no longer links a Discord community; a Discord invite is still live from vellum.ai/community, but that page now serves the consumer product, so it can't be confirmed as the enterprise platform's channel. vellum.ai/pricing is likewise repurposed, so its 'priority support' mention describes that product's paid add-on, not the workflow platform's support tiers — no priority-support or SLA claim is made here.",
+        shortValue: "Email, in-app chat, Slack (customers); Discord's platform tie-in unconfirmed.",
         confidence: 'estimated',
         sources: [
           {
@@ -1085,7 +1113,12 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://www.vellum.ai/enterprise',
             label: 'Vellum Enterprise',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.vellum.ai/community',
+            label: 'Vellum Community (Discord invite, now the consumer-product community page)',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1098,14 +1131,16 @@ export const vellumProfile: CompetitorProfile = {
         sources: [],
       },
       community: {
-        value: 'Discord community exists',
-        shortValue: 'Discord community',
-        confidence: 'estimated',
+        value:
+          "Unconfirmed for the B2B workflow platform: a Discord invite link (discord.gg/ZABd9V2zM8) is live on vellum.ai/community, but that page and the rest of vellum.ai's marketing site now serve Vellum's separate consumer 'Personal Intelligence' product, so this Discord community can no longer be confirmed as associated with the enterprise workflow/agent platform compared here.",
+        shortValue:
+          'Discord exists on the site, but is now tied to the consumer-product community page.',
+        confidence: 'unknown',
         sources: [
           {
-            url: 'https://www.vellum.ai/enterprise',
-            label: 'Vellum Enterprise',
-            asOf: '2026-07-02',
+            url: 'https://www.vellum.ai/community',
+            label: 'Vellum Community (Discord invite, now the consumer-product community page)',
+            asOf: '2026-09-15',
           },
         ],
       },

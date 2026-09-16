@@ -44,13 +44,13 @@ export const openClawProfile: CompetitorProfile = {
     {
       title: 'Sub-agent orchestration for parallel background work',
       description:
-        'A running agent can spawn sub-agents, background runs in their own isolated session and (by default) sandbox, that work in parallel on research, long-running tools, or verification tasks and report results back to the requesting chat when finished. Nesting depth defaults to 1 level, with an orchestrator pattern recommended at depth 2, and a configurable maximum of 5 levels.',
+        "A running agent can spawn sub-agents, background runs in their own isolated session and (by default) sandbox, that work in parallel on research, long-running tools, or verification tasks and report results back to the requesting chat when finished. Nesting depth defaults to 5 levels (maxSpawnDepth, range 1-5): a sub-agent at depth 1-4 defaults to the 'Orchestrator' role and can itself spawn children, while a depth-5 sub-agent is a 'Leaf' and cannot. Operators can lower maxSpawnDepth (e.g. to 1, disabling further nesting, or to 2) to force leaf workers sooner.",
       shortDescription:
         'Spawns isolated sub-agents that run tasks in parallel and report back to chat.',
       source: {
         url: 'https://docs.openclaw.ai/tools/subagents',
         label: 'OpenClaw Docs: Sub-agents',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -84,9 +84,9 @@ export const openClawProfile: CompetitorProfile = {
       shortDescription:
         'MIT-licensed; governance is moving to an independent foundation supported, not owned, by OpenAI.',
       source: {
-        url: 'https://www.forbes.com/sites/ronschmelzer/2026/02/16/openai-hires-openclaw-creator-peter-steinberger-and-sets-up-foundation/',
-        label: 'Forbes: OpenAI Hires OpenClaw Creator Peter Steinberger And Sets Up Foundation',
-        asOf: '2026-07-08',
+        url: 'https://openclaw.ai/blog/introducing-openclaw-foundation',
+        label: 'OpenClaw Blog: Introducing the OpenClaw Foundation',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -177,7 +177,7 @@ export const openClawProfile: CompetitorProfile = {
         value:
           'Moderate to steep for initial self-hosted setup, low for day-to-day chat use once running',
         detail:
-          'Installing OpenClaw requires Node.js 22.19+/24, a package manager (pnpm/npm/bun), CLI onboarding commands, and editing JSON configuration for channels, providers, and security policy (e.g. DM pairing, sandbox mode). Once running, interacting with the agent is plain natural-language chat.',
+          'Installing OpenClaw requires Node.js 24.16+ or 26.1+ (26 recommended), a package manager (pnpm/npm/bun) or the bundled installer script, CLI onboarding commands, and editing JSON configuration for channels, providers, and security policy (e.g. DM pairing, sandbox mode). Once running, interacting with the agent is plain natural-language chat.',
         shortValue: 'Technical setup, but simple chat once configured',
         confidence: 'estimated',
         sources: [
@@ -189,7 +189,7 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://github.com/openclaw/openclaw',
             label: 'openclaw/openclaw (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -254,7 +254,12 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://openclaw.ai/ecosystem/',
             label: 'OpenClaw Ecosystem page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://openclaw.ai/blog/introducing-openclaw-foundation',
+            label: 'OpenClaw Blog: Introducing the OpenClaw Foundation',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -499,7 +504,7 @@ export const openClawProfile: CompetitorProfile = {
         value:
           'Yes: documented tools for image generation, video generation (text-to-video, image-to-video, video-to-video), music/audio generation, and text-to-speech, each running asynchronously except TTS which runs synchronously',
         detail:
-          'The image_generate, video_generate, and music_generate tools post results into the chat session when ready. TTS defaults to ElevenLabs but also supports Azure Speech and Google Cloud TTS, with SSML/voice customization.',
+          'The image_generate, video_generate, and music_generate tools post results into the chat session when ready. TTS has no fixed default provider — when `tts.provider` is unset, OpenClaw uses the first configured provider in registry auto-select order, across a supported list including Azure Speech, ElevenLabs (voice cloning, deterministic via `seed`), Google Gemini (persona-aware audio profiles), Fish Audio, Microsoft Edge TTS, OpenAI, and others; documented customization is per-provider (e.g. Gemini `audioProfile` style prompts, ElevenLabs voice cloning) rather than a general SSML layer.',
         shortValue: 'Yes, image/video/music generation and TTS tools',
         confidence: 'verified',
         sources: [
@@ -511,7 +516,7 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://docs.openclaw.ai/tools/tts',
             label: 'OpenClaw Docs: Text-to-speech',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -579,16 +584,16 @@ export const openClawProfile: CompetitorProfile = {
       },
       parallelExecution: {
         value:
-          'Yes: sub-agents can run in parallel, working simultaneously on separate tasks (e.g. research, content generation, verification) and report back to the requesting session. Nesting defaults to depth 1, with a documented maxSpawnDepth configurable up to 5 levels via the maxSpawnDepth parameter (range 1-5).',
+          "Yes: sub-agents can run in parallel, working simultaneously on separate tasks (e.g. research, content generation, verification) and report back to the requesting session. Nesting depth defaults to 5 levels via the maxSpawnDepth parameter (range 1-5): a sub-agent at depth 1-4 defaults to the 'Orchestrator' role and can itself spawn children, while a depth-5 sub-agent is a 'Leaf' and cannot. Operators can lower maxSpawnDepth (e.g. to 1, disabling further nesting, or to 2) to force leaf workers sooner.",
         detail:
           'Each sub-agent gets its own session identifier, context window, and execution environment (with optional sandboxing), isolated from the main session and from sibling sub-agents.',
-        shortValue: 'Yes, parallel sub-agents with configurable nesting depth (up to 5)',
+        shortValue: 'Yes: parallel sub-agents, nesting depth defaults to 5 (range 1-5)',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/tools/subagents',
             label: 'OpenClaw Docs: Sub-agents',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -610,22 +615,33 @@ export const openClawProfile: CompetitorProfile = {
       },
       loopIteration: {
         value:
-          "No: neither the core agent loop nor the optional Lobster workflow shell has a dedicated for-each/while loop container. Lobster's own maintainers describe its steps as executing strictly top to bottom with no way to jump back to a previous step, and a GitHub feature-request proposal for adding loop/flow-control (a next field enabling backward jumps and max_iterations) is not yet implemented.",
+          "Partial: Lobster's core agent loop still has no user-facing while/backward-jump construct, but the optional Lobster workflow shell now ships a dedicated `for_each` step type (shipped April 2026, extended September 2026) that iterates a set of sub-steps over every item in a referenced array, with loop-scoped `item_var`/`index_var`, optional `batch_size`/`pause_ms` rate limiting, per-loop timeout/retry/`on_error` policy, and collected iteration outputs for downstream steps — a genuine loop/iteration container, though it is not yet reflected on the official hosted docs page. A broader maintainer-filed proposal for general flow control (a `next` field enabling arbitrary backward jumps and `max_iterations`, distinct from iterating a fixed collection) was closed as completed in the same closing pass, with that specific backward-jump mechanism explicitly carved out as unshipped and no live tracking issue currently open for it.",
         detail:
-          'Lobster documents only run/command, pipeline, and approval step types plus a boolean condition gate. A maintainer-filed proposal (openclaw/lobster issue #38) states plainly that "steps execute top to bottom. There\'s no way to jump back to a previous step" and lists step flow control/loops as a future addition, not a shipped feature.',
-        shortValue: 'No: Lobster steps run top to bottom, no loop construct shipped',
+          'Lobster\'s own README and CHANGELOG document `run`/`command`, `pipeline`, `approval`, `parallel`, and `for_each` step types; the hosted docs page at docs.openclaw.ai/tools/lobster has not yet been updated to list `for_each` as of this check, but the feature is shipped on the `main` branch (PR #68, closing openclaw/lobster issue #76, "for_each step type for iterating over collections," as completed on 2026-04-11) and actively maintained (PR #160, merged 2026-09-08, added `timeout_ms`/`retry`/`on_error` handling and `cost_limit` interaction for the whole loop). A maintainer-filed umbrella proposal (openclaw/lobster issue #38) that separately stated "steps execute top to bottom. There\'s no way to jump back to a previous step" was closed as completed on 2026-04-11 after shipping structured input requests and richer conditions; its closing comment explicitly carves out `next`/backward-jump loop semantics as unshipped scope, inviting a separate follow-up issue that, as of this check, has not been filed.',
+        shortValue: 'Partial: for_each loop shipped in Lobster; no backward-jump construct',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/tools/lobster',
             label: 'OpenClaw Docs: Lobster',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://github.com/openclaw/lobster/issues/38',
             label:
               'openclaw/lobster GitHub issue #38: Human-in-the-loop workflows: structured input requests, conditionals, and step flow control',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/openclaw/lobster/issues/76',
+            label:
+              'openclaw/lobster GitHub issue #76: for_each step type for iterating over collections',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://github.com/openclaw/lobster/blob/main/CHANGELOG.md',
+            label: 'openclaw/lobster CHANGELOG',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -801,14 +817,14 @@ export const openClawProfile: CompetitorProfile = {
         value:
           'Yes, and mandatory: OpenClaw requires the operator to supply their own API credentials/OAuth login for whichever model provider(s) they configure (Anthropic, OpenAI, Google, or any OpenAI-compatible endpoint); there is no OpenClaw-hosted model access.',
         detail:
-          'Onboarding documentation walks through provider-specific auth flows (e.g. `openclaw models auth paste-token --provider anthropic`, `openclaw models auth login --provider openai-codex`). BYOK is the only supported model-access model.',
+          'Onboarding documentation walks through provider-specific auth flows (e.g. `openclaw models auth paste-token --provider anthropic`, `openclaw models auth login --provider openai --set-default` for ChatGPT/Codex OAuth — the older `openai-codex` provider id is legacy and is auto-migrated to `openai` by `openclaw doctor --fix`). BYOK is the only supported model-access model.',
         shortValue: 'Yes, mandatory; no OpenClaw-hosted model access',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/concepts/model-providers',
             label: 'OpenClaw Docs: Model providers',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -941,16 +957,16 @@ export const openClawProfile: CompetitorProfile = {
       },
       piiRedaction: {
         value:
-          'Partial: session logging redacts sensitive tool summaries and URLs by default (logging.redactSensitive: "tools"), but this is generic sensitive-data log redaction, not a dedicated, named PII-detection feature (e.g. SSNs, credit card numbers) applied to conversation content itself.',
+          'Partial: sensitive-value redaction (tokens, bearer headers, PEM blocks, vendor token prefixes, payment-credential field names) is always on for console, file-log, OTLP, and transcript output and cannot be disabled; operators can only add custom patterns via `logging.redactPatterns`. This is generic secret/token redaction, not a dedicated PII-detection feature (e.g. SSNs) applied to conversation content itself.',
         detail:
-          'Redaction applies to logging output only, not to what the agent itself sees or processes mid-conversation.',
-        shortValue: 'Partial: log redaction only, not conversation-content PII detection',
+          'Redaction applies to logging/transcript output only (console, file-log, OTLP log records, and session transcript text), not to what the agent itself sees or processes mid-conversation; it targets secret-shaped values (keys, tokens, headers, PEM blocks, payment fields) via pattern matching, not semantic PII categories like names, SSNs, or addresses in ordinary conversation text.',
+        shortValue: 'Partial: mandatory secret/token redaction, not PII detection',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.openclaw.ai/gateway/security',
             label: 'OpenClaw Docs: Security',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -983,8 +999,13 @@ export const openClawProfile: CompetitorProfile = {
             asOf: '2026-09-15',
           },
           {
-            url: 'https://docs.openclaw.ai/gateway/authentication',
-            label: 'OpenClaw Docs: Authentication',
+            url: 'https://docs.openclaw.ai/gateway/security/trust-model',
+            label: 'OpenClaw Docs: Trust model',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.openclaw.ai/gateway/security/network-exposure',
+            label: 'OpenClaw Docs: Network exposure',
             asOf: '2026-09-15',
           },
         ],
@@ -1048,22 +1069,22 @@ export const openClawProfile: CompetitorProfile = {
       },
       durabilityModel: {
         value:
-          'Partial: cron-scheduled jobs run as isolated sessions with retention/pruning, and OpenClaw now provides automatic retry-with-backoff for both one-shot jobs (up to retry.maxAttempts, default 3 attempts, at 30s/60s/5m) and recurring jobs (an extended 30s/60s/5m/15m/60m backoff on consecutive errors), though there is still no checkpoint/replay-of-a-past-run feature for either scheduled jobs or interactive chat sessions.',
+          'Partial: cron-scheduled jobs run as isolated sessions with retention/pruning, and OpenClaw provides automatic retry for one-shot jobs (a built-in retry schedule for transient errors — rate limit, overload, network, timeout, server error — with permanent errors disabling the job immediately; exact attempt count and intervals are not published) and recurring jobs (a documented extended backoff of 30s/60s/5m/15m/60m on consecutive errors, resetting after the next successful run), though there is still no checkpoint/replay-of-a-past-run feature for either scheduled jobs or interactive chat sessions.',
         detail:
-          'The cron docs describe both delivery diagnostics (intended target, resolved target, fallback delivery used, final delivered state) for message delivery, and the retry/backoff schedule (cron.sessionRetention, runLog.keepLines, retry.maxAttempts) as configurable per job.',
+          'The cron docs describe delivery diagnostics (intended target, resolved target, fallback delivery used, final delivered state) for message delivery, and document the recurring-job retry/backoff schedule numerically (30s/60s/5m/15m/60m, resetting after the next successful run); one-shot retry is described only qualitatively (transient-error categories trigger a built-in retry schedule, permanent errors disable the job immediately) with no published attempt count or interval schedule.',
         shortValue: 'Clean isolated cron runs with retry-with-backoff; no checkpoint/replay',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.openclaw.ai/automation/cron-jobs',
             label: 'OpenClaw Docs: Scheduled tasks (cron jobs)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
       failureAlerting: {
         value:
-          'Partial: cron jobs support a dedicated failure-alerting path (a configurable cron.failureDestination global/per-job override, a webhook delivery mode, and --failure-alert-after/--failure-alert-cooldown tuning flags) in addition to normal chat delivery diagnostics, so failure alerting is a distinct feature rather than merely folded into chat delivery. There is still no email or cost/latency-threshold alerting.',
+          'Partial: cron jobs support a dedicated failure-alerting path (a per-job `failureAlert`/`delivery.failureDestination` override layered over the global `cron.failureAlert` object (mode, channel, to, accountId) — the older `cron.failureDestination` key is legacy and is merged into `cron.failureAlert` by `openclaw doctor --fix` — plus a webhook delivery mode and `--failure-alert-after`/`--failure-alert-cooldown` tuning flags on `openclaw automations edit`) in addition to normal chat delivery diagnostics, so failure alerting is a distinct feature rather than merely folded into chat delivery. There is still no email or cost/latency-threshold alerting.',
         detail:
           'Failure alerting is a dedicated, tunable path (webhook delivery mode plus alert-frequency flags), separate from the normal chat-delivery flow where the operator otherwise sees delivery outcomes in the channel where the job reports.',
         shortValue:
@@ -1073,7 +1094,7 @@ export const openClawProfile: CompetitorProfile = {
           {
             url: 'https://docs.openclaw.ai/automation/cron-jobs',
             label: 'OpenClaw Docs: Scheduled tasks (cron jobs)',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1108,17 +1129,17 @@ export const openClawProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          'No fixed platform-wide execution-time ceiling is published by default (runTimeoutSeconds defaults to 0/unlimited). Sub-agents cannot spawn their own children by default (maxSpawnDepth defaults to 1); setting maxSpawnDepth to 2 opts into one level of nesting (the documented "orchestrator pattern"), up to a configurable maximum of 5. agents.defaults.subagents.maxConcurrent caps concurrent sub-agent runs at 8 by default, with maxChildrenPerAgent capping children per orchestrator at 5 by default.',
+          "No fixed platform-wide execution-time ceiling is published by default (runTimeoutSeconds defaults to 0/unlimited). Sub-agent nesting depth defaults to 5 levels (maxSpawnDepth, range 1-5): a sub-agent at depth 1-4 defaults to the 'Orchestrator' role and can itself spawn children, while a depth-5 sub-agent is a 'Leaf' and cannot. Operators can lower maxSpawnDepth (e.g. to 1, disabling further nesting, or to 2) to force leaf workers sooner. agents.defaults.subagents.maxConcurrent caps concurrent sub-agent runs at 8 by default, with maxChildrenPerAgent capping children per orchestrator at 5 by default.",
         detail:
           "Because OpenClaw runs on infrastructure the operator controls, execution-time/concurrency limits beyond these published defaults (runTimeoutSeconds, maxSpawnDepth, maxConcurrent, maxChildrenPerAgent) are a function of that operator's own hardware and their model provider's API limits, not an OpenClaw-side ceiling.",
         shortValue:
-          'No nesting by default (maxSpawnDepth 1, opt-in to 2+); maxConcurrent 8; no fixed time limit',
+          'Nesting depth defaults to 5 (opt down to limit); maxConcurrent 8; no fixed time limit',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.openclaw.ai/tools/subagents',
             label: 'OpenClaw Docs: Sub-agents',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1186,19 +1207,19 @@ export const openClawProfile: CompetitorProfile = {
         value:
           "Large and very fast-growing: the GitHub repository has roughly 382,000 stars, reported by multiple sources as the fastest-growing and, by some accounts, most-starred non-aggregator open-source project in GitHub's history, alongside an active ClawHub skill-sharing community.",
         detail:
-          'Growth milestones include 9,000 stars in the first 24 hours after launch (as Clawdbot, November 2025) and 247,000+ stars by March 2, 2026. Star counts fluctuate and are best checked live on the GitHub repository.',
+          'Growth milestones include 247,000 stars and 47,700 forks by March 2, 2026, per Wikipedia; the GitHub repository has since grown further (389,797 stars and 81,937 forks as of this check, 2026-09-15).',
         shortValue: '~382,000 GitHub stars, extremely rapid growth since Nov 2025',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://github.com/openclaw/openclaw',
             label: 'openclaw/openclaw (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://en.wikipedia.org/wiki/OpenClaw',
             label: 'Wikipedia: OpenClaw',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
