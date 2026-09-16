@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { describePolicyChange } from '@/components/access-requests/policy-changes'
+import {
+  describePolicyChange,
+  describePolicyValue,
+} from '@/components/access-requests/policy-changes'
 
 const target = { kind: 'integration', id: 'slack_v2' } as const
 
@@ -68,7 +71,7 @@ describe('permission change summaries', () => {
         target,
         'Slack'
       )
-    ).toBe('Allow Slack; Remove github_v2')
+    ).toBe('Allow Slack; Remove GitHub')
   })
   it('distinguishes unrestricted and empty allowlists', () => {
     expect(
@@ -106,5 +109,95 @@ describe('permission change summaries', () => {
         'Tables'
       )
     ).toBe('Restricted → Allowed')
+  })
+})
+
+describe('permission change details', () => {
+  it('uses canonical names for every integration and preserves the original snapshot', () => {
+    const values = ['github_v2', 'notion_v2', 'slack_v2', 'loop', 'parallel']
+    const before = structuredClone(values)
+    expect(describePolicyValue(values, 'allowedIntegrations', target, 'Slack')).toBe(
+      'GitHub, Notion, Slack, Loop, Parallel'
+    )
+    expect(values).toEqual(before)
+  })
+
+  it('collapses only equivalent integration aliases in both lists and change summaries', () => {
+    expect(
+      describePolicyValue(
+        ['GitHub', 'github_v2', 'notion', 'notion_v2'],
+        'allowedIntegrations',
+        target,
+        'Slack'
+      )
+    ).toBe('GitHub, Notion')
+    expect(
+      describePolicyChange(
+        {
+          configKey: 'allowedIntegrations',
+          label: 'Integrations',
+          before: ['github', 'notion'],
+          after: ['github_v2', 'notion_v2', 'slack_v2'],
+        },
+        target,
+        'Slack'
+      )
+    ).toBe('Allow Slack')
+    expect(
+      describePolicyChange(
+        {
+          configKey: 'allowedIntegrations',
+          label: 'Integrations',
+          before: ['slack'],
+          after: ['slack_v2'],
+        },
+        target,
+        'Slack'
+      )
+    ).toBe('No membership change')
+  })
+
+  it('retains unknown IDs exactly and does not read inherited object properties', () => {
+    expect(
+      describePolicyValue(
+        ['Unknown_Integration_v2', 'constructor', 'toString', '__proto__'],
+        'allowedIntegrations',
+        target,
+        'Slack'
+      )
+    ).toBe('Unknown_Integration_v2, constructor, toString, __proto__')
+  })
+
+  it('uses the request label for an integration outside the built-in registry', () => {
+    expect(
+      describePolicyValue(
+        ['Custom_Integration'],
+        'allowedIntegrations',
+        { kind: 'integration', id: 'custom_integration' },
+        'Custom integration'
+      )
+    ).toBe('Custom integration')
+  })
+
+  it('keeps meaningful model and tool versions distinct', () => {
+    expect(describePolicyValue(['model_v1', 'model_v2'], 'deniedModels', target, 'Slack')).toBe(
+      'model_v1, model_v2'
+    )
+    expect(describePolicyValue(['tool_v1', 'tool_v2'], 'deniedTools', target, 'Slack')).toBe(
+      'tool_v1, tool_v2'
+    )
+  })
+
+  it('preserves the difference between unrestricted, empty, and boolean values', () => {
+    expect(describePolicyValue(null, 'allowedIntegrations', target, 'Slack')).toBe('All allowed')
+    expect(describePolicyValue([], 'allowedIntegrations', target, 'Slack')).toBe('None')
+    expect(
+      describePolicyValue(
+        true,
+        'hideTablesTab',
+        { kind: 'feature', configKey: 'hideTablesTab' },
+        'Tables'
+      )
+    ).toBe('Restricted')
   })
 })

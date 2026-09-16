@@ -7,7 +7,9 @@ import type {
   AccessRequestPreviewResponse,
   AccessRequestTarget,
 } from '@/lib/api/contracts/access-requests'
+import { BLOCK_NAMES } from '@/lib/permission-groups/block-names.generated'
 import { PERMISSION_GROUP_FIELDS } from '@/lib/permission-groups/fields'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 
 interface PolicyChangesProps {
   changes: AccessRequestPolicyChange[]
@@ -16,10 +18,44 @@ interface PolicyChangesProps {
   targetLabel: string
 }
 
-function describePolicyValue(value: AccessRequestPolicyChange['before']): string {
+function describePolicyItems(
+  values: string[],
+  configKey: AccessRequestPolicyChange['configKey'],
+  target: AccessRequestTarget,
+  targetLabel: string
+): ReadonlyMap<string, string> {
+  const items = new Map<string, string>()
+  const integrationTarget =
+    target.kind === 'integration'
+      ? resolveAccessControlBlockType(target.id.toLowerCase()).toLowerCase()
+      : null
+  for (const value of values) {
+    if (configKey === 'allowedIntegrations') {
+      const canonical = resolveAccessControlBlockType(value.toLowerCase()).toLowerCase()
+      const label = Object.hasOwn(BLOCK_NAMES, canonical)
+        ? BLOCK_NAMES[canonical]!
+        : canonical === integrationTarget
+          ? targetLabel
+          : value
+      items.set(canonical, label)
+    } else {
+      items.set(value, target.kind !== 'feature' && value === target.id ? targetLabel : value)
+    }
+  }
+  return items
+}
+
+export function describePolicyValue(
+  value: AccessRequestPolicyChange['before'],
+  configKey: AccessRequestPolicyChange['configKey'],
+  target: AccessRequestTarget,
+  targetLabel: string
+): string {
   if (value === null) return 'All allowed'
   if (typeof value === 'boolean') return value ? 'Restricted' : 'Allowed'
-  return value.length ? value.join(', ') : 'None'
+  return value.length
+    ? [...describePolicyItems(value, configKey, target, targetLabel).values()].join(', ')
+    : 'None'
 }
 
 export function describePolicyChange(
@@ -28,24 +64,22 @@ export function describePolicyChange(
   targetLabel: string
 ): string {
   const { before, after } = change
-  if (typeof after === 'boolean')
-    return `${describePolicyValue(before)} → ${describePolicyValue(after)}`
+  const describe = (value: AccessRequestPolicyChange['before']) =>
+    describePolicyValue(value, change.configKey, target, targetLabel)
+  if (typeof after === 'boolean') return `${describe(before)} → ${describe(after)}`
   if (after === null) return 'Allow all'
-  const label = (value: string) =>
-    target.kind !== 'feature' && value === target.id ? targetLabel : value
+  const next = describePolicyItems(after, change.configKey, target, targetLabel)
   if (before === null)
-    return after.length ? `Allow only ${after.map(label).join(', ')}` : 'Allow none'
-  if (!Array.isArray(before))
-    return `${describePolicyValue(before)} → ${describePolicyValue(after)}`
-  const previous = new Set(before)
-  const next = new Set(after)
-  const added = after.filter((value) => !previous.has(value))
-  const removed = before.filter((value) => !next.has(value))
+    return next.size ? `Allow only ${[...next.values()].join(', ')}` : 'Allow none'
+  if (!Array.isArray(before)) return `${describe(before)} → ${describe(after)}`
+  const previous = describePolicyItems(before, change.configKey, target, targetLabel)
+  const added = [...next].filter(([id]) => !previous.has(id)).map(([, label]) => label)
+  const removed = [...previous].filter(([id]) => !next.has(id)).map(([, label]) => label)
   const denylist = PERMISSION_GROUP_FIELDS[change.configKey].kind === 'denylist'
   return (
     [
-      added.length ? `${denylist ? 'Block' : 'Allow'} ${added.map(label).join(', ')}` : '',
-      removed.length ? `${denylist ? 'Unblock' : 'Remove'} ${removed.map(label).join(', ')}` : '',
+      added.length ? `${denylist ? 'Block' : 'Allow'} ${added.join(', ')}` : '',
+      removed.length ? `${denylist ? 'Unblock' : 'Remove'} ${removed.join(', ')}` : '',
     ]
       .filter(Boolean)
       .join('; ') || 'No membership change'
@@ -94,11 +128,11 @@ export function PolicyChanges({ changes, impact, target, targetLabel }: PolicyCh
                 <dl className='grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm'>
                   <dt className='text-[var(--text-muted)]'>Before</dt>
                   <dd className='whitespace-pre-wrap break-words text-[var(--text-body)]'>
-                    {describePolicyValue(change.before)}
+                    {describePolicyValue(change.before, change.configKey, target, targetLabel)}
                   </dd>
                   <dt className='text-[var(--text-muted)]'>After</dt>
                   <dd className='whitespace-pre-wrap break-words text-[var(--text-body)]'>
-                    {describePolicyValue(change.after)}
+                    {describePolicyValue(change.after, change.configKey, target, targetLabel)}
                   </dd>
                 </dl>
               </ChipModalField>
