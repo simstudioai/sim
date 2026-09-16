@@ -60,7 +60,7 @@ describe('organization settings authorization', () => {
   it.each([
     { groups: false, search: false, connectedAccounts: false, integrations: false },
     { groups: true, search: false, connectedAccounts: true, integrations: false },
-    { groups: true, search: true, connectedAccounts: false, integrations: true },
+    { groups: true, search: true, connectedAccounts: true, integrations: true },
   ])(
     'selects the setup page with groups=$groups and search=$search',
     async ({ groups, search, connectedAccounts, integrations }) => {
@@ -92,7 +92,7 @@ describe('organization settings authorization', () => {
     }
   )
 
-  it('propagates Search availability failures instead of selecting the old UI', async () => {
+  it('keeps Credential Groups independent of Search availability', async () => {
     mocks.search.mockRejectedValue(new Error('Feature configuration unavailable'))
     await expect(
       authorizeOrganizationSettingsSection({
@@ -100,7 +100,8 @@ describe('organization settings authorization', () => {
         userId: 'admin',
         section: 'connected-accounts',
       })
-    ).rejects.toThrow('Feature configuration unavailable')
+    ).resolves.toBe(true)
+    expect(mocks.search).not.toHaveBeenCalled()
   })
 
   it('checks current target organization membership before billing reads', async () => {

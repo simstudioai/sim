@@ -4,9 +4,13 @@ import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
+import { organizationAccountPolicyAllowsWorkspace } from '@/lib/credential-groups/application/workspace-access-policy'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
-import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  getManagedMcpConnector,
+  MANAGED_MCP_CONNECTOR_IDS,
+} from '@/lib/credential-groups/managed-mcp-connectors'
 import { resolveMcpWorkspaceContext } from '@/lib/mcp/application/context'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import type { McpToolSchema } from '@/lib/mcp/types'
@@ -48,14 +52,19 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
       organizationId,
     })
     if (!group) return { servers: [], tools: [] }
-    await requireOrganizationAccountsWorkspaceAccess({
+    const policy = await requireOrganizationAccountsWorkspaceAccess({
       ...context,
       organizationId,
       credentialGroupId: group.credentialGroupId,
     })
+    const allowedConnectorIds = MANAGED_MCP_CONNECTOR_IDS.filter((id) =>
+      organizationAccountPolicyAllowsWorkspace(policy, context.workspaceId, `mcp:${id}`)
+    )
+    if (!allowedConnectorIds.length) return { servers: [], tools: [] }
     const managedCatalogScope = () =>
       and(
         eq(credential.organizationId, organizationId),
+        inArray(mcpServers.managedConnectorId, allowedConnectorIds),
         eq(credentialGroup.id, group.credentialGroupId),
         eq(credential.mcpOauthConfigVersion, mcpServers.oauthConfigVersion),
         eq(credential.type, 'managed_mcp'),

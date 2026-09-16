@@ -159,7 +159,7 @@ export function OrganizationAccountProviders({
   return (
     <div className='flex flex-col gap-7'>
       <SettingsSection
-        label='Providers'
+        label='Integrations'
         action={
           <div className='flex flex-wrap gap-2'>
             {options.length > 0 && (
@@ -177,7 +177,7 @@ export function OrganizationAccountProviders({
                 setCatalogOpen(true)
               }}
             >
-              Add provider
+              Add integration
             </Chip>
           </div>
         }
@@ -223,7 +223,7 @@ export function OrganizationAccountProviders({
           ))}
           {!rows.length && (
             <SettingsEmptyState variant='inline'>
-              Add a provider to start connecting accounts.
+              Add an integration to start connecting accounts.
             </SettingsEmptyState>
           )}
         </div>

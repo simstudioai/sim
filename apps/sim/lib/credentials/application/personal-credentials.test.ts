@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -70,6 +71,7 @@ function delegatedPrincipal(overrides: Partial<DelegatedPrincipal> = {}): Delega
 describe('personal credential application access', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.listPersonal.mockResolvedValue([personalCredential])
@@ -114,6 +116,16 @@ describe('personal credential application access', () => {
       instanceUrl: 'https://gitlab.example.com',
     }
     mocks.listTokens.mockResolvedValue([token])
+    queueTableRows(schemaMock.credential, [
+      {
+        ...token,
+        organizationId: null,
+        workspaceId: 'workspace-1',
+        groupId: 'legacy-group',
+        groupOrganizationId: null,
+        groupWorkspaceId: 'workspace-1',
+      },
+    ])
     const result = await listPersonalCredentials.execute({
       principal,
       input: { workspaceId: 'workspace-1' },
@@ -136,6 +148,16 @@ describe('personal credential application access', () => {
   it('authorizes a managed account returned by the same personal policy', async () => {
     const managed = { ...personalCredential, providerId: 'slack', type: 'managed_oauth' as const }
     mocks.listPersonal.mockResolvedValue([managed])
+    queueTableRows(schemaMock.credential, [
+      {
+        ...managed,
+        organizationId: null,
+        workspaceId: 'workspace-1',
+        groupId: 'legacy-group',
+        groupOrganizationId: null,
+        groupWorkspaceId: 'workspace-1',
+      },
+    ])
 
     const result = await authorizePersonalCredential.execute({
       principal,

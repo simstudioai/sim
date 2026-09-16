@@ -71,8 +71,7 @@ export function organizationSettingsNavigation(
 ) {
   return ORGANIZATION_SETTINGS_ITEMS.filter(
     (item) =>
-      (item.id !== 'connected-accounts' ||
-        (availability.connectedAccounts && !availability.search)) &&
+      (item.id !== 'connected-accounts' || availability.connectedAccounts) &&
       ((item.id !== 'search-mcp' && item.id !== 'search-slack' && item.id !== 'integrations') ||
         availability.search) &&
       resolveOrganizationSectionAccess({

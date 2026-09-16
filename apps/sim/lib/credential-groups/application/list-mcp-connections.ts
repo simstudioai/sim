@@ -10,7 +10,11 @@ import {
   requireOrganizationAccountsWorkspaceAccess,
   resolveOrganizationAccountsWorkspaceContext,
 } from '@/lib/credential-groups/application/organization-workspace-access'
-import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import { organizationAccountPolicyAllowsWorkspace } from '@/lib/credential-groups/application/workspace-access-policy'
+import {
+  getManagedMcpConnector,
+  MANAGED_MCP_CONNECTOR_IDS,
+} from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   CredentialGroupMcpConnectionCursorNotFoundError,
   type CredentialGroupMcpConnectionReference,
@@ -41,7 +45,7 @@ export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCas
   authorizationOptions: { delegation: credentialGroupDelegationPolicy },
   async authorizeResource({ principal, context }) {
     requireCredentialGroupWorkflowActor(principal)
-    await requireOrganizationAccountsWorkspaceAccess(context)
+    context.workspaceAccessPolicy = await requireOrganizationAccountsWorkspaceAccess(context)
   },
   execute: async ({ input, context }): Promise<ListCredentialGroupMcpConnectionsResult> => {
     if (
@@ -68,6 +72,17 @@ export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCas
       throw new OrchestrationError('validation', 'MCP server ID must not be empty')
     }
 
+    const policy = context.workspaceAccessPolicy
+    if (!policy) throw new Error('MCP listing requires workspace policy authorization')
+    const allowedConnectorIds = MANAGED_MCP_CONNECTOR_IDS.filter((id) =>
+      organizationAccountPolicyAllowsWorkspace(policy, context.workspaceId, `mcp:${id}`)
+    )
+    if (input.connectorId && !allowedConnectorIds.some((id) => id === input.connectorId)) {
+      throw new OrchestrationError(
+        'forbidden',
+        'This workspace is not allowed to use the requested MCP provider'
+      )
+    }
     let page
     try {
       page = await listCredentialGroupMcpConnectionReferences({
@@ -78,6 +93,7 @@ export const listCredentialGroupMcpConnections = defineAuthorizedWorkspaceUseCas
         email,
         mcpServerId,
         connectorId: input.connectorId,
+        allowedConnectorIds,
       })
     } catch (error) {
       if (error instanceof CredentialGroupMcpConnectionCursorNotFoundError) {

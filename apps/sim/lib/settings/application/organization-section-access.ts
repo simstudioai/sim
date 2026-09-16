@@ -24,9 +24,7 @@ export async function authorizeOrganizationSettingsSection({
   if (!(await canOpenOrganizationSettingsSection(organizationId, userId, section))) return false
 
   if (section === 'connected-accounts') {
-    if (!(await isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId })))
-      return false
-    return !(await isKnowledgeMemberAccessAvailable({ organizationId }))
+    return isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId })
   }
   if (section === 'search-mcp' || section === 'search-slack' || section === 'integrations')
     return isKnowledgeMemberAccessAvailable({ organizationId })

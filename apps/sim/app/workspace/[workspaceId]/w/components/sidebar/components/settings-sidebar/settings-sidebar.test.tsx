@@ -212,7 +212,7 @@ describe('workspace SettingsSidebar organization rollout', () => {
       expect(workspaceLink('billing')).toHaveTextContent('Subscription')
       expect(workspaceLink('usage')).toHaveTextContent('Insights')
       expect(workspaceLink('sso')).toHaveTextContent('Single sign-on')
-      expect(workspaceLink('connected-accounts')).toHaveTextContent('Connected accounts')
+      expect(workspaceLink('connected-accounts')).toHaveTextContent('Credential Groups')
       expect(container.querySelector('a[href^="/o/"]')).toBeNull()
       expectWorkspaceLinks()
     }
@@ -240,7 +240,10 @@ describe('workspace SettingsSidebar organization rollout', () => {
       expect(links).toHaveLength(1)
       expect(links[0]).toHaveAttribute('href', '/o/host-org/settings/members')
       expect(links[0]).toHaveTextContent('Organization')
-      for (const section of ['organization', 'billing', 'usage', 'sso', 'connected-accounts']) {
+      if (role === 'admin')
+        expect(workspaceLink('connected-accounts')).toHaveTextContent('Credential Groups')
+      else expect(workspaceLink('connected-accounts')).toBeNull()
+      for (const section of ['organization', 'billing', 'usage', 'sso']) {
         expect(workspaceLink(section)).toBeNull()
       }
       expectWorkspaceLinks()

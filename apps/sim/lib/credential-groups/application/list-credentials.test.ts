@@ -117,7 +117,10 @@ describe('listCredentialGroupCredentials', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.requirePolicy.mockResolvedValue({
-      document: buildOrganizationAccountAccessPolicy('group-1', ['workspace-1']),
+      document: buildOrganizationAccountAccessPolicy(
+        'group-1',
+        ['workspace-1'].map((workspaceId) => ({ workspaceId, access: { mode: 'all' as const } }))
+      ),
     })
     mocks.loadGroup.mockResolvedValue(groupContext)
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
@@ -261,6 +264,36 @@ describe('listCredentialGroupCredentials', () => {
       hasMore: true,
       nextCursor: 'credential-1',
     })
+  })
+
+  it('filters restricted integrations before pagination and rejects explicitly requesting them', async () => {
+    mocks.loadGroup.mockResolvedValue({
+      ...groupContext,
+      options: [
+        ...groupContext.options,
+        { ...groupContext.options[0], id: 'calendar-option', provider: 'google-calendar' },
+      ],
+    })
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        {
+          workspaceId: 'workspace-1',
+          access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
+        },
+      ]),
+    })
+    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+    expect(mocks.listCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialGroupOptionIds: ['option-1'], limit: 50 })
+    )
+    mocks.listCredentials.mockClear()
+    await expect(
+      listCredentialGroupCredentials.execute({
+        principal: executorPrincipal(),
+        input: { ...input, credentialProviderIds: ['google-calendar'] },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('filters by canonical providers active in the group', async () => {

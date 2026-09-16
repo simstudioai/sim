@@ -120,7 +120,7 @@ export async function requirePersonalTokenEnrollment(
   input: ResourceOwner & { userId: string; enrollmentId: string | null },
   executor: DbOrTx = db,
   lock = false
-): Promise<void> {
+): Promise<{ credentialGroupId: string }> {
   const scope = resourceScopeFromOwner(input)
   if (!input.enrollmentId)
     throw new OrchestrationError(
@@ -173,6 +173,7 @@ export async function requirePersonalTokenEnrollment(
       executor
     )
   }
+  return { credentialGroupId: binding.credentialGroupId }
 }
 
 export interface CreatePersonalTokenParams {

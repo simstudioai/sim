@@ -33,7 +33,7 @@ describe('organization settings navigation', () => {
 
   it('uses Sources for administration when Search is available', () => {
     expect(organizationSettingsNavigation(true, enterprise, available)).toEqual(
-      ORGANIZATION_SETTINGS_ITEMS.filter(({ id }) => id !== 'connected-accounts')
+      ORGANIZATION_SETTINGS_ITEMS
     )
     expect(
       organizationSettingsNavigation(true, enterprise, available).find(
