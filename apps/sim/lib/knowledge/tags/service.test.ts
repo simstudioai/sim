@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 
-import { knowledgeBaseTagDefinitions } from '@sim/db/schema'
+import { db } from '@sim/db'
+import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +13,7 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 import {
+  cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,
   createTagDefinition,
   getDocumentTagDefinitions,
@@ -33,6 +35,48 @@ function existingDefinition(overrides: Record<string, unknown>) {
     ...overrides,
   }
 }
+
+describe('cleanupUnusedTagDefinitions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('keeps tags used by either documents or chunks and removes only unused definitions', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [
+      existingDefinition({ id: 'document-tag', tagSlot: 'tag1' }),
+      existingDefinition({ id: 'chunk-tag', tagSlot: 'tag2' }),
+      existingDefinition({ id: 'unused-tag', tagSlot: 'tag3' }),
+    ])
+    queueTableRows(document, [{ id: 'doc-1' }])
+    queueTableRows(document, [])
+    queueTableRows(embedding, [{ id: 'chunk-1' }])
+    queueTableRows(document, [])
+    queueTableRows(embedding, [])
+
+    expect(await cleanupUnusedTagDefinitions('kb-1', 'request-1')).toBe(1)
+    expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls.at(-1)?.[0],
+        (node) => node.type === 'eq' && node.right === 'unused-tag'
+      )
+    ).toBe(true)
+  })
+
+  it('stops cleanup before deleting tags when its worker is cancelled', async () => {
+    queueTableRows(knowledgeBaseTagDefinitions, [existingDefinition({})])
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      cleanupUnusedTagDefinitions('kb-1', 'request-1', {
+        executor: db,
+        signal: controller.signal,
+      })
+    ).rejects.toThrow()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+})
 
 describe('getDocumentTagDefinitionsByKnowledgeBaseIds', () => {
   beforeEach(() => {

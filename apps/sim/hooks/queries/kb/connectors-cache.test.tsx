@@ -388,6 +388,46 @@ describe('connector Search result cache reconciliation', () => {
 })
 
 describe('Search source list reconciliation', () => {
+  it('runs removal navigation before refetches and retains it after the caller unmounts', async () => {
+    const client = createQueryClient()
+    const request = Promise.withResolvers<object>()
+    mocks.requestJson.mockReturnValueOnce(request.promise)
+    const invalidated = vi.spyOn(client, 'invalidateQueries')
+    const onSuccess = vi.fn(() => expect(invalidated).not.toHaveBeenCalled())
+    const mutation = renderMutation(client, () => useDeleteConnector({ onSuccess }))
+    let done!: Promise<void>
+    await act(async () => {
+      done = mutation().mutateAsync({
+        knowledgeBaseId: KNOWLEDGE_BASE_ID,
+        connectorId: CONNECTOR_ID,
+        deleteDocuments: true,
+      })
+    })
+    act(() => mountedRoots.pop()!.unmount())
+    request.resolve({ success: true })
+    await act(async () => {
+      await done
+    })
+    expect(onSuccess).toHaveBeenCalledOnce()
+    expect(invalidated).toHaveBeenCalledWith({
+      queryKey: connectorKeys.detail(KNOWLEDGE_BASE_ID, CONNECTOR_ID),
+      refetchType: 'none',
+    })
+  })
+
+  it('does not navigate when removal fails', async () => {
+    const client = createQueryClient()
+    const onSuccess = vi.fn()
+    mocks.requestJson.mockRejectedValueOnce(new Error('Removal failed'))
+    const mutation = renderMutation(client, () => useDeleteConnector({ onSuccess }))
+    await act(async () => {
+      await expect(
+        mutation().mutateAsync({ knowledgeBaseId: KNOWLEDGE_BASE_ID, connectorId: CONNECTOR_ID })
+      ).rejects.toThrow('Removal failed')
+    })
+    expect(onSuccess).not.toHaveBeenCalled()
+  })
+
   it('refreshes summaries after editing source configuration or pausing sync', async () => {
     const queryClient = createQueryClient()
     const mutation = renderMutation(queryClient, useUpdateConnector)

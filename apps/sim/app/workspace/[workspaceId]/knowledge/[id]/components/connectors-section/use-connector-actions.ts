@@ -31,9 +31,15 @@ export function useConnectorActions({
 }: ConnectorActionsOptions) {
   const sync = useTriggerSync()
   const update = useUpdateConnector()
-  const remove = useDeleteConnector()
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [deleteDocuments, setDeleteDocuments] = useState(false)
+  const remove = useDeleteConnector({
+    onSuccess: () => {
+      setConfirmRemove(false)
+      setDeleteDocuments(false)
+      onRemoved?.()
+    },
+  })
   const requiresDocumentDeletion = connector.accessMode !== 'workspace'
   const state = getConnectorSyncState(connector)
   const actionsDisabled = disabled || sync.isPending || update.isPending || remove.isPending
@@ -117,20 +123,11 @@ export function useConnectorActions({
       error: remove.error,
       onConfirm: () => {
         if (!canEdit || actionsDisabled) return
-        remove.mutate(
-          {
-            knowledgeBaseId,
-            connectorId: connector.id,
-            deleteDocuments: requiresDocumentDeletion || deleteDocuments,
-          },
-          {
-            onSuccess: () => {
-              setConfirmRemove(false)
-              setDeleteDocuments(false)
-              onRemoved?.()
-            },
-          }
-        )
+        remove.mutate({
+          knowledgeBaseId,
+          connectorId: connector.id,
+          deleteDocuments: requiresDocumentDeletion || deleteDocuments,
+        })
       },
     },
   }

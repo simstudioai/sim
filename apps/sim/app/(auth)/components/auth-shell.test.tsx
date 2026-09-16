@@ -14,7 +14,6 @@ vi.mock('next/link', () => ({
 vi.mock('@/app/_shell/desktop-title-bar', () => ({ DesktopTitleBarLane: () => null }))
 vi.mock('@/app/(landing)/components/navbar/components', () => ({
   LogoMark: ({ children }: { children: ReactNode }) => <>{children}</>,
-  SimWordmark: () => 'Sim',
 }))
 
 it('returns home through a document link so route-specific theme defaults reinitialize', () => {

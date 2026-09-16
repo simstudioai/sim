@@ -2452,6 +2452,7 @@ export async function executeFunctionRequest(
        * owner's provenance and the file still locks.
        */
       if (routeContext.unredactedSecretNames.has(name)) continue
+      if (isNonIdentifyingSecretLiteral(plaintext)) continue
       const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
       for (const scanLiteral of scanLiterals) {
         const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []

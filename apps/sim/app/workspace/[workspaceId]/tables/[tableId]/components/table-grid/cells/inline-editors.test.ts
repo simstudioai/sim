@@ -396,3 +396,66 @@ describe('dateEditorRawValue', () => {
     container.remove()
   })
 })
+
+describe('read-only InlineEditor', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUseTimezoneState.mockReturnValue({
+      timezone: 'America/Los_Angeles',
+      status: 'ready',
+    })
+  })
+
+  it('shows a text value that can be selected but not changed', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSave = vi.fn()
+
+    act(() =>
+      root.render(
+        createElement(InlineEditor, {
+          value: 'Original text',
+          column: column('string'),
+          readOnly: true,
+          onSave,
+          onCancel: vi.fn(),
+        })
+      )
+    )
+
+    const input = container.querySelector('input') as HTMLInputElement
+    expect(input.value).toBe('Original text')
+    expect(input.readOnly).toBe(true)
+    act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+
+    expect(onSave).toHaveBeenCalledWith('Original text', 'enter')
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('opens a date read-only without the calendar picker', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() =>
+      root.render(
+        createElement(InlineEditor, {
+          value: '2026-06-15T06:00:30-07:00',
+          column: column('ttl'),
+          readOnly: true,
+          onSave: vi.fn(),
+          onCancel: vi.fn(),
+        })
+      )
+    )
+
+    const input = container.querySelector('input') as HTMLInputElement
+    expect(input.value).toBe('2026-06-15T06:00:30-07:00')
+    expect(input.readOnly).toBe(true)
+    expect(mockCalendar).not.toHaveBeenCalled()
+    act(() => root.unmount())
+    container.remove()
+  })
+})

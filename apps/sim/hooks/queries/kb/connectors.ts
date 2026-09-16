@@ -657,19 +657,37 @@ async function deleteConnector({
   })
 }
 
-export function useDeleteConnector() {
+interface UseDeleteConnectorOptions {
+  onSuccess?: () => void
+}
+
+export function useDeleteConnector(options?: UseDeleteConnectorOptions) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: deleteConnector,
+    /** Run before invalidation can unmount the source page on a 404 response. */
+    onSuccess: () => options?.onSuccess?.(),
     /**
      * Removing a connector can take its documents with it, so the document
      * lists and the base's own totals move — but nothing below them does.
      * Invalidating `knowledgeKeys.detail` as a prefix would also refetch every
      * cached document detail, chunk page, and chunk search in the base.
      */
-    onSettled: (_data, _error, { knowledgeBaseId, deleteDocuments }) => {
-      queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+    onSettled: (_data, error, { knowledgeBaseId, connectorId, deleteDocuments }) => {
+      if (error) {
+        queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      } else {
+        queryClient.invalidateQueries({ queryKey: connectorKeys.lists(knowledgeBaseId) })
+        /** Retire stale detail pages without fetching the just-deleted resource during navigation. */
+        void queryClient.cancelQueries({
+          queryKey: connectorKeys.detail(knowledgeBaseId, connectorId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: connectorKeys.detail(knowledgeBaseId, connectorId),
+          refetchType: 'none',
+        })
+      }
       queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.documentLists(knowledgeBaseId) })

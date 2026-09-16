@@ -13,11 +13,13 @@ const { frost, setMenuOpen } = vi.hoisted(() => {
   return { frost: { setMenuOpen }, setMenuOpen }
 })
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn')>()),
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
   chipVariants: () => '',
   chipContentLabelClass: '',
   ChipChevronDown: () => null,
+  SimWordmark: () => <svg data-testid='sim-wordmark' />,
   ChipTag: ({ children }: { children: ReactNode }) => <span>{children}</span>,
 }))
 vi.mock('next/link', () => ({
@@ -28,9 +30,7 @@ vi.mock('next/link', () => ({
 vi.mock('@/app/(landing)/components/chevron-arrow', () => ({
   ChevronArrow: () => null,
 }))
-vi.mock('@/app/(landing)/components/navbar/components/sim-wordmark', () => ({
-  SimWordmark: () => null,
-}))
+
 vi.mock('@/app/(landing)/components/navbar/components/navbar-shell', () => ({
   NAVBAR_GLASS_SURFACE: '',
   useNavbarFrost: () => frost,

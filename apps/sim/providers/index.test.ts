@@ -45,7 +45,7 @@ vi.mock('@/tools', () => ({
   executeTool: (...args: unknown[]) => mockExecuteTool(...args),
 }))
 
-import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { executeProviderTool } from '@/providers/runtime-context'
@@ -112,6 +112,28 @@ function makeProviderTool(id: string, credential: string): ProviderToolConfig {
 describe('executeProviderRequest — tool identities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('passes trusted execution context to both attachment authorization stages without serializing it', async () => {
+    const executionContext = {
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+    } as ExecutionContext
+    mockExecuteRequest.mockResolvedValueOnce({ content: 'ready', model: 'test-model' })
+    await executeProviderRequest('anthropic', { model: 'test-model' }, { executionContext })
+    expect(mockAttachLargeFileRemoteUrls).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'test-model' }),
+      'anthropic',
+      executionContext
+    )
+    expect(mockUploadLargeFilesToProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'test-model' }),
+      'anthropic',
+      executionContext
+    )
+    expect(mockExecuteRequest.mock.calls[0][0]).not.toHaveProperty('executionContext')
+    expect(mockExecuteRequest.mock.calls[0][0]).not.toHaveProperty('principal')
   })
 
   it('sends unique opaque ids and projects provider aliases out of the response', async () => {
@@ -941,35 +963,85 @@ describe('executeProviderRequest — caller-prepared model input', () => {
     })
   })
 
-  it('omits only unsafe durable files before any provider attachment processing', async () => {
-    const unsafe = {
-      id: 'wf-unsafe',
-      name: 'unsafe.txt',
-      url: '/unsafe',
-      size: 10,
-      type: 'text/plain',
-      key: 'workspace/ws-1/unsafe.txt',
-    }
-    const safe = {
-      id: 'wf-safe',
-      name: 'safe.txt',
-      url: '/safe',
-      size: 10,
-      type: 'text/plain',
-      key: 'workspace/ws-1/safe.txt',
-    }
-    mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce([safe])
+  it.each([
+    { stream: false, includeSafeFile: false },
+    { stream: false, includeSafeFile: true },
+    { stream: true, includeSafeFile: false },
+    { stream: true, includeSafeFile: true },
+  ])(
+    'continues with an attachment error notice (stream=$stream, mixed=$includeSafeFile)',
+    async ({ stream, includeSafeFile }) => {
+      const unsafe = {
+        id: 'wf-unsafe',
+        name: 'private-filename.txt',
+        url: '/private-file-url',
+        size: 10,
+        type: 'text/plain',
+        key: 'workspace/ws-1/private-storage-key.txt',
+        base64: 'private-file-bytes',
+      }
+      const safe = {
+        ...unsafe,
+        id: 'wf-safe',
+        name: 'safe.txt',
+        url: '/safe',
+        key: 'safe-key',
+        base64: 'safe-bytes',
+      }
+      const safeFiles = includeSafeFile ? [safe] : []
+      mockFilterModelSafeWorkspaceFileAttachments.mockResolvedValueOnce(safeFiles)
+      const messages = [
+        { role: 'user' as const, content: 'Earlier context' },
+        {
+          role: 'user' as const,
+          content: includeSafeFile ? 'Review files' : null,
+          files: [...safeFiles, unsafe],
+        },
+      ]
+      const originalMessages = structuredClone(messages)
+      if (stream) {
+        mockExecuteRequest.mockResolvedValueOnce({
+          stream: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('ok'))
+              controller.close()
+            },
+          }),
+          execution: { success: true, output: { content: 'ok' } },
+        })
+      }
 
-    await executeProviderRequest('openai', {
-      model: 'test-model',
-      workspaceId: 'ws-1',
-      messages: [{ role: 'user', content: 'Review files', files: [unsafe, safe] }],
-    })
+      const response = await executeProviderRequest('openai', {
+        model: 'test-model',
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        stream,
+        messages,
+      })
 
-    expect(mockAttachLargeFileRemoteUrls.mock.calls[0][0].messages[0].files).toEqual([safe])
-    expect(mockUploadLargeFilesToProvider.mock.calls[0][0].messages[0].files).toEqual([safe])
-    expect(mockExecuteRequest.mock.calls[0][0].messages[0].files).toEqual([safe])
-  })
+      if (stream) {
+        expect(await new Response((response as StreamingExecution).stream).text()).toBe('ok')
+      } else {
+        expect(response).toMatchObject({ content: 'ok' })
+      }
+      expect(mockFilterModelSafeWorkspaceFileAttachments).toHaveBeenCalledWith(
+        [...safeFiles, unsafe],
+        { workspaceId: 'ws-1', actorUserId: 'user-1' }
+      )
+      const sent = mockExecuteRequest.mock.calls[0][0]
+      expect(sent.messages[0]).toEqual(messages[0])
+      expect(sent.messages[1].content).toContain(
+        'Attachment error: 1 requested file attachment was not provided'
+      )
+      expect(sent.messages[1].content).toContain('Continue with the available inputs')
+      if (includeSafeFile) expect(sent.messages[1].content).toMatch(/^Review files\n\n/)
+      expect(sent.messages[1].files ?? []).toEqual(safeFiles)
+      expect(JSON.stringify(sent)).not.toContain('private-')
+      expect(mockAttachLargeFileRemoteUrls.mock.calls[0][0]).toBe(sent)
+      expect(mockUploadLargeFilesToProvider.mock.calls[0][0]).toBe(sent)
+      expect(messages).toEqual(originalMessages)
+    }
+  )
 
   it('fails explicitly when file provenance lookup is unavailable', async () => {
     mockFilterModelSafeWorkspaceFileAttachments.mockRejectedValueOnce(new Error('db unavailable'))

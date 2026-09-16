@@ -135,13 +135,9 @@ function findVisibleDefaultPolicy(content: HTMLElement): string | null {
  * falls back to the safe dismiss action; a `none` policy focuses the dialog
  * itself so no button is accidentally armed.
  */
-function focusChipModalDefaultAction(event: Event): void {
-  const content = event.currentTarget as HTMLElement | null
+export function focusChipModalContent(content: HTMLElement | null): void {
   if (!content) return
-  if (focusFirstTextInputIn(content)) {
-    event.preventDefault()
-    return
-  }
+  if (focusFirstTextInputIn(content)) return
 
   const policy = findVisibleDefaultPolicy(content)
   const target =
@@ -151,9 +147,13 @@ function focusChipModalDefaultAction(event: Event): void {
         findFocusableAction(content, CHIP_MODAL_DISMISS_ACTION_SELECTOR) ??
         content)
 
-  event.preventDefault()
   target.focus()
   if (document.activeElement !== target) content.focus()
+}
+
+function focusChipModalDefaultAction(event: Event): void {
+  event.preventDefault()
+  focusChipModalContent(event.currentTarget as HTMLElement | null)
 }
 
 /**
@@ -231,7 +231,7 @@ export const ChipModalSurface = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] dark:bg-[var(--surface-5)]',
+      'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] text-small dark:bg-[var(--surface-5)]',
       className
     )}
     onKeyDown={(event) => {
@@ -247,6 +247,20 @@ export const ChipModalSurface = React.forwardRef<
 ))
 
 ChipModalSurface.displayName = 'ChipModalSurface'
+
+export interface ChipModalDescriptionProps {
+  id?: string
+  children?: React.ReactNode
+}
+
+/** Canonical message copy shared by web confirmations and native dialog hosts. */
+export function ChipModalDescription({ id, children }: ChipModalDescriptionProps) {
+  return (
+    <p id={id} className='whitespace-pre-wrap break-words px-2 text-[var(--text-primary)] text-sm'>
+      {children}
+    </p>
+  )
+}
 
 /**
  * Root component. Wraps the Radix dialog and renders the panel chrome.
@@ -1732,9 +1746,9 @@ function ChipConfirmModal({
       </ChipModalHeader>
       <ChipModalBody>
         {hasText ? (
-          <p id={descriptionId} className='break-words px-2 text-[var(--text-primary)] text-sm'>
+          <ChipModalDescription id={descriptionId}>
             {renderChipConfirmText(text)}
-          </p>
+          </ChipModalDescription>
         ) : null}
         {children}
       </ChipModalBody>

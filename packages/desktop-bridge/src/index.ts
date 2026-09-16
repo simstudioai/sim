@@ -1105,3 +1105,10 @@ export interface SimDesktopApi {
   /** Reads and selects Terminal.app or iTerm2 color profiles on macOS. */
   terminalThemes?: SimDesktopTerminalThemesApi
 }
+export {
+  applyDesktopTitleBarMode,
+  DESKTOP_TITLE_BAR_ATTRIBUTE,
+  type DesktopTitleBarMode,
+  observeDesktopTitleBar,
+  supportsDesktopTitleBar,
+} from './title-bar'

@@ -7,6 +7,8 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
+import { saveBlob } from '@/lib/uploads/client/download'
+import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { ChatFile } from '@/app/(interfaces)/chat/components/message/message'
 
 const logger = createLogger('ChatFileDownload')
@@ -17,6 +19,22 @@ interface ChatFileDownloadProps {
 
 interface ChatFileDownloadAllProps {
   files: ChatFile[]
+}
+
+class DirectDownloadRequiredError extends Error {
+  constructor(readonly url: string) {
+    super('This file must be downloaded directly in the browser.')
+  }
+}
+
+async function fetchExternalFile(url: string): Promise<Response> {
+  try {
+    // boundary-raw-fetch: external binary download from an already validated HTTP URL
+    return await fetch(url, { cache: 'no-store' })
+  } catch {
+    /** A navigation can download external files whose hosts do not allow CORS reads. */
+    throw new DirectDownloadRequiredError(url)
+  }
 }
 
 function formatFileSize(bytes: number): string {
@@ -50,34 +68,63 @@ function isImageFile(mimeType: string): boolean {
   return mimeType.startsWith('image/')
 }
 
-function getFileUrl(file: ChatFile): string {
-  if (file.base64) return `data:${file.type};base64,${file.base64}`
-  if (isSafeHttpUrl(file.url)) return file.url
-  return `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
+function getExternalFileUrl(file: ChatFile): string | null {
+  const url = file.url?.trim()
+  return url && isSafeHttpUrl(url) ? url : null
 }
 
-async function triggerDownload(url: string, filename: string): Promise<void> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`)
+function getFileUrl(file: ChatFile): string {
+  if (file.base64) return `data:${file.type};base64,${file.base64}`
+  return (
+    getExternalFileUrl(file) ??
+    `/api/files/serve/${encodeURIComponent(file.key)}?context=${file.context || 'execution'}`
+  )
+}
+
+async function triggerDownload(file: ChatFile): Promise<void> {
+  if (file.base64) {
+    /** Decoding locally avoids a data-URL fetch, which connect-src does not allow. */
+    const decoded = atob(file.base64)
+    const bytes = new Uint8Array(decoded.length)
+    for (let index = 0; index < decoded.length; index++) {
+      bytes[index] = decoded.charCodeAt(index)
+    }
+    saveBlob(new Blob([bytes], { type: file.type }), file.name)
+    return
   }
 
-  const blob = await response.blob()
-  const blobUrl = URL.createObjectURL(blob)
+  const storageContext = tryInferContextFromKey(file.key)
+  const hasStorageKey = storageContext !== null
+  const externalUrl = getExternalFileUrl(file)
+  const url = hasStorageKey
+    ? `/api/files/serve/${encodeURIComponent(file.key)}?context=${encodeURIComponent(storageContext)}`
+    : externalUrl
+  if (!url) throw new Error('File has no download URL')
 
-  const link = document.createElement('a')
-  link.href = blobUrl
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  /** The same serve route as execution logs resolves current storage access on each click. */
+  let response: Response
+  if (hasStorageKey) {
+    // boundary-raw-fetch: binary file download through the authorized serve route
+    response = await fetch(url, { cache: 'no-store' })
+  } else {
+    response = await fetchExternalFile(url)
+  }
+  if (hasStorageKey && response.status === 401 && externalUrl) {
+    await response.body?.cancel()
+    /** Public chat visitors may only have the file access already delivered in the response. */
+    response = await fetchExternalFile(externalUrl)
+  }
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new Error('Unable to download this file. Please try again or request a new copy.')
+  }
 
-  URL.revokeObjectURL(blobUrl)
-  logger.info(`Downloaded: ${filename}`)
+  saveBlob(await response.blob(), file.name)
 }
 
 export function ChatFileDownload({ file }: ChatFileDownloadProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<{ directUrl?: string } | null>(null)
   const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null)
   const fileUrl = getFileUrl(file)
 
@@ -85,16 +132,14 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
     if (isDownloading) return
 
     setIsDownloading(true)
+    setDownloadError(null)
 
     try {
       logger.info(`Initiating download for file: ${file.name}`)
-      const url = getFileUrl(file)
-      await triggerDownload(url, file.name)
+      await triggerDownload(file)
     } catch (error) {
       logger.error(`Failed to download file ${file.name}:`, error)
-      if (file.url && isSafeHttpUrl(file.url)) {
-        window.open(file.url, '_blank', 'noopener,noreferrer')
-      }
+      setDownloadError(error instanceof DirectDownloadRequiredError ? { directUrl: error.url } : {})
     } finally {
       setIsDownloading(false)
     }
@@ -142,12 +187,33 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
           )}
         </div>
       </Button>
+      {downloadError && (
+        <p role='alert' className='text-[var(--text-error)] text-xs'>
+          {downloadError.directUrl ? (
+            <>
+              Unable to download automatically.{' '}
+              <a
+                href={downloadError.directUrl}
+                download={file.name}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='underline'
+              >
+                Download directly
+              </a>
+            </>
+          ) : (
+            'Unable to download this file. Please try again or request a new copy.'
+          )}
+        </p>
+      )}
     </div>
   )
 }
 
 export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [failedCount, setFailedCount] = useState(0)
 
   if (!files || files.length === 0) return null
 
@@ -155,6 +221,8 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
     if (isDownloading) return
 
     setIsDownloading(true)
+    setFailedCount(0)
+    let failures = 0
 
     try {
       logger.info(`Initiating download for ${files.length} files`)
@@ -162,8 +230,7 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         try {
-          const url = getFileUrl(file)
-          await triggerDownload(url, file.name)
+          await triggerDownload(file)
           logger.info(`Downloaded file ${i + 1}/${files.length}: ${file.name}`)
 
           if (i < files.length - 1) {
@@ -171,25 +238,35 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
           }
         } catch (error) {
           logger.error(`Failed to download file ${file.name}:`, error)
+          failures++
         }
       }
     } finally {
+      setFailedCount(failures)
       setIsDownloading(false)
     }
   }
 
   return (
-    <Button
-      variant='ghost-secondary'
-      onClick={handleDownloadAll}
-      disabled={isDownloading}
-      className='p-0'
-    >
-      {isDownloading ? (
-        <Loader className='size-3' animate />
-      ) : (
-        <Download className='size-3' strokeWidth={2} />
+    <div className='flex flex-col items-start gap-2'>
+      <Button
+        variant='ghost-secondary'
+        onClick={handleDownloadAll}
+        disabled={isDownloading}
+        className='p-0'
+      >
+        {isDownloading ? (
+          <Loader className='size-3' animate />
+        ) : (
+          <Download className='size-3' strokeWidth={2} />
+        )}
+      </Button>
+      {failedCount > 0 && (
+        <p role='alert' className='text-[var(--text-error)] text-xs'>
+          Unable to download {failedCount} {failedCount === 1 ? 'file' : 'files'}. Please try
+          downloading them individually.
+        </p>
       )}
-    </Button>
+    </div>
   )
 }

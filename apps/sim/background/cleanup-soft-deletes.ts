@@ -16,7 +16,7 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { task } from '@trigger.dev/sdk'
 import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
-import type { CleanupJobPayload } from '@/lib/billing/cleanup-dispatcher'
+import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import {
   decrementStorageUsageForBillingContextInTx,
   resolveStorageBillingContext,
@@ -26,10 +26,14 @@ import {
   batchDeleteByWorkspaceAndTimestamp,
   chunkedBatchDelete,
   chunkedBatchDeleteByScope,
+  consumeRowBudget,
   DEFAULT_DELETE_CHUNK_SIZE,
+  type RowBudget,
   selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
+import type { CleanupBudgets, LimitedCleanupPayload } from '@/lib/cleanup/limits'
+import { retentionCleanupQueue } from '@/lib/cleanup/queue'
 import {
   type CleanupOwnerScope,
   cleanupOwnerCondition,
@@ -93,47 +97,54 @@ interface WorkspaceFileStorageCleanupResult {
  */
 async function selectExpiredWorkspaceFiles(
   scope: CleanupOwnerScope,
-  retentionDate: Date
+  retentionDate: Date,
+  budgets?: CleanupBudgets
 ): Promise<WorkspaceFileScope> {
   const [legacyRows, multiContextRows] = await Promise.all([
-    selectRowsByIdChunks(scope.kind === 'workspace' ? scope.ids : [], (chunkIds, chunkLimit) =>
-      cleanupDb
-        .select({
-          id: workspaceFile.id,
-          key: workspaceFile.key,
-          workspaceId: workspaceFile.workspaceId,
-        })
-        .from(workspaceFile)
-        .where(
-          and(
-            inArray(workspaceFile.workspaceId, chunkIds),
-            isNotNull(workspaceFile.deletedAt),
-            lt(workspaceFile.deletedAt, retentionDate)
+    selectRowsByIdChunks(
+      scope.kind === 'workspace' ? scope.ids : [],
+      (chunkIds, chunkLimit) =>
+        cleanupDb
+          .select({
+            id: workspaceFile.id,
+            key: workspaceFile.key,
+            workspaceId: workspaceFile.workspaceId,
+          })
+          .from(workspaceFile)
+          .where(
+            and(
+              inArray(workspaceFile.workspaceId, chunkIds),
+              isNotNull(workspaceFile.deletedAt),
+              lt(workspaceFile.deletedAt, retentionDate)
+            )
           )
-        )
-        .limit(chunkLimit)
+          .limit(chunkLimit),
+      { budget: budgets?.legacyFiles }
     ),
-    selectRowsByIdChunks(scope.ids, (chunkIds, chunkLimit) =>
-      cleanupDb
-        .select({
-          id: workspaceFiles.id,
-          key: workspaceFiles.key,
-          workspaceId: workspaceFiles.workspaceId,
-          context: workspaceFiles.context,
-          sizeBytes: workspaceFiles.sizeBytes,
-        })
-        .from(workspaceFiles)
-        .where(
-          and(
-            cleanupOwnerCondition(workspaceFiles, scope, chunkIds),
-            scope.kind === 'organization'
-              ? eq(workspaceFiles.context, 'knowledge-base')
-              : undefined,
-            isNotNull(workspaceFiles.deletedAt),
-            lt(workspaceFiles.deletedAt, retentionDate)
+    selectRowsByIdChunks(
+      scope.ids,
+      (chunkIds, chunkLimit) =>
+        cleanupDb
+          .select({
+            id: workspaceFiles.id,
+            key: workspaceFiles.key,
+            workspaceId: workspaceFiles.workspaceId,
+            context: workspaceFiles.context,
+            sizeBytes: workspaceFiles.sizeBytes,
+          })
+          .from(workspaceFiles)
+          .where(
+            and(
+              cleanupOwnerCondition(workspaceFiles, scope, chunkIds),
+              scope.kind === 'organization'
+                ? eq(workspaceFiles.context, 'knowledge-base')
+                : undefined,
+              isNotNull(workspaceFiles.deletedAt),
+              lt(workspaceFiles.deletedAt, retentionDate)
+            )
           )
-        )
-        .limit(chunkLimit)
+          .limit(chunkLimit),
+      { budget: budgets?.files }
     ),
   ])
 
@@ -393,9 +404,11 @@ async function hardDeleteKnowledgeBaseDocuments(
 async function cleanupExpiredKnowledgeBases(
   scope: CleanupOwnerScope,
   retentionDate: Date,
-  label: string
+  label: string,
+  budget?: RowBudget
 ) {
   const options = {
+    budget,
     tableDef: knowledgeBase,
     tableName: `${label}/knowledgeBase`,
     batchSize: KB_RETENTION_BATCH_SIZE,
@@ -687,25 +700,35 @@ const CLEANUP_TARGETS = [
         ctx.retentionDate,
         ctx.label
       ),
+    budgetKey: 'folders',
     name: 'folder',
   },
   {
     table: userTableDefinitions,
     softDeleteCol: userTableDefinitions.archivedAt,
     wsCol: userTableDefinitions.workspaceId,
+    budgetKey: 'userTables',
     name: 'userTableDefinitions',
   },
-  { table: memory, softDeleteCol: memory.deletedAt, wsCol: memory.workspaceId, name: 'memory' },
+  {
+    table: memory,
+    softDeleteCol: memory.deletedAt,
+    wsCol: memory.workspaceId,
+    budgetKey: 'memories',
+    name: 'memory',
+  },
   {
     table: mcpServers,
     softDeleteCol: mcpServers.deletedAt,
     wsCol: mcpServers.workspaceId,
+    budgetKey: 'mcpServers',
     name: 'mcpServers',
   },
   {
     table: workflowMcpServer,
     softDeleteCol: workflowMcpServer.deletedAt,
     wsCol: workflowMcpServer.workspaceId,
+    budgetKey: 'workflowMcpServers',
     name: 'workflowMcpServer',
   },
 ] as const
@@ -721,7 +744,8 @@ const CLEANUP_TARGETS = [
  */
 async function cleanupOrphanedKnowledgeBaseBindings(
   scope: CleanupOwnerScope,
-  label: string
+  label: string,
+  budget?: RowBudget
 ): Promise<{ total: number; deleted: number; failed: number }> {
   const stats = { total: 0, deleted: 0, failed: 0 }
   if (scope.ids.length === 0) return stats
@@ -730,10 +754,11 @@ async function cleanupOrphanedKnowledgeBaseBindings(
 
   for (const chunkIds of chunkArray(scope.ids, KB_ORPHAN_BINDING_OWNER_CHUNK_SIZE)) {
     let attempted = 0
-    while (attempted < KB_ORPHAN_BINDING_TOTAL_LIMIT) {
+    while (attempted < KB_ORPHAN_BINDING_TOTAL_LIMIT && budget?.remaining !== 0) {
       const limit = Math.min(
         KB_ORPHAN_BINDING_BATCH_SIZE,
-        KB_ORPHAN_BINDING_TOTAL_LIMIT - attempted
+        KB_ORPHAN_BINDING_TOTAL_LIMIT - attempted,
+        budget?.remaining ?? KB_ORPHAN_BINDING_BATCH_SIZE
       )
       const rows = await cleanupDb
         .select({ key: workspaceFiles.key })
@@ -755,6 +780,7 @@ async function cleanupOrphanedKnowledgeBaseBindings(
 
       if (rows.length === 0) break
 
+      consumeRowBudget(budget, rows.length)
       const keys = rows.map((row) => row.key)
       stats.total += keys.length
       attempted += keys.length
@@ -781,6 +807,7 @@ async function cleanupOrphanedKnowledgeBaseBindings(
         }
       }
       stats.deleted += deletedThisBatch
+      if (budget && stats.failed) throw new Error('Orphan binding cleanup failed')
 
       // No progress (every delete failed) — stop rather than reselect the same rows.
       if (deletedThisBatch === 0) break
@@ -793,7 +820,10 @@ async function cleanupOrphanedKnowledgeBaseBindings(
   return stats
 }
 
-export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise<void> {
+export async function runCleanupSoftDeletes(
+  payload: CleanupJobPayload,
+  budgets?: CleanupBudgets
+): Promise<void> {
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label } = payload
   const scope = resolveCleanupOwnerScope(payload)
@@ -813,32 +843,38 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   // could return different subsets above the LIMIT cap and orphan or
   // prematurely purge data.
   const [doomedWorkflows, fileScope, expiredSoftDeletedChats] = await Promise.all([
-    selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
-      cleanupDb
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(
-          and(
-            inArray(workflow.workspaceId, chunkIds),
-            isNotNull(workflow.archivedAt),
-            lt(workflow.archivedAt, retentionDate)
+    selectRowsByIdChunks(
+      workspaceIds,
+      (chunkIds, chunkLimit) =>
+        cleanupDb
+          .select({ id: workflow.id })
+          .from(workflow)
+          .where(
+            and(
+              inArray(workflow.workspaceId, chunkIds),
+              isNotNull(workflow.archivedAt),
+              lt(workflow.archivedAt, retentionDate)
+            )
           )
-        )
-        .limit(chunkLimit)
+          .limit(chunkLimit),
+      { budget: budgets?.workflows }
     ),
-    selectExpiredWorkspaceFiles(scope, retentionDate),
-    selectRowsByIdChunks(scope.ids, (chunkIds, chunkLimit) =>
-      cleanupDb
-        .select({ id: copilotChats.id })
-        .from(copilotChats)
-        .where(
-          and(
-            cleanupOwnerCondition(copilotChats, scope, chunkIds),
-            isNotNull(copilotChats.deletedAt),
-            lt(copilotChats.deletedAt, retentionDate)
+    selectExpiredWorkspaceFiles(scope, retentionDate, budgets),
+    selectRowsByIdChunks(
+      scope.ids,
+      (chunkIds, chunkLimit) =>
+        cleanupDb
+          .select({ id: copilotChats.id })
+          .from(copilotChats)
+          .where(
+            and(
+              cleanupOwnerCondition(copilotChats, scope, chunkIds),
+              isNotNull(copilotChats.deletedAt),
+              lt(copilotChats.deletedAt, retentionDate)
+            )
           )
-        )
-        .limit(chunkLimit)
+          .limit(chunkLimit),
+      { budget: budgets?.chats }
     ),
   ])
 
@@ -864,6 +900,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
   }
 
   const fileCleanup = await cleanupWorkspaceFileStorage(fileScope)
+  if (budgets && fileCleanup.filesFailed) throw new Error('File storage cleanup failed')
 
   let totalDeleted = 0
 
@@ -886,6 +923,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
         .returning({ id: workflow.id })
       totalDeleted += deleted.length
     } catch (error) {
+      if (budgets) throw error
       logger.error(`[${label}/workflow] Archived workflow delete failed`, { error })
     }
   }
@@ -910,6 +948,7 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
         .returning({ id: copilotChats.id })
       totalDeleted += deleted.length
     } catch (error) {
+      if (budgets) throw error
       logger.error(`[${label}/copilotChats] Soft-deleted chat delete failed`, { error })
     }
   }
@@ -934,12 +973,23 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
     label
   )
   totalDeleted += unbilledFileResult.deleted
+  if (
+    budgets &&
+    (legacyFileResult.failed || billableFileResult.failed || unbilledFileResult.failed)
+  )
+    throw new Error('File row cleanup failed')
 
-  const knowledgeBaseResult = await cleanupExpiredKnowledgeBases(scope, retentionDate, label)
+  const knowledgeBaseResult = await cleanupExpiredKnowledgeBases(
+    scope,
+    retentionDate,
+    label,
+    budgets?.knowledgeBases
+  )
   totalDeleted += knowledgeBaseResult.deleted
 
   for (const target of scope.kind === 'workspace' ? CLEANUP_TARGETS : []) {
     const result = await batchDeleteByWorkspaceAndTimestamp({
+      budget: budgets?.[target.budgetKey],
       tableDef: target.table,
       workspaceIdCol: target.wsCol,
       timestampCol: target.softDeleteCol,
@@ -957,7 +1007,11 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
     totalDeleted += result.deleted
   }
 
-  const orphanBindingStats = await cleanupOrphanedKnowledgeBaseBindings(scope, label)
+  const orphanBindingStats = await cleanupOrphanedKnowledgeBaseBindings(
+    scope,
+    label,
+    budgets?.orphanKnowledgeBaseBindings
+  )
 
   logger.info(
     `[${label}] Complete: ${totalDeleted} rows deleted, ${fileCleanup.filesDeleted} files cleaned, ${orphanBindingStats.deleted} orphan KB bindings cleaned`
@@ -975,6 +1029,10 @@ export async function runCleanupSoftDeletes(payload: CleanupJobPayload): Promise
 export const cleanupSoftDeletesTask = task({
   id: 'cleanup-soft-deletes',
   machine: 'large-1x',
-  queue: { concurrencyLimit: 5 },
-  run: runCleanupSoftDeletes,
+  queue: retentionCleanupQueue,
+  retry: { maxAttempts: 1 },
+  run: (payload: CleanupJobPayload | LimitedCleanupPayload) =>
+    'limits' in payload
+      ? runCleanupWithLimits('cleanup-soft-deletes', payload.limits, runCleanupSoftDeletes)
+      : runCleanupSoftDeletes(payload),
 })

@@ -77,10 +77,7 @@ async function canOpenOrganizationSection(
   const organizationSection = UNIFIED_TO_ORGANIZATION_SECTION[input.section]
   if (!organizationSection) return true
   const deployment = getDeploymentShape()
-  if (
-    !deployment.billingEnabled &&
-    (input.section === 'billing' || input.section === 'organization')
-  ) {
+  if (!deployment.billingEnabled && input.section === 'billing') {
     return false
   }
   if (!workspace.organizationId) {

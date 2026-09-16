@@ -7,9 +7,15 @@ const { metadata, readWorkspaceFile } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({ getFileMetadataByKey: metadata }))
-vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', () => ({
-  readWorkspaceFileRecordByKey: { execute: readWorkspaceFile },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/lib/workspace-files/application/read-stored-workspace-file-record-by-key')
+    >()),
+    readStoredWorkspaceFileRecordByKey: { execute: readWorkspaceFile },
+  })
+)
 
 import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 

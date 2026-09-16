@@ -138,7 +138,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const normalizedSection: SettingsSection =
     (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
-    !billingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
+    !billingEnabled && normalizedSection === 'billing'
       ? 'general'
       : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
         ? 'general'
@@ -192,7 +192,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
         />
       )}
       {effectiveSection === 'teammates' && <Teammates />}
-      {billingEnabled && effectiveSection === 'organization' && organizationId && (
+      {effectiveSection === 'organization' && organizationId && (
         <TeamManagement
           organizationId={organizationId}
           billingHref={`/workspace/${hostContext.workspace.id}/settings/billing`}

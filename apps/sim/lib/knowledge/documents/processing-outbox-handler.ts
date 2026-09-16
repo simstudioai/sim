@@ -8,6 +8,10 @@ import {
 import { isBYOKEmbeddingCredentialRejection, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import {
+  cleanupKnowledgeConnector,
+  KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
+} from '@/lib/knowledge/connectors/deletion'
+import {
   getOcrRequestRejection,
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
@@ -228,6 +232,7 @@ const KNOWLEDGE_HANDLER_TIMEOUT_MS = Math.min(
 )
 
 export const knowledgeDocumentProcessingOutboxHandlers = {
+  [KNOWLEDGE_CONNECTOR_CLEANUP_EVENT]: cleanupKnowledgeConnector,
   [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanupKnowledgeStorage,
   [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
   [EMBEDDING_CHECKPOINT_CLEANUP_EVENT]: cleanupEmbeddingCheckpoint,

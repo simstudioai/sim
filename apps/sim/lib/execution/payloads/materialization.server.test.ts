@@ -19,14 +19,23 @@ vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,
 }))
 
-vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', () => ({
-  readWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileByKey },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/lib/workspace-files/application/read-stored-workspace-file-record-by-key')
+    >()),
+    readStoredWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileByKey },
+  })
+)
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  assertUserFileContentAccess,
   readUserFileContent,
   readUserFileContentWithContributors,
 } from '@/lib/execution/payloads/materialization.server'
+import { StoredWorkspaceFileUnavailableError } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
 import type { UserFile } from '@/executor/types'
 
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas')
@@ -39,6 +48,17 @@ const generatedPdf: UserFile = {
   size: PDF_SOURCE.length,
   type: 'text/x-python-pdf',
   key: 'workspace/2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f/1700000000000-abc1234-report.pdf',
+}
+
+const delegatedReader = {
+  kind: 'delegated' as const,
+  serviceId: 'copilot' as const,
+  subjectUserId: 'reader',
+  workspaceId: 'workspace-1',
+  delegationId: 'read-1',
+  audience: 'sim:function-executions',
+  issuedAt: new Date(Date.now() - 1_000),
+  expiresAt: new Date(Date.now() + 60_000),
 }
 
 describe('readUserFileContent', () => {
@@ -263,5 +283,145 @@ describe('readUserFileContent', () => {
         assertedWorkspaceId: 'workspace-1',
       },
     })
+  })
+
+  it.each([undefined, 'workspace', 'mothership'] as const)(
+    'resolves chat-upload ownership canonically with descriptor context %s',
+    async (context) => {
+      const principal = {
+        kind: 'workspace_api_key' as const,
+        workspaceId: 'workspace-1',
+        keyId: 'key-1',
+      }
+      await assertUserFileContentAccess(
+        { key: 'workspace/workspace-1/upload.png', context },
+        { principal, workspaceId: 'workspace-1' }
+      )
+
+      expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith({
+        principal,
+        input: {
+          key: 'workspace/workspace-1/upload.png',
+          assertedWorkspaceId: 'workspace-1',
+        },
+      })
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { userId: 'billing-owner' },
+    {
+      userId: 'billing-owner',
+      workspaceId: 'workspace-1',
+      principal: { kind: 'workspace_api_key' as const, workspaceId: 'workspace-1', keyId: 'key-1' },
+    },
+  ])('never uses a user fallback to accept a mothership context alias', async (options) => {
+    mockReadWorkspaceFileByKey.mockRejectedValue(
+      new OrchestrationError('not_found', 'File not found')
+    )
+
+    await expect(
+      assertUserFileContentAccess(
+        { key: 'workspace/workspace-1/upload.png', context: 'mothership' },
+        options
+      )
+    ).rejects.toThrow('Chat upload access requires canonical file authorization.')
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+  })
+
+  it.each(
+    ([undefined, 'workspace', 'mothership'] as const).flatMap((context) =>
+      (['forbidden', 'not_found'] as const).flatMap((code) =>
+        [{ fileId: 'file-1' }, { chatId: 'chat-1' }, { fileId: 'file-1', chatId: 'chat-1' }].map(
+          (resourceScope) => ({ context, code, resourceScope })
+        )
+      )
+    )
+  )(
+    'preserves delegated file/chat limits after canonical rejection: %j',
+    async ({ context, code, resourceScope }) => {
+      const principal = { ...delegatedReader, resourceScope }
+      mockReadWorkspaceFileByKey.mockRejectedValue(new OrchestrationError(code, 'Denied'))
+
+      await expect(
+        assertUserFileContentAccess(
+          { key: 'workspace/workspace-1/upload.png', context },
+          { principal, workspaceId: 'workspace-1', userId: 'billing-owner' }
+        )
+      ).rejects.toMatchObject({ code })
+      expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: expect.objectContaining({ resourceScope: principal.resourceScope }),
+        })
+      )
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(
+    ([undefined, 'workspace'] as const).flatMap((context) =>
+      [{ kind: 'session' as const, userId: 'reader', sessionId: 'session-1' }, delegatedReader].map(
+        (principal) => ({ context, principal })
+      )
+    )
+  )(
+    'retains legacy authorization for an unscoped caller with absent metadata: %j',
+    async ({ context, principal }) => {
+      mockReadWorkspaceFileByKey.mockRejectedValue(
+        new OrchestrationError('not_found', 'File not found')
+      )
+      await expect(
+        assertUserFileContentAccess(
+          { key: 'workspace/workspace-1/legacy.png', context },
+          { principal, workspaceId: 'workspace-1', userId: 'reader' }
+        )
+      ).resolves.toBeUndefined()
+      expect(mockVerifyFileAccess).toHaveBeenCalledWith(
+        'workspace/workspace-1/legacy.png',
+        'reader',
+        undefined,
+        'workspace',
+        false,
+        { knowledgeAccess: undefined }
+      )
+    }
+  )
+
+  it.each(
+    ([undefined, 'workspace', 'mothership'] as const).flatMap((context) =>
+      [
+        { kind: 'session' as const, userId: 'reader', sessionId: 'session-1' },
+        delegatedReader,
+        { ...delegatedReader, resourceScope: { fileId: 'file-1', chatId: 'chat-1' } },
+      ].map((principal) => ({ context, principal }))
+    )
+  )(
+    'never falls back or reads bytes for a known unavailable binding: %j',
+    async ({ context, principal }) => {
+      const unavailable = new StoredWorkspaceFileUnavailableError()
+      mockReadWorkspaceFileByKey.mockRejectedValue(unavailable)
+      await expect(
+        readUserFileContent(
+          { ...generatedPdf, key: 'workspace/workspace-1/upload.png', context },
+          { principal, workspaceId: 'workspace-1', userId: 'reader', encoding: 'base64' }
+        )
+      ).rejects.toBe(unavailable)
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+      expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    'execution/workspace-1/workflow-1/run-1/file.png',
+    'profile-pictures/file.png',
+    'assistant/org-1/file.png',
+  ])('does not extend the mothership alias to %s', async (key) => {
+    await expect(
+      assertUserFileContentAccess({ key, context: 'mothership' }, { workspaceId: 'workspace-1' })
+    ).rejects.toThrow()
+    expect(mockReadWorkspaceFileByKey).not.toHaveBeenCalled()
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
   })
 })

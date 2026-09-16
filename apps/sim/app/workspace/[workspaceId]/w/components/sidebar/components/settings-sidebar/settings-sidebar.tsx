@@ -136,7 +136,6 @@ export function SettingsSidebar({
       : null
   const subscriptionAccess = getSubscriptionAccessState(hostContext.ownerBilling)
   const inboxEntitled = inboxConfig?.entitled ?? false
-  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
   const isEnterprisePlan = subscriptionAccess.isEnterprise
 
@@ -163,6 +162,11 @@ export function SettingsSidebar({
         (organizationSettingsId || !hostContext.viewer.isHostOrganizationMember)
       ) {
         return false
+      }
+      if (item.id === 'organization') {
+        return Boolean(
+          hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationMember
+        )
       }
       if (item.requiresSelfHosted && hosted) {
         return false
@@ -228,10 +232,6 @@ export function SettingsSidebar({
 
       const orgAdminSatisfied = isOrgAdminOrOwner || item.allowNonOrgAdmin
 
-      if (item.requiresTeam && (!hasTeamPlan || !orgAdminSatisfied)) {
-        return false
-      }
-
       if (
         item.requiresEnterprise &&
         (!hasEnterprisePlan || !orgAdminSatisfied) &&
@@ -264,7 +264,6 @@ export function SettingsSidebar({
     deployment,
     hosted,
     billingEnabled,
-    hasTeamPlan,
     hasEnterprisePlan,
     isEnterprisePlan,
     subscriptionAccess.hasUsableMaxAccess,

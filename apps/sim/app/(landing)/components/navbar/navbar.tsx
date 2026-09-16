@@ -1,4 +1,4 @@
-import { ChipLink, cn } from '@sim/emcn'
+import { ChipLink, cn, SimWordmark } from '@sim/emcn'
 import Link from 'next/link'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
@@ -11,7 +11,6 @@ import {
   NavbarAuthPill,
   NavbarShell,
   NavMenuCluster,
-  SimWordmark,
 } from '@/app/(landing)/components/navbar/components'
 import { ModelsMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/models-menu-preview'
 import { DEMO_HREF } from '@/app/(landing)/constants'
