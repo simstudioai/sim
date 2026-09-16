@@ -109,8 +109,10 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
 // so each id is a precise pointer the agent can act on directly.
 const RESOURCE_TO_CONTEXT: Record<
   MothershipResourceType,
-  (resource: MothershipResource) => ChatContext
+  (resource: MothershipResource) => ChatContext | null
 > = {
+  /** A saved query is panel state, not document evidence or an attachable resource. */
+  search: () => null,
   browser: (r) => ({ kind: 'browser_tab', tabId: r.id, label: r.title }),
   terminal: (r) => ({
     kind: 'terminal_tab',
@@ -136,6 +138,6 @@ const RESOURCE_TO_CONTEXT: Record<
   generic: (r) => ({ kind: 'docs', label: r.title }),
 }
 
-export function mapResourceToContext(resource: MothershipResource): ChatContext {
+export function mapResourceToContext(resource: MothershipResource): ChatContext | null {
   return RESOURCE_TO_CONTEXT[resource.type](resource)
 }

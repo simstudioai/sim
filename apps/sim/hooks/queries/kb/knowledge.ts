@@ -51,10 +51,8 @@ import {
   updateKnowledgeChunkContract,
   updateKnowledgeDocumentContract,
   updateKnowledgeDocumentTagsContract,
-  WORKSPACE_KNOWLEDGE_SEARCH_LIMITS,
   type WorkspaceKnowledgeSearchBody,
   type WorkspaceKnowledgeSearchData,
-  type WorkspaceKnowledgeSearchLimit,
 } from '@/lib/api/contracts/knowledge'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import { useSession } from '@/lib/auth/auth-client'
@@ -1210,7 +1208,7 @@ export function useWorkspaceKnowledgeSearch(
   owner: string | ResourceScope | undefined,
   query: string,
   filters?: WorkspaceSearchFilters,
-  limit: WorkspaceKnowledgeSearchLimit = WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
+  topK = 20
 ) {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
@@ -1225,15 +1223,14 @@ export function useWorkspaceKnowledgeSearch(
   const scopeKey =
     scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    /** The limit is the key's last part, so asking for more never evicts the first paint. */
-    queryKey: [...knowledgeKeys.search(scopeKey, trimmed, filters, userId), limit],
+    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId),
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
           ...(scope ? resourceScopeFields(scope) : {}),
           query: trimmed,
           filters,
-          topK: limit,
+          topK,
         },
         signal
       ),
@@ -1243,6 +1240,7 @@ export function useWorkspaceKnowledgeSearch(
     placeholderData: (previous, previousQuery) =>
       userId &&
       previousQuery?.state.status === 'success' &&
+      previousQuery.queryKey[6] === topK &&
       !previousQuery.state.isInvalidated &&
       knowledgeKeys
         .searchQuery(scopeKey, trimmed, userId)

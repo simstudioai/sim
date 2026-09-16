@@ -34,6 +34,8 @@ export interface EmbeddedFileSnapshot {
 
 export interface EmbedContext {
   identity: EmbeddedCliIdentity
+  /** Absolute caller filesystem working directory; never inherited from the embedding server. */
+  workingDirectory?: string
   stdout: EmbeddedOutput
   stderr: EmbeddedOutput
   /**

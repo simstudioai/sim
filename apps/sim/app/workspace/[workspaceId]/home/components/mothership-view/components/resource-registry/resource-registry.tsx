@@ -9,6 +9,7 @@ import {
   Folder as FolderIcon,
   Globe,
   Library,
+  Search,
   Table as TableIcon,
   Task,
   TerminalWindow,
@@ -137,6 +138,15 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
 }
 
 export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
+  search: {
+    type: 'search',
+    label: 'Search results',
+    icon: Search,
+    renderTabIcon: (_resource, className) => (
+      <Search className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+  },
   generic: {
     type: 'generic',
     label: 'Results',

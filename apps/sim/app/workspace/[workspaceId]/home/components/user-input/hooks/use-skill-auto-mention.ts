@@ -35,6 +35,7 @@ function isTriggerPrefixAt(text: string, index: number): boolean {
 }
 
 interface UseSkillAutoMentionProps {
+  workspaceId?: string
   /** Skills available in the current workspace. */
   skills: SkillDefinition[]
   /** MCP servers available in the current workspace. */
@@ -68,6 +69,7 @@ interface ProcessChangeArgs {
 export function useSkillAutoMention({
   skills,
   mcpServers,
+  workspaceId,
   setSelectedContexts,
 }: UseSkillAutoMentionProps) {
   /**
@@ -81,6 +83,7 @@ export function useSkillAutoMention({
       byName.set(skill.name.toLowerCase(), {
         kind: 'skill',
         skillId: skill.id,
+        ...(workspaceId ? { workspaceId } : {}),
         label: skill.name,
       })
     }
@@ -105,7 +108,7 @@ export function useSkillAutoMention({
     const trigger = `(?:/|${escapeRegExp(SKILL_CHIP_TRIGGER)})`
     const pattern = `${trigger}(${names.map(escapeRegExp).join('|')})(?![A-Za-z0-9_-])`
     return { regex: new RegExp(pattern, 'gi'), byName }
-  }, [skills, mcpServers])
+  }, [skills, mcpServers, workspaceId])
 
   const matcherRef = useRef(matcher)
   matcherRef.current = matcher

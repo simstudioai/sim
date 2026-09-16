@@ -3,6 +3,7 @@ import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import {
   readSessionSandboxFile,
+  SESSION_SANDBOX_HOME,
   writeSessionSandboxFile,
 } from '@/lib/execution/remote-sandbox/session-files'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
@@ -47,6 +48,7 @@ export async function runCli(
     : undefined
   identity.signal?.throwIfAborted()
   return runEmbeddedCli(argv, identity, {
+    workingDirectory: SESSION_SANDBOX_HOME,
     ...(readFile ? { readFile } : {}),
     ...(openFile ? { openFile } : {}),
     ...(writeFile ? { writeFile } : {}),

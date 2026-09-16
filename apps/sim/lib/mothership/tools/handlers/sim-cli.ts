@@ -67,7 +67,7 @@ export async function executeSimCli(
     return {
       success: false,
       error:
-        parsed.data.invocation.kind === 'service'
+        parsed.data.invocation.kind === 'service' || parsed.data.invocation.kind === 'stdout'
           ? messageForCopilotApplicationError(error)
           : getErrorMessage(error),
     }

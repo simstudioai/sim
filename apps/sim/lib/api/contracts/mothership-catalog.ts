@@ -3,6 +3,7 @@ import { v2BlockDetailSchema, v2BlockFieldSchema } from '@/lib/api/contracts/v2/
 
 /** Internal discovery adds compact catalog hints without changing the public v2 response. */
 const mothershipBlockFieldSchema = v2BlockFieldSchema.extend({
+  valueSchema: z.record(z.string(), z.unknown()).optional(),
   optionsAvailability: z.string().optional(),
   options: z
     .array(
@@ -17,5 +18,8 @@ const mothershipBlockFieldSchema = v2BlockFieldSchema.extend({
 
 export const mothershipBlockDetailSchema = v2BlockDetailSchema.extend({
   inputSchema: z.array(mothershipBlockFieldSchema),
+  operationAvailability: z
+    .record(z.string(), z.object({ enabled: z.boolean(), reason: z.string().optional() }))
+    .optional(),
 })
 export type MothershipBlockDetail = z.infer<typeof mothershipBlockDetailSchema>

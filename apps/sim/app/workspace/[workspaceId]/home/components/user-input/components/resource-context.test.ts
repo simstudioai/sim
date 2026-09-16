@@ -10,6 +10,9 @@ function resource(partial: Partial<MothershipResource> & Pick<MothershipResource
 }
 
 describe('mapResourceToContext', () => {
+  it('does not treat a search tab as retrieved document evidence', () => {
+    expect(mapResourceToContext(resource({ type: 'search', title: 'Search results' }))).toBeNull()
+  })
   it('turns a terminal tab into a pointer at that shell', () => {
     expect(mapResourceToContext(resource({ type: 'terminal', id: '3', title: 'sim' }))).toEqual({
       kind: 'terminal_tab',

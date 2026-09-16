@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { read, write, open } = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn(), open: vi.fn() }))
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
+  SESSION_SANDBOX_HOME: '/home/user',
   readSessionSandboxFile: read,
   writeSessionSandboxFile: write,
   resolveSessionPath: (path: string) => `/home/user/${path}`,
@@ -49,6 +50,48 @@ describe('the CLI owns workbench file semantics', () => {
       }
     }
   )
+
+  it('keeps native export bytes separate from an outputFile stdout receipt', async () => {
+    const writes: { path: string; content: Uint8Array | string }[] = []
+    write.mockImplementation(
+      async (_session: string, path: string, content: ReadableStream<Uint8Array> | string) => {
+        writes.push({
+          path,
+          content:
+            typeof content === 'string'
+              ? content
+              : new Uint8Array(await new Response(content).arrayBuffer()),
+        })
+        return { outcome: 'written', path }
+      }
+    )
+    const result = await runCli(
+      ['knowledge', 'export', 'kb'],
+      {
+        ...IDENTITY,
+        transport: async () =>
+          new Response(new Uint8Array([80, 75, 3, 4]), {
+            headers: {
+              'content-type': 'application/zip',
+              'content-disposition': 'attachment; filename="guide.simkb.zip"',
+            },
+          }),
+      },
+      'chat'
+    )
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      path: '/home/user/guide.simkb.zip',
+      status: 'saved',
+    })
+    await applySink({ kind: 'sandbox-file', path: 'receipt.json' }, 'chat', result)
+    expect(writes).toEqual([
+      { path: '/home/user/guide.simkb.zip', content: new Uint8Array([80, 75, 3, 4]) },
+      { path: 'receipt.json', content: result.stdout },
+    ])
+    expect(read).not.toHaveBeenCalled()
+    expect(open).not.toHaveBeenCalled()
+  })
 
   it('does not touch the workbench for literal text, help or invalid commands', async () => {
     const requests: Request[] = []

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { requiredFieldSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { predicateInputSchema, sortSpecSchema } from '@/lib/api/contracts/tables'
+import { SearchResource } from '@/lib/mothership/generated/resources'
 import {
   type MothershipResource,
   MothershipResourceType,
@@ -17,8 +18,25 @@ const resourceAddressSchema = z
     path: z.string().optional(),
     viewId: z.string().min(1).optional(),
     executionId: z.string().optional(),
+    search: SearchResource.optional(),
   })
   .superRefine((resource, ctx) => {
+    if ((resource.type === 'search') !== (resource.search !== undefined))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['search'],
+        message: 'Search metadata is required only for search resources',
+      })
+    if (
+      resource.search &&
+      resource.workspaceId !==
+        (resource.search.scope.kind === 'workspace' ? resource.search.scope.workspaceId : undefined)
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['workspaceId'],
+        message: 'Search scope must match its resource owner',
+      })
     if (resource.viewId === undefined || resource.type === 'table') return
     ctx.addIssue({
       code: 'custom',

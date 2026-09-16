@@ -119,7 +119,10 @@ interface CapturedQuery {
   queryKey: readonly unknown[]
   queryFn: (context: { signal: AbortSignal }) => Promise<unknown>
   retry?: boolean
-  placeholderData?: (previous: unknown, query: { queryKey: readonly unknown[] }) => unknown
+  placeholderData?: (
+    previous: unknown,
+    query: { queryKey: readonly unknown[]; state?: { status: string; isInvalidated: boolean } }
+  ) => unknown
 }
 
 function captureQuery(build: () => unknown): CapturedQuery {
@@ -210,20 +213,63 @@ describe('knowledge query placeholder scope', () => {
     ).toBeUndefined()
   })
 
+  it('retains successful refinements only for the same reader, query, scope, and result limit', () => {
+    const query = captureQuery(() =>
+      useWorkspaceKnowledgeSearch('workspace-1', 'release', { source: 'slack' }, 5)
+    )
+    const previous = { results: [{ documentId: 'private-document' }] }
+    mocks.getQueryData.mockReturnValue(previous)
+    const placeholder = (scope: string, text: string, topK: number, userId: string) =>
+      query.placeholderData?.(previous, {
+        queryKey: knowledgeKeys.search(scope, text, {}, topK, userId),
+        state: { status: 'success', isInvalidated: false },
+      })
+    expect(placeholder('workspace-1', 'release', 5, 'reader')).toBe(previous)
+    expect(placeholder('workspace-1', 'release', 20, 'reader')).toBeUndefined()
+    expect(placeholder('workspace-1', 'release', 5, 'other')).toBeUndefined()
+    expect(placeholder('workspace-2', 'release', 5, 'reader')).toBeUndefined()
+    expect(placeholder('workspace-1', 'different', 5, 'reader')).toBeUndefined()
+  })
+
   it('partitions search cache entries by filter and reader', () => {
     const query = captureQuery(() =>
       useWorkspaceKnowledgeSearch('workspace-1', 'new query', { source: 'slack' })
     )
-    /** The limit is the key's last part, so the wider search never evicts the first paint. */
-    expect(query.queryKey).toEqual([
-      ...knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 'reader'),
-      20,
-    ])
+    expect(query.queryKey).toEqual(
+      knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 20, 'reader')
+    )
     expect(knowledgeKeys.search('workspace-1', 'query', { source: 'slack' })).not.toEqual(
       knowledgeKeys.search('workspace-1', 'query', { source: 'gitlab' })
     )
-    expect(knowledgeKeys.search('workspace-1', 'query', {}, 'reader')).not.toEqual(
-      knowledgeKeys.search('workspace-1', 'query', {}, 'another-reader')
+    expect(knowledgeKeys.search('workspace-1', 'query', {}, 20, 'reader')).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', {}, 20, 'another-reader')
+    )
+    expect(knowledgeKeys.search('workspace-1', 'query', {}, 5)).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', {}, 20)
+    )
+  })
+
+  it('preserves a Search tab result limit and organization address in the authorized request', async () => {
+    mocks.requestJson.mockResolvedValueOnce({ data: { results: [] } })
+    const query = captureQuery(() =>
+      useWorkspaceKnowledgeSearch(
+        { kind: 'organization', organizationId: 'org-1' },
+        'release',
+        { documentIds: ['doc-1'] },
+        5
+      )
+    )
+    await query.queryFn({ signal: new AbortController().signal })
+    expect(mocks.requestJson).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: {
+          organizationId: 'org-1',
+          query: 'release',
+          filters: { documentIds: ['doc-1'] },
+          topK: 5,
+        },
+      })
     )
   })
 })

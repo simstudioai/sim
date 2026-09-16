@@ -1,4 +1,4 @@
-import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { parseAsString } from 'nuqs/server'
 
 /**
  * `q` is the Search page's query, so a search is a shareable, bookmarkable link.
@@ -8,7 +8,6 @@ import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
  */
 export const organizationSearchParsers = {
   q: parseAsString.withDefault(''),
-  view: parseAsStringLiteral(['results', 'assistant']).withDefault('results'),
 } as const
 
 /** A query is a filter-like view change, not navigation: replace, and clear when empty. */

@@ -5,6 +5,7 @@ import {
   searchWorkspaceInputSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
 import {
   searchOrganizationKnowledge,
@@ -139,6 +140,9 @@ export const searchWorkspaceServerTool: BaseServerTool = {
           return {
             success: false,
             retryable: error instanceof SearchDeadlineError,
+            ...(error instanceof EmbeddingConfigurationError
+              ? { capability: error.capability, reason: error.reason, recovery: error.recovery }
+              : {}),
             message:
               error instanceof SearchDeadlineError
                 ? error.message

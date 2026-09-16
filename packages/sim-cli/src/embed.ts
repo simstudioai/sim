@@ -77,6 +77,7 @@ export async function runEmbeddedCli(
   argv: string[],
   identity: EmbeddedCliIdentity,
   options?: {
+    workingDirectory?: string
     readFile?: EmbedContext['readFile']
     openFile?: EmbedContext['openFile']
     writeFile?: EmbedContext['writeFile']
@@ -89,6 +90,7 @@ export async function runEmbeddedCli(
   const opener = options?.openFile
   const ctx: EmbedContext = {
     identity,
+    ...(options?.workingDirectory ? { workingDirectory: options.workingDirectory } : {}),
     stdout: new EmbeddedOutput(),
     stderr: new EmbeddedOutput(),
     ...(reader

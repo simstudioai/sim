@@ -5,6 +5,7 @@ import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { AUGMENTATION_ENGINES, runEngine } from '@/lib/mothership/agent-cli/engines'
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-upload-transport'
+import { curateKnowledgeDocuments } from '@/lib/mothership/agent-cli/knowledge-curation'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
@@ -43,7 +44,9 @@ export async function executeAgentCliRequest(
   context.signal?.throwIfAborted()
   if (
     request.invocation.kind === 'service' ||
-    (request.invocation.kind === 'stdout' && (context.chatOrganizationId || context.organizationId))
+    (request.invocation.kind === 'stdout' &&
+      request.workspaceId === undefined &&
+      (context.chatOrganizationId || context.organizationId))
   )
     return executeAgentCliService(request, context)
   const target = await resolveInvocationWorkspace(context, request.workspaceId)
@@ -160,6 +163,7 @@ async function executeBoundAgentCliRequest(
     result = await withCopilotSpan(TraceSpan.CopilotCliInvoke, undefined, () =>
       runCli(argv, identity, sessionKey, files)
     )
+    if (request.curate === 'knowledge-documents') result = curateKnowledgeDocuments(result)
     if (result.exitCode === 0 && request.curate === 'block') {
       result = await withCopilotSpan(TraceSpan.CopilotCliCurate, undefined, () =>
         curateBlockDetail(result, context)

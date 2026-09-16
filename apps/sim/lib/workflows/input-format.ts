@@ -1,5 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import type { InputFormatFieldState } from '@/lib/workflows/input-format-schema'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
@@ -27,20 +28,6 @@ export interface WorkflowInputField {
    * settings UI; has no source on the workflow's Start block.
    */
   required?: boolean
-}
-
-/**
- * Stateful input-format field as stored in sub-block values: the editor's
- * per-row shape, including the editor-only `id` and `collapsed` fields. Stricter
- * than the wire-level {@link InputFormatField} (required `name`/`type`/`value`).
- */
-interface InputFormatFieldState {
-  id: string
-  name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
-  value: string
-  description?: string
-  collapsed: boolean
 }
 
 /**

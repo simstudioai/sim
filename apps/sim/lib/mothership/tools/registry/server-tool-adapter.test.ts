@@ -23,6 +23,28 @@ describe('server tool adapter authority boundary', () => {
     mocks.routeExecution.mockResolvedValue({ success: true })
   })
 
+  it('publishes the authorized Search address from the direct Assistant tool', async () => {
+    mocks.routeExecution.mockResolvedValue({ success: true, data: { query: 'safe policy' } })
+    const result = await createServerToolHandler('search_workspace')(
+      { query: 'policy', topK: 4 },
+      {
+        userId: 'reader',
+        organizationId: 'org',
+        workflowId: '',
+        chatId: 'chat',
+        toolCallId: 'call',
+        copilotToolExecution: true,
+      }
+    )
+    expect(result.resources).toEqual([
+      expect.objectContaining({
+        type: 'search',
+        id: 'search:organization:org',
+        search: expect.objectContaining({ query: 'safe policy', topK: 4 }),
+      }),
+    ])
+  })
+
   it('overwrites model-supplied workspace scope and forwards trusted delegation context', async () => {
     const handler = createServerToolHandler('prepare_file_edit')
 

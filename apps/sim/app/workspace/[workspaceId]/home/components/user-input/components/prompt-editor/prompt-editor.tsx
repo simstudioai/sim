@@ -269,7 +269,7 @@ export function PromptEditor({
         />
       </div>
 
-      {!readOnly && (
+      {!readOnly && editor.contextsEnabled && (
         <>
           <PlusMenuDropdown
             ref={editor.plusMenuRef}

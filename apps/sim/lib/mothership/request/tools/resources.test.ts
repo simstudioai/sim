@@ -79,6 +79,17 @@ describe('handleResourceSideEffects', () => {
     })
   })
   it.each([
+    {
+      type: 'search',
+      id: 'search:organization:org',
+      title: 'Search results',
+      search: {
+        query: 'policy',
+        scope: { kind: 'organization', organizationId: 'org' },
+        filters: { source: 'slack' },
+        topK: 7,
+      },
+    },
     { type: 'table', id: 'table', title: 'Contacts', viewId: 'active-view' },
     { type: 'file', id: 'file', title: 'Report', path: 'files/Reports/report.md' },
     { type: 'log', id: 'log-row', title: 'Run', executionId: 'workflow-run' },

@@ -347,7 +347,7 @@ export async function resolveOrCreateChat(params: {
     if (!principal || resolvePrincipalSubjectUserId(principal) !== userId) {
       throw new Error('Organization conversations require the authenticated principal')
     }
-    await authorizeOrganizationChat.execute({ principal, input: { organizationId } })
+    await authorizeOrganizationChat.execute({ principal, input: { organizationId, mode } })
   }
 
   if (workspaceId) {
@@ -361,9 +361,6 @@ export async function resolveOrCreateChat(params: {
     })
 
     if (chat) {
-      if (organizationId && (mode ?? 'assistant') !== chat.mode) {
-        return { chatId, chat: null, conversationHistory: [], isNew: false }
-      }
       if ((organizationId ?? null) !== (chat.organizationId ?? null)) {
         return { chatId, chat: null, conversationHistory: [], isNew: false }
       }

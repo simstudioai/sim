@@ -106,6 +106,9 @@ type KnowledgeSearchResultsProps = (
   | { scope: ResourceScope; workspaceId?: never }
 ) & {
   query: string
+  /** A tool-owned search keeps its exact scope instead of inheriting page filters. */
+  filters?: WorkspaceSearchFilters
+  topK?: number
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
 }
@@ -115,6 +118,8 @@ export function KnowledgeSearchResults({
   workspaceId,
   scope: suppliedScope,
   query,
+  filters: suppliedFilters,
+  topK,
   onSummarize,
 }: KnowledgeSearchResultsProps) {
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
@@ -125,18 +130,22 @@ export function KnowledgeSearchResults({
       key={JSON.stringify([resourceScopeKey(scope), session?.user?.id, trimmed])}
       scope={scope}
       query={trimmed}
+      suppliedFilters={suppliedFilters}
+      topK={topK}
       onSummarize={onSummarize}
     />
   )
 }
 
 interface SearchResultsProps {
+  suppliedFilters?: WorkspaceSearchFilters
+  topK?: number
   scope: ResourceScope
   query: string
   onSummarize: KnowledgeSearchResultsProps['onSummarize']
 }
 
-function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
+function SearchResults({ scope, query, onSummarize, suppliedFilters, topK }: SearchResultsProps) {
   const [hasShownFilters, setHasShownFilters] = useState(false)
   const [searchedAt] = useState(Date.now)
   /**
@@ -155,7 +164,7 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
   /** A custom window is inclusive of both days; `to` runs to the end of its day. */
   const custom = filters.updated === 'custom'
-  const searchFilters: WorkspaceSearchFilters = {
+  const pageFilters: WorkspaceSearchFilters = {
     ...(filters.source ? { source: filters.source } : {}),
     ...(window?.days
       ? { modifiedAfter: new Date(searchedAt - window.days * DAY_MS).toISOString() }
@@ -167,10 +176,11 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
         }
       : {}),
   }
+  const searchFilters = suppliedFilters ?? pageFilters
   const filtersKey = JSON.stringify(searchFilters)
   const expanded = expandedFor === filtersKey
   /** A custom window is two-ended: until both days are chosen, nothing is searched. */
-  const awaitingRange = custom && !(filters.from && filters.to)
+  const awaitingRange = !suppliedFilters && custom && !(filters.from && filters.to)
   const {
     data: search,
     isPending,
@@ -182,13 +192,13 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     scope,
     awaitingRange ? '' : query,
     searchFilters,
-    expanded
+    topK ?? (expanded
       ? WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.expanded
-      : WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
+      : WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial)
   )
   /** A full first page may collapse to few cards, yet more documents may still match. */
   const mayHaveMore =
-    !expanded && (search?.results.length ?? 0) >= WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
+    topK === undefined && !expanded && (search?.results.length ?? 0) >= WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial
   const { data: overview } = useSearchSourceOverview(scope)
   const indexing = (overview?.providers ?? [])
     .filter((provider) => provider.isSyncing)
@@ -272,7 +282,7 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
           </Chip>
         )}
       </div>
-      {showFilters && (
+      {suppliedFilters === undefined && showFilters && (
         <div
           role='group'
           aria-label='Search filters'

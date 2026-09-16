@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resourceScopeKey } from '@/lib/core/resource-scope'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const mocks = vi.hoisted(() => ({
   invalidateResourceQueries: vi.fn(),
@@ -470,4 +472,56 @@ describe('organization resource stream', () => {
     expect(workspace.removeResource).not.toHaveBeenCalled()
     expect(mocks.invalidateResourceQueries).not.toHaveBeenCalled()
   })
+})
+
+it('opens an organization Search tab and retains its address without requiring a workspace', () => {
+  const callback = vi.fn()
+  const deps = makeStreamLoopDeps({
+    workspaceId: undefined,
+    organizationId: 'org',
+    onResourceEventRef: { current: callback },
+  })
+  const resource = {
+    type: 'search' as const,
+    id: 'search:organization:org',
+    title: 'Search results',
+    search: {
+      query: 'policy',
+      scope: { kind: 'organization' as const, organizationId: 'org' },
+      filters: { source: 'gmail' },
+      topK: 8,
+    },
+  }
+  const event: ResourceEvent = {
+    ...removeEvent('file', 'unused'),
+    payload: { op: 'upsert', resource },
+  }
+  handleResourceEvent({ deps } as StreamLoopContext, event)
+  expect(deps.addResource).toHaveBeenCalledWith(resource)
+  expect(callback).toHaveBeenCalledWith(resource.id)
+  handleResourceEvent({ deps } as StreamLoopContext, event)
+  const exactQuery = {
+    queryKey: knowledgeKeys.search(
+      resourceScopeKey(resource.search.scope),
+      resource.search.query,
+      resource.search.filters,
+      resource.search.topK
+    ),
+  }
+  expect(deps.queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
+  expect(deps.queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, exactQuery)
+  expect(deps.queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, exactQuery)
+
+  vi.mocked(deps.addResource).mockClear()
+  handleResourceEvent({ deps } as StreamLoopContext, {
+    ...event,
+    payload: {
+      op: 'upsert',
+      resource: {
+        ...resource,
+        search: { ...resource.search, scope: { kind: 'organization', organizationId: 'foreign' } },
+      },
+    },
+  })
+  expect(deps.addResource).not.toHaveBeenCalled()
 })

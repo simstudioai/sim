@@ -2,6 +2,7 @@
 
 import { type ComponentProps, forwardRef, memo, useCallback, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
@@ -14,10 +15,12 @@ import {
   isMarkdownFile,
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { ChatPanelContent } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
+import { SearchResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/search-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -98,6 +101,7 @@ interface MothershipViewProps {
   className?: string
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
+  onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
   genericResourceData?: GenericResourceData
   /** Claims the current resource selection after direct panel interaction. */
   onUserInteraction?: () => void
@@ -119,6 +123,7 @@ export const MothershipView = memo(
       previewSession,
       isAgentResponding,
       genericResourceData,
+      onSummarize,
       onUserInteraction,
     }: MothershipViewProps,
     ref
@@ -214,22 +219,11 @@ export const MothershipView = memo(
       activeFile?.type !== SIM_PAGE_CONTENT_TYPE
 
     return (
-      <div
+      <ChatPanelContent
         ref={ref}
-        // Read by the browser panel to declare its resize anchor: an inline px
-        // width means a divider drag pinned it, otherwise `w-1/2` governs.
-        data-mothership-panel=''
-        onPointerDownCapture={onUserInteraction}
-        onKeyDownCapture={onUserInteraction}
-        className={cn(
-          'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
-          isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-1/2 border-l',
-          /* This panel is the right half of the pane, never under the traffic lights,
-             yet it embeds whole pages whose header bars reserve that lane. Zeroing the
-             inherited variable here keeps their top bars flush inside the panel. */
-          '[--workspace-content-title-bar-inset:0px]',
-          className
-        )}
+        collapsed={isCollapsed}
+        onInteraction={onUserInteraction}
+        className={className}
       >
         <div className='flex min-h-0 flex-1 flex-col'>
           <ResourceTabs
@@ -240,7 +234,7 @@ export const MothershipView = memo(
             activeId={active ? getChatResourceSelectionId(active) : null}
             activityIds={activityResourceIds}
             actions={
-              active && activeWorkspaceId ? (
+              active && active.type !== 'search' && activeWorkspaceId ? (
                 <ResourceWorkspaceHost
                   workspaceId={activeWorkspaceId}
                   organizationId={organizationId}
@@ -291,6 +285,7 @@ export const MothershipView = memo(
                     organizationId={organizationId}
                     desktopScopeId={desktopScopeId}
                     resource={resource}
+                    onSummarize={onSummarize}
                     visible={panelVisible}
                     onBrowserOverlayControllerChange={registerBrowserOverlayController}
                   />
@@ -303,6 +298,7 @@ export const MothershipView = memo(
                 organizationId={organizationId}
                 desktopScopeId={desktopScopeId}
                 resource={active}
+                onSummarize={onSummarize}
                 downloadSourceRef={fileDownloadSourceRef}
                 onTableViewContextChange={onTableViewContextChange}
                 previewMode={isActivePreviewable ? previewMode : undefined}
@@ -322,7 +318,7 @@ export const MothershipView = memo(
             )}
           </div>
         </div>
-      </div>
+      </ChatPanelContent>
     )
   })
 )
@@ -330,11 +326,15 @@ export const MothershipView = memo(
 function ScopedResourceContent({
   workspaceId,
   organizationId,
+  onSummarize,
   ...props
 }: Omit<ComponentProps<typeof ResourceContent>, 'workspaceId'> & {
   workspaceId?: string
   organizationId?: string
+  onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
 }) {
+  if (props.resource.type === 'search')
+    return <SearchResourceContent resource={props.resource} onSummarize={onSummarize} />
   if (!workspaceId) {
     if (props.resource.type === 'generic')
       return <GenericResourceContent data={props.genericResourceData ?? { entries: [] }} />

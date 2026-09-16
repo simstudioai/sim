@@ -12,6 +12,7 @@ import type {
   TablePredicateInput,
 } from '@/lib/table/types'
 import type { BlockConfig } from '@/blocks/types'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
 import type { TableQueryV2Response } from '@/tools/table/types'
 import { getTrigger } from '@/triggers'
 
@@ -586,7 +587,7 @@ Return ONLY the JSON object:`,
 
   inputs: {
     operation: { type: 'string', description: 'Table operation to perform' },
-    tableId: { type: 'string', description: 'Table identifier' },
+    tableId: { type: 'string', description: TABLE_ID_PARAM.description },
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },

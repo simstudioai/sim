@@ -7,10 +7,12 @@ import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowled
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
-  assistant: vi.fn(),
+  canBuild: true,
+  handoff: vi.fn(),
   urlUpdate: vi.fn(),
   push: vi.fn(),
   pathname: vi.fn(),
@@ -18,8 +20,11 @@ const mocks = vi.hoisted(() => ({
   toggleListening: vi.fn(),
 }))
 
-vi.mock('@/app/o/[organizationId]/home/organization-home', () => ({
-  OrganizationHome: mocks.assistant,
+vi.mock('@/lib/core/utils/browser-storage', () => ({
+  MothershipHandoffStorage: { store: mocks.handoff },
+}))
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'reader' } } }),
 }))
 vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
 vi.mock('@/lib/auth/auth-client', () => ({
@@ -32,6 +37,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: () => ({
     organization: { id: 'organization-a', name: 'Acme' },
+    canBuild: mocks.canBuild,
     searchAccess: { memberScoped: true },
   }),
 }))
@@ -49,10 +55,21 @@ vi.mock(
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card',
   () => ({
-    SourceCard: ({ source }: { source: SourceTagData }) => (
-      <a href={source.url} data-source-link>
-        {source.title}
-      </a>
+    SourceCard: ({
+      source,
+      onSummarize,
+    }: {
+      source: SourceTagData
+      onSummarize: (source: SourceTagData) => void
+    }) => (
+      <>
+        <a href={source.url} data-source-link>
+          {source.title}
+        </a>
+        <button type='button' onClick={() => onSummarize(source)}>
+          Summarize
+        </button>
+      </>
     ),
   })
 )
@@ -65,8 +82,9 @@ let container: HTMLDivElement
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useOrganizationChatModeStore.setState({ modes: {} })
+  mocks.canBuild = true
   mocks.pathname.mockReturnValue('/o/organization-a/search')
-  mocks.assistant.mockReturnValue(<div>Search Assistant composer</div>)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'matchMedia',
@@ -313,69 +331,60 @@ describe('organization Search header placement', () => {
   })
 })
 
-describe('organization Search intent toggle', () => {
-  it('keeps the live Assistant mounted when the first message replaces the URL with a chat route', async () => {
-    await render('?view=assistant')
-    const composer = Array.from(container.querySelectorAll('div')).find(
-      (node) => node.textContent === 'Search Assistant composer' && node.childElementCount === 0
-    )
-    expect(composer).toBeDefined()
-    mocks.pathname.mockReturnValue('/o/organization-a/chat/new-chat')
-    await render('')
-    expect(container.contains(composer!)).toBe(true)
-    expect(container.querySelector('input[aria-label="Search your sources"]')).toBeNull()
-    expect(mocks.assistant).toHaveBeenLastCalledWith(
-      expect.objectContaining({ requestMode: 'assistant', chatId: undefined }),
-      undefined
-    )
-    expect(
-      container.querySelector('[role="radio"][value="assistant"]')?.getAttribute('aria-checked')
-    ).toBe('true')
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('[role="radio"][value="results"]')!.click()
-    )
-    expect(mocks.push).toHaveBeenCalledWith('/o/organization-a/search?')
-  })
-
-  it('does not treat another organization chat path as this organization Assistant', async () => {
-    mocks.pathname.mockReturnValue('/o/organization-other/chat/chat')
-    await render('')
-    expect(searchInput()).toBeDefined()
-    expect(mocks.assistant).not.toHaveBeenCalled()
-  })
-  it('preserves committed query and filters without submitting an Assistant turn', async () => {
-    await render('?q=Orion&source=slack&updated=7d')
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('[role="radio"][value="assistant"]')!.click()
-    )
-    expect(mocks.assistant).toHaveBeenLastCalledWith(
-      expect.objectContaining({ requestMode: 'assistant' }),
-      undefined
-    )
-    expect(container.textContent).toContain('Search Assistant composer')
-    await vi.waitFor(() =>
-      expect(mocks.urlUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ queryString: '?q=Orion&source=slack&updated=7d&view=assistant' })
-      )
-    )
+describe('raw organization Search', () => {
+  it('shows real results without an AI overview or mode toggle', async () => {
+    await render('?q=Orion')
+    expectVisibleQuery('Orion')
+    expect(container.querySelector('section[aria-label="AI overview"]')).toBeNull()
+    expect(container.querySelector('[role="radiogroup"]')).toBeNull()
     expect(mocks.push).not.toHaveBeenCalled()
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('[role="radio"][value="results"]')!.click()
-    )
-    expect(searchInput().value).toBe('Orion')
-    expect(mocks.search).toHaveBeenLastCalledWith(
-      scope,
-      'Orion',
-      expect.objectContaining({ source: 'slack' })
-    )
   })
-  it('reopens the Assistant URL without running the raw query', async () => {
+  it('keeps source and recency filters on the raw results', async () => {
+    await render('?q=Orion&source=slack&updated=7d')
+    const filters = mocks.search.mock.calls.at(-1)![2]
+    expect(filters.source).toBe('slack')
+    expect(Date.parse(filters.modifiedAfter)).toBeGreaterThan(Date.now() - 8 * 86400000)
+  })
+  it('old assistant-toggle links remain ordinary Search links', async () => {
     await render('?q=Orion&view=assistant')
-    expect(mocks.search).not.toHaveBeenCalled()
-    expect(mocks.assistant).toHaveBeenLastCalledWith(
-      expect.objectContaining({ requestMode: 'assistant' }),
-      undefined
-    )
-    expect(mocks.urlUpdate).not.toHaveBeenCalled()
+    expectVisibleQuery('Orion')
+    expect(container.textContent).not.toContain('Answer for Orion')
   })
+})
+
+it.each([true, false])(
+  'hands a summary to the permission-selected Home harness (canBuild: %s)',
+  async (canBuild) => {
+    mocks.canBuild = canBuild
+    mocks.handoff.mockReturnValue(true)
+    await render('?q=Orion')
+    expect(mocks.handoff).not.toHaveBeenCalled()
+    const summary = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Summarize'
+    )!
+    await act(async () => summary.click())
+    expect(mocks.handoff).toHaveBeenCalledWith(
+      {
+        message: 'Summarize "Orion launch plan"',
+        requestMode: canBuild ? 'agent' : 'assistant',
+        assistantSearch: { documentIds: ['document-Orion'] },
+      },
+      { organizationId: 'organization-a' }
+    )
+    expect(mocks.push).toHaveBeenCalledWith('/o/organization-a/home')
+  }
+)
+
+it('uses the remembered Search default for an eligible users summary handoff', async () => {
+  useOrganizationChatModeStore.getState().setMode('reader', 'organization-a', 'assistant')
+  mocks.handoff.mockReturnValue(true)
+  await render('?q=Orion')
+  const summary = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Summarize'
+  )!
+  await act(async () => summary.click())
+  expect(mocks.handoff).toHaveBeenCalledWith(
+    expect.objectContaining({ requestMode: 'assistant' }),
+    { organizationId: 'organization-a' }
+  )
 })

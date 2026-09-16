@@ -1,10 +1,10 @@
 'use client'
 
-import { lazy, type ReactNode, Suspense } from 'react'
-import { Button, cn } from '@sim/emcn'
-import { PanelLeft } from '@sim/emcn/icons'
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef } from 'react'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import { createSearchResource } from '@/lib/mothership/resources/search'
+import { ChatPanelLayout } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
-import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
 import type { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { useChatResourcePanel } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
@@ -22,6 +22,8 @@ interface ChatResourcePanelProps {
   chat: ReturnType<typeof useChat>
   panel: ReturnType<typeof useChatResourcePanel>
   children: ReactNode
+  searchRequest?: { messageId: string; query: string }
+  onSummarize?: (message: string, filters: WorkspaceSearchFilters) => void
 }
 
 /** Shared resizable resource chrome for workspace and organization chat. */
@@ -31,6 +33,8 @@ export function ChatResourcePanel({
   chat,
   panel,
   children,
+  searchRequest,
+  onSummarize,
 }: ChatResourcePanelProps) {
   useBrowserTabResources(panel.desktopTabResourceOptions)
   useTerminalTabResources(panel.desktopTabResourceOptions)
@@ -58,81 +62,77 @@ export function ChatResourcePanel({
     handleResourceResizePointerDown,
     handleResourceInteraction,
   } = panel
-  const resourceActivityCount = resourceActivityIds.size
-  const resourceToggleLabel = isResourceCollapsed
-    ? resourceActivityCount > 0
-      ? `Expand resource view, ${resourceActivityCount} resource${resourceActivityCount === 1 ? '' : 's'} updated`
-      : 'Expand resource view'
-    : 'Collapse resource view'
-
+  const searchInitialized = useRef(false)
+  const lastSearchMessageId = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (chat.resolvedChatId && chat.isChatHistoryPending) return
+    const initialHistory = !searchInitialized.current
+    searchInitialized.current = true
+    if (!searchRequest?.query || searchRequest.messageId === lastSearchMessageId.current) return
+    lastSearchMessageId.current = searchRequest.messageId
+    if (initialHistory && resources.some((resource) => resource.type === 'search')) return
+    const scope = organizationId
+      ? { kind: 'organization' as const, organizationId }
+      : workspaceId
+        ? { kind: 'workspace' as const, workspaceId }
+        : undefined
+    if (!scope) return
+    addResourceFromUser(createSearchResource({ query: searchRequest.query, scope }))
+  }, [
+    searchRequest,
+    organizationId,
+    workspaceId,
+    resources,
+    addResourceFromUser,
+    chat.resolvedChatId,
+    chat.isChatHistoryPending,
+  ])
+  const summarize = useCallback(
+    (message: string, filters: WorkspaceSearchFilters) => {
+      if (onSummarize) onSummarize(message, filters)
+      else void chat.sendMessage(message, undefined, undefined, { assistantSearch: filters })
+    },
+    [onSummarize, chat.sendMessage]
+  )
   return (
-    <div
-      className={cn('relative flex h-full min-h-0 bg-[var(--bg)]', RESOURCE_HEADER_CLASSES.layout)}
+    <ChatPanelLayout
+      collapsed={isResourceCollapsed}
+      label='resource view'
+      activityCount={resourceActivityIds.size}
+      onToggle={isResourceCollapsed ? expandResource : collapseResource}
+      onResize={handleResourceResizePointerDown}
+      panel={
+        <MothershipResourcesProvider
+          selectResource={selectResourceFromUser}
+          addResource={addResourceFromUser}
+          removeResource={removeResource}
+          reorderResources={reorderResources}
+          collapseResource={collapseResource}
+        >
+          <Suspense fallback={null}>
+            <MothershipView
+              ref={mothershipRef}
+              workspaceId={workspaceId}
+              organizationId={organizationId}
+              chatId={resolvedChatId}
+              desktopScopeId={desktopScopeId}
+              resources={resources}
+              onTableViewContextChange={setTableViewContext}
+              activeResourceId={activeResourceId}
+              activityResourceIds={resourceActivityIds}
+              isCollapsed={isResourceCollapsed}
+              previewSession={previewSession}
+              isAgentResponding={isSending}
+              genericResourceData={genericResourceData ?? undefined}
+              onSummarize={summarize}
+              onUserInteraction={handleResourceInteraction}
+              className={skipResourceTransition ? 'transition-none!' : undefined}
+            />
+          </Suspense>
+        </MothershipResourcesProvider>
+      }
     >
       {children}
-      {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
-      {!isResourceCollapsed && (
-        <div className='relative z-20 w-0 flex-none'>
-          <div
-            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
-            role='separator'
-            aria-orientation='vertical'
-            aria-label='Resize resource panel'
-            onPointerDown={handleResourceResizePointerDown}
-          />
-        </div>
-      )}
-
-      <MothershipResourcesProvider
-        selectResource={selectResourceFromUser}
-        addResource={addResourceFromUser}
-        removeResource={removeResource}
-        reorderResources={reorderResources}
-        collapseResource={collapseResource}
-      >
-        <Suspense fallback={null}>
-          <MothershipView
-            ref={mothershipRef}
-            workspaceId={workspaceId}
-            organizationId={organizationId}
-            chatId={resolvedChatId}
-            desktopScopeId={desktopScopeId}
-            resources={resources}
-            onTableViewContextChange={setTableViewContext}
-            activeResourceId={activeResourceId}
-            activityResourceIds={resourceActivityIds}
-            isCollapsed={isResourceCollapsed}
-            previewSession={previewSession}
-            isAgentResponding={isSending}
-            genericResourceData={genericResourceData ?? undefined}
-            onUserInteraction={handleResourceInteraction}
-            className={skipResourceTransition ? 'transition-none!' : undefined}
-          />
-        </Suspense>
-      </MothershipResourcesProvider>
-
-      <div
-        className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}
-      >
-        <Button
-          variant='ghost'
-          size={null}
-          type='button'
-          onClick={isResourceCollapsed ? expandResource : collapseResource}
-          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
-          aria-label={resourceToggleLabel}
-        >
-          <span className='relative'>
-            <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
-            {isResourceCollapsed && resourceActivityIds.size > 0 && (
-              <span
-                aria-hidden='true'
-                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-primary)]'
-              />
-            )}
-          </span>
-        </Button>
-      </div>
-    </div>
+    </ChatPanelLayout>
   )
 }

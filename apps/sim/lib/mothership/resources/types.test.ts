@@ -84,7 +84,14 @@ describe('client and server agree on what can be persisted', () => {
   it.each(PERSISTED_RESOURCE_TYPES)('the API accepts a %s resource', (type) => {
     const parsed = addCopilotChatResourceBodySchema.safeParse({
       chatId: 'chat-1',
-      resource: { type, id: 'r1', title: 'Thing' },
+      resource: {
+        type,
+        id: 'r1',
+        title: 'Thing',
+        ...(type === 'search'
+          ? { search: { query: 'policy', scope: { kind: 'organization', organizationId: 'org' } } }
+          : {}),
+      },
     })
     expect(parsed.success).toBe(true)
   })

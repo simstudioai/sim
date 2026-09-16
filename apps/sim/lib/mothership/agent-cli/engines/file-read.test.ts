@@ -10,12 +10,17 @@ const mocks = vi.hoisted(() => ({
   artifact: vi.fn(),
   request: vi.fn(),
   scratch: vi.fn(),
+  original: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
   resolveWorkspaceFileReference: mocks.resolve,
 }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => ({
   readWorkspaceFileArtifact: { execute: mocks.artifact },
+}))
+
+vi.mock('@/lib/knowledge/application/read-original-document', () => ({
+  readOriginalKnowledgeDocument: { execute: mocks.original, delegationAudience: 'sim:knowledge' },
 }))
 
 vi.mock('@/lib/mothership/chat/application/read-sandbox-file', () => ({
@@ -290,5 +295,111 @@ describe('scratch files read and explicit inline publication', () => {
     mocks.resolve.mockRejectedValue(new OrchestrationError('not_found', 'File missing'))
     expect((await runEngine('files read', ['files/missing.png'], runtime, {})).exitCode).toBe(1)
     expect(mocks.scratch).not.toHaveBeenCalled()
+  })
+})
+
+describe('original knowledge document observations', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it('reads failed-index originals through the existing text decoder with line bounds and no workspace materialization', async () => {
+    mocks.original.mockResolvedValue({
+      buffer: Buffer.from('first\nsecond\nthird'),
+      name: 'policy.md',
+      contentType: 'text/markdown',
+      processingStatus: 'failed',
+      indexReady: false,
+      sourceAvailable: true,
+      documentId: 'doc',
+      knowledgeBaseId: 'kb',
+    })
+    const result = await runEngine('files read', ['knowledge/kb/doc'], runtime, {
+      offset: '2',
+      limit: '1',
+    })
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      text: 'second',
+      representation: 'text',
+      sourceAvailable: true,
+      indexReady: false,
+      path: 'knowledge/kb/doc',
+    })
+    expect(mocks.original).toHaveBeenCalledWith({
+      principal,
+      input: {
+        knowledgeBaseId: 'kb',
+        documentId: 'doc',
+        assertedWorkspaceId: workspaceId,
+        maxBytes: undefined,
+        signal: undefined,
+      },
+    })
+    expect(mocks.resolve).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalled()
+    expect(result.resources).toBeUndefined()
+  })
+  it('renders authorized original images using typed observations', async () => {
+    const buffer = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'blue' } })
+      .png()
+      .toBuffer()
+    mocks.original.mockResolvedValue({
+      buffer,
+      name: 'scan.png',
+      contentType: 'image/png',
+      processingStatus: 'failed',
+      indexReady: false,
+      sourceAvailable: true,
+      documentId: 'doc',
+      knowledgeBaseId: 'kb',
+    })
+    const result = await runEngine('files read', ['knowledge/kb/doc'], runtime, {})
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(ArtifactObservations.parse(result.observations)).toHaveLength(1)
+    expect(result.resources).toBeUndefined()
+    expect(mocks.resolve).not.toHaveBeenCalled()
+  })
+  it('safely handles failed original decoding without emitting partial observations', async () => {
+    mocks.original.mockResolvedValue({
+      buffer: Buffer.from('not an image'),
+      name: 'scan.png',
+      contentType: 'image/png',
+      processingStatus: 'failed',
+      indexReady: false,
+      sourceAvailable: true,
+      documentId: 'doc',
+      knowledgeBaseId: 'kb',
+    })
+    const result = await runEngine('files read', ['knowledge/kb/doc'], runtime, {})
+    expect(result.exitCode).toBe(1)
+    expect(result.observations).toBeUndefined()
+    expect(result.stdout).toBe('')
+  })
+  it('reports unavailable originals without claiming content was inspected', async () => {
+    mocks.original.mockResolvedValue({
+      name: 'policy.md',
+      contentType: 'text/markdown',
+      processingStatus: 'failed',
+      indexReady: false,
+      sourceAvailable: false,
+      documentId: 'doc',
+      knowledgeBaseId: 'kb',
+    })
+    const result = await runEngine('files read', ['knowledge/kb/doc'], runtime, {})
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      representation: 'unavailable',
+      sourceAvailable: false,
+      indexReady: false,
+    })
+    expect(result.observations).toBeUndefined()
+  })
+  it('does not retry permission failures as workspace files or reveal unexpected errors', async () => {
+    mocks.original.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
+    expect((await runEngine('files read', ['knowledge/kb/doc'], runtime, {})).stderr).toContain(
+      'Access denied'
+    )
+    mocks.original.mockRejectedValueOnce(new Error('private source URL'))
+    expect((await runEngine('files read', ['knowledge/kb/doc'], runtime, {})).stderr).not.toContain(
+      'private source'
+    )
+    expect(mocks.resolve).not.toHaveBeenCalled()
   })
 })

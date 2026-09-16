@@ -1,4 +1,6 @@
 import { v2ReadFileTextContract, v2ReadFileTextQuerySchema } from '@/lib/api/contracts/v2/files'
+import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
+import { enginePrincipal } from '@/lib/mothership/agent-cli/engine-principal'
 import { fileReadFailure, readFileVisual } from '@/lib/mothership/agent-cli/engines/file-view'
 import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import { readScratchFile } from '@/lib/mothership/agent-cli/engines/scratch-file-read'
@@ -47,6 +49,37 @@ export const fileReadCommand: AgentCliEngine = {
       return agentCliFail(query.error.issues.map((issue) => issue.message).join('; '))
     runtime.signal?.throwIfAborted()
     try {
+      if (reference.startsWith('knowledge/')) {
+        const match = /^knowledge\/([^/]+)\/([^/]+)$/.exec(reference)
+        if (!match) return agentCliFail('Use knowledge/<knowledgeBaseId>/<documentId>.')
+        const principal = enginePrincipal(runtime, readOriginalKnowledgeDocument)
+        if (!principal) return agentCliFail('Knowledge authentication is unavailable.')
+        const { buffer, ...metadata } = await readOriginalKnowledgeDocument.execute({
+          principal,
+          input: {
+            knowledgeBaseId: match[1],
+            documentId: match[2],
+            assertedWorkspaceId: runtime.workspaceId,
+            maxBytes: query.data.maxBytes,
+            signal: runtime.signal,
+          },
+        })
+        if (!buffer)
+          return agentCliOk(
+            JSON.stringify({
+              ...metadata,
+              path: reference,
+              representation: 'unavailable',
+              note: 'No stored original is available. Index readiness is independent of original availability.',
+            })
+          )
+        return await observePrivateFile(
+          { buffer, ...metadata, knowledge: metadata, path: reference, source: 'knowledge' },
+          flags,
+          query.data,
+          runtime.signal
+        )
+      }
       if (reference.startsWith('/tmp/') || reference.startsWith('/home/user/'))
         return await readScratchFile(reference, runtime, flags, query.data)
       if (

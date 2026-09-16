@@ -368,7 +368,7 @@ describe('handleUnifiedChatPost', () => {
     expect(response.status).toBe(200)
     expect(authorizeOrganizationChat).toHaveBeenCalledWith({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { organizationId: 'org-1' },
+      input: { organizationId: 'org-1', mode: 'assistant' },
     })
     expect(resolveOrCreateChat).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 'org-1', type: 'mothership' })

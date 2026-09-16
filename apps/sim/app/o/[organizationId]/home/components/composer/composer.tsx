@@ -1,31 +1,63 @@
 'use client'
 
-import { useRef } from 'react'
-import { Chip, ComposerActionButton, cn, Tooltip } from '@sim/emcn'
-import { ArrowUp, Plus, StopFilled } from '@sim/emcn/icons'
-import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Button,
+  Chip,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
+import { ArrowUp, Paperclip, Plus, Slash } from '@sim/emcn/icons'
+import {
+  ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
+  isAssistantImageType,
+} from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
+import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
-import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
+import {
+  PromptEditor,
+  usePromptEditor,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import {
+  escapeRegex,
+  SKILL_CHIP_TRIGGER,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useVoiceInput } from '@/hooks/use-voice-input'
+import type { ChatContext } from '@/stores/panel'
+
+const SEND_BUTTON_BASE = 'size-[28px] rounded-full border-0 p-0 transition-colors'
+const SEND_BUTTON_ACTIVE =
+  'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
+const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
 
 interface ComposerProps {
   requestMode?: ChatRequestMode
+  onModeChange?: (mode: ChatRequestMode) => void
+  showModeSelector?: boolean
+  modeChangeDisabled?: boolean
   value: string
   files: ReturnType<typeof useFileAttachments>
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
   isInitialView: boolean
   isSending: boolean
   onChange: (value: string) => void
-  onSubmit: () => void
+  restoredContexts?: ChatContext[]
+  onSubmit: (text: string, contexts?: ChatContext[]) => void
   onStop: () => void
 }
 
@@ -36,22 +68,80 @@ interface ComposerProps {
  */
 export function Composer({
   requestMode = 'assistant',
+  onModeChange,
+  showModeSelector = false,
+  modeChangeDisabled = false,
   value,
   files,
   isInitialView,
   isSending,
   onChange,
   onSubmit,
+  restoredContexts,
   onStop,
 }: ComposerProps) {
   const imagesOnly = requestMode === 'assistant'
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { organization } = useOrganizationContext()
+  const [contextWorkspaceId, setContextWorkspaceId] = useState('')
+  const [pendingPicker, setPendingPicker] = useState<{
+    kind: 'resources' | 'skills'
+    anchor: { left: number; top: number }
+  } | null>(null)
+  const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
+  const workspaces = allWorkspaces.filter(
+    (workspace) => workspace.organizationId === organization.id
+  )
+  const editor = usePromptEditor({
+    workspaceId: contextWorkspaceId,
+    organizationId: organization.id,
+    contextsEnabled: !imagesOnly,
+    initialValue: value,
+    onPasteFiles: files.processFiles,
+  })
+  const { textareaRef } = editor
+  const editorRef = useRef(editor)
+  editorRef.current = editor
+  const lastPublished = useRef(value)
+  useEffect(() => {
+    if (value !== lastPublished.current) {
+      editorRef.current.setValue(value)
+      if (!value) editorRef.current.setContexts([])
+      lastPublished.current = value
+    }
+  }, [value])
+  useEffect(() => {
+    if (editorRef.current.getValue() !== editor.value) return
+    if (editor.value !== lastPublished.current) {
+      lastPublished.current = editor.value
+      onChange(editor.value)
+    }
+  }, [editor.value, onChange])
+  useEffect(() => {
+    if (!restoredContexts) return
+    // A queued skill may belong to a workspace whose picker has never opened here.
+    // Restore its existing chip from the saved context, without rediscovering it.
+    let restoredText = editorRef.current.getValue()
+    for (const context of restoredContexts) {
+      if (context.kind !== 'skill') continue
+      restoredText = restoredText.replace(
+        new RegExp(`(^|\\s)/${escapeRegex(context.label)}(?=\\s|$)`, 'g'),
+        `$1${SKILL_CHIP_TRIGGER}${context.label}`
+      )
+    }
+    editorRef.current.setValue(restoredText, { chipify: false })
+    editorRef.current.setContexts(restoredContexts)
+  }, [restoredContexts])
+  useEffect(() => {
+    if (!pendingPicker) return
+    if (pendingPicker.kind === 'resources') editorRef.current.openResourceMenu(pendingPicker.anchor)
+    else editorRef.current.insertSlashTrigger()
+    setPendingPicker(null)
+  }, [pendingPicker])
   useChatInputFocus({ textareaRef })
   const voice = useVoiceInput({
     organizationId: organization.id,
-    getValue: () => value,
-    onChange,
+    getValue: () => editor.getPlainValue(),
+    onChange: (text) => editor.setValue(text),
   })
   const canSubmit =
     !files.attachedFiles.some((file) => file.uploading) &&
@@ -62,8 +152,41 @@ export function Composer({
   const submit = () => {
     if (!canSubmit) return
     voice.resetTranscript()
-    onSubmit()
+    const contexts = imagesOnly ? [] : editor.getActiveContexts()
+    onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined)
+    editor.clear()
   }
+
+  const contextPicker = (kind: 'resources' | 'skills', icon: typeof Plus, label: string) => (
+    <DropdownMenu>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Chip shape='round' leftIcon={icon} aria-label={label} />
+          </DropdownMenuTrigger>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top'>{label}</Tooltip.Content>
+      </Tooltip.Root>
+      <DropdownMenuContent side='top' align='start'>
+        <div className='px-2 py-1 text-[var(--text-muted)] text-xs'>Choose a workspace</div>
+        {workspaces.map((workspace) => (
+          <DropdownMenuItem
+            key={workspace.id}
+            onSelect={(event) => {
+              const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+              setContextWorkspaceId(workspace.id)
+              setPendingPicker({ kind, anchor: { left: rect.left, top: rect.top } })
+            }}
+          >
+            {workspace.name}
+          </DropdownMenuItem>
+        ))}
+        {!workspaces.length && (
+          <DropdownMenuItem disabled>No accessible workspaces</DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   return (
     <div
@@ -81,77 +204,116 @@ export function Composer({
         onFileClick={files.handleFileClick}
         onRemoveFile={files.removeFile}
       />
-      <div
-        className={cn(
-          'relative max-h-[200px] overflow-y-auto overflow-x-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-          isInitialView && 'min-h-[56px]'
-        )}
-      >
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onPaste={(event) => {
-            const pasted = event.clipboardData.files
-            if (!pasted.length) return
-            event.preventDefault()
-            void files.processFiles(pasted)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              submit()
-            }
-          }}
-          placeholder={placeholder}
-          aria-label='Ask Sim'
-          rows={1}
-          className='field-sizing-content m-0 box-border min-h-[24px] w-full resize-none border-0 bg-transparent px-1 py-1 font-body text-[14px] text-[var(--text-primary)] leading-[24px] tracking-[-0.015em] outline-hidden [overflow-wrap:anywhere] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
-        />
-      </div>
+      <PromptEditor
+        editor={editor}
+        placeholder={placeholder}
+        aria-label='Ask Sim'
+        onSubmit={submit}
+        className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
+      />
 
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-1'>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Plus}
-                onClick={files.handleFileSelect}
-                aria-label={imagesOnly ? 'Attach images' : 'Attach files'}
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              {imagesOnly ? 'Attach images' : 'Attach files'}
-            </Tooltip.Content>
-          </Tooltip.Root>
-          <ModelSelector />
-        </div>
-        <div className='flex items-center gap-1.5'>
-          {voice.isSupported && (
+      <InputToolbar
+        leadingControls={
+          <>
+            {!imagesOnly && contextPicker('resources', Plus, 'Add resources')}
+
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Paperclip}
+                  onClick={files.handleFileSelect}
+                  aria-label={imagesOnly ? 'Attach images' : 'Attach file'}
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                {imagesOnly ? 'Attach images' : 'Attach file'}
+              </Tooltip.Content>
+            </Tooltip.Root>
+            {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
+            {showModeSelector && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Chip
+                    aria-label='Conversation mode'
+                    disabled={isSending || modeChangeDisabled || !onModeChange}
+                  >
+                    {requestMode === 'assistant' ? 'Search' : 'Build'}
+                  </Chip>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side='top' align='start'>
+                  {(['assistant', 'agent'] as const).map((mode) => (
+                    <DropdownMenuItem
+                      key={mode}
+                      role='menuitemradio'
+                      aria-checked={mode === requestMode}
+                      disabled={isSending || modeChangeDisabled}
+                      onSelect={() => {
+                        if (isSending || modeChangeDisabled || mode === requestMode) return
+                        if (
+                          mode === 'assistant' &&
+                          (editor.getActiveContexts().length > 0 ||
+                            files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
+                        ) {
+                          toast.info(
+                            'Remove resource and skill mentions and non-image attachments before switching to Search.'
+                          )
+                          return
+                        }
+                        onModeChange?.(mode)
+                      }}
+                    >
+                      {mode === 'assistant' ? 'Search' : 'Build'}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        }
+        voiceControl={
+          voice.isSupported && (
             <MicButton
               audioLevelsRef={voice.audioLevelsRef}
               isListening={voice.isListening}
               onToggle={voice.toggleListening}
             />
-          )}
-          {isSending ? (
-            <ComposerActionButton type='button' onClick={onStop} aria-label='Stop generation'>
-              <StopFilled className='block size-[14px] fill-white dark:fill-black' />
-            </ComposerActionButton>
-          ) : (
-            <ComposerActionButton
+          )
+        }
+        submitControl={
+          isSending ? (
+            <Button
               type='button'
+              variant='ghost'
+              onClick={onStop}
+              aria-label='Stop generation'
+              className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
+            >
+              <svg
+                className='block size-[14px] fill-white dark:fill-black'
+                viewBox='0 0 24 24'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
+              </svg>
+            </Button>
+          ) : (
+            <Button
+              type='button'
+              variant='ghost'
               onClick={submit}
               disabled={!canSubmit}
               aria-label='Send'
-              active={canSubmit}
+              className={cn(
+                SEND_BUTTON_BASE,
+                canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED
+              )}
             >
               <ArrowUp className='block size-[16px] text-white dark:text-black' />
-            </ComposerActionButton>
-          )}
-        </div>
-      </div>
+            </Button>
+          )
+        }
+      />
       <input
         ref={files.fileInputRef}
         type='file'

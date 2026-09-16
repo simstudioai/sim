@@ -1,4 +1,7 @@
+import type { SearchResource } from '@/lib/mothership/generated/resources'
+
 export const MothershipResourceType = {
+  search: 'search',
   table: 'table',
   file: 'file',
   workflow: 'workflow',
@@ -32,6 +35,7 @@ export interface MothershipResource {
    * use this execution ID when present.
    */
   executionId?: string
+  search?: SearchResource
 }
 
 /** A resource upsert may explicitly clear metadata that omission preserves. */
@@ -99,6 +103,7 @@ interface ResourcePolicy {
  * longer be openable and unsaveable at the same time.
  */
 const RESOURCE_POLICY: Record<MothershipResourceType, ResourcePolicy> = {
+  search: { persisted: true },
   table: { persisted: true },
   file: { persisted: true },
   workflow: { persisted: true },
@@ -245,6 +250,7 @@ const MERGED_FIELDS = {
   path: true,
   viewId: true,
   executionId: true,
+  search: true,
 } as const satisfies Record<Exclude<keyof MothershipResource, 'type' | 'id'>, true>
 
 const MERGED_FIELD_NAMES = Object.keys(MERGED_FIELDS) as (keyof typeof MERGED_FIELDS)[]
@@ -276,6 +282,7 @@ export function mergeChatResource(
     ...(next.path !== undefined ? { path: next.path } : {}),
     ...(next.clearViewId !== true && next.viewId !== undefined ? { viewId: next.viewId } : {}),
     ...(next.executionId !== undefined ? { executionId: next.executionId } : {}),
+    ...(next.search !== undefined ? { search: next.search } : {}),
     title:
       (!prev.title.trim() || prev.title === prev.id || GENERIC_RESOURCE_TITLES.has(prev.title)) &&
       Boolean(next.title.trim()) &&

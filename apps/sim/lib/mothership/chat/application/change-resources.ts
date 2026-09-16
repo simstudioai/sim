@@ -1,8 +1,10 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
 import {
   type ChatResourceChange,
   changeStoredChatResources,
@@ -41,6 +43,18 @@ export const changeChatResources = defineAuthorizedChatUseCase({
   },
   authorizationOptions: {},
   async execute({ context, input }) {
+    if (input.change.kind === 'upsert' || input.change.kind === 'reorder') {
+      for (const resource of input.change.resources) {
+        if (
+          resource.type === 'search' &&
+          (!resource.search || !searchResourceMatchesOwner(resource.search, context))
+        )
+          throw new OrchestrationError(
+            'forbidden',
+            'Search resource scope must match its conversation'
+          )
+      }
+    }
     return { resources: await changeStoredChatResources(context.chatId, input.change) }
   },
 })

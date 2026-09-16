@@ -76,6 +76,7 @@ import {
 import { getLocalChatStreamLease } from '@/lib/mothership/request/session/abort'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { persistChatResources } from '@/lib/mothership/resources/persistence'
+import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
 import {
   hasAddressableId,
   isEphemeralResource,
@@ -110,6 +111,7 @@ const FileAttachmentSchema = z.object({
 })
 
 const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
+  search: 'Search results',
   workflow: 'Workflow',
   table: 'Table',
   integration: 'Integration',
@@ -533,6 +535,22 @@ async function resolveAgentContexts(params: {
             }${resource.url}. ${browserAvailable ? 'Browser tools are available for inspecting and interacting with this tab.' : 'This attachment supplies only the title and URL; browser tools are unavailable.'}`,
           }
         }
+        if (resource.type === 'search') {
+          if (
+            !resource.search ||
+            !searchResourceMatchesOwner(resource.search, { organizationId, workspaceId })
+          )
+            return null
+          if (persistResources)
+            authorizedResources.push(
+              mothershipResourceSchema.parse({ ...resource, title: 'Search results' })
+            )
+          return {
+            type: 'active_resource',
+            tag: resource.active ? '@active_tab' : '@open_tab',
+            content: `The user's Search results tab has this retrieval address: ${JSON.stringify(resource.search)}. This is query context, not retrieved evidence; use the search tools for current authorized results.`,
+          }
+        }
         const target =
           organizationId || resource.workspaceId
             ? await resolveInvocationWorkspace(
@@ -681,7 +699,7 @@ async function resolveBranch(params: {
         'Organization conversations require agent or Assistant mode without a workspace or workflow'
       )
     }
-    await authorizeOrganizationChat.execute({ principal, input: { organizationId } })
+    await authorizeOrganizationChat.execute({ principal, input: { organizationId, mode } })
     if (mode === 'assistant') await requireOrganizationSearchAvailable(organizationId)
     return {
       kind: 'organization',

@@ -29,7 +29,7 @@ import {
   SendButton,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
-import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
+import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
   FileAttachmentForApi,
@@ -576,59 +576,62 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
       />
 
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-1'>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Plus}
-                onClick={handlePlusClick}
-                aria-label='Add resources'
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Add resources</Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Paperclip}
-                onClick={handleFileSelectStable}
-                aria-label='Attach file'
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Attach file</Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Slash}
-                onClick={handleSlashTriggerClick}
-                aria-label='Skills'
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Skills</Tooltip.Content>
-          </Tooltip.Root>
-          <ModelSelector />
-        </div>
-        <div className='flex items-center gap-1.5'>
-          {isSttSupported && (
+      <InputToolbar
+        leadingControls={
+          <>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Plus}
+                  onClick={handlePlusClick}
+                  aria-label='Add resources'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Add resources</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Paperclip}
+                  onClick={handleFileSelectStable}
+                  aria-label='Attach file'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Slash}
+                  onClick={handleSlashTriggerClick}
+                  aria-label='Skills'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Skills</Tooltip.Content>
+            </Tooltip.Root>
+          </>
+        }
+        voiceControl={
+          isSttSupported && (
             <MicButton
               audioLevelsRef={audioLevelsRef}
               isListening={isListening}
               onToggle={toggleListening}
             />
-          )}
+          )
+        }
+        submitControl={
           <SendButton
             isSending={isSending}
             canSubmit={canSubmit}
             onSubmit={handleSubmit}
             onStopGeneration={onStopGeneration}
           />
-        </div>
-      </div>
+        }
+      />
 
       <input
         ref={files.fileInputRef}

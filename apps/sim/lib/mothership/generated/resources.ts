@@ -2,8 +2,10 @@
 // Regenerate with `bun run contracts:sync` in the worker.
 
 import { z } from "zod";
+import { workspaceSearchFiltersSchema } from "./sim-assistant-tools.generated";
 
 export const ResourceType = z.enum([
+  "search",
   "workflow",
   "table",
   "knowledgebase",
@@ -18,6 +20,18 @@ export const ResourceType = z.enum([
   "generic",
 ]);
 
+/** Saved retrieval address; documents are fetched again under the current viewer. */
+export const SearchResource = z.object({
+  query: z.string().trim().min(1).max(2000),
+  scope: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("organization"), organizationId: z.string().min(1).max(200) }),
+    z.object({ kind: z.literal("workspace"), workspaceId: z.uuid() }),
+  ]),
+  filters: workspaceSearchFiltersSchema.optional(),
+  topK: z.number().int().min(1).max(50).optional(),
+});
+export type SearchResource = z.infer<typeof SearchResource>;
+
 export const ResourceAddress = z.object({
   workspaceId: z.uuid().optional(),
   workspaceName: z.string().optional(),
@@ -27,6 +41,7 @@ export const ResourceAddress = z.object({
   path: z.string().optional(),
   viewId: z.string().optional(),
   executionId: z.string().optional(),
+  search: SearchResource.optional(),
 });
 export type ResourceAddress = z.infer<typeof ResourceAddress>;
 

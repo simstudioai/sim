@@ -4,23 +4,20 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ComposerActionButton,
   Button,
-  ChipButtonGroup,
-  ChipButtonGroupItem,
   cn,
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn'
 import { ArrowUp, Search } from '@sim/emcn/icons'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
+import { useSession } from '@/lib/auth/auth-client'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
-import { organizationRoutes } from '@/lib/navigation/paths'
 import { PAGE_COLUMN_CLASS } from '@/app/o/[organizationId]/components/organization-page'
-import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
   organizationSearchParsers,
@@ -30,14 +27,11 @@ import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/compo
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import {
-  resourceUrlKeys,
-  searchFilterParsers,
-} from '@/app/workspace/[workspaceId]/home/search-params'
-import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useVoiceInput } from '@/hooks/use-voice-input'
+import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 interface SearchFieldProps {
   initialValue: string
@@ -126,37 +120,24 @@ function SearchField({
   )
 }
 
-/**
- * Sim Search over the organization's sources. Empty, it is the greeting over the
- * query field, centered like Home; once a query is submitted the field docks at
- * the top of the page — where every other organization page's title sits — and
- * the results scroll beneath it under the sidebar's edge fade. The submitted
- * query lives in the URL; the field holds the draft until the next submit.
- * Summarizing a document explicitly starts an Assistant turn in this Search surface.
- */
-interface OrganizationSearchProps {
-  chatId?: string
-  userName?: string
-}
-
-export function OrganizationSearch(props: OrganizationSearchProps) {
+/** Raw organization search stays separate from the conversational Home surface. */
+export function OrganizationSearch() {
   const { searchAccess } = useOrganizationContext()
   if (!searchAccess.memberScoped) return null
-  return <OrganizationSearchContent {...props} />
+  return <OrganizationSearchContent />
 }
 
-function OrganizationSearchContent({ chatId, userName }: OrganizationSearchProps) {
-  const { organization } = useOrganizationContext()
-  const router = useRouter()
-  const pathname = usePathname()
-  const [{ q, view }, setParams] = useQueryStates(
-    organizationSearchParsers,
-    organizationSearchUrlKeys
+function OrganizationSearchContent() {
+  const { organization, canBuild } = useOrganizationContext()
+  const { data: session } = useSession()
+  const rememberedMode = useOrganizationChatModeStore(
+    (state) => state.modes[`${session?.user?.id}:${organization.id}`]
   )
-  const [filters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  const defaultMode = canBuild && rememberedMode !== 'assistant' ? 'agent' : 'assistant'
+  const [{ q }, setParams] = useQueryStates(organizationSearchParsers, organizationSearchUrlKeys)
+  const router = useRouter()
   const query = q.trim()
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
-
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const scrollEdges = useScrollEdges(scrollContainerRef, {
@@ -165,11 +146,11 @@ function OrganizationSearchContent({ chatId, userName }: OrganizationSearchProps
   })
 
   const summarize = (message: string, assistantSearch: WorkspaceSearchFilters) => {
-    MothershipHandoffStorage.store(
-      { message, assistantSearch },
+    const stored = MothershipHandoffStorage.store(
+      { message, requestMode: defaultMode, assistantSearch },
       { organizationId: organization.id }
     )
-    void setParams({ view: 'assistant' })
+    if (stored) router.push(`/o/${organization.id}/home`)
   }
 
   const submit = (draft: string) => {
@@ -179,37 +160,10 @@ function OrganizationSearchContent({ chatId, userName }: OrganizationSearchProps
   }
 
   const searching = query.length > 0
-  /** First-message admission replaces browser history without replacing this page's server props. */
-  const isChatRoute =
-    Boolean(chatId) || Boolean(pathname?.startsWith(organizationRoutes(organization.id).chat('')))
-  const activeView = isChatRoute ? 'assistant' : view
-
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
-      <div className={PAGE_HEADER_BAR}>
-        <div className={HEADER_ACTION_CLUSTER}>
-          <ChipButtonGroup
-            value={activeView}
-            aria-label='Search view'
-            onValueChange={(next) => {
-              if (next !== 'results' && next !== 'assistant') return
-              if (isChatRoute) {
-                router.push(
-                  `${organizationRoutes(organization.id).search}?${new URLSearchParams({ ...(q ? { q } : {}), ...(filters.source ? { source: filters.source } : {}), ...(filters.updated !== 'any' ? { updated: filters.updated } : {}), ...(next === 'assistant' ? { view: next } : {}) })}`
-                )
-              } else {
-                void setParams({ view: next })
-              }
-            }}
-          >
-            <ChipButtonGroupItem value='results'>Results</ChipButtonGroupItem>
-            <ChipButtonGroupItem value='assistant'>Assistant</ChipButtonGroupItem>
-          </ChipButtonGroup>
-        </div>
-      </div>
-      {activeView === 'assistant' ? (
-        <OrganizationHome requestMode='assistant' chatId={chatId} userName={userName} />
-      ) : searching ? (
+      <div className={PAGE_HEADER_BAR} />
+      {searching ? (
         <>
           <div className={cn(PAGE_COLUMN_CLASS, SIDEBAR_DIVIDER_PAD_ABOVE_CLASS, 'shrink-0 pt-8')}>
             <SearchField key={q} initialValue={q} onSubmit={submit} docked focusOnMount />

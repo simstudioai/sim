@@ -481,3 +481,15 @@ describe('folder resource mention identity', () => {
     }
   })
 })
+
+it('addresses selected organization resources to their discovery workspace', () => {
+  const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1', organizationId: 'org-1' })
+  try {
+    act(() => result().insertResource({ type: 'table', id: 'table-1', title: 'Accounts' }))
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'ws-1' },
+    ])
+  } finally {
+    unmount()
+  }
+})

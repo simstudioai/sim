@@ -64,9 +64,10 @@ function matchesFilters(block: CatalogBlockSummary, input: ListCatalogBlocksInpu
  * blocks that can start a workflow rather than needing a second endpoint.
  *
  * A sunset block (`legacy` or `deprecated`) is left out unless `includeSunset`
- * is set: it stays readable by id and keeps executing where it is already
- * placed, but a list of "what may I place?" must not offer a superseded block
- * alongside its replacement.
+ * is set. Existing placements keep executing, but a toolbar-hidden sunset
+ * block is not returned by the default detail read. The explicit sunset list
+ * exposes accessible lifecycle and replacement metadata without offering a
+ * superseded block for new authoring.
  *
  * No audit is projected — reading a catalog is not a semantic event, and no
  * shipped v2 read records one.
