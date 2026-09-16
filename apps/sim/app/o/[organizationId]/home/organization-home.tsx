@@ -16,6 +16,7 @@ import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organ
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
+import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import {
   useChatResourcePanel,
@@ -28,6 +29,7 @@ import type {
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
@@ -267,13 +269,22 @@ function OrganizationHomeContent({
           {/* Asymmetric padding biases the group up so the full cluster (heading + input + steps) sits at the optical center */}
           <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
             <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
-              What should we get done{firstName ? `, ${firstName}` : ''}?
+              {requestMode === 'assistant'
+                ? `Search ${organization.name}`
+                : `What should we get done${firstName ? `, ${firstName}` : ''}?`}
             </h1>
             <div className='relative w-full max-w-chat'>
               {composer}
               {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
               <div className='absolute inset-x-0 top-full'>
-                {searchAccess.memberScoped && <GetStarted />}
+                {requestMode === 'agent' ? (
+                  <SuggestedActions
+                    organizationId={organization.id}
+                    onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
+                  />
+                ) : searchAccess.memberScoped ? (
+                  <GetStarted />
+                ) : null}
               </div>
             </div>
           </div>
