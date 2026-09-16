@@ -10,6 +10,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  type ChipProps,
   toast,
 } from '@sim/emcn'
 import { Lock } from '@sim/emcn/icons'
@@ -22,6 +23,7 @@ interface RequestAccessActionProps {
   label: string
   pendingRequestId?: string | null
   onViewRequest?: (requestId: string) => void
+  variant?: ChipProps['variant']
 }
 
 export function RequestAccessAction({
@@ -30,11 +32,13 @@ export function RequestAccessAction({
   label,
   pendingRequestId,
   onViewRequest,
+  variant,
 }: RequestAccessActionProps) {
   if (pendingRequestId) {
     if (onViewRequest) {
       return (
         <Chip
+          variant={variant}
           leftIcon={Lock}
           onClick={() => onViewRequest(pendingRequestId)}
           aria-label={`View request for ${label}`}
@@ -51,6 +55,7 @@ export function RequestAccessAction({
         : '/access-requests'
     return (
       <ChipLink
+        variant={variant}
         href={`${pathname}?${params}`}
         leftIcon={Lock}
         aria-label={`View request for ${label}`}
@@ -66,16 +71,18 @@ export function RequestAccessAction({
       scope={scope}
       target={target}
       label={label}
+      variant={variant}
     />
   )
 }
 
-function RequestableAccessAction({ scope, target, label }: RequestAccessActionProps) {
+function RequestableAccessAction({ scope, target, label, variant }: RequestAccessActionProps) {
   const [open, setOpen] = useState(false)
 
   return (
     <>
       <Chip
+        variant={variant}
         leftIcon={Lock}
         onClick={() => setOpen(true)}
         aria-label={
@@ -98,7 +105,8 @@ function RequestableAccessAction({ scope, target, label }: RequestAccessActionPr
   )
 }
 
-interface RequestAccessModalProps extends Omit<RequestAccessActionProps, 'pendingRequestId'> {
+interface RequestAccessModalProps
+  extends Pick<RequestAccessActionProps, 'scope' | 'target' | 'label'> {
   onClose: () => void
 }
 
@@ -137,7 +145,7 @@ export function RequestAccessModal({ scope, target, label, onClose }: RequestAcc
       <ChipModalHeader onClose={onClose}>{title}</ChipModalHeader>
       <ChipModalBody>
         <ChipModalField type='custom' title='Access'>
-          <p className='text-[var(--text-body)] text-sm'>{label}</p>
+          <p className='break-words text-[var(--text-body)] text-sm'>{label}</p>
         </ChipModalField>
         <ChipModalField
           type='textarea'

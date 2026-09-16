@@ -40,8 +40,23 @@ export async function presentAccessRequest(
   return projectAccessRequest(row, requester)
 }
 
+type AccessRequestPresentation = Pick<
+  StoredAccessRequest,
+  | 'id'
+  | 'organizationId'
+  | 'workspaceId'
+  | 'target'
+  | 'targetLabel'
+  | 'reason'
+  | 'status'
+  | 'decisionReason'
+  | 'createdAt'
+  | 'decidedAt'
+  | 'groupName'
+>
+
 function projectAccessRequest(
-  row: StoredAccessRequest,
+  row: AccessRequestPresentation,
   requester: AccessRequestRecord['requester']
 ): AccessRequestRecord {
   return {
@@ -68,7 +83,19 @@ export async function listAccessRequestRecords(
 ): Promise<AccessRequestList> {
   const rows = await executor
     .select({
-      row: permissionAccessRequest,
+      row: {
+        id: permissionAccessRequest.id,
+        organizationId: permissionAccessRequest.organizationId,
+        workspaceId: permissionAccessRequest.workspaceId,
+        target: permissionAccessRequest.target,
+        targetLabel: permissionAccessRequest.targetLabel,
+        reason: permissionAccessRequest.reason,
+        status: permissionAccessRequest.status,
+        decisionReason: permissionAccessRequest.decisionReason,
+        createdAt: permissionAccessRequest.createdAt,
+        decidedAt: permissionAccessRequest.decidedAt,
+        groupName: permissionAccessRequest.groupName,
+      },
       requester: { id: user.id, name: user.name, email: user.email },
     })
     .from(permissionAccessRequest)

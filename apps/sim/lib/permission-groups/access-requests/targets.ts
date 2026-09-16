@@ -307,7 +307,7 @@ function integrationDenied(config: PermissionGroupConfig, integrationId: string)
   )
 }
 
-/** Tests denial without copying full policies or their bounded but potentially large denylists. */
+/** Tests denial without copying full policies or their potentially large denylists. */
 export function isAccessRequestTargetDenied(
   target: AccessRequestTarget,
   config: PermissionGroupConfig,
@@ -368,7 +368,7 @@ function allowIntegration(config: PermissionGroupConfig, id: string) {
   const allowed = toAccessControlAllowlist(config.allowedIntegrations)
   const canonical = normalizeIntegration(id)
   if (allowed !== null && !allowed.has(canonical)) {
-    config.allowedIntegrations = [...(config.allowedIntegrations ?? []), canonical]
+    config.allowedIntegrations = [...allowed, canonical]
   }
 }
 

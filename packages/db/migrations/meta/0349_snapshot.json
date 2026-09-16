@@ -14403,15 +14403,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "permission_access_request_workspace_id_workspace_id_fk": {
-          "name": "permission_access_request_workspace_id_workspace_id_fk",
-          "tableFrom": "permission_access_request",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "permission_access_request_decided_by_user_id_fk": {
           "name": "permission_access_request_decided_by_user_id_fk",
           "tableFrom": "permission_access_request",

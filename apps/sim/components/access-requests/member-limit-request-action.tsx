@@ -17,7 +17,7 @@ export function MemberLimitRequestAction({ scope }: MemberLimitRequestActionProp
     offset: 0,
   })
   const entry = discovery.data?.entries.find((candidate) => candidate.state === 'requestable')
-  if (!discovery.data?.enabled || !entry) return null
+  if (!discovery.isSuccess || !discovery.data.enabled || !entry) return null
   return (
     <RequestAccessAction
       scope={scope}

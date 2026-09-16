@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh }),
 }))
 vi.mock('@sim/emcn', () => ({
+  cn: (...values: string[]) => values.join(' '),
   Chip: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button type='button' onClick={onClick}>
       {children}
@@ -26,7 +27,12 @@ vi.mock('@sim/emcn', () => ({
     <a href={href}>{children}</a>
   ),
 }))
-vi.mock('@sim/emcn/icons', () => ({ Lock: () => null }))
+vi.mock('@sim/emcn/icons', () => ({
+  Lock: () => null,
+  Plus: () => null,
+  Upload: () => null,
+  BookOpen: () => null,
+}))
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({ useUserPermissionConfig: policy }))
 vi.mock('@/hooks/queries/access-requests', () => ({ useDiscoverAccessRequests: discovery }))
 vi.mock('@/components/access-requests/request-access-action', () => ({
@@ -83,14 +89,30 @@ describe('PermissionAccessBoundary', () => {
     container.remove()
   })
 
+  it('preserves mounted content during a background refresh until policy actually denies access', () => {
+    policy.mockReturnValue({ data: { config: {} }, isPending: false, isFetching: false })
+    render()
+    const content = container.firstElementChild
+    policy.mockReturnValue({ data: { config: {} }, isPending: false, isFetching: true })
+    render()
+    expect(container.firstElementChild).toBe(content)
+    policy.mockReturnValue({
+      data: { config: { hideTablesTab: true } },
+      isPending: false,
+      isFetching: false,
+    })
+    render()
+    expect(container.textContent).not.toContain('Private table names')
+    expect(container.textContent).toContain('Access required')
+  })
+
   it('does not mount protected data consumers behind the request state', () => {
     render()
     expect(protectedMount).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Tables access required')
+    expect(container.textContent).toContain('Access required')
     expect(container.textContent).toContain('Request access')
-    expect(container.querySelector('a')?.getAttribute('href')).toBe(
-      '/workspace/workspace-1/access-requests'
-    )
+    expect(container.querySelector('a')?.getAttribute('href')).toBe('https://docs.sim.ai/tables')
+    expect(container.textContent).not.toContain('My requests')
   })
 
   it('waits for policy without mounting protected content', () => {
@@ -123,7 +145,7 @@ describe('PermissionAccessBoundary', () => {
   it('keeps a server-denied page restricted if requests become disabled', () => {
     discovery.mockReturnValue({ isPending: false, data: { enabled: false, entries: [] } })
     act(() => root.render(<PermissionAccessBoundary configKey='hideTablesTab' />))
-    expect(container.textContent).toContain('Access restricted')
+    expect(container.textContent).toContain('Access required')
     expect(container.textContent).not.toContain('Request access')
     expect(protectedMount).not.toHaveBeenCalled()
   })

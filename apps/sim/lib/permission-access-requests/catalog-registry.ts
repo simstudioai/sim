@@ -74,6 +74,15 @@ export async function loadAccessRequestRegistryCatalog(
   const tools = new Map<string, AccessRequestToolItem>()
   const ambiguousTools = new Set<string>()
 
+  if (needsBlocks) {
+    for (const item of [
+      { id: 'loop', label: 'Loop' },
+      { id: 'parallel', label: 'Parallel' },
+    ]) {
+      if (allowedIntegrations === null || allowedIntegrations.has(item.id)) integrations.push(item)
+    }
+  }
+
   for (const block of needsBlocks ? Object.values(getBlockRegistry()) : []) {
     if (
       block.type.startsWith('custom_block_') ||

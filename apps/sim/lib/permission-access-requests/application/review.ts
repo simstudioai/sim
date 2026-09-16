@@ -327,7 +327,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
             )
           )
     }
-    const decision = {
+    const decision = storedAccessRequestDecisionSchema.parse({
       resolutionKind: preview.resolutionKind,
       changes: preview.changes,
       impact: preview.impact,
@@ -335,7 +335,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
       currentLimitCredits: preview.currentLimitCredits,
       newLimitCredits: newLimitCredits ?? null,
       fingerprint: preview.fingerprint,
-    }
+    })
     const [updated] = await executor
       .update(permissionAccessRequest)
       .set({

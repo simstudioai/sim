@@ -208,6 +208,61 @@ describe('permission request review', () => {
     ])
   })
 
+  it('rechecks enterprise entitlement after admission on the transaction executor', async () => {
+    const before = await preview()
+    mocks.enterprise.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    queueWorkspace()
+    await expect(
+      resolveAccessRequest.execute({
+        principal,
+        input: {
+          ...input,
+          decision: { action: 'apply', expectedFingerprint: before.fingerprint },
+        },
+      })
+    ).rejects.toThrow('Permission groups are unavailable')
+    expect(mocks.enterprise).toHaveBeenLastCalledWith('organization', 'return-false', db)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mocks.outbox).not.toHaveBeenCalled()
+  })
+
+  it('preserves valid legacy policy values and long names in fulfilled snapshots', async () => {
+    const longName = 'x'.repeat(600)
+    mocks.group.mockResolvedValue({
+      ...group,
+      groupName: longName,
+      config: {
+        ...group.config,
+        deniedModels: [
+          target.id,
+          ...Array.from({ length: 10_001 }, (_, index) => `${longName}${index}`),
+        ],
+      },
+    })
+    mocks.impact.mockResolvedValue({
+      impact: { ...impact, workspaceNames: [longName] },
+      revision: 'large-policy',
+    })
+    const before = await preview()
+    queueWorkspace()
+    dbChainMockFns.returning.mockResolvedValueOnce([stored({ status: 'fulfilled' })])
+    const result = await resolveAccessRequest.execute({
+      principal,
+      input: {
+        ...input,
+        decision: { action: 'apply', expectedFingerprint: before.fingerprint },
+      },
+    })
+    const decision = 'decision' in result ? result.decision : undefined
+    expect(
+      decision?.changes.find((change) => change.configKey === 'deniedModels')?.after
+    ).toHaveLength(10_001)
+    mocks.stored.mockResolvedValue(stored({ status: 'fulfilled', decision }))
+    const history = await previewAccessRequest.execute({ principal, input })
+    expect(history.impact.workspaceNames).toEqual([longName])
+    expect(history.group?.name).toBe(longName)
+  })
+
   it('rejects a stale preview when either policy or audience changes', async () => {
     const before = await preview()
     mocks.impact.mockResolvedValue({ impact, revision: 'cohort-v2' })

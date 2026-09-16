@@ -1714,7 +1714,7 @@ export const permissionAccessRequest = pgTable(
     requesterId: text('requester_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id'),
     scopeKey: text('scope_key').notNull(),
     targetKey: text('target_key').notNull(),
     target: jsonb('target').notNull(),

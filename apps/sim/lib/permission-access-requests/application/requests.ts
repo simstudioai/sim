@@ -8,6 +8,8 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, gte, isNull, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
+import type { DbOrTx } from '@/lib/db/types'
+import type { AccessRequestContext } from '@/lib/permission-access-requests/application/authorization'
 import { loadAccessRequestMembership } from '@/lib/permission-access-requests/application/authorization'
 import { defineAuthorizedAccessRequestUseCase } from '@/lib/permission-access-requests/application/authorized-use-case'
 import { accessRequestOperations } from '@/lib/permission-access-requests/application/operations'
@@ -68,6 +70,40 @@ function memberLimitScopeKey(organizationId: string): string {
   return `organization:${organizationId}:member-limit`
 }
 
+async function hasCurrentMemberLimitMembership(
+  executor: DbOrTx,
+  context: AccessRequestContext,
+  userId: string,
+  pending: { workspaceId: string | null; membershipId: string }
+): Promise<boolean> {
+  if (!context.organizationId) return false
+  if (pending.workspaceId && pending.workspaceId === context.workspaceId)
+    return pending.membershipId === context.membershipId
+  if (pending.workspaceId) {
+    const [origin] = await executor
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(
+        and(
+          eq(workspace.id, pending.workspaceId),
+          eq(workspace.organizationId, context.organizationId),
+          isNull(workspace.archivedAt)
+        )
+      )
+      .limit(1)
+    if (!origin) return false
+  }
+  const membership = await loadAccessRequestMembership(
+    executor,
+    userId,
+    pending.workspaceId
+      ? { kind: 'workspace', workspaceId: pending.workspaceId }
+      : { kind: 'organization', organizationId: context.organizationId },
+    context.organizationId
+  )
+  return membership?.membershipId === pending.membershipId
+}
+
 export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
   operation: accessRequestOperations.discover,
   scope: (input: DiscoverAccessRequestsInput) => input,
@@ -101,6 +137,7 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
         targetKey: permissionAccessRequest.targetKey,
         membershipId: permissionAccessRequest.membershipId,
         groupId: permissionAccessRequest.groupId,
+        workspaceId: permissionAccessRequest.workspaceId,
       })
       .from(permissionAccessRequest)
       .where(
@@ -115,13 +152,22 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
         )
       )
       .limit(100)
+    const pendingMemberLimit = pending.find((row) => row.targetKey === 'usage_limit:member')
+    const memberLimitMembershipMatches = pendingMemberLimit
+      ? await hasCurrentMemberLimitMembership(
+          executor,
+          context,
+          principal.userId,
+          pendingMemberLimit
+        )
+      : false
     const pendingByTarget = new Map(
       pending
-        .filter(
-          (row) =>
-            row.targetKey === 'usage_limit:member' ||
-            (row.membershipId === context.membershipId &&
-              row.groupId === (policy.group?.permissionGroupId ?? null))
+        .filter((row) =>
+          row.targetKey === 'usage_limit:member'
+            ? memberLimitMembershipMatches
+            : row.membershipId === context.membershipId &&
+              row.groupId === (policy.group?.permissionGroupId ?? null)
         )
         .map((row) => [row.targetKey, row.id])
     )
@@ -168,7 +214,13 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
   prepare: ({ principal, context, input }) =>
     prepareAccessRequestPolicy(context, principal.userId, input.target.kind),
   mutation: true,
-  async execute({ principal, input, context, executor, prepared }): Promise<MutationResult> {
+  async execute({
+    principal,
+    input,
+    context,
+    executor,
+    prepared,
+  }): Promise<MutationResult & { closedRequest?: AccessRequestRecord }> {
     const organizationId = requireOrganization(context.organizationId)
     if (!(await isAccessRequestEnabled(organizationId, executor, prepared.globalEnabled)))
       throw new OrchestrationError(
@@ -262,6 +314,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
       policy.state === 'requestable'
     )
       return { request: await presentAccessRequest(executor, pending), changed: false }
+    let closedRequest: AccessRequestRecord | undefined
     if (pending) {
       const [closed] = await executor
         .update(permissionAccessRequest)
@@ -281,6 +334,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
       })
       if (policy.state === 'allowed')
         return { request: await presentAccessRequest(executor, closed), changed: true }
+      closedRequest = await presentAccessRequest(executor, closed)
     }
     if (policy.state !== 'requestable')
       throw new OrchestrationError(
@@ -337,11 +391,21 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
     await enqueueOutboxEvent(executor, PERMISSION_ACCESS_REQUEST_CREATED_EVENT, {
       requestId: row.id,
     })
-    return { request: await presentAccessRequest(executor, row), changed: true }
+    return { request: await presentAccessRequest(executor, row), changed: true, closedRequest }
   },
   projectAudit: ({ result }) =>
     result.changed
       ? [
+          ...(result.closedRequest
+            ? [
+                {
+                  action: AuditAction.PERMISSION_ACCESS_REQUEST_CLOSED,
+                  resourceType: AuditResourceType.PERMISSION_ACCESS_REQUEST,
+                  resourceId: result.closedRequest.id,
+                  metadata: { target: result.closedRequest.target },
+                },
+              ]
+            : []),
           {
             action:
               result.request.status === 'closed'

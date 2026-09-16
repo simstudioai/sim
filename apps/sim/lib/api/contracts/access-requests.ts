@@ -172,10 +172,10 @@ export const accessRequestRecordSchema = z.object({
   decisionReason: reasonSchema.nullable(),
   createdAt: z.iso.datetime(),
   decidedAt: z.iso.datetime().nullable(),
-  groupName: z.string().max(255).nullable(),
+  groupName: z.string().nullable(),
   requester: z.object({
     id: z.string().min(1).max(128),
-    name: z.string().max(255).nullable(),
+    name: z.string().nullable(),
     email: z.string().max(320),
   }),
 })
@@ -222,12 +222,7 @@ const previewShape = {
   changes: z
     .array(accessRequestPolicyChangeSchema)
     .max(Object.keys(PERMISSION_GROUP_FIELDS).length),
-  impact: z.object({
-    memberCount: z.number().int().nonnegative(),
-    workspaceCount: z.number().int().nonnegative(),
-    workspaceNames: z.array(z.string().max(255)).max(100),
-    truncated: z.boolean(),
-  }),
+  impact: storedAccessRequestDecisionSchema.shape.impact,
   fingerprint: fingerprintSchema,
   canApply: z.boolean(),
   unavailableReason: z.string().max(1000).nullable(),
@@ -237,7 +232,7 @@ export const accessRequestPreviewResponseSchema = z.discriminatedUnion('resoluti
   z.object({
     ...previewShape,
     resolutionKind: z.literal('permission'),
-    group: z.object({ id: z.string().min(1).max(128), name: z.string().max(255) }).nullable(),
+    group: storedAccessRequestDecisionSchema.shape.group,
     currentLimitCredits: z.null(),
   }),
   z.object({

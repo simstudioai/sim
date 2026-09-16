@@ -18,9 +18,13 @@ import {
   resolveAccessRequestContract,
   updateAccessRequestSettingsContract,
 } from '@/lib/api/contracts/access-requests'
-import type { WorkspaceUsageGate } from '@/lib/api/contracts/workspaces'
+import type {
+  WorkspaceCreditAvailability,
+  WorkspaceUsageGate,
+} from '@/lib/api/contracts/workspaces'
 import { ACCESS_REQUEST_LIST_PAGE_SIZE } from '@/lib/permission-access-requests/constants'
 import { permissionGroupKeys } from '@/ee/access-control/hooks/permission-groups'
+import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
 import { workspaceUsageKeys } from '@/hooks/queries/utils/workspace-usage-keys'
 
 export const ACCESS_REQUESTS_STALE_TIME = 15_000
@@ -67,6 +71,14 @@ export function useDiscoverAccessRequests(query: DiscoverAccessRequestsQuery, en
         if (usage?.scope === 'member' && usage.isExceeded) {
           void queryClient.refetchQueries(
             { queryKey: usageKey, exact: true, type: 'active', stale: true },
+            { cancelRefetch: false }
+          )
+        }
+        const creditKey = workspaceUsageKeys.creditAvailability(query.workspaceId)
+        const credit = queryClient.getQueryData<WorkspaceCreditAvailability>(creditKey)
+        if (credit?.scope === 'member') {
+          void queryClient.refetchQueries(
+            { queryKey: creditKey, exact: true, type: 'active', stale: true },
             { cancelRefetch: false }
           )
         }
@@ -193,7 +205,7 @@ export function useResolveAccessRequest() {
       void queryClient.invalidateQueries({ queryKey: accessRequestKeys.discoveries() })
       if (request.status !== 'fulfilled') return
       if (request.target.kind === 'usage_limit') {
-        void queryClient.invalidateQueries({ queryKey: workspaceUsageKeys.gates() })
+        void invalidateWorkspaceUsage(queryClient)
       } else {
         void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
       }

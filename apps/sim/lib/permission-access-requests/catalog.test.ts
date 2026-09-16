@@ -135,7 +135,13 @@ describe('access request catalog deployment ceilings', () => {
 
   it('exposes only public visible and deployment-available block/tool metadata', async () => {
     const catalog = await loadAccessRequestCatalog(context)
-    expect([...catalog.integrations.keys()]).toEqual(['slack_v2', 'github_v2', 'revealed'])
+    expect([...catalog.integrations.keys()]).toEqual([
+      'loop',
+      'parallel',
+      'slack_v2',
+      'github_v2',
+      'revealed',
+    ])
     expect([...catalog.tools.keys()]).toEqual(['slack_send_message_v2', 'github_create_issue'])
     expect(mocks.visibility).toHaveBeenCalledWith({
       userId: 'viewer',
@@ -224,6 +230,6 @@ describe('access request catalog deployment ceilings', () => {
     expect(isBlockTypeAccessControlExempt('condition')).toBe(false)
     expect(isBlockTypeAccessControlExempt('thinking')).toBe(true)
     expect(isBlockTypeAccessControlExempt('start_trigger')).toBe(true)
-    expect([...catalog.integrations.keys()]).toEqual(['agent', 'condition'])
+    expect([...catalog.integrations.keys()]).toEqual(['loop', 'parallel', 'agent', 'condition'])
   })
 })

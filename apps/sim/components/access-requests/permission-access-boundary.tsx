@@ -1,12 +1,14 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Chip, ChipLink } from '@sim/emcn'
-import { Lock } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
 import { RequestAccessAction } from '@/components/access-requests/request-access-action'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
+import { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/files-empty-state'
+import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/knowledge-empty-state'
+import { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/tables-empty-state'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 
@@ -36,6 +38,14 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
   const entry = discovery.data?.entries.find(
     (candidate) => candidate.target.kind === 'feature' && candidate.target.configKey === configKey
   )
+  const ResourceEmptyState =
+    configKey === 'hideTablesTab'
+      ? TablesEmptyState
+      : configKey === 'hideKnowledgeBaseTab'
+        ? KnowledgeEmptyState
+        : configKey === 'hideFilesTab'
+          ? FilesEmptyState
+          : EmptyState
 
   if (policy.isPending) {
     return (
@@ -76,16 +86,7 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
       />
     )
   }
-  if (!discovery.data.enabled) {
-    return (
-      children ?? (
-        <EmptyState
-          title='Access restricted'
-          description='Your organization restricts this feature.'
-        />
-      )
-    )
-  }
+  if (!discovery.data.enabled && children) return children
 
   if (entry?.state === 'allowed') {
     return (
@@ -96,35 +97,26 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
       />
     )
   }
-  if (!entry) {
-    return (
-      <EmptyState
-        title='Access restricted'
-        description='Your organization restricts this feature.'
-      />
-    )
-  }
-
   return (
-    <EmptyState
-      title={`${entry.label} access required`}
+    <ResourceEmptyState
+      title='Access required'
       description={
-        entry.reason ??
-        'Your organization restricts this feature. You can ask an administrator for access.'
+        discovery.data.enabled && entry?.state === 'requestable'
+          ? entry.pendingRequestId
+            ? 'Your request is pending.'
+            : 'Ask an administrator for access.'
+          : (entry?.reason ?? 'Your organization restricts this feature.')
       }
-      graphic={<Lock className='size-6 text-[var(--text-icon)]' aria-hidden />}
       action={
-        <>
-          {entry.state === 'requestable' && (
-            <RequestAccessAction
-              scope={{ kind: 'workspace', workspaceId }}
-              target={entry.target}
-              label={entry.label}
-              pendingRequestId={entry.pendingRequestId}
-            />
-          )}
-          <ChipLink href={`/workspace/${workspaceId}/access-requests`}>My requests</ChipLink>
-        </>
+        discovery.data.enabled && entry?.state === 'requestable' ? (
+          <RequestAccessAction
+            scope={{ kind: 'workspace', workspaceId }}
+            target={entry.target}
+            label={entry.label}
+            pendingRequestId={entry.pendingRequestId}
+            variant='primary'
+          />
+        ) : undefined
       }
     />
   )

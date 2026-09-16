@@ -144,6 +144,8 @@ export const schemaMock = {
     organizationId: 'organizationMemberUsageLimit.organizationId',
     userId: 'organizationMemberUsageLimit.userId',
     usageLimit: 'organizationMemberUsageLimit.usageLimit',
+    setBy: 'organizationMemberUsageLimit.setBy',
+    createdAt: 'organizationMemberUsageLimit.createdAt',
     updatedAt: 'organizationMemberUsageLimit.updatedAt',
   },
   organizationAccessRequestSettings: {

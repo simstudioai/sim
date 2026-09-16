@@ -247,6 +247,18 @@ describe('create access requests', () => {
       .mockResolvedValueOnce([stored({ id: 'replacement' })])
     const result = await createAccessRequest.execute({ principal, input: { scope, target } })
     expect(result.request.id).toBe('replacement')
+    expect(mocks.audit.mock.calls[0]?.[4]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'permission_access_request.closed',
+          resourceId: 'request',
+        }),
+        expect.objectContaining({
+          action: 'permission_access_request.created',
+          resourceId: 'replacement',
+        }),
+      ])
+    )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'closed' }))
     expect(mocks.outbox.mock.calls.map(([, event, payload]) => [event, payload])).toEqual([
       [PERMISSION_ACCESS_REQUEST_DECIDED_EVENT, { requestId: 'request' }],
@@ -417,6 +429,26 @@ describe('discovery and request history', () => {
     })
     expect(mocks.group).toHaveBeenCalledOnce()
   })
+
+  it.each([true, false])(
+    'only advertises a pending member cap for its current membership (%s)',
+    async (valid) => {
+      mocks.targets.mockReturnValue([{ kind: 'usage_limit', id: 'member' }])
+      queueTableRows(organizationMemberUsageLimit, [{ usageLimit: '10', updatedAt: new Date() }])
+      queueTableRows(permissionAccessRequest, [
+        stored({
+          targetKey: 'usage_limit:member',
+          groupId: null,
+          membershipId: valid ? context.membershipId : 'old-membership',
+        }),
+      ])
+      const result = await discoverAccessRequests.execute({
+        principal,
+        input: { ...scope, limit: 50, offset: 0 },
+      })
+      expect(result.entries[0]?.pendingRequestId).toBe(valid ? 'request' : null)
+    }
+  )
 
   it('allows a new request when a pending request belongs to a previous governing group', async () => {
     queueTableRows(permissionAccessRequest, [stored({ groupId: 'previous-group' })])

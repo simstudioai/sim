@@ -25,8 +25,7 @@ export const storedAccessRequestTargetSchema = z.discriminatedUnion('kind', [
 ]) satisfies z.ZodType<DomainAccessRequestTarget>
 export const storedAccessRequestPolicyValueSchema = z.union([
   z.boolean(),
-  z.array(z.string().max(512)).max(10_000),
-  z.null(),
+  PERMISSION_GROUP_FIELDS.allowedIntegrations.readSchema,
 ])
 
 export const storedAccessRequestPolicyChangeSchema = z.object({
@@ -46,10 +45,10 @@ export const storedAccessRequestDecisionSchema = z.object({
   impact: z.object({
     memberCount: z.number().int().nonnegative(),
     workspaceCount: z.number().int().nonnegative(),
-    workspaceNames: z.array(z.string().max(255)).max(100),
+    workspaceNames: z.array(z.string()).max(100),
     truncated: z.boolean(),
   }),
-  group: z.object({ id: z.string().min(1).max(128), name: z.string().max(255) }).nullable(),
+  group: z.object({ id: z.string().min(1).max(128), name: z.string() }).nullable(),
   currentLimitCredits: z.number().finite().nonnegative().nullable(),
   newLimitCredits: z.number().finite().nonnegative().nullable(),
   fingerprint: fingerprintSchema,

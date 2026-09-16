@@ -80,6 +80,13 @@ describe.skipIf(!databaseUrl)('permission access request migration on PostgreSQL
       const [history] =
         await sql`SELECT status, decided_by FROM permission_access_request WHERE id='first'`
       expect(history).toMatchObject({ status: 'fulfilled', decided_by: null })
+      await sql`DELETE FROM workspace WHERE id='workspace'`
+      expect(
+        await sql`SELECT status, workspace_id FROM permission_access_request ORDER BY id`
+      ).toEqual([
+        { status: 'fulfilled', workspace_id: 'workspace' },
+        { status: 'pending', workspace_id: 'workspace' },
+      ])
       expect(await sql`SELECT id FROM permission_access_request`).toHaveLength(2)
     } finally {
       await fixture.cleanup()

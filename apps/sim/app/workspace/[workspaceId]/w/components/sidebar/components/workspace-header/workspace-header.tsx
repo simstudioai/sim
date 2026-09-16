@@ -788,12 +788,14 @@ function WorkspaceHeaderImpl({
                       </DropdownMenuItem>
                     </DisabledReasonTooltip>
                   )}
-                  <DropdownMenuItem size='lg' asChild>
-                    <SettingsGuardedLink href={`/workspace/${workspaceId}/access-requests`}>
-                      <ListChecks className='size-[14px]' />
-                      My access requests
-                    </SettingsGuardedLink>
-                  </DropdownMenuItem>
+                  {hostContext.hostOrganizationId && (
+                    <DropdownMenuItem size='lg' asChild>
+                      <SettingsGuardedLink href={`/workspace/${workspaceId}/access-requests`}>
+                        <ListChecks className='size-[14px]' />
+                        My access requests
+                      </SettingsGuardedLink>
+                    </DropdownMenuItem>
+                  )}
                   {hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationAdmin && (
                     <DropdownMenuItem size='lg' asChild>
                       <SettingsGuardedLink

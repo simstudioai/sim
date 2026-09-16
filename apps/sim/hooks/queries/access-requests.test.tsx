@@ -180,6 +180,66 @@ describe('access request query lifecycle', () => {
     expect(client.getQueryData(usageKey)).toEqual({ scope: null, isExceeded: false })
   })
 
+  it('refreshes stale member credits without a usage-gate observer', async () => {
+    const key = workspaceUsageKeys.creditAvailability('workspace-1')
+    client.setQueryData(
+      key,
+      { scope: 'member', remainingDollars: 0 },
+      { updatedAt: Date.now() - 30_001 }
+    )
+    const fetchCredits = vi.fn().mockResolvedValue({ scope: 'member', remainingDollars: 25 })
+    requestJson.mockResolvedValue({ enabled: true, entries: [], total: 0, hasMore: false })
+    function Probe() {
+      useQuery({ queryKey: key, queryFn: fetchCredits, staleTime: 30_000, refetchOnMount: false })
+      useDiscoverAccessRequests({
+        kind: 'workspace',
+        workspaceId: 'workspace-1',
+        targetKind: 'usage_limit',
+      })
+      return null
+    }
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <Probe />
+        </QueryClientProvider>
+      )
+    })
+    expect(fetchCredits).toHaveBeenCalledOnce()
+    expect(client.getQueryData(key)).toEqual({ scope: 'member', remainingDollars: 25 })
+  })
+
+  it('refreshes both balance and usage-gate families after a cap is fulfilled', async () => {
+    let resolve: ReturnType<typeof useResolveAccessRequest>
+    const creditKey = workspaceUsageKeys.creditAvailability('workspace-1')
+    const gateKey = workspaceUsageKeys.gate('workspace-1')
+    client.setQueryData(creditKey, { remainingDollars: 0 })
+    client.setQueryData(gateKey, { isExceeded: true })
+    requestJson.mockResolvedValue({
+      request: { status: 'fulfilled', target: { kind: 'usage_limit', id: 'member' } },
+    })
+    function Probe() {
+      resolve = useResolveAccessRequest()
+      return null
+    }
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <Probe />
+        </QueryClientProvider>
+      )
+    })
+    await act(async () => {
+      await resolve!.mutateAsync({
+        organizationId: 'org-1',
+        requestId: 'request-1',
+        body: { action: 'apply', expectedFingerprint: 'current', newLimitCredits: 100 },
+      })
+    })
+    expect(client.getQueryState(creditKey)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(gateKey)?.isInvalidated).toBe(true)
+  })
+
   it('does not fetch history while its view is inactive', async () => {
     function Probe() {
       useMyAccessRequests({ kind: 'workspace', workspaceId: 'workspace-1' }, 0, undefined, false)

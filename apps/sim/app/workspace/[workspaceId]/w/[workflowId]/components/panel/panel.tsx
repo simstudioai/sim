@@ -226,9 +226,10 @@ export const Panel = memo(function Panel() {
     usageExceeded && usageLimitScope === 'member'
   )
   const [showLimitRequest, setShowLimitRequest] = useState(false)
-  const memberLimitTarget = memberLimitRequest.data?.enabled
-    ? memberLimitRequest.data.entries.find((entry) => entry.state === 'requestable')
-    : undefined
+  const memberLimitTarget =
+    memberLimitRequest.isSuccess && memberLimitRequest.data.enabled
+      ? memberLimitRequest.data.entries.find((entry) => entry.state === 'requestable')
+      : undefined
 
   // Workflow execution hook
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
@@ -258,7 +259,12 @@ export const Panel = memo(function Panel() {
 
     if (usageExceeded) {
       if (usageLimitScope === 'member' && memberLimitTarget) {
-        setShowLimitRequest(true)
+        if (memberLimitTarget.pendingRequestId) {
+          const params = new URLSearchParams({ requestId: memberLimitTarget.pendingRequestId })
+          router.push(`/workspace/${encodeURIComponent(workspaceId)}/access-requests?${params}`)
+        } else {
+          setShowLimitRequest(true)
+        }
         return
       }
       const action = getWorkspaceUsageLimitAction(hostContext, session?.user?.id, {

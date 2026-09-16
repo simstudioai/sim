@@ -51,9 +51,9 @@ export async function loadAccessRequestPolicy(
 ) {
   if (!context.organizationId) return { entitled: false, group: null, limit: null }
   const entitled =
-    entitledAtAdmission ??
+    entitledAtAdmission !== false &&
     (isHosted
-      ? await isOrganizationOnEnterprisePlan(context.organizationId)
+      ? await isOrganizationOnEnterprisePlan(context.organizationId, 'return-false', executor)
       : isAccessControlEnabled)
   const group = !entitled
     ? null

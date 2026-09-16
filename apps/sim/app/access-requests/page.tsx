@@ -53,7 +53,7 @@ export default async function AccessRequestsPage({ searchParams }: AccessRequest
   return (
     <Suspense fallback={<AccessRequestsLoading />}>
       {params.view === 'admin' ? (
-        <main className='min-h-screen bg-[var(--bg)] px-6 py-8'>
+        <main className='flex-1 px-6 py-8'>
           <div className='mx-auto flex max-w-3xl flex-col gap-6'>
             <div className='flex items-center justify-between gap-4'>
               <h1 className='text-[var(--text-primary)] text-lg'>Access requests</h1>
