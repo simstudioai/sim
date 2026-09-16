@@ -1,180 +1,45 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { updateOrganizationWhitelabelContract } from '@/lib/api/contracts/organization'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
-import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
-import { isBillingEnabled, isWhitelabelingEnabled } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  getOrganizationWhitelabelContract,
+  updateOrganizationWhitelabelContract,
+} from '@/lib/api/contracts/organization'
+import { validationErrorResponse } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  getOrganizationWhitelabel,
+  updateOrganizationWhitelabel,
+} from '@/lib/organizations/application/configuration'
+import { organizationConfigurationOperations } from '@/lib/organizations/application/configuration-operations'
 
-const logger = createLogger('WhitelabelAPI')
+export const GET = defineInternalJsonRoute({
+  contract: getOrganizationWhitelabelContract,
+  auth: internalSessionAuth,
+  operation: organizationConfigurationOperations.readWhitelabel,
+  rateLimit: internalRateLimits.none({
+    reason: 'Existing member-only organization configuration read',
+  }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: ({ params }) => ({ organizationId: params.id }),
+  useCase: getOrganizationWhitelabel,
+  present: (data) => ({ success: true, data }),
+})
 
-/**
- * GET /api/organizations/[id]/whitelabel
- * Returns the organization's whitelabel settings.
- * Accessible by any member of the organization.
- */
-export const GET = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    try {
-      const session = await getSession()
-
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const { id: organizationId } = await params
-
-      const [memberEntry] = await db
-        .select({ id: member.id })
-        .from(member)
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-        .limit(1)
-
-      if (!memberEntry) {
-        return NextResponse.json(
-          { error: 'Forbidden - Not a member of this organization' },
-          { status: 403 }
-        )
-      }
-
-      const [org] = await db
-        .select({ whitelabelSettings: organization.whitelabelSettings })
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1)
-
-      if (!org) {
-        return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: (org.whitelabelSettings ?? {}) as OrganizationWhitelabelSettings,
-      })
-    } catch (error) {
-      logger.error('Failed to get whitelabel settings', { error })
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
-
-/**
- * PUT /api/organizations/[id]/whitelabel
- * Updates the organization's whitelabel settings.
- * Requires enterprise plan and owner/admin role.
- */
-export const PUT = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    try {
-      const session = await getSession()
-
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const parsed = await parseRequest(updateOrganizationWhitelabelContract, request, context, {
-        validationErrorResponse: (err) => validationErrorResponse(err, 'Invalid request body'),
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id: organizationId } = parsed.data.params
-      const incoming = parsed.data.body
-
-      const [memberEntry] = await db
-        .select({ role: member.role })
-        .from(member)
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-        .limit(1)
-
-      if (!memberEntry) {
-        return NextResponse.json(
-          { error: 'Forbidden - Not a member of this organization' },
-          { status: 403 }
-        )
-      }
-
-      if (memberEntry.role !== 'owner' && memberEntry.role !== 'admin') {
-        return NextResponse.json(
-          {
-            error: 'Forbidden - Only organization owners and admins can update whitelabel settings',
-          },
-          { status: 403 }
-        )
-      }
-
-      const entitled = await isOrganizationFeatureEntitled(organizationId, isWhitelabelingEnabled)
-
-      if (!entitled) {
-        return NextResponse.json(
-          {
-            error: isBillingEnabled
-              ? 'Whitelabeling is available on Enterprise plans only'
-              : 'Whitelabeling is disabled. Set ENTERPRISE_ENABLED or WHITELABELING_ENABLED to enable it.',
-          },
-          { status: 403 }
-        )
-      }
-
-      const [currentOrg] = await db
-        .select({ name: organization.name, whitelabelSettings: organization.whitelabelSettings })
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1)
-
-      if (!currentOrg) {
-        return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-      }
-
-      const current: OrganizationWhitelabelSettings = currentOrg.whitelabelSettings ?? {}
-
-      const merged: OrganizationWhitelabelSettings = { ...current }
-
-      for (const key of Object.keys(incoming) as Array<keyof typeof incoming>) {
-        const value = incoming[key]
-        if (value === null) {
-          delete merged[key as keyof OrganizationWhitelabelSettings]
-        } else if (value !== undefined) {
-          ;(merged as Record<string, unknown>)[key] = value
-        }
-      }
-
-      const [updated] = await db
-        .update(organization)
-        .set({ whitelabelSettings: merged, updatedAt: new Date() })
-        .where(eq(organization.id, organizationId))
-        .returning({ whitelabelSettings: organization.whitelabelSettings })
-
-      if (!updated) {
-        return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-      }
-
-      recordAudit({
-        workspaceId: null,
-        actorId: session.user.id,
-        action: AuditAction.ORGANIZATION_UPDATED,
-        resourceType: AuditResourceType.ORGANIZATION,
-        resourceId: organizationId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        resourceName: currentOrg.name,
-        description: 'Updated organization whitelabel settings',
-        metadata: { changes: Object.keys(incoming) },
-        request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: (updated.whitelabelSettings ?? {}) as OrganizationWhitelabelSettings,
-      })
-    } catch (error) {
-      logger.error('Failed to update whitelabel settings', { error })
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
+export const PUT = defineInternalJsonRoute({
+  contract: updateOrganizationWhitelabelContract,
+  auth: internalSessionAuth,
+  operation: organizationConfigurationOperations.updateWhitelabel,
+  rateLimit: internalRateLimits.none({
+    reason: 'Existing administrator-only organization configuration update',
+  }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  parseOptions: {
+    validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request body'),
+  },
+  mapInput: ({ params, body }) => ({ organizationId: params.id, settings: body }),
+  useCase: updateOrganizationWhitelabel,
+  present: ({ data }) => ({ success: true, data }),
+})

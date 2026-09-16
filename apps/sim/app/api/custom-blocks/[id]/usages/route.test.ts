@@ -10,11 +10,21 @@ const { mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
     getCustomBlockManageContext: vi.fn(),
     getCustomBlockUsageCounts: vi.fn(),
     isCustomBlocksDeploymentEnabled: vi.fn(),
+    CustomBlockValidationError: class extends Error {},
   },
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  hasWorkspaceAdminAccess: mockHasWorkspaceAdminAccess,
+vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
+  resolveEffectiveWorkspacePermission: async (...args: unknown[]) =>
+    (await mockHasWorkspaceAdminAccess(...args)) ? 'admin' : 'read',
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org-1',
+    allowPersonalApiKeys: true,
+  }),
 }))
 
 vi.mock('@/lib/workflows/custom-blocks/operations', () => mockOperations)
@@ -39,7 +49,7 @@ function callRoute(id = 'cb-1') {
 describe('GET /api/custom-blocks/[id]/usages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     mockOperations.getCustomBlockManageContext.mockResolvedValue(MANAGE_CONTEXT)
     mockOperations.getCustomBlockUsageCounts.mockResolvedValue(USAGE_COUNTS)

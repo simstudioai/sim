@@ -1,122 +1,49 @@
-import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { and, eq, isNotNull } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
 import { restoreMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
-import { parseRequest } from '@/lib/api/server'
-import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
-import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
-  authenticateCopilotRequestSessionOnly,
-  createForbiddenResponse,
-  createInternalServerErrorResponse,
-  createUnauthorizedResponse,
-} from '@/lib/mothership/request/http'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+  defineInternalJsonRoute,
+  extendInternalErrorPolicy,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  ChatOrganizationAccessError,
+  ChatWorkspaceAccessError,
+  RestoreChatNotFoundError,
+  restoreMothershipChat,
+} from '@/lib/mothership/chat/application/use-cases'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  assertActiveWorkspaceAccess,
-  isWorkspaceAccessDeniedError,
-} from '@/lib/workspaces/permissions/utils'
 
-const logger = createLogger('RestoreMothershipChatAPI')
-
-/**
- * POST /api/mothership/chats/[chatId]/restore
- * Restores a soft-deleted mothership chat back into the sidebar. Ownership is
- * enforced by scoping the update to the authenticated user's rows, and the
- * caller must still have access to the chat's workspace, matching the delete
- * path.
- */
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
-    try {
-      const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
-      if (!isAuthenticated || !userId) {
-        return createUnauthorizedResponse()
-      }
-
-      const parsed = await parseRequest(restoreMothershipChatContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { chatId } = parsed.data.params
-
-      const [chat] = await db
-        .select({
-          workspaceId: copilotChats.workspaceId,
-          organizationId: copilotChats.organizationId,
-        })
-        .from(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership'),
-            isNotNull(copilotChats.deletedAt)
-          )
-        )
-        .limit(1)
-
-      if (!chat) {
-        return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
-      }
-      if (chat.organizationId) {
-        if (!principal) return createUnauthorizedResponse()
-        await authorizeOrganizationChat.execute({
-          principal,
-          input: { organizationId: chat.organizationId },
-        })
-      }
-      if (chat.workspaceId) {
-        await assertActiveWorkspaceAccess(chat.workspaceId, userId)
-      }
-
-      // Bump `updatedAt` (like workflow/table/KB restores) so the restored chat
-      // surfaces at the top of the sidebar, and mark it seen for the restorer.
-      const now = new Date()
-      const [restoredChat] = await db
-        .update(copilotChats)
-        .set({ deletedAt: null, updatedAt: now, lastSeenAt: now })
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership'),
-            isNotNull(copilotChats.deletedAt)
-          )
-        )
-        .returning({
-          workspaceId: copilotChats.workspaceId,
-          organizationId: copilotChats.organizationId,
-        })
-
-      if (!restoredChat) {
-        return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
-      }
-
-      publishChatStatusChanged({ ...restoredChat, userId }, { chatId, type: 'created' })
-      if (restoredChat.workspaceId) {
-        captureServerEvent(
-          userId,
-          'task_restored',
-          { workspace_id: restoredChat.workspaceId },
-          {
-            groups: { workspace: restoredChat.workspaceId },
-          }
-        )
-      }
-
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      const code = asOrchestrationError(error)?.code
-      if (code === 'not_found' || code === 'forbidden')
-        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
-      if (isWorkspaceAccessDeniedError(error)) {
-        return createForbiddenResponse('Workspace access denied')
-      }
-      logger.error('Error restoring mothership chat:', error)
-      return createInternalServerErrorResponse('Failed to restore chat')
-    }
-  }
-)
+/** Restores the acting user's chat through the same canonical application operation as Settings. */
+export const POST = defineInternalJsonRoute({
+  contract: restoreMothershipChatContract,
+  operation: restoreMothershipChat.operation,
+  auth: internalSessionAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserves the existing authenticated chat restore policy',
+  }),
+  errorPolicy: {
+    ...extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) => {
+      if (error instanceof RestoreChatNotFoundError)
+        return { status: 404, body: { success: false, error: 'Chat not found' } }
+      if (error instanceof ChatOrganizationAccessError)
+        return { status: 404, body: { error: 'Chat not found' } }
+      if (error instanceof ChatWorkspaceAccessError)
+        return { status: 403, body: { error: 'Workspace access denied' } }
+      return null
+    }),
+    unhandled: () => ({ status: 500, body: { error: 'Failed to restore chat' } }),
+  },
+  mapInput: ({ params }) => ({ chatId: params.chatId }),
+  useCase: restoreMothershipChat,
+  present: () => ({ success: true as const }),
+  onSuccess: ({ result }) => {
+    if (result.workspaceId)
+      captureServerEvent(
+        result.userId,
+        'task_restored',
+        { workspace_id: result.workspaceId },
+        { groups: { workspace: result.workspaceId } }
+      )
+  },
+})

@@ -43,6 +43,7 @@ vi.mock('@/lib/invitations/core', () => ({
   expireStalePendingInvitationsForOrganization: mockExpireStaleInvitations,
 }))
 
+import { readOrganizationRoster } from '@/lib/organizations/application/member-roster'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { GET } from '@/app/api/organizations/[id]/roster/route'
 
@@ -82,7 +83,10 @@ describe('GET /api/organizations/[id]/roster', () => {
   })
 
   it('refuses a member whose permission group hides the member directory', async () => {
-    mockGetSession.mockResolvedValue(createSession({ userId: 'user-reader' }))
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'user-reader' }),
+      session: { id: 'session' },
+    })
     mockGetOrgPermissionConfig.mockResolvedValue({ hideOrgMemberDirectory: true })
     queueTableRows(member, [{ role: 'member' }])
 
@@ -98,7 +102,10 @@ describe('GET /api/organizations/[id]/roster', () => {
   })
 
   it('returns a redacted roster to a target-organization member', async () => {
-    mockGetSession.mockResolvedValue(createSession({ userId: 'user-reader' }))
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'user-reader' }),
+      session: { id: 'session' },
+    })
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(member, MEMBER_ROWS)
 
@@ -143,7 +150,10 @@ describe('GET /api/organizations/[id]/roster', () => {
   })
 
   it('denies a workspace collaborator who is not a target-organization member', async () => {
-    mockGetSession.mockResolvedValue(createSession({ userId: 'external-user' }))
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'external-user' }),
+      session: { id: 'session' },
+    })
 
     const response = await GET(
       createMockRequest('GET', undefined, {}, 'http://localhost/api/organizations/org-1/roster'),
@@ -158,7 +168,10 @@ describe('GET /api/organizations/[id]/roster', () => {
   })
 
   it('preserves the full management roster for organization admins', async () => {
-    mockGetSession.mockResolvedValue(createSession({ userId: 'user-admin' }))
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'user-admin' }),
+      session: { id: 'session' },
+    })
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(member, MEMBER_ROWS)
     queueTableRows(workspace, [{ id: 'workspace-1', name: 'Workspace One' }])
@@ -240,4 +253,63 @@ describe('GET /api/organizations/[id]/roster', () => {
     ])
     expect(mockExpireStaleInvitations).toHaveBeenCalledWith('org-1')
   })
+})
+
+describe('delegated organization roster application boundary', () => {
+  const principal = {
+    kind: 'organization_delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'actor',
+    organizationId: 'org-1',
+    delegationId: 'roster',
+    audience: 'sim:settings',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+    resourceScope: { chatId: 'chat' },
+  } as const
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetOrgPermissionConfig.mockResolvedValue(null)
+  })
+  it('returns member-visible directory without invitations or workspace access', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(member, MEMBER_ROWS)
+    const result = await readOrganizationRoster.execute({
+      principal,
+      input: { organizationId: 'org-1' },
+    })
+    expect(result.members).toHaveLength(2)
+    expect(result.members.every((entry) => entry.workspaces.length === 0)).toBe(true)
+    expect(result.pendingInvitations).toEqual([])
+    expect(result.workspaces).toEqual([])
+    expect(mockExpireStaleInvitations).not.toHaveBeenCalled()
+  })
+  it('rechecks current membership and withholds organization directory after revocation', async () => {
+    queueTableRows(member, [])
+    await expect(
+      readOrganizationRoster.execute({ principal, input: { organizationId: 'org-1' } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mockExpireStaleInvitations).not.toHaveBeenCalled()
+  })
+  it('enforces current member-directory configuration for members', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    mockGetOrgPermissionConfig.mockResolvedValue({ hideOrgMemberDirectory: true })
+    await expect(
+      readOrganizationRoster.execute({ principal, input: { organizationId: 'org-1' } })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mockExpireStaleInvitations).not.toHaveBeenCalled()
+  })
+  it.each([{ organizationId: 'other' }, { audience: 'sim:knowledge' }, { expiresAt: new Date(0) }])(
+    'rejects invalid organization delegation before roster work',
+    async (change) => {
+      await expect(
+        readOrganizationRoster.execute({
+          principal: { ...principal, ...change },
+          input: { organizationId: 'org-1' },
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+      expect(mockExpireStaleInvitations).not.toHaveBeenCalled()
+    }
+  )
 })

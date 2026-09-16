@@ -110,6 +110,37 @@ function splitTableTitle(name: string, args: ToolArgs): string {
   const inTable = table ? ` in ${table}` : ''
   const ofTable = table ? ` of ${table}` : ''
   switch (name) {
+    case 'settings': {
+      const verb =
+        (
+          {
+            list: 'Listing',
+            get: 'Reading',
+            update: 'Updating',
+            open: 'Opening',
+            execute: 'Managing',
+          } as Record<string, string>
+        )[stringArg(args, 'action')] ?? 'Reading'
+      const subject = [stringArg(args, 'scope'), stringArg(args, 'section').replaceAll('-', ' ')]
+        .filter(Boolean)
+        .join(' ')
+      return `${verb} ${subject ? `${subject} ` : ''}settings`
+    }
+    case 'search_sources': {
+      const action = stringArg(args, 'action')
+      const subject = stringArg(args, 'connectorType').replaceAll('_', ' ')
+      const verb =
+        (
+          {
+            list: 'Listing',
+            get: 'Checking',
+            providers: 'Listing',
+            setup: 'Preparing',
+            approve: 'Updating',
+          } as Record<string, string>
+        )[action] ?? 'Checking'
+      return `${verb} ${subject ? `${subject} ` : ''}search ${action === 'providers' ? 'providers' : action === 'setup' ? 'setup' : 'sources'}`
+    }
     case 'table_manage':
       if (is('create')) return `Creating table${suffix || (table ? ` ${table}` : '')}`
       if (is('delete')) return `Deleting table${table ? ` ${table}` : suffix}`

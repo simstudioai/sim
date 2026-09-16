@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { credentialGroup as credentialGroupTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import type { OperationUseCase } from '@/lib/core/application/operation'
@@ -36,25 +37,33 @@ export const organizationAccountOperations = {
   read: defineOrganizationOperation({
     id: 'organization_accounts.read',
     minimumRole: 'member',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
   ensure: defineOrganizationOperation({
     id: 'organization_accounts.ensure',
     minimumRole: 'admin',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
   update: defineOrganizationOperation({
     id: 'organization_accounts.update',
     minimumRole: 'admin',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
   connect: defineOrganizationOperation({
     id: 'organization_accounts.connect',
     minimumRole: 'member',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
 } as const
@@ -121,7 +130,11 @@ export function defineOrganizationAccountsUseCase<
           actorId: context.userId,
           action: AuditAction.CREDENTIAL_GROUP_UPDATED,
           resourceType: AuditResourceType.CREDENTIAL_GROUP,
-          metadata: { organizationId: context.organizationId },
+          metadata: {
+            organizationId: context.organizationId,
+            operation: definition.operation.id,
+            actor: resolvePrincipalAuditAttribution(principal).actor,
+          },
           request,
         })
       await definition.afterSuccess?.({ result, context })

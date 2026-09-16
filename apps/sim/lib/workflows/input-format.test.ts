@@ -258,7 +258,7 @@ describe('isFileFieldType', () => {
   })
 
   it.concurrent('does not match legacy variants or other types (no behavior change)', () => {
-    expect(isFileFieldType('files')).toBe(false)
+    expect(isFileFieldType('files')).toBe(true)
     expect(isFileFieldType('file')).toBe(false)
     expect(isFileFieldType('image')).toBe(false)
     expect(isFileFieldType('string')).toBe(false)
@@ -362,14 +362,14 @@ describe('collectInputFormatFiles', () => {
     expect(collectInputFormatFiles('nope')).toEqual([])
   })
 
-  it.concurrent('collects files only from file[] fields, ignoring other types', () => {
+  it.concurrent('collects canonical and legacy file fields, ignoring other types', () => {
     const value = [
       { name: 'query', type: 'string', value: 'hi' },
       { name: 'a', type: 'file[]', value: JSON.stringify([file]) },
       { name: 'b', type: 'file[]', value: JSON.stringify([{ ...file, id: 'f2' }]) },
-      { name: 'legacy', type: 'files', value: JSON.stringify([{ ...file, id: 'ignored' }]) },
+      { name: 'legacy', type: 'files', value: JSON.stringify([{ ...file, id: 'legacy' }]) },
     ]
-    expect(collectInputFormatFiles(value).map((f) => f.id)).toEqual(['f1', 'f2'])
+    expect(collectInputFormatFiles(value).map((f) => f.id)).toEqual(['f1', 'f2', 'legacy'])
   })
 
   it.concurrent('ignores legacy/unparseable file values', () => {

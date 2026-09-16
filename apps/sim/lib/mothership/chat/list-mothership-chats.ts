@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { z } from 'zod'
 import type { MothershipChat, MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
@@ -19,9 +20,10 @@ import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-livenes
 export async function listMothershipChats(
   userId: string,
   owner: string | { organizationId: string },
-  scope: MothershipChatScope = 'active'
+  scope: MothershipChatScope = 'active',
+  limit?: number
 ): Promise<MothershipChat[]> {
-  const chats = await db
+  const query = db
     .select({
       id: copilotChats.id,
       mode: conversationModeSelection,
@@ -44,6 +46,11 @@ export async function listMothershipChats(
       )
     )
     .orderBy(desc(copilotChats.pinned), desc(copilotChats.updatedAt))
+
+  const chats =
+    limit === undefined
+      ? await query
+      : await query.limit(z.number().int().min(1).max(200).parse(limit))
 
   const streamMarkers =
     scope === 'archived'

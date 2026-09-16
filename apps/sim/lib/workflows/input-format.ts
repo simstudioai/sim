@@ -59,15 +59,9 @@ export function createDefaultInputFormatField(): InputFormatFieldState {
   }
 }
 
-/**
- * Whether an input-format field type denotes a file input. Matches the canonical
- * `file[]` written by the field-type dropdown — the same literal the execution
- * and webhook file paths already key off (`lib/execution/files.ts`,
- * `lib/webhooks/providers/generic.ts`) — so the editor and runtime agree and no
- * existing non-`file[]` field changes behavior.
- */
+/** Whether a field is a canonical file array or its legacy MCP alias. */
 export function isFileFieldType(type: string | null | undefined): boolean {
-  return type === 'file[]'
+  return type === 'file[]' || type === 'files'
 }
 
 /**

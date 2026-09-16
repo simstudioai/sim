@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { managementToolContracts } from '@/lib/api/contracts/mothership-management-tools'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionResult, ToolHandler } from '@/lib/mothership/tool-executor/types'
@@ -11,15 +12,18 @@ const logger = createLogger('ServerToolAdapter')
 export function createServerToolHandler(toolId: string): ToolHandler {
   return async (params, context): Promise<ToolExecutionResult> => {
     const enrichedParams = { ...params }
-    if (!enrichedParams.workflowId && context.workflowId)
-      enrichedParams.workflowId = context.workflowId
-    if (context.workspaceId) enrichedParams.workspaceId = context.workspaceId
+    if (!managementToolContracts.some((tool) => tool.id === toolId)) {
+      if (!enrichedParams.workflowId && context.workflowId)
+        enrichedParams.workflowId = context.workflowId
+      if (context.workspaceId) enrichedParams.workspaceId = context.workspaceId
+    }
 
     try {
       const result = await routeExecution(toolId, enrichedParams, {
         userId: context.userId,
         workspaceId: context.workspaceId,
         organizationId: context.organizationId,
+        chatOrganizationId: context.chatOrganizationId,
         executionId: context.executionId,
         toolCallId: context.toolCallId,
         copilotToolExecution: context.copilotToolExecution,

@@ -9,7 +9,10 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
+import {
+  ChatWorkspaceAccessError,
+  listWorkspaceChats,
+} from '@/lib/mothership/chat/application/use-cases'
 import {
   createOrganizationChat,
   listOrganizationChats,
@@ -55,12 +58,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (!workspaceId) throw new Error('Conversation owner is required')
-    await assertActiveWorkspaceAccess(workspaceId, userId)
-
-    const data = await listMothershipChats(userId, workspaceId, scope)
+    if (!principal) return createUnauthorizedResponse()
+    const data = await listWorkspaceChats.execute({ principal, input: { workspaceId, scope } })
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
+    if (error instanceof ChatWorkspaceAccessError)
+      return createForbiddenResponse('Workspace access denied')
     const code = asOrchestrationError(error)?.code
     if (code === 'not_found' || code === 'forbidden')
       return createForbiddenResponse('Organization access denied')

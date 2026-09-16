@@ -274,6 +274,28 @@ export const TOOL_ACTIVITIES: Readonly<Record<string, ActivityPhrase | Operation
   read: 'read files',
   read_document: 'read documents',
   list_workspaces: 'listed workspaces',
+  settings: {
+    label: 'read settings',
+    parameter: 'action',
+    operations: {
+      list: 'listed settings',
+      get: 'read settings',
+      update: 'updated settings',
+      open: 'opened settings',
+      execute: 'managed settings',
+    },
+  },
+  search_sources: {
+    label: 'checked search sources',
+    parameter: 'action',
+    operations: {
+      list: 'listed search sources',
+      get: 'checked search sources',
+      providers: 'listed search providers',
+      setup: 'prepared search setup',
+      approve: 'updated search approvals',
+    },
+  },
   redeploy: 'deployed workflows',
   restore_resource: 'restored resources',
   rm: 'deleted resources',

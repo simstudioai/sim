@@ -3,22 +3,30 @@ import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
-  cancelInvitationQuerySchema,
+  cancelInvitationContract,
   getInvitationContract,
-  invitationParamsSchema,
   updateInvitationContract,
 } from '@/lib/api/contracts/invitations'
-import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { parseRequest } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  cancelInvitation,
+  invitationManagementOperations,
+} from '@/lib/invitations/application/manage-invitation'
+import {
   getInvitationById,
   getInvitationJoinPreview,
   isInvitationExpired,
-  revokeInvitationAsAdmin,
   updateInvitation,
 } from '@/lib/invitations/core'
+import { invitationManagementErrorPolicy } from '@/lib/invitations/management-error-policy'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InvitationsAPI')
@@ -192,133 +200,20 @@ export const PATCH = withRouteHandler(
   }
 )
 
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const parsedParams = invitationParamsSchema.safeParse(await params)
-    if (!parsedParams.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsedParams.error) },
-        { status: 400 }
-      )
-    }
-    const { id } = parsedParams.data
-    const parsedQuery = cancelInvitationQuerySchema.safeParse(
-      Object.fromEntries(request.nextUrl.searchParams.entries())
-    )
-    if (!parsedQuery.success) {
-      return NextResponse.json(
-        { error: getValidationErrorMessage(parsedQuery.error, 'Invalid query parameters') },
-        { status: 400 }
-      )
-    }
-    const scopedWorkspaceId = parsedQuery.data.workspaceId
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    try {
-      const result = await revokeInvitationAsAdmin({
-        actorId: session.user.id,
-        invitationId: id,
-        workspaceId: scopedWorkspaceId,
-      })
-      if (!result.success) {
-        if (result.kind === 'not-found') {
-          return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
-        }
-        if (result.kind === 'not-pending') {
-          return NextResponse.json(
-            { error: 'Can only cancel pending invitations' },
-            { status: 400 }
-          )
-        }
-        if (result.kind === 'grant-not-found') {
-          return NextResponse.json(
-            { error: 'Invitation does not grant access to that workspace' },
-            { status: 400 }
-          )
-        }
-        if (result.kind === 'scoped-forbidden') {
-          return NextResponse.json(
-            { error: 'You need admin permissions on that workspace to revoke its invitation' },
-            { status: 403 }
-          )
-        }
-        if (result.kind === 'whole-forbidden') {
-          return NextResponse.json(
-            {
-              error: result.spansMultipleWorkspaces
-                ? 'This invitation spans several workspaces. Revoke it from a workspace you administer, or ask an organization admin.'
-                : 'Only an organization or workspace admin can cancel this invitation',
-            },
-            { status: 403 }
-          )
-        }
-        return NextResponse.json({ error: 'Invitation not cancellable' }, { status: 400 })
-      }
-
-      /**
-       * Scoped revocation: an admin of this one workspace may withdraw its own
-       * grant. Authority over the invitation's other workspaces is not implied,
-       * so only that grant is removed.
-       */
-      if (scopedWorkspaceId) {
-        recordAudit({
-          workspaceId: scopedWorkspaceId,
-          actorId: session.user.id,
-          actorName: session.user.name ?? undefined,
-          actorEmail: session.user.email ?? undefined,
-          action: AuditAction.INVITATION_REVOKED,
-          resourceType: AuditResourceType.WORKSPACE,
-          resourceId: scopedWorkspaceId,
-          description: `Revoked ${result.invitation.email}'s pending invitation to this workspace`,
-          metadata: {
-            invitationId: id,
-            targetEmail: result.invitation.email,
-            workspaceId: scopedWorkspaceId,
-            invitationCancelled: result.invitationCancelled,
-          },
-          request,
-        })
-
-        return NextResponse.json({
-          success: true,
-          invitationCancelled: result.invitationCancelled,
-        })
-      }
-
-      const inv = result.invitation
-      recordAudit({
-        workspaceId: inv.grants[0]?.workspaceId ?? null,
-        actorId: session.user.id,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        action:
-          inv.kind === 'workspace'
-            ? AuditAction.INVITATION_REVOKED
-            : AuditAction.ORG_INVITATION_REVOKED,
-        resourceType:
-          inv.kind === 'workspace' ? AuditResourceType.WORKSPACE : AuditResourceType.ORGANIZATION,
-        resourceId: inv.organizationId ?? inv.grants[0]?.workspaceId ?? id,
-        description: `Cancelled ${inv.kind} invitation for ${inv.email}`,
-        metadata: {
-          invitationId: id,
-          targetEmail: inv.email,
-          targetRole: inv.role,
-          kind: inv.kind,
-        },
-        request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        invitationCancelled: result.invitationCancelled,
-      })
-    } catch (error) {
-      logger.error('Failed to cancel invitation', { invitationId: id, error })
-      return NextResponse.json({ error: 'Failed to cancel invitation' }, { status: 500 })
-    }
-  }
-)
+export const DELETE = defineInternalJsonRoute({
+  contract: cancelInvitationContract,
+  auth: internalSessionAuth,
+  operation: invitationManagementOperations.cancel,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserves the existing authenticated invitation cancellation policy',
+  }),
+  errorPolicy: {
+    ...invitationManagementErrorPolicy,
+    unhandled: () => ({ status: 500, body: { error: 'Failed to cancel invitation' } }),
+  },
+  mapInput: ({ params, query }) => ({
+    invitationId: params.id,
+    ...(query.workspaceId ? { workspaceId: query.workspaceId } : {}),
+  }),
+  useCase: cancelInvitation,
+})

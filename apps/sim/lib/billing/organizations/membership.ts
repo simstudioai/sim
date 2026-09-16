@@ -481,6 +481,8 @@ export interface RemoveMemberParams {
   revokePersonalApiKeys?: boolean
   /** The caller's own session token, kept alive when a member removes themselves. */
   spareSessionToken?: string
+  /** Authenticated session identity; avoids carrying its bearer token into application operations. */
+  spareSessionId?: string
   /**
    * Only remove the member when they hold no remaining permission on any of the
    * org's workspaces, evaluated atomically under the membership lock. Used by
@@ -1279,6 +1281,7 @@ export async function removeUserFromOrganization(
     requireNoOrgWorkspaceAccess = false,
     revokePersonalApiKeys = false,
     spareSessionToken,
+    spareSessionId,
   } = params
 
   const billingActions = {
@@ -1391,6 +1394,7 @@ export async function removeUserFromOrganization(
           userId,
           organizationId,
           ...(spareSessionToken ? { spareSessionToken } : {}),
+          ...(spareSessionId ? { spareSessionId } : {}),
         })
         if (revokePersonalApiKeys) await revokePersonalApiKeysTx(tx, { userId })
         await endDirectoryMembershipTx(tx, { userId, organizationId })

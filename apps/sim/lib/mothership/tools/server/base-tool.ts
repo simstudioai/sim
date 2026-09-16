@@ -11,6 +11,8 @@ export interface ServerToolContext {
   userId: string
   workspaceId?: string
   organizationId?: string
+  /** Original organization chat owner when this invocation selected a workspace target. */
+  chatOrganizationId?: string
   executionId?: string
   /** Stable, server-issued identity of the tool call currently executing. */
   toolCallId?: string

@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { assistantToolContracts } from '../apps/sim/lib/api/contracts/mothership-assistant-tools'
+import { managementToolDefinitions } from '../apps/sim/lib/api/contracts/mothership-management-tools'
 import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -147,14 +148,21 @@ async function main() {
   const catalog = JSON.parse(raw) as { version: string; tools: Record<string, unknown>[] }
 
   /** Sim-owned tools and inputs come from their actual execution boundary. */
-  for (const contract of assistantToolContracts) {
+  const definitions = [
+    ...assistantToolContracts.map(({ inputSchema, ...definition }) => ({
+      ...definition,
+      parameters: z.toJSONSchema(inputSchema, { target: 'draft-7', io: 'input' }),
+    })),
+    ...managementToolDefinitions,
+  ]
+  for (const contract of definitions) {
     let entry = catalog.tools.find((tool) => tool.id === contract.id)
     if (!entry) {
       entry = { id: contract.id, description: contract.description }
       catalog.tools.push(entry)
     }
     entry.route = contract.route
-    entry.parameters = z.toJSONSchema(contract.inputSchema, { target: 'draft-7', io: 'input' })
+    entry.parameters = contract.parameters
   }
 
   const iface = generateInterface(catalog.tools)

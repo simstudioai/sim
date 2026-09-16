@@ -32,7 +32,12 @@ export interface RevokeSessionsResult {
  */
 export async function revokeUserSessionsTx(
   tx: DbOrTx,
-  params: { userId: string; organizationId: string; spareSessionToken?: string }
+  params: {
+    userId: string
+    organizationId: string
+    spareSessionToken?: string
+    spareSessionId?: string
+  }
 ): Promise<RevokeSessionsResult> {
   const deleted = await tx
     .delete(sessionTable)
@@ -40,6 +45,7 @@ export async function revokeUserSessionsTx(
       and(
         eq(sessionTable.userId, params.userId),
         isNull(sessionTable.impersonatedBy),
+        ...(params.spareSessionId ? [ne(sessionTable.id, params.spareSessionId)] : []),
         ...(params.spareSessionToken ? [ne(sessionTable.token, params.spareSessionToken)] : [])
       )
     )

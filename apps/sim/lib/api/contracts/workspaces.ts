@@ -1,10 +1,7 @@
 import { z } from 'zod'
-import {
-  nonEmptyIdSchema,
-  organizationRoleSchema,
-  requiredFieldSchema,
-} from '@/lib/api/contracts/primitives'
+import { nonEmptyIdSchema, organizationRoleSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { workspacePermissionUpdatesSchema } from '@/lib/workspaces/permissions/input'
 
 export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
 export const workspaceModeSchema = z.enum(['personal', 'organization', 'grandfathered_shared'])
@@ -125,37 +122,7 @@ export type WorkspacePermissions = z.output<typeof workspacePermissionsResponseS
  * collaborator goes through the invitation flow, which owns the plan, seat, and
  * consent gates this endpoint has no way to apply.
  */
-export const updateWorkspacePermissionsBodySchema = z.object({
-  updates: z
-    .array(
-      z.object({
-        userId: requiredFieldSchema('User ID is required').max(128, 'User ID is too long'),
-        permissions: workspacePermissionSchema,
-      })
-    )
-    .min(1, 'updates must contain at least one permission change')
-    .max(100, 'Cannot update more than 100 permissions at once')
-    /**
-     * One entry per user. Repeating a userId made the batch self-contradictory:
-     * the route's guards inspect the first matching entry while the write loop
-     * applied every entry in order, so a second entry could carry a role the
-     * guards had already vetted the first one against.
-     */
-    .superRefine((updates, ctx) => {
-      const seen = new Set<string>()
-      for (const [index, update] of updates.entries()) {
-        if (seen.has(update.userId)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [index, 'userId'],
-            message: 'Each user may appear only once in updates',
-          })
-          return
-        }
-        seen.add(update.userId)
-      }
-    }),
-})
+export const updateWorkspacePermissionsBodySchema = workspacePermissionUpdatesSchema
 
 export const workspaceMemberSchema = z.object({
   userId: z.string(),

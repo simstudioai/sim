@@ -189,3 +189,18 @@ describe('suspendMemberTx and unsuspendMemberTx', () => {
     })
   })
 })
+
+it('spares the authenticated session by id without accepting a bearer token', async () => {
+  await revokeUserSessionsTx(db, {
+    userId: 'u-1',
+    organizationId: 'org-1',
+    spareSessionId: 'session-to-keep',
+  })
+  expect(dbChainMockFns.where).toHaveBeenCalledWith(
+    expect.objectContaining({
+      conditions: expect.arrayContaining([
+        { type: 'ne', left: session.id, right: 'session-to-keep' },
+      ]),
+    })
+  )
+})

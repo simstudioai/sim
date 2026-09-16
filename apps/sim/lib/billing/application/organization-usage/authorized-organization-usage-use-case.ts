@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { organizationBillingSettingsActor } from '@/lib/billing/application/organization-settings-actor'
 import type {
   OrganizationUsageOperation,
   OrganizationUsagePrincipal,
@@ -52,7 +53,7 @@ function requireOrganizationUsagePrincipal(
  * Gate order for every organization usage read. Each step is a distinct refusal so a
  * failure says which rule stopped it.
  *
- * 1. Principal kind — session only.
+ * 1. Principal kind and bounded organization delegation when present.
  * 2. Billing authority — organization admin or owner. A workspace `admin` is
  *    explicitly not sufficient; this is pooled spend across every member.
  * 3. Entitlement — enterprise plan on hosted, `USAGE_MONITORING_ENABLED` on
@@ -68,8 +69,12 @@ export function defineAuthorizedOrganizationUsageUseCase<
     operation: definition.operation,
     async execute({ principal, input }) {
       requireOrganizationUsagePrincipal(principal, definition.operation)
-      const actorUserId = principal.userId
       const organizationId = definition.organizationId(input)
+      const actorUserId = await organizationBillingSettingsActor(
+        principal,
+        definition.operation,
+        organizationId
+      )
       const billingEntity: BillingEntity = { type: 'organization', id: organizationId }
 
       if (!(await canUserManageBillingEntity(billingEntity, actorUserId))) {

@@ -477,7 +477,8 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['personal_api_key', 'oauth_access_token'],
+    principalKinds: ['personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: a manual run is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
   executeManualFromBlock: defineWorkspaceOperation({
@@ -486,7 +487,8 @@ export const workflowOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     capability: 'none',
-    principalKinds: ['personal_api_key', 'oauth_access_token'],
+    principalKinds: ['personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: execution history is governed by workspace role; logs.cost and logs.trace_spans withhold fields inside a run, not the right to read one
   listRuns: defineWorkspaceOperation({

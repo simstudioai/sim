@@ -23,13 +23,23 @@ vi.mock('@/lib/permission-groups/locks', () => ({
   acquirePermissionGroupOrgLock: mocks.acquireLock,
 }))
 
-vi.mock('@/lib/permission-groups/application/group-membership', () => ({
+vi.mock('@/lib/permission-groups/application/group-membership', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/permission-groups/application/group-membership')
+  >()),
   findAllMembersWorkspaceConflict: vi.fn(),
   findScopeConflicts: vi.fn(),
 }))
 
-vi.mock('@/app/api/organizations/[id]/permission-groups/utils', () => ({
-  authorizeOrgAccessControl: mocks.authorize,
+vi.mock('@/lib/core/application/organization-authorization', () => ({
+  authorizeOrganizationOperation: mocks.authorize,
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  isOrganizationPermissionRegimeActive: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@/lib/permission-groups/application/management-store', () => ({
   loadGroupInOrganization: mocks.loadGroup,
   findWorkspacesNotInOrganization: vi.fn(),
   formatAllMembersConflictError: vi.fn(),
@@ -54,6 +64,10 @@ const GROUP = {
   description: null,
   isDefault: true,
   config: { disableOAuthAppAccess: false },
+  membershipMode: 'inherit',
+  createdBy: 'admin-1',
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
 }
 
 async function updateUnderLock(body: UpdatePermissionGroupBody) {
@@ -86,13 +100,18 @@ describe('permission group PUT policy serialization', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'admin-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'admin-1' },
+      session: { id: 'session-1' },
+    })
     mocks.authorize.mockResolvedValue(null)
     mocks.loadGroup.mockResolvedValue(GROUP)
   })
 
   it('locks a config-only update and writes the requested OAuth restriction', async () => {
-    queueTableRows(permissionGroup, [{ ...GROUP, config: { disableOAuthAppAccess: true } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...GROUP, config: { disableOAuthAppAccess: true } },
+    ])
 
     await updateUnderLock({ config: { disableOAuthAppAccess: true } })
 
@@ -105,7 +124,7 @@ describe('permission group PUT policy serialization', () => {
     'locks metadata-only update %j without restoring stale policy',
     async (metadata) => {
       if ('name' in metadata) queueTableRows(permissionGroup, [])
-      queueTableRows(permissionGroup, [
+      dbChainMockFns.returning.mockResolvedValueOnce([
         { ...GROUP, ...metadata, config: { disableOAuthAppAccess: true } },
       ])
 
@@ -120,10 +139,10 @@ describe('permission group PUT policy serialization', () => {
   )
 
   it('merges a config patch with the policy reloaded under the lock', async () => {
-    mocks.loadGroup
-      .mockResolvedValueOnce(GROUP)
-      .mockResolvedValueOnce({ ...GROUP, config: { disableOAuthAppAccess: true } })
-    queueTableRows(permissionGroup, [
+    mocks.loadGroup.mockImplementation(async (_id, _organization, executor) =>
+      executor ? { ...GROUP, config: { disableOAuthAppAccess: true } } : GROUP
+    )
+    dbChainMockFns.returning.mockResolvedValueOnce([
       { ...GROUP, config: { disableOAuthAppAccess: true, disableCliAccess: true } },
     ])
 
@@ -137,7 +156,9 @@ describe('permission group PUT policy serialization', () => {
   })
 
   it('does not write when the group disappears before the locked reload', async () => {
-    mocks.loadGroup.mockResolvedValueOnce(GROUP).mockResolvedValueOnce(null)
+    mocks.loadGroup.mockImplementation(async (_id, _organization, executor) =>
+      executor ? null : GROUP
+    )
     mocks.acquireLock.mockResolvedValueOnce(undefined)
 
     const response = await PUT(createMockRequest('PUT', { description: 'Updated description' }), {

@@ -1,65 +1,29 @@
-/**
- * @vitest-environment node
- */
-import { resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+/** @vitest-environment node */
+import { describe, expect, it } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { PermissionGroupContentionError } from '@/lib/permission-groups/application/management-errors'
+import { permissionGroupErrorPolicy } from '@/app/api/organizations/[id]/permission-groups/utils'
 
-const { mockIsOrganizationAdminOrOwner, mockIsOrganizationPermissionRegimeActive } = vi.hoisted(
-  () => ({
-    mockIsOrganizationAdminOrOwner: vi.fn<() => Promise<boolean>>(),
-    mockIsOrganizationPermissionRegimeActive: vi.fn<() => Promise<boolean>>(),
-  })
-)
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: mockIsOrganizationPermissionRegimeActive,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  isOrganizationAdminOrOwner: mockIsOrganizationAdminOrOwner,
-}))
-
-import { authorizeOrgAccessControl } from '@/app/api/organizations/[id]/permission-groups/utils'
-
-afterAll(resetDbChainMock)
-
-describe('authorizeOrgAccessControl', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('returns a 403 when the user is not an organization admin/owner', async () => {
-    mockIsOrganizationAdminOrOwner.mockResolvedValue(false)
-    mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
-
-    const response = await authorizeOrgAccessControl('user-1', 'org-1')
-
-    expect(response).not.toBeNull()
-    expect(response?.status).toBe(403)
-    await expect(response?.json()).resolves.toEqual({ error: 'Admin permissions required' })
-    // Entitlement is only checked after the admin gate passes.
-    expect(mockIsOrganizationPermissionRegimeActive).not.toHaveBeenCalled()
-  })
-
-  it('returns a 403 when the organization is not on an enterprise plan', async () => {
-    mockIsOrganizationAdminOrOwner.mockResolvedValue(true)
-    mockIsOrganizationPermissionRegimeActive.mockResolvedValue(false)
-
-    const response = await authorizeOrgAccessControl('user-1', 'org-1')
-
-    expect(response?.status).toBe(403)
-    await expect(response?.json()).resolves.toEqual({
-      error: 'Access Control is an Enterprise feature',
+describe('permission group HTTP error projection', () => {
+  const policy = permissionGroupErrorPolicy('Failed to update permission group')
+  it('preserves retryable lock contention as 503', () => {
+    expect(policy.project(new PermissionGroupContentionError('group'))).toMatchObject({
+      status: 503,
+      body: { error: 'This group is being updated by another request. Please try again.' },
     })
   })
-
-  it('returns null when the user is an admin and the org is entitled', async () => {
-    mockIsOrganizationAdminOrOwner.mockResolvedValue(true)
-    mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
-
-    const response = await authorizeOrgAccessControl('user-1', 'org-1')
-
-    expect(response).toBeNull()
+  it('preserves admin and enterprise authorization errors', () => {
+    for (const message of [
+      'Admin permissions required',
+      'Access Control is an Enterprise feature',
+    ]) {
+      expect(policy.project(new OrchestrationError('forbidden', message))).toMatchObject({
+        status: 403,
+        body: { error: message },
+      })
+    }
+  })
+  it('does not classify raw infrastructure errors as safe client errors', () => {
+    expect(policy.project(new Error('private database details'))).toBeNull()
   })
 })

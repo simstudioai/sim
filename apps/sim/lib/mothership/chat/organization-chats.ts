@@ -26,7 +26,9 @@ export const organizationChatOperations = {
   list: defineOrganizationOperation({
     id: 'organization.chats.list',
     minimumRole: 'member',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'copilot.use',
   }),
   create: defineOrganizationOperation({
@@ -70,7 +72,7 @@ export const listOrganizationChats = {
     input,
   }: {
     principal: Principal
-    input: OrganizationChatInput & { scope: MothershipChatScope }
+    input: OrganizationChatInput & { scope: MothershipChatScope; limit?: number }
   }) {
     const context = await authorizeOrganizationOperation(
       principal,
@@ -80,7 +82,8 @@ export const listOrganizationChats = {
     return listMothershipChats(
       context.userId,
       { organizationId: context.organizationId },
-      input.scope
+      input.scope,
+      input.limit
     )
   },
 }
@@ -120,6 +123,14 @@ export const organizationChatDelegationOperations = {
     principalKinds: ['session', 'organization_delegated'],
     capability: 'none',
     delegationAudience: 'sim:copilot-cancel',
+    delegatedServices: ['copilot'],
+  }),
+  settings: defineOrganizationOperation({
+    id: 'organization.chats.settings',
+    minimumRole: 'member',
+    principalKinds: ['organization_delegated'],
+    capability: 'copilot.use',
+    delegationAudience: 'sim:settings',
     delegatedServices: ['copilot'],
   }),
   workspaces: defineOrganizationOperation({

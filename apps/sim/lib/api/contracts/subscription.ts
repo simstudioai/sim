@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  usageLimitReadSchema,
+  usageLimitUpdateSchema,
+} from '@/lib/billing/application/usage-limit-validation'
 import { BillingCallbackBody, BillingCallbackHeaders } from '@/lib/mothership/generated/billing'
 
 const booleanQueryParamSchema = z
@@ -163,23 +167,8 @@ export const usageLimitDataSchema = z
   })
   .passthrough()
 
-export const usageQuerySchema = z.object({
-  context: z.enum(['user', 'organization']).optional().default('user'),
-  userId: z.string().optional(),
-  organizationId: z.string().optional(),
-  memberLimit: z.coerce.number().int().min(1).max(100).default(50),
-  memberOffset: z.coerce.number().int().min(0).default(0),
-})
-
-export const updateUsageLimitBodySchema = z
-  .object({
-    limit: z.number().min(0, 'Limit must be a non-negative number'),
-    context: z.enum(['user', 'organization']).optional().default('user'),
-    organizationId: z.string().optional(),
-  })
-  .refine((data) => data.context !== 'organization' || data.organizationId, {
-    message: 'Organization ID is required when context is organization',
-  })
+export const usageQuerySchema = usageLimitReadSchema
+export const updateUsageLimitBodySchema = usageLimitUpdateSchema
 
 export const usageLimitApiResponseSchema = z
   .object({

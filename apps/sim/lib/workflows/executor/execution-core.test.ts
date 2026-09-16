@@ -123,7 +123,8 @@ vi.mock('@sim/workflow-persistence/subblocks', () => ({
   mergeSubblockStateWithValues: mergeSubblockStateWithValuesMock,
 }))
 
-vi.mock('@/lib/workflows/triggers/triggers', () => ({
+vi.mock('@/lib/workflows/triggers/triggers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/triggers/triggers')>()),
   TriggerUtils: {
     findStartBlock: findStartBlockMock,
   },
@@ -142,6 +143,11 @@ vi.mock('@/executor', () => ({
       }
     }
   },
+}))
+
+const uploadWorkflowInputMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/uploads/contexts/execution', () => ({
+  uploadExecutionFile: uploadWorkflowInputMock,
 }))
 
 vi.mock('@/serializer', () => ({
@@ -383,6 +389,62 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(safeStartMock).toHaveBeenCalledTimes(1)
     expect(executorConstructorMock).toHaveBeenCalledTimes(1)
   })
+
+  it.each([true, false])(
+    'normalizes files once before downstream execution for client session %s',
+    async (isClientSession) => {
+      const file = {
+        id: 'uploaded',
+        name: 'input.txt',
+        size: 3,
+        type: 'text/plain',
+        key: 'execution/key',
+        url: 'https://fresh.example.com/input.txt',
+      }
+      uploadWorkflowInputMock.mockResolvedValue(file)
+      serializeWorkflowMock.mockReturnValue({
+        blocks: [
+          {
+            id: 'start-block',
+            metadata: { id: 'start_trigger' },
+            config: { params: { inputFormat: [{ name: 'documents', type: 'file[]' }] } },
+          },
+        ],
+        loops: {},
+        parallels: {},
+      })
+      executorExecuteMock.mockResolvedValue({
+        success: true,
+        status: 'completed',
+        output: {},
+        logs: [],
+      })
+      const snapshot = createSnapshot()
+      const input = {
+        documents: [{ type: 'file', name: 'input.txt', data: 'data:text/plain;base64,YWJj' }],
+        count: 7,
+        config: { enabled: false, key: 'execution/not-granted' },
+        items: [1, 'two'],
+      }
+      await executeWorkflowCore({
+        snapshot: {
+          ...snapshot,
+          metadata: { ...snapshot.metadata, isClientSession, triggerBlockId: 'start-block' },
+          input,
+        } as unknown as ExecutionSnapshot,
+        callbacks: {},
+        loggingSession: loggingSession as unknown as LoggingSession,
+      })
+      expect(uploadWorkflowInputMock).toHaveBeenCalledTimes(1)
+      expect(executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions?.fileKeys).toEqual([
+        file.key,
+      ])
+      expect(executorConstructorMock.mock.calls[0]?.[0]?.workflowInput).toEqual({
+        ...input,
+        documents: [file],
+      })
+    }
+  )
 
   it('begins connecting the signal subscriber synchronously, before the first await', async () => {
     const executionPromise = executeWorkflowCore({

@@ -63,7 +63,10 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isHosted: true })
-    mockGetSession.mockResolvedValue(createSession({ userId: 'admin-1' }))
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'admin-1' }),
+      session: { id: 'session' },
+    })
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
     mockGetOrgMemberUsageForCurrentPeriod.mockResolvedValue(1) // $1 -> 200 credits
     mockGetOrgMemberUsageLimit.mockResolvedValue(2) // $2 -> 400 credits
@@ -141,7 +144,10 @@ describe('PUT /api/organizations/[id]/members/[memberId]/usage-limit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isHosted: true })
-    mockGetSession.mockResolvedValue(createSession({ userId: 'admin-1' }))
+    mockGetSession.mockResolvedValue({
+      ...createSession({ userId: 'admin-1' }),
+      session: { id: 'session' },
+    })
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
     mockSetOrgMemberUsageLimit.mockResolvedValue(undefined)
   })

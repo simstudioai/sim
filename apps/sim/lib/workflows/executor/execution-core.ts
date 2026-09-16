@@ -25,6 +25,7 @@ import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { connectExecutionSignalHub } from '@/lib/execution/execution-signal'
+import { processInputFileFields } from '@/lib/execution/files'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -743,7 +744,21 @@ async function executeWorkflowCoreImpl(
       parallels,
       true
     )
-    processedInput = input || {}
+    const inputFileKeys = new Set<string>()
+    processedInput =
+      resumeFromSnapshot || runFromBlock
+        ? (input ?? {})
+        : await processInputFileFields(
+            input ?? {},
+            serializedWorkflow.blocks,
+            { workspaceId: providedWorkspaceId, workflowId, executionId },
+            requestId,
+            userId,
+            resolvedTriggerBlockId,
+            (file) => {
+              if (file.key) inputFileKeys.add(file.key)
+            }
+          )
 
     // Resolve stopAfterBlockId for loop/parallel containers to their sentinel-end IDs
     let resolvedStopAfterBlockId = stopAfterBlockId
@@ -889,7 +904,11 @@ async function executeWorkflowCoreImpl(
       ])
     )
     const fileKeys = Array.from(
-      new Set([...(metadata.fileKeys ?? []), ...(trustedLargeValueAccess?.fileKeys ?? [])])
+      new Set([
+        ...(metadata.fileKeys ?? []),
+        ...(trustedLargeValueAccess?.fileKeys ?? []),
+        ...inputFileKeys,
+      ])
     )
     const allowLargeValueWorkflowScope =
       metadata.allowLargeValueWorkflowScope === true ||
