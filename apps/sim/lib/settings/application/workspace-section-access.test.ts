@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   isScopedCredentialGroupsAvailable: vi.fn(),
   isKnowledgeMemberAccessAvailable: vi.fn(),
   isPlatformAdmin: vi.fn(),
+  isAccessRequestEnabled: vi.fn(),
   resolveVerifiedUserAccessControlContext: vi.fn(),
   resolveWorkspaceNavigation: vi.fn(),
 }))
@@ -56,6 +57,10 @@ vi.mock('@/components/settings/navigation', () => ({
   workspaceSectionUsesPermissionConfig: vi.fn((section: string) =>
     ['secrets', 'api-keys', 'inbox', 'mcp', 'custom-tools'].includes(section)
   ),
+  WORKSPACE_PERMISSION_CONFIG_KEYS: { secrets: 'hideSecretsTab' },
+}))
+vi.mock('@/lib/permission-access-requests/settings', () => ({
+  isAccessRequestEnabled: mocks.isAccessRequestEnabled,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mocks.isOrganizationOnEnterprisePlan,
@@ -127,6 +132,7 @@ describe('authorizeWorkspaceSettingsSection', () => {
     mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(true)
     mocks.isKnowledgeMemberAccessAvailable.mockResolvedValue(false)
     mocks.isPlatformAdmin.mockResolvedValue(true)
+    mocks.isAccessRequestEnabled.mockResolvedValue(false)
     mocks.canOpenOrganizationSettingsSection.mockResolvedValue(true)
     mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({ config: {} })
     mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'secrets' }])
@@ -194,6 +200,56 @@ describe('authorizeWorkspaceSettingsSection', () => {
       'workspace-1',
       null
     )
+  })
+
+  it.each([true, false])(
+    'offers a request-only page when requests are enabled=%s',
+    async (enabled) => {
+      mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+      mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+        config: { hideSecretsTab: true },
+      })
+      mocks.resolveWorkspaceNavigation.mockImplementation(({ permissionConfig }) =>
+        permissionConfig.hideSecretsTab ? [] : [{ id: 'secrets' }]
+      )
+      mocks.isAccessRequestEnabled.mockResolvedValue(enabled)
+
+      await expect(authorize('secrets')).resolves.toEqual(
+        enabled
+          ? { allowed: false, disposition: 'request-access', configKey: 'hideSecretsTab' }
+          : { allowed: false, disposition: 'redirect-general' }
+      )
+      expect(mocks.isAccessRequestEnabled).toHaveBeenCalledWith('organization-1')
+    }
+  )
+
+  it('keeps deployment and role exclusions when considering a permission request', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+      config: { hideSecretsTab: true },
+    })
+    mocks.resolveWorkspaceNavigation.mockReturnValue([])
+    mocks.isAccessRequestEnabled.mockResolvedValue(true)
+
+    await expect(authorize('secrets')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.isAccessRequestEnabled).not.toHaveBeenCalled()
+  })
+
+  it('does not offer organization requests for personal workspace restrictions', async () => {
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+      config: { hideSecretsTab: true },
+    })
+    mocks.resolveWorkspaceNavigation.mockImplementation(({ permissionConfig }) =>
+      permissionConfig.hideSecretsTab ? [] : [{ id: 'secrets' }]
+    )
+    await expect(authorize('secrets')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.isAccessRequestEnabled).not.toHaveBeenCalled()
   })
 
   it('enforces canonical permission config independently of billing subscription state', async () => {

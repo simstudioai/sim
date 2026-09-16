@@ -28,6 +28,9 @@ const {
 
 vi.mock('next/navigation', () => ({ notFound: mockNotFound, redirect: mockRedirect }))
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+vi.mock('@/components/access-requests/permission-access-boundary', () => ({
+  PermissionAccessBoundary: vi.fn(() => null),
+}))
 vi.mock('@/lib/settings/application/workspace-section-access', () => ({
   authorizeWorkspaceSettingsSection: mockAuthorizeSection,
 }))
@@ -180,6 +183,22 @@ describe('WorkspaceSettingsSectionPage', () => {
     })
     expect(mockGetHostContext).not.toHaveBeenCalled()
     expect(mockGetQueryClient).not.toHaveBeenCalled()
+  })
+
+  it('renders a request-only boundary without protected children or section prefetches', async () => {
+    mockAuthorizeSection.mockResolvedValue({
+      allowed: false,
+      disposition: 'request-access',
+      configKey: 'hideApiKeysTab',
+    })
+
+    const element = await WorkspaceSettingsSectionPage(pageProps('billing'))
+
+    expect(element.props.children.props).toEqual({ configKey: 'hideApiKeysTab' })
+    expect(mockSectionPrefetch).not.toHaveBeenCalled()
+    expect(mockGetQueryClient).not.toHaveBeenCalled()
+    expect(mockGetHostContext).not.toHaveBeenCalled()
+    expect(mockRedirect).not.toHaveBeenCalled()
   })
 
   it('redirects unavailable visible-catalog sections to General', async () => {

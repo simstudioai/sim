@@ -39,6 +39,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { useWorkspaceAccessRequestFeatures } from '@/components/access-requests/permission-access-boundary'
 import { useSession } from '@/lib/auth/auth-client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
@@ -394,6 +395,8 @@ export const Sidebar = memo(function Sidebar() {
     isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
+  const accessRequests = useWorkspaceAccessRequestFeatures()
+  const accessRequestsEnabled = accessRequests.data?.enabled === true
   const { getSettingsHref, navigateToSettings } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
@@ -749,7 +752,10 @@ export const Sidebar = memo(function Sidebar() {
           onClick: chatEnabled ? undefined : createWorkflow,
           // Creation navigates optimistically, so a read-only member would land
           // on a workflow the server declined to create.
-          hidden: !chatEnabled && !permissionsLoading && !canEdit,
+          hidden:
+            (!chatEnabled && !permissionsLoading && !canEdit) ||
+            (chatEnabled && permissionConfig.hideCopilot && !accessRequestsEnabled),
+          restricted: chatEnabled && permissionConfig.hideCopilot,
         },
         {
           id: 'integrations',
@@ -757,7 +763,8 @@ export const Sidebar = memo(function Sidebar() {
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
           additionalActivePaths: [`/workspace/${workspaceId}/skills`],
-          hidden: permissionConfig.hideIntegrationsTab,
+          hidden: permissionConfig.hideIntegrationsTab && !accessRequestsEnabled,
+          restricted: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
     [
@@ -766,6 +773,8 @@ export const Sidebar = memo(function Sidebar() {
       canEdit,
       permissionsLoading,
       permissionConfig.hideIntegrationsTab,
+      permissionConfig.hideCopilot,
+      accessRequestsEnabled,
       chatEnabled,
     ]
   )
@@ -778,27 +787,31 @@ export const Sidebar = memo(function Sidebar() {
           label: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab,
+          hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
+          restricted: permissionConfig.hideTablesTab,
         },
         {
           id: 'files',
           label: 'Files',
           icon: Files,
           href: `/workspace/${workspaceId}/files`,
-          hidden: permissionConfig.hideFilesTab,
+          hidden: permissionConfig.hideFilesTab && !accessRequestsEnabled,
+          restricted: permissionConfig.hideFilesTab,
         },
         {
           id: 'knowledge-base',
           label: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab,
+          hidden: permissionConfig.hideKnowledgeBaseTab && !accessRequestsEnabled,
+          restricted: permissionConfig.hideKnowledgeBaseTab,
         },
         {
           id: 'logs',
           label: 'Logs',
           icon: Library,
           href: `/workspace/${workspaceId}/logs`,
+          restricted: false,
         },
       ].filter((item) => !item.hidden),
     [
@@ -806,6 +819,7 @@ export const Sidebar = memo(function Sidebar() {
       permissionConfig.hideFilesTab,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,
+      accessRequestsEnabled,
     ]
   )
 
@@ -855,10 +869,10 @@ export const Sidebar = memo(function Sidebar() {
 
   const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
     workspaceId,
-    { enabled: chatEnabled }
+    { enabled: chatEnabled && !permissionConfig.hideCopilot }
   )
 
-  useMothershipChatEvents(workspaceId, chatEnabled)
+  useMothershipChatEvents(workspaceId, chatEnabled && !permissionConfig.hideCopilot)
 
   /**
    * Stays empty when Chat is disabled, which also drops the command palette's
@@ -866,12 +880,12 @@ export const Sidebar = memo(function Sidebar() {
    */
   const chats = useMemo(
     () =>
-      fetchedChats.map((t) => ({
+      (permissionConfig.hideCopilot || !chatEnabled ? EMPTY_CHATS : fetchedChats).map((t) => ({
         ...t,
         href: `/workspace/${workspaceId}/chat/${t.id}`,
         date: SEARCH_MODAL_DATE_FORMAT.format(t.updatedAt),
       })),
-    [fetchedChats, workspaceId]
+    [fetchedChats, workspaceId, permissionConfig.hideCopilot, chatEnabled]
   )
 
   const chatIds = useMemo(() => chats.map((t) => t.id), [chats])
@@ -1462,7 +1476,7 @@ export const Sidebar = memo(function Sidebar() {
                   {...scrollFadeAttributes(scrollEdges)}
                 >
                   <div ref={scrollContentRef} className='flex flex-col'>
-                    {chatEnabled && (
+                    {chatEnabled && !permissionConfig.hideCopilot && (
                       <SidebarSection
                         title='Chats'
                         railCollapsed={isCollapsed}
@@ -1598,7 +1612,8 @@ export const Sidebar = memo(function Sidebar() {
                       <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                         {workspaceNavItems.map((item) => {
                           const active = isNavItemActive(item, pathname)
-                          const flyout = isCollapsed ? railFlyouts[item.id] : undefined
+                          const flyout =
+                            isCollapsed && !item.restricted ? railFlyouts[item.id] : undefined
                           /* The flyout replaces the collapsed tooltip rather than
                              stacking on it: both open on the same hover. */
                           return flyout ? (

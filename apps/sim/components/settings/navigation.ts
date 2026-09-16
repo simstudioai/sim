@@ -1068,7 +1068,7 @@ export interface WorkspacePermissionConfig {
   hideSandboxesTab?: boolean
 }
 
-const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
+export const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
   Record<WorkspaceSettingsSection, keyof WorkspacePermissionConfig>
 > = {
   secrets: 'hideSecretsTab',
@@ -1081,6 +1081,11 @@ const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
 
 export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsSection): boolean {
   return WORKSPACE_PERMISSION_CONFIG_KEYS[section] !== undefined
+}
+
+export function getSettingsPermissionConfigKey(section: UnifiedSettingsSection) {
+  const workspaceSection = UNIFIED_TO_WORKSPACE_SECTION[section]
+  return workspaceSection ? WORKSPACE_PERMISSION_CONFIG_KEYS[workspaceSection] : undefined
 }
 
 export interface WorkspaceSettingsEntitlements {

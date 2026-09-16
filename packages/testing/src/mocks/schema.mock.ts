@@ -118,6 +118,41 @@ const workspaceFileSearchSegmentMock = {
 }
 
 export const schemaMock = {
+  permissionAccessRequest: {
+    id: 'permissionAccessRequest.id',
+    organizationId: 'permissionAccessRequest.organizationId',
+    requesterId: 'permissionAccessRequest.requesterId',
+    workspaceId: 'permissionAccessRequest.workspaceId',
+    scopeKey: 'permissionAccessRequest.scopeKey',
+    targetKey: 'permissionAccessRequest.targetKey',
+    target: 'permissionAccessRequest.target',
+    targetLabel: 'permissionAccessRequest.targetLabel',
+    membershipId: 'permissionAccessRequest.membershipId',
+    groupId: 'permissionAccessRequest.groupId',
+    groupName: 'permissionAccessRequest.groupName',
+    reason: 'permissionAccessRequest.reason',
+    status: 'permissionAccessRequest.status',
+    decisionReason: 'permissionAccessRequest.decisionReason',
+    decidedBy: 'permissionAccessRequest.decidedBy',
+    decision: 'permissionAccessRequest.decision',
+    createdAt: 'permissionAccessRequest.createdAt',
+    updatedAt: 'permissionAccessRequest.updatedAt',
+    decidedAt: 'permissionAccessRequest.decidedAt',
+  },
+  organizationMemberUsageLimit: {
+    id: 'organizationMemberUsageLimit.id',
+    organizationId: 'organizationMemberUsageLimit.organizationId',
+    userId: 'organizationMemberUsageLimit.userId',
+    usageLimit: 'organizationMemberUsageLimit.usageLimit',
+    updatedAt: 'organizationMemberUsageLimit.updatedAt',
+  },
+  organizationAccessRequestSettings: {
+    organizationId: 'organizationAccessRequestSettings.organizationId',
+    allowRequests: 'organizationAccessRequestSettings.allowRequests',
+    updatedAt: 'organizationAccessRequestSettings.updatedAt',
+    updatedBy: 'organizationAccessRequestSettings.updatedBy',
+  },
+
   /**
    * The schema's folded-address expression. Returns the column it wraps so a
    * predicate built on it still names the column, and assertions on condition

@@ -14,6 +14,7 @@ const { mockUseOrganizationBilling, mockUseUserPermissionConfig, mockUsePermissi
 
 vi.mock('@sim/emcn', () => ({
   Checkbox: () => null,
+  ChipSwitch: () => null,
   ChipModal: ({ children }: { children?: ReactNode }) => <>{children}</>,
   ChipModalBody: ({ children }: { children?: ReactNode }) => <>{children}</>,
   ChipModalError: () => null,
@@ -27,7 +28,13 @@ vi.mock('@sim/emcn/icons', () => ({ Plus: () => null }))
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
 }))
-vi.mock('nuqs', () => ({ useQueryState: () => [null, vi.fn()] }))
+vi.mock('nuqs', () => ({
+  useQueryState: () => [null, vi.fn()],
+  useQueryStates: () => [{ 'access-view': 'groups' }, vi.fn()],
+}))
+vi.mock('@/components/access-requests/organization-access-requests', () => ({
+  OrganizationAccessRequests: () => null,
+}))
 vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   SettingsQueryErrorState: ({ error, onRetry }: { error: Error; onRetry: () => void }) => (

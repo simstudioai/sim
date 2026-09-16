@@ -58,6 +58,49 @@ beforeEach(() => {
 })
 
 describe('organization operation authorization', () => {
+  it('rechecks a transaction member role on its own executor and locks it', async () => {
+    const query = {
+      from: vi.fn(),
+      where: vi.fn(),
+      for: vi.fn(),
+      limit: vi.fn().mockResolvedValue([{ role: 'member' }]),
+    }
+    query.from.mockReturnValue(query)
+    query.where.mockReturnValue(query)
+    query.for.mockReturnValue(query)
+    const executor = { select: vi.fn().mockReturnValue(query) }
+    const review = defineOrganizationOperation({
+      id: 'access_requests.resolve',
+      minimumRole: 'admin',
+      principalKinds: ['session'],
+      /** permission-group-exempt: review must remain reachable when a requested capability is denied. */
+      capability: 'none',
+    })
+    await expect(
+      authorizeOrganizationOperation(
+        principal,
+        review,
+        { organizationId: 'org' },
+        { executor, forUpdate: true }
+      )
+    ).rejects.toThrow('Organization administrator access is required')
+    expect(query.for).toHaveBeenCalledExactlyOnceWith('update')
+    expect(db.select).not.toHaveBeenCalled()
+    expect(mocks.config).not.toHaveBeenCalled()
+  })
+  it('does not acquire another pooled connection for capability-exempt session authorization', async () => {
+    const review = defineOrganizationOperation({
+      id: 'access_requests.list_mine',
+      minimumRole: 'member',
+      principalKinds: ['session'],
+      /** permission-group-exempt: own request history is available independently of capability restrictions. */
+      capability: 'none',
+    })
+    await expect(
+      authorizeOrganizationOperation(principal, review, { organizationId: 'org' })
+    ).resolves.toMatchObject({ userId: principal.userId })
+    expect(mocks.config).not.toHaveBeenCalled()
+  })
   it('admits Slack delegation only when the operation explicitly allows that service', async () => {
     const issuedAt = new Date()
     const slack: OrganizationDelegatedPrincipal = {

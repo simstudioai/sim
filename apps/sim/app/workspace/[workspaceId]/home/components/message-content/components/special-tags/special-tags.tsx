@@ -5,6 +5,7 @@ import { cn, Expandable, ExpandableContent, SecretReveal, Tooltip, toast } from 
 import { ArrowRight, Check, ChevronDown, SquareArrowUpRight, TerminalWindow } from '@sim/emcn/icons'
 import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
+import { MemberLimitRequestAction } from '@/components/access-requests/member-limit-request-action'
 import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -3225,7 +3226,14 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           {hosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
         </a>
       ) : (
-        <p className='mt-2 text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
+        <div className='mt-2 flex flex-col items-start gap-2'>
+          <p className='text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
+          {data.action === 'increase_limit' && (
+            <MemberLimitRequestAction
+              scope={{ kind: 'workspace', workspaceId: hostContext.workspace.id }}
+            />
+          )}
+        </div>
       )}
     </div>
   )

@@ -46,6 +46,11 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'permission-access-requests': {
+    description:
+      'Enable permission and member usage-cap requests globally. Organizations can opt out in access control settings.',
+    fallback: 'PERMISSION_ACCESS_REQUESTS_ENABLED',
+  },
   'slack-search-shared-app': {
     description:
       'Enable the official shared Slack app for existing Search customers. Supports orgId ' +
