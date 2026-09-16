@@ -4674,6 +4674,64 @@ export const organizationSearchInvocation = pgTable(
   })
 )
 
+/** MCP tool attempts, separate from successful Search invocations and billable usage. */
+export const organizationSearchMcpInvocation = pgTable(
+  'organization_search_mcp_invocation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    userId: text('user_id'),
+    authKind: text('auth_kind')
+      .$type<'oauth_access_token' | 'personal_api_key' | 'workspace_api_key'>()
+      .notNull(),
+    /** Snapshots survive OAuth client deletion; names are client-declared, not verified branding. */
+    oauthClientId: text('oauth_client_id'),
+    clientName: text('client_name'),
+    toolName: text('tool_name').$type<'search' | 'read_document' | 'chat'>().notNull(),
+    outcome: text('outcome').$type<'success' | 'error' | 'cancelled' | 'rate_limited'>().notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationFk: foreignKey({
+      name: 'org_search_mcp_invocation_org_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organization.id],
+    }).onDelete('cascade'),
+    userFk: foreignKey({
+      name: 'org_search_mcp_invocation_user_fk',
+      columns: [table.userId],
+      foreignColumns: [user.id],
+    }).onDelete('set null'),
+    organizationCreatedAtIdx: index('organization_search_mcp_invocation_org_created_idx').on(
+      table.organizationId,
+      table.createdAt
+    ),
+    userIdIdx: index('organization_search_mcp_invocation_user_idx').on(table.userId),
+    toolNameCheck: check(
+      'organization_search_mcp_invocation_tool_check',
+      sql`${table.toolName} IN ('search', 'read_document', 'chat')`
+    ),
+    outcomeCheck: check(
+      'organization_search_mcp_invocation_outcome_check',
+      sql`${table.outcome} IN ('success', 'error', 'cancelled', 'rate_limited')`
+    ),
+    durationBounds: check(
+      'organization_search_mcp_invocation_duration_check',
+      sql`${table.durationMs} >= 0`
+    ),
+    clientNameBounds: check(
+      'organization_search_mcp_invocation_client_name_check',
+      sql`length(${table.clientName}) <= 256`
+    ),
+    authCheck: check(
+      'organization_search_mcp_invocation_auth_check',
+      sql`(${table.authKind} = 'oauth_access_token' AND ${table.oauthClientId} IS NOT NULL)
+        OR (${table.authKind} IN ('personal_api_key', 'workspace_api_key') AND ${table.oauthClientId} IS NULL AND ${table.clientName} IS NULL)`
+    ),
+  })
+)
+
 export const usageLog = pgTable(
   'usage_log',
   {

@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { createMockLogger } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +13,16 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   chat: vi.fn(),
   rateLimit: vi.fn(),
+  info: vi.fn(),
+  afterResponse: vi.fn<(task: () => Promise<void>) => void>(),
+  recordActivity: vi.fn(),
+}))
+vi.mock('@/lib/core/utils/after-response', () => ({ afterResponse: mocks.afterResponse }))
+vi.mock('@/lib/knowledge/mcp/activity', () => ({
+  recordOrganizationSearchMcpActivity: mocks.recordActivity,
+}))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ ...createMockLogger(), info: mocks.info }),
 }))
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
   McpServer: class {
@@ -71,7 +82,7 @@ function payload(result: CallToolResult): unknown {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.tools.clear()
-  mocks.rateLimit.mockResolvedValue(null)
+  mocks.rateLimit.mockReset().mockResolvedValue(null)
   mocks.search.mockResolvedValue({ results: [] })
   mocks.read.mockResolvedValue({
     knowledgeBaseId: 'index-1',
@@ -312,5 +323,136 @@ describe('organization chat', () => {
       isError: true,
       content: [{ type: 'text', text: 'Unable to complete this operation. Please try again.' }],
     })
+  })
+})
+
+describe('MCP tool completion records', () => {
+  it('schedules only metadata after the response, independently of analytics storage latency', async () => {
+    createKnowledgeMcpServer({
+      organizationId: 'org-1',
+      searchIndexId: 'index-1',
+      request,
+      auth: {
+        ...auth,
+        keyType: 'oauth_access_token',
+        principal: {
+          kind: 'oauth_access_token',
+          userId: 'oauth-person',
+          clientId: 'registered-client',
+          clientName: 'Registered app',
+          tokenId: 'private-token-id',
+          scopes: ['search:read'],
+          expiresAt: new Date(Date.now() + 60000),
+        },
+      },
+    })
+    const response = await call('search', { query: 'private question' })
+    expect(response.isError).not.toBe(true)
+    expect(mocks.recordActivity).not.toHaveBeenCalled()
+    expect(mocks.afterResponse).toHaveBeenCalledOnce()
+    await mocks.afterResponse.mock.calls[0][0]()
+    expect(mocks.recordActivity).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      userId: 'oauth-person',
+      authKind: 'oauth_access_token',
+      oauthClientId: 'registered-client',
+      clientName: 'Registered app',
+      toolName: 'search',
+      outcome: 'success',
+      durationMs: expect.any(Number),
+      createdAt: expect.any(Date),
+    })
+  })
+
+  it.each([
+    ['search', { query: 'private query', topK: 10 }, 'knowledge.search'],
+    ['read_document', { documentId: 'doc-1' }, 'knowledge.documents.read'],
+    ['chat', { query: 'private question' }, 'knowledge.chat'],
+  ] as const)('records one content-free completion for %s', async (toolName, input, operation) => {
+    create()
+    await call(toolName, input)
+    expect(mocks.info).toHaveBeenCalledExactlyOnceWith('Knowledge MCP tool completed', {
+      toolName,
+      operation,
+      organizationId: 'org-1',
+      userId: 'person-1',
+      outcome: 'success',
+      durationMs: expect.any(Number),
+    })
+  })
+
+  it('records a returned tool error as an error even though the HTTP transport can succeed', async () => {
+    create()
+    const result = await call('read_document', {})
+    expect(result.isError).toBe(true)
+    expect(mocks.info).toHaveBeenCalledExactlyOnceWith(
+      'Knowledge MCP tool completed',
+      expect.objectContaining({ toolName: 'read_document', outcome: 'error' })
+    )
+  })
+
+  it('records an authorization failure without including the query or error message', async () => {
+    create()
+    mocks.search.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Private denial reason'))
+    await call('search', { query: 'private query' })
+    expect(mocks.info).toHaveBeenCalledExactlyOnceWith('Knowledge MCP tool completed', {
+      toolName: 'search',
+      operation: 'knowledge.search',
+      organizationId: 'org-1',
+      userId: 'person-1',
+      outcome: 'error',
+      durationMs: expect.any(Number),
+    })
+  })
+
+  it('distinguishes rate limiting from an executed tool', async () => {
+    create()
+    mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))
+    await call('search', { query: 'private query' })
+    expect(mocks.search).not.toHaveBeenCalled()
+    expect(mocks.info).toHaveBeenCalledExactlyOnceWith(
+      'Knowledge MCP tool completed',
+      expect.objectContaining({ outcome: 'rate_limited' })
+    )
+    await mocks.afterResponse.mock.calls[0][0]()
+    expect(mocks.recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authKind: 'personal_api_key',
+        oauthClientId: null,
+        outcome: 'rate_limited',
+      })
+    )
+  })
+
+  it.each(['search', 'read_document', 'chat'])(
+    'records cancelled %s calls without executing the operation',
+    async (toolName) => {
+      create()
+      mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))
+      await call(toolName, { query: 'private query', documentId: 'doc-1' }, AbortSignal.abort())
+      expect(mocks.rateLimit).not.toHaveBeenCalled()
+      expect(mocks.search).not.toHaveBeenCalled()
+      expect(mocks.read).not.toHaveBeenCalled()
+      expect(mocks.chat).not.toHaveBeenCalled()
+      expect(mocks.info).toHaveBeenCalledExactlyOnceWith(
+        'Knowledge MCP tool completed',
+        expect.objectContaining({ toolName, outcome: 'cancelled' })
+      )
+    }
+  )
+
+  it('records cancellation during rate-limit admission instead of an exhausted bucket', async () => {
+    create()
+    const controller = new AbortController()
+    mocks.rateLimit.mockImplementationOnce(async () => {
+      controller.abort()
+      return new Response(null, { status: 429 })
+    })
+    await call('search', { query: 'private query' }, controller.signal)
+    expect(mocks.search).not.toHaveBeenCalled()
+    await mocks.afterResponse.mock.calls[0][0]()
+    expect(mocks.recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: 'cancelled' })
+    )
   })
 })

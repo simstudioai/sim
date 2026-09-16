@@ -324,6 +324,7 @@ const requestContextMetadata = (context: RequestContext): LoggerMetadata => {
   if (context.auth) {
     metadata.auth = context.auth.kind
     if (context.auth.service) metadata.authService = context.auth.service
+    if (context.auth.clientId) metadata.authClientId = context.auth.clientId
   }
   if (context.callChain) metadata.callDepth = context.callChain.length
   return metadata
@@ -419,8 +420,6 @@ export class Logger {
   private log(level: LogLevel, message: string, ...args: unknown[]) {
     if (!this.shouldLog(level)) return
 
-    emitOtelLogRecord(level, this.module, message, this.metadata, args)
-
     const timestamp = new Date().toISOString()
     const formattedArgs = this.formatArgs(args)
 
@@ -428,6 +427,7 @@ export class Logger {
     const effectiveMetadata = reqCtx
       ? { ...requestContextMetadata(reqCtx), ...this.metadata }
       : this.metadata
+    emitOtelLogRecord(level, this.module, message, effectiveMetadata, args)
     const metadataEntries = Object.entries(filterUndefined(effectiveMetadata))
     const metadataStr =
       metadataEntries.length > 0

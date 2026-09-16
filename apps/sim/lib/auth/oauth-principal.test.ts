@@ -66,4 +66,12 @@ describe('oauth_access_token principal', () => {
       parsePrincipal({ ...serialized, principal: { ...serialized.principal, expiresAt: 'soon' } })
     ).toThrow('expiresAt must be an ISO timestamp')
   })
+
+  it('keeps display metadata out of persisted workflow authority', () => {
+    const named = { ...principal, clientName: 'Registered app' }
+    const serialized = serializePrincipal(named)
+    expect(serialized.principal).not.toHaveProperty('clientName')
+    expect(parsePrincipal(serialized)).toEqual(principal)
+    expect(toPrincipalActor(named)).toEqual(toPrincipalActor(principal))
+  })
 })

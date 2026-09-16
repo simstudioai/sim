@@ -2465,6 +2465,13 @@
       "when": 1789588587193,
       "tag": "0352_search_document_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 353,
+      "version": "7",
+      "when": 1789591219081,
+      "tag": "0353_search_mcp_activity",
+      "breakpoints": true
     }
   ]
 }
