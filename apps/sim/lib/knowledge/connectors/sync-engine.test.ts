@@ -2292,6 +2292,64 @@ describe('completeSuccessfulSync', () => {
       expect.objectContaining({ status: 'active' })
     )
   })
+
+  it.each([
+    { complete: true, holdNotice: null },
+    { complete: false, holdNotice: null },
+    { complete: false, holdNotice: 'Permissions could not be verified' },
+  ])(
+    'retains dispatch failures without changing listing recovery: %j',
+    async ({ complete, holdNotice }) => {
+      const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+      queueTableRows(schemaMock.document, [{ count: 4 }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'log-1' }])
+        .mockResolvedValueOnce([{ id: 'c-1' }])
+
+      await expect(
+        completeSuccessfulSync(
+          'c-1',
+          'kb-1',
+          'log-1',
+          60,
+          {
+            ...RESULT,
+            docsFailed: 0,
+            processingDispatch: { requested: 1, accepted: 0, failed: 1 },
+          },
+          holdNotice,
+          {
+            complete,
+            checkpoint: { unsafe: false, startedAt: '2026-09-04T00:00:00Z', listedCount: 4 },
+          }
+        )
+      ).resolves.toBe(true)
+
+      const notice =
+        holdNotice ??
+        'Some documents could not be queued for indexing. They will be retried automatically.'
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'partial',
+          errorMessage: notice,
+          listedCount: complete ? 4 : null,
+        })
+      )
+      const update = dbChainMockFns.set.mock.calls.find(([value]) => value.status === 'active')?.[0]
+      expect(update).toMatchObject({
+        lastSyncError: notice,
+        consecutiveFailures: 0,
+        syncLockToken: null,
+      })
+      if (complete) expect(update.lastSyncAt).toEqual(new Date('2026-09-04T00:00:00Z'))
+      else expect(update).not.toHaveProperty('lastSyncAt')
+      if (complete) expect(update.nextSyncAt.getTime()).toBeGreaterThan(Date.now() + 50 * 60_000)
+      else expect(update.nextSyncAt.getTime()).toBeLessThanOrEqual(Date.now())
+    }
+  )
 })
 
 describe('stillHoldsSyncLock', () => {

@@ -335,6 +335,12 @@ export async function completeSuccessfulSync(
   reconciliationHoldNotice: string | null,
   contentPass?: ContentPassOutcome
 ): Promise<boolean> {
+  const processingDispatchFailed = result.processingDispatch.failed > 0
+  const completionNotice =
+    reconciliationHoldNotice ??
+    (processingDispatchFailed
+      ? 'Some documents could not be queued for indexing. They will be retried automatically.'
+      : null)
   try {
     return await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
@@ -382,7 +388,10 @@ export async function completeSuccessfulSync(
       const [closedLog] = await tx
         .update(knowledgeConnectorSyncLog)
         .set({
-          status: contentPass && isContentPassIncomplete(contentPass) ? 'partial' : 'completed',
+          status:
+            processingDispatchFailed || (contentPass && isContentPassIncomplete(contentPass))
+              ? 'partial'
+              : 'completed',
           completedAt: now,
           listedCount: contentPass?.complete
             ? contentPass.checkpoint.incrementalSince
@@ -395,7 +404,7 @@ export async function completeSuccessfulSync(
           docsUnchanged: result.docsUnchanged,
           docsSkipped: result.docsSkipped,
           docsFailed: result.docsFailed,
-          errorMessage: reconciliationHoldNotice,
+          errorMessage: completionNotice,
         })
         .where(
           and(
@@ -413,7 +422,7 @@ export async function completeSuccessfulSync(
             now,
             actualDocCount,
             contentPass && !contentPass.complete ? now : calculateNextSyncTime(syncIntervalMinutes),
-            reconciliationHoldNotice,
+            completionNotice,
             result.docsFailed === 0 && (!contentPass || !isContentPassIncomplete(contentPass))
           ),
           /** Restored above under this same lock, or hidden by the admin pass before the ACLs it wrote. */
