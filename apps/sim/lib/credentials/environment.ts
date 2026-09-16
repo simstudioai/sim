@@ -4,6 +4,7 @@ import {
   credentialGroup,
   credentialGroupEnrollment,
   credentialMember,
+  environment,
   permissions,
   user,
   workspace,
@@ -15,6 +16,7 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { isManagedCredentialGroupBindingLive } from '@/lib/credential-groups/credentials'
+import { lockPersonalEnvMap } from '@/lib/credentials/env-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   getEffectiveWorkspacePermission,
@@ -677,15 +679,13 @@ export async function deletePersonalEnvCredentialForUser(params: {
   await db.transaction(remove)
 }
 
-export async function syncPersonalEnvCredentialsForUser(params: {
-  userId: string
-  envKeys: string[]
-}): Promise<void> {
-  const { userId, envKeys } = params
-  const normalizedKeys = Array.from(new Set(envKeys.filter(Boolean)))
+/** Reconciles user-global secret deletions and active-workspace mirrors against the locked map. */
+export async function syncPersonalEnvCredentialsForUser(params: { userId: string }): Promise<void> {
+  const { userId } = params
   const now = new Date()
 
   await db.transaction(async (tx) => {
+    await lockPersonalEnvMap(tx, userId)
     /**
      * Cross-organization transfer takes this same user-identity fence before
      * checking source-owned credentials. If this sync wins, transfer observes
@@ -693,85 +693,81 @@ export async function syncPersonalEnvCredentialsForUser(params: {
      * workspace re-read cannot recreate credentials in the departed org.
      */
     await acquireUserBillingIdentityLock(tx, userId)
-    const workspaceIds = (await getUserWorkspaceIds(userId, tx)).sort()
+    const [personalEnvironment] = await tx
+      .select({ variables: environment.variables })
+      .from(environment)
+      .where(eq(environment.userId, userId))
+      .limit(1)
+    const envKeys = Object.keys(personalEnvironment?.variables ?? {}).filter(Boolean)
 
-    if (workspaceIds.length === 0) return
-
-    if (normalizedKeys.length > 0) {
-      const credentialValues = workspaceIds.flatMap((workspaceId) =>
-        normalizedKeys.map((envKey) => ({
-          id: generateId(),
-          workspaceId,
-          type: 'env_personal' as const,
-          displayName: envKey,
-          envKey,
-          envOwnerUserId: userId,
-          createdBy: userId,
-          createdAt: now,
-          updatedAt: now,
-        }))
-      )
-      for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
-        await tx.insert(credential).values(values).onConflictDoNothing()
-      }
-
-      const currentCredentials = await tx
-        .select({ id: credential.id })
-        .from(credential)
-        .where(
-          and(
-            inArray(credential.workspaceId, workspaceIds),
-            eq(credential.type, 'env_personal'),
-            eq(credential.envOwnerUserId, userId),
-            inArray(credential.envKey, normalizedKeys)
-          )
-        )
-
-      if (currentCredentials.length > 0) {
-        const membershipValues = currentCredentials.map(({ id: credentialId }) => ({
-          id: generateId(),
-          credentialId,
-          userId,
-          role: 'admin' as const,
-          status: 'active' as const,
-          joinedAt: now,
-          invitedBy: userId,
-          createdAt: now,
-          updatedAt: now,
-        }))
-        for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
-          await tx
-            .insert(credentialMember)
-            .values(values)
-            .onConflictDoUpdate({
-              target: [credentialMember.credentialId, credentialMember.userId],
-              set: { role: 'admin', status: 'active', updatedAt: now },
-            })
-        }
-      }
-
-      await tx
-        .delete(credential)
-        .where(
-          and(
-            inArray(credential.workspaceId, workspaceIds),
-            eq(credential.type, 'env_personal'),
-            eq(credential.envOwnerUserId, userId),
-            notInArray(credential.envKey, normalizedKeys)
-          )
-        )
-      return
-    }
-
+    /** Deleted keys must lose mirrors even in archived or no-longer-accessible workspaces. */
     await tx
       .delete(credential)
       .where(
         and(
-          inArray(credential.workspaceId, workspaceIds),
           eq(credential.type, 'env_personal'),
-          eq(credential.envOwnerUserId, userId)
+          eq(credential.envOwnerUserId, userId),
+          envKeys.length > 0 ? notInArray(credential.envKey, envKeys) : undefined
         )
       )
+
+    if (envKeys.length === 0) return
+
+    const workspaceIds = (await getUserWorkspaceIds(userId, tx)).sort()
+
+    if (workspaceIds.length === 0) return
+
+    const credentialValues = workspaceIds.flatMap((workspaceId) =>
+      envKeys.map((envKey) => ({
+        id: generateId(),
+        workspaceId,
+        type: 'env_personal' as const,
+        displayName: envKey,
+        envKey,
+        envOwnerUserId: userId,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      }))
+    )
+    for (const values of chunkArray(credentialValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+      await tx.insert(credential).values(values).onConflictDoNothing()
+    }
+
+    const currentCredentials = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(
+        and(
+          inArray(credential.workspaceId, workspaceIds),
+          eq(credential.type, 'env_personal'),
+          eq(credential.envOwnerUserId, userId),
+          inArray(credential.envKey, envKeys)
+        )
+      )
+
+    if (currentCredentials.length > 0) {
+      const membershipValues = currentCredentials.map(({ id: credentialId }) => ({
+        id: generateId(),
+        credentialId,
+        userId,
+        role: 'admin' as const,
+        status: 'active' as const,
+        joinedAt: now,
+        invitedBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      }))
+      for (const values of chunkArray(membershipValues, ENV_CREDENTIAL_WRITE_CHUNK_SIZE)) {
+        await tx
+          .insert(credentialMember)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [credentialMember.credentialId, credentialMember.userId],
+            set: { role: 'admin', status: 'active', updatedAt: now },
+          })
+      }
+    }
   })
 }
 
