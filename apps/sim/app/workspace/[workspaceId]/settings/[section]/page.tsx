@@ -2,6 +2,8 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
+import { EmptyState } from '@/components/empty-state/empty-state'
 import {
   getOrganizationSettingsHref,
   UNIFIED_TO_ORGANIZATION_SECTION,
@@ -54,6 +56,20 @@ export default async function WorkspaceSettingsSectionPage({
   })
   if (!access.allowed) {
     if (access.disposition === 'not-found') notFound()
+    if (access.disposition === 'request-access') {
+      return (
+        <Suspense
+          fallback={
+            <EmptyState
+              title='Checking access'
+              description='Loading your organization access policy.'
+            />
+          }
+        >
+          <PermissionAccessBoundary configKey={access.configKey} />
+        </Suspense>
+      )
+    }
     redirectToGeneralSettings(workspaceId)
   }
 

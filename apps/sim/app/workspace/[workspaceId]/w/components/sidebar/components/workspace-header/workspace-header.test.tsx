@@ -184,6 +184,17 @@ afterEach(() => {
 })
 
 describe('WorkspaceHeader workspace switcher highlight', () => {
+  it.each([null, 'organization'])(
+    'only offers request history for an organization workspace (%s)',
+    (organizationId) => {
+      hostContext.hostOrganizationId = organizationId
+      render()
+      expect(document.body.textContent?.includes('My access requests')).toBe(
+        Boolean(organizationId)
+      )
+    }
+  )
+
   it.each([false, true])(
     'renders prefetched workspace identity before hydration (collapsed: %s)',
     (isCollapsed) => {

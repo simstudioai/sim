@@ -24,7 +24,16 @@ import {
   toast,
   useScrollEdges,
 } from '@sim/emcn'
-import { ArrowLeft, MoreHorizontal, PanelLeft, Pin, Plus, Search, Send } from '@sim/emcn/icons'
+import {
+  ArrowLeft,
+  ListChecks,
+  MoreHorizontal,
+  PanelLeft,
+  Pin,
+  Plus,
+  Search,
+  Send,
+} from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
@@ -778,6 +787,24 @@ function WorkspaceHeaderImpl({
                         Invite teammates
                       </DropdownMenuItem>
                     </DisabledReasonTooltip>
+                  )}
+                  {hostContext.hostOrganizationId && (
+                    <DropdownMenuItem size='lg' asChild>
+                      <SettingsGuardedLink href={`/workspace/${workspaceId}/access-requests`}>
+                        <ListChecks className='size-[14px]' />
+                        My access requests
+                      </SettingsGuardedLink>
+                    </DropdownMenuItem>
+                  )}
+                  {hostContext.hostOrganizationId && hostContext.viewer.isHostOrganizationAdmin && (
+                    <DropdownMenuItem size='lg' asChild>
+                      <SettingsGuardedLink
+                        href={`/access-requests?${new URLSearchParams({ organizationId: hostContext.hostOrganizationId, view: 'admin' })}`}
+                      >
+                        <ListChecks className='size-[14px]' />
+                        Review access requests
+                      </SettingsGuardedLink>
+                    </DropdownMenuItem>
                   )}
                   <ViewInvitationsMenuItem
                     onOpen={() => {

@@ -1,10 +1,14 @@
 /**
  * @vitest-environment node
  */
+
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { InternalUnauthenticatedError } from '@/lib/api/server/routes/internal-json-route'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const {
+  mockAuthorizeResource,
   mockAuthenticate,
   mockGetWorkspaceHostContextForViewer,
   mockGetWorkspaceMemberProfiles,
@@ -21,6 +25,7 @@ const {
   mockListWorkspaceFileFolders,
   mockListWorkspaceFilesWithShares,
 } = vi.hoisted(() => ({
+  mockAuthorizeResource: vi.fn(),
   mockAuthenticate: vi.fn(),
   mockGetWorkspaceHostContextForViewer: vi.fn(),
   mockGetWorkspaceMemberProfiles: vi.fn(),
@@ -69,6 +74,12 @@ vi.mock('@/lib/users/queries', () => ({
 vi.mock('@/lib/copilot/chat/list-mothership-chats', () => ({
   listMothershipChats: mockListMothershipChats,
 }))
+vi.mock('@/lib/table/application/tables', () => ({
+  listTableDefinitionsUseCase: { authorize: mockAuthorizeResource },
+}))
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
+  listAllWorkspaceFiles: { authorize: mockAuthorizeResource },
+}))
 vi.mock('@/lib/table/service', () => ({
   listTables: mockListTables,
 }))
@@ -85,7 +96,10 @@ vi.mock('@/lib/api/server/routes', () => ({
   internalSessionAuth: { authenticate: mockAuthenticate },
 }))
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  listInternalKnowledgeBases: { execute: mockListInternalKnowledgeBases },
+  listKnowledgeBases: { authorize: mockAuthorizeResource },
+  listInternalKnowledgeBases: {
+    execute: mockListInternalKnowledgeBases,
+  },
 }))
 vi.mock('@/lib/knowledge/api/internal-route', () => ({
   internalKnowledgePresenters: { list: mockKnowledgePresenterList },
@@ -117,6 +131,7 @@ function makeClient() {
 describe('workspace list prefetches', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAuthorizeResource.mockResolvedValue(undefined)
     mockGetWorkspaceHostContextForViewer.mockResolvedValue({ viewer: { permission: 'admin' } })
     mockListFoldersForWorkspace.mockResolvedValue([])
     mockListWorkspaceFilesWithShares.mockResolvedValue([])
@@ -195,6 +210,24 @@ describe('workspace list prefetches', () => {
     })
   })
 
+  it.each([prefetchTables, prefetchKnowledgeBases, prefetchFilesBrowser])(
+    'seeds no protected data or chrome when the module operation refuses access',
+    async (prefetch) => {
+      mockAuthorizeResource.mockRejectedValue(
+        new OrchestrationError('forbidden', 'Module withheld')
+      )
+      const client = makeClient()
+      await prefetch(client, WORKSPACE_ID, USER_ID)
+      expect(client.getQueryCache().getAll()).toHaveLength(0)
+      expect(mockListTables).not.toHaveBeenCalled()
+      expect(mockListInternalKnowledgeBases).not.toHaveBeenCalled()
+      expect(mockListWorkspaceFilesWithShares).not.toHaveBeenCalled()
+      expect(mockListFoldersForWorkspace).not.toHaveBeenCalled()
+      expect(mockListWorkspaceFileFolders).not.toHaveBeenCalled()
+      expect(mockListPinnedItemsForUser).not.toHaveBeenCalled()
+    }
+  )
+
   describe('prefetchKnowledgeBases', () => {
     /**
      * The bases list is a protected read behind an application operation, so the prefetch runs
@@ -215,7 +248,7 @@ describe('workspace list prefetches', () => {
     })
 
     it('caches nothing when the session principal cannot be built', async () => {
-      mockAuthenticate.mockRejectedValue(new Error('Unauthorized'))
+      mockAuthenticate.mockRejectedValue(new InternalUnauthenticatedError())
       const client = makeClient()
 
       await prefetchKnowledgeBases(client, WORKSPACE_ID, USER_ID)

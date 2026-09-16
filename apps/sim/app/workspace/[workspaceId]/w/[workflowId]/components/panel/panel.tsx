@@ -31,6 +31,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
+import { RequestAccessModal } from '@/components/access-requests/request-access-action'
 import { VariableIcon } from '@/components/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { requestJson } from '@/lib/api/client/request'
@@ -71,6 +72,7 @@ import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
   type CopilotChatListItem,
@@ -219,6 +221,15 @@ export const Panel = memo(function Panel() {
     scope: usageLimitScope,
     isLoading: isUsageGateLoading,
   } = useUsageLimits({ workspaceId })
+  const memberLimitRequest = useDiscoverAccessRequests(
+    { kind: 'workspace', workspaceId, targetKind: 'usage_limit', limit: 1, offset: 0 },
+    usageExceeded && usageLimitScope === 'member'
+  )
+  const [showLimitRequest, setShowLimitRequest] = useState(false)
+  const memberLimitTarget =
+    memberLimitRequest.isSuccess && memberLimitRequest.data.enabled
+      ? memberLimitRequest.data.entries.find((entry) => entry.state === 'requestable')
+      : undefined
 
   // Workflow execution hook
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
@@ -243,10 +254,19 @@ export const Panel = memo(function Panel() {
   /**
    * Runs the workflow with usage limit check
    */
-  const runWorkflow = useCallback(async () => {
+  const runWorkflow = async () => {
     if (isUsageGateLoading) return
 
     if (usageExceeded) {
+      if (usageLimitScope === 'member' && memberLimitTarget) {
+        if (memberLimitTarget.pendingRequestId) {
+          const params = new URLSearchParams({ requestId: memberLimitTarget.pendingRequestId })
+          router.push(`/workspace/${encodeURIComponent(workspaceId)}/access-requests?${params}`)
+        } else {
+          setShowLimitRequest(true)
+        }
+        return
+      }
       const action = getWorkspaceUsageLimitAction(hostContext, session?.user?.id, {
         message: usageLimitMessage,
         scope: usageLimitScope,
@@ -259,15 +279,7 @@ export const Panel = memo(function Panel() {
       return
     }
     await handleRunWorkflow()
-  }, [
-    usageExceeded,
-    usageLimitMessage,
-    usageLimitScope,
-    isUsageGateLoading,
-    hostContext,
-    session?.user?.id,
-    handleRunWorkflow,
-  ])
+  }
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore(
@@ -708,6 +720,14 @@ export const Panel = memo(function Panel() {
 
   return (
     <>
+      {showLimitRequest && memberLimitTarget && (
+        <RequestAccessModal
+          scope={{ kind: 'workspace', workspaceId }}
+          target={memberLimitTarget.target}
+          label={memberLimitTarget.label}
+          onClose={() => setShowLimitRequest(false)}
+        />
+      )}
       <aside
         ref={panelRef}
         className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'

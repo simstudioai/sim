@@ -9,6 +9,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSwitch,
   ChipTag,
   Label,
 } from '@sim/emcn'
@@ -16,7 +17,12 @@ import { Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
-import { useQueryState } from 'nuqs'
+import { useQueryState, useQueryStates } from 'nuqs'
+import { OrganizationAccessRequests } from '@/components/access-requests/organization-access-requests'
+import {
+  accessRequestUrlOptions,
+  accessReviewSearchParams,
+} from '@/components/access-requests/search-params'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -57,7 +63,32 @@ interface AccessControlProps {
   organizationId: string
 }
 
-export function AccessControl({ isOrganizationAdmin, organizationId }: AccessControlProps) {
+export function AccessControl(props: AccessControlProps) {
+  const [params, setParams] = useQueryStates(accessReviewSearchParams, accessRequestUrlOptions)
+  if (!props.isOrganizationAdmin) return <PermissionGroups {...props} />
+  return (
+    <>
+      <ChipSwitch
+        aria-label='Access Control views'
+        options={[
+          { value: 'groups', label: 'Groups' },
+          { value: 'requests', label: 'Requests' },
+        ]}
+        value={params['access-view']}
+        onChange={(value) => void setParams({ 'access-view': value, 'request-id': null })}
+      />
+      {params['access-view'] === 'requests' ? (
+        <SettingsPanel>
+          <OrganizationAccessRequests organizationId={props.organizationId} />
+        </SettingsPanel>
+      ) : (
+        <PermissionGroups {...props} />
+      )}
+    </>
+  )
+}
+
+function PermissionGroups({ isOrganizationAdmin, organizationId }: AccessControlProps) {
   const params = useParams()
   const { features } = useDeploymentShape()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined

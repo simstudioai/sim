@@ -2437,6 +2437,13 @@
       "when": 1789514921671,
       "tag": "0348_drop_retired_usage_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 349,
+      "version": "7",
+      "when": 1789518532535,
+      "tag": "0349_permission_access_requests",
+      "breakpoints": true
     }
   ]
 }

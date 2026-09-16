@@ -99,7 +99,7 @@ function inactiveUserAccessControlContext(organizationId: string | null): UserAc
  * connection, and a default would let that caller silently check out a second
  * pooled connection while advisory locks are held.
  */
-async function resolveDefaultGroup(
+export async function resolveDefaultGroup(
   organizationId: string,
   executor: DbOrTx
 ): Promise<ResolvedPermissionGroup | null> {
@@ -155,9 +155,10 @@ async function resolveDefaultGroup(
 export async function resolveWorkspaceGroup(
   userId: string,
   organizationId: string,
-  workspaceId: string
+  workspaceId: string,
+  executor: DbOrTx = db
 ): Promise<ResolvedPermissionGroup | null> {
-  const rows = await db
+  const rows = await executor
     .select({
       id: permissionGroup.id,
       name: permissionGroup.name,
@@ -199,7 +200,7 @@ export async function resolveWorkspaceGroup(
     }
   }
 
-  return resolveDefaultGroup(organizationId, db)
+  return resolveDefaultGroup(organizationId, executor)
 }
 
 /**

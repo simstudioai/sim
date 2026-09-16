@@ -1693,6 +1693,70 @@ export const organizationMemberUsageLimit = pgTable(
   })
 )
 
+/** Organization opt-out; an absent row keeps access requests enabled. */
+export const organizationAccessRequestSettings = pgTable('organization_access_request_settings', {
+  organizationId: text('organization_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  allowRequests: boolean('allow_requests').default(true).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+})
+
+/** Durable review history, scoped to the organization that owned the request at creation. */
+export const permissionAccessRequest = pgTable(
+  'permission_access_request',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id'),
+    scopeKey: text('scope_key').notNull(),
+    targetKey: text('target_key').notNull(),
+    target: jsonb('target').notNull(),
+    targetLabel: text('target_label').notNull(),
+    membershipId: text('membership_id').notNull(),
+    groupId: text('group_id'),
+    groupName: text('group_name'),
+    reason: text('reason').default('').notNull(),
+    status: text('status', { enum: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] })
+      .default('pending')
+      .notNull(),
+    decisionReason: text('decision_reason'),
+    decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+    decision: jsonb('decision'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    decidedAt: timestamp('decided_at'),
+  },
+  (table) => ({
+    pendingUnique: uniqueIndex('permission_access_request_pending_unique')
+      .on(table.organizationId, table.requesterId, table.scopeKey, table.targetKey)
+      .where(sql`${table.status} = 'pending'`),
+    organizationQueue: index('permission_access_request_org_queue_idx').on(
+      table.organizationId,
+      table.status,
+      table.createdAt,
+      table.id
+    ),
+    requesterHistory: index('permission_access_request_requester_idx').on(
+      table.organizationId,
+      table.requesterId,
+      table.scopeKey,
+      table.createdAt,
+      table.id
+    ),
+    statusCheck: check(
+      'permission_access_request_status_check',
+      sql`${table.status} in ('pending', 'fulfilled', 'declined', 'cancelled', 'closed')`
+    ),
+  })
+)
+
 export const invitationKindEnum = pgEnum('invitation_kind', ['organization', 'workspace'])
 
 export type InvitationKind = (typeof invitationKindEnum.enumValues)[number]
