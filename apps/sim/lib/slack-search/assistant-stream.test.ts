@@ -292,14 +292,61 @@ describe('Slack lazy stream lifecycle', () => {
     }
   )
 
-  it('does not retry an ambiguous failure notification before content', async () => {
-    const { stream } = setup()
+  it.each(['confirmed', 'thrown'])(
+    'ends processing when a %s failure notification fails without replaying it',
+    async (kind) => {
+      const { stream, controller, beforeCleanup } = setup()
+      await stream.start()
+      api.start.mockRejectedValueOnce(new Error('failure response lost'))
+      if (kind === 'thrown') {
+        controller.abort(new Error('private backend error'))
+        await expect(stream.terminateAfterFailure()).rejects.toThrow('failure response lost')
+      } else {
+        await expect(stream.finishWithError()).rejects.toThrow('failure response lost')
+      }
+      expect(api.status).toHaveBeenCalledTimes(2)
+      expect(api.status).toHaveBeenLastCalledWith(
+        'test-token',
+        { channel: 'D1', threadTs: '1.1' },
+        'active',
+        api.start.mock.calls[0][4]
+      )
+      if (kind === 'thrown') {
+        expect(api.start.mock.calls[0][4]).not.toBe(controller.signal)
+        expect(beforeCleanup).toHaveBeenCalledExactlyOnceWith(api.start.mock.calls[0][4])
+      }
+      await stream.terminateAfterFailure()
+      expect(api.status).toHaveBeenCalledTimes(2)
+      expect(api.start).toHaveBeenCalledOnce()
+      expect(api.append).not.toHaveBeenCalled()
+      expect(api.stop).not.toHaveBeenCalled()
+    }
+  )
+
+  it('cleans up with fresh authority if the failure notification is aborted before settling', async () => {
+    const { stream, controller, beforeCleanup } = setup()
     await stream.start()
-    api.start.mockRejectedValueOnce(new Error('failure response lost'))
-    await expect(stream.finishWithError()).rejects.toThrow('failure response lost')
+    api.start.mockImplementationOnce(async () => {
+      controller.abort(new Error('deadline exceeded'))
+      throw controller.signal.reason
+    })
+    await expect(stream.finishWithError()).rejects.toThrow('deadline exceeded')
+    expect(api.status).toHaveBeenCalledOnce()
+    await stream.terminateAfterFailure()
     await stream.terminateAfterFailure()
     expect(api.start).toHaveBeenCalledOnce()
     expect(api.stop).not.toHaveBeenCalled()
+    expect(api.status).toHaveBeenCalledTimes(2)
+    const cleanupSignal = api.status.mock.calls[1][3]
+    expect(cleanupSignal).not.toBe(controller.signal)
+    expect(cleanupSignal.aborted).toBe(false)
+    expect(beforeCleanup).toHaveBeenCalledExactlyOnceWith(cleanupSignal)
+    expect(api.status).toHaveBeenLastCalledWith(
+      'test-token',
+      { channel: 'D1', threadTs: '1.1' },
+      'active',
+      cleanupSignal
+    )
   })
 
   it('propagates an empty-run status failure without retrying or posting a reply', async () => {

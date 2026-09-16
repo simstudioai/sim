@@ -379,28 +379,33 @@ export class SlackSearchAssistantStream {
   private async close(failed: boolean, signal: AbortSignal) {
     if (!this.sessionStarted || this.closed || this.closeAttempted)
       throw new Error('Slack session is not active')
-    this.closeAttempted = true
     const { token, channel, threadTs } = this.options
     let blocks = failed ? FAILURE_BLOCKS : []
-    if (!this.stream && failed && !this.streamStartAttempted) {
-      await this.writeChunk({ type: 'markdown_text', text: SLACK_SEARCH_FAILED_ANSWER }, signal)
-      blocks = []
+    try {
+      if (!this.stream && failed && !this.streamStartAttempted) {
+        await this.writeChunk({ type: 'markdown_text', text: SLACK_SEARCH_FAILED_ANSWER }, signal)
+        blocks = []
+      }
+    } finally {
+      /** A failed notification must still settle the session, including during failure cleanup. */
+      signal.throwIfAborted()
+      this.closeAttempted = true
+      if (this.stream) {
+        await stopSlackAgentStream(
+          token,
+          this.stream.channel,
+          this.stream.ts,
+          'active',
+          signal,
+          blocks,
+          this.interruptedToolProgress()
+        )
+      } else {
+        /** Empty runs and unconfirmed starts still need to end the native loading state. */
+        await setSlackAgentSessionStatus(token, { channel, threadTs }, 'active', signal)
+      }
+      this.closed = true
     }
-    if (this.stream) {
-      await stopSlackAgentStream(
-        token,
-        this.stream.channel,
-        this.stream.ts,
-        'active',
-        signal,
-        blocks,
-        this.interruptedToolProgress()
-      )
-    } else {
-      /** Empty runs and unconfirmed starts still need to end the native loading state. */
-      await setSlackAgentSessionStatus(token, { channel, threadTs }, 'active', signal)
-    }
-    this.closed = true
   }
 
   assertHealthy() {
