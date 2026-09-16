@@ -99,7 +99,12 @@ import {
   listAccessRequestTargets,
   loadAccessRequestCatalog,
 } from '@/lib/permission-access-requests/catalog'
+import {
+  buildAccessRequestPolicyDelta,
+  validateAccessRequestTarget,
+} from '@/lib/permission-groups/access-requests/targets'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const context = { userId: 'viewer', organizationId: 'org', workspaceId: 'ws' }
 
@@ -195,6 +200,22 @@ describe('access request catalog deployment ceilings', () => {
     expect([...catalog.tools.keys()]).toEqual(['slack_send_message_v2'])
     mocks.allowedIntegrations.mockReturnValue([])
     expect((await loadAccessRequestCatalog(context)).integrations.size).toBe(0)
+  })
+
+  it('enforces deployment ceilings without removing unrelated stored grants from an approval', async () => {
+    mocks.allowedIntegrations.mockReturnValue(['slack'])
+    const catalog = await loadAccessRequestCatalog(context, 'integration')
+    expect(
+      validateAccessRequestTarget({ kind: 'integration', id: 'github_v2' }, catalog)
+    ).toBeNull()
+    const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['github_v2'] }
+    const delta = buildAccessRequestPolicyDelta(
+      { kind: 'integration', id: 'slack_v2' },
+      config,
+      catalog
+    )
+    expect(delta.config.allowedIntegrations).toEqual(['github_v2', 'slack_v2'])
+    expect(config.allowedIntegrations).toEqual(['github_v2'])
   })
 
   it('omits blacklisted/retired models, unconfigured endpoints, and private dynamic names', async () => {

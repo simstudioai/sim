@@ -101,7 +101,7 @@ describe('compact requester history', () => {
     expect(mocks.mine).toHaveBeenCalledWith(scope, 50, undefined, false)
     expect(mocks.mine).toHaveBeenCalledWith(scope, 0, 'request')
     expect(mocks.discovery).toHaveBeenCalledWith(
-      expect.objectContaining({ search: 'slack', offset: 50 }),
+      expect.objectContaining({ search: 'slack', offset: 50, state: 'requestable' }),
       true
     )
   })

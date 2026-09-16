@@ -131,6 +131,7 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
         description &&
         (description.scope === 'workspace-or-organization' || description.scope === input.kind) &&
         (!input.targetKind || input.targetKind === target.kind) &&
+        (!input.targetKey || input.targetKey === getAccessRequestTargetKey(target)) &&
         (!search || description.label.toLowerCase().includes(search))
       )
     })
@@ -153,7 +154,8 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
             eq(permissionAccessRequest.scopeKey, accessRequestScopeKey(input)),
             eq(permissionAccessRequest.scopeKey, memberLimitScopeKey(organizationId))
           ),
-          eq(permissionAccessRequest.status, 'pending')
+          eq(permissionAccessRequest.status, 'pending'),
+          input.targetKey ? eq(permissionAccessRequest.targetKey, input.targetKey) : undefined
         )
       )
       .limit(ACCESS_REQUEST_MAX_PENDING)

@@ -1,7 +1,9 @@
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
-import { resolveWorkspaceGroup } from '@/lib/permission-groups/resolve.server'
+import {
+  isOrganizationPermissionRegimeActive,
+  resolveWorkspaceGroup,
+} from '@/lib/permission-groups/resolve.server'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -26,7 +28,7 @@ export const readUserPermissionConfig = defineAuthorizedWorkspaceUseCase({
     const [isOrgAdmin, entitled] = organizationId
       ? await Promise.all([
           isOrganizationAdminOrOwner(principal.userId, organizationId),
-          isOrganizationOnEnterprisePlan(organizationId, 'throw'),
+          isOrganizationPermissionRegimeActive(organizationId),
         ])
       : [false, false]
     const resolved =

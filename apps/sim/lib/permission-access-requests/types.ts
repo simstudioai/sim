@@ -42,6 +42,7 @@ export type DiscoverAccessRequestsInput = AccessRequestScope & {
   offset: number
   search?: string
   targetKind?: AccessRequestTarget['kind']
+  targetKey?: string
   state?: 'allowed' | 'requestable' | 'unavailable'
 }
 
