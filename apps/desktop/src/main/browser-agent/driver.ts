@@ -2714,13 +2714,14 @@ async function executeToolInner(
       }
       return {
         dataUrl: shot.dataUrl,
+        imageSize: shot.imageSize,
         viewport,
         scale,
         ...(clip
           ? {
               element: elementClip?.element,
               refRecovered: elementClip?.refRecovered === true,
-              clip,
+              clip: shot.clip ?? clip,
             }
           : {}),
       }

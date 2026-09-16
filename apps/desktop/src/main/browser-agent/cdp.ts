@@ -374,6 +374,9 @@ const UNSCALED_SCREENSHOT_QUALITY = 90
 const SCREENSHOT_CAPTURE_TIMEOUT_MS = 5_000
 /** Native surface copies cannot be cancelled; never accumulate them on a stalled tab. */
 const pendingScreenshotCaptures = new WeakSet<WebContents>()
+const activeScreenshotCaptures = new WeakSet<WebContents>()
+
+class ScreenshotCaptureTimeoutError extends Error {}
 
 interface CdpViewport {
   clientWidth: number
@@ -398,6 +401,7 @@ export interface ScreenshotCapture {
   scale: number
   viewport: ScreenshotSize | null
   imageSize: ScreenshotSize
+  clip?: ScreenshotClip
 }
 
 export interface ScreenshotClip {
@@ -452,16 +456,12 @@ function sameScreenshotViewport(
   )
 }
 
-/** Captures pixels without changing viewport geometry or exposing a hidden window. */
-async function captureViewportImage(
+async function captureNativeViewportImage(
   contents: WebContents,
   signal?: AbortSignal
 ): Promise<NativeImage> {
   signal?.throwIfAborted()
   if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
-  if (pendingScreenshotCaptures.has(contents)) {
-    throw new Error('A previous screenshot capture is still pending on this tab')
-  }
   pendingScreenshotCaptures.add(contents)
   let timer: ReturnType<typeof setTimeout> | undefined
   let onAbort = () => {}
@@ -473,7 +473,10 @@ async function captureViewportImage(
       signal?.addEventListener('abort', onAbort, { once: true })
       contents.once('destroyed', onDestroyed)
       timer = setTimeout(
-        () => reject(new Error('Screenshot pixel capture timed out after 5 seconds')),
+        () =>
+          reject(
+            new ScreenshotCaptureTimeoutError('Screenshot pixel capture timed out after 5 seconds')
+          ),
         SCREENSHOT_CAPTURE_TIMEOUT_MS
       )
     })
@@ -492,6 +495,64 @@ async function captureViewportImage(
   }
 }
 
+/** Observes one complete frame; unlike a native surface copy, this wait can be cancelled. */
+async function captureViewportFrame(
+  contents: WebContents,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  signal?.throwIfAborted()
+  if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onAbort = () => {}
+  let onDestroyed = () => {}
+  let subscribed = false
+  try {
+    return await new Promise<NativeImage>((resolve, reject) => {
+      onAbort = () => reject(new Error('Screenshot capture was cancelled'))
+      onDestroyed = () => reject(new Error('The screenshot tab was closed'))
+      signal?.addEventListener('abort', onAbort, { once: true })
+      contents.once('destroyed', onDestroyed)
+      timer = setTimeout(
+        () => reject(new Error('Screenshot frame capture timed out after 5 seconds')),
+        SCREENSHOT_CAPTURE_TIMEOUT_MS
+      )
+      subscribed = true
+      contents.beginFrameSubscription(false, (image) => resolve(image))
+      contents.invalidate()
+    })
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+    contents.removeListener('destroyed', onDestroyed)
+    if (subscribed && !contents.isDestroyed()) contents.endFrameSubscription()
+  }
+}
+
+/** Captures pixels without reloading the page, changing geometry, or exposing a hidden window. */
+async function captureViewportImage(
+  contents: WebContents,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  signal?.throwIfAborted()
+  if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
+  if (activeScreenshotCaptures.has(contents)) {
+    throw new Error('A screenshot capture is already in progress on this tab')
+  }
+  activeScreenshotCaptures.add(contents)
+  try {
+    if (!pendingScreenshotCaptures.has(contents)) {
+      try {
+        return await captureNativeViewportImage(contents, signal)
+      } catch (error) {
+        if (!(error instanceof ScreenshotCaptureTimeoutError)) throw error
+      }
+    }
+    return await captureViewportFrame(contents, signal)
+  } finally {
+    activeScreenshotCaptures.delete(contents)
+  }
+}
+
 /**
  * Native viewport capture, bounded in time and resolution.
  *
@@ -504,8 +565,9 @@ async function captureViewportImage(
  * snapshot capture refuses to scale a visible surface for the same reason.
  *
  * Bounding resolution therefore happens here instead, on the returned image.
- * Optional element crops also happen in memory. Convert output coordinates
- * with cssX = (clip?.x ?? 0) + imageX / scale, and the equivalent Y formula.
+ * Optional element crops also happen in memory. The returned clip records the
+ * rounded/clamped CSS bounds. Map each image axis using those bounds and the
+ * returned imageSize, since resizing can round the two dimensions differently.
  */
 export async function captureScreenshot(
   contents: WebContents,
@@ -564,6 +626,12 @@ export async function captureScreenshot(
     if (croppedSize.width === 0 || croppedSize.height === 0) {
       throw new Error('The requested screenshot element produced an empty crop')
     }
+    const capturedClip = {
+      x: cropX / xScale,
+      y: cropY / yScale,
+      width: croppedSize.width / xScale,
+      height: croppedSize.height / yScale,
+    }
     const cropScale = Math.min(
       1,
       MAX_SCREENSHOT_EDGE / Math.max(croppedSize.width, croppedSize.height)
@@ -579,9 +647,10 @@ export async function captureScreenshot(
     const outputSize = output.getSize()
     return {
       dataUrl: `data:image/jpeg;base64,${output.toJPEG(SCREENSHOT_QUALITY).toString('base64')}`,
-      scale: outputSize.width / clip.width,
+      scale: outputSize.width / capturedClip.width,
       viewport: cssViewport,
       imageSize: outputSize,
+      clip: capturedClip,
     }
   }
   if (size.width === targetWidth && size.height === targetHeight) {
