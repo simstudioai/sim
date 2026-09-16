@@ -759,6 +759,23 @@ describe('collectSnapshot', () => {
     expect(lines[0]).not.toContain('[ref=999]')
   })
 
+  it('shares the text budget across inline fragments and leaves room for later controls', () => {
+    document.body.innerHTML = `${Array.from(
+      { length: 650 },
+      (_, index) => `<p>Before ${index} <span>inline ${index}</span> after ${index}</p>`
+    ).join(
+      ''
+    )}${Array.from({ length: 100 }, (_, index) => `<button>Action ${index}</button>`).join('')}<input aria-label="Final field">`
+    for (const element of document.querySelectorAll('*')) visible(element)
+
+    const snapshot = collectSnapshot() as { outline: string; truncated: boolean }
+    expect(snapshot.truncated).toBe(true)
+    expect(snapshot.outline.match(/^- text /gm)).toHaveLength(120)
+    expect(snapshot.outline.match(/^- button /gm)).toHaveLength(100)
+    expect(snapshot.outline).toMatch(/button "Action 99" \[ref=\d+\]/)
+    expect(snapshot.outline).toMatch(/textbox "Final field" \[ref=\d+\]/)
+  })
+
   it('indexes only refs that were emitted before snapshot line truncation', () => {
     document.body.innerHTML = `${Array.from(
       { length: 599 },

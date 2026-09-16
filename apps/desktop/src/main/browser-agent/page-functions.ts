@@ -163,8 +163,8 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
   const lines: string[] = []
   let truncated = false
   let refCount = 0
-  let textRefCount = 0
-  const textRefCap = 120
+  let textLineCount = 0
+  const textLineCap = 120
   let visitedNodes = 0
   const previousElementId = window.__simAgentNextElementId
   const safePreviousElementId =
@@ -510,7 +510,7 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
   }
 
   const emitTextLeaf = (el: Element, indent: string, renderedLabel?: string): void => {
-    if (refCount >= refCap || textRefCount >= textRefCap || lines.length >= lineCap) {
+    if (refCount >= refCap || textLineCount >= textLineCap || lines.length >= lineCap) {
       truncated = true
       return
     }
@@ -522,7 +522,7 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
     )
     if (!text) return
     const id = registerElement(el, roleFor(el), text)
-    textRefCount++
+    textLineCount++
     const lineIndex = lines.length
     if (push(`${indent}- text ${quote(text)} [ref=${id}]`)) refLineIndexes[id] = lineIndex
   }
@@ -589,7 +589,12 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
           isVisible(parent) &&
           (!suppressTextCoveredBy || !suppressTextCoveredBy.includes(text))
         ) {
+          if (textLineCount >= textLineCap) {
+            truncated = true
+            continue
+          }
           if (!push(`${indent}- text ${quote(text)}`)) return
+          textLineCount++
         }
         continue
       }
