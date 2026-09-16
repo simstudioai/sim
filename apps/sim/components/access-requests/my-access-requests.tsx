@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipInput, ChipLink, ChipTag } from '@sim/emcn'
+import { Chip, ChipInput, ChipLink, ChipSwitch, ChipTag } from '@sim/emcn'
 import { Lock, Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import { MyAccessRequestDetails } from '@/components/access-requests/my-access-request-details'
@@ -66,20 +66,15 @@ export function MyAccessRequests({ scope }: MyAccessRequestsProps) {
             <ChipLink href={WORKSPACES_PATH}>Your workspaces</ChipLink>
           )}
         </div>
-        <div className='flex flex-wrap items-center gap-2' aria-label='Access request views'>
-          <Chip
-            active={view === 'requests'}
-            onClick={() => void setParams({ view: 'requests', page: 0, requestId: null })}
-          >
-            My requests
-          </Chip>
-          <Chip
-            active={view === 'catalog'}
-            onClick={() => void setParams({ view: 'catalog', page: 0, requestId: null })}
-          >
-            Browse access
-          </Chip>
-        </div>
+        <ChipSwitch
+          aria-label='Access request views'
+          options={[
+            { value: 'requests', label: 'My requests' },
+            { value: 'catalog', label: 'Browse access' },
+          ]}
+          value={view}
+          onChange={(value) => void setParams({ view: value, page: 0, requestId: null })}
+        />
         {view === 'catalog' && (
           <ChipInput
             icon={Search}

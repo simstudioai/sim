@@ -105,4 +105,24 @@ describe('compact requester history', () => {
       true
     )
   })
+
+  it('exposes the selected view and resets pagination when switching views through nuqs', async () => {
+    render('?view=catalog&search=slack&page=2')
+    const views = container.querySelector('[role="radiogroup"][aria-label="Access request views"]')
+    expect(views?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe(
+      'Browse access'
+    )
+    const history = views?.querySelector<HTMLButtonElement>('[role="radio"][value="requests"]')
+    expect(history).not.toBeNull()
+    await act(async () => history?.click())
+    expect(views?.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe(
+      'My requests'
+    )
+    await vi.waitFor(() =>
+      expect(mocks.url).toHaveBeenLastCalledWith(
+        expect.objectContaining({ queryString: '?search=slack' })
+      )
+    )
+    expect(mocks.mine).toHaveBeenLastCalledWith(scope, 0, undefined, true)
+  })
 })

@@ -93,7 +93,11 @@ export function PermissionAccessBoundary({ configKey, children }: PermissionAcce
     return (
       <EmptyState
         title='Access updated'
-        description='Refreshing your permissions...'
+        description={
+          policy.isFetching
+            ? 'Refreshing your permissions...'
+            : 'Refresh to load your latest permissions.'
+        }
         action={<Chip onClick={() => void policy.refetch()}>Refresh access</Chip>}
       />
     )

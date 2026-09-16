@@ -28,6 +28,7 @@ import {
   accessRequestKeys,
 } from '@/hooks/queries/utils/access-request-keys'
 import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
+import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
 import { workspaceUsageKeys } from '@/hooks/queries/utils/workspace-usage-keys'
 
@@ -190,6 +191,9 @@ export function useResolveAccessRequest() {
       if (request.status !== 'fulfilled') return
       if (request.target.kind === 'usage_limit') {
         void invalidateWorkspaceUsage(queryClient)
+        void queryClient.invalidateQueries({
+          queryKey: organizationKeys.memberUsageLimit(request.organizationId, request.requester.id),
+        })
       } else {
         void queryClient.invalidateQueries({ queryKey: permissionGroupKeys.all })
       }

@@ -20,6 +20,7 @@ import {
   useResolveAccessRequest,
 } from '@/hooks/queries/access-requests'
 import { accessRequestKeys } from '@/hooks/queries/utils/access-request-keys'
+import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { workspaceUsageKeys } from '@/hooks/queries/utils/workspace-usage-keys'
 
 describe('access request query lifecycle', () => {
@@ -207,10 +208,19 @@ describe('access request query lifecycle', () => {
     let resolve: ReturnType<typeof useResolveAccessRequest>
     const creditKey = workspaceUsageKeys.creditAvailability('workspace-1')
     const gateKey = workspaceUsageKeys.gate('workspace-1')
+    const memberLimitKey = organizationKeys.memberUsageLimit('org-1', 'member-1')
+    const otherMemberLimitKey = organizationKeys.memberUsageLimit('org-1', 'member-2')
     client.setQueryData(creditKey, { remainingDollars: 0 })
     client.setQueryData(gateKey, { isExceeded: true })
+    client.setQueryData(memberLimitKey, { usageLimit: 10 })
+    client.setQueryData(otherMemberLimitKey, { usageLimit: 20 })
     requestJson.mockResolvedValue({
-      request: { status: 'fulfilled', target: { kind: 'usage_limit', id: 'member' } },
+      request: {
+        status: 'fulfilled',
+        target: { kind: 'usage_limit', id: 'member' },
+        organizationId: 'org-1',
+        requester: { id: 'member-1' },
+      },
     })
     function Probe() {
       resolve = useResolveAccessRequest()
@@ -232,6 +242,8 @@ describe('access request query lifecycle', () => {
     })
     expect(client.getQueryState(creditKey)?.isInvalidated).toBe(true)
     expect(client.getQueryState(gateKey)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(memberLimitKey)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(otherMemberLimitKey)?.isInvalidated).toBe(false)
   })
 
   it('does not fetch history while its view is inactive', async () => {

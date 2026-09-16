@@ -227,6 +227,10 @@ export const Panel = memo(function Panel() {
       ? memberLimitRequest.data.entries.find((entry) => entry.state === 'requestable')
       : undefined
 
+  if (showLimitRequest && !memberLimitTarget) {
+    setShowLimitRequest(false)
+  }
+
   // Workflow execution hook
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
 

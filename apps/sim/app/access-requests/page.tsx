@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { ChipLink } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createSearchParamsCache } from 'nuqs/server'
+import { createSearchParamsCache, createSerializer } from 'nuqs/server'
 import { AccessRequestsLoading } from '@/components/access-requests/access-requests-loading'
 import { MyAccessRequests } from '@/components/access-requests/my-access-requests'
 import { OrganizationAccessRequests } from '@/components/access-requests/organization-access-requests'
@@ -22,19 +22,16 @@ interface AccessRequestsPageProps {
 }
 
 const entrySearchParams = createSearchParamsCache(accessRequestEntrySearchParams)
+const serializeEntrySearchParams = createSerializer(accessRequestEntrySearchParams)
 
 /** Session-only entry so access requests remain reachable outside the organization Search rollout. */
 export default async function AccessRequestsPage({ searchParams }: AccessRequestsPageProps) {
   const [rawParams, session] = await Promise.all([searchParams, getSession()])
   const params = entrySearchParams.parse(rawParams)
-  const query = new URLSearchParams()
-  if (params.organizationId) query.set('organizationId', params.organizationId)
-  if (params.view !== 'requests') query.set('view', params.view)
-  if (params.requestId) query.set('requestId', params.requestId)
   if (!session?.user) {
     redirect(
       buildAuthCrossLink('/login', {
-        callbackUrl: `/access-requests?${query}`,
+        callbackUrl: serializeEntrySearchParams('/access-requests', params),
         isInviteFlow: false,
       })
     )
