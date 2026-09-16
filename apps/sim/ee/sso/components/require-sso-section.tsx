@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { ChipConfirmModal, ChipSwitch, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import type { OrganizationSsoPolicy } from '@/lib/api/contracts/organization'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useOrganizationSsoPolicy, useUpdateOrganizationSsoPolicy } from '@/ee/sso/hooks/sso-policy'
@@ -12,6 +16,18 @@ const OPTIONS = [
   { value: 'any', label: 'Any method' },
   { value: 'sso-only', label: 'Single sign-on' },
 ] as const
+
+function describePolicy(policy: OrganizationSsoPolicy): string {
+  if (policy.requireSso && !policy.isEnforced) {
+    return 'Nothing can satisfy the requirement right now, so it is not enforced. Restore an identity provider on a verified domain, or switch back to any method.'
+  }
+  if (!policy.hasVerifiedProvider) {
+    return 'Add an identity provider on a verified domain to require single sign-on.'
+  }
+  return policy.requireSso
+    ? 'Members sign in through your identity provider. Password and email sign-in are refused.'
+    : 'Members can sign in with a password, email code, or your identity provider.'
+}
 
 interface RequireSsoSectionProps {
   organizationId: string
@@ -45,7 +61,11 @@ export function RequireSsoSection({ organizationId }: RequireSsoSectionProps) {
         </SettingsSection>
       )
     }
-    return null
+    return (
+      <SettingsSection label='Sign-in requirement'>
+        <SettingsEmptyState variant='inline'>Loading sign-in requirement...</SettingsEmptyState>
+      </SettingsSection>
+    )
   }
 
   const save = async (requireSso: boolean) => {
@@ -81,15 +101,7 @@ export function RequireSsoSection({ organizationId }: RequireSsoSectionProps) {
             aria-label='Allowed sign-in methods'
             options={OPTIONS}
           />
-          <p className='text-[var(--text-muted)] text-caption'>
-            {data.requireSso && !data.isEnforced
-              ? 'Nothing can satisfy the requirement right now, so it is not enforced. Restore an identity provider on a verified domain, or switch back to any method.'
-              : !data.hasVerifiedProvider
-                ? 'Add an identity provider on a verified domain to require single sign-on.'
-                : data.requireSso
-                  ? 'Members sign in through your identity provider. Password and email sign-in are refused.'
-                  : 'Members can sign in with a password, email code, or your identity provider.'}
-          </p>
+          <p className='text-[var(--text-muted)] text-caption'>{describePolicy(data)}</p>
         </SettingRow>
       </SettingsSection>
 

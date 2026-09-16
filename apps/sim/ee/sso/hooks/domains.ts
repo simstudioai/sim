@@ -59,7 +59,6 @@ export function useVerifyOrganizationDomain() {
       requestJson(verifyOrganizationDomainContract, { params: { id: orgId, domainId } }),
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: domainKeys.list(orgId) })
-      /** Domain trust decides whether a provider can satisfy the sign-in requirement. */
       queryClient.invalidateQueries({ queryKey: ssoKeys.policy(orgId) })
     },
   })
@@ -72,7 +71,6 @@ export function useRemoveOrganizationDomain() {
       requestJson(removeOrganizationDomainContract, { params: { id: orgId, domainId } }),
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: domainKeys.list(orgId) })
-      /** Domain trust decides whether a provider can satisfy the sign-in requirement. */
       queryClient.invalidateQueries({ queryKey: ssoKeys.policy(orgId) })
     },
   })

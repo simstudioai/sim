@@ -123,51 +123,33 @@ describe('isSsoRequiredForOrganization', () => {
 })
 
 describe('assertSsoRequirementSatisfied', () => {
-  const memberships = [{ organizationId: ORG_ID, role: 'member' }]
+  const membership = { userId: 'user-1', organizationId: ORG_ID, role: 'member' }
 
   it('refuses a password sign-in when the organization requires SSO', async () => {
     queueTableRows(organization, [{ requireSso: true }])
-    await expect(
-      assertSsoRequirementSatisfied('user-1', memberships, '/sign-in/email')
-    ).rejects.toThrow(SSO_REQUIRED_MESSAGE)
+    await expect(assertSsoRequirementSatisfied(membership, '/sign-in/email')).rejects.toThrow(
+      SSO_REQUIRED_MESSAGE
+    )
   })
 
   it('allows a SAML sign-in that lands on the ACS endpoint', async () => {
     queueTableRows(organization, [{ requireSso: true }])
     await expect(
-      assertSsoRequirementSatisfied('user-1', memberships, '/sso/saml2/sp/acs/:providerId')
+      assertSsoRequirementSatisfied(membership, '/sso/saml2/sp/acs/:providerId')
     ).resolves.toBeUndefined()
   })
 
   it('leaves owners a password sign-in as a break-glass path', async () => {
     queueTableRows(organization, [{ requireSso: true }])
     await expect(
-      assertSsoRequirementSatisfied(
-        'user-1',
-        [{ organizationId: ORG_ID, role: 'owner' }],
-        '/sign-in/email'
-      )
+      assertSsoRequirementSatisfied({ ...membership, role: 'owner' }, '/sign-in/email')
     ).resolves.toBeUndefined()
-  })
-
-  it('checks every membership, so a second organization is not a way around the first', async () => {
-    queueTableRows(organization, [{ requireSso: true }])
-    await expect(
-      assertSsoRequirementSatisfied(
-        'user-1',
-        [
-          { organizationId: 'org-owned', role: 'owner' },
-          { organizationId: ORG_ID, role: 'member' },
-        ],
-        '/sign-in/email'
-      )
-    ).rejects.toThrow(SSO_REQUIRED_MESSAGE)
   })
 
   it('allows every method while the requirement is off', async () => {
     queueTableRows(organization, [{ requireSso: false }])
     await expect(
-      assertSsoRequirementSatisfied('user-1', memberships, '/sign-in/email')
+      assertSsoRequirementSatisfied(membership, '/sign-in/email')
     ).resolves.toBeUndefined()
   })
 })

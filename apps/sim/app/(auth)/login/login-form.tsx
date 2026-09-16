@@ -101,6 +101,8 @@ export default function LoginPage({
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
+  /** A refusal that is about the account or its organization, not the credentials typed in. */
+  const [policyError, setPolicyError] = useState<string | null>(null)
   const callbackUrlParam = searchParams?.get('callbackUrl')
   const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
   const invalidCallbackRef = useRef(false)
@@ -157,6 +159,7 @@ export default function LoginPage({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setIsLoading(true)
+    setPolicyError(null)
 
     const redirectToVerify = (emailToVerify: string) => {
       if (typeof window !== 'undefined') {
@@ -204,14 +207,15 @@ export default function LoginPage({
 
             /**
              * A policy refusal explains itself — an organization requiring single sign-on, or a
-             * suspended account. Leading with "Invalid email or password" would send the person
-             * to reset a password that is fine.
+             * suspended account. It belongs in the form-level slot: the password is not what is
+             * wrong, so marking that field would send the person to reset a password that is fine.
              */
             if (ctx.error.status === 403 && ctx.error.message) {
               errorHandled = true
               setResetSuccessMessage(null)
-              setPasswordErrors([ctx.error.message])
-              setShowValidationError(true)
+              setPasswordErrors([])
+              setShowValidationError(false)
+              setPolicyError(ctx.error.message)
               return
             }
 
@@ -421,6 +425,12 @@ export default function LoginPage({
                 />
               </AuthField>
             </div>
+
+            {policyError && (
+              <AuthFormMessage type='error'>
+                <p>{policyError}</p>
+              </AuthFormMessage>
+            )}
 
             {resetSuccessMessage && (
               <AuthFormMessage type='success'>

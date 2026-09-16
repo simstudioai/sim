@@ -1,190 +1,43 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { updateOrganizationSsoPolicyContract } from '@/lib/api/contracts/organization'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { hasSignInCapableSsoProvider } from '@/lib/auth/sso/verified-provider'
-import { invalidateSsoPolicyCache, isSsoRequiredForOrganization } from '@/lib/auth/sso-policy'
-import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
-import { isBillingEnabled, isSsoEnabled } from '@/lib/core/config/env-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  getOrganizationSsoPolicyContract,
+  updateOrganizationSsoPolicyContract,
+} from '@/lib/api/contracts/organization'
+import {
+  defineInternalJsonRoute,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  readSsoRequirement,
+  readSsoRequirementOperation,
+  type SsoRequirement,
+  setSsoRequirement,
+  setSsoRequirementOperation,
+} from '@/lib/auth/sso/application/sso-requirement'
 
-const logger = createLogger('SsoPolicyAPI')
+const present = (requirement: SsoRequirement) => ({ success: true as const, data: requirement })
 
-/**
- * GET /api/organizations/[id]/sso-policy
- * Returns whether members must sign in through the organization's identity
- * provider. Readable by any member.
- */
-export const GET = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+/** Whether members must sign in through the organization's identity provider. */
+export const GET = defineInternalJsonRoute({
+  contract: getOrganizationSsoPolicyContract,
+  auth: internalSessionAuth,
+  operation: readSsoRequirementOperation,
+  rateLimit: internalRateLimits.none({ reason: 'Settings read behind organization membership' }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: ({ params }) => ({ organizationId: params.id }),
+  useCase: readSsoRequirement,
+  present,
+})
 
-    const { id: organizationId } = await params
-
-    const [memberEntry] = await db
-      .select({ id: member.id })
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-      .limit(1)
-
-    if (!memberEntry) {
-      return NextResponse.json(
-        { error: 'Forbidden - Not a member of this organization' },
-        { status: 403 }
-      )
-    }
-
-    const [org] = await db
-      .select({ requireSso: organization.requireSso })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
-
-    if (!org) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-    }
-
-    const [hasVerifiedProvider, isEnforced] = await Promise.all([
-      hasSignInCapableSsoProvider(organizationId),
-      isSsoRequiredForOrganization(organizationId),
-    ])
-
-    return NextResponse.json({
-      success: true,
-      data: { requireSso: org.requireSso, hasVerifiedProvider, isEnforced },
-    })
-  }
-)
-
-/**
- * PUT /api/organizations/[id]/sso-policy
- * Turns the single sign-on requirement on or off. The policy is read when a
- * session is created, so a change never ends a session that already exists —
- * signing everyone out stays the separate revoke action. Requires enterprise
- * entitlement and an owner/admin role.
- */
-export const PUT = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const parsed = await parseRequest(updateOrganizationSsoPolicyContract, request, context, {
-      validationErrorResponse: (err) => validationErrorResponse(err, 'Invalid request body'),
-    })
-    if (!parsed.success) return parsed.response
-
-    const { id: organizationId } = parsed.data.params
-    const { requireSso } = parsed.data.body
-
-    const [memberEntry] = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-      .limit(1)
-
-    if (!memberEntry) {
-      return NextResponse.json(
-        { error: 'Forbidden - Not a member of this organization' },
-        { status: 403 }
-      )
-    }
-
-    if (!isOrgAdminRole(memberEntry.role)) {
-      return NextResponse.json(
-        {
-          error:
-            'Forbidden - Only organization owners and admins can change the single sign-on requirement',
-        },
-        { status: 403 }
-      )
-    }
-
-    /**
-     * Only turning the requirement on needs the entitlement. Turning it off must stay possible
-     * after an organization loses SSO, or the stored setting would resume enforcing the moment
-     * the entitlement came back, with no administrator action behind it.
-     */
-    const entitled = requireSso
-      ? await isOrganizationFeatureEntitled(organizationId, isSsoEnabled)
-      : true
-    if (!entitled) {
-      return NextResponse.json(
-        {
-          error: isBillingEnabled
-            ? 'Single Sign-On is available on Enterprise plans only'
-            : 'Single Sign-On is disabled. Set ENTERPRISE_ENABLED or SSO_ENABLED to enable it.',
-        },
-        { status: 403 }
-      )
-    }
-
-    const [currentOrg] = await db
-      .select({ name: organization.name })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
-
-    if (!currentOrg) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-    }
-
-    const verifiedProvider = await hasSignInCapableSsoProvider(organizationId)
-    if (requireSso && !verifiedProvider) {
-      return NextResponse.json(
-        {
-          error: 'Add an identity provider on a verified domain before requiring single sign-on',
-        },
-        { status: 400 }
-      )
-    }
-
-    const [updated] = await db
-      .update(organization)
-      .set({ requireSso, updatedAt: new Date() })
-      .where(eq(organization.id, organizationId))
-      .returning({ id: organization.id })
-
-    if (!updated) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-    }
-
-    invalidateSsoPolicyCache(organizationId)
-
-    logger.info('Updated organization single sign-on requirement', { organizationId, requireSso })
-
-    recordAudit({
-      workspaceId: null,
-      actorId: session.user.id,
-      action: AuditAction.ORGANIZATION_SSO_POLICY_UPDATED,
-      resourceType: AuditResourceType.ORGANIZATION,
-      resourceId: organizationId,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      resourceName: currentOrg.name,
-      description: requireSso ? 'Required single sign-on' : 'Stopped requiring single sign-on',
-      metadata: { requireSso },
-      request,
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        requireSso,
-        hasVerifiedProvider: verifiedProvider,
-        /** Everything the requirement needs was just checked, so storing it is enforcing it. */
-        isEnforced: requireSso,
-      },
-    })
-  }
-)
+/** Turns the requirement on or off. Never ends a session that already exists. */
+export const PUT = defineInternalJsonRoute({
+  contract: updateOrganizationSsoPolicyContract,
+  auth: internalSessionAuth,
+  operation: setSsoRequirementOperation,
+  rateLimit: internalRateLimits.user({ bucketName: 'sso-set-requirement' }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  mapInput: ({ params, body }) => ({ organizationId: params.id, requireSso: body.requireSso }),
+  useCase: setSsoRequirement,
+  present,
+})

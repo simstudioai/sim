@@ -11,12 +11,6 @@ import { assertSsoRequirementSatisfied } from '@/lib/auth/sso-policy'
 const logger = createLogger('SessionHooks')
 
 /**
- * How many of a person's organizations the sign-in requirement is evaluated against. People belong
- * to a handful, and the cap keeps one pathological account from scanning without bound.
- */
-const MEMBERSHIP_SCAN_LIMIT = 50
-
-/**
  * Rejects blocked accounts and applies membership policy using the adapter's current transaction.
  * `context` is the endpoint creating the session; its path is what tells an organization's sign-in
  * requirement whether this session came from the identity provider.
@@ -47,13 +41,13 @@ export async function prepareSessionForCreation<T extends Session>(
     })
   }
 
-  const memberships = await executor
+  /** Users belong to at most one organization, the same assumption the expiry clamp below makes. */
+  const [membership] = await executor
     .select({ organizationId: member.organizationId, role: member.role })
     .from(member)
     .where(eq(member.userId, session.userId))
-    .limit(MEMBERSHIP_SCAN_LIMIT)
+    .limit(1)
 
-  const [membership] = memberships
   if (!membership) return { data: session }
 
   /**
@@ -62,7 +56,11 @@ export async function prepareSessionForCreation<T extends Session>(
    * bypass the setting exists to prevent. The read runs on the transaction that is creating the
    * session, so a failure here means that write is failing too.
    */
-  await assertSsoRequirementSatisfied(session.userId, memberships, context?.path, executor)
+  await assertSsoRequirementSatisfied(
+    { userId: session.userId, ...membership },
+    context?.path,
+    executor
+  )
 
   try {
     const expiresAt = await clampExpiryForSession(session, membership.organizationId, executor)

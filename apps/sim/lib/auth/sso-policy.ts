@@ -16,9 +16,10 @@ const logger = createLogger('SsoPolicy')
 export const SSO_POLICY_CACHE_TTL_MS = 60 * 1000
 
 /**
- * Read once per session creation, keyed by organization, so the requirement costs an indexed
- * lookup at most once a minute per organization. The ceiling is a memory backstop rather than an
- * operating limit: exceeding it only costs that lookup again.
+ * Serves the settings surface, which reads on the shared connection. Session creation runs inside
+ * the auth transaction and deliberately bypasses this (see below), so it pays one indexed
+ * single-row read instead. The ceiling is a memory backstop rather than an operating limit:
+ * exceeding it only costs that lookup again.
  */
 const requirementCache = new LRUCache<string, boolean>({
   max: 20_000,
@@ -92,38 +93,26 @@ export const SSO_REQUIRED_ERROR_CODE = 'SSO_REQUIRED'
 export const SSO_REQUIRED_MESSAGE =
   'Your organization requires single sign-on. Sign in through your identity provider.'
 
-/** A membership as the requirement reads it. */
-export interface SsoPolicyMembership {
-  organizationId: string
-  role: string
-}
-
 /**
- * Refuses a session that an organization's sign-in requirement does not allow. Every membership is
- * checked, so belonging to a second organization is not a way around the first one's requirement.
- * Owners keep every sign-in method for their own organization as a break-glass path, so a broken
- * identity provider cannot lock an organization out of its own settings.
+ * Refuses a session that an organization's sign-in requirement does not allow. Owners keep every
+ * sign-in method as a break-glass path, so a broken identity provider cannot lock an organization
+ * out of its own settings.
  */
 export async function assertSsoRequirementSatisfied(
-  userId: string,
-  memberships: readonly SsoPolicyMembership[],
+  membership: { userId: string; organizationId: string; role: string },
   path: string | undefined,
   executor: DbOrTx = db
 ): Promise<void> {
-  if (satisfiesSsoRequirement(path)) return
+  if (membership.role === 'owner' || satisfiesSsoRequirement(path)) return
+  if (!(await isSsoRequiredForOrganization(membership.organizationId, executor))) return
 
-  for (const membership of memberships) {
-    if (membership.role === 'owner') continue
-    if (!(await isSsoRequiredForOrganization(membership.organizationId, executor))) continue
-
-    logger.warn('Blocking session creation for an organization that requires SSO', {
-      userId,
-      organizationId: membership.organizationId,
-      path,
-    })
-    throw new APIError('FORBIDDEN', {
-      code: SSO_REQUIRED_ERROR_CODE,
-      message: SSO_REQUIRED_MESSAGE,
-    })
-  }
+  logger.warn('Blocking session creation for an organization that requires SSO', {
+    userId: membership.userId,
+    organizationId: membership.organizationId,
+    path,
+  })
+  throw new APIError('FORBIDDEN', {
+    code: SSO_REQUIRED_ERROR_CODE,
+    message: SSO_REQUIRED_MESSAGE,
+  })
 }
