@@ -11,6 +11,7 @@ const {
   mockNotFound,
   mockRedirect,
   mockSectionPrefetch,
+  mockGetHostContext,
 } = vi.hoisted(() => ({
   mockAuthorizeSection: vi.fn(),
   mockGetQueryClient: vi.fn(),
@@ -22,12 +23,19 @@ const {
     throw new Error(`NEXT_REDIRECT:${href}`)
   }),
   mockSectionPrefetch: vi.fn(),
+  mockGetHostContext: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({ notFound: mockNotFound, redirect: mockRedirect }))
 vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+vi.mock('@/components/access-requests/permission-access-boundary', () => ({
+  PermissionAccessBoundary: vi.fn(() => null),
+}))
 vi.mock('@/lib/settings/application/workspace-section-access', () => ({
   authorizeWorkspaceSettingsSection: mockAuthorizeSection,
+}))
+vi.mock('@/lib/workspaces/host-context', () => ({
+  getWorkspaceHostContextForViewer: mockGetHostContext,
 }))
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
   getQueryClient: mockGetQueryClient,
@@ -36,7 +44,23 @@ vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
   resolveSettingsSection: vi.fn((section: string) => {
     const aliases: Record<string, string> = { subscription: 'billing' }
     const id = aliases[section] ?? section
-    return ['general', 'billing', 'secrets'].includes(id) ? { id, meta: { title: id } } : null
+    return [
+      'general',
+      'billing',
+      'secrets',
+      'connected-accounts',
+      'organization',
+      'usage',
+      'access-control',
+      'audit-logs',
+      'sso',
+      'security',
+      'data-retention',
+      'data-drains',
+      'whitelabeling',
+    ].includes(id)
+      ? { id, meta: { title: id } }
+      : null
   }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/settings/[section]/prefetch', () => ({
@@ -46,6 +70,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/[section]/settings', () => ({
   SettingsPage: vi.fn(() => null),
 }))
 
+import { UNIFIED_TO_ORGANIZATION_SECTION } from '@/components/settings/navigation'
 import WorkspaceSettingsSectionPage from '@/app/workspace/[workspaceId]/settings/[section]/page'
 
 function pageProps(section: string) {
@@ -59,6 +84,7 @@ describe('WorkspaceSettingsSectionPage', () => {
     mockAuthorizeSection.mockResolvedValue({ allowed: true })
     mockGetQueryClient.mockReturnValue(new QueryClient())
     mockSectionPrefetch.mockResolvedValue(undefined)
+    mockGetHostContext.mockResolvedValue(null)
   })
 
   it('authenticates before authorizing the resolved section', async () => {
@@ -72,6 +98,69 @@ describe('WorkspaceSettingsSectionPage', () => {
     expect(mockSectionPrefetch).toHaveBeenCalledTimes(1)
   })
 
+  it('preserves legacy organization settings query state on the canonical org destination', async () => {
+    mockGetHostContext.mockResolvedValue({
+      hostOrganizationId: 'org-target',
+      features: { organizationSearch: true },
+    })
+    await expect(
+      WorkspaceSettingsSectionPage({
+        ...pageProps('subscription'),
+        searchParams: Promise.resolve({ window: 'month', source: ['search', 'chat'] }),
+      })
+    ).rejects.toThrow(
+      'NEXT_REDIRECT:/o/org-target/settings/billing?window=month&source=search&source=chat'
+    )
+    expect(mockSectionPrefetch).not.toHaveBeenCalled()
+  })
+
+  it.each(Object.entries(UNIFIED_TO_ORGANIZATION_SECTION))(
+    'keeps %s in the workspace outside the organization rollout',
+    async (section) => {
+      mockGetHostContext.mockResolvedValue({
+        hostOrganizationId: 'org-target',
+        features: { organizationSearch: false, knowledgeMemberAccess: true },
+      })
+
+      const element = await WorkspaceSettingsSectionPage(pageProps(section))
+
+      expect(element).toBeTruthy()
+      expect(mockRedirect).not.toHaveBeenCalled()
+      expect(mockAuthorizeSection).toHaveBeenCalledWith({
+        workspaceId: 'workspace-b',
+        userId: 'viewer-a',
+        section,
+      })
+    }
+  )
+
+  it.each([undefined, { credentialGroups: true, knowledgeMemberAccess: true }])(
+    'keeps settings in the workspace when older host context omits the org rollout',
+    async (features) => {
+      mockGetHostContext.mockResolvedValue({ hostOrganizationId: 'org-target', features })
+
+      await WorkspaceSettingsSectionPage(pageProps('billing'))
+
+      expect(mockRedirect).not.toHaveBeenCalled()
+      expect(mockSectionPrefetch).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each(Object.entries(UNIFIED_TO_ORGANIZATION_SECTION))(
+    'routes %s to organization %s only within the organization rollout',
+    async (section, organizationSection) => {
+      mockGetHostContext.mockResolvedValue({
+        hostOrganizationId: 'org-target',
+        features: { organizationSearch: true, knowledgeMemberAccess: false },
+      })
+
+      await expect(WorkspaceSettingsSectionPage(pageProps(section))).rejects.toThrow(
+        `NEXT_REDIRECT:/o/org-target/settings/${organizationSection}`
+      )
+      expect(mockSectionPrefetch).not.toHaveBeenCalled()
+    }
+  )
+
   it('conceals inaccessible workspaces and platform-only sections', async () => {
     mockAuthorizeSection.mockResolvedValue({ allowed: false, disposition: 'not-found' })
 
@@ -79,6 +168,37 @@ describe('WorkspaceSettingsSectionPage', () => {
       'NEXT_NOT_FOUND'
     )
     expect(mockSectionPrefetch).not.toHaveBeenCalled()
+  })
+
+  it('gates direct Connected accounts links before loading the settings panel', async () => {
+    mockAuthorizeSection.mockResolvedValue({ allowed: false, disposition: 'redirect-general' })
+
+    await expect(WorkspaceSettingsSectionPage(pageProps('connected-accounts'))).rejects.toThrow(
+      'NEXT_REDIRECT:/workspace/workspace-b/settings/general'
+    )
+    expect(mockAuthorizeSection).toHaveBeenCalledWith({
+      workspaceId: 'workspace-b',
+      userId: 'viewer-a',
+      section: 'connected-accounts',
+    })
+    expect(mockGetHostContext).not.toHaveBeenCalled()
+    expect(mockGetQueryClient).not.toHaveBeenCalled()
+  })
+
+  it('renders a request-only boundary without protected children or section prefetches', async () => {
+    mockAuthorizeSection.mockResolvedValue({
+      allowed: false,
+      disposition: 'request-access',
+      configKey: 'hideApiKeysTab',
+    })
+
+    const element = await WorkspaceSettingsSectionPage(pageProps('billing'))
+
+    expect(element.props.children.props).toEqual({ configKey: 'hideApiKeysTab' })
+    expect(mockSectionPrefetch).not.toHaveBeenCalled()
+    expect(mockGetQueryClient).not.toHaveBeenCalled()
+    expect(mockGetHostContext).not.toHaveBeenCalled()
+    expect(mockRedirect).not.toHaveBeenCalled()
   })
 
   it('redirects unavailable visible-catalog sections to General', async () => {

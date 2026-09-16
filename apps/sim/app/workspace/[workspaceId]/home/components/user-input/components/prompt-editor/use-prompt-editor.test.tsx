@@ -430,3 +430,54 @@ describe('usePromptEditor context insertion', () => {
     unmount()
   })
 })
+
+describe('folder resource mention identity', () => {
+  it('retains distinct folder IDs and labels when inserting a batch', () => {
+    const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+    try {
+      act(() =>
+        result().insertResources([
+          { type: 'folder', id: 'workflow-folder', title: 'Planning' },
+          { type: 'folder', id: 'table-folder', title: 'Planning' },
+          { type: 'folder', id: 'knowledge-folder', title: 'Planning' },
+          { type: 'filefolder', id: 'file-folder', title: 'Planning' },
+          { type: 'folder', id: 'table-folder', title: 'Planning' },
+        ])
+      )
+      expect(result().contexts).toEqual([
+        { kind: 'folder', folderId: 'workflow-folder', label: 'Planning' },
+        { kind: 'folder', folderId: 'table-folder', label: 'Planning (2)' },
+        { kind: 'folder', folderId: 'knowledge-folder', label: 'Planning (3)' },
+        { kind: 'filefolder', fileFolderId: 'file-folder', label: 'Planning (4)' },
+      ])
+      expect(result().value).toBe(
+        '@Planning @Planning (2) @Planning (3) @Planning (4) @Planning (2) '
+      )
+    } finally {
+      unmount()
+    }
+  })
+
+  it('keeps same-named folders as separate chips and reuses the label for a repeated ID', () => {
+    const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+    try {
+      act(() =>
+        result().insertResource({ type: 'folder', id: 'workflow-folder', title: 'Planning' })
+      )
+      act(() => result().insertResource({ type: 'folder', id: 'table-folder', title: 'Planning' }))
+      act(() =>
+        result().insertResource({ type: 'folder', id: 'knowledge-folder', title: 'Planning' })
+      )
+      act(() => result().insertResource({ type: 'folder', id: 'table-folder', title: 'Planning' }))
+      expect(result().contexts).toEqual([
+        { kind: 'folder', folderId: 'workflow-folder', label: 'Planning' },
+        { kind: 'folder', folderId: 'table-folder', label: 'Planning (2)' },
+        { kind: 'folder', folderId: 'knowledge-folder', label: 'Planning (3)' },
+      ])
+      expect(result().value).toContain('@Planning (2)')
+      expect(result().value).toContain('@Planning (3)')
+    } finally {
+      unmount()
+    }
+  })
+})

@@ -1,3 +1,6 @@
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
 import type { OAuthService } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 
@@ -7,7 +10,43 @@ import type { SelectorKey } from '@/lib/selectors/manifest'
  * API key connectors store an encrypted key in the `encryptedApiKey` column.
  */
 export type ConnectorAuthConfig =
-  | { mode: 'oauth'; provider: OAuthService; requiredScopes?: string[] }
+  | {
+      mode: 'oauth'
+      provider: OAuthService
+      requiredScopes?: string[]
+      /** Scope requirements for the selected source; omitted configurations use requiredScopes. */
+      requiredScopesForConfig?: (sourceConfig: Record<string, unknown>) => string[]
+      /** Credential type required for permission-mirroring crawls. */
+      adminCredentialType?: 'service_account'
+      /** Optional token authentication for workspace crawls; member access always uses OAuth. */
+      apiKey?: { label: string; placeholder?: string }
+      /**
+       * Scopes to mint with when the connector's credential is a service
+       * account rather than a person's OAuth account.
+       *
+       * A service account authorizes through a signed JWT that names its own
+       * scopes, so it has no granted-scope list to inherit from
+       * {@link requiredScopes} — that set describes an interactive consent
+       * screen, and a provider may accept scopes there that it refuses in a
+       * two-legged grant. Defaults to `requiredScopes` where the two sets
+       * genuinely coincide, which is the common case.
+       */
+      serviceAccountScopes?: string[]
+      /** Scope override for central crawls that read the source directory and mirror permissions. */
+      adminServiceAccountScopes?: string[]
+      /** Fixed scopes for per-user tokens minted during a delegated service-account crawl. */
+      serviceAccountDelegationScopes?: string[]
+      /**
+       * The config field naming the person a service-account credential acts
+       * as, through domain-wide delegation.
+       *
+       * The subject belongs to the connector, not the credential. One
+       * `google-service-account` credential matches every Google service, so a
+       * subject stored on it would silently apply to a workflow reading that
+       * person's mail as well as to this crawl reading their Drive.
+       */
+      serviceAccountSubjectFieldId?: string
+    }
   | {
       mode: 'apiKey'
       label?: string
@@ -20,6 +59,42 @@ export type ConnectorAuthConfig =
        */
       optional?: boolean
     }
+
+/** A group in an external directory, named as the connector's ACLs name it. */
+export interface ConnectorDirectoryGroup {
+  /** The identifier a `g:` token carries — a group email, a group id. */
+  id: string
+}
+
+export interface ConnectorDirectoryMembership {
+  group: ConnectorDirectoryGroup
+  /** Canonical u:email or provider-attested s: identity tokens, with nested groups flattened. */
+  memberTokens: string[]
+  /**
+   * False when the walk could not be completed. A partial membership must never
+   * replace a stored one: cutting a group down to the part that happened to
+   * enumerate silently revokes everyone in the part that did not.
+   */
+  complete: boolean
+}
+
+/**
+ * One directory, opened for the length of a sync. Implementations throw rather
+ * than returning a partial listing — a truncated directory read as complete
+ * would delete every group past the cut-off.
+ */
+export interface ConnectorDirectory {
+  /**
+   * The provider segment of every group token this directory's groups produce
+   * — the same constant the connector's ACL mapper writes, so a stored token
+   * and the group row it names can never spell the provider differently.
+   */
+  providerId: string
+  /** The tenant segment of every group token this directory's groups produce. */
+  tenantId: string
+  listGroups: () => Promise<ConnectorDirectoryGroup[]>
+  listGroupMembers: (group: ConnectorDirectoryGroup) => Promise<ConnectorDirectoryMembership>
+}
 
 /**
  * A single document fetched from an external source.
@@ -61,6 +136,12 @@ export interface ExternalDocument {
    * even when the source's listing metadata is unchanged.
    */
   skippedRetryContentHash?: string
+  /**
+   * Listing policy for a previously skipped, content-less document. Opt in only
+   * when the listing hash changes whenever a verified skip can become indexable.
+   * Source failures (null hashes) and explicit rehydration always retry.
+   */
+  skippedRetryPolicy?: 'source-change'
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
   /**
@@ -84,6 +165,19 @@ export interface ExternalDocument {
    * stale indexed content and persists the skipped state as authoritative.
    */
   skippedExistingDisposition?: 'replace'
+  /**
+   * Who may read this document, mirrored from the source's own permissions.
+   * Only meaningful for a connector whose meta sets
+   * {@link ConnectorMeta.mirrorsSourceAcls}, and only used by an admin-mode
+   * crawl; every other mode derives access some other way and ignores it.
+   *
+   * Deliberately applied by a pass of its own rather than by the write that
+   * stores the document. A document whose content is unchanged is never
+   * written at all, and a permission change with no content change is the
+   * common case — so an ACL that rode along with the content write would only
+   * ever land for documents that happened to be edited.
+   */
+  acl?: MirroredDocumentAcl
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }
@@ -94,6 +188,8 @@ export interface ExternalDocument {
 export interface ExternalDocumentList {
   documents: ExternalDocument[]
   nextCursor?: string
+  /** Stable replay position for this page, persisted before its content is hydrated. */
+  currentCursor?: string
   hasMore: boolean
   /**
    * Whether absence from this listing is authoritative enough for deletion
@@ -153,6 +249,19 @@ export interface SyncResult {
   }
   /** Expected queue, lifecycle, or lock no-op. Never derived from error text. */
   skipReason?: SyncSkipReason
+  /** The listing or reconciliation has more durable work, or the source was non-authoritative. */
+  listingIncomplete?: boolean
+  /** Returned only after the scheduler's retry and this run's log commit atomically. */
+  deferred?: {
+    reason:
+      | 'rate_limit'
+      | 'admission_timeout'
+      | 'admission_unavailable'
+      | 'provider_timeout'
+      | 'processing_budget'
+    providerId?: string
+    nextSyncAt: string
+  }
   /** Diagnostic for an actual failed sync. */
   error?: string
 }
@@ -163,10 +272,24 @@ export interface SyncResult {
 export interface ConnectorConfigField {
   id: string
   title: string
+  /** Label when configuring a central crawl that mirrors source permissions. */
+  titleInAdminMode?: string
   type: 'short-input' | 'dropdown' | 'selector'
   placeholder?: string
   required?: boolean
+  /** Required when an administrator account supplies documents and source permissions. */
+  requiredInAdminMode?: true
+  /** Secondary Search setup controls, shown in the shared More options disclosure. */
+  setupGroup?: 'options'
   description?: string
+  /** Setup guidance specific to a central crawl that mirrors source permissions. */
+  descriptionInAdminMode?: string
+  /** Excludes settings unused by member crawls and account-local selectors that need a manual sibling. */
+  hideInMemberMode?: true
+  /** Excludes account-local controls that cannot describe a company-wide source. */
+  hideInAdminMode?: true
+  /** Only applies to a central crawl that mirrors source permissions. */
+  showInAdminModeOnly?: true
   options?: { label: string; id: string }[]
 
   /** Selector key from the selector registry (used when type is 'selector') */
@@ -180,6 +303,8 @@ export interface ConnectorConfigField {
   mode?: 'basic' | 'advanced'
   /** Links selector + manual input fields that resolve to the same config key */
   canonicalParamId?: string
+  /** Both modes use the same provider identifiers, so switching carries the current selection. */
+  preserveValueOnModeChange?: boolean
 
   /**
    * When true, the field accepts multiple values.
@@ -188,6 +313,8 @@ export interface ConnectorConfigField {
    * Connector handlers receive `string | string[]` and should normalize via `parseMultiValue`.
    */
   multi?: boolean
+  /** Offers explicit bulk selection of the complete, bounded provider list. */
+  allowSelectAll?: boolean
 }
 
 /**
@@ -200,6 +327,18 @@ export interface ConnectorConfigField {
  * mirroring the `XBlockMeta` pattern in `blocks/`.
  */
 export interface ConnectorMeta {
+  /** Restricts new setup and mode changes; existing sources keep their stored access policy. */
+  supportedAccessModes?: readonly ConnectorAccessMode[]
+  /** Opts a source into Sim Search after its indexing and permission paths are verified. */
+  search?: true
+  /** Source setup guide shown only in Search connection flows. */
+  searchDocsUrl?: string
+  /**
+   * Settings a Search source starts from when nobody chose a value, such as a
+   * bounded history window for a mailbox. Explicit settings always win, and
+   * knowledge-base connectors ignore these defaults.
+   */
+  searchDefaultSourceConfig?: Readonly<Record<string, string>>
   /** Unique connector identifier, e.g. 'confluence', 'google_drive', 'notion' */
   id: string
   /** Human-readable name, e.g. 'Confluence', 'Google Drive' */
@@ -254,6 +393,32 @@ export interface ConnectorMeta {
    * whenever the connector crawls per member.
    */
   permissionScopedListing?: { capFieldIds: readonly string[] }
+
+  /**
+   * One dedicated credential may supply content while member credentials only
+   * establish visibility. Every credential must use the same external document
+   * identity, and the indexed body must not contain credential-specific content.
+   */
+  supportsSeparateContentCredential?: true
+
+  /**
+   * Set when the connector's listing reports each document's own permissions,
+   * so one crawl under an administrative credential can mirror the source's
+   * access model instead of asking every person to connect their own account.
+   *
+   * The connector answers for every document it lists — changed or not, since
+   * the ACL pass reads the whole listing — either by filling
+   * {@link ExternalDocument.acl} inline or through
+   * {@link ConnectorConfig.getDocumentAcls}, using the token vocabulary in
+   * `lib/knowledge/access/tokens`. A document it lists without an ACL is
+   * readable by nobody, so a connector must set this only where it can speak
+   * for every document it returns.
+   */
+  mirrorsSourceAcls?: true
+  /** Provider prerequisites shown when an administrator configures permission-aware indexing. */
+  adminSetupHint?: string
+  /** Mirrored ACLs identify people by their own verified OAuth subject instead of email. */
+  requiresMemberIdentity?: true
 }
 
 /**
@@ -268,6 +433,10 @@ export interface ConnectorMeta {
  * Adding a new connector = creating one of these + registering it.
  */
 export interface ConnectorConfig extends ConnectorMeta {
+  /** Optional private permission setup, including transactional replacement and worker context. */
+  permissionConfig?: ConnectorPermissionConfigCapability
+  /** Bounds local hydration fan-out to avoid queueing siblings behind a serial provider gate. */
+  contentConcurrency?: 1 | 2 | 3 | 4 | 5
   /**
    * List all documents from the configured source (handles pagination via cursor).
    * syncContext is a mutable object shared across all pages of a single sync run —
@@ -296,10 +465,15 @@ export interface ConnectorConfig extends ConnectorMeta {
     syncContext?: Record<string, unknown>
   ) => Promise<ExternalDocument | null>
 
-  /** Validate that sourceConfig is correct and accessible (called on save) */
+  /**
+   * Validate that sourceConfig is correct and accessible (called on save).
+   * `syncContext` is seeded the same way a run's is, so a connector that
+   * reads its site from the credential need not rediscover it here.
+   */
   validateConfig: (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ) => Promise<{ valid: boolean; error?: string }>
 
   /**
@@ -310,6 +484,9 @@ export interface ConnectorConfig extends ConnectorMeta {
    * retried forever. Only meaningful alongside {@link ConnectorMeta.permissionScopedListing}.
    */
   isListingScopeUnavailableError?: (error: unknown) => boolean
+
+  /** Explicit provider rejection of the credential itself, rather than a scope or transient failure. */
+  isCredentialInvalidError?: (error: unknown) => boolean
 
   /**
    * Opens a change feed over the caller's view of the source: the cursor from
@@ -324,6 +501,9 @@ export interface ConnectorConfig extends ConnectorMeta {
     sourceConfig: Record<string, unknown>,
     syncContext?: Record<string, unknown>
   ) => Promise<string>
+
+  /** Whether the change feed completely represents the configured source scope. */
+  supportsChangeFeed?: (sourceConfig: Record<string, unknown>) => boolean
 
   /**
    * Reads the change feed from a cursor. An upsert carries the same stub a
@@ -341,6 +521,53 @@ export interface ConnectorConfig extends ConnectorMeta {
    * must be reopened from a fresh full listing rather than retried.
    */
   isChangeCursorInvalidError?: (error: unknown) => boolean
+  /** Whether a saved full-listing cursor expired and must restart from a new generation. */
+  isListingCursorInvalidError?: (error: unknown) => boolean
+
+  /**
+   * Opens the external directory whose groups this connector's mirrored ACLs
+   * refer to, or null when it has none reachable.
+   *
+   * The connector owns this because only it knows what a tenant is for its
+   * source — a Workspace domain for Drive, a site's cloud id for Confluence —
+   * and the tenant is baked into every stored group token, so a wrong guess
+   * orphans every ACL already written. It also owns the enumeration, so the
+   * sync orchestration stays provider-agnostic.
+   * Permission data must be fetched lazily by listGroups/listGroupMembers,
+   * after the caller acquires the shared directory lease. Opening may resolve
+   * tenant identity but must not cache a permission snapshot from before it.
+   */
+  openDirectory?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
+  ) => Promise<ConnectorDirectory | null>
+
+  /**
+   * The ACLs of listed documents the listing itself could not answer for.
+   *
+   * Called with exactly the documents whose {@link ExternalDocument.acl} the
+   * listing left unset, after the listing and once for all of them, so the
+   * round trips are bounded by what the listing could not carry rather than by
+   * the page size. The documents come with their listing metadata, which is
+   * where a connector keeps what the permission lookup needs — the space a
+   * page lives in, whether it is a page or a blog post. Drive fills the ACL
+   * inline for most files and lands here only for the ones its listing cannot
+   * describe — a shared drive's files, whose permissions Drive serves solely
+   * through `permissions.list`. Confluence carries none inline, so every page
+   * lands here.
+   *
+   * Returns tokens per external id. A document the connector omits is readable
+   * by nobody: a connector declaring {@link ConnectorMeta.mirrorsSourceAcls}
+   * promises an answer for every document it listed, and one whose permissions
+   * it could not read this run is omitted rather than guessed at.
+   */
+  getDocumentAcls?: (
+    accessToken: string,
+    sourceConfig: Record<string, unknown>,
+    documents: readonly ExternalDocument[],
+    syncContext?: Record<string, unknown>
+  ) => Promise<Record<string, MirroredDocumentAcl>>
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */
   mapTags?: (metadata: Record<string, unknown>) => Record<string, unknown>

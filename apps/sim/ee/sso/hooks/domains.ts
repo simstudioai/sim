@@ -10,6 +10,7 @@ import {
   removeOrganizationDomainContract,
   verifyOrganizationDomainContract,
 } from '@/lib/api/contracts/organization'
+import { ssoKeys } from '@/ee/sso/hooks/sso'
 
 export type DomainsResponse = OrganizationDomains
 
@@ -45,6 +46,8 @@ export function useAddOrganizationDomain() {
       requestJson(addOrganizationDomainContract, { params: { id: orgId }, body }),
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: domainKeys.list(orgId) })
+      /** Domain trust decides whether a provider can satisfy the sign-in requirement. */
+      queryClient.invalidateQueries({ queryKey: ssoKeys.policy(orgId) })
     },
   })
 }
@@ -56,6 +59,7 @@ export function useVerifyOrganizationDomain() {
       requestJson(verifyOrganizationDomainContract, { params: { id: orgId, domainId } }),
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: domainKeys.list(orgId) })
+      queryClient.invalidateQueries({ queryKey: ssoKeys.policy(orgId) })
     },
   })
 }
@@ -67,6 +71,7 @@ export function useRemoveOrganizationDomain() {
       requestJson(removeOrganizationDomainContract, { params: { id: orgId, domainId } }),
     onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: domainKeys.list(orgId) })
+      queryClient.invalidateQueries({ queryKey: ssoKeys.policy(orgId) })
     },
   })
 }

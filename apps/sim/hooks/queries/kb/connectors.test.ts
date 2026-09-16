@@ -2,12 +2,14 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 const mocks = vi.hoisted(() => ({
   requestJson: vi.fn(),
-  useInfiniteQuery: vi.fn(),
-  useQuery: vi.fn(),
+  useInfiniteQuery: vi.fn().mockReturnValue({ data: undefined, dataUpdatedAt: 0 }),
+  useQuery: vi.fn().mockReturnValue({ data: undefined, dataUpdatedAt: 0 }),
   useMutation: vi.fn(),
   cancelQueries: vi.fn(),
   getQueryData: vi.fn(),
@@ -15,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   setQueriesData: vi.fn(),
   invalidateQueries: vi.fn(),
 }))
+
+vi.mock('react', () => ({ useEffect: vi.fn() }))
 
 vi.mock('@tanstack/react-query', () => ({
   keepPreviousData: Symbol('keepPreviousData'),
@@ -37,36 +41,27 @@ vi.mock('@/lib/api/client/request', () => ({
 import {
   type ConnectorData,
   listKnowledgeConnectorDocumentsContract,
+  listSearchSourcesContract,
 } from '@/lib/api/contracts/knowledge'
+import {
+  type ConnectorDetailData,
+  readSearchIndexContract,
+} from '@/lib/api/contracts/knowledge/connectors'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
 import {
   CONNECTOR_SYNC_POLL_INTERVAL_MS,
   connectorKeys,
   isConnectorSyncingOrPending,
-  memberConnectorKeys,
   useConnectorDetail,
   useConnectorDocuments,
   useConnectorList,
+  useSearchIndex,
+  useSearchSources,
   useTriggerSync,
-  type WorkspaceMemberConnector,
+  useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
 
 const KB_ID = 'kb-1'
-
-function makeMemberConnector(
-  overrides: Partial<WorkspaceMemberConnector> = {}
-): WorkspaceMemberConnector {
-  return {
-    knowledgeBaseId: KB_ID,
-    knowledgeBaseName: 'Sim Search',
-    connectorId: 'connector-1',
-    connectorType: 'hubspot',
-    memberSyncStatus: 'idle',
-    viewerMembership: 'connected',
-    viewerDocumentCount: 0,
-    ...overrides,
-  }
-}
 
 function makeConnector(overrides: Partial<ConnectorData> = {}): ConnectorData {
   return {
@@ -106,6 +101,29 @@ function lastListStatusUpdater() {
   const call = mocks.setQueryData.mock.calls.filter((c) => JSON.stringify(c[0]) === listKey).at(-1)
   return call?.[1] as (connectors?: ConnectorData[]) => ConnectorData[] | undefined
 }
+
+describe('connector permission cache reconciliation', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it.each([true, false])(
+    'refreshes document visibility after permission saves (failed=%s)',
+    (failed) => {
+      useUpdateConnector()
+      const options = mocks.useMutation.mock.calls.at(-1)![0]
+      options.onSettled(undefined, failed ? new Error('Conflict') : null, {
+        knowledgeBaseId: KB_ID,
+        connectorId: 'connector-1',
+        updates: { permissionConfig: { provider: 'gitlab', mode: 'csv', expectedRevision: 1 } },
+      })
+      for (const queryKey of [
+        knowledgeKeys.documentLists(KB_ID),
+        knowledgeKeys.documentDetails(KB_ID),
+        knowledgeKeys.searches(),
+      ]) {
+        expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey })
+      }
+    }
+  )
+})
 
 describe('isConnectorSyncingOrPending', () => {
   it('treats a queued sync as in flight', () => {
@@ -200,6 +218,12 @@ describe('useTriggerSync optimistic state', () => {
   function capturedMutationOptions() {
     return mocks.useMutation.mock.calls.at(-1)?.[0] as {
       onMutate: (vars: { knowledgeBaseId: string; connectorId: string }) => Promise<unknown>
+      onSettled: (
+        data: undefined,
+        error: Error | null,
+        vars: { knowledgeBaseId: string; connectorId: string }
+      ) => Promise<unknown>
+      onSuccess: (data: undefined, vars: { knowledgeBaseId: string; connectorId: string }) => void
       onError: (
         error: unknown,
         vars: { knowledgeBaseId: string; connectorId: string },
@@ -218,6 +242,18 @@ describe('useTriggerSync optimistic state', () => {
     /** `all`, not `lists`: the detail query polls the same status and must not land after the settle. */
     expect(mocks.cancelQueries).toHaveBeenCalledWith({ queryKey: connectorKeys.all(KB_ID) })
     expect(lastListStatusUpdater()(existing)?.[0].status).toBe('pending')
+  })
+
+  it('refreshes only the triggered source progress after success', () => {
+    useTriggerSync()
+    capturedMutationOptions().onSuccess(undefined, {
+      knowledgeBaseId: KB_ID,
+      connectorId: 'connector-1',
+    })
+
+    expect(mocks.invalidateQueries.mock.calls).toEqual([
+      [{ queryKey: connectorKeys.progresses(KB_ID, 'connector-1') }],
+    ])
   })
 
   it('restores the previous status when the request fails', async () => {
@@ -270,62 +306,129 @@ describe('useTriggerSync optimistic state', () => {
     expect(rolledBack?.find((c) => c.id === 'connector-2')?.status).toBe('pending')
   })
 
-  /**
-   * The Search surface reads the member sync status from the workspace
-   * member-connector list, which has no poll of its own, so a members-mode
-   * trigger patches that cache too and a refused trigger refetches it.
-   */
-  it('queues a members connector in the workspace member-connector list as well', async () => {
-    const existing = [
-      makeConnector({ id: 'connector-1', accessMode: 'members', memberSyncStatus: 'idle' }),
-    ]
-    mocks.getQueryData.mockReturnValue(existing)
-
+  it('reconciles server source summaries after either sync outcome', async () => {
     useTriggerSync()
-    const options = capturedMutationOptions()
-    const context = await options.onMutate({ knowledgeBaseId: KB_ID, connectorId: 'connector-1' })
-
-    expect(mocks.setQueriesData).toHaveBeenCalledWith(
-      { queryKey: memberConnectorKeys.lists() },
-      expect.any(Function)
-    )
-    const patchMemberList = mocks.setQueriesData.mock.calls.at(-1)?.[1] as (
-      connectors: WorkspaceMemberConnector[] | undefined
-    ) => WorkspaceMemberConnector[] | undefined
-    const memberList = [
-      makeMemberConnector({ connectorId: 'connector-1', memberSyncStatus: 'idle' }),
-      makeMemberConnector({ connectorId: 'connector-2', memberSyncStatus: 'idle' }),
-    ]
-    expect(patchMemberList(memberList)?.map((c) => c.memberSyncStatus)).toEqual(['pending', 'idle'])
-    expect(patchMemberList(undefined)).toBeUndefined()
-
-    options.onError(
-      new Error('boom'),
-      { knowledgeBaseId: KB_ID, connectorId: 'connector-1' },
-      context
-    )
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: memberConnectorKeys.lists(),
+    await capturedMutationOptions().onSettled(undefined, null, {
+      knowledgeBaseId: KB_ID,
+      connectorId: 'connector-1',
     })
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: searchSourceKeys.lists() })
+  })
+})
+
+describe('direct source detail mutation state', () => {
+  const variables = { knowledgeBaseId: KB_ID, connectorId: 'connector-1' }
+  const detailKey = JSON.stringify(connectorKeys.detail(KB_ID, variables.connectorId))
+  const listKey = JSON.stringify(connectorKeys.lists(KB_ID))
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getQueryData.mockReset()
   })
 
-  it('leaves the workspace member-connector list alone for a workspace connector', async () => {
-    mocks.getQueryData.mockReturnValue([makeConnector({ status: 'active' })])
-
-    useTriggerSync()
-    const options = capturedMutationOptions()
-    const context = await options.onMutate({ knowledgeBaseId: KB_ID, connectorId: 'connector-1' })
-    options.onError(
-      new Error('boom'),
-      { knowledgeBaseId: KB_ID, connectorId: 'connector-1' },
-      context
-    )
-
-    expect(mocks.setQueriesData).not.toHaveBeenCalled()
-    expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({
-      queryKey: memberConnectorKeys.lists(),
-    })
+  afterEach(() => {
+    mocks.getQueryData.mockReset()
   })
+
+  function seedDetail(overrides: Partial<ConnectorData> = {}, list?: ConnectorData[]) {
+    const detail: ConnectorDetailData = {
+      ...makeConnector({ memberSyncStatus: 'idle', ...overrides }),
+      syncLogs: [],
+      memberSyncLogs: [],
+      members: { active: 2, suspended: 0, stale: 0 },
+    }
+    mocks.getQueryData.mockImplementation((key) => {
+      if (JSON.stringify(key) === detailKey) return detail
+      if (JSON.stringify(key) === listKey) return list
+      return undefined
+    })
+    return detail
+  }
+
+  function capturedMutation() {
+    return mocks.useMutation.mock.calls.at(-1)?.[0] as {
+      onMutate: (
+        input: typeof variables & { updates?: { status: 'active' | 'paused' } }
+      ) => Promise<unknown>
+      onError: (error: Error, input: typeof variables, previous: unknown) => void
+    }
+  }
+
+  function detailUpdater() {
+    return mocks.setQueryData.mock.calls
+      .filter(([key]) => JSON.stringify(key) === detailKey)
+      .at(-1)?.[1] as (detail: ConnectorDetailData | undefined) => ConnectorDetailData | undefined
+  }
+
+  it.each(['admin', 'members'] as const)(
+    'queues and rolls back %s sync with only the exact detail cached',
+    async (accessMode) => {
+      const detail = seedDetail({ accessMode })
+      useTriggerSync()
+      const mutation = capturedMutation()
+      const previous = await mutation.onMutate(variables)
+      const queued = detailUpdater()(detail)
+
+      expect(previous).toEqual(
+        accessMode === 'members' ? { memberSyncStatus: 'idle' } : { status: 'active' }
+      )
+      expect(queued).toEqual({
+        ...detail,
+        ...(accessMode === 'members' ? { memberSyncStatus: 'pending' } : { status: 'pending' }),
+      })
+      expect(lastListStatusUpdater()(undefined)).toBeUndefined()
+      useConnectorDetail(KB_ID, variables.connectorId)
+      expect(
+        capturedQueryOptions<ConnectorData>().refetchInterval({ state: { data: queued } })
+      ).toBe(CONNECTOR_SYNC_POLL_INTERVAL_MS)
+
+      mocks.setQueryData.mockClear()
+      mutation.onError(new Error('Sync refused'), variables, previous)
+      expect(detailUpdater()(queued)).toEqual(detail)
+    }
+  )
+
+  it.each([
+    { before: 'active', requested: 'paused' },
+    { before: 'paused', requested: 'active' },
+  ] as const)('rolls back a rejected $requested change without a list cache', async (status) => {
+    const detail = seedDetail({ status: status.before })
+    useUpdateConnector()
+    const mutation = capturedMutation()
+    const previous = await mutation.onMutate({
+      ...variables,
+      updates: { status: status.requested },
+    })
+    const optimistic = detailUpdater()(detail)
+    expect(optimistic?.status).toBe(status.requested)
+    expect(previous).toBe(status.before)
+
+    mocks.setQueryData.mockClear()
+    mutation.onError(new Error('Status change refused'), variables, previous)
+    expect(detailUpdater()(optimistic)).toEqual(detail)
+    expect(lastListStatusUpdater()(undefined)).toBeUndefined()
+  })
+
+  it.each([{ id: 'other-connector' }, { knowledgeBaseId: 'other-kb' }])(
+    'does not use a mismatched detail to choose the sync engine: %j',
+    async (identity) => {
+      seedDetail({ accessMode: 'members', ...identity })
+      useTriggerSync()
+      expect(await capturedMutation().onMutate(variables)).toBeUndefined()
+      expect(mocks.setQueryData).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([{ id: 'other-connector' }, { knowledgeBaseId: 'other-kb' }])(
+    'preserves mismatched detail data when queuing a matching list row: %j',
+    async (identity) => {
+      const detail = seedDetail(identity, [makeConnector({ accessMode: 'admin' })])
+      useTriggerSync()
+      await capturedMutation().onMutate(variables)
+      expect(detailUpdater()(detail)).toBe(detail)
+      expect(lastListStatusUpdater()([makeConnector()])?.[0].status).toBe('pending')
+    }
+  )
 })
 
 interface ConnectorDocumentsPage {
@@ -334,6 +437,7 @@ interface ConnectorDocumentsPage {
 }
 
 interface ConnectorDocumentsQueryOptions {
+  queryKey: readonly unknown[]
   initialPageParam: number
   queryFn: (context: { signal: AbortSignal; pageParam: number }) => Promise<unknown>
   getNextPageParam: (
@@ -351,10 +455,12 @@ describe('useConnectorDocuments', () => {
     const firstPage = {
       documents: [{ id: 'document-1' }, { id: 'document-2' }],
       counts: { active: 2, excluded: 1 },
+      hasMore: true,
     }
     const finalPage = {
       documents: [{ id: 'document-3' }],
       counts: firstPage.counts,
+      hasMore: false,
     }
     mocks.requestJson.mockResolvedValue({ data: firstPage })
 
@@ -368,6 +474,9 @@ describe('useConnectorDocuments', () => {
       params: { id: 'knowledge-1', connectorId: 'connector-1' },
       query: {
         includeExcluded: true,
+        failedOnly: false,
+        filter: undefined,
+        search: undefined,
         limit: MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
         offset: 200,
       },
@@ -376,6 +485,38 @@ describe('useConnectorDocuments', () => {
     expect(options.initialPageParam).toBe(0)
     expect(options.getNextPageParam(firstPage, [firstPage])).toBe(2)
     expect(options.getNextPageParam(finalPage, [firstPage, finalPage])).toBeUndefined()
+  })
+
+  it('searches every requested page with the chosen filter and a distinct cache key', async () => {
+    useConnectorDocuments('knowledge-1', 'connector-1', {
+      filter: 'excluded',
+      search: '  Roadmap  ',
+      includeExcluded: true,
+      failedOnly: true,
+    })
+    const options = mocks.useInfiniteQuery.mock.calls[0]?.[0] as ConnectorDocumentsQueryOptions
+    const signal = new AbortController().signal
+    mocks.requestJson.mockResolvedValue({ data: { documents: [] } })
+    await options.queryFn({ signal, pageParam: 200 })
+    expect(mocks.requestJson).toHaveBeenLastCalledWith(listKnowledgeConnectorDocumentsContract, {
+      params: { id: 'knowledge-1', connectorId: 'connector-1' },
+      query: {
+        filter: 'excluded',
+        search: 'Roadmap',
+        includeExcluded: undefined,
+        failedOnly: undefined,
+        limit: MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+        offset: 200,
+      },
+      signal,
+    })
+
+    useConnectorDocuments('knowledge-1', 'connector-1', { filter: 'active', search: 'Roadmap' })
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].queryKey).not.toEqual(options.queryKey)
+    useConnectorDocuments('knowledge-1', 'connector-1', { filter: 'excluded', search: 'Roadmap' })
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].queryKey).toEqual(options.queryKey)
+    useConnectorDocuments('knowledge-1', 'connector-1', { filter: 'excluded', search: 'Budget' })
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].queryKey).not.toEqual(options.queryKey)
   })
 
   it('does not page toward excluded documents when they were not requested', () => {
@@ -388,5 +529,97 @@ describe('useConnectorDocuments', () => {
 
     const options = mocks.useInfiniteQuery.mock.calls[0]?.[0] as ConnectorDocumentsQueryOptions
     expect(options.getNextPageParam(activePage, [activePage])).toBeUndefined()
+  })
+})
+
+describe('connector document rolling compatibility', () => {
+  it('continues full legacy pages when the server omits continuation metadata', () => {
+    useConnectorDocuments(KB_ID, 'connector-1')
+    const options = mocks.useInfiniteQuery.mock.calls.at(-1)![0]
+    const page = {
+      documents: Array.from({ length: MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE }, (_, index) => ({
+        id: `document-${index}`,
+      })),
+    }
+    expect(options.getNextPageParam(page, [page])).toBe(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE)
+    expect(options.getNextPageParam({ documents: [] }, [page, { documents: [] }])).toBeUndefined()
+    expect(options.getNextPageParam({ ...page, hasMore: false }, [page])).toBeUndefined()
+  })
+})
+
+describe('useSearchSources', () => {
+  it('isolates organization sources and resolves their index without listing workspace knowledge bases', async () => {
+    const scope = { kind: 'organization' as const, organizationId: 'scope-1' }
+    const signal = new AbortController().signal
+    mocks.requestJson.mockResolvedValue({ data: { knowledgeBaseId: 'org-index' } })
+    useSearchIndex(scope)
+    const index = mocks.useQuery.mock.calls.at(-1)?.[0]
+    await expect(index.queryFn({ signal })).resolves.toEqual({ knowledgeBaseId: 'org-index' })
+    expect(mocks.requestJson).toHaveBeenCalledWith(readSearchIndexContract, {
+      query: { organizationId: 'scope-1' },
+      signal,
+    })
+    useSearchSources(scope)
+    const sources = mocks.useInfiniteQuery.mock.calls.at(-1)?.[0]
+    expect(sources.queryKey).not.toEqual(searchSourceKeys.list('scope-1'))
+    await sources.queryFn({ signal })
+    expect(mocks.requestJson).toHaveBeenLastCalledWith(listSearchSourcesContract, {
+      query: { organizationId: 'scope-1', search: '', mine: false },
+      signal,
+    })
+  })
+  it('uses a workspace-specific key and forwards request cancellation', async () => {
+    const signal = new AbortController().signal
+    mocks.requestJson.mockResolvedValueOnce({ data: { sources: [], nextCursor: null } })
+    useSearchSources('workspace-a')
+    const options = mocks.useInfiniteQuery.mock.calls.at(-1)?.[0]
+    expect(options.queryKey).toEqual(
+      searchSourceKeys.pages('workspace-a', { search: '', mine: false })
+    )
+    expect(options.enabled).toBe(true)
+    expect(options.staleTime).toBe(30_000)
+    expect(options.placeholderData).toBeUndefined()
+    await expect(options.queryFn({ signal })).resolves.toEqual({ sources: [], nextCursor: null })
+    expect(mocks.requestJson).toHaveBeenCalledWith(listSearchSourcesContract, {
+      query: { workspaceId: 'workspace-a', search: '', mine: false },
+      signal,
+    })
+  })
+
+  it('waits for a workspace and respects explicit disabling', () => {
+    useSearchSources()
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].enabled).toBe(false)
+    useSearchSources('')
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].enabled).toBe(false)
+    useSearchSources('workspace-a', { enabled: false })
+    expect(mocks.useInfiniteQuery.mock.calls.at(-1)?.[0].enabled).toBe(false)
+  })
+
+  it('polls while sources are syncing and stops after completion', () => {
+    useSearchSources('workspace-a')
+    const options = mocks.useInfiniteQuery.mock.calls.at(-1)?.[0]
+    expect(
+      options.refetchInterval({ state: { data: { pages: [{ sources: [{ isSyncing: true }] }] } } })
+    ).toBe(30_000)
+    expect(
+      options.refetchInterval({ state: { data: { pages: [{ sources: [{ isSyncing: false }] }] } } })
+    ).toBe(false)
+    expect(options.refetchInterval({ state: {} })).toBe(false)
+  })
+  it('binds source pages to normalized filters and forwards the next cursor', async () => {
+    const signal = new AbortController().signal
+    useSearchSources('workspace-a', { search: ' Engineering ', mine: true })
+    const options = mocks.useInfiniteQuery.mock.calls.at(-1)![0]
+    mocks.requestJson.mockResolvedValue({ data: { sources: [], nextCursor: 'next' } })
+    await options.queryFn({ signal, pageParam: 'cursor' })
+    expect(mocks.requestJson).toHaveBeenCalledWith(listSearchSourcesContract, {
+      query: { workspaceId: 'workspace-a', search: 'engineering', mine: true, cursor: 'cursor' },
+      signal,
+    })
+    expect(options.queryKey).toEqual(
+      searchSourceKeys.pages('workspace-a', { search: 'engineering', mine: true })
+    )
+    expect(options.getNextPageParam({ sources: [], nextCursor: 'next' })).toBe('next')
+    expect(options.getNextPageParam({ sources: [], nextCursor: null })).toBeNull()
   })
 })

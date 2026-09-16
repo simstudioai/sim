@@ -10,8 +10,8 @@ const { primaryActions } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  ButtonGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ButtonGroupItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ChipButtonGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ChipButtonGroupItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModal: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalError: ({ children }: { children: ReactNode }) => <div>{children}</div>,

@@ -4,7 +4,7 @@ import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import {
@@ -43,6 +43,7 @@ import {
   getRequestedSignInProviderId,
   isSignInProviderAllowed,
 } from '@/lib/auth/constants'
+import { getAuthDatabase } from '@/lib/auth/database-context'
 import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
 import {
   consentRequestNamesClient,
@@ -52,10 +53,12 @@ import {
   OAUTH_REFRESH_TOKEN_PREFIX,
   OAUTH_REFRESH_TOKEN_TTL_SECONDS,
   OAUTH_SCOPES,
+  OAUTH_SEARCH_SCOPES,
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
+import { bindOAuthIssuedResource, oauthResourcePlugin } from '@/lib/auth/oauth-resource'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
+import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
@@ -98,6 +101,7 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
+import { handleSubscriptionUsageUpdate } from '@/lib/billing/webhooks/subscription-usage'
 import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
@@ -129,6 +133,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
@@ -158,7 +163,7 @@ const logger = createLogger('Auth')
 
 function buildSsoAdmissionErrorUrl(code: string, callbackLocation?: string | null): string {
   const callbackUrl =
-    callbackLocation && validateCallbackUrl(callbackLocation) ? callbackLocation : '/workspace'
+    callbackLocation && validateCallbackUrl(callbackLocation) ? callbackLocation : APP_ENTRY_PATH
   const params = new URLSearchParams({ error: code, callbackUrl })
   return `${getBaseUrl()}/sso?${params.toString()}`
 }
@@ -268,7 +273,7 @@ export const auth = betterAuth({
        * revocation latency becomes the policy cache TTL, not the full `maxAge`.
        */
       version: async (session) =>
-        getSessionCookieCacheVersion(session as { userId?: string | null }),
+        getSessionCookieCacheVersion(session as { userId?: string | null }, getAuthDatabase()),
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
@@ -656,66 +661,7 @@ export const auth = betterAuth({
     },
     session: {
       create: {
-        before: async (session) => {
-          // Blocked emails/domains must not establish sessions, regardless of
-          // provider (email/password, OAuth, SSO). Deliberately outside the
-          // try below — a thrown APIError must propagate, not be swallowed.
-          const accessControl = await getAccessControlConfig()
-          if (
-            accessControl.blockedSignupDomains.length > 0 ||
-            accessControl.blockedEmails.length > 0
-          ) {
-            const [sessionUser] = await db
-              .select({ email: schema.user.email })
-              .from(schema.user)
-              .where(eq(schema.user.id, session.userId))
-              .limit(1)
-            if (isEmailBlockedByAccessControl(sessionUser?.email, accessControl)) {
-              logger.warn('Blocking session creation for blocked account', {
-                userId: session.userId,
-              })
-              throw new APIError('FORBIDDEN', {
-                message: 'Access restricted. Please contact your administrator.',
-              })
-            }
-          }
-
-          try {
-            // Find the first organization this user is a member of
-            const members = await db
-              .select({ organizationId: schema.member.organizationId })
-              .from(schema.member)
-              .where(eq(schema.member.userId, session.userId))
-              .limit(1)
-
-            if (members.length > 0) {
-              logger.info('Found organization for user', {
-                userId: session.userId,
-                organizationId: members[0].organizationId,
-              })
-
-              const expiresAt = await clampExpiryForSession(session, members[0].organizationId)
-
-              return {
-                data: {
-                  ...session,
-                  expiresAt,
-                  activeOrganizationId: members[0].organizationId,
-                },
-              }
-            }
-            logger.info('No organizations found for user', {
-              userId: session.userId,
-            })
-            return { data: session }
-          } catch (error) {
-            logger.error('Error setting active organization', {
-              error,
-              userId: session.userId,
-            })
-            return { data: session }
-          }
-        },
+        before: prepareSessionForCreation,
       },
       update: {
         /**
@@ -730,10 +676,11 @@ export const auth = betterAuth({
           if (!data.expiresAt) return { data }
           const current = ctx?.context?.session?.session
           if (!current) return { data }
-          const expiresAt = await clampExpiryForSession({
-            ...current,
-            expiresAt: new Date(data.expiresAt),
-          })
+          const expiresAt = await clampExpiryForSession(
+            { ...current, expiresAt: new Date(data.expiresAt) },
+            undefined,
+            getAuthDatabase()
+          )
           return { data: { ...data, expiresAt } }
         },
       },
@@ -949,13 +896,13 @@ export const auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      /** Keep direct plugin calls behind the runtime gate without blocking connector OAuth. */
+      /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
       if (
         ((ctx.path.startsWith('/oauth2/') &&
           ctx.path !== '/oauth2/link' &&
           !ctx.path.startsWith('/oauth2/callback/')) ||
           ctx.path === '/.well-known/oauth-authorization-server') &&
-        !(await isOAuthProviderEnabled())
+        isAuthDisabled
       ) {
         throw new APIError('NOT_FOUND', { message: 'OAuth provider is not enabled' })
       }
@@ -988,27 +935,34 @@ export const auth = betterAuth({
       }
 
       /**
-       * A user consenting to the Sim CLI is the one moment a human is present
-       * in a CLI login, so `cli.use` is checked here to refuse the grant
-       * outright. `requireCliAccessAllowed` checks it again on every bearer
-       * request, because a consent already on file lets later authorizations
-       * skip this endpoint entirely — neither check makes the other redundant.
-       *
-       * The client id is read from the signed authorize query the consent page
-       * forwards. The gate fires if `sim-cli` appears anywhere in it, which is
-       * strictly more conservative than the plugin's own first-value read.
-       *
-       * permission-group-enforced: cli.use — gates OAuth consent for the
-       * first-party CLI client, which owns no workspace resource for the
-       * authorization funnel to authorize.
+       * permission-group-enforced: oauth_apps.use, cli.use — account-level
+       * authorization uses the default group; token issuance rechecks it later.
+       * Explicit denial remains available even when access has been withheld.
        */
-      if (ctx.path === '/oauth2/consent') {
-        if (consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)) {
-          const session = await getSessionFromCtx(ctx)
-          const userId = session?.user?.id
-          if (userId && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
-            logger.warn('CLI OAuth consent blocked by permission group', { userId })
-            throw new APIError('FORBIDDEN', { message: capabilityRefusal('cli.use') })
+      if (
+        ctx.path === '/oauth2/authorize' ||
+        (ctx.path === '/oauth2/consent' && ctx.body?.accept === true)
+      ) {
+        const session = await getSessionFromCtx(ctx)
+        const userId = session?.user?.id
+        if (userId) {
+          if (await isCapabilityWithheldForUser(userId, 'oauth_apps.use')) {
+            throw new APIError('FORBIDDEN', {
+              message: capabilityRefusal('oauth_apps.use'),
+              error: 'access_denied',
+              error_description: capabilityRefusal('oauth_apps.use'),
+            })
+          }
+          const isCli =
+            ctx.path === '/oauth2/authorize'
+              ? ctx.query?.client_id === SIM_CLI_CLIENT_ID
+              : consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)
+          if (isCli && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
+            throw new APIError('FORBIDDEN', {
+              message: capabilityRefusal('cli.use'),
+              error: 'access_denied',
+              error_description: capabilityRefusal('cli.use'),
+            })
           }
         }
       }
@@ -1323,12 +1277,8 @@ export const auth = betterAuth({
      * stable family for that login, including access tokens issued before an
      * earlier rotation. This is an OAuth API-authorization surface, not an
      * OpenID Connect identity provider; `disableJwtPlugin` keeps JWT/JWKS and
-     * ID-token semantics out of the advertised protocol. Clients are DB rows
-     * only (the CLI is seeded by migration, the rest are admin-created), so
-     * both registration paths stay closed.
-     *
-     * Register once; request-time gates let AppConfig change availability
-     * without a restart.
+     * ID-token semantics out of the advertised protocol. Public registration
+     * is limited to read-only Search clients; other clients are operator-created.
      */
     ...(!isAuthDisabled
       ? [
@@ -1344,16 +1294,15 @@ export const auth = betterAuth({
              * Better Auth verifies `oauth_query` before reading the client.
              */
             allowPublicClientPrelogin: true,
-            allowDynamicClientRegistration: false,
-            allowUnauthenticatedClientRegistration: false,
+            allowDynamicClientRegistration: true,
+            allowUnauthenticatedClientRegistration: true,
+            clientRegistrationAllowedScopes: [...OAUTH_SEARCH_SCOPES],
+            clientRegistrationDefaultScopes: [...OAUTH_SEARCH_SCOPES],
+            customTokenResponseFields: bindOAuthIssuedResource,
             /**
-             * No endpoint may read or change a client row. Clients are created
-             * by an operator running `create-oauth-client.ts`, so every one of
-             * the plugin's client CRUD endpoints — create, read, list, update,
-             * delete, rotate — is refused at the source. The route-level POST
-             * blocklist stays as defence in depth, but this is what closes the
-             * `GET` readers it cannot see, and what keeps a future plugin
-             * version from mounting a seventh endpoint into an open door.
+             * Client-management endpoints remain operator-only. Public registration
+             * has its own bounded Search-only route and cannot inherit a browser
+             * session or request management privileges.
              *
              * The consent page's client lookup is unaffected:
              * `public-client-prelogin` does not consult this hook and instead
@@ -1382,6 +1331,7 @@ export const auth = betterAuth({
             refreshTokenExpiresIn: OAUTH_REFRESH_TOKEN_TTL_SECONDS,
             codeExpiresIn: OAUTH_CODE_TTL_SECONDS,
           }),
+          oauthResourcePlugin(),
         ]
       : []),
     /**
@@ -1400,9 +1350,10 @@ export const auth = betterAuth({
              * `email_verified` claim substitutes for the domain binding
              * entirely: an IdP could assert any address — including one from a
              * domain it does not own — and auto-link into that user's existing
-             * account. Since a provider row can be registered by any Enterprise
-             * org admin (and by any signed-in user when self-hosted), trusting
-             * the claim makes every account reachable from any tenant's IdP.
+             * account. Since a provider row can be registered by any
+             * organization owner or admin (or by an operator via the register
+             * script), trusting the claim makes every account reachable from
+             * any tenant's IdP.
              *
              * Turning it on only ever set `emailVerified` on the local row; it
              * was never what made linking work. Entra omits the claim, and SAML
@@ -1666,16 +1617,6 @@ export const auth = betterAuth({
                   throw orgError
                 }
 
-                try {
-                  await syncSubscriptionUsageLimits(resolvedSubscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionUpdate] Failed to sync usage limits', {
-                    subscriptionId: resolvedSubscription.id,
-                    referenceId: resolvedSubscription.referenceId,
-                    error,
-                  })
-                }
-
                 if (isTeam(effectivePlanForTeamFeatures)) {
                   try {
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
@@ -1754,6 +1695,7 @@ export const auth = betterAuth({
                   case 'customer.subscription.created':
                   case 'customer.subscription.updated': {
                     await handleManualEnterpriseSubscription(event)
+                    await handleSubscriptionUsageUpdate(event)
                     break
                   }
                   case 'checkout.session.expired': {
@@ -1816,13 +1758,25 @@ export const auth = betterAuth({
 async function getSessionImpl() {
   if (isAuthDisabled) {
     await ensureAnonymousUserExists()
-    return createAnonymousSession()
+    return recordSessionAuth(createAnonymousSession())
   }
 
   const hdrs = await headers()
-  return await auth.api.getSession({
-    headers: hdrs,
-  })
+  return recordSessionAuth(
+    await auth.api.getSession({
+      headers: hdrs,
+    })
+  )
+}
+
+/**
+ * Records a resolved session as the request's auth kind. Stamped here, where
+ * every session is resolved, so the many routes that authenticate by calling
+ * `getSession` directly are attributed without each one remembering to.
+ */
+function recordSessionAuth<T extends { user?: { id?: string } } | null>(session: T): T {
+  if (session?.user?.id) setRequestAuth({ kind: 'session' }, { preserveExisting: true })
+  return session
 }
 
 export const getSession = cache(getSessionImpl)

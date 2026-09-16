@@ -1,10 +1,14 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn } from '@sim/emcn'
+import type { Node } from '@tiptap/core'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ProsemirrorBinding, ySyncPluginKey } from '@tiptap/y-tiptap'
-import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
+import {
+  MarkdownImage,
+  MarkdownInlineImage,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
 import { createImageTargetGuard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-target'
 import { normalizeLinkHref } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { useEditorEditable } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/use-editor-editable'
@@ -20,13 +24,7 @@ const PIXEL_SIZE = /^\d+(?:\.\d+)?px$/
  * Drag-to-resize image node view (handle at the bottom-right, revealed on selection). Dragging
  * commits the new pixel width to the `width` attribute, which serializes to `<img width>`.
  */
-export function ResizableImageView({
-  node,
-  updateAttributes,
-  selected,
-  editor,
-  getPos,
-}: ReactNodeViewProps) {
+export function ResizableImageView({ node, selected, editor, getPos }: ReactNodeViewProps) {
   const source = useFileContentSource()
   const imageRef = useRef<HTMLImageElement>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
@@ -118,7 +116,12 @@ export function ResizableImageView({
         !editor.isDestroyed &&
         isCurrentTarget()
       ) {
-        updateAttributes({ width: String(finalWidth), height: null })
+        const position = getPos()
+        if (typeof position !== 'number') return
+        const tr = editor.state.tr
+          .setNodeAttribute(position, 'width', String(finalWidth))
+          .setNodeAttribute(position, 'height', null)
+        editor.view.dispatch(tr.setSelection(NodeSelection.create(tr.doc, position)))
       }
     }
     if (binding) {
@@ -219,9 +222,6 @@ export function ResizableImageView({
       src={source.resolveImageSrc(attrs.src)}
       alt={attrs.alt ?? ''}
       title={attrs.title ?? undefined}
-      // When editable, the image itself is the drag handle — grab anywhere on it to reorder. (The node
-      // view's wrapper is forced `draggable=false` by the React renderer, so the handle must be a child;
-      // the resize button sits outside this element, so it keeps its own pointer behavior.)
       draggable={editable}
       data-drag-handle={editable ? '' : undefined}
       style={imageStyle}
@@ -254,7 +254,13 @@ export function ResizableImageView({
   )
 
   return (
-    <NodeViewWrapper className='relative my-4 inline-block leading-none'>
+    <NodeViewWrapper
+      as={node.isInline ? 'span' : 'div'}
+      className={cn(
+        'relative inline-block max-w-full leading-none',
+        node.isInline ? 'align-middle' : 'my-4'
+      )}
+    >
       {safeHref ? (
         // The editor's handleClick is the sole navigator (gated on editable/modifier, like text links
         // via openOnClick:false): prevent the anchor's own navigation so a plain click in edit mode
@@ -288,33 +294,40 @@ export function ResizableImageView({
 }
 
 /** Live image node with the drag-to-resize view; same schema + markdown output as the headless one. */
-export const ResizableImage = MarkdownImage.extend({
-  addNodeView() {
-    return ReactNodeViewRenderer(ResizableImageView)
-  },
-  /**
-   * Guarantee a plain click on the image forms a node selection. The image body is also a native drag
-   * source (grab-anywhere reorder), and while prosemirror-view ≥1.32.4 no longer implicitly selects on
-   * drag, the reverse — a click reliably selecting — is not guaranteed for an atom whose body competes
-   * with the drag gesture (see the ProseMirror "Draggable and NodeViews" discussion and TipTap #4526).
-   * Selecting here makes it deterministic while leaving drag-to-reorder intact. Read-only clicks and
-   * modified clicks (Cmd/Ctrl to follow a linked badge, Shift/Alt to extend) fall through to the editor's
-   * `handleClick` / default behavior.
-   */
-  addProseMirrorPlugins() {
-    const nodeName = this.name
-    return [
-      ...(this.parent?.() ?? []),
-      new Plugin({
-        props: {
-          handleClickOn(view, _pos, node, nodePos, event) {
-            if (!view.editable || node.type.name !== nodeName) return false
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false
-            view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos)))
-            return true
+function withImageNodeView(image: Node) {
+  return image.extend({
+    addNodeView() {
+      return ReactNodeViewRenderer(ResizableImageView)
+    },
+    /**
+     * Guarantee a plain click on the image forms a node selection. The image body is also a native drag
+     * source (grab-anywhere reorder), and while prosemirror-view ≥1.32.4 no longer implicitly selects on
+     * drag, the reverse — a click reliably selecting — is not guaranteed for an atom whose body competes
+     * with the drag gesture (see the ProseMirror "Draggable and NodeViews" discussion and TipTap #4526).
+     * Selecting here makes it deterministic while leaving drag-to-reorder intact. Read-only clicks and
+     * modified clicks (Cmd/Ctrl to follow a linked badge, Shift/Alt to extend) fall through to the editor's
+     * `handleClick` / default behavior.
+     */
+    addProseMirrorPlugins() {
+      const nodeName = this.name
+      return [
+        ...(this.parent?.() ?? []),
+        new Plugin({
+          props: {
+            handleClickOn(view, _pos, node, nodePos, event) {
+              if (!view.editable || node.type.name !== nodeName) return false
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false
+              view.dispatch(
+                view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos))
+              )
+              return true
+            },
           },
-        },
-      }),
-    ]
-  },
-})
+        }),
+      ]
+    },
+  })
+}
+
+export const ResizableImage = withImageNodeView(MarkdownImage)
+export const ResizableInlineImage = withImageNodeView(MarkdownInlineImage)

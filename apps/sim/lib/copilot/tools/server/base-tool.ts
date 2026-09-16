@@ -1,10 +1,16 @@
 import type { z } from 'zod'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ServerToolContext {
+  /** Trusted entry point for Search metering; never read from model arguments. */
+  searchSurface?: 'copilot' | 'slack'
+  requestMode?: string
+  assistantSearch?: WorkspaceSearchFilters
   userId: string
   workspaceId?: string
+  organizationId?: string
   executionId?: string
   /** Stable, server-issued identity of the tool call currently executing. */
   toolCallId?: string

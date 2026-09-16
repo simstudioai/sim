@@ -10,6 +10,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import {
   readXlsxPreviewData,
+  readXlsxWorkbook,
   XLSX_MAX_COLUMNS,
   XLSX_MAX_ROWS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data'
@@ -55,7 +56,7 @@ export const XlsxPreview = memo(function XlsxPreview({
         setRenderError(null)
         await assertOoxmlPreviewWithinLimits(data)
         const XLSX = await import('xlsx')
-        const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
+        const workbook = readXlsxWorkbook(XLSX, data)
         if (!cancelled) {
           workbookRef.current = workbook
           setSheetNames(workbook.SheetNames)

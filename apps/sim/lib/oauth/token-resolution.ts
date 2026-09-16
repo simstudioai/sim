@@ -457,7 +457,7 @@ export async function resolveCredentialAccessToken(
   }
   const requiredScopes =
     toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
-  if (requiredScopes.length === 0) {
+  if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {
     logger.error(`[${requestId}] Tool has no trusted OAuth scope policy`, {
       toolId,
       providerId: toolMetadata.oauth.provider,

@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -5,6 +6,7 @@ import { SITE_URL } from '@/lib/core/utils/urls'
 import { BackLink, ChevronArrow } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import {
   FeaturedModelCard,
   FeaturedProviderCard,
@@ -22,7 +24,8 @@ import {
 
 const baseUrl = SITE_URL
 
-export const dynamicParams = false
+/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
+export const dynamicParams = true
 
 export async function generateStaticParams() {
   return MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
@@ -136,7 +139,7 @@ export default async function ProviderModelsPage({
       <JsonLd data={faqJsonLd} />
 
       <section className='bg-[var(--bg)]'>
-        <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
           <div className='mb-6'>
             <BackLink href='/models' label='Back to Models' />
           </div>
@@ -163,8 +166,8 @@ export default async function ProviderModelsPage({
 
         <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-        <div className='mx-auto w-full max-w-[1460px]'>
-          <div className='mx-20 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+          <div className='border-[var(--border)] border-x'>
             {provider.featuredModels.length > 0 && (
               <>
                 <nav aria-label='Featured models' className='flex flex-col sm:flex-row'>

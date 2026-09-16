@@ -5,9 +5,15 @@ import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAppendCopilotChatMessages, mockPublishStatusChanged } = vi.hoisted(() => ({
-  mockAppendCopilotChatMessages: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
+const { mockAppendCopilotChatMessages, mockPublishStatusChanged, mockGetAccessibleChat } =
+  vi.hoisted(() => ({
+    mockGetAccessibleChat: vi.fn(),
+    mockAppendCopilotChatMessages: vi.fn(),
+    mockPublishStatusChanged: vi.fn(),
+  }))
+
+vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
 }))
 
 vi.mock('@/lib/copilot/chat/messages-store', () => ({
@@ -15,9 +21,7 @@ vi.mock('@/lib/copilot/chat/messages-store', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: {
-    publishStatusChanged: mockPublishStatusChanged,
-  },
+  publishChatStatusChanged: mockPublishStatusChanged,
 }))
 
 import { POST } from '@/app/api/copilot/chat/stop/route'
@@ -49,7 +53,21 @@ describe('copilot chat stop route', () => {
     // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
-    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
+    })
+    mockGetAccessibleChat.mockResolvedValue({ id: 'chat-1', workspaceId: 'ws-1', userId: 'user-1' })
+  })
+
+  it('does not persist stopped content after organization access is removed', async () => {
+    mockGetAccessibleChat.mockResolvedValueOnce(null)
+    const response = await POST(
+      createRequest({ chatId: 'chat-1', streamId: 'stream-1', content: 'private' })
+    )
+    expect(response.status).toBe(200)
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -100,12 +118,14 @@ describe('copilot chat stop route', () => {
       contentBlocks: [{ type: 'complete', status: 'cancelled' }],
     })
 
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      chatId: 'chat-1',
-      type: 'completed',
-      streamId: 'stream-1',
-    })
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws-1' }),
+      {
+        chatId: 'chat-1',
+        type: 'completed',
+        streamId: 'stream-1',
+      }
+    )
   })
 
   it('appends a stopped assistant message if the stream marker was already cleared', async () => {
@@ -125,12 +145,14 @@ describe('copilot chat stop route', () => {
     const [, appended] = mockAppendCopilotChatMessages.mock.calls[0]
     expect(appended[0]).toMatchObject({ role: 'assistant', content: 'partial' })
 
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      chatId: 'chat-1',
-      type: 'completed',
-      streamId: 'stream-1',
-    })
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws-1' }),
+      {
+        chatId: 'chat-1',
+        type: 'completed',
+        streamId: 'stream-1',
+      }
+    )
   })
 
   it('republishes completed status when the assistant was already persisted', async () => {
@@ -147,11 +169,13 @@ describe('copilot chat stop route', () => {
     expect(await response.json()).toEqual({ success: true })
     expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      chatId: 'chat-1',
-      type: 'completed',
-      streamId: 'stream-1',
-    })
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'ws-1' }),
+      {
+        chatId: 'chat-1',
+        type: 'completed',
+        streamId: 'stream-1',
+      }
+    )
   })
 })

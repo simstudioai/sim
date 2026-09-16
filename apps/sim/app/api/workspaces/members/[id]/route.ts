@@ -10,18 +10,13 @@ import { getSession } from '@/lib/auth'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
+import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import {
   hasWorkspaceAdminAccess,
   isOrganizationAdminOrOwner,
 } from '@/lib/workspaces/permissions/utils'
-import {
-  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
-  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
-  WorkspaceBillingAccountRemovalError,
-} from '@/lib/workspaces/utils'
+import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceMemberAPI')
 
@@ -147,41 +142,11 @@ export const DELETE = withRouteHandler(
         }
       }
 
-      const { ownershipTransferred, workflowOwnershipReassignment } = await db.transaction(
-        async (tx) => {
-          const didTransferOwnership =
-            await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
-              tx,
-              workspaceId,
-              departingUserId: userId,
-            })
-
-          const workflowOwnershipReassignment =
-            await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
-              tx,
-              workspaceIds: [workspaceId],
-              departingUserId: userId,
-            })
-          if (workflowOwnershipReassignment.unresolved.length > 0) {
-            throw new WorkspaceBillingAccountRemovalError()
-          }
-
-          await tx
-            .delete(permissions)
-            .where(
-              and(
-                eq(permissions.userId, userId),
-                eq(permissions.entityType, 'workspace'),
-                eq(permissions.entityId, workspaceId)
-              )
-            )
-
-          await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
-          await removeWorkspaceSkillMembershipsTx(tx, workspaceId, userId)
-
-          return { ownershipTransferred: didTransferOwnership, workflowOwnershipReassignment }
-        }
+      const revocation = await db.transaction((tx) =>
+        revokeWorkspaceAccessTx(tx, { workspaceId, userId })
       )
+      if (!revocation.revoked) throw new WorkspaceBillingAccountRemovalError()
+      const { ownershipTransferred } = revocation
 
       /**
        * Seats are tied to organization membership (one per member), so a
@@ -214,6 +179,8 @@ export const DELETE = withRouteHandler(
             organizationId,
             memberId: orgMembership.id,
             requireNoOrgWorkspaceAccess: true,
+            /** Leaving a workspace must not sign the leaver out of Sim. */
+            spareSessionToken: session.session.token,
           })
 
           if (removal.success && removal.removed) {
@@ -270,7 +237,6 @@ export const DELETE = withRouteHandler(
           removedUserRole: userPermission?.permissionType ?? 'owner',
           selfRemoval: isSelf,
           ownershipTransferred,
-          workflowOwnershipReassignment,
           organizationRemoval,
           seatReduction,
         },

@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/contracts/workspaces'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -24,6 +25,7 @@ import {
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
+import { assertMembershipNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 const logger = createLogger('WorkspacesPermissionsAPI')
 
@@ -89,6 +91,16 @@ class WorkspaceBusyError extends HttpError {
   constructor() {
     super('This workspace is busy right now. Try again in a moment.')
     this.name = 'WorkspaceBusyError'
+  }
+}
+
+/** A target whose membership the organization's directory owns; the guard's own wording names the remedy. */
+class DirectoryManagedMemberError extends HttpError {
+  readonly statusCode = 403
+
+  constructor(cause: ForbiddenOperationError) {
+    super(cause.message)
+    this.name = 'DirectoryManagedMemberError'
   }
 }
 
@@ -376,6 +388,15 @@ export const PATCH = withRouteHandler(
         orgAdminUserIds = new Set(
           lockedMembers.filter((row) => isOrgAdminRole(row.role)).map((row) => row.userId)
         )
+        /**
+         * A directory that owns membership also owns the workspace role it set,
+         * so the change is refused here for the same reason an invitation is:
+         * the next sync would revert it. Checked under the member lock so a
+         * connection enabled mid-request cannot slip a change past it.
+         */
+        for (const userId of targetUserIds) {
+          await assertMembershipNotScimManaged({ organizationId, userId, executor: tx })
+        }
       }
 
       /**
@@ -526,6 +547,7 @@ export const PATCH = withRouteHandler(
         })
         throw new WorkspaceBusyError()
       }
+      if (error instanceof ForbiddenOperationError) throw new DirectoryManagedMemberError(error)
       throw error
     })
 

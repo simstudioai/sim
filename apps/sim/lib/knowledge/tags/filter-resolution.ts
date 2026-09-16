@@ -2,7 +2,7 @@ import { KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE } from '@/lib/api/contract
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
-import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { getDocumentTagDefinitionsByKnowledgeBaseIds } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
@@ -72,15 +72,11 @@ export async function resolveKnowledgeTagFilters(
   filters: KnowledgeTagNameFilter[],
   knowledgeBaseIds: string[]
 ): Promise<ResolvedKnowledgeTagFilters> {
-  const definitionEntries = await Promise.all(
-    knowledgeBaseIds.map(
-      async (knowledgeBaseId) =>
-        [knowledgeBaseId, await getDocumentTagDefinitions(knowledgeBaseId)] as const
-    )
-  )
-  const definitionsByKnowledgeBase = new Map(definitionEntries)
+  const definitionsByKnowledgeBase =
+    await getDocumentTagDefinitionsByKnowledgeBaseIds(knowledgeBaseIds)
   const sharedDefinitions = new Map<string, { tagSlot: string; fieldType: string }>()
-  for (const [, definitions] of definitionEntries) {
+  for (const knowledgeBaseId of knowledgeBaseIds) {
+    const definitions = definitionsByKnowledgeBase.get(knowledgeBaseId)!
     const currentByName = new Map(
       definitions.map((definition) => [
         definition.displayName,

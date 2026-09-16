@@ -53,9 +53,11 @@ export const CAPABILITY_IDS = [
   'workspace.create',
   'organization.member_directory',
   'cli.use',
+  'oauth_apps.use',
   'triggers.webhook',
   'copilot.tool_auto_approval',
   'sandboxes.use',
+  'knowledge.export',
 ] as const
 
 export type PermissionGroupCapability = (typeof CAPABILITY_IDS)[number]
@@ -386,6 +388,13 @@ export const CAPABILITY_RULES = {
     describe: 'The organization member directory',
     deniedBy: (config) => config.hideOrgMemberDirectory,
   },
+  'oauth_apps.use': {
+    kind: 'static',
+    configKeys: ['disableOAuthAppAccess'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'OAuth app access',
+    deniedBy: (config) => config.disableOAuthAppAccess,
+  },
   'cli.use': {
     kind: 'static',
     configKeys: ['disableCliAccess'],
@@ -413,6 +422,14 @@ export const CAPABILITY_RULES = {
     detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
     describe: 'The Sandboxes module',
     deniedBy: (config) => config.hideSandboxesTab,
+  },
+  /** Subsumes `knowledge.use` for the same reason as `knowledge.create`. */
+  'knowledge.export': {
+    kind: 'static',
+    configKeys: ['disableKnowledgeBaseExport', 'hideKnowledgeBaseTab'],
+    detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+    describe: 'Exporting a knowledge base',
+    deniedBy: (config) => config.disableKnowledgeBaseExport || config.hideKnowledgeBaseTab,
   },
 } satisfies { readonly [K in PermissionGroupCapability]: CapabilityRule }
 

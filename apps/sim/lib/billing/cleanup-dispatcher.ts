@@ -5,10 +5,12 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { tasks } from '@trigger.dev/sdk'
 import { and, asc, eq, gt, isNull } from 'drizzle-orm'
+import { validateCleanupLimits } from '@/lib/api/contracts/cleanup'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
 import { type RetentionHoursKey, resolveEffectiveRetentionHours } from '@/lib/billing/retention'
+import { type CleanupBudgets, type CleanupLimits, createCleanupBudgets } from '@/lib/cleanup/limits'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
@@ -35,6 +37,8 @@ const NON_ENTERPRISE_PLANS = ['free', 'pro', 'team'] as const satisfies readonly
 export interface CleanupJobPayload {
   plan: PlanCategory
   workspaceIds: string[]
+  /** Organization-owned Search data is retained independently of workspace membership. */
+  organizationIds?: string[]
   retentionHours: number
   label: string
   /** Set on exactly one chunk per dispatch so plan-wide housekeeping runs once. */
@@ -58,8 +62,8 @@ const DAY = 24
 
 type PlanResolutionEntry = readonly [string, PlanCategory]
 
-function getCleanupConcurrencyKey(jobType: CleanupJobType): string {
-  return `cleanup:${jobType}`
+function getCleanupConcurrencyKey(jobType: CleanupJobType): string | undefined {
+  return jobType === 'cleanup-tasks' ? `cleanup:${jobType}` : undefined
 }
 
 /**
@@ -84,7 +88,8 @@ export const CLEANUP_CONFIG = {
 } as const satisfies Record<CleanupJobType, CleanupJobConfig>
 
 async function listActiveWorkspaceCleanupScopeRowsPage(
-  afterId: string | null
+  afterId: string | null,
+  pageSize: number
 ): Promise<WorkspaceCleanupScopeRow[]> {
   const rows = await db
     .select({
@@ -102,7 +107,7 @@ async function listActiveWorkspaceCleanupScopeRowsPage(
         : isNull(workspace.archivedAt)
     )
     .orderBy(asc(workspace.id))
-    .limit(WORKSPACE_SCOPE_PAGE_SIZE)
+    .limit(pageSize)
 
   return rows.map((row) => ({
     ...row,
@@ -111,7 +116,8 @@ async function listActiveWorkspaceCleanupScopeRowsPage(
 }
 
 async function resolvePersonalPlanTypesByBilledUserId(
-  rows: WorkspaceCleanupScopeRow[]
+  rows: WorkspaceCleanupScopeRow[],
+  failOnLookupError: boolean
 ): Promise<Map<string, PlanCategory>> {
   const billedUserIds = Array.from(new Set(rows.map((row) => row.billedAccountUserId)))
   const entries = await Promise.all(
@@ -122,6 +128,7 @@ async function resolvePersonalPlanTypesByBilledUserId(
         })
         return [userId, getPlanType(subscription?.plan)] as const
       } catch (error) {
+        if (failOnLookupError) throw error
         logger.error('Skipping cleanup for billed user after plan lookup failed', {
           userId,
           error,
@@ -135,7 +142,8 @@ async function resolvePersonalPlanTypesByBilledUserId(
 }
 
 async function resolvePlanTypesByWorkspaceId(
-  rows: WorkspaceCleanupScopeRow[]
+  rows: WorkspaceCleanupScopeRow[],
+  failOnLookupError: boolean
 ): Promise<Map<string, PlanCategory>> {
   /**
    * Without billing there are no subscription rows to read, and the per-plan
@@ -154,12 +162,16 @@ async function resolvePlanTypesByWorkspaceId(
   }
 
   const userScopedRows = rows.filter((row) => row.workspaceMode !== WORKSPACE_MODE.ORGANIZATION)
-  const userPlanByBilledUserId = await resolvePersonalPlanTypesByBilledUserId(userScopedRows)
+  const userPlanByBilledUserId = await resolvePersonalPlanTypesByBilledUserId(
+    userScopedRows,
+    failOnLookupError
+  )
   const entries = await Promise.all(
     rows.map(async (row) => {
       if (row.workspaceMode === WORKSPACE_MODE.ORGANIZATION) {
         const organizationId = isOrganizationWorkspace(row) ? row.organizationId : null
         if (!organizationId) {
+          if (failOnLookupError) throw new Error('Malformed organization workspace')
           logger.error('Skipping cleanup for malformed organization workspace', {
             workspaceId: row.id,
             organizationId: row.organizationId,
@@ -181,6 +193,7 @@ async function resolvePlanTypesByWorkspaceId(
 
           return [row.id, getPlanType(subscription?.plan)] as const
         } catch (error) {
+          if (failOnLookupError) throw error
           logger.error('Skipping cleanup for organization workspace after plan lookup failed', {
             workspaceId: row.id,
             organizationId,
@@ -223,7 +236,16 @@ const GLOBAL_HOUSEKEEPING_PLAN: Partial<Record<CleanupJobType, PlanCategory>> = 
 
 async function forEachCleanupChunk(
   jobType: CleanupJobType,
-  onChunk: (payload: CleanupJobPayload) => Promise<void>
+  onChunk: (payload: CleanupJobPayload) => Promise<void>,
+  {
+    shouldStop = () => false,
+    pageSize = WORKSPACE_SCOPE_PAGE_SIZE,
+    failOnLookupError = false,
+  }: {
+    shouldStop?: () => boolean
+    pageSize?: number
+    failOnLookupError?: boolean
+  } = {}
 ): Promise<{ chunkCount: number; workspaceCount: number }> {
   const config = CLEANUP_CONFIG[jobType]
   const chunkCountByPlan: Partial<Record<NonEnterprisePlan, number>> = {}
@@ -234,6 +256,7 @@ async function forEachCleanupChunk(
   let afterId: string | null = null
 
   const emitChunk = async (payload: CleanupJobPayload) => {
+    if (shouldStop()) return
     if (payload.plan === housekeepingPlan && !housekeepingAssigned) {
       payload.runGlobalHousekeeping = true
       housekeepingAssigned = true
@@ -242,12 +265,12 @@ async function forEachCleanupChunk(
     await onChunk(payload)
   }
 
-  while (true) {
-    const rows = await listActiveWorkspaceCleanupScopeRowsPage(afterId)
+  while (!shouldStop()) {
+    const rows = await listActiveWorkspaceCleanupScopeRowsPage(afterId, pageSize)
     if (rows.length === 0) break
 
     afterId = rows[rows.length - 1].id
-    const planByWorkspaceId = await resolvePlanTypesByWorkspaceId(rows)
+    const planByWorkspaceId = await resolvePlanTypesByWorkspaceId(rows, failOnLookupError)
 
     for (const plan of NON_ENTERPRISE_PLANS) {
       const retentionHours = config.defaults[plan]
@@ -287,6 +310,48 @@ async function forEachCleanupChunk(
         retentionHours: hours,
         label: `enterprise/${row.id}`,
       })
+    }
+  }
+
+  if (jobType === 'cleanup-soft-deletes' || jobType === 'cleanup-tasks') {
+    let afterOrganizationId: string | null = null
+    while (!shouldStop()) {
+      const organizations = await db
+        .select({ id: organization.id, settings: organization.dataRetentionSettings })
+        .from(organization)
+        .where(afterOrganizationId ? gt(organization.id, afterOrganizationId) : undefined)
+        .orderBy(asc(organization.id))
+        .limit(pageSize)
+      if (organizations.length === 0) break
+      afterOrganizationId = organizations[organizations.length - 1].id
+      for (const row of organizations) {
+        if (shouldStop()) break
+        let plan: PlanCategory = 'enterprise'
+        if (isBillingEnabled) {
+          try {
+            const subscription = await getOrganizationSubscription(row.id, { onError: 'throw' })
+            if (!subscription) continue
+            plan = getPlanType(subscription.plan)
+          } catch (error) {
+            if (failOnLookupError) throw error
+            logger.error('Skipping organization cleanup after plan lookup failed', {
+              organizationId: row.id,
+              error,
+            })
+            continue
+          }
+        }
+        const retentionHours =
+          plan === 'enterprise' ? (row.settings?.[config.key] ?? null) : config.defaults[plan]
+        if (retentionHours == null) continue
+        await emitChunk({
+          plan,
+          workspaceIds: [],
+          organizationIds: [row.id],
+          retentionHours,
+          label: `${plan}/organization/${row.id}`,
+        })
+      }
     }
   }
 
@@ -420,4 +485,39 @@ export async function dispatchCleanupJobs(jobType: CleanupJobType): Promise<{
   logger.info(`[${jobType}] Chunk enqueue: ${succeeded} succeeded, ${failed} failed`)
 
   return { jobIds, jobCount: jobIds.length, chunkCount, workspaceCount }
+}
+
+/** Enqueue one job; owner discovery and all deletion happen in the worker. */
+export async function dispatchBoundedCleanup(
+  jobType: 'cleanup-logs' | 'cleanup-soft-deletes',
+  input: CleanupLimits
+) {
+  const limits = validateCleanupLimits(jobType, input)
+  if (!isBillingEnabled && !isDataRetentionEnabled) throw new Error('Data retention is disabled')
+  if (!isTriggerAvailable()) throw new Error('Queued cleanup requires Trigger.dev')
+  const run = await tasks.trigger(
+    jobType,
+    { limits },
+    {
+      maxAttempts: 1,
+      region: await resolveTriggerRegion(),
+    }
+  )
+  return { triggered: true as const, runId: run.id, limits }
+}
+
+/** Reuse existing cleanup functions with one budget across all workspace/organization chunks. */
+export async function runCleanupWithLimits(
+  jobType: 'cleanup-logs' | 'cleanup-soft-deletes',
+  input: CleanupLimits,
+  runScope: (payload: CleanupJobPayload, budgets: CleanupBudgets) => Promise<void>
+): Promise<void> {
+  const limits = validateCleanupLimits(jobType, input)
+  if (!isBillingEnabled && !isDataRetentionEnabled) throw new Error('Data retention is disabled')
+  const budgets = createCleanupBudgets(limits)
+  await forEachCleanupChunk(jobType, (scope) => runScope(scope, budgets), {
+    shouldStop: () => Object.values(budgets).every((budget) => budget.remaining === 0),
+    pageSize: 25,
+    failOnLookupError: true,
+  })
 }

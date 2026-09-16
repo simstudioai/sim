@@ -1,0 +1,48 @@
+/** Unitless milliseconds keep CSS optimization from changing the replay timing units. */
+.list {
+  --draw-duration-ms: 900;
+  --detail-delay-ms: 120;
+  --entry-delay: 0ms;
+}
+
+.mark [pathLength] {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.list:not(.drawn) .mark [pathLength] {
+  stroke-dashoffset: 1;
+}
+
+.drawn .mark [pathLength] {
+  animation: draw calc(var(--draw-duration-ms) * 1ms) ease-out var(--entry-delay) backwards;
+}
+
+.drawn .mark [data-cert-detail] [pathLength] {
+  animation-delay: calc(var(--entry-delay) + var(--detail-delay-ms) * 1ms);
+}
+
+.drawn li:nth-child(2) {
+  --entry-delay: 100ms;
+}
+
+.drawn li:nth-child(3) {
+  --entry-delay: 200ms;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .list .mark [pathLength] {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+    animation: none !important;
+  }
+}

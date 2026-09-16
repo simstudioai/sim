@@ -10,7 +10,6 @@ import type {
   BrowserMediaPermissionRequest,
   BrowserOmniboxFocusMode,
   BrowserPageIssue,
-  BrowserSitePermissionRequest,
   BrowserTabState,
   BrowserTabsState,
   BrowserTheme,
@@ -36,7 +35,6 @@ import type {
 } from 'electron'
 import {
   app,
-  dialog,
   session as electronSession,
   Menu,
   nativeTheme,
@@ -90,7 +88,6 @@ export interface AgentTab {
   id: string
   scopeId: string
   view: WebContentsView
-  pinned: boolean
   pendingRestoreUrl?: string
   pendingRestore?: PendingTabRestore
   pageIssue?: BrowserPageIssue
@@ -99,7 +96,6 @@ export interface AgentTab {
   recoveringUnresponsive?: boolean
   pendingMediaPermission?: PendingMediaPermission
   mediaPermissionGrant?: MediaPermissionGrant
-  pendingSitePermission?: PendingSitePermission
   lastRealUserGestureAt?: number
 }
 
@@ -113,19 +109,6 @@ interface PendingMediaPermission {
 interface MediaPermissionGrant {
   origin: string
   devices: Set<BrowserMediaDevice>
-}
-
-interface PendingSitePermission {
-  request: BrowserSitePermissionRequest
-  /** Exact committed document from which the suspended request originated. */
-  documentUrl: string
-  /** Exact destination retained only in main-process memory for receipt validation. */
-  destinationUrl: string
-  contents: WebContents
-  networkRequestId: number
-  resolve: (allowed: boolean) => void
-  timeout: ReturnType<typeof setTimeout>
-  nativePromptController?: AbortController
 }
 
 export interface BrowserSessionPersistence {
@@ -162,8 +145,6 @@ export interface AgentSessionEvents {
   onActiveTabChanged: (contents: WebContents) => void
   /** The active tab's recoverable page state changed without a navigation. */
   onPageStateChanged: (contents: WebContents) => void
-  /** Whether the current app renderer can present and answer a site-origin prompt. */
-  sitePermissionPromptSupported: (scopeId: string) => boolean
   /** The tab list or active tab changed. */
   onTabsChanged: () => void
   /** Sim's appearance preference changed for an existing tab. */
@@ -201,8 +182,6 @@ const BACKGROUND_TAB_RESTORE_TIMEOUT_MS = 15_000
 const FOREGROUND_TAB_RESTORE_TIMEOUT_MS = 20_000
 const MEDIA_PERMISSION_GESTURE_WINDOW_MS = 10_000
 const MEDIA_PERMISSION_PROMPT_TIMEOUT_MS = 30_000
-const SITE_PERMISSION_PROMPT_TIMEOUT_MS = 20_000
-const MAX_SITE_ORIGIN_GRANTS_PER_SCOPE = 64
 
 export type BrowserShortcut = 'focus-omnibox' | 'new-tab' | 'close-tab' | 'find'
 
@@ -270,8 +249,6 @@ interface BrowserScopeState {
    */
   findingTabId: string | null
   findingRequestId: number | null
-  /** Memory-bounded, task-local origins explicitly reached or approved by the user. */
-  siteOriginGrants: Map<string, true>
 }
 
 function createBrowserScopeState(): BrowserScopeState {
@@ -292,7 +269,6 @@ function createBrowserScopeState(): BrowserScopeState {
     automationNeedsAttention: false,
     findingTabId: null,
     findingRequestId: null,
-    siteOriginGrants: new Map(),
   }
 }
 
@@ -445,7 +421,6 @@ interface PendingTabRestore {
   settled: boolean
   requeueAfterPreemption: boolean
   cancelLoad?: () => void
-  grantSitePermissionGrace?: () => void
   promoteToForeground?: () => void
 }
 
@@ -828,7 +803,7 @@ export function showBrowserDownloadInFolder(scopeId: string, downloadId: string)
  *
  * {@link initSession} names itself as the session boundary but set three of
  * these fields and left the rest, so a second call would inherit the first
- * session's tab id counter, theme, pinned-restore latch and persisted-list
+ * session's tab id counter, theme, restore latch and persisted-list
  * digest — the last of which would then suppress the new session's first save
  * as an unchanged write. Nothing re-inits in production today, which is
  * exactly why the gap stayed invisible, and why the tests had to reset the
@@ -877,15 +852,10 @@ export function initSession(
       return scopeId ? withBrowserScope(scopeId, activeTab) : null
     },
     backgroundColor: browserBackgroundColor,
-    ensureInitialTab: () => {
+    restoreActiveScope: () => {
       const scopeId = getActiveBrowserScopeId()
       if (!scopeId) return
-      withBrowserScope(scopeId, () => {
-        restoreBrowserSession()
-        if (!hasSession()) {
-          ensureTab()
-        }
-      })
+      withBrowserScope(scopeId, restoreBrowserSession)
     },
     onViewDetached: (view) => {
       if (!view) return
@@ -946,7 +916,6 @@ function isActivationOnlyBrowserScope(scopeId: string): boolean {
     state.activeTabId === null &&
     state.automationTabId === null &&
     state.nextTabId === 1 &&
-    !state.restored &&
     !state.restoring
   )
 }
@@ -1128,7 +1097,7 @@ function browserSessionSnapshot(): BrowserSessionSnapshot {
     .map(({ interruptionReason: _interruptionReason, ...download }) => ({ ...download }))
   return {
     v: 1,
-    tabs: liveTabs.map((tab) => ({ url: tabUrl(tab), pinned: tab.pinned })),
+    tabs: liveTabs.map((tab) => ({ url: tabUrl(tab) })),
     activeIndex,
     downloads,
   }
@@ -1234,11 +1203,6 @@ function mediaOrigin(candidate: unknown): string | null {
   } catch {
     return null
   }
-}
-
-function withoutUrlFragment(url: string): string {
-  const fragmentIndex = url.indexOf('#')
-  return fragmentIndex < 0 ? url : url.slice(0, fragmentIndex)
 }
 
 function requestedMediaDevices(candidate: unknown): BrowserMediaDevice[] | null {
@@ -1353,212 +1317,6 @@ export async function respondToMediaPermission(requestId: string, allowed: boole
   }
   settleMediaPermission(tab, osAllowed)
   publishPageIssue(tab)
-}
-
-function grantSiteOrigin(state: BrowserScopeState, origin: string): void {
-  state.siteOriginGrants.delete(origin)
-  state.siteOriginGrants.set(origin, true)
-  while (state.siteOriginGrants.size > MAX_SITE_ORIGIN_GRANTS_PER_SCOPE) {
-    const oldest = state.siteOriginGrants.keys().next().value
-    if (typeof oldest !== 'string') break
-    state.siteOriginGrants.delete(oldest)
-  }
-}
-
-function hasSiteOriginGrant(state: BrowserScopeState, origin: string): boolean {
-  if (!state.siteOriginGrants.has(origin)) return false
-  grantSiteOrigin(state, origin)
-  return true
-}
-
-function publishSitePermissionState(scopeId: string): void {
-  const resolved = resolveBrowserScopeId(scopeId)
-  const state = browserScopeStates.get(resolved)
-  if (!state) return
-  const active = state.tabs.find((tab) => tab.id === state.activeTabId)
-  if (active && !active.view.webContents.isDestroyed()) {
-    withBrowserScope(resolved, () => events?.onPageStateChanged(active.view.webContents))
-  }
-}
-
-function settleSitePermission(tab: AgentTab, allowed: boolean, publish = true): boolean {
-  const pending = tab.pendingSitePermission
-  if (!pending) return false
-  tab.pendingSitePermission = undefined
-  clearTimeout(pending.timeout)
-  pending.nativePromptController?.abort()
-  pending.resolve(allowed)
-  if (publish) publishSitePermissionState(tab.scopeId)
-  return true
-}
-
-function scopedTabForRequest(details: {
-  webContents?: WebContents
-  webContentsId?: number
-}): { scopeId: string; tab: AgentTab } | null {
-  if (details.webContents) return scopedTabForContents(details.webContents)
-  if (typeof details.webContentsId !== 'number') return null
-  for (const [scopeId, state] of browserScopeStates) {
-    const tab = state.tabs.find(
-      (candidate) => candidate.view.webContents.id === details.webContentsId
-    )
-    if (tab) return { scopeId, tab }
-  }
-  return null
-}
-
-/** Highest-priority exact site request: visible tab, automation tab, then task tab order. */
-export function sitePermissionRequestForScope(): BrowserSitePermissionRequest | undefined {
-  const state = browserScopeState()
-  const active = state.tabs.find((tab) => tab.id === state.activeTabId)?.pendingSitePermission
-  if (active) return active.request
-  const automation = state.tabs.find(
-    (tab) => tab.id === state.automationTabId
-  )?.pendingSitePermission
-  if (automation) return automation.request
-  return state.tabs.find((tab) => tab.pendingSitePermission)?.pendingSitePermission?.request
-}
-
-function grantSiteOriginForExplicitNavigation(contents: WebContents, destination: string): boolean {
-  const scoped = scopedTabForContents(contents)
-  const origin = mediaOrigin(destination)
-  if (!scoped || !origin) return false
-  const state = browserScopeStates.get(scoped.scopeId)
-  if (!state || scoped.tab.view.webContents !== contents || contents.isDestroyed()) return false
-  grantSiteOrigin(state, origin)
-  return true
-}
-
-/** Grants only the destination origin entered through a native-activation-gated user action. */
-export function grantSiteOriginForUserNavigation(
-  contents: WebContents,
-  destination: string
-): boolean {
-  return grantSiteOriginForExplicitNavigation(contents, destination)
-}
-
-/** Grants the exact destination origin after the browser driver has completed its SSRF check. */
-export function grantSiteOriginForAgentNavigation(
-  contents: WebContents,
-  destination: string
-): boolean {
-  return grantSiteOriginForExplicitNavigation(contents, destination)
-}
-
-/** Applies a response only to the exact live task, tab, document, and suspended network request. */
-export function respondToSitePermission(requestId: string, allowed: boolean): boolean {
-  const scopeId = getBrowserScopeId()
-  const state = browserScopeStates.get(scopeId)
-  const tab = state?.tabs.find(
-    (candidate) => candidate.pendingSitePermission?.request.requestId === requestId
-  )
-  const pending = tab?.pendingSitePermission
-  if (!state || !tab || !pending) return false
-
-  if (!allowed) return settleSitePermission(tab, false)
-
-  const contents = tab.view.webContents
-  const live =
-    !contents.isDestroyed() &&
-    pending.contents === contents &&
-    pending.request.tabId === tab.id &&
-    pending.documentUrl === contents.getURL() &&
-    mediaOrigin(pending.destinationUrl) === pending.request.origin &&
-    scopeId === resolveBrowserScopeId(tab.scopeId) &&
-    scopeId === getActiveBrowserScopeId() &&
-    isPanelVisible()
-  if (!live) return settleSitePermission(tab, false)
-
-  grantSiteOrigin(state, pending.request.origin)
-  return settleSitePermission(tab, true)
-}
-
-async function requestSitePermission(details: {
-  id: number
-  url: string
-  webContents?: WebContents
-  webContentsId?: number
-}): Promise<boolean> {
-  const origin = mediaOrigin(details.url)
-  const scoped = scopedTabForRequest(details)
-  if (!origin || !scoped || suspendedBrowserScopes.has(scoped.scopeId)) return false
-  const state = browserScopeStates.get(scoped.scopeId)
-  const contents = scoped.tab.view.webContents
-  if (!state || contents.isDestroyed()) return false
-
-  if (mediaOrigin(contents.getURL()) === origin || hasSiteOriginGrant(state, origin)) return true
-  if (scoped.scopeId !== getActiveBrowserScopeId() || !isPanelVisible()) return false
-  const win = panelWindow()
-  if (!win || win.isDestroyed()) return false
-
-  settleSitePermission(scoped.tab, false, false)
-  revokeTabMediaPermissions(scoped.tab, false)
-  const request: BrowserSitePermissionRequest = {
-    requestId: generateId(),
-    tabId: scoped.tab.id,
-    origin,
-  }
-  const allowed = new Promise<boolean>((resolve) => {
-    scoped.tab.pendingSitePermission = {
-      request,
-      documentUrl: contents.getURL(),
-      destinationUrl: details.url,
-      contents,
-      networkRequestId: details.id,
-      resolve,
-      timeout: setTimeout(
-        bindToBrowserScope(scoped.scopeId, () => {
-          const pending = scoped.tab.pendingSitePermission
-          if (
-            pending?.request.requestId !== request.requestId ||
-            pending.networkRequestId !== details.id
-          ) {
-            return
-          }
-          settleSitePermission(scoped.tab, false)
-        }),
-        SITE_PERMISSION_PROMPT_TIMEOUT_MS
-      ),
-    }
-  })
-  scoped.tab.pendingRestore?.grantSitePermissionGrace?.()
-  if (events?.sitePermissionPromptSupported(scoped.scopeId)) {
-    win.focus()
-    win.webContents.focus()
-    publishSitePermissionState(scoped.scopeId)
-  } else {
-    const nativePromptController = new AbortController()
-    const pending = scoped.tab.pendingSitePermission
-    if (!pending || pending.request.requestId !== request.requestId) return await allowed
-    pending.nativePromptController = nativePromptController
-    void dialog
-      .showMessageBox(win, {
-        type: 'warning',
-        buttons: ['Block', 'Allow'],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-        signal: nativePromptController.signal,
-        message: `Allow this browser task to open ${request.origin}?`,
-        detail: 'Only allow this site if it is expected for the current task.',
-      })
-      .then(({ response }) => {
-        withBrowserScope(scoped.scopeId, () => {
-          respondToSitePermission(request.requestId, response === 1)
-        })
-      })
-      .catch((error) => {
-        if (!nativePromptController.signal.aborted) {
-          logger.warn('Could not present the native site permission prompt', {
-            error: getErrorMessage(error),
-          })
-        }
-        withBrowserScope(scoped.scopeId, () => {
-          respondToSitePermission(request.requestId, false)
-        })
-      })
-  }
-  return await allowed
 }
 
 /**
@@ -1685,25 +1443,7 @@ function configureAgentPartition(ses: Session): void {
         logger.warn('Could not answer an agent request', { error: getErrorMessage(error) })
       }
     }
-    if (details.resourceType === 'mainFrame') {
-      void checkAgentUrl(details.url)
-        .then(async (guard) => {
-          if (!guard.ok) {
-            logger.warn('Blocked agent document navigation to a private host')
-            settle(true)
-            return
-          }
-          settle(!(await requestSitePermission(details)))
-        })
-        .catch((error) => {
-          // Fail closed: an unexpected rejection must cancel, never leave the
-          // request suspended with no callback.
-          logger.error('Agent SSRF check failed; cancelling request', { error })
-          settle(true)
-        })
-      return
-    }
-    if (details.resourceType === 'subFrame') {
+    if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
       void checkAgentUrl(details.url)
         .then((guard) => {
           if (!guard.ok) logger.warn('Blocked agent document navigation to a private host')
@@ -2176,14 +1916,10 @@ export function stopFindInActiveTab(focusPage: boolean): void {
  * inside the browser resource rather than spawn a native window, and both are
  * reached from an untrusted page, so the scheme is checked here once.
  */
-function openTabWithUrl(
-  url: string,
-  { agentOwned, userAuthorized }: { agentOwned: boolean; userAuthorized: boolean }
-): void {
+function openTabWithUrl(url: string, { agentOwned }: { agentOwned: boolean }): void {
   if (!/^https?:\/\//i.test(url)) return
   try {
     const tab = agentOwned ? addAutomationTab() : addTab()
-    if (userAuthorized) grantSiteOriginForUserNavigation(tab.view.webContents, url)
     void tab.view.webContents.loadURL(url).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
@@ -2235,10 +1971,7 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
   contents.setUserAgent(browserUserAgent())
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
-    openTab: (url) =>
-      withBrowserScope(scopeId, () =>
-        openTabWithUrl(url, { agentOwned: false, userAuthorized: true })
-      ),
+    openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, { agentOwned: false })),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
   })
 
@@ -2298,7 +2031,6 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
     withBrowserScope(scopeId, () =>
       openTabWithUrl(details.url, {
         agentOwned: agentOwnsPopupFrom(contents),
-        userAuthorized: false,
       })
     )
     return { action: 'deny' }
@@ -2327,7 +2059,6 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
         return
       }
       dismissFind(tab.id)
-      settleSitePermission(tab, false)
       revokeTabMediaPermissions(tab, false)
       tab.pageIssue = {
         kind: 'crashed',
@@ -2345,7 +2076,6 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
       const tab = tabs.find((entry) => entry.view === view)
       if (!tab || tab.pageIssue?.kind === 'crashed') return
       dismissFind(tab.id)
-      settleSitePermission(tab, false)
       revokeTabMediaPermissions(tab, false)
       tab.pageIssue = {
         kind: 'unresponsive',
@@ -2427,8 +2157,8 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
       if (tab) dismissFind(tab.id)
     })
   )
-  // A pinned tab persists its latest top-level location, including
-  // user-driven navigations that do not pass through the driver.
+  // A tab persists its latest top-level location, including user-driven
+  // navigations that do not pass through the driver.
   contents.on(
     'did-navigate',
     bindToBrowserScope(scopeId, () => {
@@ -2452,13 +2182,6 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
       if (!details.isMainFrame) return
       const tab = tabs.find((entry) => entry.view === view)
       if (tab) {
-        if (
-          tab.pendingSitePermission &&
-          withoutUrlFragment(tab.pendingSitePermission.destinationUrl) !==
-            withoutUrlFragment(details.url)
-        ) {
-          settleSitePermission(tab, false)
-        }
         revokeTabMediaPermissions(tab)
       }
       notePageNavigationStarted(contents)
@@ -2480,7 +2203,6 @@ function initializeTabView(view: WebContentsView, scopeId: string): WebContentsV
     bindToBrowserScope(scopeId, () => {
       const tab = tabs.find((entry) => entry.view === view)
       if (tab) {
-        settleSitePermission(tab, false)
         revokeTabMediaPermissions(tab, false)
       }
       events?.onTabClosed(contents)
@@ -2649,26 +2371,11 @@ export function requireTab(): AgentTab {
 }
 
 interface AddTabOptions {
-  pinned?: boolean
   activate?: boolean
   notify?: boolean
 }
 
-/** Pinned tabs join the stable group at the far left; regular tabs append. */
-function insertPinnedAware(tab: AgentTab): void {
-  if (tab.pinned) {
-    const firstRegularTab = tabs.findIndex((entry) => !entry.pinned)
-    tabs.splice(firstRegularTab < 0 ? tabs.length : firstRegularTab, 0, tab)
-  } else {
-    tabs.push(tab)
-  }
-}
-
-function addTabInternal({
-  pinned = false,
-  activate = true,
-  notify = true,
-}: AddTabOptions = {}): AgentTab {
+function addTabInternal({ activate = true, notify = true }: AddTabOptions = {}): AgentTab {
   assertTabCapacity()
   const previousActiveTab = activeTab()
   const transferBrowserFocus =
@@ -2679,9 +2386,8 @@ function addTabInternal({
     id: String(currentScope.nextTabId++),
     scopeId: getBrowserScopeId(),
     view: createTabView(),
-    pinned,
   }
-  insertPinnedAware(tab)
+  tabs.push(tab)
   if (currentScope.automationTabId === null) currentScope.automationTabId = tab.id
   if (activate || currentScope.activeTabId === null) {
     if (previousActiveTab && previousActiveTab.id !== tab.id) {
@@ -2742,19 +2448,14 @@ function loadPendingTabRestore(pending: PendingTabRestore, timeoutMs: number): P
   return new Promise((resolve) => {
     let settled = false
     let timeout: ReturnType<typeof setTimeout> | undefined
-    const startedAt = Date.now()
-    let hardDeadlineAt = startedAt + timeoutMs + SITE_PERMISSION_PROMPT_TIMEOUT_MS
-    let deadlineAt = startedAt + timeoutMs
+    let deadlineAt = Date.now() + timeoutMs
     let foregroundDeadlineGranted = pending.priority === 'foreground'
-    let sitePermissionGraceGranted = false
     const finish = (loaded: boolean) => {
       if (settled) return
       settled = true
       if (timeout) clearTimeout(timeout)
       pending.cancelLoad = undefined
-      pending.grantSitePermissionGrace = undefined
       pending.promoteToForeground = undefined
-      if (!loaded) settleSitePermission(pending.tab, false)
       if (
         loaded &&
         isPendingTabRestoreLive(pending) &&
@@ -2791,21 +2492,10 @@ function loadPendingTabRestore(pending: PendingTabRestore, timeoutMs: number): P
       if (timeout) clearTimeout(timeout)
       timeout = setTimeout(() => stopLoad(true), Math.max(0, deadlineAt - Date.now()))
     }
-    pending.grantSitePermissionGrace = () => {
-      if (settled || sitePermissionGraceGranted) return
-      sitePermissionGraceGranted = true
-      deadlineAt = Math.min(deadlineAt + SITE_PERMISSION_PROMPT_TIMEOUT_MS, hardDeadlineAt)
-      scheduleDeadline()
-    }
     pending.promoteToForeground = () => {
       if (settled || foregroundDeadlineGranted) return
       foregroundDeadlineGranted = true
-      hardDeadlineAt =
-        startedAt + FOREGROUND_TAB_RESTORE_TIMEOUT_MS + SITE_PERMISSION_PROMPT_TIMEOUT_MS
-      deadlineAt = Math.min(
-        Math.max(deadlineAt, Date.now() + FOREGROUND_TAB_RESTORE_TIMEOUT_MS),
-        hardDeadlineAt
-      )
+      deadlineAt = Date.now() + FOREGROUND_TAB_RESTORE_TIMEOUT_MS
       scheduleDeadline()
     }
     scheduleDeadline()
@@ -2970,7 +2660,6 @@ export async function waitForPendingTabRestore(tab: AgentTab): Promise<boolean> 
 export function prepareExplicitNavigation(contents: WebContents): void {
   const tab = tabForContents(contents)
   if (!tab) return
-  settleSitePermission(tab, false)
   tab.pendingRestoreUrl = undefined
   discardPendingTabRestore(tab)
 }
@@ -2995,7 +2684,6 @@ export function restoreBrowserSession(): void {
     throw new SessionError('This task browser is suspended until the task is reopened.')
   }
   if (currentScope.restored) return
-  currentScope.activationOnly = false
 
   const scopeId = getBrowserScopeId()
   let snapshot: BrowserSessionSnapshot | null = null
@@ -3008,19 +2696,14 @@ export function restoreBrowserSession(): void {
       })
     }
   }
+  // Every chat is hydrated as soon as it is opened so its pages can be listed
+  // as tabs. Only a chat that actually had pages holds browser state of its
+  // own; one without stays replaceable by a pending chat adopting its id.
+  if (snapshot) currentScope.activationOnly = false
 
   const selectedIndexes = new Set<number>()
   if (snapshot) {
-    for (
-      let index = 0;
-      index < snapshot.tabs.length && selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE;
-      index++
-    ) {
-      if (snapshot.tabs[index]?.pinned) selectedIndexes.add(index)
-    }
-    if (selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE && snapshot.tabs[snapshot.activeIndex]) {
-      selectedIndexes.add(snapshot.activeIndex)
-    }
+    if (snapshot.tabs[snapshot.activeIndex]) selectedIndexes.add(snapshot.activeIndex)
     for (
       let index = 0;
       index < snapshot.tabs.length && selectedIndexes.size < MAX_LIVE_TABS_PER_SCOPE;
@@ -3049,7 +2732,6 @@ export function restoreBrowserSession(): void {
     nextTabId: state.nextTabId,
     restored: state.restored,
     lastPersistedSnapshot: state.lastPersistedSnapshot,
-    siteOriginGrants: new Map(state.siteOriginGrants),
   }
   const previousDownloads = browserDownloadsByScope.get(scopeId)
   const restoredTabs: AgentTab[] = []
@@ -3062,10 +2744,8 @@ export function restoreBrowserSession(): void {
         snapshot.downloads.map((download) => ({ ...download }))
       )
       for (const { entry } of selectedEntries) {
-        const tab = addTabInternal({ pinned: entry.pinned, activate: false, notify: false })
+        const tab = addTabInternal({ activate: false, notify: false })
         tab.pendingRestoreUrl = entry.url
-        const restoredOrigin = mediaOrigin(entry.url)
-        if (restoredOrigin) grantSiteOrigin(state, restoredOrigin)
         restoredTabs.push(tab)
         restoredLoads.push({ tab, url: entry.url })
       }
@@ -3086,7 +2766,6 @@ export function restoreBrowserSession(): void {
     state.nextTabId = previousState.nextTabId
     state.restored = previousState.restored
     state.lastPersistedSnapshot = previousState.lastPersistedSnapshot
-    state.siteOriginGrants = previousState.siteOriginGrants
     if (previousDownloads) browserDownloadsByScope.set(scopeId, previousDownloads)
     else browserDownloadsByScope.delete(scopeId)
     applyActiveTabThrottling()
@@ -3122,23 +2801,13 @@ export function addTab(): AgentTab {
 }
 
 /**
- * Opens a tab for agent work.
- *
- * `reveal` is for the agent deliberately opening a page to work in
- * (`browser_open_tab`): the panel follows it, so the user watches the work
- * instead of staring at a page where nothing is happening. It is NOT set when a
- * page spawns a tab on its own (popups, `target="_blank"`) — that is the site
- * grabbing the view, not the agent choosing a workspace.
- *
- * Even with `reveal`, a tab the user claimed themselves wins: pulling the view
- * off the page they are reading is the same interruption as a window stealing
- * focus mid-sentence. The work still starts, just in the background, and the
- * tab strip shows it arriving.
+ * Opens a tab for agent work in the background. Which page is visible is the
+ * renderer's decision: every page is a resource tab there, and it shows the
+ * agent's tab or badges it depending on what the user is doing.
  */
-export function addAutomationTab({ reveal = false }: { reveal?: boolean } = {}): AgentTab {
+export function addAutomationTab(): AgentTab {
   restoreBrowserSession()
-  const followTheWork = reveal && !currentScope.visibleTabUserSelected
-  const tab = addTabInternal({ activate: followTheWork, notify: false })
+  const tab = addTabInternal({ activate: false, notify: false })
   currentScope.automationTabId = tab.id
   applyActiveTabThrottling()
   persistBrowserSession()
@@ -3185,36 +2854,17 @@ export function reopenClosedTab(): AgentTab | null {
     // onBeforeRequest still runs the full DNS-resolving SSRF check on the
     // document load. Pre-checking would only buy a nicer error, and there is
     // no model to report one to — this path is a user keystroke.
-    grantSiteOriginForUserNavigation(tab.view.webContents, url)
     void tab.view.webContents.loadURL(url).catch(() => {})
   }
   return tab
 }
 
 /**
- * Opens a copy of a tab at the same URL. A duplicate is a fresh load rather
- * than a clone of the original's session history: the history belongs to the
- * WebContents, and there is no way to fork it.
+ * Shows a tab. `claim` records the visible page as the user's own; a switch
+ * that only mirrors the renderer's strip selection passes false so the agent
+ * can still close or adopt the page as its own.
  */
-export function duplicateTab(tabId: string): AgentTab | null {
-  restoreBrowserSession()
-  const source = tabs.find((entry) => entry.id === tabId)
-  if (!source) return null
-
-  const url = sanitizeRestorableUrl(source.view.webContents.getURL())
-  currentScope.visibleTabUserSelected = true
-  const tab = addTabInternal()
-  if (url && url !== 'about:blank') {
-    // Sanitized to http(s) without embedded credentials above, and the
-    // partition's onBeforeRequest still runs the full SSRF check on the load —
-    // same reasoning as reopenClosedTab, and this is likewise a user action.
-    grantSiteOriginForUserNavigation(tab.view.webContents, url)
-    void tab.view.webContents.loadURL(url).catch(() => {})
-  }
-  return tab
-}
-
-export function switchTab(tabId: string): AgentTab {
+export function switchTab(tabId: string, { claim = true }: { claim?: boolean } = {}): AgentTab {
   restoreBrowserSession()
   const tab = tabs.find((entry) => entry.id === tabId)
   if (!tab) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
@@ -3230,7 +2880,7 @@ export function switchTab(tabId: string): AgentTab {
     revokeTabMediaPermissions(previousActiveTab, false)
   }
   currentScope.activeTabId = tab.id
-  currentScope.visibleTabUserSelected = true
+  if (claim) currentScope.visibleTabUserSelected = true
   promotePendingTabRestore(tab)
   // Visible selection does not move the automation exemption; the user may
   // inspect another page while a tool continues in its background tab.
@@ -3255,23 +2905,18 @@ export function switchAutomationTab(tabId: string): AgentTab {
 }
 
 /**
- * Moves a tab to a final list index while preserving the pinned/regular
- * boundary. Dragging across that boundary moves to its nearest valid edge.
+ * Moves a tab to a final list index. The renderer's resource strip owns tab
+ * order; this keeps the native list — what restore and `browser_list_tabs`
+ * report — in the same order.
  */
 export function reorderTab(tabId: string, targetIndex: number): AgentTab {
   restoreBrowserSession()
-  if (!Number.isFinite(targetIndex)) {
-    throw new SessionError('Browser tab target index must be a finite number.')
-  }
   const currentIndex = tabs.findIndex((entry) => entry.id === tabId)
   if (currentIndex < 0) {
     throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
   }
   const tab = tabs[currentIndex]
-  const pinnedCount = tabs.filter((entry) => entry.pinned).length
-  const minIndex = tab.pinned ? 0 : pinnedCount
-  const maxIndex = tab.pinned ? pinnedCount - 1 : tabs.length - 1
-  const nextIndex = Math.max(minIndex, Math.min(maxIndex, Math.trunc(targetIndex)))
+  const nextIndex = Math.max(0, Math.min(tabs.length - 1, Math.trunc(targetIndex)))
   if (nextIndex === currentIndex) return tab
 
   tabs.splice(currentIndex, 1)
@@ -3281,19 +2926,23 @@ export function reorderTab(tabId: string, targetIndex: number): AgentTab {
   return tab
 }
 
-export function closeTab(tabId: string): void {
+/**
+ * Closes a tab. When the agent closes its own working tab it moves on to the
+ * neighbour so its next page tool has a target; a close the user made leaves
+ * the agent cursor unset instead of announcing a page the agent never chose.
+ */
+export function closeTab(
+  tabId: string,
+  { adoptNeighborForAgent = false }: { adoptNeighborForAgent?: boolean } = {}
+): void {
   restoreBrowserSession()
   const index = tabs.findIndex((entry) => entry.id === tabId)
   if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
-  if (tabs[index].pinned) {
-    throw new SessionError('Pinned tabs cannot be closed. Unpin the tab first.')
-  }
   // Before the splice, while the tab is still resolvable, stop page-owned UI.
   dismissFind(tabId)
   clearAutomationIndicatorsForTab(tabId)
   const [tab] = tabs.splice(index, 1)
   discardPendingTabRestore(tab)
-  settleSitePermission(tab, false)
   revokeTabMediaPermissions(tab, false)
   recentlyClosedTabUrls.unshift(sanitizeRestorableUrl(tabUrl(tab)) ?? 'about:blank')
   if (recentlyClosedTabUrls.length > MAX_RECENTLY_CLOSED_TABS) {
@@ -3313,21 +2962,15 @@ export function closeTab(tabId: string): void {
     }
   }
   if (currentScope.automationTabId === tab.id) {
-    currentScope.automationTabId = (tabs[index] ?? tabs[index - 1])?.id ?? null
+    currentScope.automationTabId = adoptNeighborForAgent
+      ? ((tabs[index] ?? tabs[index - 1])?.id ?? null)
+      : null
     applyActiveTabThrottling()
-  }
-  // Closing the last tab must not leave a visible browser resource with an
-  // empty strip. Replace it with a fresh New tab, matching normal browser UI.
-  if (!hasSession() && getBrowserScopeId() === getActiveBrowserScopeId() && isPanelVisible()) {
-    addTab()
-    if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
-    return
   }
   if (transferBrowserFocus) currentScope.focusedBrowserTabId = currentScope.activeTabId
   persistBrowserSession()
   events?.onTabsChanged()
   if (!hasSession()) {
-    currentScope.siteOriginGrants.clear()
     events?.onSessionClosed()
   }
 }
@@ -3339,49 +2982,7 @@ export function closeAutomationTab(tabId: string): void {
       'That tab is currently being used by the user. Switch to another agent tab instead of closing it.'
     )
   }
-  closeTab(tabId)
-}
-
-/**
- * Pins or unpins a live tab. Pinned tabs form a stable group at the far left,
- * and their latest URLs are persisted locally for the next browser opening.
- */
-export function setTabPinned(tabId: string, pinned: boolean): AgentTab {
-  restoreBrowserSession()
-  const index = tabs.findIndex((entry) => entry.id === tabId)
-  if (index < 0) throw new SessionError(`No tab with id ${tabId} — call browser_list_tabs.`)
-  const tab = tabs[index]
-  if (tab.pinned === pinned) return tab
-
-  tabs.splice(index, 1)
-  tab.pinned = pinned
-  insertPinnedAware(tab)
-  persistBrowserSession()
-  events?.onTabsChanged()
-  return tab
-}
-
-/** Opens tab actions as a native menu so the embedded page never has to be hidden. */
-export function showTabContextMenu(tabId: string): void {
-  const scopeId = getBrowserScopeId()
-  const tab = tabs.find((entry) => entry.id === tabId)
-  if (!tab || tab.view.webContents.isDestroyed()) return
-
-  const inOwningScope = (action: () => void) => () => withBrowserScope(scopeId, action)
-
-  Menu.buildFromTemplate([
-    {
-      label: tab.pinned ? 'Unpin Tab' : 'Pin Tab',
-      click: inOwningScope(() => setTabPinned(tabId, !tab.pinned)),
-    },
-    { label: 'Duplicate Tab', click: inOwningScope(() => duplicateTab(tabId)) },
-    { type: 'separator' },
-    {
-      label: 'Close Tab',
-      enabled: !tab.pinned,
-      click: inOwningScope(() => closeTab(tabId)),
-    },
-  ]).popup()
+  closeTab(tabId, { adoptNeighborForAgent: true })
 }
 
 /** The live page whose browser surface owns a menu accelerator. */
@@ -3510,10 +3111,6 @@ function clearFocusedBrowserTab(tabId?: string): void {
 }
 
 function closeTabFromUser(tabId: string): void {
-  if (tabs.find((tab) => tab.id === tabId)?.pinned) {
-    shell.beep()
-    return
-  }
   const closingLastTab = listTabs().length === 1
   closeTab(tabId)
   const active = activeTab()
@@ -3529,7 +3126,6 @@ function closeLiveTabs(): void {
   dismissFind(currentScope.findingTabId)
   for (const tab of tabs.splice(0)) {
     discardPendingTabRestore(tab)
-    settleSitePermission(tab, false, false)
     revokeTabMediaPermissions(tab, false)
     detachIfAttached(tab.view)
     if (!tab.view.webContents.isDestroyed()) {
@@ -3542,7 +3138,6 @@ function closeLiveTabs(): void {
   currentScope.automationActive = false
   currentScope.automationNeedsAttention = false
   currentScope.visibleTabUserSelected = false
-  currentScope.siteOriginGrants.clear()
   clearFocusedBrowserTab()
 }
 
@@ -3566,7 +3161,7 @@ export function quiesceBrowserSessions(): void {
 }
 
 /**
- * Ends the live session without touching the profile or the pinned-tab list on
+ * Ends the live session without touching the profile or the saved tab list on
  * disk, so the strip comes back intact next time. Turning the agent browser
  * off in settings runs this; a sign-out wipe runs {@link clearProfileStorage}.
  */
@@ -3587,10 +3182,10 @@ export function closeSession(): void {
 
 /**
  * Wipes the embedded browser's profile: open tabs, the in-memory list behind
- * Reopen Closed Tab, the persisted pinned tabs, and all site data and cache in
+ * Reopen Closed Tab, the saved tab lists, and all site data and cache in
  * the agent partition. Sim sign-out runs this so the next account signing in
  * on this machine cannot inherit the previous user's authenticated sessions,
- * pinned tabs, or browsing trail.
+ * saved tabs, or browsing trail.
  */
 export async function clearProfileStorage(): Promise<void> {
   // Cached DNS verdicts are part of the browsing trail: without this a wipe
@@ -3642,7 +3237,7 @@ const SITE_DATA_STORAGES = [
 /**
  * Erases selected kinds of browsing data without ending the session.
  *
- * Unlike {@link clearProfileStorage} this leaves tabs open and the pinned strip
+ * Unlike {@link clearProfileStorage} this leaves tabs open and the saved strip
  * intact: the user asked to clear data, not to close their browser. Saved
  * passwords live in a separate vault and are never touched here.
  */
@@ -3674,7 +3269,6 @@ export function listTabs(): BrowserTabState[] {
         url: issue?.url || tab.pendingRestoreUrl || tab.view.webContents.getURL(),
         loading: issue ? false : tab.view.webContents.isLoadingMainFrame(),
         active: tab.id === currentScope.activeTabId,
-        pinned: tab.pinned,
         ...(issue ? { issue } : {}),
       }
     })

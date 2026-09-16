@@ -5,6 +5,10 @@ import { requestQuiverSvg } from '@/lib/internal/quiver/client'
 import { QuiverOperationError } from '@/lib/internal/quiver/errors'
 import type { QuiverImageToSvgInput, QuiverTextToSvgInput } from '@/lib/internal/quiver/schema'
 import {
+  createInternalToolFilesResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
+import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -13,6 +17,7 @@ import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import type { QuiverSvgResponse } from '@/tools/quiver/types'
 
 const logger = createLogger('QuiverOperations')
 
@@ -23,31 +28,9 @@ export interface QuiverOperationContext {
   userId: string
 }
 
-interface QuiverFile {
-  name: string
-  mimeType: 'image/svg+xml'
-  data: string
-  size: number
-}
-
-interface QuiverUsage {
-  totalTokens: number
-  inputTokens: number
-  outputTokens: number
-}
-
-export interface QuiverSvgOutput {
-  success: true
-  output: {
-    file: QuiverFile
-    files: QuiverFile[]
-    svgContent: string
-    id: string | null
-    usage: QuiverUsage | null
-  }
-}
-
 type ApiImage = { url: string } | { base64: string }
+
+export type QuiverSvgOutput = QuiverSvgResponse & { success: true }
 
 function fail(message: string, status: number, body?: Record<string, unknown>): never {
   throw new QuiverOperationError(message, status, body)
@@ -155,8 +138,9 @@ async function resolveImage(
 function projectResult(
   result: unknown,
   fileName: (index: number, total: number) => string,
+  version: 'v1' | 'v2',
   firstOnly = false
-): QuiverSvgOutput {
+): QuiverSvgOutput | InternalToolFileResult {
   const root = record(result)
   const data = root.data
   if (!Array.isArray(data) || data.length === 0) {
@@ -171,8 +155,7 @@ function projectResult(
     return {
       name: fileName(index, projectedData.length),
       mimeType: 'image/svg+xml' as const,
-      data: buffer.toString('base64'),
-      size: buffer.length,
+      buffer,
     }
   })
   const usage = isRecordLike(root.usage)
@@ -183,22 +166,49 @@ function projectResult(
       }
     : null
 
-  return {
+  if (version === 'v1') {
+    const inlineFiles = files.map(({ buffer, name, mimeType }) => ({
+      name,
+      mimeType,
+      data: buffer.toString('base64'),
+      size: buffer.length,
+    }))
+    return {
+      success: true,
+      output: {
+        file: inlineFiles[0],
+        files: inlineFiles,
+        svgContent: record(data[0]).svg as string,
+        id: typeof root.id === 'string' ? root.id : null,
+        usage,
+      },
+    }
+  }
+
+  return createInternalToolFilesResult(files, (storedFiles) => ({
     success: true,
     output: {
-      file: files[0],
-      files,
-      svgContent: record(data[0]).svg as string,
+      files: storedFiles,
       id: typeof root.id === 'string' ? root.id : null,
       usage,
     },
-  }
+  }))
 }
 
-export async function executeQuiverTextToSvg(
+export function executeQuiverTextToSvg(
   input: QuiverTextToSvgInput,
   context: QuiverOperationContext
-): Promise<QuiverSvgOutput> {
+): Promise<QuiverSvgOutput>
+export function executeQuiverTextToSvg(
+  input: QuiverTextToSvgInput,
+  context: QuiverOperationContext,
+  version: 'v2'
+): Promise<InternalToolFileResult>
+export async function executeQuiverTextToSvg(
+  input: QuiverTextToSvgInput,
+  context: QuiverOperationContext,
+  version: 'v1' | 'v2' = 'v1'
+): Promise<QuiverSvgOutput | InternalToolFileResult> {
   context.signal?.throwIfAborted()
   validateProvenance(input, context)
   const references: ApiImage[] = []
@@ -223,15 +233,27 @@ export async function executeQuiverTextToSvg(
 
   const result = await requestQuiverSvg('generations', input.apiKey, body, context.signal)
   context.signal?.throwIfAborted()
-  return projectResult(result, (index, total) =>
-    total > 1 ? `generated-${index + 1}.svg` : 'generated.svg'
+  return projectResult(
+    result,
+    (index, total) => (total > 1 ? `generated-${index + 1}.svg` : 'generated.svg'),
+    version
   )
 }
 
-export async function executeQuiverImageToSvg(
+export function executeQuiverImageToSvg(
   input: QuiverImageToSvgInput,
   context: QuiverOperationContext
-): Promise<QuiverSvgOutput> {
+): Promise<QuiverSvgOutput>
+export function executeQuiverImageToSvg(
+  input: QuiverImageToSvgInput,
+  context: QuiverOperationContext,
+  version: 'v2'
+): Promise<InternalToolFileResult>
+export async function executeQuiverImageToSvg(
+  input: QuiverImageToSvgInput,
+  context: QuiverOperationContext,
+  version: 'v1' | 'v2' = 'v1'
+): Promise<QuiverSvgOutput | InternalToolFileResult> {
   context.signal?.throwIfAborted()
   validateProvenance(input, context)
   const image = await resolveImage(input.image, context)
@@ -245,5 +267,5 @@ export async function executeQuiverImageToSvg(
 
   const result = await requestQuiverSvg('vectorizations', input.apiKey, body, context.signal)
   context.signal?.throwIfAborted()
-  return projectResult(result, () => 'vectorized.svg', true)
+  return projectResult(result, () => 'vectorized.svg', version, true)
 }

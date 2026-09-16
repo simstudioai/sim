@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
 import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
@@ -12,6 +13,7 @@ import { POPULAR_WORKFLOWS } from '@/lib/integrations/popular-workflows'
 import { withFilteredNoindex } from '@/lib/landing/seo'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { IntegrationCard } from '@/app/(landing)/integrations/components/integration-card'
 import { IntegrationGrid } from '@/app/(landing)/integrations/components/integration-grid'
 import { RequestIntegrationModal } from '@/app/(landing)/integrations/components/request-integration-modal'
@@ -170,7 +172,7 @@ export default async function IntegrationsPage({
       <JsonLd data={faqJsonLd} />
 
       {/* Hero */}
-      <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
         <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
           <h1
             id='integrations-heading'
@@ -189,8 +191,8 @@ export default async function IntegrationsPage({
       <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
       {/* Border-railed content */}
-      <div className='mx-auto w-full max-w-[1460px]'>
-        <div className='mx-20 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+      <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+        <div className='border-[var(--border)] border-x'>
           {/* Featured integrations - top */}
           {featured.length > 0 && (
             <>

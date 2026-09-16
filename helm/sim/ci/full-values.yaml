@@ -21,10 +21,10 @@ ingress:
   enabled: true
   app:
     host: ci.example.com
-    paths: [{ path: /, pathType: Prefix }]
+    paths: [{path: /, pathType: Prefix}]
   realtime:
     host: ci-ws.example.com
-    paths: [{ path: /, pathType: Prefix }]
+    paths: [{path: /, pathType: Prefix}]
   tls:
     enabled: true
 

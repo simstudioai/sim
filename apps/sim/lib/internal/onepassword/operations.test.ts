@@ -1,7 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  isInternalToolFileResult,
+  type StoredToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 
 const clientMocks = vi.hoisted(() => ({
   connectItemToSdkItem: vi.fn(),
@@ -201,18 +206,63 @@ describe('1Password operations', () => {
       { signal: controller.signal }
     )
 
-    expect(result).toEqual({
-      file: {
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      {
         name: 'secret.txt',
         mimeType: 'text/plain',
-        data: Buffer.from('hello').toString('base64'),
-        size: 5,
+        buffer: Buffer.from('hello'),
       },
-    })
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
+      name: 'secret.txt',
+      type: 'text/plain',
+      mimeType: 'text/plain',
+      size: 5,
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toEqual({ file: storedFile })
     expect(clientMocks.connectRequest.mock.calls[1]?.[0]).toMatchObject({
       maxResponseBytes: 5,
       signal: controller.signal,
     })
+  })
+
+  it('returns SDK attachment bytes for storage with the actual byte length', async () => {
+    clientMocks.createOnePasswordClient.mockResolvedValue({
+      items: {
+        get: vi.fn().mockResolvedValue({ id: 'item-1' }),
+        files: { read: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])) },
+      },
+    })
+    clientMocks.findItemFileAttributes.mockReturnValue({
+      id: 'file-1',
+      name: 'secret.bin',
+      size: 3,
+    })
+
+    const result = await executeOnePasswordGetItemFile(
+      { ...SERVICE_CREDENTIALS, vaultId: 'vault-1', itemId: 'item-1', fileId: 'file-1' },
+      {}
+    )
+
+    expect(result.files).toEqual([
+      { name: 'secret.bin', mimeType: 'application/octet-stream', buffer: Buffer.from([1, 2, 3]) },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
+      name: 'secret.bin',
+      type: 'application/octet-stream',
+      mimeType: 'application/octet-stream',
+      size: 3,
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toEqual({ file: storedFile })
   })
 
   it('preserves the private secret value and rejects Connect mode', async () => {

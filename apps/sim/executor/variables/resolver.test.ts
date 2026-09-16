@@ -10,10 +10,16 @@ import {
   LARGE_ARRAY_MANIFEST_VERSION,
   type LargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import {
+  collectSandboxFileMountRefs,
+  replaceSandboxFileMountRefs,
+} from '@/lib/execution/payloads/sandbox-file-mount-ref'
+import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import { BlockType } from '@/executor/constants'
 import { ExecutionState } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { buildStartBlockOutput } from '@/executor/utils/start-block'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -126,6 +132,79 @@ function createResolver(
     resolver: new VariableResolver(workflow, {}, state, options),
   }
 }
+
+describe('Start file path references', () => {
+  const workspaceId = '11111111-1111-4111-8111-111111111111'
+  const key = `workspace/${workspaceId}/photo.png`
+  const uploadedFile = {
+    id: 'file-1',
+    name: 'photo.png',
+    size: 128,
+    type: 'image/png',
+  }
+
+  it.each([
+    {
+      language: 'shell',
+      file: { ...uploadedFile, key, url: 'https://storage.example.com/photo.png' },
+    },
+    {
+      language: 'shell',
+      file: {
+        ...uploadedFile,
+        url: `/api/files/serve/s3/${encodeURIComponent(key)}?context=workspace`,
+      },
+    },
+    {
+      language: 'python',
+      file: { ...uploadedFile, key, url: 'https://storage.example.com/photo.png' },
+    },
+    {
+      language: 'javascript',
+      file: { ...uploadedFile, key, url: 'https://storage.example.com/photo.png' },
+    },
+  ])('mounts a Start upload referenced from $language code', async ({ language, file }) => {
+    const start = createBlock('start', 'Start', 'start_trigger', {
+      inputFormat: [{ name: 'files', type: 'file[]', value: '' }],
+    })
+    const functionBlock = createBlock('function', 'Function', BlockType.FUNCTION, { language })
+    const output = buildStartBlockOutput({
+      resolution: { blockId: start.id, block: start, path: StartBlockPath.UNIFIED },
+      workspaceId,
+      workflowInput: { input: 'Edit the image', files: [file] },
+    })
+    const { ctx } = createResolver(language)
+    const state = new ExecutionState()
+    state.setBlockOutput(start.id, output)
+    ctx.blockStates = state.getBlockStates()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [start, functionBlock],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const resolver = new VariableResolver(workflow, {}, state, { navigatePathAsync })
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      functionBlock.id,
+      { code: 'IN="<start.files[0].path>"' },
+      functionBlock
+    )
+
+    expect(collectSandboxFileMountRefs(result.contextVariables)).toEqual([
+      { ...file, key, context: 'workspace' },
+    ])
+    expect(
+      replaceSandboxFileMountRefs(result.contextVariables, () => '/tmp/sim/inputs/photo.png')
+    ).toEqual({ __blockRef_0: '/tmp/sim/inputs/photo.png' })
+    expect(result.resolvedInputs.code).not.toContain('<start.files[0].path>')
+    expect(result.resolvedInputs.code).not.toContain('null')
+    if (language === 'shell') {
+      expect(result.resolvedInputs.code).toBe(`IN="\${__blockRef_0}"`)
+    }
+  })
+})
 
 /** Runs one condition expression through the resolver and returns the value the handler receives. */
 async function resolveConditionExpression(
@@ -2108,6 +2187,13 @@ describe('VariableResolver agent model levels', () => {
       reasoningEffort: '<Producer.result>',
       verbosity: '<variable.Detail>',
       thinkingLevel: '{{THINKING}}',
+      tools: [
+        {
+          type: 'search',
+          usageControl: 'auto',
+          usageControlExpression: '<variable.Detail>',
+        },
+      ],
     })
     const workflow: SerializedWorkflow = {
       version: '1',
@@ -2138,6 +2224,7 @@ describe('VariableResolver agent model levels', () => {
     expect(result.reasoningEffort).toBe('high')
     expect(result.verbosity).toBe('low')
     expect(result.thinkingLevel).toBe('medium')
+    expect(result.tools[0].usageControlExpression).toBe('low')
     expect(result.model).toBe('gpt-5')
   })
 })

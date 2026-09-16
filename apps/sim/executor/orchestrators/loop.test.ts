@@ -154,7 +154,7 @@ describe('LoopOrchestrator', () => {
     expect(loopEnd.incomingEdges.has(parallelEndId)).toBe(true)
   })
 
-  it('resolves forEach collections with the loop start sentinel scope', async () => {
+  it('resolves forEach collections with the loop start sentinel scope independently of the count', async () => {
     const loopId = 'loop-1'
     const dag: DAG = {
       nodes: new Map(),
@@ -165,6 +165,7 @@ describe('LoopOrchestrator', () => {
             id: loopId,
             nodes: ['task-1'],
             loopType: 'forEach',
+            iterations: 1,
             forEachItems: '<Producer.items>',
           },
         ],
@@ -172,7 +173,7 @@ describe('LoopOrchestrator', () => {
       parallelConfigs: new Map(),
     }
     const resolver = {
-      resolveSingleReference: vi.fn().mockResolvedValue(['item-1']),
+      resolveSingleReference: vi.fn().mockResolvedValue(['item-1', 'item-2', 'item-3']),
     }
     const orchestrator = new LoopOrchestrator(dag, createState(), resolver as any, {}, {
       clearDeactivatedEdgesForNodes: vi.fn(),
@@ -188,7 +189,8 @@ describe('LoopOrchestrator', () => {
       undefined,
       { allowLargeValueRefs: true }
     )
-    expect(scope.maxIterations).toBe(1)
+    expect(scope.maxIterations).toBe(3)
+    expect(scope.items).toEqual(['item-1', 'item-2', 'item-3'])
   })
 
   it('projects forEach resolution failures before logging or persisting them', async () => {

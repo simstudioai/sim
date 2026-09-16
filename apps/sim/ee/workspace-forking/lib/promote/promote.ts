@@ -10,6 +10,9 @@ import type {
   PromoteCopyResources,
 } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { isFolderPathEffectivelyLocked } from '@/lib/folders/paths'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { notifyMcpToolServers } from '@/lib/mcp/workflow-mcp-sync'
 import {
   enqueueWorkflowUndeploySideEffects,
@@ -17,7 +20,30 @@ import {
 } from '@/lib/workflows/deployment-outbox'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 import { undeployWorkflow } from '@/lib/workflows/persistence/utils'
+import { collectForkCustomBlockReconfigs } from '@/lib/workflows/references/custom-block-reconfigs'
+import { collectForkDependentReconfigs } from '@/lib/workflows/references/dependent-reconfigs'
+import {
+  createForkSubBlockTransform,
+  type ForkReference,
+  type ForkReferenceResolver,
+  type ForkRemapKind,
+} from '@/lib/workflows/references/remap-references'
+import { getMcpServerMetaByIds } from '@/lib/workflows/references/resources'
+import {
+  findWorkspaceOperationReceipt,
+  lockWorkspaceOperationRequest,
+  WorkspaceOperationConflict,
+  type WorkspaceOperationReport,
+} from '@/lib/workspaces/operations/receipts'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
+import { admitForkSync } from '@/ee/workspace-forking/application/admit-sync'
+import {
+  assertForkPreviewFresh,
+  assertForkSourceVersions,
+  type ForkMutationAdmission,
+  lockForkRevision,
+} from '@/ee/workspace-forking/application/revision'
+import { validateForkWorkflowBindings } from '@/ee/workspace-forking/application/validate-bindings'
 import {
   recordBackgroundWork,
   startBackgroundWork,
@@ -66,11 +92,17 @@ import {
   translateForkDependentValues,
 } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
 import {
+  type ApplyForkMappingEntry,
+  applyForkMappingEntries,
+  overlayForkMappingEntries,
+  validateForkMappingTargets,
+} from '@/ee/workspace-forking/lib/mapping/mapping-service'
+import {
   deleteWorkflowIdentityByIds,
   type ForkMappingUpsert,
+  getEdgeMappingRows,
   upsertEdgeMappings,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
-import { getMcpServerMetaByIds } from '@/ee/workspace-forking/lib/mapping/resources'
 import {
   collectForkSyncBlockers,
   verifyForkDropAcknowledgments,
@@ -97,12 +129,6 @@ import {
 } from '@/ee/workspace-forking/lib/promote/trigger-urls'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { createForkBlockTypeTransform } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
-import {
-  createForkSubBlockTransform,
-  type ForkReference,
-  type ForkReferenceResolver,
-  type ForkRemapKind,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
 import { notifyForkWorkflowChanged } from '@/ee/workspace-forking/lib/socket'
 
 const logger = createLogger('WorkspaceForkPromote')
@@ -147,13 +173,24 @@ export interface PromoteForkParams {
   dropReferences?: Array<{ kind: ForkRemapKind; sourceId: string }>
   /**
    * Which retiring public URL each arriving trigger takes over. Re-validated in-transaction
-   * against the adoptable set the plan derives, so an entry the plan does not offer is ignored.
+   * Source workflow/block choices are validated against the live adoptable set. Legacy
+   * block-only callers retain their existing behavior of ignoring unsupported choices.
    */
   triggerMappings?: ForkTriggerMappingInput[]
   requestId?: string
+  admission?: ForkMutationAdmission
+  mappings?: ApplyForkMappingEntry[]
+  sourceDependentValues?: Array<{
+    sourceWorkflowId: string
+    sourceBlockId: string
+    subBlockKey: string
+    value: string
+  }>
 }
 
 export interface PromoteForkResult {
+  operation?: WorkspaceOperationReport
+  replayed?: boolean
   promoteRunId: string
   updated: number
   created: number
@@ -387,6 +424,7 @@ type PromoteTxBlocked =
   | { blocked: 'cleared-refs'; blockers: ForkSyncBlocker[] }
 
 interface PromoteTxApplied {
+  operation?: WorkspaceOperationReport
   blocked: null
   promoteRunId: string
   deployTargetIds: string[]
@@ -466,6 +504,18 @@ function groupDependentOverrides(
 export async function promoteFork(params: PromoteForkParams): Promise<PromoteForkResult> {
   const { edge, sourceWorkspaceId, targetWorkspaceId, direction, userId } = params
   const requestId = params.requestId ?? 'unknown'
+  const admission = params.admission
+  const revisionScope = { sourceWorkspaceId, targetWorkspaceId, edge }
+  if (admission) {
+    const receipt = await findWorkspaceOperationReceipt(
+      db,
+      admission.workspaceId,
+      admission.requestId,
+      admission.requestHash
+    )
+    if (receipt?.syncResult) return { ...receipt.syncResult, operation: receipt, replayed: true }
+    await assertForkPreviewFresh(db, revisionScope, admission)
+  }
 
   // Distinguish an OMITTED dependent mapping (leave the store as-is) from an explicit empty
   // array (clear it). Provided values are normalized to the store row shape here - BEFORE the
@@ -474,15 +524,17 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   // post-copy resolver (a source document id picked under a copy-resolved KB must land as the
   // copied counterpart), which only exists once the copy has run. The OMITTED path loads the
   // store rows inside the tx too, where the plan's targets are known.
-  const dependentValuesProvided = params.dependentValues !== undefined
-  const providedDependentValues: ForkDependentValue[] | null = dependentValuesProvided
-    ? (params.dependentValues ?? []).map((entry) => ({
-        targetWorkflowId: entry.workflowId,
-        targetBlockId: entry.blockId,
-        subBlockKey: entry.subBlockKey,
-        value: entry.value,
-      }))
-    : null
+  const dependentValuesProvided =
+    params.dependentValues !== undefined || params.sourceDependentValues !== undefined
+  const providedDependentValues: ForkDependentValue[] | null =
+    params.dependentValues !== undefined
+      ? (params.dependentValues ?? []).map((entry) => ({
+          targetWorkflowId: entry.workflowId,
+          targetBlockId: entry.blockId,
+          subBlockKey: entry.subBlockKey,
+          value: entry.value,
+        }))
+      : null
 
   // UX-only preflight against the actual target workspace payer. Authoritative per-blob
   // admission + increments happen later with metadata activation in short transactions.
@@ -507,558 +559,756 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
   // heavy per-workflow reads never check out a second pooled connection from inside
   // the promote tx (which can deadlock the pool at saturation). The source is
   // read-only here, so this pre-tx snapshot is exactly what gets force-pushed.
-  const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(sourceWorkspaceId)
+  const { deployedWorkflows, sourceStates, sourceVersionIds } =
+    await loadSourceDeployedStates(sourceWorkspaceId)
 
-  const txResult: PromoteTxBlocked | PromoteTxApplied = await db.transaction(async (tx) => {
-    // Bound lock waits so a contended sync into this target fails fast instead of
-    // stagnating the pool. Must run before acquiring the advisory locks below.
-    await setForkLockTimeout(tx)
-    // Target lock before edge lock (consistent ordering): the target lock serializes
-    // every sync into this target so sibling forks can't interleave writes, and so
-    // rollback's "newest sync" check stays race-free against a concurrent promote.
-    await acquireForkTargetLock(tx, targetWorkspaceId)
-    await acquireForkEdgeLock(tx, edge.childWorkspaceId)
-
-    const plan = await computeForkPromotePlan({
-      executor: tx,
+  const sourceItems = deployedWorkflows.map((item) => ({
+    sourceWorkflowId: item.id,
+    targetWorkflowId: item.id,
+    mode: 'create' as const,
+  }))
+  const sourceFields = params.sourceDependentValues
+    ? collectForkDependentReconfigs(
+        sourceItems,
+        sourceStates,
+        (_workflowId, blockId) => blockId,
+        'create'
+      )
+    : []
+  if (params.sourceDependentValues) {
+    const previewPlan = await computeForkPromotePlan({
+      executor: db,
       edge,
       sourceWorkspaceId,
       targetWorkspaceId,
       direction,
       deployedSourceWorkflows: deployedWorkflows,
       sourceStates,
+      mappingRows: overlayForkMappingEntries(
+        await getEdgeMappingRows(db, edge.childWorkspaceId),
+        edge,
+        sourceWorkspaceId,
+        params.mappings ?? []
+      ),
     })
-
-    if (plan.excludedTargets.length > 0) {
-      logger.info(
-        `[${requestId}] Promote leaving ${plan.excludedTargets.length} sync-excluded target workflow(s) untouched`,
-        {
-          sourceWorkspaceId,
-          targetWorkspaceId,
-          excludedTargets: plan.excludedTargets.map((target) => target.name),
-        }
-      )
-    }
-
-    const now = new Date()
-
-    // Copy the selected unmapped resources (referenced and unreferenced) into the target BEFORE
-    // the gate, so a user can copy rather than map each one. The gate is evaluated against the
-    // post-copy state (the copy resolves the selected refs), so the copy only runs when the sync
-    // will actually proceed - if required refs remain unmapped, we block without copying anything.
-    const { selection: copySelection, willResolve } = buildPromoteCopySelection(
-      params.copyResources,
-      plan.copyableUnmapped
+    sourceFields.push(
+      ...(await collectForkCustomBlockReconfigs({
+        items: sourceItems,
+        sourceStates,
+        resolveTargetBlockId: (_workflowId, blockId) => blockId,
+        resolve: previewPlan.resolver,
+        targetWorkspaceId,
+      }))
     )
-    // Drop acknowledgments the server will honour, verified against the SOURCE inside this same
-    // locked tx. Resolved BEFORE the unmapped gate because a source-deleted reference on a
-    // required field is in `unmappedRequired`: gating on it first would reject the sync with
-    // "map all required ... first" no matter what the user dropped, making Drop inert for the
-    // required references it exists to unblock.
-    const verifiedDrops = await verifyForkDropAcknowledgments(
-      tx,
-      sourceWorkspaceId,
-      params.dropReferences
-    )
-    const droppedKeys = new Set(verifiedDrops.map((entry) => `${entry.kind}:${entry.sourceId}`))
-    // plan.unmappedRequired is already references.filter(resolver == null).filter(required), so
-    // subtracting the refs the copy will resolve is equivalent to re-scanning the predicate.
-    const postCopyUnmappedRequired = plan.unmappedRequired.filter(
-      (reference) =>
-        !willResolve.has(`${reference.kind}:${reference.sourceId}`) &&
-        !droppedKeys.has(`${reference.kind}:${reference.sourceId}`)
-    )
-    if (postCopyUnmappedRequired.length > 0) {
-      return {
-        blocked: 'unmapped',
-        unmappedRequired: postCopyUnmappedRequired.map((reference) => ({
-          kind: reference.kind,
-          sourceId: reference.sourceId,
-          required: reference.required,
-          blockName: reference.blockName,
-        })),
+  }
+  const txResult: PromoteTxBlocked | PromoteTxApplied | { receipt: WorkspaceOperationReport } =
+    await db.transaction(async (tx) => {
+      // Bound lock waits so a contended sync into this target fails fast instead of
+      // stagnating the pool. Must run before acquiring the advisory locks below.
+      await setForkLockTimeout(tx)
+      if (admission) {
+        await lockWorkspaceOperationRequest(tx, admission.workspaceId, admission.requestId)
+        const receipt = await findWorkspaceOperationReceipt(
+          tx,
+          admission.workspaceId,
+          admission.requestId,
+          admission.requestHash
+        )
+        if (receipt?.syncResult) return { receipt }
       }
-    }
+      // Target lock before edge lock (consistent ordering): the target lock serializes
+      // every sync into this target so sibling forks can't interleave writes, and so
+      // rollback's "newest sync" check stays race-free against a concurrent promote.
+      await acquireForkTargetLock(tx, targetWorkspaceId)
+      await acquireForkEdgeLock(tx, edge.childWorkspaceId)
+      if (admission) {
+        await lockForkRevision(tx, revisionScope)
+        await assertForkPreviewFresh(tx, revisionScope, admission)
+        await assertForkSourceVersions(tx, sourceWorkspaceId, sourceVersionIds)
+      }
+      if (params.mappings)
+        await validateForkMappingTargets(sourceWorkspaceId, targetWorkspaceId, params.mappings, tx)
 
-    // Resolve each source block to its counterpart's EXISTING id (via the persisted block
-    // map) instead of re-deriving, so a push keeps the parent's original block ids - and the
-    // webhook URLs derived from them - stable. Falls back to derive for blocks with no pair
-    // yet (added since the last sync). Loaded here (read-only) so the would-clear gate below
-    // and the write loop share one block map.
-    const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
-    const blockMap = await loadForkBlockMap(tx, edge.childWorkspaceId)
-    const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
-
-    // Zero-cleared-refs gate: the sync proceeds only when NO reference would clear in any
-    // synced target workflow (source fully operational -> target fully operational). Evaluated
-    // against the plan resolver overlaid with the validated copy selection (a selected copy
-    // resolves its references), BEFORE any write. Authoritative versus the diff's unlocked
-    // preview - state drift between preview and Sync re-blocks here (TOCTOU) - and it makes the
-    // in-tx remap's clear-unresolved behavior an unreachable defense-in-depth backstop. The
-    // plan's unmapped references are threaded through so the gate's happy path reuses the plan's
-    // scan (computed moments earlier over the same states, inside this same locked tx) instead of
-    // re-running the full per-block reference scan; the scan re-runs only when something blocks.
-    let droppedReferences: Array<{ kind: ForkRemapKind; sourceId: string }> = []
-    const gateResolver: ForkReferenceResolver = (kind, sourceId) =>
-      willResolve.has(`${kind}:${sourceId}`) ? sourceId : plan.resolver(kind, sourceId)
-    const { blockers, appliedDrops } = await collectForkSyncBlockers({
-      executor: tx,
-      sourceWorkspaceId,
-      items: plan.items,
-      sourceStates,
-      resolver: gateResolver,
-      workflowIdMap: plan.workflowIdMap,
-      resolveBlockId,
-      planUnmapped: [...plan.unmappedRequired, ...plan.unmappedOptional],
-      droppedReferences: verifiedDrops,
-    })
-    if (blockers.length > 0) {
-      return { blocked: 'cleared-refs', blockers }
-    }
-    droppedReferences = appliedDrops
-
-    // Resolve the source->target folder map BEFORE the copy so the folders already exist in the
-    // target and the copy can rewrite `sim:folder/<id>` references inside copied skill / markdown
-    // bodies (the post-commit content rewrite reads this map). Idempotent: it reuses target
-    // folders that already match by name within the same mapped parent. Creation is scoped to
-    // the folders that will hold a synced workflow (plus ancestors) - a folder whose subtree
-    // syncs nothing is never created empty in the target, though it still maps onto a matching
-    // existing target folder so prior syncs' refs keep resolving.
-    const { folderIdMap } = await resolveForkFolderMapping({
-      tx,
-      sourceWorkspaceId,
-      targetWorkspaceId,
-      userId,
-      now,
-      resourceType: 'workflow',
-      contentFolderIds: plan.items.map((item) => item.sourceMeta.folderId),
-    })
-
-    let resolver = plan.resolver
-    let copyContentPlan: ForkContentPlan | null = null
-    let copyContentRefMaps: SerializableForkContentRefMaps | null = null
-    let copyContentBlobTasks: BlobCopyTask[] = []
-    // Every dependent value this sync will apply, as flat store rows: the provided payload, or
-    // (omitted) the persisted store for the plan's targets - loaded here, BEFORE the copy, so
-    // document picks can join the copy's discovery set below. The apply map + reconcile further
-    // down consume these after translating them through the post-copy resolver.
-    const flatDependentValues =
-      providedDependentValues ??
-      (await loadForkDependentValues(
-        tx,
-        edge.childWorkspaceId,
-        plan.items.map((item) => item.targetWorkflowId)
-      ))
-
-    // Knowledge-document ids the synced workflows reference, from the plan's already-scanned
-    // references (never a re-scan inside this locked tx) - UNIONED with the dependent-value
-    // picks: a document re-picked in the sync page's reconfigure selector under a copy-resolved
-    // KB isn't referenced by the source STATE, but must still be copied so the applied pick
-    // resolves in the target. Non-document values ride along harmlessly: every consumer filters
-    // candidates through `inArray(document.id, ...)`, so a label or column id matches no row.
-    const referencedDocumentIds = [
-      ...new Set([
-        ...plan.references
-          .filter((reference) => reference.kind === 'knowledge-document')
-          .map((reference) => reference.sourceId),
-        ...flatDependentValues.map((entry) => entry.value).filter((value) => value !== ''),
-      ]),
-    ]
-    // Run the copy when the user selected resources to copy OR any document is referenced (a
-    // referenced document under an already-mapped KB is auto-copied into that KB so its reference
-    // remaps instead of clearing). It runs only after the required-reference gate above, so a
-    // blocked sync copies nothing.
-    let copyIdMapByKind: Map<ForkRemapKind, Map<string, string>> | null = null
-    if (hasPromoteCopySelection(copySelection) || referencedDocumentIds.length > 0) {
-      const copyResult = await copyPromoteUnmappedResources({
-        tx,
+      const plan = await computeForkPromotePlan({
+        executor: tx,
         edge,
         sourceWorkspaceId,
         targetWorkspaceId,
         direction,
-        userId,
-        now,
-        selection: copySelection,
-        workflowIdMap: plan.workflowIdMap,
-        folderIdMap,
-        resolver: plan.resolver,
-        // The block map loaded above backs this resolver; copied tables' workflow-group
-        // outputs must land on the same target block ids the workflow writes below assign.
-        resolveBlockId,
-        referencedDocumentIds,
+        deployedSourceWorkflows: deployedWorkflows,
+        sourceStates,
+        ...(params.mappings
+          ? {
+              mappingRows: overlayForkMappingEntries(
+                await getEdgeMappingRows(tx, edge.childWorkspaceId),
+                edge,
+                sourceWorkspaceId,
+                params.mappings
+              ),
+            }
+          : {}),
       })
-      resolver = augmentForkResolver(plan.resolver, copyResult.copyIdMapByKind)
-      copyIdMapByKind = copyResult.copyIdMapByKind
-      copyContentPlan = copyResult.contentPlan
-      copyContentRefMaps = copyResult.contentRefMaps
-      copyContentBlobTasks = copyResult.blobTasks
-    }
 
-    // Target rows for the MAPPED (or just-copied) MCP servers this sync references, so remapped
-    // tool-input entries rewrite their embedded `serverUrl`/`serverName` from the target server
-    // instead of carrying the source's (which would show a false "URL changed" stale badge in
-    // the target UI). Bounded: the plan's references are deduped per (kind, id), so this is one
-    // `inArray` read over the distinct referenced servers. Uses the post-copy resolver, so a
-    // server copied this sync resolves to its fresh row (same name/url - the rewrite is a no-op).
-    const mappedMcpServerTargetIds = [
-      ...new Set(
-        plan.references
-          .filter((reference) => reference.kind === 'mcp-server')
-          .map((reference) => resolver('mcp-server', reference.sourceId))
-          .filter((targetId): targetId is string => targetId != null)
-      ),
-    ]
-    const mcpServerMetaById = await getMcpServerMetaByIds(
-      tx,
-      targetWorkspaceId,
-      mappedMcpServerTargetIds
-    )
-
-    const transform = createForkSubBlockTransform(resolver, {
-      resolveMcpServerMeta: (targetServerId) => mcpServerMetaById.get(targetServerId),
-      // Copy provenance: a parent resolved through THIS sync's copy selection keeps its
-      // copy-faithful dependents (a copied table's column picks) instead of clearing them.
-      isCopiedTarget: (kind, sourceId) => copyIdMapByKind?.get(kind)?.has(sourceId) ?? false,
-    })
-    // Custom blocks reference by block TYPE, not by a sub-block value, so their rewrite runs
-    // on its own channel. An unmapped one keeps the source's type — the sync gate has already
-    // refused the promote by then (`unmapped-custom-block`), so this never silently ships.
-    const blockTypeTransform = createForkBlockTypeTransform(
-      (kind, sourceId) => resolver(kind, sourceId) ?? null
-    )
-
-    // Batch every prior-version read (replace + archive targets) into one query before any
-    // write, so the locked apply phase doesn't do N round-trips. Reads are pre-write, so
-    // they still reflect the active version each target had before this sync.
-    const priorVersionByTarget = await getActiveDeploymentVersionNumbers(tx, [
-      ...plan.items.filter((item) => item.mode === 'replace').map((item) => item.targetWorkflowId),
-      ...plan.archivedTargetIds,
-    ])
-
-    // Preload the target's active workflow names so per-workflow collision checks read from
-    // memory instead of one query each inside this locked tx. The DB unique index remains
-    // the correctness backstop (a stale snapshot only risks a rare, retry-able conflict).
-    const nameRegistry = await loadWorkflowNameRegistry(tx, targetWorkspaceId)
-
-    // Replace targets (the only mode with a prior target state) - reused by the draft preload
-    // and the dependent-value apply/load below.
-    const replaceTargetIds = plan.items
-      .filter((item) => item.mode === 'replace')
-      .map((item) => item.targetWorkflowId)
-
-    // Preload the target's current draft subBlocks (replace targets only) so the copy can
-    // detect dependent fields a parent change cleared that the stored mapping didn't refill
-    // (surfaced as needs-configuration). One batched query pre-write, so it reflects the
-    // pre-sync target state.
-    const targetDraftByWorkflow = await loadTargetDraftSubBlocks(tx, replaceTargetIds)
-
-    // The dependent-value apply map (target workflow -> block id -> subblock -> value), built
-    // from the flat values loaded above (the provided payload, or - omitted - the stored
-    // mapping, which stays the sole source of truth; the reconcile below is skipped then so an
-    // omitted field never wipes it). Values are translated through the post-copy resolver
-    // FIRST: the apply runs AFTER the reference remap inside `copyWorkflowStateIntoTarget` and
-    // wins for its subblock, so a SOURCE document id picked under a copy-resolved KB must
-    // become the copied counterpart here - otherwise the stale source id would clobber the
-    // remapped value in the written state. Create targets are included: a value pre-configured
-    // for a never-synced workflow (keyed by its deterministic target id) applies on the first
-    // sync that creates it.
-    const appliedDependentValues = translateForkDependentValues(flatDependentValues, resolver)
-    const overridesByWorkflow = groupDependentOverrides(appliedDependentValues)
-
-    // New block pairs recorded by the write loop (blocks added since the last sync), using the
-    // block map + resolver loaded before the would-clear gate above.
-    const blockPairs: ForkBlockPair[] = []
-
-    // Every trigger block's final public path, resolved ONCE for the whole sync: the path a
-    // target block already serves, or a retiring one it adopts. Rebuilt here rather than trusted
-    // from the caller, so an adoption is re-validated against the live webhooks inside this same
-    // locked transaction and a stale preview can never move a URL the plan no longer offers.
-    const triggerPlan = buildForkTriggerPlan({
-      items: plan.items,
-      sourceStates,
-      resolveBlockId,
-      targetWebhooks: await loadTargetWebhookPathsByBlock(
-        tx,
-        plan.items.map((item) => item.targetWorkflowId)
-      ),
-    })
-    const { pathByTargetBlockId: triggerPathByBlockId, changes: triggerUrlChanges } =
-      resolveForkTriggerPaths(triggerPlan, params.triggerMappings)
-
-    const updatedSnapshots: PromoteRunWorkflowSnapshot[] = []
-    const createdTargetIds: string[] = []
-    const writtenItems: typeof plan.items = []
-    const needsConfiguration: PromoteTxApplied['needsConfiguration'] = []
-    const clearedOptional: PromoteTxApplied['clearedOptional'] = []
-    for (const item of plan.items) {
-      // Use the pre-read source state (loaded above, before the tx). An item only
-      // exists when its state was present at read time, so this lookup hits; the
-      // guard stays as defense so the written counts below never over-report.
-      const sourceState = sourceStates.get(item.sourceWorkflowId)
-      if (!sourceState) continue
-      if (item.mode === 'replace') {
-        const priorVersion = priorVersionByTarget.get(item.targetWorkflowId) ?? null
-        updatedSnapshots.push({ workflowId: item.targetWorkflowId, priorVersion })
-      } else {
-        createdTargetIds.push(item.targetWorkflowId)
+      if (admission) {
+        await validateForkWorkflowBindings({
+          executor: tx,
+          workspaceId: targetWorkspaceId,
+          sourceStates,
+          items: plan.items,
+          resolve: plan.resolver,
+          lock: true,
+        })
+        await assertForkPreviewFresh(tx, revisionScope, admission)
+        const targets = plan.items
+          .filter((item) => item.mode === 'replace')
+          .map((item) => item.targetWorkflowId)
+        if (targets.length) {
+          const folderIndex = await loadActiveFolderPathIndex(targetWorkspaceId, 'workflow', tx, {
+            maxRows: MAX_FOLDERS_PER_WORKSPACE,
+          })
+          const targetsWithLocks = await tx
+            .select({ id: workflow.id, folderId: workflow.folderId, locked: workflow.locked })
+            .from(workflow)
+            .where(inArray(workflow.id, targets))
+          const locked = targetsWithLocks.find(
+            (item) =>
+              item.locked ||
+              (item.folderId && isFolderPathEffectivelyLocked(folderIndex, item.folderId))
+          )
+          if (locked)
+            throw new WorkspaceOperationConflict('A sync target or its folder is locked', {
+              applied: false,
+              reason: 'target_locked',
+              workflowId: locked.id,
+            })
+        }
       }
-      const copyResult = await copyWorkflowStateIntoTarget({
+
+      if (plan.excludedTargets.length > 0) {
+        logger.info(
+          `[${requestId}] Promote leaving ${plan.excludedTargets.length} sync-excluded target workflow(s) untouched`,
+          {
+            sourceWorkspaceId,
+            targetWorkspaceId,
+            excludedTargets: plan.excludedTargets.map((target) => target.name),
+          }
+        )
+      }
+
+      const now = new Date()
+
+      // Copy the selected unmapped resources (referenced and unreferenced) into the target BEFORE
+      // the gate, so a user can copy rather than map each one. The gate is evaluated against the
+      // post-copy state (the copy resolves the selected refs), so the copy only runs when the sync
+      // will actually proceed - if required refs remain unmapped, we block without copying anything.
+      const { selection: copySelection, willResolve } = buildPromoteCopySelection(
+        params.copyResources,
+        plan.copyableUnmapped
+      )
+      // Drop acknowledgments the server will honour, verified against the SOURCE inside this same
+      // locked tx. Resolved BEFORE the unmapped gate because a source-deleted reference on a
+      // required field is in `unmappedRequired`: gating on it first would reject the sync with
+      // "map all required ... first" no matter what the user dropped, making Drop inert for the
+      // required references it exists to unblock.
+      const verifiedDrops = await verifyForkDropAcknowledgments(
         tx,
-        targetWorkflowId: item.targetWorkflowId,
+        sourceWorkspaceId,
+        params.dropReferences
+      )
+      const droppedKeys = new Set(verifiedDrops.map((entry) => `${entry.kind}:${entry.sourceId}`))
+      // plan.unmappedRequired is already references.filter(resolver == null).filter(required), so
+      // subtracting the refs the copy will resolve is equivalent to re-scanning the predicate.
+      const postCopyUnmappedRequired = plan.unmappedRequired.filter(
+        (reference) =>
+          !willResolve.has(`${reference.kind}:${reference.sourceId}`) &&
+          !droppedKeys.has(`${reference.kind}:${reference.sourceId}`)
+      )
+      if (postCopyUnmappedRequired.length > 0) {
+        if (admission)
+          throw new WorkspaceOperationConflict('Sync requires resource mappings', {
+            applied: false,
+            reason: 'unresolved_bindings',
+            unresolvedBindings: postCopyUnmappedRequired,
+          })
+        return {
+          blocked: 'unmapped',
+          unmappedRequired: postCopyUnmappedRequired.map((reference) => ({
+            kind: reference.kind,
+            sourceId: reference.sourceId,
+            required: reference.required,
+            blockName: reference.blockName,
+          })),
+        }
+      }
+
+      // Resolve each source block to its counterpart's EXISTING id (via the persisted block
+      // map) instead of re-deriving, so a push keeps the parent's original block ids - and the
+      // webhook URLs derived from them - stable. Falls back to derive for blocks with no pair
+      // yet (added since the last sync). Loaded here (read-only) so the would-clear gate below
+      // and the write loop share one block map.
+      const sourceIsParent = sourceWorkspaceId === edge.parentWorkspaceId
+      const blockMap = await loadForkBlockMap(tx, edge.childWorkspaceId)
+      const resolveBlockId = buildForkBlockIdResolver(sourceIsParent, blockMap)
+
+      // Zero-cleared-refs gate: the sync proceeds only when NO reference would clear in any
+      // synced target workflow (source fully operational -> target fully operational). Evaluated
+      // against the plan resolver overlaid with the validated copy selection (a selected copy
+      // resolves its references), BEFORE any write. Authoritative versus the diff's unlocked
+      // preview - state drift between preview and Sync re-blocks here (TOCTOU) - and it makes the
+      // in-tx remap's clear-unresolved behavior an unreachable defense-in-depth backstop. The
+      // plan's unmapped references are threaded through so the gate's happy path reuses the plan's
+      // scan (computed moments earlier over the same states, inside this same locked tx) instead of
+      // re-running the full per-block reference scan; the scan re-runs only when something blocks.
+      let droppedReferences: Array<{ kind: ForkRemapKind; sourceId: string }> = []
+      const gateResolver: ForkReferenceResolver = (kind, sourceId) =>
+        willResolve.has(`${kind}:${sourceId}`) ? sourceId : plan.resolver(kind, sourceId)
+      const { blockers, appliedDrops } = await collectForkSyncBlockers({
+        executor: tx,
+        sourceWorkspaceId,
+        items: plan.items,
+        sourceStates,
+        resolver: gateResolver,
+        workflowIdMap: plan.workflowIdMap,
+        resolveBlockId,
+        planUnmapped: [...plan.unmappedRequired, ...plan.unmappedOptional],
+        droppedReferences: verifiedDrops,
+      })
+      if (blockers.length > 0) {
+        if (admission)
+          throw new WorkspaceOperationConflict('Sync would clear unresolved references', {
+            applied: false,
+            reason: 'unresolved_bindings',
+            blockers,
+          })
+        return { blocked: 'cleared-refs', blockers }
+      }
+      droppedReferences = appliedDrops
+      if (params.mappings)
+        await applyForkMappingEntries(tx, edge, userId, sourceWorkspaceId, params.mappings)
+      const sourceDependentValues = params.sourceDependentValues?.map((entry) => {
+        const item = plan.items.find((item) => item.sourceWorkflowId === entry.sourceWorkflowId)
+        if (
+          !item ||
+          !sourceFields.some(
+            (field) =>
+              field.targetWorkflowId === entry.sourceWorkflowId &&
+              field.targetBlockId === entry.sourceBlockId &&
+              field.subBlockKey === entry.subBlockKey
+          )
+        ) {
+          throw new WorkspaceOperationConflict(
+            'Dependent override does not address a configurable source field',
+            { applied: false, reason: 'invalid_binding', ...entry, value: undefined }
+          )
+        }
+        return {
+          targetWorkflowId: item.targetWorkflowId,
+          targetBlockId: resolveBlockId(item.targetWorkflowId, entry.sourceBlockId),
+          subBlockKey: entry.subBlockKey,
+          value: entry.value,
+        }
+      })
+
+      // Resolve the source->target folder map BEFORE the copy so the folders already exist in the
+      // target and the copy can rewrite `sim:folder/<id>` references inside copied skill / markdown
+      // bodies (the post-commit content rewrite reads this map). Idempotent: it reuses target
+      // folders that already match by name within the same mapped parent. Creation is scoped to
+      // the folders that will hold a synced workflow (plus ancestors) - a folder whose subtree
+      // syncs nothing is never created empty in the target, though it still maps onto a matching
+      // existing target folder so prior syncs' refs keep resolving.
+      const { folderIdMap } = await resolveForkFolderMapping({
+        tx,
+        sourceWorkspaceId,
         targetWorkspaceId,
         userId,
-        mode: item.mode,
         now,
-        sourceState,
-        sourceMeta: item.sourceMeta,
-        workflowIdMap: plan.workflowIdMap,
-        folderIdMap,
-        transformSubBlocks: transform,
-        transformBlockType: blockTypeTransform,
-        targetCurrentBlocks:
-          item.mode === 'replace' ? targetDraftByWorkflow.get(item.targetWorkflowId) : undefined,
-        dependentOverrides: overridesByWorkflow.get(item.targetWorkflowId),
-        nameRegistry,
-        resolveBlockId,
-        triggerPathByBlockId,
-        requestId,
+        resourceType: 'workflow',
+        contentFolderIds: plan.items.map((item) => item.sourceMeta.folderId),
       })
-      blockPairs.push(
-        ...toForkBlockPairs(
-          copyResult.blockIdMapping,
-          sourceIsParent,
-          item.sourceWorkflowId,
-          item.targetWorkflowId
-        )
+
+      let resolver = plan.resolver
+      let copyContentPlan: ForkContentPlan | null = null
+      let copyContentRefMaps: SerializableForkContentRefMaps | null = null
+      let copyContentBlobTasks: BlobCopyTask[] = []
+      // Every dependent value this sync will apply, as flat store rows: the provided payload, or
+      // (omitted) the persisted store for the plan's targets - loaded here, BEFORE the copy, so
+      // document picks can join the copy's discovery set below. The apply map + reconcile further
+      // down consume these after translating them through the post-copy resolver.
+      const flatDependentValues =
+        sourceDependentValues ??
+        providedDependentValues ??
+        (await loadForkDependentValues(
+          tx,
+          edge.childWorkspaceId,
+          plan.items.map((item) => item.targetWorkflowId)
+        ))
+
+      // Knowledge-document ids the synced workflows reference, from the plan's already-scanned
+      // references (never a re-scan inside this locked tx) - UNIONED with the dependent-value
+      // picks: a document re-picked in the sync page's reconfigure selector under a copy-resolved
+      // KB isn't referenced by the source STATE, but must still be copied so the applied pick
+      // resolves in the target. Non-document values ride along harmlessly: every consumer filters
+      // candidates through `inArray(document.id, ...)`, so a label or column id matches no row.
+      const referencedDocumentIds = [
+        ...new Set([
+          ...plan.references
+            .filter((reference) => reference.kind === 'knowledge-document')
+            .map((reference) => reference.sourceId),
+          ...flatDependentValues.map((entry) => entry.value).filter((value) => value !== ''),
+        ]),
+      ]
+      // Run the copy when the user selected resources to copy OR any document is referenced (a
+      // referenced document under an already-mapped KB is auto-copied into that KB so its reference
+      // remaps instead of clearing). It runs only after the required-reference gate above, so a
+      // blocked sync copies nothing.
+      let copyIdMapByKind: Map<ForkRemapKind, Map<string, string>> | null = null
+      if (hasPromoteCopySelection(copySelection) || referencedDocumentIds.length > 0) {
+        const copyResult = await copyPromoteUnmappedResources({
+          tx,
+          edge,
+          sourceWorkspaceId,
+          targetWorkspaceId,
+          direction,
+          userId,
+          now,
+          selection: copySelection,
+          workflowIdMap: plan.workflowIdMap,
+          folderIdMap,
+          resolver: plan.resolver,
+          // The block map loaded above backs this resolver; copied tables' workflow-group
+          // outputs must land on the same target block ids the workflow writes below assign.
+          resolveBlockId,
+          referencedDocumentIds,
+        })
+        resolver = augmentForkResolver(plan.resolver, copyResult.copyIdMapByKind)
+        copyIdMapByKind = copyResult.copyIdMapByKind
+        copyContentPlan = copyResult.contentPlan
+        copyContentRefMaps = copyResult.contentRefMaps
+        copyContentBlobTasks = copyResult.blobTasks
+      }
+
+      // Target rows for the MAPPED (or just-copied) MCP servers this sync references, so remapped
+      // tool-input entries rewrite their embedded `serverUrl`/`serverName` from the target server
+      // instead of carrying the source's (which would show a false "URL changed" stale badge in
+      // the target UI). Bounded: the plan's references are deduped per (kind, id), so this is one
+      // `inArray` read over the distinct referenced servers. Uses the post-copy resolver, so a
+      // server copied this sync resolves to its fresh row (same name/url - the rewrite is a no-op).
+      const mappedMcpServerTargetIds = [
+        ...new Set(
+          plan.references
+            .filter((reference) => reference.kind === 'mcp-server')
+            .map((reference) => resolver('mcp-server', reference.sourceId))
+            .filter((targetId): targetId is string => targetId != null)
+        ),
+      ]
+      const mcpServerMetaById = await getMcpServerMetaByIds(
+        tx,
+        targetWorkspaceId,
+        mappedMcpServerTargetIds
       )
-      const requiredCleared = copyResult.clearedDependents.filter((field) => field.required)
-      const optionalCleared = copyResult.clearedDependents.filter((field) => !field.required)
-      if (requiredCleared.length > 0) {
-        needsConfiguration.push({
-          workflowId: item.targetWorkflowId,
-          workflowName: item.sourceMeta.name,
-          // Surface the block names (deduped) - the field titles ("Label") aren't useful.
-          blocks: [...new Set(requiredCleared.map((field) => field.blockName))],
+
+      const transform = createForkSubBlockTransform(resolver, {
+        resolveMcpServerMeta: (targetServerId) => mcpServerMetaById.get(targetServerId),
+        // Copy provenance: a parent resolved through THIS sync's copy selection keeps its
+        // copy-faithful dependents (a copied table's column picks) instead of clearing them.
+        isCopiedTarget: (kind, sourceId) => copyIdMapByKind?.get(kind)?.has(sourceId) ?? false,
+      })
+      // Custom blocks reference by block TYPE, not by a sub-block value, so their rewrite runs
+      // on its own channel. An unmapped one keeps the source's type — the sync gate has already
+      // refused the promote by then (`unmapped-custom-block`), so this never silently ships.
+      const blockTypeTransform = createForkBlockTypeTransform(
+        (kind, sourceId) => resolver(kind, sourceId) ?? null
+      )
+
+      // Batch every prior-version read (replace + archive targets) into one query before any
+      // write, so the locked apply phase doesn't do N round-trips. Reads are pre-write, so
+      // they still reflect the active version each target had before this sync.
+      const priorVersionByTarget = await getActiveDeploymentVersionNumbers(tx, [
+        ...plan.items
+          .filter((item) => item.mode === 'replace')
+          .map((item) => item.targetWorkflowId),
+        ...plan.archivedTargetIds,
+      ])
+
+      // Preload the target's active workflow names so per-workflow collision checks read from
+      // memory instead of one query each inside this locked tx. The DB unique index remains
+      // the correctness backstop (a stale snapshot only risks a rare, retry-able conflict).
+      const nameRegistry = await loadWorkflowNameRegistry(tx, targetWorkspaceId)
+
+      // Replace targets (the only mode with a prior target state) - reused by the draft preload
+      // and the dependent-value apply/load below.
+      const replaceTargetIds = plan.items
+        .filter((item) => item.mode === 'replace')
+        .map((item) => item.targetWorkflowId)
+
+      // Preload the target's current draft subBlocks (replace targets only) so the copy can
+      // detect dependent fields a parent change cleared that the stored mapping didn't refill
+      // (surfaced as needs-configuration). One batched query pre-write, so it reflects the
+      // pre-sync target state.
+      const targetDraftByWorkflow = await loadTargetDraftSubBlocks(tx, replaceTargetIds)
+
+      // The dependent-value apply map (target workflow -> block id -> subblock -> value), built
+      // from the flat values loaded above (the provided payload, or - omitted - the stored
+      // mapping, which stays the sole source of truth; the reconcile below is skipped then so an
+      // omitted field never wipes it). Values are translated through the post-copy resolver
+      // FIRST: the apply runs AFTER the reference remap inside `copyWorkflowStateIntoTarget` and
+      // wins for its subblock, so a SOURCE document id picked under a copy-resolved KB must
+      // become the copied counterpart here - otherwise the stale source id would clobber the
+      // remapped value in the written state. Create targets are included: a value pre-configured
+      // for a never-synced workflow (keyed by its deterministic target id) applies on the first
+      // sync that creates it.
+      const appliedDependentValues = translateForkDependentValues(flatDependentValues, resolver)
+      const overridesByWorkflow = groupDependentOverrides(appliedDependentValues)
+
+      // New block pairs recorded by the write loop (blocks added since the last sync), using the
+      // block map + resolver loaded before the would-clear gate above.
+      const blockPairs: ForkBlockPair[] = []
+
+      // Every trigger block's final public path, resolved ONCE for the whole sync: the path a
+      // target block already serves, or a retiring one it adopts. Rebuilt here rather than trusted
+      // from the caller, so an adoption is re-validated against the live webhooks inside this same
+      // locked transaction and a stale preview can never move a URL the plan no longer offers.
+      const triggerPlan = buildForkTriggerPlan({
+        items: plan.items,
+        sourceStates,
+        resolveBlockId,
+        targetWebhooks: await loadTargetWebhookPathsByBlock(
+          tx,
+          plan.items.map((item) => item.targetWorkflowId)
+        ),
+      })
+      const { pathByTargetBlockId: triggerPathByBlockId, changes: triggerUrlChanges } =
+        resolveForkTriggerPaths(triggerPlan, params.triggerMappings)
+
+      const updatedSnapshots: PromoteRunWorkflowSnapshot[] = []
+      const createdTargetIds: string[] = []
+      const writtenItems: typeof plan.items = []
+      const needsConfiguration: PromoteTxApplied['needsConfiguration'] = []
+      const clearedOptional: PromoteTxApplied['clearedOptional'] = []
+      for (const item of plan.items) {
+        // Use the pre-read source state (loaded above, before the tx). An item only
+        // exists when its state was present at read time, so this lookup hits; the
+        // guard stays as defense so the written counts below never over-report.
+        const sourceState = sourceStates.get(item.sourceWorkflowId)
+        if (!sourceState) continue
+        if (item.mode === 'replace') {
+          const priorVersion = priorVersionByTarget.get(item.targetWorkflowId) ?? null
+          updatedSnapshots.push({ workflowId: item.targetWorkflowId, priorVersion })
+        } else {
+          createdTargetIds.push(item.targetWorkflowId)
+        }
+        const copyResult = await copyWorkflowStateIntoTarget({
+          tx,
+          targetWorkflowId: item.targetWorkflowId,
+          targetWorkspaceId,
+          userId,
+          mode: item.mode,
+          now,
+          sourceState,
+          sourceMeta: item.sourceMeta,
+          workflowIdMap: plan.workflowIdMap,
+          folderIdMap,
+          transformSubBlocks: transform,
+          transformBlockType: blockTypeTransform,
+          targetCurrentBlocks:
+            item.mode === 'replace' ? targetDraftByWorkflow.get(item.targetWorkflowId) : undefined,
+          dependentOverrides: overridesByWorkflow.get(item.targetWorkflowId),
+          nameRegistry,
+          resolveBlockId,
+          triggerPathByBlockId,
+          requestId,
         })
+        blockPairs.push(
+          ...toForkBlockPairs(
+            copyResult.blockIdMapping,
+            sourceIsParent,
+            item.sourceWorkflowId,
+            item.targetWorkflowId
+          )
+        )
+        const requiredCleared = copyResult.clearedDependents.filter((field) => field.required)
+        const optionalCleared = copyResult.clearedDependents.filter((field) => !field.required)
+        if (requiredCleared.length > 0) {
+          needsConfiguration.push({
+            workflowId: item.targetWorkflowId,
+            workflowName: item.sourceMeta.name,
+            // Surface the block names (deduped) - the field titles ("Label") aren't useful.
+            blocks: [...new Set(requiredCleared.map((field) => field.blockName))],
+          })
+        }
+        if (optionalCleared.length > 0) {
+          clearedOptional.push({
+            workflowName: item.sourceMeta.name,
+            blocks: [...new Set(optionalCleared.map((field) => field.blockName))],
+          })
+        }
+        writtenItems.push(item)
       }
-      if (optionalCleared.length > 0) {
-        clearedOptional.push({
-          workflowName: item.sourceMeta.name,
-          blocks: [...new Set(optionalCleared.map((field) => field.blockName))],
-        })
-      }
-      writtenItems.push(item)
-    }
 
-    // Reconcile block-identity pairs for the written source workflows: clears pairs for
-    // blocks the source dropped (e.g. a deleted trigger) and any stale pair from a re-created
-    // target, then records the live ones - so the next promote resolves these blocks to these
-    // same ids and never re-homes one onto an archived workflow's block.
-    await reconcileForkBlockPairs(
-      tx,
-      edge.childWorkspaceId,
-      sourceIsParent,
-      writtenItems.map((item) => item.sourceWorkflowId),
-      blockPairs
-    )
-
-    // Carry chat deployments for written targets that have NO chat row yet (typically
-    // create-mode targets): a fresh `{target-workspace}-{workflow}-{randomnum}` identifier with
-    // the source's config, live once this sync's deploy lands. Targets with any existing chat
-    // (live or archived) are left untouched - an earlier carry-over keeps its URL on every
-    // subsequent sync, and a deliberately archived chat is never resurrected. Targets whose
-    // redeploy this sync SKIPS (required dependents cleared) are excluded: their chat would
-    // squat a live identifier while nothing can serve - the next successful sync carries it.
-    const needsConfigurationTargetIds = new Set(needsConfiguration.map((entry) => entry.workflowId))
-    await copyForkChatDeployments({
-      tx,
-      pairs: writtenItems.flatMap((item) =>
-        needsConfigurationTargetIds.has(item.targetWorkflowId)
-          ? []
-          : [
-              {
-                sourceWorkflowId: item.sourceWorkflowId,
-                targetWorkflowId: item.targetWorkflowId,
-                workflowName: item.sourceMeta.name,
-              },
-            ]
-      ),
-      targetWorkspaceName,
-      userId,
-      now,
-      resolveBlockId,
-      requestId,
-    })
-
-    // Mirror workflow-as-MCP-tool attachments onto MAPPED workflow-publishing servers for the
-    // written pairs: missing target attachments are created, drifted metadata refreshed, and a
-    // detached source's counterpart archived. The deployment outbox re-derives each affected
-    // tool's parameter schema when the target deploys below.
-    const mcpAttachmentResult = await reconcileForkWorkflowMcpAttachments({
-      tx,
-      childWorkspaceId: edge.childWorkspaceId,
-      sourceIsParent,
-      now,
-      writtenPairs: writtenItems.map((item) => ({
-        sourceWorkflowId: item.sourceWorkflowId,
-        targetWorkflowId: item.targetWorkflowId,
-      })),
-    })
-
-    // Persist / prune the stored dependent mapping. When the caller PROVIDED values, replace
-    // every written target's stored set (cleared/removed fields drop out so the store equals
-    // exactly what was applied) AND prune the archived targets' now-dead rows (their workflow
-    // no longer exists and has no FK to cascade). The TRANSLATED values are persisted - a
-    // source document id picked under a copy-resolved KB is stored as its copied counterpart,
-    // so the next sync (whose parent is then MAPPED via the persisted copy mapping) pre-fills
-    // a value that resolves in the target. Written CREATE targets persist too - they exist
-    // as of this sync, and their sent values (pre-configured in the mapping editor or the
-    // modal) must survive as the stored mapping for future syncs. Scope the inserted values
-    // to the delete's workflows so a value for a workflow skipped this pass (its source state
-    // vanished) can't be inserted without first clearing its old row and trip the unique
-    // constraint. When OMITTED, the store stays the source of truth (already applied above) -
-    // only prune archived targets, never touch the live targets' mapping.
-    const dependentTargetIds = new Set(writtenItems.map((item) => item.targetWorkflowId))
-    if (dependentValuesProvided) {
-      await reconcileForkDependentValues(
+      // Reconcile block-identity pairs for the written source workflows: clears pairs for
+      // blocks the source dropped (e.g. a deleted trigger) and any stale pair from a re-created
+      // target, then records the live ones - so the next promote resolves these blocks to these
+      // same ids and never re-homes one onto an archived workflow's block.
+      await reconcileForkBlockPairs(
         tx,
         edge.childWorkspaceId,
-        [...dependentTargetIds, ...plan.archivedTargetIds],
-        appliedDependentValues.filter((entry) => dependentTargetIds.has(entry.targetWorkflowId))
+        sourceIsParent,
+        writtenItems.map((item) => item.sourceWorkflowId),
+        blockPairs
       )
-    } else if (plan.archivedTargetIds.length > 0) {
-      await reconcileForkDependentValues(tx, edge.childWorkspaceId, plan.archivedTargetIds, [])
-    }
 
-    const archivedNames =
-      plan.archivedTargetIds.length > 0
-        ? (
-            await tx
-              .select({ name: workflow.name })
-              .from(workflow)
-              .where(inArray(workflow.id, plan.archivedTargetIds))
-          ).map((row) => row.name)
-        : []
-
-    const undeployEventIds: string[] = []
-    const archivedSnapshots: PromoteRunWorkflowSnapshot[] = []
-    for (const targetWorkflowId of plan.archivedTargetIds) {
-      const priorVersion = priorVersionByTarget.get(targetWorkflowId) ?? null
-      archivedSnapshots.push({ workflowId: targetWorkflowId, priorVersion })
-      // Enqueue undeploy side-effects (webhook + MCP-tool cleanup) so an archived orphan
-      // doesn't leak its subscriptions/registrations - mirrors rollback's undeploy path.
-      await undeployWorkflow({
-        workflowId: targetWorkflowId,
+      // Carry chat deployments for written targets that have NO chat row yet (typically
+      // create-mode targets): a fresh `{target-workspace}-{workflow}-{randomnum}` identifier with
+      // the source's config, live once this sync's deploy lands. Targets with any existing chat
+      // (live or archived) are left untouched - an earlier carry-over keeps its URL on every
+      // subsequent sync, and a deliberately archived chat is never resurrected. Targets whose
+      // redeploy this sync SKIPS (required dependents cleared) are excluded: their chat would
+      // squat a live identifier while nothing can serve - the next successful sync carries it.
+      const needsConfigurationTargetIds = new Set(
+        needsConfiguration.map((entry) => entry.workflowId)
+      )
+      await copyForkChatDeployments({
         tx,
-        onUndeployTransaction: async (innerTx, { deploymentVersionIds }) => {
-          if (deploymentVersionIds.length === 0) return
-          const eventId = await enqueueWorkflowUndeploySideEffects(innerTx, {
-            workflowId: targetWorkflowId,
-            deploymentVersionIds,
-            userId,
-            requestId,
-          })
-          undeployEventIds.push(eventId)
+        pairs: writtenItems.flatMap((item) =>
+          needsConfigurationTargetIds.has(item.targetWorkflowId)
+            ? []
+            : [
+                {
+                  sourceWorkflowId: item.sourceWorkflowId,
+                  targetWorkflowId: item.targetWorkflowId,
+                  workflowName: item.sourceMeta.name,
+                },
+              ]
+        ),
+        targetWorkspaceName,
+        userId,
+        now,
+        resolveBlockId,
+        requestId,
+      })
+
+      // Mirror workflow-as-MCP-tool attachments onto MAPPED workflow-publishing servers for the
+      // written pairs: missing target attachments are created, drifted metadata refreshed, and a
+      // detached source's counterpart archived. The deployment outbox re-derives each affected
+      // tool's parameter schema when the target deploys below.
+      const mcpAttachmentResult = await reconcileForkWorkflowMcpAttachments({
+        tx,
+        childWorkspaceId: edge.childWorkspaceId,
+        sourceIsParent,
+        now,
+        writtenPairs: writtenItems.map((item) => ({
+          sourceWorkflowId: item.sourceWorkflowId,
+          targetWorkflowId: item.targetWorkflowId,
+        })),
+      })
+
+      // Persist / prune the stored dependent mapping. When the caller PROVIDED values, replace
+      // every written target's stored set (cleared/removed fields drop out so the store equals
+      // exactly what was applied) AND prune the archived targets' now-dead rows (their workflow
+      // no longer exists and has no FK to cascade). The TRANSLATED values are persisted - a
+      // source document id picked under a copy-resolved KB is stored as its copied counterpart,
+      // so the next sync (whose parent is then MAPPED via the persisted copy mapping) pre-fills
+      // a value that resolves in the target. Written CREATE targets persist too - they exist
+      // as of this sync, and their sent values (pre-configured in the mapping editor or the
+      // modal) must survive as the stored mapping for future syncs. Scope the inserted values
+      // to the delete's workflows so a value for a workflow skipped this pass (its source state
+      // vanished) can't be inserted without first clearing its old row and trip the unique
+      // constraint. When OMITTED, the store stays the source of truth (already applied above) -
+      // only prune archived targets, never touch the live targets' mapping.
+      const dependentTargetIds = new Set(writtenItems.map((item) => item.targetWorkflowId))
+      if (dependentValuesProvided) {
+        await reconcileForkDependentValues(
+          tx,
+          edge.childWorkspaceId,
+          [...dependentTargetIds, ...plan.archivedTargetIds],
+          appliedDependentValues.filter((entry) => dependentTargetIds.has(entry.targetWorkflowId))
+        )
+      } else if (plan.archivedTargetIds.length > 0) {
+        await reconcileForkDependentValues(tx, edge.childWorkspaceId, plan.archivedTargetIds, [])
+      }
+
+      const archivedNames =
+        plan.archivedTargetIds.length > 0
+          ? (
+              await tx
+                .select({ name: workflow.name })
+                .from(workflow)
+                .where(inArray(workflow.id, plan.archivedTargetIds))
+            ).map((row) => row.name)
+          : []
+
+      const undeployEventIds: string[] = []
+      const archivedSnapshots: PromoteRunWorkflowSnapshot[] = []
+      for (const targetWorkflowId of plan.archivedTargetIds) {
+        const priorVersion = priorVersionByTarget.get(targetWorkflowId) ?? null
+        archivedSnapshots.push({ workflowId: targetWorkflowId, priorVersion })
+        // Enqueue undeploy side-effects (webhook + MCP-tool cleanup) so an archived orphan
+        // doesn't leak its subscriptions/registrations - mirrors rollback's undeploy path.
+        await undeployWorkflow({
+          workflowId: targetWorkflowId,
+          tx,
+          onUndeployTransaction: async (innerTx, { deploymentVersionIds }) => {
+            if (deploymentVersionIds.length === 0) return
+            const eventId = await enqueueWorkflowUndeploySideEffects(innerTx, {
+              workflowId: targetWorkflowId,
+              deploymentVersionIds,
+              userId,
+              requestId,
+            })
+            undeployEventIds.push(eventId)
+          },
+        })
+        await tx
+          .update(workflow)
+          .set({ archivedAt: now, updatedAt: now })
+          .where(eq(workflow.id, targetWorkflowId))
+      }
+      // Archive the archived targets' chat deployments too (matching `archiveWorkflow`): a live
+      // chat row would keep squatting its unique identifier and serving a dead workflow. The
+      // undeploy side-effects above cover webhooks + MCP tools; chats have no undeploy hook.
+      if (plan.archivedTargetIds.length > 0) {
+        await tx
+          .update(chat)
+          .set({ archivedAt: now, isActive: false, updatedAt: now })
+          .where(and(inArray(chat.workflowId, plan.archivedTargetIds), isNull(chat.archivedAt)))
+      }
+
+      const identityEntries: ForkMappingUpsert[] = writtenItems.map((item) => ({
+        resourceType: 'workflow' as const,
+        parentResourceId: sourceIsParent ? item.sourceWorkflowId : item.targetWorkflowId,
+        childResourceId: sourceIsParent ? item.targetWorkflowId : item.sourceWorkflowId,
+      }))
+      // The identity upsert keys on the parent side, which on push is the TARGET. A
+      // source whose previously-mapped target was archived gets a freshly-generated
+      // target id here, so its old (stale-target) identity row wouldn't be overwritten
+      // and would leak a second mapping for the same source. Delete every prior identity
+      // row for these sources (by the source side) first so exactly one row per source
+      // remains - this also converges any pre-existing duplicates.
+      await deleteWorkflowIdentityByIds(
+        tx,
+        edge.childWorkspaceId,
+        sourceIsParent ? 'parent' : 'child',
+        writtenItems.map((item) => item.sourceWorkflowId)
+      )
+      await upsertEdgeMappings(tx, edge.childWorkspaceId, userId, identityEntries)
+
+      await propagateCredentialAccess(tx, {
+        plan,
+        sourceWorkspaceId,
+        targetWorkspaceId,
+        targetMembers,
+        now,
+      })
+
+      const promoteRunId = await upsertPromoteRun(tx, {
+        childWorkspaceId: edge.childWorkspaceId,
+        sourceWorkspaceId,
+        targetWorkspaceId,
+        direction,
+        userId,
+        snapshot: {
+          updated: updatedSnapshots,
+          created: createdTargetIds,
+          archived: archivedSnapshots,
         },
       })
-      await tx
-        .update(workflow)
-        .set({ archivedAt: now, updatedAt: now })
-        .where(eq(workflow.id, targetWorkflowId))
-    }
-    // Archive the archived targets' chat deployments too (matching `archiveWorkflow`): a live
-    // chat row would keep squatting its unique identifier and serving a dead workflow. The
-    // undeploy side-effects above cover webhooks + MCP tools; chats have no undeploy hook.
-    if (plan.archivedTargetIds.length > 0) {
-      await tx
-        .update(chat)
-        .set({ archivedAt: now, isActive: false, updatedAt: now })
-        .where(and(inArray(chat.workflowId, plan.archivedTargetIds), isNull(chat.archivedAt)))
-    }
 
-    const identityEntries: ForkMappingUpsert[] = writtenItems.map((item) => ({
-      resourceType: 'workflow' as const,
-      parentResourceId: direction === 'pull' ? item.sourceWorkflowId : item.targetWorkflowId,
-      childResourceId: direction === 'pull' ? item.targetWorkflowId : item.sourceWorkflowId,
-    }))
-    // The identity upsert keys on the parent side, which on push is the TARGET. A
-    // source whose previously-mapped target was archived gets a freshly-generated
-    // target id here, so its old (stale-target) identity row wouldn't be overwritten
-    // and would leak a second mapping for the same source. Delete every prior identity
-    // row for these sources (by the source side) first so exactly one row per source
-    // remains - this also converges any pre-existing duplicates.
-    await deleteWorkflowIdentityByIds(
-      tx,
-      edge.childWorkspaceId,
-      direction === 'pull' ? 'parent' : 'child',
-      writtenItems.map((item) => item.sourceWorkflowId)
-    )
-    await upsertEdgeMappings(tx, edge.childWorkspaceId, userId, identityEntries)
+      // A source whose active deployment vanished between plan and copy is skipped
+      // above, so report what was actually written - the plan totals would overstate.
+      const writtenSourceIds = new Set(writtenItems.map((item) => item.sourceWorkflowId))
+      const skippedItems = plan.items
+        .filter((item) => !writtenSourceIds.has(item.sourceWorkflowId))
+        .map((item) => ({ id: item.sourceWorkflowId, name: item.sourceMeta.name }))
+      if (skippedItems.length > 0) {
+        logger.warn(
+          `[${requestId}] Promote skipped ${skippedItems.length} source workflow(s) whose deployment disappeared between plan and apply`,
+          { sourceWorkspaceId, targetWorkspaceId, skipped: skippedItems.length }
+        )
+      }
 
-    await propagateCredentialAccess(tx, {
-      plan,
-      sourceWorkspaceId,
-      targetWorkspaceId,
-      targetMembers,
-      now,
+      const applied: PromoteTxApplied = {
+        blocked: null,
+        promoteRunId,
+        deployTargetIds: writtenItems.map((item) => item.targetWorkflowId),
+        updated: updatedSnapshots.length,
+        created: createdTargetIds.length,
+        archived: archivedSnapshots.length,
+        skippedItems,
+        writtenNames: Object.fromEntries(
+          writtenItems.map((item) => [item.targetWorkflowId, item.sourceMeta.name])
+        ),
+        updatedNames: writtenItems
+          .filter((item) => item.mode === 'replace')
+          .map((item) => item.sourceMeta.name),
+        createdNames: writtenItems
+          .filter((item) => item.mode !== 'replace')
+          .map((item) => item.sourceMeta.name),
+        archivedNames,
+        undeployEventIds,
+        needsConfiguration,
+        clearedOptional,
+        droppedReferences,
+        triggerUrlChanges,
+        copyContentPlan,
+        copyContentRefMaps,
+        copyContentBlobTasks,
+        mcpAttachmentServerIds: mcpAttachmentResult.affectedServerIds,
+      }
+      if (admission) {
+        const result: PromoteForkResult = {
+          promoteRunId,
+          updated: applied.updated,
+          created: applied.created,
+          archived: applied.archived,
+          redeployed: 0,
+          deployFailed: 0,
+          deployWarnings: [],
+          unmappedRequired: [],
+          blockers: [],
+          blocked: null,
+          updatedNames: applied.updatedNames,
+          createdNames: applied.createdNames,
+          archivedNames,
+          needsConfiguration: needsConfiguration.map(({ workflowName, blocks }) => ({
+            workflowName,
+            blocks,
+          })),
+          clearedOptional,
+          droppedReferences,
+          triggerUrlChanges,
+        }
+        applied.operation = await admitForkSync(tx, {
+          admission,
+          targetWorkspaceId,
+          direction,
+          userId,
+          result,
+          targetIds: applied.deployTargetIds,
+          undeployEventIds,
+          mcpAttachmentServerIds: applied.mcpAttachmentServerIds,
+          needsConfigurationIds: needsConfigurationTargetIds,
+          ...(copyContentPlan
+            ? {
+                copy: {
+                  contentPlan: copyContentPlan,
+                  blobTasks: copyContentBlobTasks,
+                  contentRefMaps: copyContentRefMaps ?? undefined,
+                  deployedTargetWorkflowIds: applied.deployTargetIds,
+                  requestId,
+                },
+              }
+            : {}),
+        })
+      }
+      return applied
     })
 
-    const promoteRunId = await upsertPromoteRun(tx, {
-      childWorkspaceId: edge.childWorkspaceId,
-      sourceWorkspaceId,
-      targetWorkspaceId,
-      direction,
-      userId,
-      snapshot: {
-        updated: updatedSnapshots,
-        created: createdTargetIds,
-        archived: archivedSnapshots,
-      },
-    })
-
-    // A source whose active deployment vanished between plan and copy is skipped
-    // above, so report what was actually written - the plan totals would overstate.
-    const writtenSourceIds = new Set(writtenItems.map((item) => item.sourceWorkflowId))
-    const skippedItems = plan.items
-      .filter((item) => !writtenSourceIds.has(item.sourceWorkflowId))
-      .map((item) => ({ id: item.sourceWorkflowId, name: item.sourceMeta.name }))
-    if (skippedItems.length > 0) {
-      logger.warn(
-        `[${requestId}] Promote skipped ${skippedItems.length} source workflow(s) whose deployment disappeared between plan and apply`,
-        { sourceWorkspaceId, targetWorkspaceId, skipped: skippedItems.length }
-      )
-    }
-
-    return {
-      blocked: null,
-      promoteRunId,
-      deployTargetIds: writtenItems.map((item) => item.targetWorkflowId),
-      updated: updatedSnapshots.length,
-      created: createdTargetIds.length,
-      archived: archivedSnapshots.length,
-      skippedItems,
-      writtenNames: Object.fromEntries(
-        writtenItems.map((item) => [item.targetWorkflowId, item.sourceMeta.name])
-      ),
-      updatedNames: writtenItems
-        .filter((item) => item.mode === 'replace')
-        .map((item) => item.sourceMeta.name),
-      createdNames: writtenItems
-        .filter((item) => item.mode !== 'replace')
-        .map((item) => item.sourceMeta.name),
-      archivedNames,
-      undeployEventIds,
-      needsConfiguration,
-      clearedOptional,
-      droppedReferences,
-      triggerUrlChanges,
-      copyContentPlan,
-      copyContentRefMaps,
-      copyContentBlobTasks,
-      mcpAttachmentServerIds: mcpAttachmentResult.affectedServerIds,
-    }
-  })
-
+  if ('receipt' in txResult) {
+    if (!txResult.receipt.syncResult) throw new Error('Sync receipt is incomplete')
+    return { ...txResult.receipt.syncResult, operation: txResult.receipt, replayed: true }
+  }
+  if (txResult.blocked === null && txResult.operation?.syncResult)
+    return { ...txResult.operation.syncResult, operation: txResult.operation }
   if (txResult.blocked !== null) {
     return {
       promoteRunId: '',

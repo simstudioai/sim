@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetHighestPrioritySubscription,
@@ -190,20 +197,39 @@ describe('getOrganizationCoverageForMember', () => {
 describe('getOrganizationIdForSubscriptionReference', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
-  it('returns an organization id directly when the reference already points to one', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'org-1' }])
+  afterEach(resetDbChainMock)
 
-    await expect(getOrganizationIdForSubscriptionReference('org-1')).resolves.toBe('org-1')
-  })
+  it.each(['org-1', 'legacy-organization-id'])(
+    'returns the directly referenced organization %s',
+    async (organizationId) => {
+      queueTableRows(schemaMock.organization, [{ id: organizationId }])
 
-  it('falls back to the admin-owned organization when the reference is still user-scoped', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ organizationId: 'org-1', role: 'owner' }])
+      await expect(getOrganizationIdForSubscriptionReference(organizationId)).resolves.toBe(
+        organizationId
+      )
+    }
+  )
 
-    await expect(getOrganizationIdForSubscriptionReference('user-1')).resolves.toBe('org-1')
+  it.each(['owner', 'admin', 'member'])(
+    'keeps a personal subscription personal when its user is an organization %s',
+    async (role) => {
+      queueTableRows(schemaMock.organization, [])
+      queueTableRows(schemaMock.member, [{ organizationId: 'org-1', role }])
+
+      await expect(getOrganizationIdForSubscriptionReference('user-1')).resolves.toBeNull()
+      expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
+    }
+  )
+
+  it('propagates lookup errors instead of treating the subscription as personal', async () => {
+    dbChainMockFns.limit.mockRejectedValueOnce(new Error('db unavailable'))
+
+    await expect(getOrganizationIdForSubscriptionReference('org-1')).rejects.toThrow(
+      'db unavailable'
+    )
   })
 })
 

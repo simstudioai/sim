@@ -18,6 +18,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import { useWorkspaceOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -123,6 +124,15 @@ export const Dropdown = memo(function Dropdown({
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
 
   const blockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
+  const workspaceId = useWorkflowRegistry((state) => state.hydration.workspaceId)
+  const organizationAccounts = useWorkspaceOrganizationAccounts(
+    workspaceId ?? undefined,
+    blockType === 'credential' && subBlockId === OPERATION_SUBBLOCK_ID
+  )
+  const hideOrganizationOperations =
+    blockType === 'credential' &&
+    subBlockId === OPERATION_SUBBLOCK_ID &&
+    organizationAccounts.data?.allowed !== true
   const blockConfig = blockType ? getBlock(blockType) : null
 
   const previousModeRef = useRef<string | null>(null)
@@ -274,10 +284,19 @@ export const Dropdown = memo(function Dropdown({
         label: toLabel(opt.label),
         value: opt.id,
         icon: 'icon' in opt ? opt.icon : undefined,
-        hidden: opt.hidden || deniedOperationIds.has(opt.id),
+        hidden:
+          opt.hidden ||
+          deniedOperationIds.has(opt.id) ||
+          (hideOrganizationOperations &&
+            [
+              'find_organization_account',
+              'list_organization_accounts',
+              'find_organization_mcp_connection',
+              'list_organization_mcp_connections',
+            ].includes(opt.id)),
       }
     })
-  }, [allOptions, deniedOperationIds, preserveLabelCase])
+  }, [allOptions, deniedOperationIds, preserveLabelCase, hideOrganizationOperations])
 
   const optionMap = useMemo(() => {
     return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))

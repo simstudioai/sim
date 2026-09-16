@@ -396,7 +396,7 @@ function truncateUserMessagePreview(raw: unknown): string | undefined {
 // Request-shape metadata known only after branch resolution. Stamped
 // on the root span for dashboard filtering.
 interface CopilotOtelRequestShape {
-  branchKind?: 'workflow' | 'workspace'
+  branchKind?: 'workflow' | 'workspace' | 'organization'
   mode?: string
   model?: string
   provider?: string

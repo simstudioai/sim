@@ -19,7 +19,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     sentences: {
       byOperation: {
         search: [
-          { text: 'Search the web for', field: 'objective', core: true },
+          { text: 'Search the web for', field: 'search_queries', core: true },
           { text: ', limited to', field: 'search_include_domains' },
         ],
         extract: [
@@ -46,19 +46,25 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       value: () => 'search',
     },
     {
-      id: 'objective',
-      title: 'Search Objective',
-      type: 'long-input',
-      placeholder: "When was the United Nations established? Prefer UN's websites.",
-      required: true,
-      condition: { field: 'operation', value: 'search' },
-    },
-    {
       id: 'search_queries',
       title: 'Search Queries',
       type: 'long-input',
       placeholder:
-        'Enter search queries separated by commas (e.g., "Founding year UN", "Year of founding United Nations")',
+        'Enter concise keyword queries separated by commas (e.g., "Founding year UN", "United Nations established")',
+      required: true,
+      condition: { field: 'operation', value: 'search' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate 1-5 concise keyword web search queries (3-6 words each) for the described research goal. Return ONLY the queries as a comma-separated list.',
+        placeholder: 'Describe what you want to find...',
+      },
+    },
+    {
+      id: 'objective',
+      title: 'Search Objective',
+      type: 'long-input',
+      placeholder: "When was the United Nations established? Prefer UN's websites.",
       required: false,
       condition: { field: 'operation', value: 'search' },
     },
@@ -80,26 +86,12 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'extract' },
     },
     {
-      id: 'excerpts',
-      title: 'Include Excerpts',
-      type: 'dropdown',
-      options: [
-        { label: 'Yes', id: 'true' },
-        { label: 'No', id: 'false' },
-      ],
-      value: () => 'true',
-      condition: { field: 'operation', value: 'extract' },
-    },
-    {
       id: 'full_content',
       title: 'Include Full Content',
-      type: 'dropdown',
-      options: [
-        { label: 'Yes', id: 'true' },
-        { label: 'No', id: 'false' },
-      ],
-      value: () => 'false',
+      type: 'switch',
+      defaultValue: false,
       condition: { field: 'operation', value: 'extract' },
+      mode: 'advanced',
     },
     {
       id: 'research_input',
@@ -110,15 +102,27 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'deep_research' },
     },
     {
+      id: 'output_format',
+      title: 'Output Format',
+      type: 'dropdown',
+      options: [
+        { label: 'Markdown report', id: 'text' },
+        { label: 'Structured JSON (Pro tier or higher)', id: 'auto' },
+      ],
+      value: () => 'text',
+      condition: { field: 'operation', value: 'deep_research' },
+    },
+    {
       id: 'search_mode',
       title: 'Search Mode',
       type: 'dropdown',
       options: [
-        { label: 'One-Shot', id: 'one-shot' },
-        { label: 'Agentic', id: 'agentic' },
+        { label: 'Advanced', id: 'advanced' },
+        { label: 'Basic', id: 'basic' },
         { label: 'Fast', id: 'fast' },
+        { label: 'Turbo', id: 'turbo' },
       ],
-      value: () => 'one-shot',
+      value: () => 'advanced',
       condition: { field: 'operation', value: 'search' },
       mode: 'advanced',
     },
@@ -163,8 +167,13 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       title: 'Research Processor',
       type: 'dropdown',
       options: [
+        { label: 'Core', id: 'core' },
+        { label: 'Core 2x', id: 'core2x' },
         { label: 'Pro', id: 'pro' },
         { label: 'Ultra', id: 'ultra' },
+        { label: 'Ultra 2x', id: 'ultra2x' },
+        { label: 'Ultra 4x', id: 'ultra4x' },
+        { label: 'Ultra 8x', id: 'ultra8x' },
         { label: 'Pro Fast', id: 'pro-fast' },
         { label: 'Ultra Fast', id: 'ultra-fast' },
       ],
@@ -176,7 +185,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       id: 'max_results',
       title: 'Max Results',
       type: 'short-input',
-      placeholder: '10',
+      placeholder: '10 (max 20)',
       condition: { field: 'operation', value: 'search' },
       mode: 'advanced',
     },
@@ -218,18 +227,10 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
         const operation = params.operation
 
         if (operation === 'search') {
-          if (params.search_queries && typeof params.search_queries === 'string') {
-            const queries = params.search_queries
-              .split(',')
-              .map((query: string) => query.trim())
-              .filter((query: string) => query.length > 0)
-            if (queries.length > 0) {
-              result.search_queries = queries
-            }
+          if (!params.search_queries && params.objective) {
+            result.search_queries = params.objective
           }
-          if (params.search_mode && params.search_mode !== 'one-shot') {
-            result.mode = params.search_mode
-          }
+          if (params.search_mode) result.mode = params.search_mode
           if (params.max_results) result.max_results = Number(params.max_results)
           if (params.max_chars_per_result) {
             result.max_chars_per_result = Number(params.max_chars_per_result)
@@ -240,13 +241,13 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
 
         if (operation === 'extract') {
           if (params.extract_objective) result.objective = params.extract_objective
-          result.excerpts = !(params.excerpts === 'false' || params.excerpts === false)
           result.full_content = params.full_content === 'true' || params.full_content === true
         }
 
         if (operation === 'deep_research') {
           if (params.research_input) result.input = params.research_input
           if (params.processor) result.processor = params.processor
+          if (params.output_format) result.output_format = params.output_format
         }
 
         return result
@@ -255,18 +256,22 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation type' },
+    search_queries: { type: 'string', description: 'Comma-separated keyword search queries' },
     objective: { type: 'string', description: 'Search objective or question' },
-    search_queries: { type: 'string', description: 'Comma-separated search queries' },
     urls: { type: 'string', description: 'Comma-separated URLs' },
     extract_objective: { type: 'string', description: 'What to extract from URLs' },
-    excerpts: { type: 'boolean', description: 'Include excerpts' },
     full_content: { type: 'boolean', description: 'Include full content' },
     research_input: { type: 'string', description: 'Deep research query' },
+    output_format: {
+      type: 'string',
+      description:
+        'Deep research output format (text for a markdown report, auto for structured JSON; auto needs the pro tier or higher)',
+    },
     include_domains: { type: 'string', description: 'Domains to include (deep research)' },
     exclude_domains: { type: 'string', description: 'Domains to exclude (deep research)' },
     search_include_domains: { type: 'string', description: 'Domains to include (search)' },
     search_exclude_domains: { type: 'string', description: 'Domains to exclude (search)' },
-    search_mode: { type: 'string', description: 'Search mode (one-shot, agentic, fast)' },
+    search_mode: { type: 'string', description: 'Search mode (turbo, fast, basic, advanced)' },
     processor: { type: 'string', description: 'Research processing tier' },
     max_results: { type: 'number', description: 'Maximum number of results' },
     max_chars_per_result: { type: 'number', description: 'Maximum characters per result' },
@@ -279,12 +284,18 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     },
     search_id: { type: 'string', description: 'Search request ID (for search)' },
     extract_id: { type: 'string', description: 'Extract request ID (for extract)' },
+    errors: {
+      type: 'json',
+      description:
+        'URLs that could not be extracted (array of url, error_type, http_status_code, content) (for extract)',
+    },
     status: { type: 'string', description: 'Task status (for deep research)' },
     run_id: { type: 'string', description: 'Task run ID (for deep research)' },
     message: { type: 'string', description: 'Status message (for deep research)' },
     content: {
       type: 'json',
-      description: 'Research content (for deep research, structured based on output_schema)',
+      description:
+        'Research findings: a markdown report string when Output Format is Markdown report, or a structured object with query-specific keys when it is Structured JSON (for deep research)',
     },
     basis: {
       type: 'json',
@@ -372,27 +383,27 @@ export const ParallelBlockMeta = {
       description:
         'Run Parallel AI deep research on a company and produce a cited brief covering funding, leadership, and product.',
       content:
-        '# Research Company Brief\n\nGenerate a sourced account brief for a target company.\n\n## Steps\n1. Use the Deep Research operation with a Research Query naming the company and the angles to cover: recent funding, leadership changes, product launches, and notable news.\n2. Choose a processor tier (Pro for balance, Ultra for depth) and optionally constrain Include or Exclude Domains.\n3. Read the structured content plus the basis field for citations and confidence per claim.\n\n## Output\nA brief organized by topic, where every claim links to its source URL from the basis, and note any low-confidence items that need verification.',
+        '# Research Company Brief\n\nGenerate a sourced account brief for a target company.\n\n## Steps\n1. Use the Deep Research operation with a Research Query naming the company and the angles to cover: recent funding, leadership changes, product launches, and notable news.\n2. Choose an Output Format (Markdown report for prose, Structured JSON for fielded data), a processor tier (Pro for balance, Ultra for depth), and optionally constrain Include or Exclude Domains.\n3. Read the content plus the basis field for citations and confidence per claim.\n\n## Output\nA brief organized by topic, where every claim links to its source URL from the basis, and note any low-confidence items that need verification.',
     },
     {
       name: 'web-search-with-objective',
       description:
         'Use Parallel AI search to answer a question across the web and return ranked, cited results.',
       content:
-        '# Web Search With Objective\n\nAnswer a factual question grounded in fresh web sources.\n\n## Steps\n1. Use the Search operation and state a clear Objective describing what you want to know and which sources to prefer.\n2. Optionally add specific Search Queries, set a Search Mode (one-shot, agentic, or fast), and limit results with Include or Exclude Domains.\n3. Tune Max Results and Max Chars Per Result for breadth versus depth.\n\n## Output\nA direct answer to the objective followed by the supporting results, each with title, URL, and the relevant excerpt.',
+        '# Web Search With Objective\n\nAnswer a factual question grounded in fresh web sources.\n\n## Steps\n1. Use the Search operation with one or more concise keyword Search Queries, and optionally an Objective describing what you want to know and which sources to prefer.\n2. Optionally set a Search Mode (turbo, fast, basic, or advanced) and limit results with Include or Exclude Domains.\n3. Tune Max Results and Max Chars Per Result for breadth versus depth.\n\n## Output\nA direct answer to the objective followed by the supporting results, each with title, URL, and the relevant excerpt.',
     },
     {
       name: 'extract-facts-from-urls',
       description: 'Use Parallel AI extract to pull structured facts from a list of source URLs.',
       content:
-        '# Extract Facts From URLs\n\nTurn a set of pages into structured data.\n\n## Steps\n1. Use the Extract operation and provide the comma-separated URLs to read.\n2. Set an Extract Objective describing exactly which fields to pull from each page.\n3. Enable Include Excerpts for supporting snippets and Include Full Content only when the whole page text is needed.\n\n## Output\nA normalized record per URL with the requested fields and an excerpt backing each value, plus a note on any URL that could not be parsed.',
+        '# Extract Facts From URLs\n\nTurn a set of pages into structured data.\n\n## Steps\n1. Use the Extract operation and provide the comma-separated URLs to read.\n2. Set an Extract Objective describing exactly which fields to pull from each page.\n3. Excerpts are always returned; enable Include Full Content only when the whole page text is needed.\n\n## Output\nA normalized record per URL with the requested fields and an excerpt backing each value, plus a note on any URL that could not be parsed.',
     },
     {
       name: 'monitor-competitor-news',
       description:
         'Search Parallel AI for recent announcements from named competitors and summarize the changes.',
       content:
-        '# Monitor Competitor News\n\nTrack what rivals shipped or announced recently.\n\n## Steps\n1. Use the Search operation with an Objective naming the competitors and the timeframe of interest.\n2. Optionally restrict Include Domains to the competitors official sites and reputable news outlets.\n3. For high-signal hits, follow up with the Extract operation to pull the specific details from each announcement URL.\n\n## Output\nA dated digest grouped by competitor, each item a one-line summary with its source URL and why it matters.',
+        '# Monitor Competitor News\n\nTrack what rivals shipped or announced recently.\n\n## Steps\n1. Use the Search operation with keyword Search Queries naming each competitor, plus an Objective describing the timeframe of interest.\n2. Optionally restrict Include Domains to the competitors official sites and reputable news outlets.\n3. For high-signal hits, follow up with the Extract operation to pull the specific details from each announcement URL.\n\n## Output\nA dated digest grouped by competitor, each item a one-line summary with its source URL and why it matters.',
     },
   ],
 } as const satisfies BlockMeta

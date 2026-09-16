@@ -66,6 +66,7 @@ import {
   readSelectElementState,
   scrollPage,
   selectOptionInElement,
+  setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
 import * as session from '@/main/browser-agent/session'
@@ -194,8 +195,6 @@ export interface DriverCallbacks {
   onPageState: (state: BrowserPageState) => void
   onTabsState: (state: BrowserTabsState) => void
   onSessionStatus: (alive: boolean, scopeId: string) => void
-  /** Whether a live renderer for the scope registered support for the consent prompt. */
-  sitePermissionPromptSupported?: (scopeId: string) => boolean
   /** Whether the active tab shows a login form Sim holds a credential for. */
   onFillAvailability: (available: boolean, scopeId: string) => void
   /** Live native download state for one isolated browser scope. */
@@ -467,7 +466,6 @@ function recordNotice(notice: string): void {
 function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
   const issue = session.pageIssueForContents(contents)
   const mediaPermissionRequest = session.mediaPermissionRequestForContents(contents)
-  const sitePermissionRequest = session.sitePermissionRequestForScope()
   return {
     scopeId: session.getBrowserScopeId(),
     tabId,
@@ -478,7 +476,6 @@ function pageStateFor(contents: WebContents, tabId: string): BrowserPageState {
     canGoForward: session.canGoForward(contents),
     ...(issue ? { issue } : {}),
     ...(mediaPermissionRequest ? { mediaPermissionRequest } : {}),
-    ...(sitePermissionRequest ? { sitePermissionRequest } : {}),
   }
 }
 
@@ -661,8 +658,6 @@ export function initDriver(
         void fillCoordinator()?.refreshAvailability(true)
       },
       onPageStateChanged: pushPageState,
-      sitePermissionPromptSupported: (scopeId) =>
-        driverCallbacks?.sitePermissionPromptSupported?.(scopeId) === true,
       onTabsChanged: pushTabsState,
       onTabThemeChanged: (contents, theme) => {
         void cdp.setColorScheme(contents, theme).catch((error) => {
@@ -794,10 +789,13 @@ export function restoreBrowserScope(scopeId: string): BrowserTabsState {
     return session.withBrowserScope(resolved, () => session.peekTabsState())
   }
   const state = driverScopeState(resolved)
-  state.activationOnly = false
   return session.withBrowserScope(resolved, () => {
     session.restoreBrowserSession()
-    return session.peekTabsState()
+    const tabs = session.peekTabsState()
+    // Only a scope that actually holds pages is material; one restored empty
+    // stays adoptable by a pending chat migrating onto its id.
+    if (tabs.tabs.length > 0) state.activationOnly = false
+    return tabs
   })
 }
 
@@ -905,7 +903,7 @@ export async function clearBrowserProfile(
   retireAllDriverScopeStates()
   const settingsCleared = knownSessions?.clear() !== false
   const outcomes = await Promise.allSettled([session.clearProfileStorage(), clearCredentials()])
-  // Last, covering the pinned-tab list `clearProfileStorage` just emptied.
+  // Last, covering the saved tab list `clearProfileStorage` just emptied.
   // Settings writes coalesce, and an erasure that is still sitting in that
   // window when the process dies leaves the previous account's data on disk
   // after sign-out already told the user it was gone.
@@ -1293,6 +1291,7 @@ function unwrapPageResult(result: unknown): unknown {
         `No option matched that label or value. Available options: ${options.join(', ')}`
       )
     }
+    throw new ToolError(String(code))
   }
   return result
 }
@@ -1370,7 +1369,7 @@ async function loadAgentCheckedUrlAndGetResult(
   url: string
 ): Promise<Record<string, unknown>> {
   session.prepareExplicitNavigation(contents)
-  if (!session.grantSiteOriginForAgentNavigation(contents, url)) {
+  if (contents.isDestroyed()) {
     throw new ToolError('The tab was closed before navigation could start.')
   }
   const beforeUrl = contents.getURL()
@@ -2281,7 +2280,8 @@ async function executeToolInner(
   params: Record<string, unknown>,
   assertCurrentExecution: () => void,
   executionDeadline: number | undefined,
-  invocationEpoch: number
+  invocationEpoch: number,
+  signal?: AbortSignal
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -2368,8 +2368,7 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      // The agent chose to open this page to work in, so the panel follows it.
-      const tab = session.addAutomationTab({ reveal: true })
+      const tab = session.addAutomationTab()
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
@@ -2634,15 +2633,11 @@ async function executeToolInner(
             }
           : undefined
       assertCaptureIsCurrent()
-      const shot = await cdp.captureScreenshot(contents, clip).catch((error) => {
-        logger.warn('Browser screenshot capture failed', { error: getErrorMessage(error) })
-        return null
-      })
-      if (!shot) {
+      const shot = await cdp.captureScreenshot(contents, clip, signal).catch((error) => {
         throw new ToolError(
-          'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
+          `Could not capture the page: ${getErrorMessage(error)}. Use browser_snapshot or browser_read_text instead.`
         )
-      }
+      })
       assertCaptureIsCurrent()
       if (elementId !== undefined && elementClip) {
         const currentClip = toRecord(
@@ -2666,11 +2661,6 @@ async function executeToolInner(
       if (shot.dataUrl.length > 8_000_000) {
         throw new ToolError(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
-        )
-      }
-      if (!shot.imageSize) {
-        throw new ToolError(
-          'Could not verify the screenshot dimensions. Retry browser_screenshot or use browser_snapshot instead.'
         )
       }
       const viewport = shot.viewport
@@ -3348,16 +3338,19 @@ async function executeToolInner(
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
       }
-      let trusted = true
+      const valueInput = initialSurface.valueInput === true
+      let trusted = !valueInput
       let nativeInserted = false
       let nativeInsertAttempted = false
       try {
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
-        await dispatchKeyCombo(
-          contents,
-          parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
-        )
+        if (!valueInput) {
+          await dispatchKeyCombo(
+            contents,
+            parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
+          )
+        }
         // The guard above vetted the element we asked to focus, but the insert
         // below goes wherever focus actually is now, a round trip later. Login
         // forms that auto-advance from username to password move it in exactly
@@ -3410,8 +3403,32 @@ async function executeToolInner(
         }
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
+        if ((finalSurface.valueInput === true) !== valueInput) {
+          throw new ToolError('The field type changed before input. Take a fresh browser_snapshot.')
+        }
         nativeInsertAttempted = true
-        await cdp.insertText(contents, text)
+        if (valueInput) {
+          const written = unwrapPageResult(
+            await execInPage(
+              target,
+              setFocusedInputValue,
+              [elementId, text],
+              false,
+              executionDeadline
+            ).catch((error) => {
+              throw new ToolError(
+                `The structured field write did not acknowledge completion (${getErrorMessage(error)}). It may have reached the field and was not retried; inspect the page before continuing.`
+              )
+            })
+          )
+          if (!isRecordLike(written) || written.dispatched !== true) {
+            throw new ToolError(
+              'The field did not acknowledge the value write. Inspect it before retrying.'
+            )
+          }
+        } else {
+          await cdp.insertText(contents, text)
+        }
         nativeInserted = true
 
         let submitted = false
@@ -3849,6 +3866,19 @@ async function executeToolInner(
     }
 
     case 'browser_select_option': {
+      const values = params.values
+      if (values !== undefined && params.value !== undefined) {
+        throw new ToolError('Provide value or values, not both.')
+      }
+      if (
+        values !== undefined &&
+        (!Array.isArray(values) ||
+          values.length > 100 ||
+          values.some((value) => typeof value !== 'string'))
+      ) {
+        throw new ToolError('values must be an array of at most 100 strings.')
+      }
+      const selection = values === undefined ? requireStr(params, 'value') : (values as string[])
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
@@ -3884,7 +3914,7 @@ async function executeToolInner(
         await execInPage(
           target,
           selectOptionInElement,
-          [elementId, requireStr(params, 'value')],
+          [elementId, selection],
           false,
           executionDeadline
         )
@@ -3898,10 +3928,22 @@ async function executeToolInner(
       }
       await sleep(50)
       const state = unwrapPageResult(await execInPage(target, readSelectElementState, [elementId]))
+      const selectedValues = selected.values
+      const readbackValues = isRecordLike(state) ? state.values : undefined
+      const selectedLabels = selected.labels
+      const readbackLabels = isRecordLike(state) ? state.labels : undefined
       const effectObserved =
         isRecordLike(state) &&
         selected.selected === state.selected &&
-        selected.value === state.value
+        selected.value === state.value &&
+        (!Array.isArray(selectedValues) ||
+          (Array.isArray(readbackValues) &&
+            selectedValues.length === readbackValues.length &&
+            selectedValues.every((value, index) => value === readbackValues[index]) &&
+            Array.isArray(selectedLabels) &&
+            Array.isArray(readbackLabels) &&
+            selectedLabels.length === readbackLabels.length &&
+            selectedLabels.every((label, index) => label === readbackLabels[index])))
       return {
         ...selected,
         effectObserved,
@@ -4603,9 +4645,13 @@ export async function executeTool(
         throw new ToolError('This browser action was cancelled before it started.')
       }
       state.activeToolCallId = toolCallId ?? null
+      const executionController = new AbortController()
       let cancelActiveExecution: () => void = () => {}
       const cancellation = new Promise<never>((_resolve, reject) => {
-        cancelActiveExecution = () => reject(new ToolError('This browser action was cancelled.'))
+        cancelActiveExecution = () => {
+          executionController.abort()
+          reject(new ToolError('This browser action was cancelled.'))
+        }
       })
       state.activeToolCancel = cancelActiveExecution
       return await session.withBrowserScope(resolvedScopeId, async () => {
@@ -4633,12 +4679,14 @@ export async function executeTool(
             params,
             assertCurrentExecution,
             executionDeadline,
-            invocationEpoch
+            invocationEpoch,
+            executionController.signal
           )
           const guardedExecution =
             watchdogMs === null
               ? execution
               : raceAgainstWatchdog(execution, watchdogMs, () => {
+                  executionController.abort()
                   if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
                   if (
                     tool === 'browser_snapshot' ||
@@ -4658,6 +4706,7 @@ export async function executeTool(
           })
           return result
         } finally {
+          executionController.abort()
           if (keepHiddenPageActive && !state.disposed) {
             session.setAutomationActive(false)
           }
@@ -4764,9 +4813,7 @@ export async function handlePanelAction(
       return
     }
     if (action.action === 'respond-site-permission') {
-      if (typeof action.requestId === 'string' && typeof action.allowed === 'boolean') {
-        session.respondToSitePermission(action.requestId, action.allowed)
-      }
+      /** Older renderers can still send a response to the retired task-navigation prompt. */
       return
     }
     // Navigate bootstraps the session: the user can open the panel manually
@@ -4777,24 +4824,13 @@ export async function handlePanelAction(
         session.claimActiveTabForUser()
         const contents = session.ensureTab().view.webContents
         session.prepareExplicitNavigation(contents)
-        session.grantSiteOriginForUserNavigation(contents, action.url)
         void contents.loadURL(action.url).catch(() => {})
-      }
-      return
-    }
-    if (action.action === 'new-tab') {
-      session.addTab()
-      return
-    }
-    if (action.action === 'duplicate-tab') {
-      if (typeof action.tabId === 'string') {
-        session.duplicateTab(action.tabId)
       }
       return
     }
     if (action.action === 'switch-tab') {
       if (typeof action.tabId === 'string') {
-        session.switchTab(action.tabId)
+        session.switchTab(action.tabId, { claim: action.claim !== false })
       }
       return
     }

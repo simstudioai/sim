@@ -29,7 +29,7 @@ export const jiraUpdateTool: InternalToolConfig<JiraUpdateParams, JiraUpdateResp
     domain: {
       type: 'string',
       required: true,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     issueKey: {

@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The **Pi Coding Agent block** runs the [Pi](https://github.com/earendil-works/pi-mono) coding harness against a real repository. You give it a task and a model; it creates or updates a pull request, posts a PR review, or changes your files in place. Create PR and Update PR can optionally babysit their pull request. Create PR, Update PR, and Local Dev can reuse your [skills](/agents/skills) and multi-turn [memory](#memory). Review Code deliberately loads neither.
+The **Pi Coding Agent block** runs the [Pi](https://github.com/earendil-works/pi-mono) coding harness against a real repository. You give it a task and a model; it creates or updates a pull request, posts a PR review, or changes your files in place. Create PR and Update PR can optionally babysit their pull request. Create PR, Update PR, and Local Dev can reuse your [skills](/agents/skills) and multi-turn [memory](#memory-create-pr--update-pr--local-dev). Review Code deliberately loads neither.
 
 It has four modes that decide *where* it runs and *how* its work lands:
 
@@ -92,7 +92,7 @@ What the agent should do, in plain language — for example *"Add input validati
 
 ### Model
 
-The model that drives the agent. Defaults to `claude-sonnet-4-6`. The dropdown contains the intersection of models available in Sim and exact provider-relative entries in the installed Pi catalog. Sim never fabricates fallback model metadata.
+The model that drives the agent. Defaults to `claude-sonnet-4-6`. The dropdown contains the intersection of models available in Sim and exact provider-relative entries in the installed Pi catalog.
 
 ### API Key
 
@@ -182,7 +182,7 @@ For Create PR, Update PR, and Local Dev, memory is folded into the agent's first
 - **Sim trims before the run.** The selected memory type bounds what's injected: **Conversation** is automatically capped to a fraction of the model's context window (for models in Sim's catalog), **Sliding window (messages)** keeps the last N messages, and **Sliding window (tokens)** keeps history up to an explicit token budget.
 - **Pi compacts during the run.** As the agent works (reading files, running commands), Pi automatically summarizes older turns to stay under the window — in all modes, on by default. You don't need to configure anything for context growth mid-run.
 
-The one case neither layer can rescue is a *first* prompt that already exceeds the window — Pi can only compact once there are older turns to summarize. This is only reachable with **Conversation** memory plus a model typed in manually (not in Sim's catalog), where the automatic cap can't look up a context window. For long histories — and whenever you use a manually entered model — choose **Sliding window (tokens)**: its budget applies regardless of the model, so the first prompt always fits.
+The one case neither layer can rescue is a *first* prompt that already exceeds the window — Pi can only compact once there are older turns to summarize. This is only reachable with **Conversation** memory plus a model typed in manually (not in Sim's catalog), where the automatic cap can't look up a context window. For long histories — and whenever you use a manually entered model — choose **Sliding window (tokens)**: its budget applies regardless of the model. Leave room for the task prompt, tool definitions, and generated output.
 
 ## Outputs
 
@@ -270,15 +270,6 @@ Enable sandbox execution as for Create PR. BYOK is optional because the model cr
 - **Reuse a Conversation ID for Create PR, Update PR, or Local Dev follow-ups.** It carries the prior task and outcome into the next run so the agent can build on its own work.
 
 <FAQ items={[
-  { question: "What's the difference between the modes?", answer: "Create PR creates and pushes a new sandbox branch before opening its PR. Update PR pushes to an existing branch without force-pushing, then creates or updates its PR. Either authoring mode can optionally babysit its PR. Review Code posts a GitHub review. Local Dev edits files over SSH. Create PR and Update PR require BYOK." },
   { question: "Which models can I use?", answer: "The model dropdown contains models that are both available in Sim and present under the exact provider in the installed Pi catalog. Providers that need richer configuration, OAuth-only authentication, or a user-supplied base URL aren't offered." },
   { question: "Why does Local Dev need a public hostname?", answer: "Sim connects over raw SSH and blocks localhost, LAN, and private/reserved addresses for safety. Expose the machine with a TCP tunnel such as `ngrok tcp 22` and use the tunnel's host and port. Tailscale's private 100.x addresses won't work for the same reason." },
-  { question: "What GitHub permissions does Create PR need?", answer: "A token that can clone, push, and open a PR. With a fine-grained token: select the repo and grant Contents: Read and write plus Pull requests: Read and write. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
-  { question: "What GitHub permissions does Update PR need?", answer: "The same permissions as Create PR. With a fine-grained token: select the repo and grant Contents: Read and write plus Pull requests: Read and write. With a classic token: the repo scope. Branch protection can still reject the push." },
-  { question: "What GitHub permissions does Review Code need?", answer: "A token that can clone the repo and submit a review. With a fine-grained token: Contents: Read plus Pull requests: Read and write. Push permission is not required. With a classic token: the repo scope. For organization repos, the token must be SSO-authorized." },
-  { question: "What does a Babysit Mode success or partial success mean?", answer: "Read threadsClean, checksGreen, commitsPushed, threadsResolved, and stopReason together. Clean requires no actionable or skipped unresolved threads, no required failed/pending/missing checks, and a later bot signal after the most recent review request. awaiting_checks after a push is expected when CI outlives the run; the created PR URL is still returned." },
-  { question: "Can the agent search the web?", answer: "Only if you pick a provider under Internet Search — Exa, Serper, Parallel AI, or Firecrawl. That adds one web_search tool in every mode, backed by your own key for that provider, entered on the block; there is no BYOK fallback and Sim never supplies a search key. Leave it on None and the agent has no search tool at all." },
-  { question: "Can I give it Gmail, Slack, or other integrations?", answer: "Yes, in Local Dev via the Tools field. Selected Sim tools run through Sim with your connected credentials, the same as the Agent block, so the agent can act beyond the repo while it codes. MCP and custom tools aren't supported yet." },
-  { question: "Where do the changes or feedback go?", answer: "Create PR opens a pull request from a new branch. Update PR pushes to the existing target branch and creates or updates its pull request. With Babysit Mode, either then pushes fixes to the PR head, replies to trusted threads, resolves successful decisions, and re-requests bot reviews. Review Code submits a review. Local Dev edits files in place." },
-  { question: "What happens when memory or context gets large?", answer: "For Create PR, Update PR, and Local Dev, Sim trims memory before the run and Pi compacts older turns as needed. Review Code uses no memory. Babysit starts with empty memory and does not save review-derived content back into it." },
 ]} />

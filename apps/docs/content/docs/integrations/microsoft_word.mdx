@@ -11,26 +11,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Microsoft Word](https://www.microsoft.com/microsoft-365/word) is the document editor at the centre of Microsoft 365. Word documents are stored as `.docx` files in OneDrive or a SharePoint document library, which is where this integration reads and writes them.
+Use [Microsoft Word](https://www.microsoft.com/microsoft-365/word) in Sim to create, read, and edit `.docx` files stored in OneDrive or SharePoint, fill templates, and export documents as PDF. Choose **Replace Content** to overwrite a document, **Append Content** to add paragraphs, or **Find and Replace Text** to update matching text. The sections below explain document IDs, supported formatting, and template behavior.
 
-Learn how to integrate the Microsoft Word tool in Sim to generate, fill, edit, and export documents inside your workflows. This tutorial walks you through connecting a Microsoft account, choosing a document, and turning agent output into a finished Word file. Ideal for the document-heavy work a team would otherwise do by hand.
-
-With Microsoft Word, you can:
-
-- **Write documents from agent output**: Turn generated text into a real `.docx` with headings, bullets, and bold or italic emphasis
-- **Fill a template**: Substitute placeholders in an approved template to produce a contract, offer letter, or report — the template itself is never modified
-- **Read a document back**: Extract the text of any Word document so an agent can summarize, classify, or check it
-- **Edit in place**: Append new paragraphs to a running document, or find and replace text across the body plus every header and footer
-- **Find the right file**: List or search Word documents in a folder, a whole drive, or a SharePoint library
-- **Hand over a PDF**: Convert a document to PDF through Microsoft Graph and pass the file straight to an email or messaging step
-
-In Sim, the Microsoft Word integration lets your agents own a document end to end. An agent can find the standard template, fill it with data pulled from a CRM or a form, export the result as a PDF, and send it — without a person opening Word. Because the integration edits the `.docx` package directly rather than regenerating it, an append or a find-and-replace leaves the document's existing styles, images, headers, and footers exactly as they were.
-
-### How documents are addressed
+## How documents are addressed
 
 Every operation identifies a document by its **drive item ID**, not by its file path. Pick one with the document selector, or paste an ID from an earlier step. Leave **Drive ID** empty to work in your personal OneDrive; set it to a SharePoint drive ID to work in a document library instead.
 
-### Writing content
+## Writing content
 
 **Create Document** and **Replace Content** accept a small, predictable subset of Markdown:
 
@@ -45,7 +32,7 @@ Unsupported Markdown is left as visible text rather than being dropped, so nothi
 
 **Replace Content** overwrites the whole document — its previous content and formatting are discarded. To add to a document instead, use **Append Content**, which adds plain paragraphs to the end and leaves everything already there untouched.
 
-### Filling templates
+## Filling templates
 
 **Create from Template** is the fastest way to produce a formatted document. Point it at a template, give the new document a name, and supply **Placeholder Values** as a JSON object:
 
@@ -63,7 +50,7 @@ Word splits a sentence across several internal runs whenever formatting changes 
 
 **Find and Replace Text** applies the same matching to a document already in place, and covers headers and footers as well as the body. Matching never crosses a paragraph break, which mirrors Word's own Replace All.
 
-### Permissions
+## Permissions
 
 Connecting a Microsoft account grants Sim `Files.Read` and `Files.ReadWrite`, the permissions Microsoft Graph requires to read and write drive items. The same permissions cover SharePoint document libraries the account can already reach — Sim never gains access to anything the signed-in account could not open itself.
 {/* MANUAL-CONTENT-END */}

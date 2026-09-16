@@ -3,12 +3,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetDocumentTagDefinitions } = vi.hoisted(() => ({
+const { mockGetDocumentTagDefinitions, mockGetDocumentTagDefinitionsBatch } = vi.hoisted(() => ({
   mockGetDocumentTagDefinitions: vi.fn(),
+  mockGetDocumentTagDefinitionsBatch: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitions: mockGetDocumentTagDefinitions,
+  getDocumentTagDefinitionsByKnowledgeBaseIds: mockGetDocumentTagDefinitionsBatch,
 }))
 
 import {
@@ -38,6 +39,12 @@ function definition(
 describe('resolveKnowledgeTagFilters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetDocumentTagDefinitionsBatch.mockImplementation(
+      async (ids: string[]) =>
+        new Map(
+          await Promise.all(ids.map(async (id) => [id, await mockGetDocumentTagDefinitions(id)]))
+        )
+    )
   })
 
   it('resolves a display name to the slot it is stored in', async () => {

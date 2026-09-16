@@ -27,6 +27,7 @@ vi.mock('@sim/logger', () => ({
       mockLoggerError(requestContextState.current?.requestId, ...arguments_),
   }),
   getRequestContext: () => requestContextState.current,
+  setRequestAuth: vi.fn(),
   runWithRequestContext: async <T>(
     context: { requestId: string; method?: string; path?: string },
     callback: () => T | Promise<T>

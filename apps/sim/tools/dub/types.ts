@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 interface DubBaseParams {
@@ -300,6 +301,12 @@ export interface DubGetQrCodeResponse extends ToolResponse {
       size: number
     }
     content: string
+  }
+}
+
+export interface DubGetQrCodeV2Response<File = UserFile> extends ToolResponse {
+  output: Omit<DubGetQrCodeResponse['output'], 'file' | 'content'> & {
+    file: File
   }
 }
 

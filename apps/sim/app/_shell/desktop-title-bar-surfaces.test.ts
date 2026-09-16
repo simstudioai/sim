@@ -151,12 +151,14 @@ describe('desktop title-bar surface audit', () => {
     expect(rule).not.toContain('margin-top')
   })
 
-  it('drops the content pane border where the pane meets the window edge', () => {
-    // Collapsing the sidebar in the desktop shell takes the pane's padding to 0, so a
-    // retained border and radius drew a hairline outline inset from the square window.
+  it('drops the pane divider where the pane meets the window edge', () => {
+    // The pane meets the rail on a single left hairline. Collapsing the sidebar in the
+    // desktop shell leaves no rail beside it, so a retained divider would draw a stray
+    // line down the window's left edge. The pane carries no radius or full border to
+    // drop anymore; the divider is the only chrome between them.
     const flush = '[[data-sim-desktop-title-bar=inset]_[data-sidebar-collapsed]_&]:'
-    expect(workspaceChrome).toContain(`${flush}rounded-none`)
-    expect(workspaceChrome).toContain(`${flush}border-0`)
+    expect(workspaceChrome).toContain(`${flush}border-l-0`)
+    expect(workspaceChrome).not.toContain('rounded-[8px]')
   })
 
   it('clears the lane for panels that embed pages away from the lights', () => {
@@ -289,6 +291,9 @@ const SELF_RESERVE_REQUIRED = new Set([
   // `WorkspaceHostProvider` — an ancestor of the chrome, not a descendant — returns it
   // instead of its children on a client-side 403. Neither is a double reservation.
   'app/workspace/[workspaceId]/components/workspace-access-denied.tsx',
+  // Same shape on the organization surface: `o/[organizationId]/layout.tsx` returns it
+  // for a non-member before reaching `<WorkspaceChrome>`.
+  'app/o/[organizationId]/components/organization-access-denied.tsx',
 ])
 
 /** Every file under `app/`, so ancestor layouts can be resolved without extra fs calls. */

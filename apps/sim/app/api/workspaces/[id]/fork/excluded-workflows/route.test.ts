@@ -11,13 +11,29 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertWorkspaceAdminAccess, mockCaptureServerEvent } = vi.hoisted(() => ({
-  mockAssertWorkspaceAdminAccess: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-}))
+const { mockAuthorizeWorkspaceOperation, mockCaptureServerEvent, mockAssertForkingEnabled } =
+  vi.hoisted(() => ({
+    mockAuthorizeWorkspaceOperation: vi.fn(),
+    mockCaptureServerEvent: vi.fn(),
+    mockAssertForkingEnabled: vi.fn(),
+  }))
 
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  assertWorkspaceAdminAccess: mockAssertWorkspaceAdminAccess,
+  assertForkingEnabled: mockAssertForkingEnabled,
+  ForkError: class extends Error {},
+}))
+
+vi.mock('@/lib/core/application/workspace-authorization', () => ({
+  authorizeWorkspaceOperation: mockAuthorizeWorkspaceOperation,
+  requireAllowedWorkspacePrincipal: vi.fn(),
+}))
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getWorkspaceWithOwner: vi.fn(async (id: string) => ({
+    id,
+    name: 'My Workspace',
+    organizationId: null,
+    allowPersonalApiKeys: true,
+  })),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -42,8 +58,8 @@ describe('fork excluded-workflows route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockGetSession.mockResolvedValue({ user: { id: ADMIN_ID } })
-    mockAssertWorkspaceAdminAccess.mockResolvedValue({ id: WORKSPACE_ID, name: 'My Workspace' })
+    mockGetSession.mockResolvedValue({ user: { id: ADMIN_ID }, session: { id: 'session-1' } })
+    mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
     mockUpdateReturning([])
   })
 
@@ -60,7 +76,7 @@ describe('fork excluded-workflows route', () => {
     )
 
     expect(res.status).toBe(401)
-    expect(mockAssertWorkspaceAdminAccess).not.toHaveBeenCalled()
+    expect(mockAuthorizeWorkspaceOperation).not.toHaveBeenCalled()
   })
 
   it('rejects an empty workflowIds batch', async () => {
@@ -81,7 +97,16 @@ describe('fork excluded-workflows route', () => {
       routeContext
     )
 
-    expect(mockAssertWorkspaceAdminAccess).toHaveBeenCalledWith(WORKSPACE_ID, ADMIN_ID)
+    expect(mockAuthorizeWorkspaceOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'session', userId: ADMIN_ID }),
+      expect.objectContaining({ id: 'workspaces.fork.exclusions', minimumRole: 'admin' }),
+      expect.objectContaining({ workspaceId: WORKSPACE_ID }),
+      {}
+    )
+    expect(mockAssertForkingEnabled).toHaveBeenCalledWith(null)
+    expect(mockAssertForkingEnabled.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.update.mock.invocationCallOrder[0]
+    )
   })
 
   it('updates the batch, reports the transition count, and records one audit entry', async () => {

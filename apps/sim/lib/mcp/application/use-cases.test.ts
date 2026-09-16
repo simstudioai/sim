@@ -323,7 +323,7 @@ describe('MCP server application use cases', () => {
       input: { workspaceId: workspace.workspaceId, serverId: server.id, refresh: true },
     })
 
-    expect(result.tools).toBe(tools)
+    expect(result.tools).toEqual(tools)
     /**
      * A public `refresh` skips the positive cache but must keep the failure
      * cooldown: `force` would let one API key drive a connection attempt per

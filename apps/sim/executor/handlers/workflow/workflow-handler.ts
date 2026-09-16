@@ -5,6 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
@@ -25,16 +26,17 @@ import {
   type StartBlockRunIdentity,
 } from '@/lib/workflows/executor/start-run-identity'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
-import {
-  assertCustomBlockStreamingOutputs,
-  selectCustomBlockStreamingOutputs,
-} from '@/lib/workflows/streaming/custom-block-output'
+import { selectCustomBlockStreamingOutputs } from '@/lib/workflows/streaming/custom-block-output'
 import {
   scopeOutputBlockId,
   selectChildOutputSelectors,
 } from '@/lib/workflows/streaming/output-selector'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
-import { type CustomBlockOutput, isCustomBlockType } from '@/blocks/custom/build-config'
+import {
+  assertCustomBlockStreamingOutputs,
+  type CustomBlockOutput,
+  isCustomBlockType,
+} from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import {
@@ -1009,7 +1011,10 @@ export class WorkflowBlockHandler implements BlockHandler {
 
       const startTime = performance.now()
 
-      const result = await subExecutor.execute(workflowId)
+      const executeChild = () => subExecutor.execute(workflowId)
+      const result = await (isCustomBlock
+        ? withResourceOutboundScope({ workspaceId: childWorkspaceId }, executeChild)
+        : executeChild())
       const executionResult = this.toExecutionResult(result)
       const duration = performance.now() - startTime
 

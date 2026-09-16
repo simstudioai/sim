@@ -17,8 +17,9 @@ import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
-import { useQueryState, useQueryStates } from 'nuqs'
+import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import {
@@ -33,42 +34,21 @@ import {
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
-import {
-  searchedKnowledgeBases,
-  withSearchedKnowledgeContexts,
-} from '@/lib/sim-search/knowledge-bases'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-/**
- * Imported from its own folder, not the components barrel: the workflow copilot
- * panel imports that barrel for the chat pieces, and a barrel edge to this
- * component would drag the Sim Search connector catalog — every connector
- * meta — into the workflow editor's graph. See sim-imports.md, "Code-splitting
- * through barrels".
- */
-import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
-import { useMothershipMode } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode'
+import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
+import { useTerminalTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-terminal-tab-resources'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
   resolveResourceEventPresentation,
   resolveResourceSelectionUpdate,
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
-import {
-  CLEARED_SEARCH_FILTERS,
-  type MothershipMode,
-  resourceParam,
-  resourceUrlKeys,
-  searchFilterParsers,
-  searchQueryParam,
-} from '@/app/workspace/[workspaceId]/home/search-params'
+import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useFolders } from '@/hooks/queries/folders'
-import { fetchKnowledgeBases } from '@/hooks/queries/kb/knowledge'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { useMemberAccessAvailable } from '@/hooks/use-member-access'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
 import {
@@ -90,7 +70,6 @@ import type {
   FileAttachmentForApi,
   MothershipResource,
   MothershipResourceType,
-  QueuedMessage,
   WorkspaceResourceRef,
 } from './types'
 
@@ -113,7 +92,15 @@ interface HomeProps {
   userId?: string
 }
 
-export function Home({ chatId, userName, userId }: HomeProps) {
+export function Home(props: HomeProps) {
+  return (
+    <PermissionAccessBoundary configKey='hideCopilot'>
+      <HomeContent {...props} />
+    </PermissionAccessBoundary>
+  )
+}
+
+function HomeContent({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
@@ -170,38 +157,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
   const [initialPrompt, setInitialPrompt] = useState('')
-  /** The search query lives in the URL so a search is a shareable link; null between searches. */
-  const [searchQueryValue, setSearchQueryParam] = useQueryState(searchQueryParam.key, {
-    ...searchQueryParam.parser,
-    ...resourceUrlKeys,
-  })
-  const searchQuery = searchQueryValue ?? ''
-  const [, setSearchFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
-  /** A new or cleared query starts from unfiltered results. */
-  const setSearchQuery = useCallback(
-    (query: string) => {
-      void setSearchQueryParam(query || null)
-      void setSearchFilters(CLEARED_SEARCH_FILTERS)
-    },
-    [setSearchQueryParam, setSearchFilters]
-  )
-  const memberAccessAvailable = useMemberAccessAvailable()
-  const [composerMode, setComposerMode] = useMothershipMode()
-  /**
-   * A link that carries a query but no mode opens in Search with the query in
-   * the box; the composer follows the live query the same way (below), so the
-   * box and the results never show two different queries. Where per-member
-   * access is off there is no Search to open into, so the query stays a plain
-   * Build draft rather than a mode write `useMothershipMode` would drop.
-   */
-  useEffect(() => {
-    if (!memberAccessAvailable) return
-    if (searchQuery.trim() && composerMode === 'build') void setComposerMode('search')
-  }, [memberAccessAvailable, searchQuery, composerMode, setComposerMode])
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const initialViewUserInputRef = useRef<UserInputHandle>(null)
-  const chatViewUserInputRef = useRef<UserInputHandle>(null)
 
   const [isInputEntering, setIsInputEntering] = useState(false)
 
@@ -275,7 +233,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const resourceSelectionOwnedByUserRef = useRef(false)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
-    const activeResourceId = activeResourceParamRef.current
+    const activeResourceId = effectiveActiveResourceIdRef.current
     const presentation = resolveResourceEventPresentation({
       activeResourceId,
       activationRequested: shouldActivateResourceEvent(activeResourceId, resourceId, options),
@@ -368,7 +326,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   const expandResource = () => {
     resourceCollapseOwnedByUserRef.current = false
     resourceSelectionOwnedByUserRef.current = true
-    const activeResourceId = activeResourceParamRef.current
+    const activeResourceId = effectiveActiveResourceIdRef.current
     if (activeResourceId) clearResourceActivity(activeResourceId)
     setResourceCollapsed(false)
   }
@@ -384,6 +342,19 @@ export function Home({ chatId, userName, userId }: HomeProps) {
     },
     [setActiveResourceId, clearResourceActivity]
   )
+
+  const desktopTabResourceOptions = {
+    scopeId: desktopScopeId,
+    resources,
+    activeResourceId,
+    selectedResourceId: activeResourceParam,
+    addResource,
+    removeResource,
+    selectResource: selectResourceFromUser,
+    onResourceEvent: handleResourceEvent,
+  }
+  useBrowserTabResources(desktopTabResourceOptions)
+  useTerminalTabResources(desktopTabResourceOptions)
 
   const addResourceFromUser = useCallback(
     (resource: MothershipResource) => {
@@ -475,12 +446,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   }, [workspaceId, getCurrentRequestId, stopGeneration])
 
   const handleSubmit = useCallback(
-    async (
-      text: string,
-      fileAttachments?: FileAttachmentForApi[],
-      contexts?: ChatContext[],
-      modeOverride?: MothershipMode
-    ) => {
+    async (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
@@ -491,108 +457,15 @@ export function Home({ chatId, userName, userId }: HomeProps) {
         is_new_task: !chatId,
       })
 
-      /**
-       * Search lists documents, not a turn of the agent, and only a query can
-       * be searched: attachments alone have nothing to search for. Assistant
-       * makes the query a turn of the agent grounded in the sources.
-       *
-       * The override skips `useMothershipMode`, so the gate is applied again
-       * where the mode is consumed: both modes answer from the workspace's
-       * indexed sources, and neither is offered where those do not exist.
-       */
-      const requestedMode = modeOverride ?? composerMode
-      const mode = requestedMode !== 'build' && !memberAccessAvailable ? 'build' : requestedMode
-      const answering = mode === 'assistant'
-      if (mode === 'search') {
-        /** A search sends nothing, so an edit in progress is released rather than left waiting. */
-        if (editingQueuedId) cancelQueueEdit()
-        if (trimmed) setSearchQuery(trimmed)
-        return
-      }
-
       if (initialViewInputRef.current) {
         setIsInputEntering(true)
       }
 
       prepareResourceViewForAgentTurn()
-      /**
-       * An Assistant turn is grounded in the searched bases, read from the
-       * query cache the Search panel shares: instant once loaded, and awaited
-       * the one time a question is typed before the list has arrived.
-       */
-      const turnContexts = answering
-        ? withSearchedKnowledgeContexts(
-            contexts,
-            searchedKnowledgeBases(
-              await queryClient.ensureQueryData({
-                queryKey: knowledgeKeys.list(workspaceId, 'active'),
-                queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, 'active', signal),
-                staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
-              }),
-              workspaceId
-            )
-          )
-        : contexts
-      sendMessage(
-        trimmed || 'Analyze the attached file(s).',
-        fileAttachments,
-        turnContexts,
-        answering ? { requestMode: 'ask' } : undefined
-      )
+      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [
-      workspaceId,
-      chatId,
-      composerMode,
-      memberAccessAvailable,
-      editingQueuedId,
-      cancelQueueEdit,
-      prepareResourceViewForAgentTurn,
-      queryClient,
-      sendMessage,
-      setSearchQuery,
-    ]
+    [workspaceId, chatId, prepareResourceViewForAgentTurn, sendMessage]
   )
-
-  /**
-   * A queued message re-enters the composer in the mode it was written in: an
-   * Assistant question edits as an Assistant question, and never as a Search,
-   * which submits nothing and would leave the edit stranded.
-   */
-  const restoreQueuedMode = useCallback(
-    (requestMode: QueuedMessage['requestMode']) => {
-      void setComposerMode(requestMode === 'ask' ? 'assistant' : 'build')
-    },
-    [setComposerMode]
-  )
-
-  /** An emptied search box returns to the sources; a send in any other mode has no search to clear. */
-  const clearSearch = useCallback(() => {
-    if (searchQueryValue !== null) setSearchQuery('')
-  }, [searchQueryValue, setSearchQuery])
-
-  /**
-   * Summarize or Answer on a result: switch to Assistant and hand the question
-   * to it. The submit reads the mode from this render, so it is sent as an
-   * Assistant turn directly rather than waiting for the URL to update, and the
-   * box is emptied as a send empties it, so the query does not linger as a
-   * draft under the answer.
-   */
-  const handleSummarize = (prompt: string) => {
-    void setComposerMode('assistant')
-    initialViewUserInputRef.current?.clear()
-    chatViewUserInputRef.current?.clear()
-    void handleSubmit(prompt, undefined, undefined, 'assistant')
-  }
-  const showSearchResults = composerMode === 'search' && searchQuery.trim().length > 0
-  const searchResults = showSearchResults ? (
-    <KnowledgeSearchResults
-      workspaceId={workspaceId}
-      query={searchQuery}
-      onSummarize={handleSummarize}
-      onAnswer={handleSummarize}
-    />
-  ) : null
 
   /**
    * Handles cross-surface send requests (terminal/console "Fix in Chat", the
@@ -609,6 +482,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
       sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
         ...(detail.requestMode ? { requestMode: detail.requestMode } : {}),
+        ...(detail.assistantSearch ? { assistantSearch: detail.assistantSearch } : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -644,6 +518,7 @@ export function Home({ chatId, userName, userId }: HomeProps) {
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
           : {}),
         ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
+        ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
       return
     }
@@ -811,25 +686,20 @@ export function Home({ chatId, userName, userId }: HomeProps) {
                 >
                   <UserInput
                     ref={initialViewUserInputRef}
-                    defaultValue={initialPrompt || searchQuery}
+                    defaultValue={initialPrompt}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
-                    canSearch={memberAccessAvailable}
-                    clearOnSubmit={composerMode !== 'search'}
-                    onCleared={clearSearch}
                     isSending={isSending}
                     onStopGeneration={handleStopGeneration}
                   />
                 </ChatSurfaceProvider>
                 {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
                 <div className='absolute inset-x-0 top-full'>
-                  {searchResults ?? (
-                    <SuggestedActions
-                      onSelectPrompt={(prompt) =>
-                        initialViewUserInputRef.current?.populatePrompt(prompt)
-                      }
-                    />
-                  )}
+                  <SuggestedActions
+                    onSelectPrompt={(prompt) =>
+                      initialViewUserInputRef.current?.populatePrompt(prompt)
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -839,16 +709,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
             workspaceId={workspaceId}
             messages={messages}
             isSending={isSending}
-            searchResults={searchResults}
-            searchQuery={searchQuery}
-            userInputRef={chatViewUserInputRef}
-            onRestoreQueuedMode={restoreQueuedMode}
             isReconnecting={isReconnecting}
             isLoading={showChatSkeleton}
             onSubmit={handleSubmit}
-            canSearch={memberAccessAvailable}
-            clearOnSubmit={composerMode !== 'search'}
-            onCleared={clearSearch}
             onStopGeneration={handleStopGeneration}
             messageQueue={messageQueue}
             editingQueuedId={editingQueuedId}

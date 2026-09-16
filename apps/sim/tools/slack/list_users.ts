@@ -11,6 +11,7 @@ export const slackListUsersTool: ToolConfig<SlackListUsersParams, SlackListUsers
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['users:read'],
   },
 
   params: {

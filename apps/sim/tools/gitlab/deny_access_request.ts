@@ -10,6 +10,7 @@ export const gitlabDenyAccessRequestTool: ToolConfig<
   GitLabDenyAccessRequestResponse
 > = {
   id: 'gitlab_deny_access_request',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Deny Access Request',
   description: 'Deny (delete) a pending access request for a GitLab project or group',
   version: '1.0.0',

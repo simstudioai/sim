@@ -30,6 +30,7 @@ import { generateInternalDelegationToken, generateInternalToken } from '@/lib/au
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { v2TableErrorPolicies } from '@/lib/table/api/route-policies'
+import { TableRowTtlDisabledError } from '@/lib/table/errors'
 
 afterAll(resetEnvMock)
 
@@ -187,4 +188,24 @@ describe('internal Table route authentication', () => {
       error: { code: 'BAD_REQUEST', message: 'Invalid workflow ID' },
     })
   })
+
+  it.each([false, true])(
+    'preserves the TTL-disabled reason code (wrapped: %s)',
+    async (wrapped) => {
+      const error = new TableRowTtlDisabledError()
+      error.message = 'TTL support is turned off'
+      const response = v2TableErrorPolicies.default.render(
+        wrapped ? new Error('operation failed', { cause: error }) : error
+      )
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'TTL support is turned off',
+          details: { code: 'TABLE_ROW_TTL_DISABLED' },
+        },
+      })
+    }
+  )
 })

@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, outboxEvent, user, workspace } from '@sim/db/schema'
+import { foldedEmail, member, outboxEvent, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
@@ -34,6 +34,7 @@ import type { DbOrTx } from '@/lib/db/types'
 import { computeInvitationExpiry, INVITATION_EXPIRY_DAYS } from '@/lib/invitations/expiry'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
 import { sendEmail } from '@/lib/messaging/email/mailer'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import {
   createDefaultPersonalWorkspaceInTransaction,
   emitWorkspaceCreatedPlatformEvent,
@@ -297,9 +298,7 @@ async function assertOwnerEmailHasNoAccount(ownerEmail: string): Promise<void> {
   const [existingUser] = await db
     .select({ id: user.id })
     .from(user)
-    .where(
-      or(eq(user.normalizedEmail, ownerEmail), eq(sql<string>`lower(${user.email})`, ownerEmail))
-    )
+    .where(eq(foldedEmail(user.email), ownerEmail))
     .limit(1)
   if (existingUser) {
     throw new EnterpriseProvisioningError(
@@ -499,12 +498,7 @@ export async function createEnterpriseOwnerClaim(
     const [accountCreatedDuringReview] = await tx
       .select({ id: user.id })
       .from(user)
-      .where(
-        or(
-          eq(user.normalizedEmail, normalized.ownerEmail),
-          eq(sql<string>`lower(${user.email})`, normalized.ownerEmail)
-        )
-      )
+      .where(eq(foldedEmail(user.email), normalized.ownerEmail))
       .limit(1)
     if (accountCreatedDuringReview) {
       throw new EnterpriseProvisioningError(
@@ -968,13 +962,7 @@ export async function acceptEnterpriseOwnerClaim(params: {
         .update(user)
         .set({ emailVerified: true, updatedAt: new Date() })
         .where(
-          and(
-            eq(user.id, params.userId),
-            or(
-              eq(user.normalizedEmail, payload.request.ownerEmail),
-              eq(sql<string>`lower(trim(${user.email}))`, payload.request.ownerEmail)
-            )
-          )
+          and(eq(user.id, params.userId), eq(foldedEmail(user.email), payload.request.ownerEmail))
         )
         .returning({ id: user.id })
       if (!verifiedOwner) {
@@ -1049,7 +1037,7 @@ export async function acceptEnterpriseOwnerClaim(params: {
         createdDefaultWorkspaceId: acceptance.acceptance.createdDefaultWorkspaceId,
       },
     })
-    return { success: true, claim, redirectPath: '/workspace' }
+    return { success: true, claim, redirectPath: APP_ENTRY_PATH }
   } catch (error) {
     logger.error('Failed to accept Enterprise owner claim', {
       claimId: params.claimId,

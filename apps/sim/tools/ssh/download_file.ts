@@ -1,7 +1,12 @@
-import type { SSHDownloadFileParams, SSHResponse } from '@/tools/ssh/types'
+import { omit } from '@sim/utils/object'
+import type {
+  SSHDownloadFileParams,
+  SSHDownloadFileV2Response,
+  SSHResponse,
+} from '@/tools/ssh/types'
 import type { InternalToolConfig } from '@/tools/types'
 
-export const downloadFileTool: InternalToolConfig<SSHDownloadFileParams, SSHResponse> = {
+export const downloadFileTool = {
   id: 'ssh_download_file',
   name: 'SSH Download File',
   description: 'Download a file from a remote SSH server',
@@ -94,4 +99,31 @@ export const downloadFileTool: InternalToolConfig<SSHDownloadFileParams, SSHResp
     size: { type: 'number', description: 'File size in bytes' },
     message: { type: 'string', description: 'Operation status message' },
   },
+} satisfies InternalToolConfig<SSHDownloadFileParams, SSHResponse>
+
+export const downloadFileV2Tool: InternalToolConfig<
+  SSHDownloadFileParams,
+  SSHDownloadFileV2Response
+> = {
+  ...downloadFileTool,
+  id: 'ssh_download_file_v2',
+  version: '2.0.0',
+  transformResponse: async (response) => {
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'SSH file download failed')
+    return {
+      success: true,
+      output: {
+        file: data.file,
+        remotePath: data.remotePath,
+      },
+    }
+  },
+  outputs: omit(downloadFileTool.outputs, [
+    'fileContent',
+    'downloaded',
+    'fileName',
+    'size',
+    'message',
+  ]),
 }

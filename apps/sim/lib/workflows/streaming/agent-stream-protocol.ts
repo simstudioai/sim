@@ -38,6 +38,9 @@ export const AGENT_STREAM_PROTOCOL_V1 = 'agent-events-v1' as const
 /** Client keys answer text and retractions by `streamId` when present. */
 export const SCOPED_OUTPUT_STREAM_PROTOCOL_V1 = 'scoped-output-v1' as const
 
+/** Additional capability for structured selected outputs in deployed chats. */
+export const CHAT_OUTPUT_PROTOCOL_V1 = 'chat-outputs-v1' as const
+
 export type AgentStreamProtocol = typeof AGENT_STREAM_PROTOCOL_V1
 
 /**
@@ -53,6 +56,13 @@ export interface ChatStreamChunkFrame {
   /** Separates public fields and repeated custom-block invocations. */
   streamId?: string
   chunk: string
+}
+
+/** Selected non-text output for negotiated deployed chats, preserving UserFile metadata. */
+export interface ChatStreamOutputFrame {
+  blockId: string
+  event: 'output'
+  data: unknown
 }
 
 /**
@@ -110,6 +120,7 @@ export interface ChatStreamStreamErrorFrame {
  */
 export type ChatStreamFrame =
   | ChatStreamChunkFrame
+  | ChatStreamOutputFrame
   | ChatStreamChunkResetFrame
   | ChatStreamThinkingFrame
   | ChatStreamToolFrame
@@ -140,6 +151,11 @@ export function isChatChunkResetFrame(value: unknown): value is ChatStreamChunkR
     typeof value.blockId === 'string' &&
     (value.streamId === undefined || typeof value.streamId === 'string')
   )
+}
+
+export function isChatOutputFrame(value: unknown): value is ChatStreamOutputFrame {
+  if (!isRecordLike(value)) return false
+  return value.event === 'output' && typeof value.blockId === 'string' && 'data' in value
 }
 
 export function isChatThinkingFrame(value: unknown): value is ChatStreamThinkingFrame {
@@ -194,17 +210,23 @@ export function isChatStreamErrorFrame(value: unknown): value is ChatStreamStrea
 export function clientAcceptsAgentStreamProtocol(
   requestHeaders: Headers | { get(name: string): string | null }
 ): boolean {
-  return hasStreamProtocol(requestHeaders, AGENT_STREAM_PROTOCOL_V1)
+  return acceptsStreamProtocol(requestHeaders, AGENT_STREAM_PROTOCOL_V1)
+}
+
+export function clientAcceptsChatOutputProtocol(
+  requestHeaders: Headers | { get(name: string): string | null }
+): boolean {
+  return acceptsStreamProtocol(requestHeaders, CHAT_OUTPUT_PROTOCOL_V1)
 }
 
 /** Enables retractions scoped to one public field and invocation, instead of an entire block. */
 export function clientAcceptsScopedOutputStreams(
   requestHeaders: Headers | { get(name: string): string | null }
 ): boolean {
-  return hasStreamProtocol(requestHeaders, SCOPED_OUTPUT_STREAM_PROTOCOL_V1)
+  return acceptsStreamProtocol(requestHeaders, SCOPED_OUTPUT_STREAM_PROTOCOL_V1)
 }
 
-function hasStreamProtocol(
+function acceptsStreamProtocol(
   requestHeaders: Headers | { get(name: string): string | null },
   protocol: string
 ): boolean {

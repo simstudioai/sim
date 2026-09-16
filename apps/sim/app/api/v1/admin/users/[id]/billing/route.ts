@@ -20,14 +20,7 @@
  */
 
 import { db } from '@sim/db'
-import {
-  member,
-  organization,
-  subscription,
-  user,
-  userStats,
-  userStatsColumns,
-} from '@sim/db/schema'
+import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { eq, or } from 'drizzle-orm'
@@ -85,11 +78,7 @@ export const GET = withRouteHandler(
         return notFoundResponse('User')
       }
 
-      const [stats] = await db
-        .select(userStatsColumns)
-        .from(userStats)
-        .where(eq(userStats.userId, userId))
-        .limit(1)
+      const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1)
 
       // Canonical current-period usage (attributed usage_log, refresh-adjusted)
       // comes from the same helper users see.
@@ -179,7 +168,7 @@ export const PATCH = withRouteHandler(
       }
 
       const [existingStats] = await db
-        .select(userStatsColumns)
+        .select()
         .from(userStats)
         .where(eq(userStats.userId, userId))
         .limit(1)

@@ -11,24 +11,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Jotform](https://www.jotform.com/) is an online form builder used to collect responses through forms, surveys, applications, and registrations.
+Use [Jotform](https://www.jotform.com/) to manage forms and submissions, create reports, and configure submission webhooks. Submission answers are available by question ID and question label; writes require the question IDs described below.
 
-With the Jotform integration in Sim, you can:
-
-- **Read submissions**: Pull responses from one form or across every form on the account, filtered by date, read/unread state, or full-text search
-- **Work with answers directly**: Every submission comes back keyed by question ID *and* re-keyed by question label, so a response is usable without a second lookup
-- **Manage forms**: List, read, create, clone, and delete forms, and edit their settings — redirect behavior, submission limits, layout, and notification emails
-- **Edit questions**: List, add, update, and delete form fields individually or in bulk, including validation and field-specific properties
-- **Create submissions**: Submit entries through the API, one at a time or in batches, and edit or delete existing responses
-- **Build reports**: Create shareable Excel, CSV, grid, table, calendar, RSS, or visual reports scoped to the fields you choose
-- **Register webhooks**: Push new submissions to a URL the moment they arrive, and list or remove existing webhooks
-- **Organize with labels**: Group forms, workflows, sheets, and apps into labels, and assign or unassign assets in bulk
-- **Retrieve uploads**: List every file submitted through a form with its download URL, size, and originating submission
-- **Check the account**: Read plan details, monthly usage counters, sub-user access grants, settings, and the activity log
-
-In Sim, the Jotform integration lets your agents treat form responses as workflow input. Typical patterns include routing new submissions to the right team, enriching them with an agent before they reach a CRM or ticketing system, syncing responses into tables for reporting, and pushing submissions downstream in real time through webhooks.
-
-### Authentication and regions
+## Authentication and regions
 
 The integration authenticates with a Jotform API key, created under **Account Settings → API**. Keys are scoped to read-only or full access, so create the key at the level your operations need — creating submissions, editing forms, and managing webhooks all require full access.
 
@@ -36,11 +21,11 @@ An API key is only valid on the host that issued it. Use the **Region** field to
 
 Jotform enforces a daily API call limit that varies by plan. Schedule high-frequency polling with that budget in mind — or prefer a webhook, which costs no API calls at all.
 
-### A note on question IDs
+## A note on question IDs
 
 Submissions are keyed by question ID, not by label. Run **List Questions** on a form first to map each label to its `qid`; those IDs are what **Create Submission** and **Update Submission** expect. Multi-field questions such as full name or address accept either a nested object (`{"3": {"first": "Bart", "last": "Simpson"}}`) or the shorthand Jotform documents (`{"3_first": "Bart"}`).
 
-### Folders and labels
+## Folders and labels
 
 Jotform has deprecated its folder endpoints in favor of labels. This integration implements labels only; if you have existing automations built on folder IDs, migrate them to the label operations.
 {/* MANUAL-CONTENT-END */}
@@ -245,7 +230,7 @@ Update form settings such as the thank-you redirect, submission limit, width, or
 | `apiKey` | string | Yes | Jotform API key |
 | `region` | string | No | Jotform data residency region the API key belongs to: "us" \(default\), "eu", or "hipaa" |
 | `formId` | string | Yes | ID of the form to update |
-| `properties` | json | Yes | Properties to set, e.g. \{"thankurl":"https://example.com/thanks","activeRedirect":"thankurl","formWidth":"650"\} |
+| `properties` | json | Yes | Properties to set, e.g. \{ "thankurl": "https://example.com/thanks", "activeRedirect": "thankurl", "formWidth": "650" \} |
 
 #### Output
 

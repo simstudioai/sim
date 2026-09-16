@@ -6,7 +6,10 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { OneDriveOperationError } from '@/lib/internal/onedrive/errors'
 import { downloadOneDriveFile, uploadOneDriveFile } from '@/lib/internal/onedrive/operations'
 import { oneDriveUploadInputSchema } from '@/lib/internal/onedrive/schema'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 const downloadInputSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
@@ -30,7 +33,9 @@ function inputSizeError(input: unknown): Response | null {
   )
 }
 
-export const executeOneDriveTool: InternalToolOperationHandler = async (request) => {
+export const executeOneDriveTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   const sizeError = inputSizeError(request.input)
   if (sizeError) return sizeError
@@ -39,11 +44,9 @@ export const executeOneDriveTool: InternalToolOperationHandler = async (request)
       case 'onedrive_download': {
         const parsed = downloadInputSchema.safeParse(request.input)
         if (!parsed.success) return validationErrorResponse(parsed.error)
-        return Response.json(
-          await downloadOneDriveFile(
-            { ...parsed.data, fileName: parsed.data.fileName ?? undefined },
-            { signal: request.signal }
-          )
+        return await downloadOneDriveFile(
+          { ...parsed.data, fileName: parsed.data.fileName ?? undefined },
+          { signal: request.signal }
         )
       }
       case 'onedrive_upload': {

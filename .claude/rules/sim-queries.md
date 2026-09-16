@@ -1,4 +1,5 @@
 ---
+description: React Query patterns for the Sim application
 paths:
   - "apps/sim/hooks/queries/**/*.ts"
 ---

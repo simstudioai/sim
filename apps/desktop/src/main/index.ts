@@ -35,6 +35,7 @@ import {
   setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
+import { attachClientInfo } from '@/main/client-info'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
@@ -77,6 +78,7 @@ import {
   readSessionUserId,
   resolveStartRoute,
 } from '@/main/session-lifecycle'
+import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
@@ -109,6 +111,7 @@ function main(): void {
 
   const userDataPath = app.getPath('userData')
   const config = createConfigStore(join(userDataPath, 'settings.json'))
+  setShellTheme(config.get('themeBackground'))
   initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
   const recoveryOrigin = getAccountDataTeardownOrigin()
   if (isAccountDataTeardownRequired() && recoveryOrigin && !config.isPersistenceAvailable()) {
@@ -265,6 +268,7 @@ function main(): void {
     setupPermissionHandlers(ses, appOrigin)
     attachLocalPageProtocol(ses)
     attachCspFallback(ses, appOrigin)
+    attachClientInfo(ses, appOrigin)
     attachDownloadHandling(ses, events)
     attachTelemetryPolicy(ses, config.get('blockThirdPartyAnalytics') ?? true)
     ses.setSpellCheckerLanguages(['en-US'])
@@ -715,8 +719,6 @@ function main(): void {
         onSessionStatus: (alive, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
         },
-        sitePermissionPromptSupported: (scopeId) =>
-          scopeEvents.browserSitePermissionPromptSupported(scopeId),
         onFillAvailability: (available, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
             available,

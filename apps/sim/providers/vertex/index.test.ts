@@ -25,10 +25,6 @@ vi.mock('google-auth-library', () => ({
   },
 }))
 vi.mock('@/providers/gemini/core', () => ({ executeGeminiRequest: mockExecuteGeminiRequest }))
-vi.mock('@/providers/models', () => ({
-  getProviderModels: () => ['vertex/gemini-2.0-flash'],
-  getProviderDefaultModel: () => 'vertex/gemini-2.0-flash',
-}))
 vi.mock('@/lib/core/config/env', () => ({ env: {} }))
 
 import { vertexProvider } from '@/providers/vertex'
@@ -101,5 +97,44 @@ describe('vertexProvider location and project validation', () => {
     await vertexProvider.executeRequest(request())
 
     expect(genAIArgs[0]).toMatchObject({ location: 'us-central1' })
+  })
+
+  it.each([
+    'vertex/gemini-3.8-flash',
+    'vertex/gemini-3.7-flash',
+    'vertex/gemini-3.6-flash',
+    'vertex/gemini-3.5-flash-lite',
+    'vertex/publishers/google/models/gemini-3.8-flash',
+  ])('defaults %s to the supported global endpoint', async (model) => {
+    await vertexProvider.executeRequest(request({ model }))
+
+    expect(genAIArgs[0]).toMatchObject({ location: 'global' })
+  })
+
+  it.each(['us', 'eu', 'global'])(
+    'preserves the explicitly selected %s endpoint for Gemini 3',
+    async (vertexLocation) => {
+      await vertexProvider.executeRequest(
+        request({ model: 'vertex/gemini-3.8-flash', vertexLocation })
+      )
+
+      expect(genAIArgs[0]).toMatchObject({ location: vertexLocation })
+    }
+  )
+
+  it.each([
+    ['VERTEX/Custom-Deployment', 'Custom-Deployment'],
+    ['vertex/publishers/google/models/Custom-Model', 'publishers/google/models/Custom-Model'],
+    [
+      'vertex/projects/MyProject/locations/global/publishers/google/models/Custom-Model',
+      'projects/MyProject/locations/global/publishers/google/models/Custom-Model',
+    ],
+    ['publishers/vertex/models/Custom-Model', 'publishers/vertex/models/Custom-Model'],
+  ])('preserves the custom model identifier in %s', async (model, expectedModel) => {
+    await vertexProvider.executeRequest(request({ model }))
+
+    expect(mockExecuteGeminiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ model: expectedModel, providerType: 'vertex' })
+    )
   })
 })

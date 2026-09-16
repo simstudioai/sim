@@ -8,16 +8,11 @@ const mocks = vi.hoisted(() => ({
   updateLastUsed: vi.fn(),
   resolveWorkspaceBillingPayer: vi.fn(),
   getHighestPrioritySubscription: vi.fn(),
-  isOAuthProviderEnabled: vi.fn(),
   envFlags: { isAuthDisabled: false },
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => mocks.envFlags)
-vi.mock('@/lib/auth/oauth-provider-feature', () => ({
-  isOAuthProviderEnabled: mocks.isOAuthProviderEnabled,
-}))
 vi.mock('@/lib/api-key/crypto', () => ({ hashApiKey: (value: string) => `hash:${value}` }))
-vi.mock('@/lib/auth/oauth-provider', () => ({ OAUTH_ACCESS_TOKEN_PREFIX: 'sim_oat_' }))
 vi.mock('@sim/security/hash', () => ({ sha256Hex: (value: string) => `oauth-hash:${value}` }))
 vi.mock('@/lib/api-key/service', () => ({ updateApiKeyLastUsed: mocks.updateLastUsed }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
@@ -40,7 +35,6 @@ describe('v2 API key authentication', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.envFlags.isAuthDisabled = false
-    mocks.isOAuthProviderEnabled.mockResolvedValue(true)
     resetDbChainMock()
     mocks.updateLastUsed.mockResolvedValue(undefined)
     mocks.getHighestPrioritySubscription.mockResolvedValue(null)
@@ -194,7 +188,6 @@ describe('v2 bearer token authentication', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.envFlags.isAuthDisabled = false
-    mocks.isOAuthProviderEnabled.mockResolvedValue(true)
     resetDbChainMock()
     mocks.getHighestPrioritySubscription.mockResolvedValue({
       plan: 'pro',
@@ -273,8 +266,7 @@ describe('v2 bearer token authentication', () => {
     expect(mocks.updateLastUsed).not.toHaveBeenCalled()
   })
 
-  it.each([true, false])('prefers the API key with OAuth enabled=%s', async (enabled) => {
-    mocks.isOAuthProviderEnabled.mockResolvedValue(enabled)
+  it('prefers the API key when an OAuth token is also present', async () => {
     queueTableRows(schemaMock.apiKey, [
       {
         id: 'key-1',
@@ -289,35 +281,48 @@ describe('v2 bearer token authentication', () => {
     const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: 'sim_oat_ignored' })
 
     expect(result.keyType).toBe('personal')
-    expect(mocks.isOAuthProviderEnabled).not.toHaveBeenCalled()
   })
 
-  it('applies runtime flag changes without reloading the authenticator', async () => {
-    mocks.isOAuthProviderEnabled
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true)
-    queueTableRows(schemaMock.oauthAccessToken, [tokenRow()])
-    queueTableRows(schemaMock.oauthAccessToken, [tokenRow()])
-    const credential = { apiKey: null, bearer: 'sim_oat_secret' }
+  it.each(['api:read', 'api:write'])(
+    'authenticates existing %s grants when Search MCP opts in',
+    async (scope) => {
+      queueTableRows(schemaMock.oauthAccessToken, [tokenRow({ resource: null, scopes: [scope] })])
 
-    await expect(authenticateV2ApiKey(credential)).resolves.toMatchObject({
-      keyType: 'oauth_access_token',
-    })
-    await expect(authenticateV2ApiKey(credential)).rejects.toMatchObject({
-      message: 'Bearer tokens are not accepted',
-      challenge: 'bearer',
-    })
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(1)
-    await expect(authenticateV2ApiKey(credential)).resolves.toMatchObject({
-      keyType: 'oauth_access_token',
-    })
-    expect(mocks.isOAuthProviderEnabled).toHaveBeenCalledTimes(3)
-    expect(mocks.isOAuthProviderEnabled).toHaveBeenCalledWith()
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+      await expect(
+        authenticateV2ApiKey(
+          { apiKey: null, bearer: 'sim_oat_secret' },
+          {
+            resource: 'https://sim.example/api/mcp/search/organizations/one',
+            allowUnboundApiTokens: true,
+          }
+        )
+      ).resolves.toMatchObject({
+        principal: { kind: 'oauth_access_token', userId: 'user-1', scopes: [scope] },
+      })
+    }
+  )
+
+  it('still refuses invalid or differently bound API grants when Search MCP opts in', async () => {
+    for (const overrides of [
+      { resource: 'https://sim.example/api/mcp/search/organizations/other' },
+      { expiresAt: new Date(0) },
+      { clientDisabled: true },
+      { userBanned: true },
+    ]) {
+      queueTableRows(schemaMock.oauthAccessToken, [tokenRow(overrides)])
+      await expect(
+        authenticateV2ApiKey(
+          { apiKey: null, bearer: 'sim_oat_secret' },
+          {
+            resource: 'https://sim.example/api/mcp/search/organizations/one',
+            allowUnboundApiTokens: true,
+          }
+        )
+      ).rejects.toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+    }
   })
 
-  it('preserves auth-disabled deployment behavior without reading the OAuth flag', async () => {
+  it('preserves auth-disabled deployment behavior without verifying an OAuth token', async () => {
     mocks.envFlags.isAuthDisabled = true
 
     await expect(
@@ -326,7 +331,6 @@ describe('v2 bearer token authentication', () => {
       principal: { kind: 'personal_api_key', keyId: 'auth-disabled' },
       keyType: 'personal',
     })
-    expect(mocks.isOAuthProviderEnabled).not.toHaveBeenCalled()
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 

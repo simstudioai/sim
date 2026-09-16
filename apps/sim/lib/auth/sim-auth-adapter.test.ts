@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+
+import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -26,6 +28,7 @@ vi.mock('better-auth/adapters/drizzle', () => ({
   }),
 }))
 
+import { getAuthDatabase } from '@/lib/auth/database-context'
 import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 
 describe('createSimAuthAdapter', () => {
@@ -72,5 +75,22 @@ describe('createSimAuthAdapter', () => {
     expect(mocks.insert).toHaveBeenCalledOnce()
     expect(mocks.rootInsert).not.toHaveBeenCalled()
     expect(mocks.create).toHaveBeenCalledExactlyOnceWith({ model: 'user', data: { name: 'Ada' } })
+  })
+
+  it('scopes database hooks to the transaction and releases the executor after rollback', async () => {
+    const adapter = createSimAuthAdapter({})
+    const transaction = { insert: mocks.insert }
+    mocks.transaction.mockImplementation(async (callback) => callback(transaction))
+
+    expect(getAuthDatabase()).toBe(db)
+    await expect(
+      adapter.transaction(async () => {
+        expect(getAuthDatabase()).toBe(transaction)
+        await Promise.resolve()
+        expect(getAuthDatabase()).toBe(transaction)
+        throw new Error('Abort signup')
+      })
+    ).rejects.toThrow('Abort signup')
+    expect(getAuthDatabase()).toBe(db)
   })
 })

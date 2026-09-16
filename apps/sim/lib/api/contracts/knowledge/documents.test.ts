@@ -2,12 +2,57 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   bulkCreateDocumentsBodySchema,
+  documentDataSchema,
   listKnowledgeDocumentsQuerySchema,
   parseDocumentTagFiltersParam,
   upsertDocumentBodySchema,
 } from '@/lib/api/contracts/knowledge/documents'
+import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
+
+describe('document processing response compatibility', () => {
+  const document = {
+    id: 'document',
+    knowledgeBaseId: 'knowledge-base',
+    filename: 'logo.png',
+    fileUrl: '',
+    fileSize: 0,
+    mimeType: 'text/plain',
+    chunkCount: 0,
+    tokenCount: 0,
+    characterCount: 0,
+    processingStatus: 'failed',
+    enabled: true,
+    uploadedAt: '2026-01-01T00:00:00Z',
+  }
+  const previousSchema = documentDataSchema.omit({ processingOutcome: true }).extend({
+    processingStatus: z.enum(['pending', 'processing', 'completed', 'failed']),
+  })
+
+  it('keeps skipped responses valid for the previous strict four-status reader', () => {
+    const response = documentDataSchema.parse({ ...document, processingOutcome: 'skipped' })
+    expect(response.processingStatus).toBe('failed')
+    expect(getDocumentIndexingStatus(response)).toBe('skipped')
+    expect(previousSchema.parse(response)).toEqual(document)
+  })
+
+  it.each(['pending', 'processing', 'completed', 'failed'])(
+    'accepts an older server’s %s response without inventing an outcome',
+    (processingStatus) => {
+      const response = documentDataSchema.parse({ ...document, processingStatus })
+      expect(response.processingOutcome).toBeNull()
+      expect(getDocumentIndexingStatus(response)).toBe(processingStatus)
+    }
+  )
+
+  it('does not expand the stored-status wire enum to encode an indexing outcome', () => {
+    expect(documentDataSchema.safeParse({ ...document, processingStatus: 'skipped' }).success).toBe(
+      false
+    )
+  })
+})
 
 describe('listKnowledgeDocumentsQuerySchema.tagFilters', () => {
   it('keeps tagFilters a raw string (must NOT transform to an array)', () => {

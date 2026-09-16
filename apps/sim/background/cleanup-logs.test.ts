@@ -45,9 +45,12 @@ const {
   mockTask: vi.fn((config: unknown) => config),
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
+vi.mock('@trigger.dev/sdk', () => ({ task: mockTask, queue: vi.fn((config) => config) }))
+
+vi.mock('@/lib/billing/cleanup-dispatcher', () => ({ runCleanupWithLimits: vi.fn() }))
 
 vi.mock('@/lib/cleanup/batch-delete', () => ({
+  consumeRowBudget: vi.fn(),
   batchDeleteByWorkspaceAndTimestamp: mockBatchDeleteByWorkspaceAndTimestamp,
   chunkedBatchDelete: mockChunkedBatchDelete,
 }))
@@ -199,7 +202,7 @@ describe('cleanup logs worker', () => {
 
   it('caps Trigger.dev concurrency for log cleanup tasks', () => {
     expect(cleanupLogsTask).toMatchObject({
-      queue: { concurrencyLimit: 2 },
+      queue: { name: 'retention-cleanup', concurrencyLimit: 1 },
     })
   })
 })

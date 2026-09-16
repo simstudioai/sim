@@ -1,12 +1,5 @@
 import { db } from '@sim/db'
-import {
-  publicShare,
-  user,
-  type WorkspaceFileRow,
-  workspace,
-  workspaceFileColumns,
-  workspaceFiles,
-} from '@sim/db/schema'
+import { publicShare, user, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -276,7 +269,7 @@ export async function resolveActiveShareByToken(token: string): Promise<Resolved
   const [row] = await db
     .select({
       share: publicShare,
-      file: workspaceFileColumns,
+      file: workspaceFiles,
       workspaceName: workspace.name,
       ownerName: user.name,
     })

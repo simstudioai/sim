@@ -1,3 +1,5 @@
+import { describePrincipalAuth } from '@sim/auth/principal'
+import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
@@ -337,6 +339,7 @@ async function admitAuthenticatedV2Request(
     }
     throw new V2RouteInfrastructureError('authentication', error)
   }
+  setRequestAuth(describePrincipalAuth(auth.principal))
 
   try {
     requireOAuthOperationScope(auth.principal, operation)

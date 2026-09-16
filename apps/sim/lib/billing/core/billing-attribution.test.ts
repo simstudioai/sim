@@ -36,6 +36,7 @@ vi.mock('@/lib/billing/core/plan', () => ({
 }))
 
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   billingAttributionsEqual,
   checkAttributedBillingBlocks,
@@ -43,6 +44,7 @@ import {
   createAttributedBillingRequestEnvelope,
   requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
+  requireBillingCallbackAttribution,
   requireBillingRequestIdHeader,
   requireWorkspaceBillingAttributionHeader,
   resolveBillingAttribution,
@@ -403,6 +405,36 @@ describe('serialized attribution boundaries', () => {
     workspaceId: 'workspace-b',
   }
 
+  it('settles the immutable organization owner without inventing a workspace on ledger replay', () => {
+    const snapshot = { ...attribution, workspaceId: null }
+    const headers = new Headers({
+      'x-sim-billing-attribution': serializeBillingAttributionHeader(snapshot),
+    })
+    expect(
+      requireBillingAttributionHeader(headers, { actorUserId: 'actor-a', organizationId: 'org-b' })
+    ).toEqual(snapshot)
+    expect(requireBillingCallbackAttribution(headers, { actorUserId: 'actor-a' })).toEqual(snapshot)
+    expect(() => requireBillingCallbackAttribution(headers, { actorUserId: 'other' })).toThrow()
+    expect(() =>
+      requireBillingCallbackAttribution(headers, {
+        actorUserId: 'actor-a',
+        workspaceId: 'workspace-b',
+      })
+    ).toThrow()
+    expect(() =>
+      requireBillingCallbackAttribution(headers, {
+        actorUserId: 'actor-a',
+        organizationId: 'org-other',
+      })
+    ).toThrow()
+    const workspaceHeaders = new Headers({
+      'x-sim-billing-attribution': serializeBillingAttributionHeader(attribution),
+    })
+    expect(() =>
+      requireBillingCallbackAttribution(workspaceHeaders, { actorUserId: 'actor-a' })
+    ).toThrow()
+  })
+
   it('round-trips and freezes a trusted internal-request snapshot', () => {
     const headers = new Headers({
       'x-sim-billing-attribution': serializeBillingAttributionHeader(attribution),
@@ -749,5 +781,36 @@ describe('modern billing envelopes', () => {
     const headers = new Headers({ 'x-sim-billing-account-decision': serialized })
 
     expect(requireAccountBillingDecisionHeader(headers)).toEqual(decision)
+  })
+})
+
+describe('Search billing ownership', () => {
+  const attribution = {
+    actorUserId: 'reader',
+    workspaceId: null,
+    organizationId: 'org',
+    billedAccountUserId: 'owner',
+    billingEntity: { type: 'organization' as const, id: 'org' },
+    billingPeriod: { start: '2026-09-01T00:00:00.000Z', end: '2026-10-01T00:00:00.000Z' },
+    payerSubscription: null,
+  }
+  it('accepts the organization owner and preserves the actual actor', () => {
+    expect(assertBillingAttributionSnapshot(attribution)).toEqual(attribution)
+    expect(() =>
+      assertBillingAttributionOwner(attribution, { organizationId: 'org' })
+    ).not.toThrow()
+  })
+  it('rejects another organization and a workspace using the same ID', () => {
+    expect(() => assertBillingAttributionOwner(attribution, { organizationId: 'other' })).toThrow()
+    expect(() => assertBillingAttributionOwner(attribution, { workspaceId: 'org' })).toThrow()
+  })
+  it('does not turn a workspace billing organization into a resource grant', () => {
+    const workspaceAttribution = { ...attribution, workspaceId: 'workspace' }
+    expect(() =>
+      assertBillingAttributionOwner(workspaceAttribution, { workspaceId: 'workspace' })
+    ).not.toThrow()
+    expect(() =>
+      assertBillingAttributionOwner(workspaceAttribution, { organizationId: 'org' })
+    ).toThrow()
   })
 })

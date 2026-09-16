@@ -22,6 +22,7 @@ vi.mock('@/providers/bedrock/utils', () => ({
   checkForForcedToolUsage: vi.fn(),
   createReadableStreamFromBedrockStream: vi.fn(),
   generateToolUseId: vi.fn().mockReturnValue('tool-1'),
+  getBedrockBaseModelId: (model: string) => model.replace(/^bedrock\//i, ''),
   getBedrockStreamError: vi.fn().mockReturnValue(null),
   // The mocked inference profile above is a Claude model, which supports it.
   supportsToolResultStatus: vi.fn().mockReturnValue(true),
@@ -35,6 +36,8 @@ vi.mock('@/providers/models', () => ({
   getProviderModels: vi.fn().mockReturnValue([]),
   getProviderDefaultModel: vi.fn().mockReturnValue('us.anthropic.claude-3-5-sonnet-20241022-v2:0'),
   supportsNativeStructuredOutputs: vi.fn().mockReturnValue(false),
+  getModelCapabilities: vi.fn().mockReturnValue({ temperature: { min: 0, max: 1 } }),
+  isKnownModelId: vi.fn().mockReturnValue(true),
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -64,6 +67,7 @@ import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-r
 import type { StreamingExecution } from '@/executor/types'
 import { bedrockProvider } from '@/providers/bedrock/index'
 import { clearProviderClientCacheForTests } from '@/providers/client-cache'
+import { getModelCapabilities, isKnownModelId } from '@/providers/models'
 import { prepareToolsWithUsageControl } from '@/providers/utils'
 
 describe('bedrockProvider credential handling', () => {
@@ -133,6 +137,34 @@ describe('bedrockProvider credential handling', () => {
     expect(BedrockRuntimeClient).toHaveBeenCalledWith({
       region: 'eu-west-1',
     })
+  })
+
+  it('omits temperature for catalog models that do not support it', async () => {
+    vi.mocked(getModelCapabilities).mockReturnValueOnce({ maxOutputTokens: 128000 })
+    await bedrockProvider.executeRequest({
+      ...baseRequest,
+      model: 'bedrock/anthropic.claude-opus-5',
+      temperature: 0.7,
+    })
+    expect(ConverseCommand).toHaveBeenCalledWith(expect.objectContaining({ inferenceConfig: {} }))
+  })
+
+  it('preserves explicit temperature for a custom model without catalog capabilities', async () => {
+    vi.mocked(isKnownModelId).mockReturnValueOnce(false)
+    await bedrockProvider.executeRequest({
+      ...baseRequest,
+      model: 'bedrock/MyCustomProfile',
+      temperature: 0.2,
+    })
+    expect(ConverseCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ inferenceConfig: { temperature: 0.2 } })
+    )
+  })
+
+  it('leaves temperature to the service default for a custom model when omitted', async () => {
+    vi.mocked(isKnownModelId).mockReturnValueOnce(false)
+    await bedrockProvider.executeRequest({ ...baseRequest, model: 'bedrock/MyCustomProfile' })
+    expect(ConverseCommand).toHaveBeenCalledWith(expect.objectContaining({ inferenceConfig: {} }))
   })
 
   it('uses the live loop for streaming tool requests without a caller flag', async () => {

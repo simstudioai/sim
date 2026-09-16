@@ -109,6 +109,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:hierarchical-content:confluence': 'View page hierarchy (children and ancestors)',
   'read:content.metadata:confluence': 'View content metadata (required for ancestors)',
   'read:user:confluence': 'View Confluence user profiles',
+  'read:group:confluence': 'View Confluence groups and memberships',
   'read:confluence-user': 'View Confluence user profiles (v1 API)',
   'read:task:confluence': 'View Confluence inline tasks',
   'write:task:confluence': 'Update Confluence inline tasks',
@@ -762,12 +763,20 @@ const IGNORED_SCOPES = new Set([
  * as they are not returned in the token response's scope list even when granted.
  */
 export function getMissingRequiredScopes(
-  credential: { scopes?: string[] } | undefined,
+  credential: { scopes?: string[]; type?: string } | undefined,
   requiredScopes: string[] = []
 ): string[] {
   if (!credential) {
     return requiredScopes.filter((s) => !IGNORED_SCOPES.has(s))
   }
+
+  /**
+   * A service account names its scopes in the JWT it signs for each request, so
+   * it has no granted-scope list to compare against — `scopes` is always null.
+   * Measuring it against `requiredScopes` reports every scope missing and
+   * prompts a reconnect that would grant nothing.
+   */
+  if (credential.type === 'service_account') return []
 
   const granted = new Set(credential.scopes || [])
   const missing: string[] = []
@@ -790,11 +799,10 @@ export function getMissingRequiredScopes(
  * least-privileged scope would report every already-connected credential as
  * missing it and prompt a re-consent that grants nothing new.
  *
- * This only derives a scope Sim actually requests. A consumer must never
- * require a scope absent from its provider's `scopes` array — no credential can
- * carry it, since that array is what the authorize request asks for.
+ * Only the direct scope sibling is accepted: `drive.file` does not grant
+ * `drive.readonly`, and a read-only grant never satisfies a write scope.
  */
-function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
+export function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
   const readonlySuffix = '.readonly'
   if (!required.endsWith(readonlySuffix)) return false
   return granted.has(required.slice(0, -readonlySuffix.length))

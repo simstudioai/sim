@@ -6,12 +6,16 @@ import { randomFillSync } from 'node:crypto'
 import { crc32 } from 'node:zlib'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchWorkspaceFileBuffer } = vi.hoisted(() => ({
+const { fetchWorkspaceFileBuffer, mockParseBuffer } = vi.hoisted(() => ({
   fetchWorkspaceFileBuffer: vi.fn(),
+  mockParseBuffer: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer,
+}))
+vi.mock('@/lib/file-parsers', () => ({
+  parseBuffer: mockParseBuffer,
 }))
 
 import {
@@ -21,6 +25,7 @@ import {
   MAX_TEXT_READ_BYTES,
   readFileRecord,
 } from '@/lib/copilot/vfs/file-reader'
+import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { MAX_TRANSCODE_INPUT_BYTES } from '@/lib/uploads/server/heic'
 
@@ -200,4 +205,47 @@ describe('readFileRecord', () => {
     },
     SHARP_TEST_TIMEOUT_MS
   )
+})
+
+describe('readFileRecord parseable documents', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function documentRecord(name: string, type: string, size: number) {
+    return { ...imageRecord(name, size, type), id: 'wf_doc' }
+  }
+
+  it('returns the parsed text of a document', async () => {
+    fetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('bytes'))
+    mockParseBuffer.mockResolvedValue({
+      content: 'Quarterly review\nSecond line',
+      metadata: { extractionMethod: 'word-extractor' },
+    })
+
+    const result = await readFileRecord(documentRecord('review.doc', 'application/msword', 5))
+
+    expect(result).toEqual({ content: 'Quarterly review\nSecond line', totalLines: 2 })
+  })
+
+  /**
+   * A parser that could only scrape bytes flags the result `degraded`; that must
+   * reach the model as the could-not-parse placeholder, never as file content.
+   */
+  it('reports degraded parser output as could-not-parse instead of handing it to the model', async () => {
+    fetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('bytes'))
+    mockParseBuffer.mockResolvedValue({
+      content: '[Content_Types].xml _rels/.rels theme/theme/themeManager.xml',
+      metadata: { degraded: true, warning: 'Basic text extraction used' },
+    })
+
+    const result = await readFileRecord(
+      documentRecord('deck.pptx', 'application/vnd.ms-powerpoint', 5)
+    )
+
+    expect(result).toEqual(
+      readPlaceholder.couldNotParse('deck.pptx', 'application/vnd.ms-powerpoint', 5)
+    )
+    expect(result?.content).not.toContain('[Content_Types].xml')
+  })
 })

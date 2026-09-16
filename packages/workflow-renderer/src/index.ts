@@ -78,6 +78,8 @@ export {
   type WorkflowBorderPort,
 } from './workflow-block/workflow-block-border'
 export {
+  BlockTileView,
+  type BlockTileViewProps,
   ERROR_SOURCE_HANDLE_POSITION,
   getErrorBorderPort,
   getErrorSourceHandleStyle,

@@ -850,7 +850,7 @@ export interface JiraRetrieveResponse extends ToolResponse {
       created: string
     }>
     issue: Record<string, unknown>
-    files?: Array<{ name: string; mimeType: string; data: string; size: number }>
+    files?: Array<{ name: string; mimeType: string; data: Buffer | string; size: number }>
   }
 }
 
@@ -1222,7 +1222,7 @@ export interface JiraGetAttachmentsResponse extends ToolResponse {
       authorName: string
       created: string
     }>
-    files?: Array<{ name: string; mimeType: string; data: string; size: number }>
+    files?: Array<{ name: string; mimeType: string; data: Buffer | string; size: number }>
   }
 }
 

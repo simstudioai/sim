@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth/auth'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 
 const DISCOVERY_CACHE_SECONDS = 300
 
@@ -13,10 +13,8 @@ const DISCOVERY_HEADERS = {
  * OAuth authorization-server metadata with Sim's registered public-client
  * authentication method included.
  *
- * Better Auth 1.6.27 advertises `none` only when unauthenticated dynamic
- * registration is enabled. Sim deliberately keeps registration closed while
- * still provisioning public clients out of band, so the raw metadata would
- * otherwise contradict the clients the token endpoint accepts.
+ * Public Search clients and the first-party CLI use `none` for token exchange
+ * and revocation. Introspection is not exposed by Sim's protocol routes.
  */
 export async function getOAuthProviderMetadata() {
   const metadata = await auth.api.getOAuthServerConfig()
@@ -41,7 +39,7 @@ export async function getOAuthProviderMetadata() {
 
 /** One response contract for every RFC 8414 discovery alias Sim exposes. */
 export async function getOAuthProviderMetadataResponse(): Promise<NextResponse> {
-  if (!(await isOAuthProviderEnabled())) {
+  if (isAuthDisabled) {
     return NextResponse.json(
       { error: 'OAuth provider is not enabled' },
       { status: 404, headers: { ...DISCOVERY_HEADERS, 'Cache-Control': 'no-store' } }

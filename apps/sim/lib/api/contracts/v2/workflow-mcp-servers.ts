@@ -356,7 +356,7 @@ export const v2ListWorkflowMcpServersContract = defineRouteContract({
       toolNamesTruncated: z
         .boolean()
         .describe(
-          "Whether `toolCount` and `toolNames` under-report. The names are gathered for the whole page under one ceiling, so a page whose servers publish more tools than that ceiling between them reports only part of each server's inventory. Read one server's tool inventory and check that response's own `truncated`, which reports the same ceiling applied to a single server — only an untruncated response is the authoritative set. Unrelated to `nextCursor`, which is how this list says there are further servers."
+          'Whether the page-wide tool-name limit left some inventories incomplete. Use List Workflow MCP Tools for one server and check its `truncated` flag before treating the inventory as complete. `nextCursor` paginates servers, not tool names.'
         ),
     }),
   },
@@ -418,7 +418,7 @@ export const v2ListWorkflowMcpToolsContract = defineRouteContract({
       truncated: z
         .boolean()
         .describe(
-          'Whether this inventory was cut short by the server-side ceiling on how many tools one response may carry. `nextCursor` is null either way — this list takes no `cursor`, so a truncated set cannot be paged past and this flag is the only way to tell a partial inventory from a complete one. A reconciling caller must not treat a truncated set as the full published inventory.'
+          'Whether the tool limit left this inventory incomplete. The list is unpaginated and `nextCursor` remains null even when truncated. Do not treat a truncated inventory as the complete set of published tools.'
         ),
     }),
   },

@@ -10,10 +10,11 @@
  *   header inherited across client-side navigations, so an unlisted landing page
  *   stays cross-origin isolated when it soft-navigates into `/demo`, where the
  *   Cal.com booker then loads uncredentialed and hangs forever.
- * - `ThemeProvider` forces the light theme on these paths, matching the `light`
- *   token layer `LandingShell` renders. Leave one out and `<html>` keeps the
- *   visitor's dark theme under a light page: root-level chrome (scrollbars,
- *   `color-scheme`, anything portalled to `<body>`) renders dark against it.
+ * - `ThemeProvider` gives these paths their own theme store, defaulting to
+ *   light (the landing family's design baseline) and written only by the
+ *   landing footer's toggle, instead of the app's account-synced `system`
+ *   default. Leave one out and a visitor on a dark OS lands on a dark
+ *   marketing page.
  *
  * Imported by `next.config.ts` before the `@/` alias resolves, so this module
  * must stay dependency-free.
@@ -27,6 +28,7 @@ export const LANDING_ROUTES = [
   'comparisons',
   'contact',
   'cookie-policy',
+  'customers',
   'demo',
   'enterprise',
   'files',
@@ -35,6 +37,7 @@ export const LANDING_ROUTES = [
   'library',
   'logs',
   'models',
+  'platform',
   'pricing',
   'privacy',
   'solutions',

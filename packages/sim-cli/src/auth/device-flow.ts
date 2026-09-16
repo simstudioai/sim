@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { sleep } from '../helpers'
 import { buildUrl, REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
-import { USER_AGENT } from '../version'
+import { identityHeaders } from '../telemetry/client-info'
 
 /**
  * The terminal half of the CLI key handoff.
@@ -54,7 +54,7 @@ const RETRYABLE_POLL_STATUSES = new Set([409, 429, 500, 502, 503, 504])
  */
 const TRANSPORT_FAILURES_BEFORE_WARNING = 3
 
-export type CliAuthScope = 'copilot' | 'platform'
+type CliAuthScope = 'copilot' | 'platform'
 
 export interface AuthRequest {
   /** Semi-public rendezvous handle; travels in the browser URL. */
@@ -103,14 +103,13 @@ export function createAuthRequest(): AuthRequest {
 export function buildApprovalUrl(
   endpoint: string,
   auth: AuthRequest,
-  scope: CliAuthScope,
   workspaceId?: string
 ): string {
   return buildUrl(endpoint, APPROVAL_PATH, {
     request: auth.request,
     challenge: auth.challenge,
     pairing: auth.pairing,
-    scope,
+    scope: 'platform',
     workspace: workspaceId,
   })
 }
@@ -193,7 +192,7 @@ export async function pollForKey(
         headers: {
           'content-type': 'application/json',
           accept: 'application/json',
-          'user-agent': USER_AGENT,
+          ...identityHeaders(),
         },
         body: JSON.stringify({ request: auth.request, verifier: auth.pollSecret }),
         signal,

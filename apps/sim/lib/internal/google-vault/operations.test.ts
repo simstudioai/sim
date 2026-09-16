@@ -16,6 +16,17 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 import { downloadGoogleVaultExportFile } from '@/lib/internal/google-vault/operations'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
+const storedFile = {
+  id: 'stored-file',
+  name: 'stored.bin',
+  size: 5,
+  type: 'application/octet-stream',
+  mimeType: 'application/octet-stream',
+  url: '/api/files/stored',
+  key: 'execution/workspace/workflow/run/stored.bin',
+  context: 'execution',
+} as const
+
 describe('downloadGoogleVaultExportFile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -53,11 +64,12 @@ describe('downloadGoogleVaultExportFile', () => {
         signal: controller.signal,
       }
     )
-    expect(result.output.file).toEqual({
-      name: 'vault export.zip',
-      mimeType: 'application/zip',
-      data: 'AQID',
-      size: 3,
+    expect(result.files).toEqual([
+      { name: 'vault export.zip', mimeType: 'application/zip', buffer: Buffer.from([1, 2, 3]) },
+    ])
+    expect(result.present([storedFile])).toMatchObject({
+      success: true,
+      output: { file: storedFile },
     })
   })
 })

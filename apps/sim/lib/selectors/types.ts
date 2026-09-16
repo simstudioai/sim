@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 
 export const selectorContextKeys = [
   'oauthCredential',
+  'mcpServerId',
   'domain',
   'teamId',
   'projectId',
@@ -36,7 +37,6 @@ export const selectorContextKeys = [
   'customObjectTypeId',
   'pipelineId',
   'environmentType',
-  'credentialGroupId',
   'language',
   'host',
   'port',
@@ -49,7 +49,7 @@ export type SelectorContextKey = (typeof selectorContextKeys)[number]
 export type SelectorContext = Partial<Record<SelectorContextKey, string>>
 
 export type SelectorClassification = 'local' | 'internal-server' | 'provider-server'
-export type SelectorScopeKind = 'workflow' | 'workspace'
+export type SelectorScopeKind = 'workflow' | 'workspace' | 'organization'
 export type SelectorListMode = 'flat' | 'paginated'
 
 export interface SelectorReadiness {
@@ -93,6 +93,7 @@ export interface SelectorPage {
 }
 
 export type SelectorScope =
+  | { kind: 'organization'; organizationId: string }
   | {
       kind: 'workflow'
       workflowId: string
@@ -102,6 +103,13 @@ export type SelectorScope =
       kind: 'workspace'
       workspaceId: string
     }
+
+/** Chooses a dedicated client transport without granting access through the generic selector API. */
+export interface SelectorSurface {
+  kind: 'personal-search-setup'
+  organizationId: string
+  connectorType: 'jira' | 'confluence'
+}
 
 export type SelectorRequest =
   | {

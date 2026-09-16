@@ -34,6 +34,10 @@ import {
 } from '@/ee/workspace-forking/lib/copy/content-copy-runner'
 import type { BlobCopyTask } from '@/ee/workspace-forking/lib/copy/copy-files'
 import type { ForkContentPlan } from '@/ee/workspace-forking/lib/copy/copy-resources'
+import {
+  ForkCopyCheckpointError,
+  ForkCopyContinuation,
+} from '@/ee/workspace-forking/lib/copy/progress'
 
 describe('serializeContentRefMaps', () => {
   it('converts each map to a record and drops empty maps', () => {
@@ -172,5 +176,24 @@ describe('runForkContentCopy', () => {
         message: 'Copied 2 items; 1 could not be copied',
       })
     )
+  })
+
+  it.each([
+    new ForkCopyContinuation('continue from checkpoint'),
+    new ForkCopyCheckpointError('lease lost while checkpointing'),
+  ])('does not record interrupted copy work as failed: %s', async (error) => {
+    mockCopyForkResourceContent.mockRejectedValueOnce(error)
+    await expect(runForkContentCopy(payload())).rejects.toBe(error)
+    expect(mockFinishBackgroundWork).not.toHaveBeenCalled()
+    expect(mockExecuteForkFileBlobCopies).not.toHaveBeenCalled()
+  })
+
+  it('does not let an expired lease overwrite background work status', async () => {
+    const error = new Error('lease expired')
+    mockCopyForkResourceContent.mockRejectedValueOnce(error)
+    await expect(runForkContentCopy(payload(), { signal: AbortSignal.abort(error) })).rejects.toBe(
+      error
+    )
+    expect(mockFinishBackgroundWork).not.toHaveBeenCalled()
   })
 })

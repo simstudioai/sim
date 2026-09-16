@@ -39,9 +39,9 @@ const SALES_CONFIG: SolutionsPageConfig = {
     eyebrow: 'Sales',
     heading: 'Automate lead research, outreach, and CRM updates with AI agents in Sim.',
     description:
-      'Sim is the open-source AI workspace where sales teams build AI agents for lead research, outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and 1,000+ integrations to keep the pipeline current.',
+      'Sim is the open-source AI workspace where sales teams build AI agents for lead research, outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and hundreds of integrations to keep the pipeline current.',
     summary:
-      'Sim is the open-source AI workspace where sales teams build, deploy, and manage AI agents for lead research, personalized outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and 1,000+ integrations so the pipeline stays current.',
+      'Sim is the open-source AI workspace where sales teams build, deploy, and manage AI agents for lead research, personalized outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and hundreds of integrations so the pipeline stays current.',
     visual: (
       <PlatformHeroVisual>
         <SalesHeroLoop />

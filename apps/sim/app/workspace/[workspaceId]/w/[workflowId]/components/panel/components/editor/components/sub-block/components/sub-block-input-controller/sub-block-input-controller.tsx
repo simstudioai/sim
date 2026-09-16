@@ -33,6 +33,8 @@ export interface SubBlockInputControllerProps {
   onStreamingEnd?: () => void
   /** Optional preview value for read-only preview. */
   previewValue?: string | null
+  /** Whether the env-var and tag reference pickers may open. Defaults to `true`. */
+  allowReferences?: boolean
   /**
    * Optional callback to force/show the env var dropdown (e.g., API key fields).
    * Return { show: true, searchTerm?: string } to override defaults.
@@ -82,6 +84,7 @@ export function SubBlockInputController(props: SubBlockInputControllerProps): Re
     isStreaming,
     onStreamingEnd,
     previewValue,
+    allowReferences,
     shouldForceEnvDropdown,
     shouldForceTagDropdown,
     children,
@@ -98,6 +101,7 @@ export function SubBlockInputController(props: SubBlockInputControllerProps): Re
     isStreaming,
     onStreamingEnd,
     previewValue,
+    allowReferences,
     shouldForceEnvDropdown,
     shouldForceTagDropdown,
   })

@@ -24,13 +24,13 @@ import {
   type McpServer,
 } from '@/lib/api/contracts/mcp'
 import {
-  mcpKeys,
   useAllowedMcpDomains,
   useForceRefreshMcpTools,
   useMcpServers,
   useMcpToolsQuery,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
+import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
 
 const WORKSPACE_ID = 'workspace-1'
 

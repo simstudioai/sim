@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -21,6 +22,7 @@ import {
   buildFileSelectionLabel,
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
+import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
@@ -403,6 +405,7 @@ interface TextEditorProps {
     retry?: () => Promise<void>
   ) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
@@ -419,6 +422,7 @@ export const TextEditor = memo(function TextEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  downloadSourceRef,
   discardRef,
   streamingContent,
   isAgentEditing,
@@ -503,6 +507,19 @@ export const TextEditor = memo(function TextEditor({
   useLayoutEffect(() => {
     contentRef.current = content
   }, [content])
+
+  useImperativeHandle<FileDownloadSource | null, FileDownloadSource | null>(
+    downloadSourceRef,
+    () =>
+      isContentLoading || hasContentError
+        ? null
+        : {
+            fileId: file.id,
+            workspaceId,
+            getContent: () => contentRef.current,
+          },
+    [file.id, workspaceId, isContentLoading, hasContentError]
+  )
 
   // Enable once content has loaded — the container (and Monaco) only mount after
   // the `isContentLoading` early return below, so the bridge must (re-)attach then.

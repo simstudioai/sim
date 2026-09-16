@@ -38,7 +38,7 @@ import {
   recordAuditBatch,
 } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, organizationColumns, subscription } from '@sim/db/schema'
+import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNull, not, or } from 'drizzle-orm'
 import {
@@ -58,6 +58,7 @@ import {
   TERMINAL_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -92,7 +93,7 @@ export const GET = withRouteHandler(
 
     try {
       const [orgData] = await db
-        .select(organizationColumns)
+        .select()
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -143,7 +144,7 @@ export const PATCH = withRouteHandler(
 
     try {
       const [existing] = await db
-        .select(organizationColumns)
+        .select()
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -182,7 +183,7 @@ export const PATCH = withRouteHandler(
         .update(organization)
         .set(updateData)
         .where(eq(organization.id, organizationId))
-        .returning(organizationColumns)
+        .returning()
 
       const updatedFields = auditUpdatedFields(updateData)
       logger.info(`Admin API: Updated organization ${organizationId}`, { updatedFields })
@@ -299,6 +300,7 @@ export const DELETE = withRouteHandler(
        */
       const { detachedWorkspaceIds, auditEntries } = await db.transaction(async (tx) => {
         const detached = await detachOrganizationWorkspacesTx(tx, organizationId)
+        await enqueueOrganizationResourceCleanup(tx, organizationId)
         await tx.delete(organization).where(eq(organization.id, organizationId))
         return detached
       })

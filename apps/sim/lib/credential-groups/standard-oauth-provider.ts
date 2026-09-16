@@ -26,6 +26,7 @@ import {
 import type { CredentialGroupStandardOAuthProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { refreshOAuthToken } from '@/lib/oauth'
+import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 
 const OAUTH_DISCOVERY_TIMEOUT_MS = 10_000
 const OAUTH_DISCOVERY_MAX_BYTES = 256 * 1024
@@ -247,7 +248,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
     async getPolicy() {
       return getCurrentProvider(provider).policy
     },
-    async prepareAuthorization(context, policy) {
+    async prepareAuthorization(_context, policy) {
       const current = getCurrentProvider(provider)
       assertCurrentPolicy(policy, current.policy)
       const managed = current.connector.managedOAuth
@@ -277,7 +278,6 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
             accessType: current.connector.accessType,
             responseType: current.connector.responseType,
             responseMode: current.connector.responseMode,
-            loginHint: managed.includeLoginHint ? context.email : undefined,
             additionalParams: {
               ...staticParams(
                 current.connector.authorizationUrlParams,
@@ -291,7 +291,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
         },
       }
     },
-    async exchangeAndVerify({ context, attempt, code, policy }) {
+    async exchangeAndVerify({ attempt, code, policy }) {
       const current = getCurrentProvider(provider)
       assertCurrentPolicy(policy, current.policy)
       const redirectUri = getRedirectUri(provider, current)
@@ -331,10 +331,11 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
           tokens,
           clientId: current.connector.clientId,
         })
-      } catch {
+      } catch (error) {
         throw new CredentialGroupOAuthError(
           `${service.name} returned an invalid identity token.`,
-          502
+          502,
+          error instanceof OAuthIdentityVerificationError ? error : undefined
         )
       }
       const nonceMatches =
@@ -347,12 +348,6 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
         )
       }
       const email = normalizeEmail(identity.email)
-      if (email !== context.email) {
-        throw new CredentialGroupOAuthError(
-          `Sign in with ${context.email} to complete this invitation.`,
-          403
-        )
-      }
       if (!managed.hasRequiredScopes(identity.grantedScopes, policy.requiredScopes)) {
         throw new CredentialGroupOAuthError(
           `All requested ${service.name} permissions are required to connect this account.`,

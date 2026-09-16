@@ -10,12 +10,13 @@ import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview } from '@/components/workflow-preview'
 import { AV_SUPPORT_DESK_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
-<VideoPlaceholder eyebrow="Chat" title="Chat" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/chat-intro.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Chat" title="Chat" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/chat-intro.mp4"
+  captionsSrc="/captions/academy/chat-intro.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
 
-Chat lives inside your workspace, and everything in it, your workflows, tables, knowledge bases, and files, is within its reach. You ask from one place, and Sim works across all of it: answering from your data, operating your workflows, and shaping new systems around the task.
+Chat can use the workflows, tables, knowledge bases, files, and integrations available to you in the workspace. Ask it to find information, run a workflow, or build a new one.
 
 <WhatYouWillLearn
   items={[
@@ -25,7 +26,7 @@ Chat lives inside your workspace, and everything in it, your workflows, tables, 
     },
     {
       title: 'It runs your workflows',
-      body: 'Chat runs workflows and puts them on schedules for you, no clicks, no setup. Actions land as toasts, and each resource it touches opens as a tab.',
+      body: 'Ask Chat to run a workflow or create a schedule. Review the action result and open the resource tab to inspect it.',
     },
     {
       title: 'It reaches outside',
@@ -33,7 +34,7 @@ Chat lives inside your workspace, and everything in it, your workflows, tables, 
     },
     {
       title: 'The pieces compose',
-      body: 'One sentence can turn the trends it found, your tickets, and your docs into a brand-new workflow, born running, and calling your other workflows itself.',
+      body: 'Ask Chat to build a workflow from the resources it found, then inspect the blocks and test the result.',
     },
   ]}
 />
@@ -54,11 +55,11 @@ Chat lives inside your workspace, and everything in it, your workflows, tables, 
 
 </div>
 
-## Everything within reach
+## Work across workspace resources
 
-Chat isn't a help box beside your workspace, it's a command center over it. Every resource you've built is addressable in plain language: the tickets table, the help-center knowledge base, the support-desk workflow. When you ask a question, Sim decides which resources the answer needs, touches them in parallel, and composes the reply.
+Name the resources you want Chat to use, such as a tickets table, help-center knowledge base, or support-desk workflow. Chat can combine information from those resources to answer a request.
 
-Here is the workflow Sim operates in the video: the support desk that triages a ticket, escalates or replies, and logs the result:
+The video uses this support-desk workflow to triage a ticket, reply or escalate, and record the result:
 
 <WorkflowPreview workflow={AV_SUPPORT_DESK_WORKFLOW} />
 

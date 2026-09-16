@@ -66,6 +66,17 @@ const connectionInput = {
 }
 const context = { userId: 'user-1', requestId: 'request-1' }
 
+const storedFile = {
+  id: 'stored-file',
+  name: 'file.txt',
+  size: 5,
+  type: 'text/plain',
+  mimeType: 'text/plain',
+  url: '/api/files/stored',
+  key: 'execution/file.txt',
+  context: 'execution',
+} as const
+
 describe('SFTP operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -128,10 +139,73 @@ describe('SFTP operations', () => {
       context
     )
 
+    if (!(response instanceof Response)) throw new Error('Expected a JSON response')
     expect(response.status).toBe(413)
     expect(mocks.readFile).not.toHaveBeenCalled()
     expect(mocks.clientEnd).toHaveBeenCalledOnce()
   })
+
+  it.each([5, 12 * 1024 * 1024])(
+    'returns %i bytes through a stored file without inline content in v2',
+    async (size) => {
+      const buffer = Buffer.alloc(size, 1)
+      const sftp = {
+        stat: vi.fn((_path, callback) => callback(null, { size: buffer.length })),
+      } as unknown as SFTPWrapper
+      mocks.getSftp.mockResolvedValue(sftp)
+      mocks.readFile.mockResolvedValue(buffer)
+      const result = await executeSftpDownload(
+        { ...connectionInput, remotePath: '/file.txt' },
+        context,
+        'v2'
+      )
+      if (result instanceof Response) throw new Error('Expected a file output')
+      expect(result.files[0]?.buffer).toBe(buffer)
+      expect(result.files[0]?.name).toBe('file.txt')
+      const file = { ...storedFile, size: buffer.length }
+      const presented = result.present([file])
+      expect(presented).toEqual({ file })
+      expect(JSON.stringify(presented)).not.toContain('"content"')
+      expect(JSON.stringify(presented)).not.toContain('"encoding"')
+      expect(mocks.clientEnd).toHaveBeenCalledOnce()
+      expect(mocks.readFile).toHaveBeenCalledWith(
+        sftp,
+        '/file.txt',
+        50 * 1024 * 1024,
+        'SFTP download',
+        undefined
+      )
+    }
+  )
+
+  it.each(['base64', 'utf-8'] as const)(
+    'preserves the complete v1 %s response',
+    async (encoding) => {
+      const buffer = Buffer.from('hello')
+      mocks.getSftp.mockResolvedValue({
+        stat: vi.fn((_path, callback) => callback(null, { size: buffer.length })),
+      })
+      mocks.readFile.mockResolvedValue(buffer)
+      const result = await executeSftpDownload(
+        { ...connectionInput, remotePath: '/file.txt', encoding },
+        context
+      )
+      expect(await result.json()).toEqual({
+        success: true,
+        fileName: 'file.txt',
+        file: {
+          name: 'file.txt',
+          mimeType: 'text/plain',
+          data: buffer.toString('base64'),
+          size: 5,
+        },
+        content: buffer.toString(encoding),
+        size: 5,
+        encoding,
+        message: 'Successfully downloaded file.txt',
+      })
+    }
+  )
 
   it('authorizes every referenced Sim file before reading or uploading it', async () => {
     const denied = Response.json({ success: false, error: 'File not found' }, { status: 404 })

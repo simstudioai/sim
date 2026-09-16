@@ -8,9 +8,18 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 
-const { mockGetFullOrganization, mockRequestJson } = vi.hoisted(() => ({
-  mockGetFullOrganization: vi.fn(),
-  mockRequestJson: vi.fn(),
+const { mockGetFullOrganization, mockListOrganizations, mockRequestJson, featureFlags } =
+  vi.hoisted(() => ({
+    mockGetFullOrganization: vi.fn(),
+    mockListOrganizations: vi.fn(),
+    mockRequestJson: vi.fn(),
+    featureFlags: { organizations: true },
+  }))
+
+vi.mock('@/lib/core/config/env-flags', () => ({
+  get isOrganizationsEnabled() {
+    return featureFlags.organizations
+  },
 }))
 
 vi.mock('@/lib/api/client/request', () => ({
@@ -21,6 +30,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
   client: {
     organization: {
       getFullOrganization: mockGetFullOrganization,
+      list: mockListOrganizations,
     },
     subscription: {
       list: vi.fn(),
@@ -41,6 +51,7 @@ import {
   organizationKeys,
   useOrganization,
   useOrganizationBilling,
+  useOrganizationList,
   useOrganizationRoster,
 } from '@/hooks/queries/organization'
 import {
@@ -78,6 +89,7 @@ const ROSTER_A: { success: true; data: OrganizationRoster } = {
         name: 'Member A',
         email: 'member-a@example.com',
         image: null,
+        suspendedAt: null,
         workspaces: [],
       },
     ],
@@ -113,6 +125,11 @@ function OrganizationProbe({ organizationId }: { organizationId: string }) {
   )
 }
 
+function MembershipProbe() {
+  const query = useOrganizationList()
+  return <div>{query.error?.message ?? query.data?.map(({ name }) => name).join(', ')}</div>
+}
+
 function renderOrganization(organizationId: string) {
   act(() => {
     root.render(
@@ -138,6 +155,7 @@ describe('organization identity transitions', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
+    featureFlags.organizations = true
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -150,6 +168,65 @@ describe('organization identity transitions', () => {
     queryClient.clear()
     container.remove()
     vi.clearAllMocks()
+  })
+
+  it('treats Better Auth failures as errors rather than a missing organization', async () => {
+    mockGetFullOrganization.mockResolvedValue({ data: null, error: { message: 'Access revoked' } })
+    mockRequestJson.mockResolvedValue(ROSTER_A)
+    renderOrganization('org-a')
+    await flushQueries()
+
+    expect(queryClient.getQueryState(organizationKeys.detail('org-a'))?.status).toBe('error')
+    expect(queryClient.getQueryState(organizationKeys.detail('org-a'))?.error?.message).toBe(
+      'Access revoked'
+    )
+    expect(container.textContent).not.toContain('Manage organization')
+  })
+
+  it('lists actual memberships and forwards cancellation to Better Auth', async () => {
+    mockListOrganizations.mockResolvedValue({ data: [ORGANIZATION_A], error: null })
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <MembershipProbe />
+        </QueryClientProvider>
+      )
+    )
+    await flushQueries()
+
+    expect(container.textContent).toBe('Organization A')
+    const signal = mockListOrganizations.mock.calls[0][0].fetchOptions.signal
+    expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('does not call the organization plugin when organizations are disabled', async () => {
+    featureFlags.organizations = false
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <MembershipProbe />
+        </QueryClientProvider>
+      )
+    )
+    await flushQueries()
+    expect(mockListOrganizations).not.toHaveBeenCalled()
+  })
+
+  it('surfaces membership-list errors for retry instead of returning an empty list', async () => {
+    mockListOrganizations.mockResolvedValue({
+      data: null,
+      error: { message: 'Membership service unavailable' },
+    })
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <MembershipProbe />
+        </QueryClientProvider>
+      )
+    )
+    await flushQueries()
+    expect(container.textContent).toBe('Membership service unavailable')
+    expect(queryClient.getQueryState(organizationKeys.lists())?.status).toBe('error')
   })
 
   it('clears organization detail, roster, billing, and actions while the next org loads', async () => {

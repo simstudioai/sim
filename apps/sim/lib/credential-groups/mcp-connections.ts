@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment, mcpServers } from '@sim/db/schema'
-import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 
 export const MAX_CREDENTIAL_GROUP_MCP_CONNECTION_PAGE_SIZE = 100
@@ -22,12 +24,14 @@ export class CredentialGroupMcpConnectionCursorNotFoundError extends Error {
 }
 
 interface ListCredentialGroupMcpConnectionReferencesInput {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   credentialGroupId: string
   limit: number
   cursor?: string
   email?: string
   mcpServerId?: string
+  connectorId?: string
 }
 
 function decodeToolNames(value: unknown): string[] {
@@ -41,31 +45,37 @@ function decodeToolNames(value: unknown): string[] {
 /** Lists one bounded page of active managed MCP connections without selecting token material. */
 export async function listCredentialGroupMcpConnectionReferences({
   workspaceId,
+  organizationId,
   credentialGroupId,
   limit,
   cursor,
   email,
   mcpServerId,
+  connectorId,
 }: ListCredentialGroupMcpConnectionReferencesInput): Promise<{
   mcpConnections: CredentialGroupMcpConnectionReference[]
   nextCursor: string | null
 }> {
+  const ownerScope = resourceScopeFromOwner({ workspaceId, organizationId })
   const scope = () =>
     and(
-      eq(credential.workspaceId, workspaceId),
+      resourceScopeCondition(credential, ownerScope),
       eq(credential.type, 'managed_mcp'),
       eq(credential.managedOauthStatus, 'active'),
+      eq(credential.mcpOauthConfigVersion, mcpServers.oauthConfigVersion),
       eq(credentialGroup.id, credentialGroupId),
-      eq(credentialGroup.workspaceId, workspaceId),
+      resourceScopeCondition(credentialGroup, ownerScope),
       eq(credentialGroup.status, 'active'),
       inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
-      eq(mcpServers.workspaceId, workspaceId),
+      resourceScopeCondition(mcpServers, ownerScope),
+      organizationId ? isNotNull(credentialGroupEnrollment.userId) : undefined,
       eq(mcpServers.authType, 'oauth'),
       eq(mcpServers.enabled, true),
       isNull(mcpServers.deletedAt),
       sql`${mcpServers.credentialGroupId} = ${credentialGroup.id}`,
       email ? eq(credentialGroupEnrollment.email, email) : undefined,
-      mcpServerId ? eq(mcpServers.id, mcpServerId) : undefined
+      mcpServerId ? eq(mcpServers.id, mcpServerId) : undefined,
+      connectorId ? eq(mcpServers.managedConnectorId, connectorId) : undefined
     )
 
   let cursorPosition: { id: string; createdAt: Date } | undefined

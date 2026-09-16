@@ -92,7 +92,7 @@ export const togetherProvider: ProviderConfig = {
       baseURL: 'https://api.together.ai/v1',
     })
 
-    const requestedModel = request.model.replace(/^together\//, '')
+    const requestedModel = request.model.replace(/^together\//i, '')
 
     logger.info('Preparing Together request', {
       model: requestedModel,

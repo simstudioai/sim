@@ -2,7 +2,11 @@ import type { QueryClient } from '@tanstack/react-query'
 import { listKnowledgeBasesContract } from '@/lib/api/contracts/knowledge'
 import { internalSessionAuth } from '@/lib/api/server/routes'
 import { internalKnowledgePresenters } from '@/lib/knowledge/api/internal-route'
-import { listInternalKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
+import {
+  listInternalKnowledgeBases,
+  listKnowledgeBases,
+} from '@/lib/knowledge/application/knowledge-bases'
+import { authorizeResourcePrefetch } from '@/app/workspace/[workspaceId]/lib/authorize-resource-prefetch'
 import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -37,6 +41,7 @@ export async function prefetchKnowledgeBases(
   userId: string | undefined
 ): Promise<void> {
   if (!userId) return
+  if (!(await authorizeResourcePrefetch(listKnowledgeBases, workspaceId))) return
 
   await Promise.all([
     queryClient.prefetchQuery({

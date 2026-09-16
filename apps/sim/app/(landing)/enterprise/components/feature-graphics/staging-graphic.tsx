@@ -107,7 +107,7 @@ export function StagingGraphic({
           </div>
 
           <div className='px-3 py-2.5'>
-            <div className='rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs'>
+            <div className='rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]'>
               <span className='flex items-center gap-2'>
                 <ChipTag variant='mono'>{changeTag}</ChipTag>
                 <span className='min-w-0 truncate text-[var(--text-primary)] text-small'>

@@ -8,6 +8,14 @@ const { mockParseBuffer } = vi.hoisted(() => ({
   mockParseBuffer: vi.fn(),
 }))
 
+vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
+  PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
+  ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
+  recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
+  waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mockParseBuffer,
 }))

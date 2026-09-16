@@ -145,7 +145,7 @@ export function RunMonitoringGraphic({
 
           <div className='mt-2'>
             <span className='block text-[var(--text-muted)] text-caption'>{outputLabel}</span>
-            <div className='mt-1.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 font-mono text-caption leading-[1.6] shadow-xs'>
+            <div className='mt-1.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 font-mono text-caption leading-[1.6] shadow-xs dark:bg-[var(--surface-4)]'>
               <div className='truncate whitespace-pre'>
                 <span className='text-[var(--text-muted)]'>{`{ "${outputPairs[0].key}": `}</span>
                 <span className='text-[var(--text-secondary)]'>{outputPairs[0].value}</span>

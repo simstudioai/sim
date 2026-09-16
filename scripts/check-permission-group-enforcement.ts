@@ -273,7 +273,8 @@ export function parseOperationCapabilities(source: string): ParsedOperations {
     }
     const fixed = /capability\s*:\s*'([a-z0-9_.]+)'/.exec(body)?.[1]
     if (fixed) factoryCapabilities.set(match[1], fixed)
-    else if (/capability\s*[,:}]/.test(body)) factoryCapabilities.set(match[1], 'positional')
+    else if (/[,{]\s*capability(?:\s*[,}]|\s*:\s*capability\b)/.test(body))
+      factoryCapabilities.set(match[1], 'positional')
   }
 
   /** A call inside a recognized factory takes its id from a parameter; its call sites are read below. */

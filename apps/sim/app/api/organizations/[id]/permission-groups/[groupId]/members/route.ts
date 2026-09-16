@@ -10,19 +10,21 @@ import { addPermissionGroupMemberContract } from '@/lib/api/contracts/permission
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  type AllMembersConflict,
+  findAllMembersWorkspaceConflict,
+  findScopeConflicts,
+  type ScopeConflict,
+} from '@/lib/permission-groups/application/group-membership'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/constraints'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { isOrganizationMember } from '@/lib/workspaces/permissions/utils'
 import {
-  type AllMembersConflict,
   authorizeOrgAccessControl,
-  findAllMembersWorkspaceConflict,
-  findScopeConflicts,
   formatAllMembersConflictError,
   formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
-  type ScopeConflict,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
 const logger = createLogger('OrganizationPermissionGroupMembers')
@@ -281,7 +283,7 @@ export const DELETE = withRouteHandler(
           throw new Error('MEMBER_NOT_FOUND')
         }
 
-        if (!lockedGroup.isDefault) {
+        if (!lockedGroup.isDefault && lockedGroup.membershipMode === 'inherit') {
           const [memberCountRow] = await tx
             .select({ value: count() })
             .from(permissionGroupMember)

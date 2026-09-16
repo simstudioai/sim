@@ -1,7 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  isInternalToolFileResult,
+  type StoredToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   assertToolFileAccess: vi.fn(),
@@ -53,9 +58,28 @@ describe('sendTelegramDocument', () => {
     expect(mocks.fetch.mock.calls[0][1]).toEqual(
       expect.objectContaining({ signal: controller.signal })
     )
-    expect(result.output.files?.[0]).toEqual(
-      expect.objectContaining({ name: 'file.pdf', data: 'AQID', size: 3 })
-    )
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      { name: 'file.pdf', mimeType: 'application/pdf', buffer: Buffer.from([1, 2, 3]) },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
+      name: 'file.pdf',
+      type: 'application/pdf',
+      mimeType: 'application/pdf',
+      size: 3,
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toEqual({
+      success: true,
+      output: {
+        message: 'Document sent successfully',
+        data: { message_id: 1 },
+        files: [storedFile],
+      },
+    })
   })
 
   it('fails closed before materialization when file access is denied', async () => {

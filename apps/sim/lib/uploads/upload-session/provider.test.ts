@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { link, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -67,6 +68,39 @@ describe('local upload-session provider', () => {
   beforeEach(async () => {
     await rm(testUploadDirectory, { recursive: true, force: true })
     await mkdir(testUploadDirectory, { recursive: true })
+  })
+
+  it('cancels a stalled local upload without publishing a partial object', async () => {
+    const controller = new AbortController()
+    let canceled = false
+    let started!: () => void
+    const ready = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const pending = writeLocalPutObject({
+      uploadId: 'canceled-upload',
+      key: 'workspace/workspace-1/canceled.bin',
+      body: new ReadableStream<Uint8Array>({
+        pull() {
+          started()
+        },
+        cancel() {
+          canceled = true
+        },
+      }),
+      expectedSize: 10,
+      contentType: 'application/octet-stream',
+      metadata: {},
+      signal: controller.signal,
+    })
+    const result = expect(pending).rejects.toHaveProperty('name', 'AbortError')
+    await ready
+    controller.abort()
+    await result
+    expect(canceled).toBe(true)
+    await expect(
+      stat(join(testUploadDirectory, 'workspace/workspace-1/canceled.bin'))
+    ).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('streams an exact-size PUT and persists its object identity', async () => {

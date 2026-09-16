@@ -12,6 +12,7 @@ import { env } from '@/lib/core/config/env'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateTriggerWebhookConfigForDeploy } from '@/lib/webhooks/deploy'
 import { normalizedStringify } from '@/lib/workflows/comparison/normalize'
@@ -180,21 +181,17 @@ export async function performFullDeploy(
   }
 }
 
-async function performStableFullDeploy(params: {
+/** Admits the supplied immutable graph and pending deployment work in the caller's transaction. */
+export async function prepareWorkflowSnapshotDeployment(params: {
   params: PerformFullDeployParams
   actorId: string
   requestId: string
   idempotencyKey: string
-}): Promise<PerformFullDeployResult> {
-  const workflowState = await loadWorkflowDeploymentSnapshot(params.params.workflowId)
-  if (!workflowState) {
-    return {
-      success: false,
-      error: 'Failed to load workflow state',
-      errorCode: 'validation',
-    }
-  }
-
+  workflowState: WorkflowState
+  tx?: DbOrTx
+  workspaceOperationId?: string
+}) {
+  const workflowState = params.workflowState
   const validation = await validateDeploymentState(workflowState.blocks)
   if (!validation.success) return validation
 
@@ -206,6 +203,7 @@ async function performStableFullDeploy(params: {
   })
   let outboxEventId: string | undefined
   const prepared = await prepareWorkflowDeployment({
+    tx: params.tx,
     workflowId: params.params.workflowId,
     actorId: params.actorId,
     requestHash,
@@ -230,17 +228,40 @@ async function performStableFullDeploy(params: {
         captureAnalytics: params.params.captureAnalytics,
         requestId: params.requestId,
         checkpoints: {},
+        workspaceOperationId: params.workspaceOperationId,
       })
     },
   })
 
   if (!prepared.success) {
     return {
-      success: false,
+      success: false as const,
       error: prepared.error,
       errorCode: mapPrepareFailureCode(prepared.reason),
     }
   }
+
+  return { success: true as const, operation: prepared.operation, outboxEventId }
+}
+
+async function performStableFullDeploy(params: {
+  params: PerformFullDeployParams
+  actorId: string
+  requestId: string
+  idempotencyKey: string
+}): Promise<PerformFullDeployResult> {
+  const workflowState = await loadWorkflowDeploymentSnapshot(params.params.workflowId)
+  if (!workflowState) {
+    return {
+      success: false,
+      error: 'Failed to load workflow state',
+      errorCode: 'validation',
+    }
+  }
+
+  const prepared = await prepareWorkflowSnapshotDeployment({ ...params, workflowState })
+  if (!prepared.success) return prepared
+  const outboxEventId = prepared.outboxEventId
 
   const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
   const deploymentStatus = await getWorkflowDeploymentStatus(params.params.workflowId)
@@ -829,7 +850,7 @@ async function performStableVersionActivation(params: {
 
   if (!prepared.success) {
     return {
-      success: false,
+      success: false as const,
       error: prepared.error,
       errorCode: mapPrepareFailureCode(prepared.reason),
     }

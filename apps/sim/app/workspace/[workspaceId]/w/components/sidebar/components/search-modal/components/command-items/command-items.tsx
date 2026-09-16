@@ -5,7 +5,8 @@ import { memo } from 'react'
 import { OverflowText } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
-import { HEX_COLOR_REGEX } from '@/lib/branding'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { BlockTile } from '@/blocks/block-tile'
@@ -247,7 +248,6 @@ export const MemoizedWorkspaceItem = memo(
     name,
     isCurrent,
     logoUrl,
-    color,
     meta,
   }: {
     value: string
@@ -255,31 +255,10 @@ export const MemoizedWorkspaceItem = memo(
     name: string
     isCurrent?: boolean
     logoUrl?: string | null
-    color?: string
   } & ResultMetaProps) {
-    const backgroundColor = color && HEX_COLOR_REGEX.test(color) ? color : 'var(--brand-accent)'
-
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        {logoUrl ? (
-          <img
-            data-slot='workspace-icon'
-            src={logoUrl}
-            alt=''
-            className='size-[16px] shrink-0 rounded-sm object-cover'
-          />
-        ) : (
-          <span
-            data-slot='workspace-icon'
-            aria-hidden='true'
-            className='relative flex size-[16px] shrink-0 items-center justify-center overflow-hidden rounded-sm font-medium text-[9px] text-white leading-none'
-          >
-            <svg className='absolute inset-0 size-full' viewBox='0 0 16 16'>
-              <rect width='16' height='16' rx='2' fill={backgroundColor} />
-            </svg>
-            <span className='relative'>{name.charAt(0).toUpperCase() || 'W'}</span>
-          </span>
-        )}
+        <IdentityTile initial={getWorkspaceInitial(name)} logoUrl={logoUrl} slot='workspace-icon' />
         <span className='flex min-w-0 text-[var(--text-body)]'>
           <OverflowText label={name} />
           {isCurrent && <span className='shrink-0 whitespace-pre'> (current)</span>}
@@ -293,7 +272,6 @@ export const MemoizedWorkspaceItem = memo(
     prev.name === next.name &&
     prev.isCurrent === next.isCurrent &&
     prev.logoUrl === next.logoUrl &&
-    prev.color === next.color &&
     prev.meta === next.meta
 )
 

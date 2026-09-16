@@ -20,6 +20,12 @@ const {
   mockRevoke,
   mockHasWorkspaceLiveSyncAccess,
   mockRecordAudit,
+  mockEncryptApiKey,
+  mockValidateGitHub,
+  mockResolveStorageBillingContext,
+  mockIncrementStorage,
+  mockNotifyStorage,
+  mockEnqueueConnectorDeletion,
 } = vi.hoisted(() => ({
   mockCaptureServerEvent: vi.fn(),
   mockDispatchSync: vi.fn(),
@@ -28,6 +34,12 @@ const {
   mockRevoke: vi.fn(),
   mockHasWorkspaceLiveSyncAccess: vi.fn(),
   mockRecordAudit: vi.fn(),
+  mockEncryptApiKey: vi.fn(),
+  mockValidateGitHub: vi.fn(),
+  mockResolveStorageBillingContext: vi.fn(),
+  mockIncrementStorage: vi.fn(),
+  mockNotifyStorage: vi.fn(),
+  mockEnqueueConnectorDeletion: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -40,9 +52,21 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { CONNECTOR: 'connector' },
   recordAudit: mockRecordAudit,
 }))
-vi.mock('@/lib/api-key/crypto', () => ({ encryptApiKey: vi.fn() }))
+vi.mock('@/lib/api-key/crypto', () => ({ encryptApiKey: mockEncryptApiKey }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceLiveSyncAccess: mockHasWorkspaceLiveSyncAccess,
+}))
+vi.mock('@/lib/billing/storage', () => ({
+  resolveStorageBillingContext: mockResolveStorageBillingContext,
+  incrementStorageUsageForBillingContextInTx: mockIncrementStorage,
+  maybeNotifyStorageLimitForBillingContext: mockNotifyStorage,
+  applyStorageUsageDeltasInTx: vi.fn(),
+}))
+vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
+  enqueueKnowledgeStorageCleanup: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('@/lib/knowledge/connectors/deletion', () => ({
+  enqueueConnectorDeletion: mockEnqueueConnectorDeletion,
 }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
 vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
@@ -52,6 +76,7 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
   grantKnowledgeConnectorCredentialAccess: mockGrant,
   revokeKnowledgeConnectorCredentialAccess: mockRevoke,
   findListingCapViolation: vi.fn(() => null),
+  stripListingCapFields: (_meta: unknown, sourceConfig: Record<string, unknown>) => sourceConfig,
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
@@ -63,6 +88,17 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
+    github: {
+      name: 'GitHub',
+      auth: {
+        mode: 'oauth',
+        provider: 'github-repositories',
+        apiKey: { label: 'Personal access token' },
+      },
+      permissionScopedListing: { capFieldIds: [] },
+      configFields: [],
+      validateConfig: mockValidateGitHub,
+    },
     notion: {
       auth: { mode: 'apiKey', optional: true },
       validateConfig: vi.fn().mockResolvedValue({ valid: true }),
@@ -71,11 +107,13 @@ vi.mock('@/connectors/registry.server', () => ({
       name: 'Google Drive',
       auth: { mode: 'oauth', provider: 'google-drive' },
       permissionScopedListing: { capFieldIds: [] },
+      configFields: [{ id: 'folderId', type: 'short-input', title: 'Folder' }],
       validateConfig: vi.fn().mockResolvedValue({ valid: true }),
     },
   },
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   performCreateKnowledgeConnector,
   performDeleteKnowledgeConnector,
@@ -94,6 +132,8 @@ describe('performCreateKnowledgeConnector', () => {
     resetDbChainMock()
     mockHasWorkspaceLiveSyncAccess.mockResolvedValue(true)
     mockDispatchSync.mockResolvedValue({ queued: true })
+    mockEncryptApiKey.mockResolvedValue({ encrypted: 'encrypted-pat' })
+    mockValidateGitHub.mockResolvedValue({ valid: true })
   })
 
   afterAll(resetDbChainMock)
@@ -114,6 +154,95 @@ describe('performCreateKnowledgeConnector', () => {
     resolveBillingAttribution,
     resolveAccessToken: vi.fn(),
   }
+
+  it('validates and encrypts a GitHub PAT without resolving an OAuth account or returning the secret', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'kb-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'conn-1',
+        connectorType: 'github',
+        credentialId: null,
+        encryptedApiKey: 'encrypted-pat',
+      },
+    ])
+    const sourceConfig = { owner: 'acme', repo: 'handbook' }
+    const result = await performCreateKnowledgeConnector({
+      ...createParams,
+      connectorType: 'github',
+      apiKey: 'personal-token',
+      sourceConfig,
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      connector: { connectorType: 'github', credentialId: null },
+    })
+    expect(mockValidateGitHub).toHaveBeenCalledWith('personal-token', sourceConfig, {
+      mirrorsSourceAcls: false,
+    })
+    expect(mockEncryptApiKey).toHaveBeenCalledWith('personal-token')
+    expect(createParams.resolveAccessToken).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectorType: 'github',
+        credentialId: null,
+        encryptedApiKey: 'encrypted-pat',
+        accessMode: 'workspace',
+      })
+    )
+    expect(JSON.stringify(result)).not.toContain('encrypted-pat')
+    expect(JSON.stringify(result)).not.toContain('personal-token')
+  })
+
+  it.each([
+    { connectorType: 'google_drive', apiKey: 'token', error: 'requires an OAuth account' },
+    {
+      connectorType: 'github',
+      apiKey: 'token',
+      credentialId: 'credential-1',
+      error: 'Choose either',
+    },
+    {
+      connectorType: 'github',
+      apiKey: 'token',
+      accessMode: 'members' as const,
+      error: 'requires an OAuth account',
+    },
+  ])(
+    'rejects invalid authentication combinations before source access or storage: $connectorType $accessMode',
+    async ({ error, ...input }) => {
+      const result = await performCreateKnowledgeConnector({ ...createParams, ...input })
+      expect(result).toMatchObject({
+        success: false,
+        errorCode: 'validation',
+        error: expect.stringContaining(error),
+      })
+      expect(mockValidateGitHub).not.toHaveBeenCalled()
+      expect(mockEncryptApiKey).not.toHaveBeenCalled()
+      expect(createParams.resolveAccessToken).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
+  it('continues to resolve an explicitly selected GitHub OAuth account', async () => {
+    queueSuccessfulInsert()
+    createParams.resolveAccessToken.mockResolvedValueOnce({ accessToken: 'oauth-token' })
+    const result = await performCreateKnowledgeConnector({
+      ...createParams,
+      connectorType: 'github',
+      credentialId: 'credential-1',
+    })
+    expect(result.success).toBe(true)
+    expect(createParams.resolveAccessToken).toHaveBeenCalledWith('credential-1')
+    expect(mockValidateGitHub).toHaveBeenCalledWith('oauth-token', {}, { mirrorsSourceAcls: false })
+    expect(mockEncryptApiKey).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentialId: 'credential-1',
+        encryptedApiKey: null,
+      })
+    )
+  })
 
   /**
    * A detached dispatch settles after the caller has already been handed the
@@ -164,20 +293,37 @@ describe('performCreateKnowledgeConnector', () => {
   })
 })
 
+const STORAGE_CONTEXT = {
+  workspaceId: 'ws-1',
+  billedAccountUserId: 'user-1',
+  billingEntity: { type: 'organization', id: 'org-1' },
+  plan: null,
+  customStorageLimitGB: null,
+}
+
+function queueConnectorDeletionOwnerAndLock(accessMode = 'workspace', credentialGroupId?: string) {
+  const owner = { id: 'kb-1', workspaceId: 'ws-1', organizationId: null, userId: 'user-1' }
+  queueTableRows(schemaMock.knowledgeBase, [owner])
+  queueTableRows(schemaMock.knowledgeBase, [owner])
+  queueTableRows(schemaMock.knowledgeConnector, [{ accessMode, credentialGroupId }])
+}
+
 describe('performDeleteKnowledgeConnector', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    queueConnectorDeletionOwnerAndLock()
+    mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
+    mockIncrementStorage.mockResolvedValue(30)
   })
 
   afterAll(resetDbChainMock)
 
   it('reports the documents it kept, so the caller cannot claim otherwise', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
-    queueTableRows(document, [
-      { id: 'doc-1', fileUrl: '/a.txt' },
-      { id: 'doc-2', fileUrl: '/b.txt' },
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
     ])
+    queueTableRows(document, [{ count: 2, bytes: '30' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 
     const outcome = await performDeleteKnowledgeConnector({
@@ -190,6 +336,8 @@ describe('performDeleteKnowledgeConnector', () => {
     // been removed while taking exactly this path.
     expect(outcome).toMatchObject({ success: true, documentsKept: 2, documentsDeleted: 0 })
     expect(dbChainMockFns.delete).not.toHaveBeenCalledWith(document)
+    expect(mockIncrementStorage).toHaveBeenCalledWith(expect.anything(), STORAGE_CONTEXT, 30)
+    expect(mockNotifyStorage).toHaveBeenCalledWith(STORAGE_CONTEXT, 30)
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({ deleteDocuments: false, documentsKept: 2 }),
@@ -197,9 +345,11 @@ describe('performDeleteKnowledgeConnector', () => {
     )
   })
 
-  it('reports the documents it deleted when asked to delete them', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
-    queueTableRows(document, [{ id: 'doc-1', fileUrl: '/a.txt' }])
+  it('hides the connector and queues cleanup without deleting documents in the request', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
+    queueTableRows(document, [{ count: 501 }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 
     const outcome = await performDeleteKnowledgeConnector({
@@ -209,8 +359,66 @@ describe('performDeleteKnowledgeConnector', () => {
       deleteDocuments: true,
     })
 
-    expect(outcome).toMatchObject({ success: true, documentsDeleted: 1, documentsKept: 0 })
+    expect(outcome).toMatchObject({ success: true, documentsDeleted: 501, documentsKept: 0 })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(document)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deletedAt: expect.any(Date),
+        status: 'disabled',
+        memberSyncStatus: 'disabled',
+        syncLockToken: null,
+        memberSyncLockToken: null,
+      })
+    )
+    expect(mockEnqueueConnectorDeletion).toHaveBeenCalledWith(expect.anything(), {
+      knowledgeBaseId: KB.id,
+      connectorId: 'conn-1',
+      deletedAt: expect.any(String),
+    })
   })
+
+  it('fails the transaction without auditing success when cleanup cannot be queued', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
+    queueTableRows(document, [{ count: 2 }])
+    mockEnqueueConnectorDeletion.mockRejectedValueOnce(new Error('Queue unavailable'))
+    const outcome = await performDeleteKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      deleteDocuments: true,
+    })
+    expect(outcome).toMatchObject({ success: false })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it.each(['55P03', '57014', '40P01'])(
+    'returns a retryable message for transaction contention %s',
+    async (code) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+      ])
+      dbChainMockFns.transaction.mockRejectedValueOnce(
+        Object.assign(new Error('Database detail'), { code })
+      )
+      expect(
+        await performDeleteKnowledgeConnector({
+          ...ACTOR,
+          knowledgeBase: KB,
+          connectorId: 'conn-1',
+          deleteDocuments: true,
+        })
+      ).toMatchObject({
+        success: false,
+        errorCode: 'conflict',
+        error: 'Connection is busy. Try removing it again in a moment.',
+      })
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+    }
+  )
 
   it('reports a missing connector as not found', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
@@ -226,8 +434,10 @@ describe('performDeleteKnowledgeConnector', () => {
   })
 
   it('returns authoritative delete counts without legacy audit or analytics when disabled', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
-    queueTableRows(document, [{ id: 'doc-1', fileUrl: '/a.txt' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
+    queueTableRows(document, [{ count: 1, bytes: '10' }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
 
     const outcome = await performDeleteKnowledgeConnector({
@@ -241,6 +451,23 @@ describe('performDeleteKnowledgeConnector', () => {
     expect(outcome).toMatchObject({ success: true, documentsKept: 1 })
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
+  it('rolls back detachment when retained files exceed the storage quota', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
+    queueTableRows(document, [{ count: 2, bytes: '30' }])
+    mockIncrementStorage.mockRejectedValueOnce(new Error('Storage limit exceeded'))
+
+    const outcome = await performDeleteKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+    })
+
+    expect(outcome).toMatchObject({ success: false, error: 'Storage limit exceeded' })
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(mockNotifyStorage).not.toHaveBeenCalled()
   })
 })
 
@@ -267,8 +494,56 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
+  it.each(['permissions', 'token'] as const)(
+    'commits a %s-only change without dispatching a content sync',
+    async (change) => {
+      const existing = {
+        id: 'conn-1',
+        connectorType: 'gitlab',
+        accessMode: 'admin',
+        status: 'active',
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      }
+      dbChainMockFns.limit.mockResolvedValueOnce([existing])
+      dbChainMockFns.returning.mockResolvedValueOnce([existing])
+      const write = vi.fn().mockResolvedValue(undefined)
+      const outcome = await performUpdateKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: existing.id,
+        updates: {},
+        permissionChange: {
+          requiresAclReset: false,
+          requiresContentSync: false,
+          ...(change === 'token' ? { encryptedApiKey: 'encrypted-fixture-pat' } : {}),
+          populateSyncContext: vi.fn(),
+          write,
+        },
+        resolveBillingAttribution,
+      })
+
+      expect(outcome).toMatchObject({ success: true })
+      expect(write).toHaveBeenCalledWith(expect.anything(), existing.id)
+      expect(mockRecordAudit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ updatedFields: ['permissionConfig'] }),
+        })
+      )
+      expect(mockDispatchSync).not.toHaveBeenCalled()
+      expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+      expect(resolveBillingAttribution).not.toHaveBeenCalled()
+      if (change === 'token') {
+        expect(dbChainMockFns.set).toHaveBeenCalledWith(
+          expect.objectContaining({ encryptedApiKey: 'encrypted-fixture-pat' })
+        )
+      }
+    }
+  )
+
   it('classifies a sub-hourly interval on an unentitled workspace as forbidden', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     mockHasWorkspaceLiveSyncAccess.mockResolvedValue(false)
 
     const outcome = await performUpdateKnowledgeConnector({
@@ -284,7 +559,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('leaves a caller-supplied validator to reject a bad source config', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
 
     const outcome = await performUpdateKnowledgeConnector({
       ...ACTOR,
@@ -306,7 +583,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('preserves the failure class the validator chose', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
 
     // A stale stored credential kept the route's 401; collapsing every
     // rejection to `validation` had flattened it (and the 409) into a 400.
@@ -326,7 +605,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('clears the failure counters when a paused connector is resumed', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     dbChainMockFns.returning.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', status: 'active' },
     ])
@@ -392,7 +673,9 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   it('leaves semantic audit to an authorized application caller when requested', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', accessMode: 'workspace' },
+    ])
     dbChainMockFns.returning.mockResolvedValueOnce([
       { id: 'conn-1', connectorType: 'notion', status: 'paused' },
     ])
@@ -533,7 +816,7 @@ describe('performUpdateKnowledgeConnector', () => {
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
 
-  it('preserves an already-due source sync when scheduled sync is disabled', async () => {
+  it('clears an already-due source sync when scheduled sync is disabled', async () => {
     const pendingSourceSyncAt = new Date(0)
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -562,7 +845,7 @@ describe('performUpdateKnowledgeConnector', () => {
 
     expect(outcome).toMatchObject({ success: true })
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ nextSyncAt: pendingSourceSyncAt, syncIntervalMinutes: 0 })
+      expect.objectContaining({ nextSyncAt: null, syncIntervalMinutes: 0 })
     )
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
@@ -847,6 +1130,7 @@ describe('performSyncKnowledgeConnector', () => {
       billingAttribution: BILLING,
       requestId: 'req-1',
       rehydrate: true,
+      manual: true,
     })
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -890,6 +1174,33 @@ describe('performSyncKnowledgeConnector', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
+
+  it.each(['workspace', 'members'] as const)(
+    'preserves a transaction-wrapped cooldown conflict for %s without recording a sync',
+    async (accessMode) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { id: 'conn-1', connectorType: 'notion', status: 'active', accessMode },
+      ])
+      const message = 'Sync finished recently. Try again in 60 seconds.'
+      const dispatch = accessMode === 'members' ? mockDispatchMemberSync : mockDispatchSync
+      dispatch.mockRejectedValueOnce(
+        new Error('Transaction failed', { cause: new OrchestrationError('conflict', message) })
+      )
+
+      const outcome = await performSyncKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: 'conn-1',
+        resolveBillingAttribution,
+      })
+
+      expect(dispatch).toHaveBeenCalledOnce()
+      expect(outcome).toMatchObject({ success: false, errorCode: 'conflict', error: message })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+    }
+  )
 
   it('reports a failed dispatch instead of claiming the sync was queued', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
@@ -967,6 +1278,33 @@ describe('members-mode connectors', () => {
     mockRevoke.mockResolvedValue(undefined)
   })
 
+  it('invalidates member cursors and freshness atomically when the source scope changes', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+    dbChainMockFns.returning.mockResolvedValueOnce([MEMBERS_CONNECTOR])
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'c-1',
+      updates: { sourceConfig: { database: 'different-scope' } },
+      resolveBillingAttribution,
+      validateSourceConfig: async () => null,
+    })
+    expect(outcome).toMatchObject({ success: true })
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listingCheckpoint: null,
+        changeCursor: null,
+        memberSyncedThrough: null,
+        lastCompleteListingAt: null,
+        lastListedCount: null,
+        nextAttemptAt: expect.any(Date),
+      })
+    )
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.knowledgeConnectorMember)
+    expect(mockDispatchMemberSync).toHaveBeenCalledOnce()
+  })
+
   it('refuses to keep the documents of a connector that syncs per member', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
 
@@ -981,8 +1319,9 @@ describe('members-mode connectors', () => {
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
-  it('revokes the credential grant once the connector and its documents are gone', async () => {
+  it('defers credential grant cleanup with the connector deletion', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
+    queueConnectorDeletionOwnerAndLock('members', 'group-1')
     queueTableRows(schemaMock.document, [])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -994,9 +1333,17 @@ describe('members-mode connectors', () => {
     })
 
     expect(outcome).toMatchObject({ success: true })
-    expect(mockRevoke).toHaveBeenCalledWith(
-      { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: 'c-1' },
-      'user-1'
+    expect(mockRevoke).not.toHaveBeenCalled()
+    expect(mockEnqueueConnectorDeletion).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        connectorId: 'c-1',
+        credentialAccess: {
+          workspaceId: 'ws-1',
+          credentialGroupId: 'group-1',
+          actorUserId: ACTOR.userId,
+        },
+      })
     )
   })
 
@@ -1014,8 +1361,10 @@ describe('members-mode connectors', () => {
     expect(mockDispatchMemberSync).toHaveBeenCalledWith('c-1', {
       billingAttribution: BILLING,
       requestId: 'req-1',
+      manual: true,
     })
     expect(mockDispatchSync).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.knowledgeConnectorMember)
   })
 
   it('refuses a manual sync while a member run is queued or running', async () => {
@@ -1214,6 +1563,67 @@ describe('members-mode connectors', () => {
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     expect(dbChainMockFns.insert).toHaveBeenCalledOnce()
     expect(mockRevoke).not.toHaveBeenCalled()
+  })
+
+  it('reuses a matching Search source without inserting, redispatching, or recording another creation', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        ...MEMBERS_CONNECTOR,
+        connectorType: 'google_drive',
+        sourceConfig: { folderId: 'one' },
+      },
+    ])
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorType: 'google_drive',
+      sourceConfig: { folderId: 'one' },
+      syncIntervalMinutes: 60,
+      reuseSearchSource: true,
+      membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      resolveBillingAttribution,
+      resolveAccessToken: vi.fn(),
+      ...ACTOR,
+    })
+    expect(outcome).toMatchObject({
+      success: true,
+      reused: true,
+      connector: { id: MEMBERS_CONNECTOR.id },
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockRevoke).toHaveBeenCalledWith(
+      expect.objectContaining({ connectorId: expect.any(String) }),
+      ACTOR.userId
+    )
+    expect(mockRevoke.mock.calls[0][0].connectorId).not.toBe(MEMBERS_CONNECTOR.id)
+  })
+
+  it('does not reuse matching settings bound to a different account option', async () => {
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        ...MEMBERS_CONNECTOR,
+        connectorType: 'google_drive',
+        sourceConfig: {},
+        credentialGroupOptionId: 'another-option',
+      },
+    ])
+    const outcome = await performCreateKnowledgeConnector({
+      knowledgeBase: KB,
+      connectorType: 'google_drive',
+      sourceConfig: {},
+      syncIntervalMinutes: 60,
+      reuseSearchSource: true,
+      membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      resolveBillingAttribution,
+      resolveAccessToken: vi.fn(),
+      ...ACTOR,
+    })
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
   })
 
   it('refuses to create a members-mode connector on an option removed before the group was locked', async () => {

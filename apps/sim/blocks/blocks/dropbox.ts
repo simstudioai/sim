@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { DropboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -12,9 +13,11 @@ import type { DropboxResponse } from '@/tools/dropbox/types'
  */
 const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
 
-export const DropboxBlock: BlockConfig<DropboxResponse> = {
+export const DropboxBlock = {
   type: 'dropbox',
-  name: 'Dropbox',
+  name: 'Dropbox (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'dropbox_v2' },
   description: 'Upload, download, share, and manage files in Dropbox',
   authMode: AuthMode.OAuth,
   longDescription:
@@ -544,6 +547,28 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     // List revisions output
     isDeleted: { type: 'boolean', description: 'Whether the latest revision is deleted or moved' },
   },
+} satisfies BlockConfig<DropboxResponse>
+
+export const DropboxV2Block: BlockConfig = {
+  ...DropboxBlock,
+  type: 'dropbox_v2',
+  name: 'Dropbox',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...DropboxBlock.tools,
+    access: DropboxBlock.tools.access.map((toolId) =>
+      toolId === 'dropbox_download' ? 'dropbox_download_v2' : toolId
+    ),
+    config: {
+      ...DropboxBlock.tools.config,
+      tool: (params) => {
+        const toolId = DropboxBlock.tools.config.tool(params)
+        return toolId === 'dropbox_download' ? 'dropbox_download_v2' : toolId
+      },
+    },
+  },
+  outputs: omit(DropboxBlock.outputs, ['content']),
 }
 
 export const DropboxBlockMeta = {

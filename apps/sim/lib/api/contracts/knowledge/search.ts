@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
   resolvedSecretTraceProvenanceSchema,
-  workspaceIdSchema,
+  resourceOwnerSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
@@ -172,16 +172,29 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
 })
 export type WorkspaceKnowledgeSearchResult = z.output<typeof workspaceKnowledgeSearchResultSchema>
 
-export const workspaceKnowledgeSearchBodySchema = z.object({
-  workspaceId: workspaceIdSchema,
-  knowledgeBaseIds: z
-    .array(z.string().min(1, 'knowledgeBaseId cannot be empty'))
-    .min(1, 'At least one knowledge base is required')
-    .max(20, 'A search spans at most 20 knowledge bases'),
+export const workspaceSearchFiltersSchema = z.object({
+  source: z.string().trim().min(1, 'Source cannot be empty').max(100).optional(),
+  modifiedAfter: z.string().datetime({ offset: true }).optional(),
+  documentIds: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
+})
+export type WorkspaceSearchFilters = z.output<typeof workspaceSearchFiltersSchema>
+
+export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema.safeExtend({
+  filters: workspaceSearchFiltersSchema.optional(),
   query: z.string().trim().min(1, 'A search query is required').max(2000, 'Query is too long'),
   topK: z.number().int().min(1).max(50).optional().default(20),
 })
 export type WorkspaceKnowledgeSearchBody = z.input<typeof workspaceKnowledgeSearchBodySchema>
+
+export const workspaceKnowledgeSearchDataSchema = z.object({
+  query: z.string(),
+  results: z.array(workspaceKnowledgeSearchResultSchema),
+  retrieval: z.object({
+    status: z.enum(['complete', 'partial']),
+    timedOutLegs: z.array(z.enum(['vector', 'keyword', 'tags'])).max(3),
+  }),
+})
+export type WorkspaceKnowledgeSearchData = z.output<typeof workspaceKnowledgeSearchDataSchema>
 
 /**
  * The search a signed-in person runs from the composer: what their own
@@ -196,10 +209,7 @@ export const searchWorkspaceKnowledgeContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
-      data: z.object({
-        query: z.string(),
-        results: z.array(workspaceKnowledgeSearchResultSchema),
-      }),
+      data: workspaceKnowledgeSearchDataSchema,
     }),
   },
 })

@@ -1,4 +1,5 @@
 import type { KnowledgeScope } from '@/lib/api/contracts/knowledge/base'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 
 /**
  * React Query key factory for knowledge bases.
@@ -31,13 +32,14 @@ export const knowledgeKeys = {
   detail: (knowledgeBaseId?: string) =>
     [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,
   searches: () => [...knowledgeKeys.all, 'search'] as const,
-  search: (workspaceId: string | undefined, knowledgeBaseIds: readonly string[], query: string) =>
-    [
-      ...knowledgeKeys.searches(),
-      workspaceId ?? '',
-      [...knowledgeBaseIds].sort().join(','),
-      query,
-    ] as const,
+  searchQuery: (scopeKey: string | undefined, query: string, userId?: string) =>
+    [...knowledgeKeys.searches(), scopeKey ?? '', userId ?? '', query] as const,
+  search: (
+    scopeKey: string | undefined,
+    query: string,
+    filters?: WorkspaceSearchFilters,
+    userId?: string
+  ) => [...knowledgeKeys.searchQuery(scopeKey, query, userId), filters ?? {}] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
   tagUsage: (knowledgeBaseId: string) =>

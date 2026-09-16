@@ -69,17 +69,26 @@ vi.mock('@sim/emcn', () => ({
   ),
   ChipModalFooter: ({
     primaryAction,
+    secondaryActions,
   }: {
     primaryAction: { label: string; onClick: () => void; disabled: boolean }
+    secondaryActions?: { label: string; onClick: () => void }[]
   }) => (
-    <button
-      type='button'
-      data-testid='connect'
-      onClick={primaryAction.onClick}
-      disabled={primaryAction.disabled}
-    >
-      {primaryAction.label}
-    </button>
+    <>
+      {secondaryActions?.map((action) => (
+        <button key={action.label} type='button' onClick={action.onClick}>
+          {action.label}
+        </button>
+      ))}
+      <button
+        type='button'
+        data-testid='connect'
+        onClick={primaryAction.onClick}
+        disabled={primaryAction.disabled}
+      >
+        {primaryAction.label}
+      </button>
+    </>
   ),
   ChipModalHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
   InfoCard: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -127,7 +136,10 @@ vi.mock('@/hooks/queries/credentials', () => ({
     mutateAsync: mocks.createDraft,
     isPending: false,
   }),
-  useWorkspaceCredentials: mocks.workspaceCredentials,
+}))
+
+vi.mock('@/hooks/queries/scoped-credentials', () => ({
+  useScopedCredentials: mocks.workspaceCredentials,
 }))
 
 vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({
@@ -144,7 +156,10 @@ vi.mock('@/hooks/queries/oauth/microsoft-dataverse-connections', () => ({
   }),
 }))
 
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/connect-oauth-modal'
+import {
+  ConnectOAuthModal,
+  type ConnectOAuthModalProps,
+} from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/connect-oauth-modal'
 
 let container: HTMLDivElement
 let root: Root
@@ -152,14 +167,11 @@ let root: Root
 function renderReauthorizeModal({
   reconnectTarget,
   onConnect,
-}: {
-  reconnectTarget?: {
-    workspaceId: string
-    credentialId: string
-    displayName: string
-  }
-  onConnect?: () => Promise<void> | void
-} = {}) {
+  returnContext,
+}: Pick<
+  Extract<ConnectOAuthModalProps, { mode: 'reauthorize' }>,
+  'reconnectTarget' | 'onConnect' | 'returnContext'
+> = {}) {
   act(() => {
     root.render(
       <ConnectOAuthModal
@@ -170,6 +182,7 @@ function renderReauthorizeModal({
         toolName='Slack'
         reconnectTarget={reconnectTarget}
         onConnect={onConnect}
+        returnContext={returnContext}
       />
     )
   })
@@ -216,6 +229,54 @@ describe('ConnectOAuthModal reauthorization', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.restoreAllMocks()
+  })
+
+  it('opens an optional setup guide without submitting or losing the connection name', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const onOpenChange = vi.fn()
+    act(() => {
+      root.render(
+        <ConnectOAuthModal
+          mode='connect'
+          origin='kb-connectors'
+          open
+          onOpenChange={onOpenChange}
+          providerId='slack'
+          workspaceId='workspace-1'
+          knowledgeBaseId='kb-search'
+          requiredScopes={[]}
+          docsUrl='https://docs.sim.ai/search/slack'
+        />
+      )
+    })
+    const name = container.querySelector<HTMLInputElement>('input[aria-label="Display name"]')!
+    expect(name).not.toBeNull()
+    act(() => setFormControlValue(name, 'Team account'))
+    const guide = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Setup guide'
+    )!
+
+    act(() => guide.click())
+
+    expect(open).toHaveBeenCalledWith(
+      'https://docs.sim.ai/search/slack',
+      '_blank',
+      'noopener,noreferrer'
+    )
+    expect(name.value).toBe('Team account')
+    expect(mocks.createDraft).not.toHaveBeenCalled()
+    expect(mocks.connectOAuthService).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    await clickConnect()
+    expect(mocks.createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ displayName: 'Team account', providerId: 'slack' })
+    )
+  })
+
+  it('does not add a setup action without a contextual guide', () => {
+    renderReauthorizeModal()
+    expect(container.textContent).not.toContain('Setup guide')
   })
 
   it('binds the selected credential draft to the OAuth launch', async () => {
@@ -271,6 +332,90 @@ describe('ConnectOAuthModal reauthorization', () => {
     expect(mocks.clearOAuthReturnContext).not.toHaveBeenCalled()
   })
 
+  it('preserves the existing source target when creating its reconnect draft', async () => {
+    renderReauthorizeModal({
+      reconnectTarget: {
+        organizationId: 'org-1',
+        credentialId: 'credential-slack',
+        displayName: 'Team Slack',
+      },
+      returnContext: {
+        origin: 'kb-connectors',
+        knowledgeBaseId: 'kb-search',
+        connectorType: 'slack',
+        connectorId: 'connector-slack',
+      },
+    })
+
+    expect(container.querySelector('header')).toHaveTextContent('Reconnect Slack')
+    expect(container).not.toHaveTextContent('tool requires access')
+    await clickConnect()
+
+    expect(mocks.writeOAuthReturnContext).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        origin: 'kb-connectors',
+        organizationId: 'org-1',
+        knowledgeBaseId: 'kb-search',
+        connectorType: 'slack',
+        connectorId: 'connector-slack',
+        reconnect: true,
+      })
+    )
+    expect(mocks.createDraft.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.writeOAuthReturnContext.mock.invocationCallOrder[0]
+    )
+  })
+
+  it.each([undefined, 'connector-slack'])(
+    'carries source identity through connection without reopening setup for connectorId=%s',
+    async (connectorId) => {
+      window.history.replaceState(
+        {},
+        '',
+        connectorId
+          ? '/o/org-1/settings/integrations/sources/connector-slack?view=settings'
+          : '/o/org-1/settings/integrations'
+      )
+      act(() => {
+        root.render(
+          <ConnectOAuthModal
+            mode='connect'
+            origin='kb-connectors'
+            open
+            onOpenChange={vi.fn()}
+            providerId='slack'
+            organizationId='org-1'
+            knowledgeBaseId='kb-search'
+            connectorType='slack'
+            connectorId={connectorId}
+            sourceAccess='members'
+            requiredScopes={[]}
+          />
+        )
+      })
+
+      await clickConnect()
+
+      expect(mocks.writeOAuthReturnContext).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          origin: 'kb-connectors',
+          organizationId: 'org-1',
+          knowledgeBaseId: 'kb-search',
+          connectorType: 'slack',
+          connectorId,
+          sourceAccess: 'members',
+        })
+      )
+      expect(mocks.connectOAuthService).toHaveBeenCalledWith({
+        providerId: 'slack',
+        callbackURL: connectorId
+          ? window.location.href
+          : `${window.location.href}?addConnector=slack`,
+        draftId: 'draft-exact',
+      })
+    }
+  )
+
   it('clears reconnect context when the provider handoff cannot start', async () => {
     mocks.connectOAuthService.mockRejectedValue(new Error('Provider launch failed'))
     renderReauthorizeModal({
@@ -281,6 +426,8 @@ describe('ConnectOAuthModal reauthorization', () => {
       },
     })
 
+    expect(container.querySelector('header')).toHaveTextContent('Connect Slack')
+    expect(container).toHaveTextContent('tool requires access')
     await clickConnect()
 
     expect(mocks.writeOAuthReturnContext).toHaveBeenCalledOnce()

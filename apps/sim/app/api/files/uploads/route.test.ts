@@ -234,6 +234,49 @@ describe('/api/files/uploads', () => {
     )
   })
 
+  it.each([
+    { organizationId: 'org-1', contentType: 'application/pdf', size: 100 },
+    { organizationId: 'org-1', contentType: 'image/svg+xml', size: 100 },
+    { organizationId: 'org-1', contentType: 'image/png', size: 5 * 1024 * 1024 + 1 },
+    { organizationId: 'org-1', workspaceId: 'ws-1', contentType: 'image/png', size: 100 },
+  ])('rejects unsupported organization attachments before application loading', async (body) => {
+    const response = await createUpload(
+      new NextRequest('http://localhost/api/files/uploads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purpose: 'mothership_attachment', name: 'image.png', ...body }),
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(mockCreateInternalPurposeUploadSession).not.toHaveBeenCalled()
+  })
+
+  it('creates organization image attachments through the same upload lifecycle', async () => {
+    mockCreateInternalPurposeUploadSession.mockResolvedValue({
+      ...session({ purpose: 'mothership_attachment', storageContext: 'mothership' }),
+      transfer: { method: 'put', url: 'https://storage.example/upload', headers: {} },
+    })
+    const response = await createUpload(
+      new NextRequest('http://localhost/api/files/uploads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purpose: 'mothership_attachment',
+          organizationId: 'org-1',
+          name: 'image.png',
+          contentType: 'image/png',
+          size: 100,
+        }),
+      })
+    )
+    expect(response.status).toBe(201)
+    expect(mockCreateInternalPurposeUploadSession).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'session', userId: 'user-1' }),
+      expect.objectContaining({ purpose: 'mothership_attachment', organizationId: 'org-1' }),
+      expect.anything()
+    )
+  })
+
   it('rejects mothership attachments above the 5 GiB direct-to-storage limit', async () => {
     const request = new NextRequest('http://localhost/api/files/uploads', {
       method: 'POST',

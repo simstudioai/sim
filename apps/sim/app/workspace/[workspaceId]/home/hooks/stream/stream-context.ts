@@ -82,7 +82,8 @@ export interface StreamEventScope {
 }
 
 export interface StreamLoopDeps {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   queryClient: QueryClient
   assistantId: string
   expectedGen: number | undefined

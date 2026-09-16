@@ -47,15 +47,21 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@/lib/workspaces/policy', async () => {
   class WorkspaceCreationCapabilityWithheldError extends Error {}
   class WorkspaceCreationContextChangedError extends Error {}
+  class WorkspaceOwnerMissingError extends Error {}
   return {
     getWorkspaceCreationPolicy: mockGetWorkspaceCreationPolicy,
     WorkspaceCreationCapabilityWithheldError,
     WorkspaceCreationContextChangedError,
+    WorkspaceOwnerMissingError,
   }
 })
 
-import { WorkspaceCreationCapabilityWithheldError } from '@/lib/workspaces/policy'
-import { POST } from '@/app/api/workspaces/route'
+import { listWorkspacesForViewer } from '@/lib/workspaces/list'
+import {
+  WorkspaceCreationCapabilityWithheldError,
+  WorkspaceOwnerMissingError,
+} from '@/lib/workspaces/policy'
+import { GET, POST } from '@/app/api/workspaces/route'
 
 function createRequest() {
   return createMockRequest('POST', { name: 'New workspace' })
@@ -115,5 +121,28 @@ describe('POST /api/workspaces capability refusal', () => {
     const body = await response.json()
     expect(body.error).toBe('Your organization subscription is inactive.')
     expect(body.details).toBeUndefined()
+  })
+
+  /**
+   * After account deletion the browser's cached session cookie stays valid for
+   * a few minutes, and the next list load finds no workspaces and tries to
+   * create the default one for a user who no longer exists.
+   */
+  it('answers a default-workspace insert for a deleted user with 401', async () => {
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1', name: 'Gone' } })
+    vi.mocked(listWorkspacesForViewer).mockResolvedValue({
+      workspaces: [],
+      lastActiveWorkspaceId: null,
+      pinnedWorkspaceIds: [],
+      creationPolicy: { canCreate: true, organizationId: null, billedAccountUserId: 'user-1' },
+    } as never)
+    mockCreateWorkspace.mockRejectedValue(new WorkspaceOwnerMissingError('user-1'))
+
+    const response = await GET(
+      createMockRequest('GET', undefined, undefined, 'http://localhost/api/workspaces?scope=active')
+    )
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
   })
 })

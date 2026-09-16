@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { ChevronDown, cn } from '@sim/emcn'
 import {
   ArrowRight,
@@ -26,55 +26,7 @@ import {
   REPLY_WORD_MS,
   SUGGESTED_ACTIONS,
 } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/stage-data'
-
-/**
- * Reveals an incrementing count (typed chars, streamed words) at a fixed
- * step interval while `active`, deriving progress from ELAPSED time so a
- * throttled background tab catches up instead of stalling mid-reveal.
- * Resets to 0 when inactive; jumps straight to `total` under
- * `prefers-reduced-motion`.
- */
-function useElapsedReveal(active: boolean, stepMs: number, total: number) {
-  const [revealed, setRevealed] = useState(0)
-
-  useEffect(() => {
-    if (!active) {
-      setRevealed(0)
-      return
-    }
-
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let interval: ReturnType<typeof setInterval> | null = null
-
-    const run = () => {
-      const startedAt = performance.now()
-      interval = setInterval(() => {
-        const elapsed = performance.now() - startedAt
-        const n = Math.min(Math.floor(elapsed / stepMs) + 1, total)
-        setRevealed(n)
-        if (n >= total && interval) clearInterval(interval)
-      }, stepMs)
-    }
-
-    const syncMotionPreference = () => {
-      if (interval) clearInterval(interval)
-      if (media.matches) {
-        setRevealed(total)
-        return
-      }
-      run()
-    }
-
-    syncMotionPreference()
-    media.addEventListener('change', syncMotionPreference)
-    return () => {
-      media.removeEventListener('change', syncMotionPreference)
-      if (interval) clearInterval(interval)
-    }
-  }, [active, stepMs, total])
-
-  return revealed
-}
+import { useElapsedReveal } from '@/app/(landing)/hooks/use-elapsed-reveal'
 
 /** Greyscale leading icons for the suggested-action rows, in row order. */
 const ACTION_ICONS = [Table, ShieldCheck, ClipboardList, Files] as const
@@ -100,7 +52,7 @@ interface ComposerProps {
  */
 function Composer({ children, active }: ComposerProps) {
   return (
-    <div className='w-full rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 shadow-[0_1px_2px_0_rgba(18,18,18,0.05)]'>
+    <div className='w-full rounded-2xl border border-[var(--border)] bg-[var(--white)] px-2.5 py-2 shadow-[0_1px_2px_0_rgba(18,18,18,0.05)] dark:bg-[var(--surface-4)]'>
       <p className='min-h-[24px] px-1.5 pt-1 text-[15px] text-[var(--text-primary)] leading-[24px]'>
         {children}
       </p>
@@ -121,10 +73,10 @@ function Composer({ children, active }: ComposerProps) {
           <span
             className={cn(
               'flex size-[28px] items-center justify-center rounded-full transition-colors duration-200',
-              active ? 'bg-[#383838]' : 'bg-[#808080]'
+              active ? 'bg-[#383838] dark:bg-[#E0E0E0]' : 'bg-[#808080]'
             )}
           >
-            <ArrowUp className='size-[16px] text-white' />
+            <ArrowUp className='size-[16px] text-white dark:text-black' />
           </span>
         </span>
       </div>
@@ -231,7 +183,7 @@ export function EnterpriseHomeStage({
                   <span
                     key={action}
                     className={cn(
-                      'flex items-center gap-2 border-[var(--border-1)] px-2 py-2',
+                      'flex items-center gap-2 border-[var(--border)] px-2 py-2',
                       i > 0 && 'border-t'
                     )}
                   >

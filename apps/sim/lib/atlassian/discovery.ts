@@ -119,6 +119,8 @@ interface ResolveAtlassianCloudIdOptions {
   /** Product name woven into the failure messages, e.g. `Jira` or `Confluence`. */
   product: string
   retryOptions?: RetryOptions
+  /** Require the configured site instead of accepting a credential's sole other site. */
+  requireExactMatch?: boolean
 }
 
 const cloudIdCache = createAtlassianDiscoveryCache()
@@ -232,7 +234,8 @@ export class AtlassianSiteNotMatchedError extends Error {
 export function selectAtlassianCloudId(
   resources: unknown,
   domain: string,
-  product: string
+  product: string,
+  requireExactMatch = false
 ): string {
   if (!Array.isArray(resources) || !resources.every(isAccessibleResource)) {
     throw new Error(`Invalid ${product} accessible-resources response`)
@@ -249,7 +252,7 @@ export function selectAtlassianCloudId(
   const match = resources.find((r) => normalizeAtlassianSiteUrl(r.url) === siteUrl)
   if (match) return match.id
 
-  if (resources.length === 1) return resources[0].id
+  if (!requireExactMatch && resources.length === 1) return resources[0].id
 
   throw new AtlassianSiteNotMatchedError(
     `Could not match ${product} domain "${domain}" to any accessible resource. ` +
@@ -267,14 +270,15 @@ export function selectAtlassianCloudId(
 export async function resolveAtlassianCloudId(
   options: ResolveAtlassianCloudIdOptions
 ): Promise<string> {
-  const { domain, accessToken, product, retryOptions } = options
-  const key = atlassianDiscoveryKey(normalizeAtlassianSiteUrl(domain), accessToken)
+  const { domain, accessToken, product, retryOptions, requireExactMatch = false } = options
+  const key = `${requireExactMatch ? 'exact' : 'fallback'}:${atlassianDiscoveryKey(normalizeAtlassianSiteUrl(domain), accessToken)}`
 
   return cloudIdCache.resolve(key, async () =>
     selectAtlassianCloudId(
       await fetchAccessibleResources(accessToken, product, retryOptions),
       domain,
-      product
+      product,
+      requireExactMatch
     )
   )
 }

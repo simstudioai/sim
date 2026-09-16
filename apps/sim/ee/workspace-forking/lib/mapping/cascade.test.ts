@@ -3,11 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
-import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/cascade'
 import type {
   ForkReference,
   ForkReferenceResolver,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+} from '@/lib/workflows/references/remap-references'
+import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/cascade'
 
 /** Executor that returns the queued result arrays in the order queries are issued. */
 function queuedExecutor(results: unknown[][]): DbOrTx {

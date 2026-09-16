@@ -19,7 +19,10 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   headSafe: false,
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
-  mapInput: ({ params }) => ({ workflowId: params.workflowId }),
+  mapInput: ({ params, query }) => ({
+    workflowId: params.workflowId,
+    includeReferences: query.includeReferences === true,
+  }),
   useCase: exportWorkflow,
   present: ({ payload, folderPath }) => ({
     data: {

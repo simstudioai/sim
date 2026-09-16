@@ -3,8 +3,9 @@
  */
 import { readFileSync } from 'node:fs'
 import { Command } from 'commander'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { V2_OPERATIONS } from '../generated/v2-api'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CLI_CONTRACT } from '../contract/commands'
+import { type GetWorkspaceOperationResponse, V2_OPERATIONS } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
 import { BULK_OUTCOME_CHECKS, executeOperation } from './execute'
 import type { OperationSpec } from './types'
@@ -108,6 +109,142 @@ function invoke(
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+describe('workspace mutation receipt identity', () => {
+  const receipt: GetWorkspaceOperationResponse['data'] = {
+    operationId: 'operation-1',
+    requestId: 'original-request',
+    workspaceId: 'ws_local',
+    kind: 'workspace_push',
+    applied: true,
+    status: 'completed',
+    resourceIds: ['workflow-1'],
+    issues: [],
+  }
+  const flags = {
+    requestId: receipt.requestId,
+    previewFingerprint: 'a'.repeat(64),
+    otherWorkspaceId: 'ws_other',
+    yes: true,
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function applyPush(wait: boolean) {
+    return executeOperation(
+      'pushWorkspace',
+      CLI_CONTRACT.pushWorkspace!,
+      V2_OPERATIONS.pushWorkspace,
+      [{ ...flags, wait }, new Command('leaf')]
+    )
+  }
+
+  it.each([
+    ['importWorkflow', 'workflow_import'],
+    ['forkWorkspace', 'workspace_fork'],
+    ['pushWorkspace', 'workspace_push'],
+    ['pullWorkspace', 'workspace_pull'],
+  ] as const)('accepts the matching receipt for %s', async (operation, kind) => {
+    const expected = { ...receipt, kind }
+    request.mockResolvedValue({ data: expected })
+
+    await expect(
+      executeOperation(operation, CLI_CONTRACT[operation]!, V2_OPERATIONS[operation], [
+        { ...flags, workflow: '{"blocks":{},"edges":[]}', wait: true },
+        new Command('leaf'),
+      ])
+    ).resolves.toBeUndefined()
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0])).toEqual(expected)
+  })
+
+  it.each([
+    { field: 'requestId', value: 'another-request', wait: false },
+    { field: 'requestId', value: 'another-request', wait: true },
+    { field: 'workspaceId', value: 'another-workspace', wait: false },
+    { field: 'workspaceId', value: 'another-workspace', wait: true },
+    { field: 'kind', value: 'workspace_pull', wait: false },
+    { field: 'kind', value: 'workspace_pull', wait: true },
+  ])(
+    'refuses a mismatched $field with wait=$wait and retains submitted identity',
+    async ({ field, value, wait }) => {
+      request.mockResolvedValue({ data: { ...receipt, status: 'processing', [field]: value } })
+
+      await expect(applyPush(wait)).rejects.toMatchObject({
+        code: 'MUTATION_OUTCOME_UNKNOWN',
+        details: { requestId: 'original-request', workspaceId: 'ws_local', applied: 'unknown' },
+      })
+
+      expect(request).toHaveBeenCalledTimes(1)
+      expect(console.log).not.toHaveBeenCalled()
+    }
+  )
+
+  it('retains submitted identity when the receipt is malformed', async () => {
+    request.mockResolvedValue({ data: { applied: true, operationId: 'untrusted-operation' } })
+    await expect(applyPush(true)).rejects.toMatchObject({
+      code: 'MUTATION_OUTCOME_UNKNOWN',
+      details: { requestId: 'original-request', workspaceId: 'ws_local', applied: 'unknown' },
+    })
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(console.log).not.toHaveBeenCalled()
+  })
+
+  it('matches the canonical request ID after the fork contract trims surrounding whitespace', async () => {
+    request.mockResolvedValue({ data: receipt })
+    await expect(
+      executeOperation('pushWorkspace', CLI_CONTRACT.pushWorkspace!, V2_OPERATIONS.pushWorkspace, [
+        { ...flags, requestId: ' original-request ', wait: true },
+        new Command('leaf'),
+      ])
+    ).resolves.toBeUndefined()
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('selector pagination metadata', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('preserves clipping reported by a later provider page in machine output', async () => {
+    request
+      .mockResolvedValueOnce({
+        data: [{ id: 'first', label: 'First' }],
+        nextCursor: 'next-page',
+        truncated: false,
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: 'second', label: 'Second' }],
+        nextCursor: null,
+        truncated: true,
+      })
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    await executeOperation('listSelector', CLI_CONTRACT.listSelector!, V2_OPERATIONS.listSelector, [
+      { selectorKey: 'gmail.labels', context: '{"oauthCredential":"connection-1"}', limit: '0' },
+      new Command('leaf'),
+    ])
+
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(stdout.mock.calls[0][0])).toEqual({
+      data: [
+        { id: 'first', label: 'First' },
+        { id: 'second', label: 'Second' },
+      ],
+      nextCursor: null,
+      truncated: true,
+    })
+  })
 })
 
 describe('an in-band run failure', () => {

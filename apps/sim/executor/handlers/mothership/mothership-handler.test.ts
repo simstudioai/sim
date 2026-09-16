@@ -2,6 +2,7 @@ import '@sim/testing/mocks/executor'
 
 import { loggerMock, resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveMothershipConversation } from '@/lib/mothership/conversation-id'
 import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
@@ -45,6 +46,10 @@ const {
   mockExtractAPIErrorMessage: vi.fn(),
   mockGenerateId: vi.fn(),
   mockReadUserFileContent: vi.fn(),
+}))
+
+vi.mock('@/lib/auth/internal', () => ({
+  generateInternalDelegationToken: vi.fn().mockResolvedValue('signed-mcp-scope'),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -173,6 +178,11 @@ describe('MothershipBlockHandler', () => {
 
     context = {
       workflowId: 'workflow-1',
+      executorDelegationOrigin: {
+        workflowId: 'workflow-1',
+        subjectUserId: 'user-1',
+        executionId: 'execution-1',
+      },
       executionId: 'execution-1',
       workspaceId: 'workspace-1',
       userId: 'user-1',
@@ -783,7 +793,7 @@ describe('MothershipBlockHandler', () => {
       messages: [{ role: 'user', content: 'Hello from workflow' }],
       workspaceId: 'workspace-1',
       userId: 'user-1',
-      chatId: 'chat-uuid',
+      chatId: resolveMothershipConversation('workspace-1', 'chat-uuid').chatId,
       messageId: 'message-uuid',
       requestId: 'request-uuid',
       secretScope: 'all',
@@ -867,7 +877,7 @@ describe('MothershipBlockHandler', () => {
       messages: [{ role: 'user', content: 'Continue this thread' }],
       workspaceId: 'workspace-1',
       userId: 'user-1',
-      chatId: 'existing-chat-id',
+      chatId: resolveMothershipConversation('workspace-1', 'existing-chat-id').chatId,
       messageId: 'message-uuid',
       requestId: 'request-uuid',
       secretScope: 'all',
@@ -878,7 +888,7 @@ describe('MothershipBlockHandler', () => {
     expect(mockGenerateId).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps a resolved conversation ID out of logs while forwarding it unchanged', async () => {
+  it('keeps a resolved conversation ID out of logs and off the wire', async () => {
     const conversationId = 'chat-plaintext-secret-__var_API_KEY-__sim_secret_API_KEY'
     mockGenerateId.mockReturnValueOnce('message-uuid').mockReturnValueOnce('request-uuid')
     fetchMock.mockResolvedValue(
@@ -898,7 +908,8 @@ describe('MothershipBlockHandler', () => {
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(options.body))
-    expect(body.chatId).toBe(conversationId)
+    expect(body.chatId).toBe(resolveMothershipConversation('workspace-1', conversationId).chatId)
+    expect(body.chatId).not.toContain('chat-plaintext-secret')
 
     const logged = JSON.stringify(mockMothershipLogger.info.mock.calls)
     expect(logged).not.toContain('chat-plaintext-secret')
@@ -927,7 +938,9 @@ describe('MothershipBlockHandler', () => {
     const result = await handler.execute(context, block, inputs)
 
     const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(options.body)).chatId).toBe('x')
+    expect(JSON.parse(String(options.body)).chatId).toBe(
+      resolveMothershipConversation('workspace-1', 'x').chatId
+    )
     expect(result).toMatchObject({ conversationId: 'x' })
     expect(inputs.conversationId).toBe('x')
     expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
@@ -1030,23 +1043,24 @@ describe('MothershipBlockHandler', () => {
     ])
   })
 
-  it('does not forward tools for a blank advanced MCP server binding', async () => {
+  it('rejects a blank advanced MCP server binding', async () => {
     fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
 
-    await handler.execute(context, block, {
-      prompt: 'Continue without MCP tools',
-      tools: [
-        {
-          type: 'mcp-server-advanced',
-          params: { serverId: '' },
-          usageControl: 'auto',
-        },
-      ],
-    })
+    await expect(
+      handler.execute(context, block, {
+        prompt: 'Continue without MCP tools',
+        tools: [
+          {
+            type: 'mcp-server-advanced',
+            params: { serverId: '' },
+            usageControl: 'auto',
+          },
+        ],
+      })
+    ).rejects.toThrow('requires params.serverId')
 
     expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
-    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(JSON.parse(String(options.body))).not.toHaveProperty('mcpTools')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('does not scan arbitrary Mothership metadata, attachment names, or payloads', async () => {

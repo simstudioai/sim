@@ -1,4 +1,8 @@
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import type {
+  DocumentProcessingOutcome,
+  DocumentProcessingStatus,
+} from '@/lib/knowledge/documents/types'
 import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 
 /**
@@ -18,6 +22,7 @@ export interface KnowledgeBaseWithCounts {
   id: string
   userId: string
   name: string
+  isSearchIndex?: boolean
   description: string | null
   tokenCount: number
   embeddingModel: string
@@ -27,16 +32,18 @@ export interface KnowledgeBaseWithCounts {
   updatedAt: Date
   deletedAt: Date | null
   workspaceId: string | null
+  organizationId?: string | null
   /** Folder in the workspace's `knowledge_base` folder tree; `null` at the root. */
   folderId: string | null
   docCount: number
   connectorTypes: string[]
   /** True when a live connector syncs per member, so what a run retrieves depends on who triggers it. */
-  hasMemberScopedConnector: boolean
+  hasPermissionScopedConnector: boolean
 }
 
 export interface CreateKnowledgeBaseData {
   name: string
+  isSearchIndex?: boolean
   description?: string
   workspaceId: string
   folderId?: string | null
@@ -111,6 +118,7 @@ export interface KnowledgeBaseData {
   id: string
   userId: string
   name: string
+  isSearchIndex?: boolean
   description: string | null
   tokenCount: number
   embeddingModel: string
@@ -120,11 +128,12 @@ export interface KnowledgeBaseData {
   updatedAt: string
   deletedAt: string | null
   workspaceId: string | null
+  organizationId?: string | null
   /** Folder in the workspace's `knowledge_base` folder tree; `null` at the root. */
   folderId: string | null
   docCount?: number
   connectorTypes?: string[]
-  hasMemberScopedConnector?: boolean
+  hasPermissionScopedConnector?: boolean
 }
 
 export interface DocumentData {
@@ -137,7 +146,8 @@ export interface DocumentData {
   chunkCount: number
   tokenCount: number
   characterCount: number
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStatus: DocumentProcessingStatus
+  processingOutcome?: DocumentProcessingOutcome
   processingStartedAt?: string | null
   processingCompletedAt?: string | null
   processingError?: string | null

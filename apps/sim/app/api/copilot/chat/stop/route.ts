@@ -4,13 +4,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStopContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
 import {
   normalizeMessage,
   type PersistedMessage,
   withStoppedContentBlock,
 } from '@/lib/copilot/chat/persisted-message'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import {
   CopilotChatFinalizeOutcome,
   CopilotStopOutcome,
@@ -40,6 +41,10 @@ export const POST = withRouteHandler((req: NextRequest) =>
         return parsed.response
       }
       const { chatId, streamId, content, contentBlocks, requestId } = parsed.data.body
+      const chat = await getAccessibleCopilotChatAuth(chatId, session.user.id, {
+        principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+      })
+      if (!chat) return NextResponse.json({ success: true })
       span.setAttributes({
         [TraceAttr.ChatId]: chatId,
         [TraceAttr.StreamId]: streamId,
@@ -82,9 +87,8 @@ export const POST = withRouteHandler((req: NextRequest) =>
       const shouldPublishCompleted =
         result.updated || result.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
 
-      if (shouldPublishCompleted && result.workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId: result.workspaceId,
+      if (shouldPublishCompleted) {
+        publishChatStatusChanged(chat, {
           chatId,
           type: 'completed',
           streamId,

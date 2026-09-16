@@ -3,7 +3,6 @@ title: Research
 description: Ask Sim to research anything — it searches, reads, and synthesizes from the web.
 ---
 
-import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -38,7 +37,6 @@ When you need a structured, saved document rather than a chat answer, ask Sim to
 - "Build a battle card for [competitor] — their positioning, pricing, strengths, weaknesses, and how we win against them."
 
 <FAQ items={[
-  { question: "Does Sim have access to real-time information?", answer: "Yes. Sim queries live internet data. Results reflect current information, not a training cutoff." },
-  { question: "Can Sim read pages that require login?", answer: "No. Sim can only read publicly accessible pages." },
-  { question: "Where are research reports saved?", answer: "Reports are saved as files in your workspace and opened in the resource panel. You can find them in the Files section of the sidebar." },
+  { question: "Does Sim have access to real-time information?", answer: "Sim can search current web sources. Check the cited source and its publication date when freshness matters." },
+  { question: "Can Sim read pages that require login?", answer: "Hosted web research reads publicly accessible pages. In Sim Desktop, the built-in browser can also use websites you sign in to." },
 ]} />

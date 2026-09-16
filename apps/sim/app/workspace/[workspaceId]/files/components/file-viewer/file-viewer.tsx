@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Music } from '@sim/emcn/icons'
 import dynamic from 'next/dynamic'
+import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -109,6 +110,7 @@ interface FileViewerProps {
     retry?: () => Promise<void>
   ) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
@@ -163,6 +165,7 @@ function FileViewerContent({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  downloadSourceRef,
   discardRef,
   streamingContent,
   isAgentEditing,
@@ -217,6 +220,7 @@ function FileViewerContent({
           onDirtyChange={onDirtyChange}
           onSaveStatusChange={onSaveStatusChange}
           saveRef={saveRef}
+          downloadSourceRef={downloadSourceRef}
           discardRef={discardRef}
           streamingContent={streamingContent}
           isAgentEditing={isAgentEditing}

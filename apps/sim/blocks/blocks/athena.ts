@@ -2,39 +2,79 @@ import { AthenaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type {
+  AthenaBatchGetNamedQueryResponse,
+  AthenaBatchGetPreparedStatementResponse,
   AthenaBatchGetQueryExecutionResponse,
   AthenaCreateNamedQueryResponse,
+  AthenaCreatePreparedStatementResponse,
   AthenaDeleteNamedQueryResponse,
+  AthenaDeletePreparedStatementResponse,
+  AthenaGetDatabaseResponse,
+  AthenaGetDataCatalogResponse,
   AthenaGetNamedQueryResponse,
+  AthenaGetPreparedStatementResponse,
   AthenaGetQueryExecutionResponse,
   AthenaGetQueryResultsResponse,
+  AthenaGetQueryRuntimeStatisticsResponse,
+  AthenaGetTableMetadataResponse,
+  AthenaGetWorkGroupResponse,
   AthenaListDatabasesResponse,
+  AthenaListDataCatalogsResponse,
   AthenaListNamedQueriesResponse,
+  AthenaListPreparedStatementsResponse,
   AthenaListQueryExecutionsResponse,
   AthenaListTableMetadataResponse,
+  AthenaListWorkGroupsResponse,
   AthenaStartQueryResponse,
   AthenaStopQueryResponse,
+  AthenaUpdateNamedQueryResponse,
+  AthenaUpdatePreparedStatementResponse,
 } from '@/tools/athena/types'
+
+/**
+ * Normalizes a switch value that may arrive as a boolean or as the strings 'true' / 'false'.
+ */
+function parseBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return undefined
+}
 
 export const AthenaBlock: BlockConfig<
   | AthenaStartQueryResponse
   | AthenaGetQueryExecutionResponse
   | AthenaGetQueryResultsResponse
+  | AthenaGetQueryRuntimeStatisticsResponse
   | AthenaStopQueryResponse
   | AthenaListQueryExecutionsResponse
   | AthenaBatchGetQueryExecutionResponse
   | AthenaCreateNamedQueryResponse
   | AthenaGetNamedQueryResponse
+  | AthenaBatchGetNamedQueryResponse
+  | AthenaUpdateNamedQueryResponse
   | AthenaListNamedQueriesResponse
   | AthenaDeleteNamedQueryResponse
+  | AthenaCreatePreparedStatementResponse
+  | AthenaGetPreparedStatementResponse
+  | AthenaBatchGetPreparedStatementResponse
+  | AthenaUpdatePreparedStatementResponse
+  | AthenaListPreparedStatementsResponse
+  | AthenaDeletePreparedStatementResponse
+  | AthenaListDataCatalogsResponse
+  | AthenaGetDataCatalogResponse
   | AthenaListDatabasesResponse
+  | AthenaGetDatabaseResponse
   | AthenaListTableMetadataResponse
+  | AthenaGetTableMetadataResponse
+  | AthenaListWorkGroupsResponse
+  | AthenaGetWorkGroupResponse
 > = {
   type: 'athena',
   name: 'Athena',
   description: 'Run SQL queries on data in Amazon S3 using AWS Athena',
   longDescription:
-    'Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.',
+    'Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status and runtime statistics, retrieve results, manage named queries and prepared statements, and inspect data catalogs, databases, tables, and workgroups. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/integrations/athena',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
@@ -90,6 +130,57 @@ export const AthenaBlock: BlockConfig<
           { text: ', in database', field: 'databaseName' },
           { text: ', matching', field: 'expression' },
         ],
+        get_query_runtime_statistics: [
+          { text: 'Read runtime statistics for query', field: 'queryExecutionId', core: true },
+        ],
+        batch_get_named_query: [
+          { text: 'Read every named query in', field: 'namedQueryIds', core: true },
+        ],
+        update_named_query: [
+          { text: 'Update named query', field: 'namedQueryId', core: true },
+          { text: 'to', field: 'queryName' },
+        ],
+        get_database: [
+          { text: 'Read database', field: 'databaseName', core: true },
+          { text: 'in catalog', field: 'catalogName' },
+        ],
+        get_table_metadata: [
+          { text: 'Read the schema of table', field: 'tableName', core: true },
+          { text: 'in database', field: 'databaseName' },
+        ],
+        list_data_catalogs: ['List data catalogs', { text: ', up to', field: 'maxResults' }],
+        get_data_catalog: [{ text: 'Read data catalog', field: 'catalogName', core: true }],
+        list_work_groups: ['List workgroups', { text: ', up to', field: 'maxResults' }],
+        get_work_group: [{ text: 'Read workgroup', field: 'workGroupName', core: true }],
+        create_prepared_statement: [
+          { text: 'Create prepared statement', field: 'statementName', core: true },
+          { text: 'in workgroup', field: 'workGroupName' },
+        ],
+        get_prepared_statement: [
+          { text: 'Read prepared statement', field: 'statementName', core: true },
+          { text: 'in workgroup', field: 'workGroupName' },
+        ],
+        update_prepared_statement: [
+          { text: 'Update prepared statement', field: 'statementName', core: true },
+          { text: 'in workgroup', field: 'workGroupName' },
+        ],
+        delete_prepared_statement: [
+          { text: 'Delete prepared statement', field: 'statementName', core: true },
+          { text: 'from workgroup', field: 'workGroupName' },
+        ],
+        list_prepared_statements: [
+          'List prepared statements',
+          { text: 'in workgroup', field: 'workGroupName', core: true },
+          { text: ', up to', field: 'maxResults' },
+        ],
+        batch_get_prepared_statement: [
+          {
+            text: 'Read every prepared statement in',
+            field: 'preparedStatementNames',
+            core: true,
+          },
+          { text: 'from workgroup', field: 'workGroupName' },
+        ],
       },
     },
   },
@@ -102,15 +193,30 @@ export const AthenaBlock: BlockConfig<
         { label: 'Start Query', id: 'start_query' },
         { label: 'Get Query Execution', id: 'get_query_execution' },
         { label: 'Get Query Results', id: 'get_query_results' },
+        { label: 'Get Query Runtime Statistics', id: 'get_query_runtime_statistics' },
         { label: 'Stop Query', id: 'stop_query' },
         { label: 'List Query Executions', id: 'list_query_executions' },
         { label: 'Batch Get Query Executions', id: 'batch_get_query_execution' },
         { label: 'Create Named Query', id: 'create_named_query' },
         { label: 'Get Named Query', id: 'get_named_query' },
+        { label: 'Batch Get Named Queries', id: 'batch_get_named_query' },
+        { label: 'Update Named Query', id: 'update_named_query' },
         { label: 'List Named Queries', id: 'list_named_queries' },
         { label: 'Delete Named Query', id: 'delete_named_query' },
+        { label: 'Create Prepared Statement', id: 'create_prepared_statement' },
+        { label: 'Get Prepared Statement', id: 'get_prepared_statement' },
+        { label: 'Batch Get Prepared Statements', id: 'batch_get_prepared_statement' },
+        { label: 'Update Prepared Statement', id: 'update_prepared_statement' },
+        { label: 'List Prepared Statements', id: 'list_prepared_statements' },
+        { label: 'Delete Prepared Statement', id: 'delete_prepared_statement' },
+        { label: 'List Data Catalogs', id: 'list_data_catalogs' },
+        { label: 'Get Data Catalog', id: 'get_data_catalog' },
         { label: 'List Databases', id: 'list_databases' },
+        { label: 'Get Database', id: 'get_database' },
         { label: 'List Table Metadata', id: 'list_table_metadata' },
+        { label: 'Get Table Metadata', id: 'get_table_metadata' },
+        { label: 'List Workgroups', id: 'list_work_groups' },
+        { label: 'Get Workgroup', id: 'get_work_group' },
       ],
       value: () => 'start_query',
     },
@@ -142,8 +248,26 @@ export const AthenaBlock: BlockConfig<
       title: 'SQL Query',
       type: 'code',
       placeholder: 'SELECT * FROM my_table LIMIT 10',
-      condition: { field: 'operation', value: ['start_query', 'create_named_query'] },
-      required: { field: 'operation', value: ['start_query', 'create_named_query'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'start_query',
+          'create_named_query',
+          'update_named_query',
+          'create_prepared_statement',
+          'update_prepared_statement',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'start_query',
+          'create_named_query',
+          'update_named_query',
+          'create_prepared_statement',
+          'update_prepared_statement',
+        ],
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate an SQL query for AWS Athena based on the user's description.
@@ -153,6 +277,7 @@ Athena uses Trino/Presto SQL syntax. Common patterns:
 - SELECT * FROM table WHERE date_column > DATE '2024-01-01'
 - CREATE TABLE new_table AS SELECT ... FROM source_table
 - SELECT * FROM table WHERE column IN ('value1', 'value2')
+- Prepared statements use ? placeholders: SELECT * FROM table WHERE region = ? AND day > ?
 
 Return ONLY the SQL query — no explanations, no markdown code blocks.`,
         placeholder: 'Describe what data you want to query...',
@@ -196,7 +321,77 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
           'list_named_queries',
           'list_databases',
           'list_table_metadata',
+          'list_data_catalogs',
+          'get_data_catalog',
+          'get_database',
+          'get_table_metadata',
         ],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'workGroupName',
+      title: 'Workgroup',
+      type: 'short-input',
+      placeholder: 'primary',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_work_group',
+          'create_prepared_statement',
+          'get_prepared_statement',
+          'batch_get_prepared_statement',
+          'update_prepared_statement',
+          'list_prepared_statements',
+          'delete_prepared_statement',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'get_work_group',
+          'create_prepared_statement',
+          'get_prepared_statement',
+          'batch_get_prepared_statement',
+          'update_prepared_statement',
+          'list_prepared_statements',
+          'delete_prepared_statement',
+        ],
+      },
+    },
+    {
+      id: 'executionParameters',
+      title: 'Execution Parameters',
+      type: 'long-input',
+      placeholder: '["2024-01-01", "US"] — values for ? placeholders, in order',
+      condition: { field: 'operation', value: 'start_query' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate the execution parameter values for an AWS Athena parameterized query based on the user's description.
+The values fill the ? placeholders in the query in order, so list them in placeholder order.
+Every value is a string, including numbers and dates, e.g. ["2024-01-01", "US", "100"].
+
+Return ONLY a JSON array of strings — no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the values for each ? placeholder in order...',
+      },
+    },
+    {
+      id: 'resultReuseEnabled',
+      title: 'Reuse Previous Results',
+      type: 'switch',
+      condition: { field: 'operation', value: 'start_query' },
+      mode: 'advanced',
+    },
+    {
+      id: 'resultReuseMaxAgeInMinutes',
+      title: 'Max Result Age (minutes)',
+      type: 'short-input',
+      placeholder: '60',
+      condition: {
+        field: 'operation',
+        value: 'start_query',
+        and: { field: 'resultReuseEnabled', value: true },
       },
       mode: 'advanced',
     },
@@ -207,11 +402,21 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       placeholder: 'e.g., a1b2c3d4-5678-90ab-cdef-example11111',
       condition: {
         field: 'operation',
-        value: ['get_query_execution', 'get_query_results', 'stop_query'],
+        value: [
+          'get_query_execution',
+          'get_query_results',
+          'get_query_runtime_statistics',
+          'stop_query',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['get_query_execution', 'get_query_results', 'stop_query'],
+        value: [
+          'get_query_execution',
+          'get_query_results',
+          'get_query_runtime_statistics',
+          'stop_query',
+        ],
       },
     },
     {
@@ -227,24 +432,102 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       title: 'Named Query ID',
       type: 'short-input',
       placeholder: 'e.g., a1b2c3d4-5678-90ab-cdef-example11111',
-      condition: { field: 'operation', value: ['get_named_query', 'delete_named_query'] },
-      required: { field: 'operation', value: ['get_named_query', 'delete_named_query'] },
+      condition: {
+        field: 'operation',
+        value: ['get_named_query', 'update_named_query', 'delete_named_query'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_named_query', 'update_named_query', 'delete_named_query'],
+      },
+    },
+    {
+      id: 'namedQueryIds',
+      title: 'Named Query IDs',
+      type: 'long-input',
+      placeholder: 'Comma-separated IDs, e.g. a1b2c3d4-..., e5f6g7h8-... (up to 50)',
+      condition: { field: 'operation', value: 'batch_get_named_query' },
+      required: { field: 'operation', value: 'batch_get_named_query' },
+    },
+    {
+      id: 'statementName',
+      title: 'Statement Name',
+      type: 'short-input',
+      placeholder: 'my_prepared_statement',
+      condition: {
+        field: 'operation',
+        value: [
+          'create_prepared_statement',
+          'get_prepared_statement',
+          'update_prepared_statement',
+          'delete_prepared_statement',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'create_prepared_statement',
+          'get_prepared_statement',
+          'update_prepared_statement',
+          'delete_prepared_statement',
+        ],
+      },
+    },
+    {
+      id: 'preparedStatementNames',
+      title: 'Statement Names',
+      type: 'long-input',
+      placeholder: 'Comma-separated names, e.g. daily_report, region_summary (up to 256)',
+      condition: { field: 'operation', value: 'batch_get_prepared_statement' },
+      required: { field: 'operation', value: 'batch_get_prepared_statement' },
     },
     {
       id: 'catalogName',
       title: 'Data Catalog',
       type: 'short-input',
       placeholder: 'AwsDataCatalog',
-      condition: { field: 'operation', value: ['list_databases', 'list_table_metadata'] },
-      required: { field: 'operation', value: ['list_databases', 'list_table_metadata'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_databases',
+          'get_database',
+          'list_table_metadata',
+          'get_table_metadata',
+          'get_data_catalog',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'list_databases',
+          'get_database',
+          'list_table_metadata',
+          'get_table_metadata',
+          'get_data_catalog',
+        ],
+      },
     },
     {
       id: 'databaseName',
       title: 'Database',
       type: 'short-input',
       placeholder: 'my_database',
-      condition: { field: 'operation', value: 'list_table_metadata' },
-      required: { field: 'operation', value: 'list_table_metadata' },
+      condition: {
+        field: 'operation',
+        value: ['get_database', 'list_table_metadata', 'get_table_metadata'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_database', 'list_table_metadata', 'get_table_metadata'],
+      },
+    },
+    {
+      id: 'tableName',
+      title: 'Table',
+      type: 'short-input',
+      placeholder: 'my_table',
+      condition: { field: 'operation', value: 'get_table_metadata' },
+      required: { field: 'operation', value: 'get_table_metadata' },
     },
     {
       id: 'expression',
@@ -259,15 +542,23 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       title: 'Query Name',
       type: 'short-input',
       placeholder: 'My Saved Query',
-      condition: { field: 'operation', value: 'create_named_query' },
-      required: { field: 'operation', value: 'create_named_query' },
+      condition: { field: 'operation', value: ['create_named_query', 'update_named_query'] },
+      required: { field: 'operation', value: ['create_named_query', 'update_named_query'] },
     },
     {
       id: 'queryDescription',
       title: 'Description',
       type: 'short-input',
       placeholder: 'Description of what this query does',
-      condition: { field: 'operation', value: 'create_named_query' },
+      condition: {
+        field: 'operation',
+        value: [
+          'create_named_query',
+          'update_named_query',
+          'create_prepared_statement',
+          'update_prepared_statement',
+        ],
+      },
       mode: 'advanced',
     },
     {
@@ -281,8 +572,11 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
           'get_query_results',
           'list_query_executions',
           'list_named_queries',
+          'list_prepared_statements',
+          'list_data_catalogs',
           'list_databases',
           'list_table_metadata',
+          'list_work_groups',
         ],
       },
       mode: 'advanced',
@@ -298,8 +592,11 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
           'get_query_results',
           'list_query_executions',
           'list_named_queries',
+          'list_prepared_statements',
+          'list_data_catalogs',
           'list_databases',
           'list_table_metadata',
+          'list_work_groups',
         ],
       },
       mode: 'advanced',
@@ -319,6 +616,21 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
       'athena_delete_named_query',
       'athena_list_databases',
       'athena_list_table_metadata',
+      'athena_get_query_runtime_statistics',
+      'athena_batch_get_named_query',
+      'athena_update_named_query',
+      'athena_create_prepared_statement',
+      'athena_get_prepared_statement',
+      'athena_batch_get_prepared_statement',
+      'athena_update_prepared_statement',
+      'athena_list_prepared_statements',
+      'athena_delete_prepared_statement',
+      'athena_list_data_catalogs',
+      'athena_get_data_catalog',
+      'athena_get_database',
+      'athena_get_table_metadata',
+      'athena_list_work_groups',
+      'athena_get_work_group',
     ],
     config: {
       tool: (params) => {
@@ -347,6 +659,36 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
             return 'athena_list_databases'
           case 'list_table_metadata':
             return 'athena_list_table_metadata'
+          case 'get_query_runtime_statistics':
+            return 'athena_get_query_runtime_statistics'
+          case 'batch_get_named_query':
+            return 'athena_batch_get_named_query'
+          case 'update_named_query':
+            return 'athena_update_named_query'
+          case 'create_prepared_statement':
+            return 'athena_create_prepared_statement'
+          case 'get_prepared_statement':
+            return 'athena_get_prepared_statement'
+          case 'batch_get_prepared_statement':
+            return 'athena_batch_get_prepared_statement'
+          case 'update_prepared_statement':
+            return 'athena_update_prepared_statement'
+          case 'list_prepared_statements':
+            return 'athena_list_prepared_statements'
+          case 'delete_prepared_statement':
+            return 'athena_delete_prepared_statement'
+          case 'list_data_catalogs':
+            return 'athena_list_data_catalogs'
+          case 'get_data_catalog':
+            return 'athena_get_data_catalog'
+          case 'get_database':
+            return 'athena_get_database'
+          case 'get_table_metadata':
+            return 'athena_get_table_metadata'
+          case 'list_work_groups':
+            return 'athena_list_work_groups'
+          case 'get_work_group':
+            return 'athena_get_work_group'
           default:
             throw new Error(`Invalid Athena operation: ${params.operation}`)
         }
@@ -358,6 +700,14 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
         const awsAccessKeyId = rest.awsAccessKeyId
         const awsSecretAccessKey = rest.awsSecretAccessKey
         const parsedMaxResults = maxResults ? Number.parseInt(String(maxResults), 10) : undefined
+        const connection = { awsRegion, awsAccessKeyId, awsSecretAccessKey }
+        const resultReuseEnabled = parseBoolean(rest.resultReuseEnabled)
+        const resultReuseMaxAgeInMinutes =
+          rest.resultReuseMaxAgeInMinutes !== undefined &&
+          rest.resultReuseMaxAgeInMinutes !== null &&
+          rest.resultReuseMaxAgeInMinutes !== ''
+            ? Number.parseInt(String(rest.resultReuseMaxAgeInMinutes), 10)
+            : undefined
 
         switch (operation) {
           case 'start_query':
@@ -370,6 +720,10 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
               ...(rest.catalog && { catalog: rest.catalog }),
               ...(rest.outputLocation && { outputLocation: rest.outputLocation }),
               ...(rest.workGroup && { workGroup: rest.workGroup }),
+              ...(rest.executionParameters && { executionParameters: rest.executionParameters }),
+              ...(resultReuseEnabled !== undefined && { resultReuseEnabled }),
+              ...(resultReuseEnabled &&
+                resultReuseMaxAgeInMinutes !== undefined && { resultReuseMaxAgeInMinutes }),
             }
 
           case 'get_query_execution':
@@ -515,6 +869,156 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
               ...(rest.nextToken && { nextToken: rest.nextToken }),
             }
 
+          case 'get_query_runtime_statistics':
+            if (!rest.queryExecutionId) {
+              throw new Error('Query execution ID is required')
+            }
+            return { ...connection, queryExecutionId: rest.queryExecutionId }
+
+          case 'batch_get_named_query':
+            if (!rest.namedQueryIds) {
+              throw new Error('Named query IDs are required')
+            }
+            return { ...connection, namedQueryIds: rest.namedQueryIds }
+
+          case 'update_named_query':
+            if (!rest.namedQueryId) {
+              throw new Error('Named query ID is required')
+            }
+            if (!rest.queryName) {
+              throw new Error('Query name is required')
+            }
+            if (!rest.queryString) {
+              throw new Error('SQL query string is required')
+            }
+            return {
+              ...connection,
+              namedQueryId: rest.namedQueryId,
+              name: rest.queryName,
+              queryString: rest.queryString,
+              ...(rest.queryDescription && { description: rest.queryDescription }),
+            }
+
+          case 'create_prepared_statement':
+          case 'update_prepared_statement':
+            if (!rest.statementName) {
+              throw new Error('Statement name is required')
+            }
+            if (!rest.workGroupName) {
+              throw new Error('Workgroup is required')
+            }
+            if (!rest.queryString) {
+              throw new Error('SQL query statement is required')
+            }
+            return {
+              ...connection,
+              statementName: rest.statementName,
+              workGroup: rest.workGroupName,
+              queryStatement: rest.queryString,
+              ...(rest.queryDescription && { description: rest.queryDescription }),
+            }
+
+          case 'get_prepared_statement':
+          case 'delete_prepared_statement':
+            if (!rest.statementName) {
+              throw new Error('Statement name is required')
+            }
+            if (!rest.workGroupName) {
+              throw new Error('Workgroup is required')
+            }
+            return {
+              ...connection,
+              statementName: rest.statementName,
+              workGroup: rest.workGroupName,
+            }
+
+          case 'batch_get_prepared_statement':
+            if (!rest.preparedStatementNames) {
+              throw new Error('Statement names are required')
+            }
+            if (!rest.workGroupName) {
+              throw new Error('Workgroup is required')
+            }
+            return {
+              ...connection,
+              preparedStatementNames: rest.preparedStatementNames,
+              workGroup: rest.workGroupName,
+            }
+
+          case 'list_prepared_statements':
+            if (!rest.workGroupName) {
+              throw new Error('Workgroup is required')
+            }
+            return {
+              ...connection,
+              workGroup: rest.workGroupName,
+              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...(rest.nextToken && { nextToken: rest.nextToken }),
+            }
+
+          case 'list_data_catalogs':
+            return {
+              ...connection,
+              ...(rest.workGroup && { workGroup: rest.workGroup }),
+              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...(rest.nextToken && { nextToken: rest.nextToken }),
+            }
+
+          case 'get_data_catalog':
+            if (!rest.catalogName) {
+              throw new Error('Data catalog name is required')
+            }
+            return {
+              ...connection,
+              name: rest.catalogName,
+              ...(rest.workGroup && { workGroup: rest.workGroup }),
+            }
+
+          case 'get_database':
+            if (!rest.catalogName) {
+              throw new Error('Data catalog name is required')
+            }
+            if (!rest.databaseName) {
+              throw new Error('Database name is required')
+            }
+            return {
+              ...connection,
+              catalogName: rest.catalogName,
+              databaseName: rest.databaseName,
+              ...(rest.workGroup && { workGroup: rest.workGroup }),
+            }
+
+          case 'get_table_metadata':
+            if (!rest.catalogName) {
+              throw new Error('Data catalog name is required')
+            }
+            if (!rest.databaseName) {
+              throw new Error('Database name is required')
+            }
+            if (!rest.tableName) {
+              throw new Error('Table name is required')
+            }
+            return {
+              ...connection,
+              catalogName: rest.catalogName,
+              databaseName: rest.databaseName,
+              tableName: rest.tableName,
+              ...(rest.workGroup && { workGroup: rest.workGroup }),
+            }
+
+          case 'list_work_groups':
+            return {
+              ...connection,
+              ...(parsedMaxResults !== undefined && { maxResults: parsedMaxResults }),
+              ...(rest.nextToken && { nextToken: rest.nextToken }),
+            }
+
+          case 'get_work_group':
+            if (!rest.workGroupName) {
+              throw new Error('Workgroup is required')
+            }
+            return { ...connection, workGroup: rest.workGroupName }
+
           default:
             throw new Error(`Invalid Athena operation: ${operation}`)
         }
@@ -544,6 +1048,26 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
     expression: { type: 'string', description: 'Regex filter that pattern-matches table names' },
     maxResults: { type: 'number', description: 'Maximum number of results' },
     nextToken: { type: 'string', description: 'Pagination token' },
+    workGroupName: { type: 'string', description: 'Workgroup name (required by the operation)' },
+    executionParameters: {
+      type: 'string',
+      description: 'JSON array or comma-separated values for ? placeholders in the query',
+    },
+    resultReuseEnabled: {
+      type: 'boolean',
+      description: 'Reuse a previous result of the same query',
+    },
+    resultReuseMaxAgeInMinutes: {
+      type: 'number',
+      description: 'Maximum age in minutes of a reusable result (0-10080)',
+    },
+    namedQueryIds: { type: 'string', description: 'Comma-separated named query IDs (up to 50)' },
+    statementName: { type: 'string', description: 'Prepared statement name' },
+    preparedStatementNames: {
+      type: 'string',
+      description: 'Comma-separated prepared statement names (up to 256)',
+    },
+    tableName: { type: 'string', description: 'Table name to get metadata for' },
   },
   outputs: {
     queryExecutionId: {
@@ -556,7 +1080,8 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
     },
     state: {
       type: 'string',
-      description: 'Query state (QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED)',
+      description:
+        'Query state (QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED) or workgroup state (ENABLED, DISABLED)',
     },
     stateChangeReason: {
       type: 'string',
@@ -640,11 +1165,11 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
     },
     name: {
       type: 'string',
-      description: 'Named query name',
+      description: 'Name of the named query, database, data catalog, or workgroup',
     },
     description: {
       type: 'string',
-      description: 'Named query description',
+      description: 'Description of the named query, database, data catalog, or workgroup',
     },
     queryString: {
       type: 'string',
@@ -664,11 +1189,152 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
     },
     databases: {
       type: 'array',
-      description: 'List of databases (name, description)',
+      description: 'List of databases (name, description, parameters)',
+    },
+    rowStatistics: {
+      type: 'json',
+      description:
+        'Query runtime row and byte counts (inputRows, inputBytes, outputRows, outputBytes)',
     },
     tables: {
       type: 'array',
       description: 'Table metadata (name, type, columns, partition keys)',
+    },
+    timeline: {
+      type: 'json',
+      description: 'Query runtime timing breakdown in milliseconds',
+    },
+    outputStage: {
+      type: 'json',
+      description: 'Summary of the final query stage',
+    },
+    namedQueries: {
+      type: 'array',
+      description: 'Details for each named query (from batch get named queries)',
+    },
+    unprocessedNamedQueryIds: {
+      type: 'array',
+      description: 'Named query IDs that could not be retrieved, with error details',
+    },
+    parameters: {
+      type: 'json',
+      description: 'Key/value properties of the database, table, or data catalog',
+    },
+    tableType: {
+      type: 'string',
+      description: 'Table type (e.g., EXTERNAL_TABLE, VIRTUAL_VIEW)',
+    },
+    createTime: {
+      type: 'number',
+      description: 'Table creation time (Unix epoch ms)',
+    },
+    lastAccessTime: {
+      type: 'number',
+      description: 'Table last access time (Unix epoch ms)',
+    },
+    partitionKeys: {
+      type: 'array',
+      description: 'Partition key columns (name, type, comment)',
+    },
+    dataCatalogs: {
+      type: 'array',
+      description: 'Data catalog summaries (name, type, status, connection type)',
+    },
+    type: {
+      type: 'string',
+      description: 'Data catalog type (LAMBDA, GLUE, HIVE, FEDERATED)',
+    },
+    status: {
+      type: 'string',
+      description: 'Data catalog creation or deletion status',
+    },
+    connectionType: {
+      type: 'string',
+      description: 'Connector type for FEDERATED data catalogs',
+    },
+    error: {
+      type: 'string',
+      description: 'Error text from data catalog creation or deletion',
+    },
+    workGroups: {
+      type: 'array',
+      description: 'Workgroup summaries (name, state, description, engine version)',
+    },
+    creationTime: {
+      type: 'number',
+      description: 'Workgroup creation time (Unix epoch ms)',
+    },
+    engineVersion: {
+      type: 'json',
+      description: 'Workgroup engine version (selected and effective)',
+    },
+    identityCenterApplicationArn: {
+      type: 'string',
+      description: 'IAM Identity Center application ARN of the workgroup',
+    },
+    encryptionOption: {
+      type: 'string',
+      description: 'Workgroup result encryption option (SSE_S3, SSE_KMS, CSE_KMS)',
+    },
+    kmsKey: {
+      type: 'string',
+      description: 'KMS key used for workgroup result encryption',
+    },
+    expectedBucketOwner: {
+      type: 'string',
+      description: 'Expected owner account of the workgroup results bucket',
+    },
+    managedQueryResultsEnabled: {
+      type: 'boolean',
+      description: 'Whether workgroup results are stored in Athena-owned storage',
+    },
+    enforceWorkGroupConfiguration: {
+      type: 'boolean',
+      description: 'Whether workgroup settings override client-side settings',
+    },
+    publishCloudWatchMetricsEnabled: {
+      type: 'boolean',
+      description: 'Whether the workgroup publishes CloudWatch metrics',
+    },
+    bytesScannedCutoffPerQuery: {
+      type: 'number',
+      description: 'Workgroup per-query data scan limit in bytes',
+    },
+    requesterPaysEnabled: {
+      type: 'boolean',
+      description: 'Whether the workgroup may query Requester Pays buckets',
+    },
+    enableMinimumEncryptionConfiguration: {
+      type: 'boolean',
+      description: 'Whether the workgroup enforces a minimum encryption level',
+    },
+    executionRole: {
+      type: 'string',
+      description: 'Workgroup execution role ARN',
+    },
+    statementName: {
+      type: 'string',
+      description: 'Prepared statement name',
+    },
+    queryStatement: {
+      type: 'string',
+      description: 'Prepared statement SQL text',
+    },
+    workGroupName: {
+      type: 'string',
+      description: 'Workgroup the prepared statement belongs to',
+    },
+    lastModifiedTime: {
+      type: 'number',
+      description: 'Prepared statement last modified time (Unix epoch ms)',
+    },
+    preparedStatements: {
+      type: 'array',
+      description: 'Prepared statement details or summaries',
+    },
+    unprocessedPreparedStatementNames: {
+      type: 'array',
+      description: 'Prepared statement names that could not be retrieved, with error details',
     },
   },
 }
@@ -762,6 +1428,20 @@ export const AthenaBlockMeta = {
         'Run a saved or composed Athena query on a schedule to compute metrics and produce a report. Use for recurring KPI and usage reporting.',
       content:
         '# Scheduled Metrics Report\n\nCompute recurring metrics from data in S3.\n\n## Steps\n1. Use a named query, or compose the metrics SQL for the reporting period.\n2. Start the query and poll execution until it completes.\n3. Fetch the results and format the metrics for reporting.\n4. Compare against the prior period to highlight movement where relevant.\n\n## Output\nA metrics summary with current values, period-over-period change, and the execution ID for traceability.',
+    },
+    {
+      name: 'explore-data-lake-schema',
+      description:
+        "Discover what data is available by listing data catalogs, databases, and tables, then reading a table's columns and partition keys before writing SQL. Use when an agent needs to ground a query in the real schema.",
+      content:
+        '# Explore Data Lake Schema\n\nFind the right tables and columns before querying.\n\n## Steps\n1. List data catalogs, then list databases in the relevant catalog.\n2. List table metadata in the database, filtering by a name pattern when the database is large.\n3. Get table metadata for the candidate table to read its columns, types, partition keys, and location.\n4. Use partition keys in WHERE clauses to limit the data scanned.\n\n## Output\nThe fully qualified table name, its columns with types, and the partition keys to filter on.',
+    },
+    {
+      name: 'parameterized-query-with-prepared-statements',
+      description:
+        'Save a parameterized SQL statement once and run it safely with different values each time. Use for recurring reports and agent-driven lookups where inputs change but the SQL should not.',
+      content:
+        '# Parameterized Query with Prepared Statements\n\nRun vetted SQL with runtime values instead of string-building queries.\n\n## Steps\n1. Create a prepared statement in the workgroup with ? placeholders for each variable.\n2. Start a query with EXECUTE <statement> and pass the values as execution parameters in placeholder order.\n3. Poll get query execution until the state is SUCCEEDED, FAILED, or CANCELLED.\n4. Fetch the query results; update the prepared statement when the SQL needs to change.\n\n## Output\nThe result rows plus the statement name and execution ID used, or the Athena error if the parameters did not match the placeholders.',
     },
     {
       name: 'manage-named-queries',

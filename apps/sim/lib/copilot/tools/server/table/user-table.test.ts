@@ -34,7 +34,8 @@ const {
   mockExecuteCopilotFileUseCase,
   mockExecuteCopilotWorkflowUseCase,
   mockLoadWorkspaceFileContext,
-  mockLoadTableRowSecretProvenance,
+  mockCreateTableRowProvenanceReader,
+  mockExportTableRowProvenance,
   mockResolveWorkflowContext,
   fakeEnrichment,
 } = vi.hoisted(() => ({
@@ -65,7 +66,8 @@ const {
   mockExecuteCopilotFileUseCase: vi.fn(),
   mockExecuteCopilotWorkflowUseCase: vi.fn(),
   mockLoadWorkspaceFileContext: vi.fn(),
-  mockLoadTableRowSecretProvenance: vi.fn(),
+  mockCreateTableRowProvenanceReader: vi.fn(),
+  mockExportTableRowProvenance: vi.fn(),
   mockResolveWorkflowContext: vi.fn(),
   fakeEnrichment: {
     id: 'work-email',
@@ -229,7 +231,12 @@ vi.mock('@/lib/table/rows/secret-provenance', () => ({
       Object.keys(data).map((columnId) => [columnId, { version: 1, complete: true, entries: [] }])
     ),
   }),
-  loadTableRowSecretProvenance: mockLoadTableRowSecretProvenance,
+  TableRowProvenanceReader: class {
+    constructor(scope: unknown) {
+      mockCreateTableRowProvenanceReader(scope)
+    }
+    exportProvenance = mockExportTableRowProvenance
+  },
 }))
 
 vi.mock('@/lib/table/jobs/service', () => ({
@@ -271,7 +278,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 beforeEach(() => {
   mockLoadWorkspaceFileContext.mockResolvedValue({ workspaceId: 'workspace-1' })
-  mockLoadTableRowSecretProvenance.mockResolvedValue({
+  mockExportTableRowProvenance.mockReturnValue({
     version: 1,
     complete: true,
     entries: [],
@@ -1223,9 +1230,12 @@ describe('userTableServerTool.query_rows', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockLoadTableRowSecretProvenance).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ id: 'row_1' })]),
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+    expect(mockCreateTableRowProvenanceReader).toHaveBeenCalledWith({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    expect(mockQueryRows.mock.calls[0][3]).toEqual(
+      expect.objectContaining({ exportProvenance: mockExportTableRowProvenance })
     )
     expect(importProvenance).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -24,7 +24,7 @@ const { mockFilterExisting, mockLoadCopyableLabels } = vi.hoisted(() => ({
   mockFilterExisting: vi.fn(),
   mockLoadCopyableLabels: vi.fn(),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/resources', () => ({
+vi.mock('@/lib/workflows/references/resources', () => ({
   filterExistingForkTargets: mockFilterExisting,
   loadForkCopyableResourceLabels: mockLoadCopyableLabels,
   getWorkspaceEnvKeys: vi.fn(),
@@ -36,6 +36,7 @@ vi.mock('@/ee/workspace-forking/lib/mapping/resources', () => ({
 }))
 
 import type { DbOrTx } from '@/lib/db/types'
+import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import {
@@ -49,7 +50,6 @@ import {
   deriveForkBlockId,
   EMPTY_FORK_BLOCK_MAP,
 } from '@/ee/workspace-forking/lib/remap/block-identity'
-import type { ForkReferenceResolver } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>

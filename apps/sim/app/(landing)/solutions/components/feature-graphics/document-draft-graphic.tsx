@@ -92,7 +92,7 @@ export function DocumentDraftGraphic({
             />
           ))}
 
-          <div className='mt-2 flex items-center gap-2 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs'>
+          <div className='mt-2 flex items-center gap-2 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]'>
             <CircleCheck className='size-[13px] shrink-0 text-[var(--text-icon)]' />
             <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-small'>
               {footerLabel}

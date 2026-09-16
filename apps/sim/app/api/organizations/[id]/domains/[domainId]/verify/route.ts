@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, ssoDomain, ssoProvider } from '@sim/db/schema'
+import { ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresErrorCode } from '@sim/utils/errors'
@@ -10,6 +11,7 @@ import { verifyOrganizationDomainContract } from '@/lib/api/contracts/organizati
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { checkDomainTxtRecord, toDomainResponse } from '@/lib/auth/sso/domain-verification'
+import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -121,7 +123,7 @@ export const POST = withRouteHandler(
     const providersOnDomain = (verifiedDomain: string) =>
       and(
         eq(ssoProvider.organizationId, organizationId),
-        sql`lower(regexp_replace(btrim(${ssoProvider.domain}), '^\\*\\.', '')) = ${verifiedDomain}`
+        sql`${ssoProviderDomainKey} = ${verifiedDomain}`
       )
 
     let updated: (typeof row)[]
@@ -186,6 +188,9 @@ export const POST = withRouteHandler(
         { status: 409 }
       )
     }
+
+    /** A newly verified domain can make the organization able to require single sign-on. */
+    invalidateSsoPolicyCache(organizationId)
 
     logger.info('Domain verified', { organizationId, domain: row.domain })
     recordAudit({

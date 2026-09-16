@@ -1,40 +1,42 @@
-import { ChipLink, cn } from '@sim/emcn'
+import { LandingCtaLink, type LandingCtaSection } from '@/app/(landing)/components/landing-cta-link'
 import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
-/**
- * Hero-scale sizing shared by both CTAs - one step up from the navbar's 30px
- * chip: 36px tall, 15px label (the chip's inner span inherits it), horizontal
- * padding in `em` at the chip's native 8/14 ratio so it scales with the text.
- */
-const CTA_SIZE = 'h-[36px] px-[0.571em] text-[15px] [&>span]:[font-size:inherit]'
+const DEMO_LABEL = 'Request a demo'
 
-/**
- * The canonical landing call-to-action - a dark "Request a demo" chip beside an
- * outline "Sign up" chip. This is the single source of truth for the CTA used
- * by both the landing hero and every platform hero, so the two never drift.
- *
- * Both CTAs are the same global {@link ChipLink} chrome the navbar's auth
- * cluster uses - "Request a demo" is the `primary` (filled) variant like the
- * navbar's "Sign up"; "Sign up" here is the default chip with the
- * `--border-1` outline like the navbar's "Contact sales" - scaled up one step
- * via {@link CTA_SIZE} (the sanctioned size overrides; chrome stays the chip's).
- *
- * Server Component; owns its own internal spacing. Consumers place it in their
- * own stack and pass nothing.
- */
-export function HeroCta() {
+interface HeroCtaProps {
+  /** Standard 36px actions for platform heroes; 40px display actions for the homepage. */
+  size?: 'default' | 'display'
+  /** Platform and solutions heroes use "Sign up"; the homepage uses "Start building". */
+  secondaryLabel?: 'Start building' | 'Sign up'
+  /** Reports each click as a `landing_cta_clicked` event under this section. */
+  trackingSection?: LandingCtaSection
+}
+
+/** Shared filled demo action and outlined self-serve action, stacked on phones. */
+export function HeroCta({
+  size = 'default',
+  secondaryLabel = 'Sign up',
+  trackingSection,
+}: HeroCtaProps) {
   return (
     <div className='flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch'>
-      <ChipLink variant='primary' href={DEMO_HREF} className={CTA_SIZE}>
-        Request a demo
-      </ChipLink>
-      <ChipLink
+      <LandingCtaLink
+        href={DEMO_HREF}
+        size={size}
+        withArrow
+        track={trackingSection && { label: DEMO_LABEL, section: trackingSection }}
+      >
+        {DEMO_LABEL}
+      </LandingCtaLink>
+      <LandingCtaLink
+        variant='outline'
         href={SIGNUP_HREF}
         prefetch={false}
-        className={cn(CTA_SIZE, 'border border-[var(--border-1)] max-sm:justify-center')}
+        size={size}
+        track={trackingSection && { label: secondaryLabel, section: trackingSection }}
       >
-        Sign up
-      </ChipLink>
+        {secondaryLabel}
+      </LandingCtaLink>
     </div>
   )
 }

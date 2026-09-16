@@ -1,4 +1,4 @@
-import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -61,7 +61,7 @@ export async function listForkableChatFiles(
   chatId: string
 ): Promise<ForkableChatFileRow[]> {
   return db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(

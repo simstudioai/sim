@@ -9,6 +9,8 @@ import {
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import { consumeRowBudget } from '@/lib/cleanup/batch-delete'
+import type { CleanupBudgets } from '@/lib/cleanup/limits'
 import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 
 const logger = createLogger('LargeValueMetadata')
@@ -50,6 +52,7 @@ export interface LargeValueMetadataPruneResult {
 }
 
 interface PruneLargeValueMetadataOptions {
+  budgets?: CleanupBudgets
   workspaceIds: string[]
   tombstonesDeletedBefore: Date
   batchSize?: number
@@ -473,6 +476,7 @@ async function pruneDeletedLargeValueTombstones(
 export async function pruneLargeValueMetadata({
   workspaceIds,
   tombstonesDeletedBefore,
+  budgets,
   batchSize = LARGE_VALUE_METADATA_PRUNE_BATCH_SIZE,
   maxRowsPerTable = LARGE_VALUE_METADATA_PRUNE_MAX_ROWS_PER_TABLE,
   dbClient = db,
@@ -488,32 +492,47 @@ export async function pruneLargeValueMetadata({
     workspaceIds,
     LARGE_VALUE_METADATA_WORKSPACE_CHUNK_SIZE
   )) {
-    const referencesRemaining = maxRowsPerTable - result.referencesDeleted
+    const referencesRemaining = Math.min(
+      maxRowsPerTable - result.referencesDeleted,
+      budgets?.staleReferences.remaining ?? maxRowsPerTable
+    )
     if (referencesRemaining > 0) {
-      result.referencesDeleted += await pruneStaleReferences(
+      const deleted = await pruneStaleReferences(
         workspaceChunk,
         Math.min(batchSize, referencesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.staleReferences, deleted)
+      result.referencesDeleted += deleted
     }
 
-    const dependenciesRemaining = maxRowsPerTable - result.dependenciesDeleted
+    const dependenciesRemaining = Math.min(
+      maxRowsPerTable - result.dependenciesDeleted,
+      budgets?.staleDependencies.remaining ?? maxRowsPerTable
+    )
     if (dependenciesRemaining > 0) {
-      result.dependenciesDeleted += await pruneDeletedParentDependencies(
+      const deleted = await pruneDeletedParentDependencies(
         workspaceChunk,
         Math.min(batchSize, dependenciesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.staleDependencies, deleted)
+      result.dependenciesDeleted += deleted
     }
 
-    const tombstonesRemaining = maxRowsPerTable - result.tombstonesDeleted
+    const tombstonesRemaining = Math.min(
+      maxRowsPerTable - result.tombstonesDeleted,
+      budgets?.largeValueTombstones.remaining ?? maxRowsPerTable
+    )
     if (tombstonesRemaining > 0) {
-      result.tombstonesDeleted += await pruneDeletedLargeValueTombstones(
+      const deleted = await pruneDeletedLargeValueTombstones(
         workspaceChunk,
         tombstonesDeletedBefore,
         Math.min(batchSize, tombstonesRemaining),
         dbClient
       )
+      consumeRowBudget(budgets?.largeValueTombstones, deleted)
+      result.tombstonesDeleted += deleted
     }
 
     if (

@@ -927,6 +927,11 @@ bun run apps/sim/scripts/check-canvas-sentences.ts --block={service}
 
 ## Generated artifacts
 
+When adding or changing `sunset.replacedBy`, run `bun run generate:block-successors` and commit
+`apps/sim/lib/permission-groups/block-successors.generated.ts`. Authorization uses this generated
+map to resolve legacy and current block IDs consistently without importing the executable registry.
+Verify it with `bun run check:block-successors`.
+
 Adding a block on its own needs no **tool metadata** regeneration — a block references existing
 tool IDs through `tools.access` and does not change any tool's shape.
 
@@ -969,6 +974,7 @@ changes.
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
+- [ ] If `sunset.replacedBy` changed: regenerated and committed the block successor map; `bun run check:block-successors` passes
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
 - [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
 - [ ] `bun run integration-catalog:check` passes

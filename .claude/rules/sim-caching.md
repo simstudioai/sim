@@ -1,4 +1,5 @@
 ---
+description: In-process caching with lru-cache and a ceiling, never hand-rolled TTL maps
 paths:
   - "apps/sim/lib/**/*.ts"
   - "apps/sim/providers/**/*.ts"

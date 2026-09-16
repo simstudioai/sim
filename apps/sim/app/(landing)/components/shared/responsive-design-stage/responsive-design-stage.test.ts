@@ -46,7 +46,6 @@ let root: Root
 
 beforeEach(() => {
   resizeObserver = null
-  vi.stubGlobal('CSS', { supports: vi.fn(() => true) })
   vi.stubGlobal('ResizeObserver', ResizeObserverMock)
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -114,6 +113,40 @@ describe('calculateFitScale', () => {
 })
 
 describe('ResponsiveDesignStage', () => {
+  it.each([
+    { width: 280, height: 400 },
+    { width: 350, height: 340 },
+  ])(
+    'scales text and layout together in an uncapped $width × $height stage',
+    ({ width, height }) => {
+      act(() => {
+        root.render(
+          createElement(
+            ResponsiveDesignStage,
+            { width, height, maxScale: Number.POSITIVE_INFINITY },
+            createElement('span', null, 'Preview')
+          )
+        )
+      })
+
+      const surface = container.firstElementChild?.firstElementChild
+      if (!(surface instanceof HTMLElement) || !resizeObserver) {
+        throw new Error('responsive stage did not mount')
+      }
+      const observer = resizeObserver
+
+      act(() => observer.deliver(width * 2, height * 1.5))
+      expect(surface.style.getPropertyValue('zoom')).toBe('')
+      expect(surface.style.transform).toBe('scale(1.5)')
+      expect(surface.style.opacity).toBe('1')
+
+      act(() => observer.deliver(width / 2, height * 2))
+      expect(surface.style.getPropertyValue('zoom')).toBe('')
+      expect(surface.style.transform).toBe('scale(0.5)')
+      expect(surface.style.opacity).toBe('1')
+    }
+  )
+
   it('hides an already visible surface until a measurable size returns', () => {
     act(() => {
       root.render(
@@ -133,13 +166,13 @@ describe('ResponsiveDesignStage', () => {
 
     act(() => observer.deliver(500, 250))
     expect(surface.style.opacity).toBe('1')
-    expect(surface.style.zoom).toBe('0.5')
+    expect(surface.style.transform).toBe('scale(0.5)')
 
     act(() => observer.deliver(0, 250))
     expect(surface.style.opacity).toBe('0')
 
     act(() => observer.deliver(500, 250))
     expect(surface.style.opacity).toBe('1')
-    expect(surface.style.zoom).toBe('0.5')
+    expect(surface.style.transform).toBe('scale(0.5)')
   })
 })

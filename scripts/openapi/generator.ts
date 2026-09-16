@@ -493,6 +493,13 @@ function referencedHeaders(headerNames: readonly string[] | undefined): JsonObje
   )
 }
 
+/** Public APIs reject MCP resource-bound grants; API read access also satisfies Search reads. */
+function publicApiOAuthScope(
+  scope: OpenApiOperationMetadata['applicationOperation']['oauthScope']
+) {
+  return scope === 'search:read' ? 'api:read' : scope
+}
+
 function operationFor(
   route: OpenApiRouteDefinition,
   definition: OpenApiDocumentDefinition,
@@ -648,16 +655,15 @@ function operationFor(
   }
 
   const requestBody = requestBodyFor(route, components, label)
+  const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
   return {
     operationId: operation.operationId,
     summary: operation.summary,
-    description: operation.applicationOperation.oauthScope
-      ? `${operation.description}\n\nOAuth scope: \`${operation.applicationOperation.oauthScope}\`.`
+    description: oauthScope
+      ? `${operation.description}\n\nOAuth scope: \`${oauthScope}\`.`
       : operation.description,
     'x-sim-operation': operation.applicationOperation.id,
-    ...(operation.applicationOperation.oauthScope
-      ? { 'x-oauth-scope': operation.applicationOperation.oauthScope }
-      : {}),
+    ...(oauthScope ? { 'x-oauth-scope': oauthScope } : {}),
     tags: [...operation.tags],
     ...(operation.deprecated === undefined ? {} : { deprecated: operation.deprecated }),
     ...(operation.security === undefined ? {} : { security: operation.security }),
@@ -675,9 +681,9 @@ function validateOperationMetadata(
   nonEmpty(operation.applicationOperation.id, `${label} application operation id`)
   const security = operation.security ?? definition.security
   if (security.some((requirement) => 'oauthBearer' in requirement)) {
+    const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
     invariant(
-      operation.applicationOperation.oauthScope === 'api:read' ||
-        operation.applicationOperation.oauthScope === 'api:write',
+      oauthScope === 'api:read' || oauthScope === 'api:write',
       `${label} must declare its canonical application's OAuth scope`
     )
   }

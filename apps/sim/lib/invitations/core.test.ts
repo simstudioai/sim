@@ -1585,6 +1585,61 @@ describe('acceptInvitation', () => {
     }
   })
 
+  it('accepts an organization-only invitation without creating workspace grants and lands in org Home', async () => {
+    mockEnsureTeamOrganizationForAcceptance.mockResolvedValueOnce({
+      success: true,
+      organizationId: 'org-1',
+      fixedSeats: false,
+    })
+    queueWhereResponses([
+      [
+        {
+          id: 'inv-org-only',
+          kind: 'organization',
+          email: 'invitee@example.com',
+          organizationId: 'org-1',
+          membershipIntent: 'internal',
+          inviterId: 'owner-1',
+          role: 'member',
+          status: 'pending',
+          token: 'tok-1',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [],
+      [{ name: 'Acme' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+      [],
+      [],
+      [{ id: 'member-1' }],
+      [],
+    ])
+    const result = await acceptInvitation({
+      userId: 'invitee-user',
+      userEmail: 'invitee@example.com',
+      invitationId: 'inv-org-only',
+      token: 'tok-1',
+      disclosedWorkspaceIds: [],
+      disclosedOutcome: 'will-join',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.redirectPath).toBe('/o/org-1/home')
+      expect(result.acceptedWorkspaceIds).toEqual([])
+    }
+    expect(mockEnsureUserInOrganization).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        userId: 'invitee-user',
+        organizationId: 'org-1',
+        role: 'member',
+      })
+    )
+    expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+  })
+
   it('does not record an ORG_MEMBER_ADDED audit for a user who is already a member', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',

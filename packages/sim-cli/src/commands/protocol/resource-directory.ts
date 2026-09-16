@@ -12,11 +12,11 @@ import {
   V2_OPERATIONS,
   type V2OperationName,
 } from '../../generated/v2-api'
-import { requestPages, SimApiError, type SimClient, type V2Page } from '../../http/client'
+import { requestAllPages, SimApiError, type SimClient, type V2Page } from '../../http/client'
 import { type Column, printList, text, timestamp } from '../../output/render'
-import { DEFAULT_LIMIT } from '../../runtime/options'
+import { DEFAULT_PAGE_SIZE } from '../../runtime/options'
 import { encodeFolderPath } from '../../runtime/request'
-import { decodeFolderPath, renderResult, writeCursorTruncation } from '../../runtime/result'
+import { decodeFolderPath, renderResult } from '../../runtime/result'
 
 type FolderListOperation =
   | 'listFileFolders'
@@ -103,19 +103,19 @@ async function listResources(
   folderPath: string,
   search: string | undefined,
   limit: number
-): Promise<{ items: DirectoryResource[]; truncated: boolean }> {
+): Promise<DirectoryResource[]> {
   const query = { workspaceId, folderPath, search, sortBy: 'name', sortOrder: 'asc' }
   const path = operationPath(config.resources)
   const paginated = 'cursor' in V2_OPERATIONS[config.resources].query
 
   if (!paginated) {
     const page = await client.request<V2Page<DirectoryResource>>(path, { query })
-    return { items: page.data.slice(0, limit), truncated: page.data.length > limit }
+    return page.data.slice(0, limit)
   }
 
-  return requestPages<DirectoryResource>(client, path, {
+  return requestAllPages<DirectoryResource>(client, path, {
     query,
-    pageSize: DEFAULT_LIMIT,
+    pageSize: DEFAULT_PAGE_SIZE,
     limit,
   })
 }
@@ -170,9 +170,7 @@ export function attachResourceDirectoryCommands(
     .description(`List ${config.kind} resources and child folders together`)
     .option('--search <text>', 'Filter folders and resources by name')
     .addOption(
-      new Option('--limit <n>', 'Maximum combined items to return (0 for everything)').default(
-        String(DEFAULT_LIMIT)
-      )
+      new Option('--limit <n>', 'Maximum combined items to return (0 for everything)').default('0')
     )
     .action(async (path: string | undefined, options: ListOptions, command: Command) => {
       const rawLimit = Number(options.limit)
@@ -191,12 +189,8 @@ export function attachResourceDirectoryCommands(
         listFolders(client, config.folders, workspaceId, folderPath, options.search),
         listResources(client, config, workspaceId, folderPath, options.search, limit),
       ])
-      const entries = entriesFor(config, folders, resources.items)
+      const entries = entriesFor(config, folders, resources)
       const shown = entries.slice(0, limit)
-      // Said here for the same reason the contract-driven `list` says it: the
-      // combined listing is capped after the merge, so a full page of folders
-      // can clip the resources even when the resource walk itself finished.
-      writeCursorTruncation(shown.length, resources.truncated || entries.length > limit)
       printList(profile.output, shown, COLUMNS)
     })
 

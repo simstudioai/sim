@@ -6,26 +6,15 @@
  * in 2.1.5 — sees a help listing without it and concludes the CLI cannot do it.
  * The version is the only thing that can tell them otherwise.
  *
- * Everything here fails silently. A courtesy notice that breaks a command, or
- * that writes anything to stdout, is worse than no notice at all.
+ * Registry and cache failures suppress the courtesy notice. Installation only
+ * happens when the user explicitly runs `sim update`.
  */
 
 import { spawn } from 'node:child_process'
-import {
-  closeSync,
-  constants,
-  fstatSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs'
-import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readJsonFile, writeJsonFile } from '../config/json-file'
 import { updateCachePath } from '../config/paths'
+import { childProcessEnv, isCi, isEnabled, proxyExecArgv } from '../environment'
 import { CLI_VERSION } from '../version'
 
 /** How long a cached check suppresses another request. */
@@ -68,15 +57,6 @@ function isNewerVersion(candidate: StableVersion, current: StableVersion): boole
   return candidate[2] > current[2]
 }
 
-/** Covers CI jobs that allocate a terminal despite being non-interactive. */
-const CI_VARIABLES = [
-  'CI',
-  'GITHUB_ACTIONS',
-  'JENKINS_URL',
-  'TEAMCITY_VERSION',
-  'BUILDKITE',
-] as const
-
 /** The shape written to the update cache. */
 interface UpdateCacheEntry {
   /** Unknown cache versions are treated as absent. */
@@ -108,16 +88,6 @@ interface RegistryRequestOptions {
 }
 
 type RegistryRequest = (url: URL, options: RegistryRequestOptions) => Promise<string | null>
-
-/** Makes adjacent temporary files unique across writes in this process. */
-let cacheWriteSequence = 0
-
-/** Anything but unset, empty, `0` or `false` turns a switch on. */
-function isEnabled(value: string | undefined): boolean {
-  if (value === undefined) return false
-  const normalized = value.trim().toLowerCase()
-  return normalized !== '' && normalized !== '0' && normalized !== 'false'
-}
 
 /** Whether the package is installed in a node_modules tree above the working directory. */
 function isProjectLocalInstall(modulePath: string, cwd: string): boolean {
@@ -203,16 +173,6 @@ try {
 }
 `
 
-/** Preserves proxy/TLS settings without copying CLI credentials into the probe. */
-function registryProcessEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env }
-  for (const key of Object.keys(env)) {
-    const normalized = key.toLowerCase()
-    if (normalized === 'npm_config_registry' || normalized === 'sim_api_key') delete env[key]
-  }
-  return env
-}
-
 /**
  * Makes one request in a process whose lifetime is owned entirely by this check.
  *
@@ -228,14 +188,11 @@ function requestRegistry(
   { headers, maxResponseBytes, timeoutMs }: RegistryRequestOptions
 ): Promise<string | null> {
   return new Promise((resolve, reject) => {
-    const proxyArguments = process.execArgv.filter(
-      (argument) => argument === '--use-env-proxy' || argument === '--no-use-env-proxy'
-    )
     const child = spawn(
       process.execPath,
-      [...proxyArguments, '--input-type=module', '--eval', REGISTRY_REQUEST_SCRIPT],
+      [...proxyExecArgv(), '--input-type=module', '--eval', REGISTRY_REQUEST_SCRIPT],
       {
-        env: registryProcessEnv(),
+        env: childProcessEnv(['npm_config_registry', 'sim_api_key']),
         killSignal: 'SIGKILL',
         stdio: ['pipe', 'pipe', 'ignore'],
         timeout: timeoutMs,
@@ -305,49 +262,12 @@ async function fetchDistTags(
 }
 
 function readCache(path: string): UpdateCacheEntry | null {
-  let descriptor: number | null = null
-  try {
-    if (!lstatSync(path).isFile()) return null
-    descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW)
-    const descriptorStats = fstatSync(descriptor)
-    if (!descriptorStats.isFile() || descriptorStats.size > MAX_CACHE_BYTES) {
-      return null
-    }
-
-    const buffer = Buffer.allocUnsafe(MAX_CACHE_BYTES + 1)
-    let bytesRead = 0
-    while (bytesRead < buffer.byteLength) {
-      const count = readSync(
-        descriptor,
-        buffer,
-        bytesRead,
-        buffer.byteLength - bytesRead,
-        bytesRead
-      )
-      if (count === 0) break
-      bytesRead += count
-    }
-    if (bytesRead > MAX_CACHE_BYTES) return null
-
-    const parsed: unknown = JSON.parse(buffer.subarray(0, bytesRead).toString('utf8'))
-    if (typeof parsed !== 'object' || parsed === null) return null
-    const entry = parsed as Partial<UpdateCacheEntry>
-    if (entry.version !== CACHE_VERSION) return null
-    if (typeof entry.checkedAt !== 'string' || Number.isNaN(Date.parse(entry.checkedAt)))
-      return null
-    return {
-      version: CACHE_VERSION,
-      checkedAt: entry.checkedAt,
-    }
-  } catch {
-    return null
-  } finally {
-    if (descriptor !== null) {
-      try {
-        closeSync(descriptor)
-      } catch {}
-    }
-  }
+  const parsed = readJsonFile(path, MAX_CACHE_BYTES)
+  if (typeof parsed !== 'object' || parsed === null) return null
+  const entry = parsed as Partial<UpdateCacheEntry>
+  if (entry.version !== CACHE_VERSION) return null
+  if (typeof entry.checkedAt !== 'string' || Number.isNaN(Date.parse(entry.checkedAt))) return null
+  return { version: CACHE_VERSION, checkedAt: entry.checkedAt }
 }
 
 /**
@@ -355,36 +275,9 @@ function readCache(path: string): UpdateCacheEntry | null {
  *
  * Stamping on failure too is what keeps a blackholed registry costing one second
  * a day instead of one second per command.
- *
- * Failures are ignored because the cache is best-effort. An exclusive adjacent
- * temporary file makes replacement atomic without modifying a linked target.
  */
 function writeCache(path: string, entry: UpdateCacheEntry): void {
-  let descriptor: number | null = null
-  let temporaryCreated = false
-  const temporaryPath = `${path}.${process.pid}.${Date.now()}.${cacheWriteSequence++}.tmp`
-  try {
-    mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-    descriptor = openSync(temporaryPath, 'wx', 0o644)
-    temporaryCreated = true
-    writeFileSync(descriptor, `${JSON.stringify(entry, null, 2)}\n`)
-    closeSync(descriptor)
-    descriptor = null
-    renameSync(temporaryPath, path)
-    temporaryCreated = false
-  } catch {
-  } finally {
-    if (descriptor !== null) {
-      try {
-        closeSync(descriptor)
-      } catch {}
-    }
-    if (temporaryCreated) {
-      try {
-        unlinkSync(temporaryPath)
-      } catch {}
-    }
-  }
+  writeJsonFile(path, entry)
 }
 
 /** Treats future timestamps as stale in case the clock moved backward. */
@@ -445,7 +338,7 @@ export async function announceUpdateIfAvailable(options: UpdateCheckOptions = {}
 
     if (isEnabled(env.SIM_NO_UPDATE_CHECK)) return
     if (!isTty) return
-    if (CI_VARIABLES.some((variable) => isEnabled(env[variable]))) return
+    if (isCi(env)) return
     if (isUnadvisableInstall(modulePath, env, cwd)) return
 
     const currentVersion = options.currentVersion ?? CLI_VERSION
@@ -468,8 +361,6 @@ export async function announceUpdateIfAvailable(options: UpdateCheckOptions = {}
     if (!isNewerVersion(available, current)) return
 
     const write = options.write ?? ((message: string) => void process.stderr.write(message))
-    write(
-      `Update available: sim ${currentVersion} → ${latest}. Run: ${upgradeCommand(modulePath, env)}\n`
-    )
+    write(`Update available: sim ${currentVersion} → ${latest}. Run: sim update\n`)
   } catch {}
 }

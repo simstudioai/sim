@@ -22,10 +22,6 @@ With the A2A block you can:
 You need the external agent's endpoint URL and, if it requires authentication, an API key.
 {/* MANUAL-CONTENT-END */}
 
-## Usage Instructions
-
-Use the A2A (Agent-to-Agent) protocol to call external AI agents over the latest A2A specification.
-
 ## Tools
 
 ### A2A Send Message
@@ -124,7 +120,5 @@ Fetch the Agent Card (discovery document) for an external A2A agent.
 
 ## Notes
 
-- Category: `blocks`
-- Type: `a2a`
 - Send Message blocks until the agent reaches a terminal (`completed`, `failed`, `canceled`, `rejected`) or interrupted (`input-required`, `auth-required`) state. Use Get Task to poll a task you continue later, and branch on `state`.
 - Task IDs are scoped to the external agent, not to Sim. Anyone who knows an agent URL and task ID can read or cancel that task unless the agent enforces its own authentication — set an API key for agents that require one.

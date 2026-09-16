@@ -1,19 +1,26 @@
 import { db } from '@sim/db'
 import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbOrTx } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
 import {
   getWorkspaceInvitePolicy,
   lockWorkspaceCreationContext,
   resolveGoverningPermissionGroupOrganization,
   resolveInviteFlags,
   WORKSPACE_MODE,
+  WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
+
+/** Foreign keys from `workspace` to `user`; a violation means the acting user's row is gone. */
+const WORKSPACE_USER_FK_CONSTRAINTS = new Set([
+  'workspace_owner_id_user_id_fk',
+  'workspace_billed_account_user_id_user_id_fk',
+])
 
 const logger = createLogger('WorkspaceCreate')
 
@@ -23,7 +30,6 @@ export interface CreateWorkspaceParams {
   observedOrganizationId: string | null
   name: string
   skipDefaultWorkflow?: boolean
-  explicitColor?: string
   organizationId: string | null
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
@@ -41,7 +47,6 @@ export interface CreateWorkspaceParams {
 export interface CreatedWorkspace {
   id: string
   name: string
-  color: string
   ownerId: string
   organizationId: string | null
   workspaceMode: WorkspaceMode
@@ -78,9 +83,9 @@ export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParam
  * Canonical transaction-enlisted workspace creation primitive.
  *
  * The caller supplies the creation-policy snapshot. This function revalidates
- * that snapshot — including the `workspace.create` capability, under the
+ * that snapshot — including the `workspace.create` capability under the
  * permission-group advisory lock — before inserting the workspace, owner
- * permission, and optional starter workflow atomically.
+ * permission and optional starter workflow atomically.
  */
 export async function createWorkspaceInTransaction(
   tx: DbOrTx,
@@ -89,7 +94,6 @@ export async function createWorkspaceInTransaction(
     observedOrganizationId,
     name,
     skipDefaultWorkflow = false,
-    explicitColor,
     organizationId,
     workspaceMode,
     billedAccountUserId,
@@ -99,7 +103,6 @@ export async function createWorkspaceInTransaction(
   const workspaceId = generateId()
   const workflowId = generateId()
   const now = new Date()
-  const color = explicitColor || getRandomWorkspaceColor()
   /** Built before the locks: it takes no arguments, so nothing makes it wait for them. */
   const defaultWorkflowArtifacts = skipDefaultWorkflow ? null : buildDefaultWorkflowArtifacts()
   const lockedCreationContext = await lockWorkspaceCreationContext(tx, {
@@ -116,7 +119,6 @@ export async function createWorkspaceInTransaction(
   await tx.insert(workspace).values({
     id: workspaceId,
     name,
-    color,
     ownerId: userId,
     organizationId,
     workspaceMode,
@@ -180,7 +182,6 @@ export async function createWorkspaceInTransaction(
   return {
     id: workspaceId,
     name,
-    color,
     ownerId: userId,
     organizationId,
     workspaceMode,
@@ -215,6 +216,13 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
       createWorkspaceInTransaction(tx, { ...params, governingPermissionGroupOrganizationId })
     )
   } catch (error) {
+    if (
+      getPostgresErrorCode(error) === '23503' &&
+      WORKSPACE_USER_FK_CONSTRAINTS.has(getPostgresConstraintName(error) ?? '')
+    ) {
+      logger.warn('Workspace creation raced account deletion', { userId: params.userId })
+      throw new WorkspaceOwnerMissingError(params.userId)
+    }
     logger.error('Failed to create workspace', { userId: params.userId, error })
     throw error
   }

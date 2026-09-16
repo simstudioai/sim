@@ -1,3 +1,4 @@
+import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import type { CompetitorProfile } from '@/lib/compare/data'
@@ -18,14 +19,15 @@ import {
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
 import { BackLink } from '@/app/(landing)/components'
-import { Cta } from '@/app/(landing)/components/cta/cta'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 
 const baseUrl = SITE_URL
 
 export const revalidate = 3600
-export const dynamicParams = false
+/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
+export const dynamicParams = true
 
 export async function generateStaticParams() {
   return ALL_COMPETITORS.map((competitor) => ({ provider: competitor.id }))
@@ -162,7 +164,7 @@ export default async function ComparisonProviderPage({
       <JsonLd data={faqJsonLd} />
 
       <main id='main-content' className='bg-[var(--bg)]'>
-        <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
           <div className='mb-6'>
             <BackLink href='/comparisons' label='Back to comparisons' />
           </div>
@@ -205,8 +207,8 @@ export default async function ComparisonProviderPage({
 
         <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-        <div className='mx-auto w-full max-w-[1446px]'>
-          <div className='mx-12 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+          <div className='border-[var(--border)] border-x'>
             {competitor.betterThanAnswer ? (
               <>
                 <section aria-labelledby='better-than-heading' className='px-6 py-10'>
@@ -368,10 +370,6 @@ export default async function ComparisonProviderPage({
 
         <div className='-mt-px h-px w-full bg-[var(--border)]' />
       </main>
-
-      <div className='py-16'>
-        <Cta />
-      </div>
     </>
   )
 }

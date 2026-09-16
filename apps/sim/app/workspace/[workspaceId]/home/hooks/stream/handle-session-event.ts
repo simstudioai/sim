@@ -31,7 +31,11 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
         deps.setResolvedChatId(payloadChatId)
       }
     }
-    deps.queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(deps.workspaceId) })
+    deps.queryClient.invalidateQueries<readonly unknown[]>({
+      queryKey: deps.organizationId
+        ? mothershipChatKeys.organizationList(deps.organizationId)
+        : mothershipChatKeys.list(deps.workspaceId),
+    })
     if (isNewChat) {
       const userMsg = deps.pendingUserMsgRef.current
       const activeStreamId = deps.streamIdRef.current
@@ -57,13 +61,24 @@ export function handleSessionEvent(ctx: StreamLoopContext, parsed: SessionEvent)
       }
       deps.setPendingMessages([])
       if (!deps.workflowIdRef.current) {
-        window.history.replaceState(null, '', chatUrl(deps.workspaceId, payloadChatId))
+        window.history.replaceState(
+          null,
+          '',
+          chatUrl(
+            deps.organizationId ? { organizationId: deps.organizationId } : deps.workspaceId!,
+            payloadChatId
+          )
+        )
       }
     }
   }
 
   if (payload.kind === MothershipStreamV1SessionKind.title) {
-    deps.queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(deps.workspaceId) })
+    deps.queryClient.invalidateQueries<readonly unknown[]>({
+      queryKey: deps.organizationId
+        ? mothershipChatKeys.organizationList(deps.organizationId)
+        : mothershipChatKeys.list(deps.workspaceId),
+    })
     deps.onTitleUpdateRef.current?.()
   }
 }

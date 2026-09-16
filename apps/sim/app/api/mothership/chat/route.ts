@@ -5,11 +5,11 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { handleUnifiedChatPost, maxDuration } from '@/lib/copilot/chat/post'
+import { handleUnifiedChatPost } from '@/lib/copilot/chat/post'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { GET as copilotChatGet } from '@/app/api/copilot/chat/queries'
 
-export { maxDuration }
+export const maxDuration = 3600
 
 // Unified chat route surface.
 export const GET = withRouteHandler((request: NextRequest) => {

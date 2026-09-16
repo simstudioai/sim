@@ -215,10 +215,11 @@ export interface BrowserPanelSnapshot {
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus the legacy `takeover-done` action retained for persisted
- * `browser_request_takeover` cards. Page interactions need no protocol — the
- * user acts on the real embedded page directly, and its right-click menu is
- * native and lives entirely in the shell.
+ * reload), the resource tab strip (`switch-tab`, `close-tab`), plus the legacy
+ * `takeover-done` action retained for persisted `browser_request_takeover`
+ * cards. Page interactions need no protocol — the user acts on the real
+ * embedded page directly, and its right-click menu is native and lives
+ * entirely in the shell.
  */
 export interface BrowserPanelAction {
   action:
@@ -226,8 +227,8 @@ export interface BrowserPanelAction {
     | 'reload'
     | 'back'
     | 'forward'
+    /** Fallback for installed shells that predate the acknowledged `openTab` bridge call. */
     | 'new-tab'
-    | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
     | 'print'
@@ -235,12 +236,19 @@ export interface BrowserPanelAction {
     | 'zoom-out'
     | 'zoom-reset'
     | 'respond-media-permission'
+    /** Compatibility response for installed shells with the retired navigation gate. */
     | 'respond-site-permission'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
-  /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
+  /** Stable tab id for `switch-tab` and `close-tab`. */
   tabId?: string
+  /**
+   * `switch-tab` only: false when the switch mirrors a selection made outside
+   * the page (the resource strip), so it must not count as the user claiming
+   * the page from the agent. Older shells treat every switch as a claim.
+   */
+  claim?: boolean
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
   /** Exact pending permission request being answered. */
@@ -258,7 +266,7 @@ export interface BrowserMediaPermissionRequest {
   devices: BrowserMediaDevice[]
 }
 
-/** One ungranted top-level origin transition awaiting explicit user consent. */
+/** Legacy navigation request emitted only by installed shells with per-task site consent. */
 export interface BrowserSitePermissionRequest {
   requestId: string
   /** Exact tab whose suspended request will be resumed or cancelled. */
@@ -281,7 +289,7 @@ export interface BrowserPageState {
   issue?: BrowserPageIssue
   /** Main-frame media request awaiting a renderer-owned permission prompt. */
   mediaPermissionRequest?: BrowserMediaPermissionRequest
-  /** Ungranted top-level origin transition awaiting a renderer-owned permission prompt. */
+  /** Legacy request from installed shells that still require a site-origin prompt. */
   sitePermissionRequest?: BrowserSitePermissionRequest
 }
 
@@ -351,8 +359,6 @@ export interface BrowserTabState {
   active: boolean
   /** Recoverable problem currently replacing this tab's native page surface. */
   issue?: BrowserPageIssue
-  /** Pinned tabs are ordered before regular tabs and cannot be closed. */
-  pinned: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */

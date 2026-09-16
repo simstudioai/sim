@@ -57,12 +57,15 @@ interface OAuthReturnBase {
     accountId: string | null
     updatedAt?: string
   }>
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   reconnect?: boolean
   requestedAt: number
 }
 
 interface OAuthReturnWorkflow extends OAuthReturnBase {
+  workspaceId: string
+  organizationId?: never
   origin: 'workflow'
   workflowId: string
 }
@@ -75,6 +78,8 @@ interface OAuthReturnKBConnectors extends OAuthReturnBase {
   origin: 'kb-connectors'
   knowledgeBaseId: string
   connectorType?: string
+  connectorId?: string
+  sourceAccess?: 'members'
 }
 
 export type OAuthReturnContext =

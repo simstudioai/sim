@@ -1,5 +1,6 @@
 import { ChipLink } from '@sim/emcn'
 import { CircleAlert } from '@sim/emcn/icons'
+import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 
 export function WorkspaceAccessDenied() {
@@ -17,7 +18,7 @@ export function WorkspaceAccessDenied() {
             choose another workspace.
           </p>
         </div>
-        <ChipLink href='/workspace' variant='primary'>
+        <ChipLink href={WORKSPACES_PATH} variant='primary'>
           View your workspaces
         </ChipLink>
       </div>

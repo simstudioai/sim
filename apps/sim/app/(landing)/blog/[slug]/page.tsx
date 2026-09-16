@@ -5,7 +5,8 @@ import { BLOG_SECTION, buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blo
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { ContentPostPage } from '@/app/(landing)/components'
 
-export const dynamicParams = false
+/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
+export const dynamicParams = true
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
@@ -19,7 +20,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const post = await getPostBySlug(slug)
-  if (!post) return {}
+  if (!post || post.draft) return {}
   return buildPostMetadata(post)
 }
 
@@ -28,7 +29,7 @@ export const revalidate = 86400
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const post = await getPostBySlug(slug)
-  if (!post) notFound()
+  if (!post || post.draft) notFound()
   const related = await getRelatedPosts(slug, 3)
 
   return (

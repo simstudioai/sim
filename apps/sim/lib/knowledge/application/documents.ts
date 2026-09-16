@@ -11,7 +11,6 @@ import {
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -61,6 +60,7 @@ import {
   performUploadKnowledgeDocument,
   performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration/documents'
+import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import {
   type KnowledgeTagNameFilter,
@@ -83,6 +83,7 @@ const logger = createLogger('KnowledgeDocumentApplication')
 export interface ListKnowledgeDocumentsInput {
   knowledgeBaseId: string
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
   enabledFilter?: 'all' | 'enabled' | 'disabled'
   search?: string
   limit?: number
@@ -103,11 +104,15 @@ export interface ReadKnowledgeDocumentInput {
   knowledgeBaseId: string
   documentId: string
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
+  /** Search surfaces exclude disabled documents; management can still inspect them. */
+  requireEnabledDocument?: boolean
 }
 
 export interface UploadKnowledgeDocumentAdmissionInput {
   knowledgeBaseId: string
   assertedWorkspaceId?: string
+  assertedOrganizationId?: string
 }
 
 export interface KnowledgeDocumentInput {
@@ -324,7 +329,7 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         tagFilters: tagFilters.length > 0 ? tagFilters : undefined,
       },
       generateRequestId(),
-      await context.access.get()
+      context.access
     )
     return {
       ...result,
@@ -345,7 +350,10 @@ export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ReadKnowledgeDocumentInput
   }) => resolveActiveKnowledgeDocumentContext(input, principal),
-  async execute({ context }: { context: ActiveKnowledgeDocumentContext }) {
+  async execute({ input, context }) {
+    if (input.requireEnabledDocument && !context.document.enabled) {
+      throw new OrchestrationError('not_found', 'Document not found')
+    }
     return {
       document: context.document,
       tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),
@@ -665,36 +673,27 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
      * Only a document the caller may read counts as the one being replaced:
      * a restricted document is neither confirmed to exist nor replaced.
      */
-    const access = await context.access.get()
+    const lookupConditions = [
+      eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
+      isNull(documentTable.deletedAt),
+      input.documentId
+        ? eq(documentTable.id, input.documentId)
+        : eq(documentTable.filename, input.filename),
+    ]
     let existingDocumentId: string | null = null
-    if (input.documentId) {
+    for await (const accessCondition of knowledgeReadAccessBatches(
+      context.access,
+      lookupConditions
+    )) {
       const [existing] = await db
         .select({ id: documentTable.id })
         .from(documentTable)
-        .where(
-          and(
-            eq(documentTable.id, input.documentId),
-            eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
-            isNull(documentTable.deletedAt),
-            knowledgeAccessCondition(access)
-          )
-        )
+        .where(and(...lookupConditions, accessCondition))
         .limit(1)
-      existingDocumentId = existing?.id ?? null
-    } else {
-      const [existing] = await db
-        .select({ id: documentTable.id })
-        .from(documentTable)
-        .where(
-          and(
-            eq(documentTable.filename, input.filename),
-            eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
-            isNull(documentTable.deletedAt),
-            knowledgeAccessCondition(access)
-          )
-        )
-        .limit(1)
-      existingDocumentId = existing?.id ?? null
+      if (existing) {
+        existingDocumentId = existing.id
+        break
+      }
     }
     const requestId = generateRequestId()
     const createdDocuments = await createDocumentRecords(
@@ -720,7 +719,7 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
           context.knowledgeBaseId,
           existingDocumentId,
           requestId,
-          access
+          await context.access.getForDocuments([existingDocumentId])
         )
       } catch (error) {
         /**
@@ -881,7 +880,7 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
           canonical.knowledgeBaseId,
           canonical.documentId,
           generateRequestId(),
-          await context.access.get()
+          await canonical.access.get()
         )
         deletedDocuments.push({
           id: canonical.documentId,
@@ -1028,7 +1027,7 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
           context.knowledgeBaseId,
           input.operation,
           input.enabledFilter,
-          await context.access.get(),
+          context.access,
           generateRequestId()
         )
       : input.documentIds?.length
@@ -1036,7 +1035,7 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
             context.knowledgeBaseId,
             input.operation,
             input.documentIds,
-            await context.access.get(),
+            context.access,
             generateRequestId()
           )
         : null

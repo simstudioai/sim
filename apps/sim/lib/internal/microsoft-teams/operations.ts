@@ -11,6 +11,10 @@ import type {
   MicrosoftTeamsWriteChannelInput,
   MicrosoftTeamsWriteChatInput,
 } from '@/lib/internal/microsoft-teams/schema'
+import {
+  createInternalToolFilesResult,
+  type InternalToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -33,13 +37,6 @@ export interface MicrosoftTeamsOperationContext {
   requestId?: string
   signal?: AbortSignal
   userId?: string
-}
-
-interface TeamsFileOutput {
-  name: string
-  mimeType: string
-  data: string
-  size: number
 }
 
 interface TeamsAttachmentRef {
@@ -95,13 +92,13 @@ async function uploadFilesForMessage(
   rawFiles: NonNullable<MicrosoftTeamsWriteChatInput['files']>,
   client: MicrosoftTeamsClient,
   context: MicrosoftTeamsOperationContext
-): Promise<{ attachments: TeamsAttachmentRef[]; files: TeamsFileOutput[] }> {
+): Promise<{ attachments: TeamsAttachmentRef[]; files: InternalToolFile[] }> {
   if (rawFiles.length === 0) return { attachments: [], files: [] }
   if (!context.userId) throw new MicrosoftTeamsOperationError('Authentication required', 401)
   const requestId = context.requestId || 'microsoft-teams-operation'
   const userFiles = processFilesToUserFiles(rawFiles, requestId, logger)
   const attachments: TeamsAttachmentRef[] = []
-  const files: TeamsFileOutput[] = []
+  const files: InternalToolFile[] = []
   let totalBytes = 0
 
   for (const file of userFiles) {
@@ -141,8 +138,7 @@ async function uploadFilesForMessage(
     files.push({
       name: file.name,
       mimeType: contentType,
-      data: buffer.toString('base64'),
-      size: buffer.length,
+      buffer,
     })
 
     let uploaded: MicrosoftTeamsGraphObject
@@ -353,17 +349,20 @@ async function sendMessage(args: {
     'Failed to send Teams message',
     args.context.signal
   )
-  return {
-    success: true as const,
-    output: {
-      updatedContent: true,
-      metadata: {
-        ...args.enhancedMetadata(data),
-        attachmentCount: uploaded.attachments.length,
-      },
-      files: uploaded.files,
+  const output = {
+    updatedContent: true,
+    metadata: {
+      ...args.enhancedMetadata(data),
+      attachmentCount: uploaded.attachments.length,
     },
   }
+  if (uploaded.files.length === 0) {
+    return { success: true as const, output: { ...output, files: [] } }
+  }
+  return createInternalToolFilesResult(uploaded.files, (files) => ({
+    success: true,
+    output: { ...output, files },
+  }))
 }
 
 export async function writeMicrosoftTeamsChatMessage(

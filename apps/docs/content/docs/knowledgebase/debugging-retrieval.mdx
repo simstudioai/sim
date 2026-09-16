@@ -4,7 +4,6 @@ description: Why a Knowledge block search returns no results, wrong results, or 
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 
 A [Knowledge block](/integrations/knowledge) search reads a query, embeds it as a vector, and returns the chunks of your documents that are closest to it. When the search misbehaves, it does so in one of three ways: it returns nothing, it returns the wrong chunks, or it returns the same content twice. Each one has a short list of causes you can check in the search results, in the document list, and in your tag filters.
 
@@ -61,7 +60,7 @@ Wrong results are chunks that come back but don't answer the query, even though 
 
 Common causes:
 
-- **The query and the content use different words.** A search for `LLM` won't sit close to content written entirely as `language model`. Reword the query toward the content's own terms.
+- **The query relies on an exact term or identifier.** Semantic search can match paraphrases, but a product code or error ID may need literal matching. Try [Hybrid retrieval](/knowledgebase/using-in-workflows#retrieval-mode) and include the exact identifier in the query.
 - **Chunks are too large.** A 1,024-token chunk blends many topics into one embedding, so its score is diluted across all of them. Smaller chunks (256 to 512 tokens) often retrieve more precisely. See [chunking strategies](/knowledgebase/chunking-strategies).
 - **Context is split across a chunk boundary.** The sentence that answers the query sits in one chunk and the subject it refers to sits in the previous one, so neither chunk scores well on its own. Overlap during chunking reduces this.
 
@@ -83,12 +82,3 @@ Duplicates are the same or near-identical content appearing more than once in `r
 A chunk can be disabled with the **Update Chunk** operation (`enabled: false`), which removes it from all searches without deleting it. A disabled chunk never appears in results, even when it's the best match. If a chunk you know is relevant is missing from a search, confirm it isn't disabled.
 
 The same goes for tag slots when you use [connectors](/knowledgebase/connectors). Synced documents auto-populate tag values (a repository name, a last-modified date), and those occupy the same slots manual tags would. A filter that returns nothing can be filtering on a slot the connector already claimed.
-
-## Next
-
-<Cards>
-  <Card title="Chunking strategies" href="/knowledgebase/chunking-strategies" description="Max chunk size, overlap, and how splits become chunks." />
-  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Set tag values and filter searches by them." />
-  <Card title="Using a knowledge base in a workflow" href="/knowledgebase/using-in-workflows" description="Wire a Knowledge block search into an agent." />
-  <Card title="Knowledge block" href="/integrations/knowledge" description="Every operation the block supports." />
-</Cards>

@@ -128,7 +128,7 @@ describe('ChatCompleteHandoff', () => {
         vi.advanceTimersByTime(400)
       })
 
-      expect(calls).toEqual(['/workspace'])
+      expect(calls).toEqual(['/home'])
       act(() => root.unmount())
     })
   })

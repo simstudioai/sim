@@ -27,13 +27,14 @@ const mocks = vi.hoisted(() => ({
     },
   },
   getOrganizationSettingsFeatures: vi.fn((hasEnterprisePlan: boolean) => ({ hasEnterprisePlan })),
-  getWorkspaceOwnerSubscriptionAccess: vi.fn(),
-  isCredentialGroupsAvailable: vi.fn(),
   isCustomBlocksEligibleForOrganization: vi.fn(),
   isForkingAvailableForWorkspace: vi.fn(),
   isOrganizationOnEnterprisePlan: vi.fn(),
   isOrganizationSettingsSectionAvailable: vi.fn(),
+  isScopedCredentialGroupsAvailable: vi.fn(),
+  isKnowledgeMemberAccessAvailable: vi.fn(),
   isPlatformAdmin: vi.fn(),
+  isAccessRequestEnabled: vi.fn(),
   resolveVerifiedUserAccessControlContext: vi.fn(),
   resolveWorkspaceNavigation: vi.fn(),
 }))
@@ -45,29 +46,33 @@ vi.mock('@/components/settings/navigation', () => ({
   UNIFIED_TO_ORGANIZATION_SECTION: {
     organization: 'members',
     billing: 'billing',
+    'connected-accounts': 'connected-accounts',
     'access-control': 'access-control',
   },
   UNIFIED_TO_WORKSPACE_SECTION: {
     secrets: 'secrets',
-    'credential-groups': 'credential-groups',
     forks: 'forks',
     'custom-blocks': 'custom-blocks',
   },
   workspaceSectionUsesPermissionConfig: vi.fn((section: string) =>
     ['secrets', 'api-keys', 'inbox', 'mcp', 'custom-tools'].includes(section)
   ),
+  WORKSPACE_PERMISSION_CONFIG_KEYS: { secrets: 'hideSecretsTab' },
 }))
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mocks.getWorkspaceOwnerSubscriptionAccess,
+vi.mock('@/lib/permission-access-requests/settings', () => ({
+  isAccessRequestEnabled: mocks.isAccessRequestEnabled,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mocks.isOrganizationOnEnterprisePlan,
 }))
-vi.mock('@/lib/credential-groups/availability', () => ({
-  isCredentialGroupsAvailable: mocks.isCredentialGroupsAvailable,
-}))
 vi.mock('@/lib/core/config/deployment-shape', () => ({
   getDeploymentShape: () => mocks.deploymentShape,
+}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: mocks.isScopedCredentialGroupsAvailable,
+}))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  isKnowledgeMemberAccessAvailable: mocks.isKnowledgeMemberAccessAvailable,
 }))
 vi.mock('@/lib/organizations/settings-access', () => ({
   canOpenOrganizationSettingsSection: mocks.canOpenOrganizationSettingsSection,
@@ -118,14 +123,16 @@ function authorize(section: Parameters<typeof authorizeWorkspaceSettingsSection>
 describe('authorizeWorkspaceSettingsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.deploymentShape.billingEnabled = true
     mocks.checkWorkspaceAccess.mockResolvedValue(PERSONAL_ACCESS)
-    mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
-    mocks.isCredentialGroupsAvailable.mockResolvedValue(true)
     mocks.isCustomBlocksEligibleForOrganization.mockResolvedValue(true)
     mocks.isForkingAvailableForWorkspace.mockResolvedValue(true)
     mocks.isOrganizationOnEnterprisePlan.mockResolvedValue(true)
     mocks.isOrganizationSettingsSectionAvailable.mockReturnValue(true)
+    mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(true)
+    mocks.isKnowledgeMemberAccessAvailable.mockResolvedValue(false)
     mocks.isPlatformAdmin.mockResolvedValue(true)
+    mocks.isAccessRequestEnabled.mockResolvedValue(false)
     mocks.canOpenOrganizationSettingsSection.mockResolvedValue(true)
     mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({ config: {} })
     mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'secrets' }])
@@ -144,13 +151,11 @@ describe('authorizeWorkspaceSettingsSection', () => {
       disposition: 'not-found',
     })
     expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
   })
 
   it('opens ordinary sections from workspace access alone', async () => {
     await expect(authorize('general')).resolves.toEqual({ allowed: true })
 
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
     expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
     expect(mocks.resolveVerifiedUserAccessControlContext).not.toHaveBeenCalled()
     expect(mocks.isPlatformAdmin).not.toHaveBeenCalled()
@@ -177,7 +182,6 @@ describe('authorizeWorkspaceSettingsSection', () => {
       allowed: false,
       disposition: 'redirect-general',
     })
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
     expect(mocks.resolveVerifiedUserAccessControlContext).toHaveBeenCalledWith(
       'viewer-1',
       'workspace-1',
@@ -191,7 +195,6 @@ describe('authorizeWorkspaceSettingsSection', () => {
   it('resolves environment access-control policy for the same section in a personal workspace', async () => {
     await authorize('secrets')
 
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
     expect(mocks.resolveVerifiedUserAccessControlContext).toHaveBeenCalledWith(
       'viewer-1',
       'workspace-1',
@@ -199,9 +202,58 @@ describe('authorizeWorkspaceSettingsSection', () => {
     )
   })
 
+  it.each([true, false])(
+    'offers a request-only page when requests are enabled=%s',
+    async (enabled) => {
+      mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+      mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+        config: { hideSecretsTab: true },
+      })
+      mocks.resolveWorkspaceNavigation.mockImplementation(({ permissionConfig }) =>
+        permissionConfig.hideSecretsTab ? [] : [{ id: 'secrets' }]
+      )
+      mocks.isAccessRequestEnabled.mockResolvedValue(enabled)
+
+      await expect(authorize('secrets')).resolves.toEqual(
+        enabled
+          ? { allowed: false, disposition: 'request-access', configKey: 'hideSecretsTab' }
+          : { allowed: false, disposition: 'redirect-general' }
+      )
+      expect(mocks.isAccessRequestEnabled).toHaveBeenCalledWith('organization-1')
+    }
+  )
+
+  it('keeps deployment and role exclusions when considering a permission request', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+      config: { hideSecretsTab: true },
+    })
+    mocks.resolveWorkspaceNavigation.mockReturnValue([])
+    mocks.isAccessRequestEnabled.mockResolvedValue(true)
+
+    await expect(authorize('secrets')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.isAccessRequestEnabled).not.toHaveBeenCalled()
+  })
+
+  it('does not offer organization requests for personal workspace restrictions', async () => {
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+      config: { hideSecretsTab: true },
+    })
+    mocks.resolveWorkspaceNavigation.mockImplementation(({ permissionConfig }) =>
+      permissionConfig.hideSecretsTab ? [] : [{ id: 'secrets' }]
+    )
+    await expect(authorize('secrets')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.isAccessRequestEnabled).not.toHaveBeenCalled()
+  })
+
   it('enforces canonical permission config independently of billing subscription state', async () => {
     mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
-    mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: false })
     mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
       entitled: true,
       config: { hideSecretsTab: true },
@@ -212,7 +264,6 @@ describe('authorizeWorkspaceSettingsSection', () => {
       allowed: false,
       disposition: 'redirect-general',
     })
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
   })
 
   it('passes the server-resolved deployment shape to both navigation gates', async () => {
@@ -230,14 +281,7 @@ describe('authorizeWorkspaceSettingsSection', () => {
   })
 
   it('resolves the exact entitlement source only for gated workspace sections', async () => {
-    mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'credential-groups' }])
-    await authorize('credential-groups')
-    expect(mocks.isCredentialGroupsAvailable).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      ownerBilling: { isEnterprise: true },
-    })
-    expect(mocks.isForkingAvailableForWorkspace).not.toHaveBeenCalled()
-
+    mocks.checkWorkspaceAccess.mockResolvedValue(PERSONAL_ACCESS)
     mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'forks' }])
     await authorize('forks')
     expect(mocks.isForkingAvailableForWorkspace).toHaveBeenCalledWith(null, 'viewer-1')
@@ -260,6 +304,92 @@ describe('authorizeWorkspaceSettingsSection', () => {
     })
     await expect(authorize('billing')).resolves.toEqual({ allowed: true })
     expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
+  })
+
+  it('allows the member roster with billing disabled while keeping billing unavailable', async () => {
+    mocks.deploymentShape.billingEnabled = false
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+
+    await expect(authorize('organization')).resolves.toEqual({ allowed: true })
+    expect(mocks.canOpenOrganizationSettingsSection).toHaveBeenCalledWith(
+      'organization-1',
+      'viewer-1',
+      'members'
+    )
+    await expect(authorize('billing')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+  })
+
+  it('requires current organization membership for the roster with billing disabled', async () => {
+    mocks.deploymentShape.billingEnabled = false
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.canOpenOrganizationSettingsSection.mockResolvedValue(false)
+
+    await expect(authorize('organization')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+  })
+
+  it.each([
+    { groups: true, search: false, allowed: true },
+    { groups: false, search: false, allowed: false },
+    { groups: true, search: true, allowed: false },
+    { groups: false, search: true, allowed: false },
+  ])(
+    'gates Connected accounts with organization groups=$groups and search=$search',
+    async ({ groups, search, allowed }) => {
+      mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+      mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(groups)
+      mocks.isKnowledgeMemberAccessAvailable.mockResolvedValue(search)
+
+      await expect(authorize('connected-accounts')).resolves.toEqual(
+        allowed ? { allowed: true } : { allowed: false, disposition: 'redirect-general' }
+      )
+      expect(mocks.canOpenOrganizationSettingsSection).toHaveBeenCalledWith(
+        'organization-1',
+        'viewer-1',
+        'connected-accounts'
+      )
+      expect(mocks.isScopedCredentialGroupsAvailable).toHaveBeenCalledWith({
+        kind: 'organization',
+        organizationId: 'organization-1',
+      })
+      if (groups) {
+        expect(mocks.isKnowledgeMemberAccessAvailable).toHaveBeenCalledWith({
+          organizationId: 'organization-1',
+        })
+      }
+      expect(mocks.isOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not infer organization admin access from workspace admin access', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.canOpenOrganizationSettingsSection.mockResolvedValue(false)
+
+    await expect(authorize('connected-accounts')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.isScopedCredentialGroupsAvailable).not.toHaveBeenCalled()
+  })
+
+  it('requires a host organization for Connected accounts', async () => {
+    await expect(authorize('connected-accounts')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
+  })
+
+  it('propagates feature lookup failures instead of opening Connected accounts', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.isKnowledgeMemberAccessAvailable.mockRejectedValue(new Error('Feature lookup failed'))
+
+    await expect(authorize('connected-accounts')).rejects.toThrow('Feature lookup failed')
   })
 
   it('requires current organization access and plan availability for enterprise sections', async () => {

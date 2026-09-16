@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockParams,
   mockRefetchPersonalEnvironment,
   mockRefetchWorkspaceCredentials,
   mockIsBrowserAgentAvailable,
@@ -18,6 +19,7 @@ const {
   mockUseWorkspaceCredential,
   mockUseWorkspaceCredentials,
 } = vi.hoisted(() => ({
+  mockParams: vi.fn(() => ({ workspaceId: 'workspace-1' })),
   mockUpdateWorkspaceCredential: vi.fn(async () => undefined),
   mockRefetchPersonalEnvironment: vi.fn(async () => ({ data: {} })),
   mockRefetchWorkspaceCredentials: vi.fn(async () => ({ data: [] })),
@@ -35,7 +37,20 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 }))
 
 vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
+  useParams: mockParams,
+}))
+
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'person' } } }),
+}))
+vi.mock('@/app/workspace/[workspaceId]/home/components/chat-surface-context', () => ({
+  useChatSurface: () => ({
+    SearchConnectionComponent: ({ onConnected }: { onConnected?: () => void }) => (
+      <button type='button' onClick={onConnected}>
+        Test Search connection
+      </button>
+    ),
+  }),
 }))
 
 vi.mock('@/hooks/queries/credentials', () => ({
@@ -98,6 +113,7 @@ describe('CredentialDisplay link tag', () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.clearAllMocks()
+    mockParams.mockReturnValue({ workspaceId: 'workspace-1' })
     window.localStorage.clear()
     window.history.replaceState({}, '', '/workspace/workspace-1/chat/chat-1')
     mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
@@ -110,6 +126,38 @@ describe('CredentialDisplay link tag', () => {
     mockIsBrowserAgentAvailable.mockReturnValue(false)
   })
 
+  it('keeps organization Search connection completion behind Submit', async () => {
+    mockParams.mockReturnValue({ organizationId: 'org' } as never)
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const onContinue = vi.fn()
+    act(() =>
+      root.render(
+        <SpecialTags
+          segment={{
+            type: 'credential',
+            data: [{ type: 'link', provider: 'google-email', connectorType: 'gmail' }],
+          }}
+          requestMode='assistant'
+          interactionId='org-card'
+          onOptionSelect={onContinue}
+        />
+      )
+    )
+    const connect = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Test Search connection'
+    )
+    act(() => connect?.click())
+    expect(onContinue).not.toHaveBeenCalled()
+    const submit = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Submit'
+    )
+    expect(submit).toBeDefined()
+    await act(async () => submit?.click())
+    expect(onContinue).toHaveBeenCalledOnce()
+    expect(onContinue.mock.calls[0][0]).toContain('connected')
+    act(() => root.unmount())
+  })
   it('renders browser takeover through the shared question UI', () => {
     mockIsBrowserAgentAvailable.mockReturnValue(true)
     const { container, root } = renderCredentialLink({

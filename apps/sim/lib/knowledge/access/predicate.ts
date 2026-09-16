@@ -1,6 +1,170 @@
-import { document } from '@sim/db/schema'
+import {
+  credential,
+  credentialGroup,
+  credentialGroupEnrollment,
+  document,
+  knowledgeBase,
+  knowledgeConnector,
+  knowledgeConnectorMember,
+  knowledgeDocumentObservation,
+  knowledgeExternalGroup,
+  knowledgeExternalGroupMember,
+  member,
+  user,
+} from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
+import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
+import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
 import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
+import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
+import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+
+/** Every Confluence clause must match the same confirmed reader, including that reader's groups. */
+function confluenceReaderClause(hasToken: (token: SQL) => SQL): SQL {
+  return sql`(${hasToken(sql`confluence_read_grant.reader_subject_token`)} OR EXISTS (
+    SELECT 1 FROM ${knowledgeExternalGroup}
+    JOIN ${knowledgeExternalGroupMember} ON ${knowledgeExternalGroupMember.groupId} = ${knowledgeExternalGroup.id}
+    WHERE ${knowledgeExternalGroupMember.subjectToken} = confluence_read_grant.reader_subject_token
+      AND ${knowledgeExternalGroup.providerId} = 'confluence'
+      AND ${knowledgeExternalGroup.tenantId} = confluence_read_grant.cloud_id
+      AND ${knowledgeExternalGroup.organizationId} IS NOT DISTINCT FROM ${knowledgeBase.organizationId}
+      AND ${knowledgeExternalGroup.workspaceId} IS NOT DISTINCT FROM ${knowledgeBase.workspaceId}
+      AND ${knowledgeExternalGroup.lastSyncedAt} >= statement_timestamp() - (${EXTERNAL_GROUP_STALE_AFTER_MS} * interval '1 millisecond')
+      AND ${hasToken(sql`('g:confluence:' || confluence_read_grant.cloud_id || ':' || ${knowledgeExternalGroup.externalGroupId})`)}
+  ))`
+}
+
+/** A cached space grant cannot substitute for the reader's current Confluence site access. */
+function confluenceSiteAccessCondition(scope: KnowledgeAccessScope): SQL {
+  const grants = scope.kind === 'user' ? (scope.confluenceSiteGrants ?? []) : []
+  const allowed =
+    scope.kind !== 'user' || grants.length === 0
+      ? sql`false`
+      : sql`EXISTS (
+    SELECT 1 FROM (VALUES ${sql.join(
+      grants.map(
+        (grant) => sql`(
+      ${grant.connectorId}, ${grant.contentCredentialId}, ${grant.readerCredentialId}, ${grant.readerSubjectToken}, ${grant.domain}, ${grant.cloudId}
+    )`
+      ),
+      sql`, `
+    )}) AS confluence_read_grant(connector_id, content_credential_id, reader_credential_id, reader_subject_token, domain, cloud_id)
+    JOIN ${knowledgeBase} ON ${knowledgeBase.id} = ${knowledgeConnector.knowledgeBaseId}
+    JOIN ${credential} ON ${credential.id} = confluence_read_grant.content_credential_id
+    WHERE confluence_read_grant.connector_id = ${knowledgeConnector.id}
+      AND confluence_read_grant.content_credential_id = ${knowledgeConnector.credentialId}
+      AND confluence_read_grant.domain = ${knowledgeConnector.sourceConfig}->>'domain'
+      AND ${confluenceReaderClause((token) => sql`${token} = ANY(${document.acl})`)}
+      AND NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(${document.aclRequirements}) AS confluence_required_clause(tokens)
+        WHERE NOT ${confluenceReaderClause((token) => sql`confluence_required_clause.tokens ? ${token}`)}
+      )
+      AND ${knowledgeConnector.archivedAt} IS NULL AND ${knowledgeConnector.deletedAt} IS NULL
+      AND ${knowledgeBase.deletedAt} IS NULL
+      AND ${credential.type} = 'service_account'
+      AND ${credential.providerId} = ${ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID}
+      AND ${credential.revokedAt} IS NULL
+      AND ${credential.organizationId} IS NOT DISTINCT FROM ${knowledgeBase.organizationId}
+      AND ${credential.workspaceId} IS NOT DISTINCT FROM ${knowledgeBase.workspaceId}
+      AND (${knowledgeBase.organizationId} IS NULL OR EXISTS (
+        SELECT 1 FROM ${member} WHERE ${member.organizationId} = ${knowledgeBase.organizationId}
+          AND ${member.userId} = ${scope.userId}
+      ))
+      AND EXISTS (
+        SELECT 1 FROM ${credential}
+        JOIN ${credentialGroupEnrollment} ON ${credentialGroupEnrollment.id} = ${credential.credentialGroupEnrollmentId}
+        JOIN ${credentialGroup} ON ${credentialGroup.id} = ${credentialGroupEnrollment.credentialGroupId}
+        JOIN ${user} ON ${user.id} = ${scope.userId}
+        WHERE ${credential.id} = confluence_read_grant.reader_credential_id
+          AND ${credential.type} = 'managed_oauth' AND ${credential.providerId} = 'confluence'
+          AND ${credential.managedOauthStatus} = 'active' AND ${credential.revokedAt} IS NULL
+          AND ('s:confluence:' || COALESCE(NULLIF(${credential.providerTenantId}, ''), '-') || ':' || ${credential.providerSubjectId}) = confluence_read_grant.reader_subject_token
+          AND ${credential.organizationId} IS NOT DISTINCT FROM ${knowledgeBase.organizationId}
+          AND ${credential.workspaceId} IS NOT DISTINCT FROM ${knowledgeBase.workspaceId}
+          AND ${credentialGroup.organizationId} IS NOT DISTINCT FROM ${knowledgeBase.organizationId}
+          AND ${credentialGroup.workspaceId} IS NOT DISTINCT FROM ${knowledgeBase.workspaceId}
+          AND ${credentialGroup.status} = 'active'
+          AND ${credentialGroupEnrollment.status} IN ('in_progress', 'completed')
+          AND ${credentialGroupEnrollment.revokedAt} IS NULL
+          AND ${user.emailVerified} = true
+          AND ((${knowledgeBase.organizationId} IS NOT NULL AND ${credentialGroupEnrollment.userId} = ${scope.userId})
+            OR (${knowledgeBase.workspaceId} IS NOT NULL AND ${credentialGroupEnrollment.email} = lower(btrim(${user.email}))))
+          AND EXISTS (SELECT 1 FROM jsonb_array_elements(${credentialGroup.options}) AS option
+            WHERE option->>'id' = ${credential.credentialGroupOptionId} AND option->>'status' = 'active')
+      )
+  )`
+  return sql`(${knowledgeConnector.connectorType} IS DISTINCT FROM 'confluence'
+    OR ${knowledgeConnector.accessMode} <> 'admin' OR ${allowed})`
+}
+
+/** Missing credentials or missing live evidence must never downgrade an installation source. */
+function githubInstallationAccessCondition(scope: KnowledgeAccessScope): SQL {
+  const grants = scope.kind === 'user' ? (scope.githubInstallationGrants ?? []) : []
+  const allowed =
+    scope.kind !== 'user' || grants.length === 0
+      ? sql`false`
+      : sql`EXISTS (
+    SELECT 1 FROM (VALUES ${sql.join(
+      grants.map(
+        (grant) => sql`(
+      ${grant.connectorId}, ${grant.contentCredentialId}, ${grant.readerCredentialId}, ${grant.repositoryId}, ${grant.readerSubjectToken}
+    )`
+      ),
+      sql`, `
+    )}) AS github_read_grant(connector_id, content_credential_id, reader_credential_id, repository_id, reader_subject_token)
+    JOIN ${credential} ON ${credential.id} = github_read_grant.content_credential_id
+    JOIN ${knowledgeBase} ON ${knowledgeBase.id} = ${knowledgeConnector.knowledgeBaseId}
+    WHERE github_read_grant.connector_id = ${knowledgeConnector.id}
+      AND github_read_grant.content_credential_id = ${knowledgeConnector.credentialId}
+      AND github_read_grant.repository_id = ${knowledgeConnector.sourceConfig}->>'githubRepositoryId'
+      AND ${knowledgeConnector.accessMode} = 'members'
+      AND ${knowledgeConnector.archivedAt} IS NULL AND ${knowledgeConnector.deletedAt} IS NULL
+      AND ${knowledgeBase.deletedAt} IS NULL
+      AND ${credential.type} = 'service_account'
+      AND ${credential.providerId} = ${GITHUB_INSTALLATION_PROVIDER_ID}
+      AND ${credential.revokedAt} IS NULL
+      AND ${credential.organizationId} IS NOT DISTINCT FROM ${knowledgeBase.organizationId}
+      AND ${credential.workspaceId} IS NOT DISTINCT FROM ${knowledgeBase.workspaceId}
+      AND (${knowledgeBase.organizationId} IS NULL OR EXISTS (
+        SELECT 1 FROM ${member} WHERE ${member.organizationId} = ${knowledgeBase.organizationId}
+          AND ${member.userId} = ${scope.userId}
+      ))
+      AND EXISTS (
+        SELECT 1 FROM ${credential}
+        JOIN ${credentialGroupEnrollment} ON ${credentialGroupEnrollment.id} = ${credential.credentialGroupEnrollmentId}
+        JOIN ${credentialGroup} ON ${credentialGroup.id} = ${credentialGroupEnrollment.credentialGroupId}
+        JOIN ${user} ON ${user.id} = ${scope.userId}
+        WHERE ${credential.id} = github_read_grant.reader_credential_id
+          AND ${credential.type} = 'managed_oauth' AND ${credential.providerId} = 'github-repositories'
+          AND ${credential.managedOauthStatus} = 'active' AND ${credential.revokedAt} IS NULL
+          AND ('s:github-repositories:' || COALESCE(NULLIF(${credential.providerTenantId}, ''), '-') || ':' || ${credential.providerSubjectId}) = github_read_grant.reader_subject_token
+          AND ${credential.organizationId} IS NOT DISTINCT FROM ${knowledgeBase.organizationId}
+          AND ${credential.workspaceId} IS NOT DISTINCT FROM ${knowledgeBase.workspaceId}
+          AND ${credentialGroup.organizationId} IS NOT DISTINCT FROM ${knowledgeBase.organizationId}
+          AND ${credentialGroup.workspaceId} IS NOT DISTINCT FROM ${knowledgeBase.workspaceId}
+          AND ${credentialGroup.status} = 'active'
+          AND ${credentialGroup.id} = ${knowledgeConnector.credentialGroupId}
+          AND ${credential.credentialGroupOptionId} = ${knowledgeConnector.credentialGroupOptionId}
+          AND ${credentialGroupEnrollment.status} IN ('in_progress', 'completed')
+          AND ${credentialGroupEnrollment.revokedAt} IS NULL
+          AND ${user.emailVerified} = true
+          AND ((${knowledgeBase.organizationId} IS NOT NULL AND ${credentialGroupEnrollment.userId} = ${scope.userId})
+            OR (${knowledgeBase.workspaceId} IS NOT NULL AND ${credentialGroupEnrollment.email} = lower(btrim(${user.email}))))
+          AND EXISTS (SELECT 1 FROM jsonb_array_elements(${credentialGroup.options}) AS option
+            WHERE option->>'id' = ${credential.credentialGroupOptionId} AND option->>'status' = 'active')
+      )
+  )`
+  return sql`(
+    ${knowledgeConnector.connectorType} IS DISTINCT FROM 'github'
+    OR (NOT (${knowledgeConnector.sourceConfig}::jsonb ? 'githubRepositoryId') AND NOT EXISTS (
+      SELECT 1 FROM ${credential} WHERE ${credential.id} = ${knowledgeConnector.credentialId}
+        AND ${credential.providerId} = ${GITHUB_INSTALLATION_PROVIDER_ID}
+    ))
+    OR ${allowed}
+  )`
+}
 
 /**
  * The single read-side access predicate: the document's ACL overlaps the
@@ -10,12 +174,72 @@ import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/ac
  * packages/db/db.ts). A literal array also keeps the planner's statistics on
  * `acl` usable, which is what lets it choose the GIN index for a selective set.
  *
- * The system scope is the only exemption and renders as `true`.
+ * Additional clauses preserve source intersections. Source-derived grants also
+ * require recent evidence, independent of scheduler health. A drained member
+ * change feed confirms unchanged observations through `memberSyncedThrough`;
+ * partial listings confirm only the documents actually observed.
  */
 export function knowledgeAccessCondition(scope: KnowledgeAccessScope | SystemAccessScope): SQL {
-  if (scope.kind === 'system') return sql`true`
+  return storedKnowledgeAccessCondition(
+    scope,
+    scope.kind === 'system'
+      ? sql`true`
+      : sql`(${githubInstallationAccessCondition(scope)} AND ${confluenceSiteAccessCondition(scope)})`
+  )
+}
+
+/**
+ * Stored access for fixed identifier/rank candidate projections only. Candidate identities
+ * must pass live source authorization and knowledgeAccessCondition before content, names,
+ * tags, counts, provenance, or model input are selected or returned.
+ */
+export function knowledgeMetadataCandidateAccessCondition(
+  scope: KnowledgeAccessScope | SystemAccessScope
+): SQL {
+  return storedKnowledgeAccessCondition(scope, sql`true`)
+}
+
+function storedKnowledgeAccessCondition(
+  scope: KnowledgeAccessScope | SystemAccessScope,
+  liveSourceAccess: SQL
+): SQL {
+  if (scope.kind === 'system') return documentConnectorIsActive()
   if (scope.tokens.length === 0) return sql`false`
-  return sql`${document.acl} && ${textArrayLiteral(scope.tokens)}`
+  const tokens = textArrayLiteral(scope.tokens)
+  const cutoff = sql`statement_timestamp() - (${SOURCE_ACL_MAX_AGE_MS} * interval '1 millisecond')`
+  return sql`(
+    ${document.acl} && ${tokens}
+    AND NOT EXISTS (
+      SELECT 1 FROM jsonb_array_elements(${document.aclRequirements}) AS required_clause(tokens)
+      WHERE NOT (required_clause.tokens ?| ${tokens})
+    )
+    AND (
+      (${document.connectorId} IS NULL AND ${document.acl} = ARRAY['ws']::text[])
+      OR EXISTS (
+        SELECT 1 FROM ${knowledgeConnector}
+        WHERE ${knowledgeConnector.id} = ${document.connectorId}
+          AND ${knowledgeConnector.deletedAt} IS NULL
+          AND ${knowledgeConnector.archivedAt} IS NULL
+          AND ${knowledgeConnector.accessRewritePending} = false
+          AND ${searchIntegrationAccessCondition()}
+          AND ${liveSourceAccess}
+          AND (
+            (${knowledgeConnector.accessMode} = 'workspace' AND ${document.acl} = ARRAY['ws']::text[])
+            OR (${document.acl} <> ARRAY['ws']::text[] AND (
+            (${knowledgeConnector.accessMode} = 'admin' AND ${document.aclVerifiedAt} > ${cutoff})
+            OR (${knowledgeConnector.accessMode} = 'members' AND (${document.id}, ${document.connectorId}) IN (
+              SELECT ${knowledgeDocumentObservation.documentId}, ${knowledgeConnectorMember.connectorId} FROM ${knowledgeDocumentObservation}
+              JOIN ${knowledgeConnectorMember}
+                ON ${knowledgeConnectorMember.id} = ${knowledgeDocumentObservation.memberId}
+              WHERE ${knowledgeConnectorMember.status} = 'active'
+                AND ${knowledgeConnectorMember.subjectToken} = ANY(${tokens})
+                AND GREATEST(${knowledgeDocumentObservation.lastSeenAt}, ${knowledgeConnectorMember.memberSyncedThrough}) > ${cutoff}
+            ))
+            ))
+          )
+      )
+    )
+  )`
 }
 
 /**

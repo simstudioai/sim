@@ -44,11 +44,11 @@ vi.mock('@/lib/folders/queries', () => ({
   resolveFolderPathFilter: mocks.resolveFolderPathFilter,
 }))
 
-vi.mock('@/lib/table', () => ({
+vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mocks.getLimits }))
+vi.mock('@/lib/table/service', () => ({
   createTable: vi.fn(),
   deleteTable: vi.fn(),
   getTableById: mocks.getTableById,
-  getWorkspaceTableLimits: mocks.getLimits,
   listTables: mocks.listDefinitions,
   moveTableToFolder: vi.fn(),
   queryTables: mocks.queryTables,

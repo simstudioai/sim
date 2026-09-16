@@ -24,6 +24,7 @@ import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
 } from '@/lib/credentials/principal'
+import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -33,6 +34,7 @@ import {
   getTokenServiceAccountValidator,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -48,6 +50,7 @@ export interface ServiceAccountSecretFields {
   botToken?: string
   apiToken?: string
   domain?: string
+  atlassianProduct?: AtlassianProduct
   serviceAccountJson?: string
   clientId?: string
   clientSecret?: string
@@ -96,7 +99,8 @@ async function buildAtlassianServiceAccountSecret(
     )
   }
   const normalizedDomain = normalizeAtlassianDomain(domain)
-  const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain)
+  const product = fields.atlassianProduct ?? 'jira'
+  const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain, product)
   const principal: ServiceAccountPrincipal = {
     kind: 'user',
     id: validation.accountId,
@@ -109,6 +113,7 @@ async function buildAtlassianServiceAccountSecret(
     apiToken,
     domain: normalizedDomain,
     cloudId: validation.cloudId,
+    atlassianProduct: product,
     atlassianAccountId: validation.accountId,
     metadata: serviceAccountPrincipalMetadata(principal),
   })
@@ -367,6 +372,11 @@ export async function verifyAndBuildServiceAccountSecret(
   providerId: string,
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
+  if (providerId === GITHUB_INSTALLATION_PROVIDER_ID) {
+    throw new ServiceAccountSecretError(
+      'Connect a GitHub App installation through your organization’s Search integrations'
+    )
+  }
   const builder = Object.hasOwn(SERVICE_ACCOUNT_SECRET_BUILDERS, providerId)
     ? SERVICE_ACCOUNT_SECRET_BUILDERS[providerId]
     : undefined

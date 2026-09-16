@@ -496,8 +496,10 @@ const SubBlockRow = memo(function SubBlockRow({
     if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
       return null
     }
-    return mcpToolNamesById.get(rawValue) ?? null
-  }, [subBlock?.type, rawValue, mcpToolNamesById])
+    return subBlock.canonicalParamId === 'tool'
+      ? rawValue
+      : (mcpToolNamesById.get(rawValue) ?? null)
+  }, [subBlock?.type, subBlock?.canonicalParamId, rawValue, mcpToolNamesById])
 
   const { data: tables = [] } = useTablesList(workspaceId || '')
   const tableDisplayName = useMemo(() => {

@@ -14,7 +14,7 @@ import { performDeleteKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import {
   handleError,
   resolveKnowledgeBase,
-  resolveV1KnowledgeAccessScope,
+  resolveV1KnowledgeReadAccess,
   serializeDate,
 } from '@/app/api/v1/knowledge/utils'
 import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
@@ -52,7 +52,7 @@ export const GET = withRouteHandler(
       const doc = await getKnowledgeDocument(
         knowledgeBaseId,
         documentId,
-        await resolveV1KnowledgeAccessScope(userId, rateLimit, parsed.data.query.workspaceId)
+        await resolveV1KnowledgeReadAccess(userId, rateLimit, parsed.data.query.workspaceId)
       )
 
       if (!doc) {
@@ -116,7 +116,7 @@ export const DELETE = withRouteHandler(
       const doc = await getKnowledgeDocument(
         knowledgeBaseId,
         documentId,
-        await resolveV1KnowledgeAccessScope(userId, rateLimit, parsed.data.query.workspaceId)
+        await resolveV1KnowledgeReadAccess(userId, rateLimit, parsed.data.query.workspaceId)
       )
 
       if (!doc) {

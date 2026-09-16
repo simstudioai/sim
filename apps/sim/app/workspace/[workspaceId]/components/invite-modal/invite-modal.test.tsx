@@ -12,7 +12,7 @@ const { hostContext, mockUseOrganizationBilling, mockUseAdminWorkspaces, mockMut
       current: {
         hostOrganizationId: 'org-host',
         viewer: { isHostOrganizationAdmin: false },
-      },
+      } as { hostOrganizationId: string; viewer: { isHostOrganizationAdmin: boolean } } | null,
     },
     mockUseOrganizationBilling: vi.fn(),
     mockUseAdminWorkspaces: vi.fn(),
@@ -25,8 +25,38 @@ vi.mock('@sim/emcn', () => ({
   ChipModal: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalError: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ChipModalField: () => <div />,
-  ChipModalFooter: () => <div />,
+  ChipModalField: ({
+    title,
+    type,
+    onChange,
+    options,
+  }: {
+    title: string
+    type: string
+    onChange?: (value: string[]) => void
+    options?: readonly { value: string; label: string }[]
+  }) => (
+    <div data-field={title}>
+      {title}
+      {type === 'emails' && (
+        <button type='button' onClick={() => onChange?.(['person@example.com'])}>
+          Add test recipient
+        </button>
+      )}
+      {options?.map((option) => (
+        <span key={option.value}>{option.label}</span>
+      ))}
+    </div>
+  ),
+  ChipModalFooter: ({
+    primaryAction,
+  }: {
+    primaryAction: { label: string; onClick: () => void; disabled: boolean }
+  }) => (
+    <button type='button' disabled={primaryAction.disabled} onClick={primaryAction.onClick}>
+      {primaryAction.label}
+    </button>
+  ),
   ChipModalHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   toast: { success: vi.fn() },
 }))
@@ -36,7 +66,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useWorkspaceHostContext: () => hostContext.current,
+  useOptionalWorkspaceHostContext: () => hostContext.current,
 }))
 
 vi.mock('@/hooks/queries/invitations', () => ({
@@ -102,6 +132,61 @@ describe('InviteModal organization billing isolation', () => {
     })
 
     expect(mockUseOrganizationBilling).toHaveBeenCalledWith('org-host', { enabled: false })
+  })
+
+  it('invites an organization member without a workspace provider or workspace selection', async () => {
+    hostContext.current = null
+    await act(async () => {
+      root.render(
+        <InviteModal open onOpenChange={vi.fn()} organizationId='org-target' isOrganizationAdmin />
+      )
+    })
+    expect(container.querySelector('[data-field="Workspaces"]')).toBeNull()
+    expect(container.querySelector('[data-field="Workspace access"]')).toBeNull()
+    expect(container.querySelector('[data-field="Role"]')?.textContent).toBe('RoleMemberAdmin')
+    expect(mockUseAdminWorkspaces).toHaveBeenCalledWith('user-1', 'org-target', { enabled: false })
+    const recipientButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Add test recipient'
+    )
+    await act(async () => recipientButton?.click())
+    const sendButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Send invites'
+    )
+    expect(sendButton?.disabled).toBe(false)
+    await act(async () => sendButton?.click())
+    expect(mockMutate).toHaveBeenCalledWith(
+      {
+        workspaceIds: [],
+        organizationId: 'org-target',
+        emails: ['person@example.com'],
+        permission: 'write',
+        membership: 'member',
+      },
+      expect.anything()
+    )
+  })
+
+  it('keeps org-only invites disabled for a member without target-org admin authority', async () => {
+    hostContext.current = null
+    await act(async () =>
+      root.render(
+        <InviteModal
+          open
+          onOpenChange={vi.fn()}
+          organizationId='org-target'
+          isOrganizationAdmin={false}
+        />
+      )
+    )
+    const recipientButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Add test recipient'
+    )
+    await act(async () => recipientButton?.click())
+    const sendButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Send invites'
+    )
+    expect(sendButton?.disabled).toBe(true)
+    expect(container.querySelector('[data-field="Role"]')?.textContent).toBe('RoleMember')
   })
 
   it('fetches seat data for an administrator of the routed host organization', async () => {

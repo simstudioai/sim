@@ -1,8 +1,8 @@
-import { omit } from '@sim/utils/object'
-import { getTableColumns, type SQL, sql } from 'drizzle-orm'
+import { type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   bigint,
+  bit,
   boolean,
   check,
   customType,
@@ -10,6 +10,7 @@ import {
   decimal,
   doublePrecision,
   foreignKey,
+  halfvec,
   index,
   integer,
   json,
@@ -45,21 +46,77 @@ export const bytea = customType<{
   },
 })
 
-export const user = pgTable('user', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  normalizedEmail: text('normalized_email').unique(),
-  emailVerified: boolean('email_verified').notNull(),
-  image: text('image'),
-  createdAt: timestamp('created_at').notNull(),
-  updatedAt: timestamp('updated_at').notNull(),
-  stripeCustomerId: text('stripe_customer_id'),
-  role: text('role').default('user'),
-  banned: boolean('banned').default(false),
-  banReason: text('ban_reason'),
-  banExpires: timestamp('ban_expires'),
-})
+/**
+ * An email address reduced to the identity it names, in SQL. The one expression
+ * every comparison of an address by identity must use — and the exact expression
+ * `user_email_lower_idx` indexes, so a predicate written any other way silently
+ * becomes a sequential scan. The TypeScript twin is `normalizeEmail` in
+ * `@sim/utils/string`; the two must agree, and both are trim-and-lowercase.
+ */
+export function foldedEmail(column: AnyPgColumn | SQL): SQL<string> {
+  return sql<string>`lower(btrim(${column}))`
+}
+
+export const user = pgTable(
+  'user',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    /**
+     * Unique byte-for-byte only. The identity an address names is
+     * `foldedEmail(email)`, which `user_email_lower_idx` indexes.
+     */
+    email: text('email').notNull().unique(),
+    /**
+     * Legacy signup normalization strips Gmail dots and tags and must never be
+     * used for identity. Retained for Better Auth and full-row readers that
+     * still select this column; removal needs a separate projection migration.
+     */
+    normalizedEmail: text('normalized_email').unique(),
+    emailVerified: boolean('email_verified').notNull(),
+    image: text('image'),
+    createdAt: timestamp('created_at').notNull(),
+    updatedAt: timestamp('updated_at').notNull(),
+    stripeCustomerId: text('stripe_customer_id'),
+    role: text('role').default('user'),
+    banned: boolean('banned').default(false),
+    banReason: text('ban_reason'),
+    banExpires: timestamp('ban_expires'),
+    /**
+     * When set, the account is suspended: sign-in is refused and API keys stop
+     * authenticating, while every resource the user owns is left untouched.
+     *
+     * Deliberately not `banned`. A ban is a platform-admin action whose
+     * `user.update.after` hook runs `disableUserResources`, archiving every
+     * workspace the user owns and deleting their API keys, and Sim has no
+     * server-side unban to reverse it. SCIM `active: false` is a reversible
+     * organization-level suspension that must preserve ownership for a later
+     * reactivation, so it needs a state of its own.
+     */
+    suspendedAt: timestamp('suspended_at'),
+    /**
+     * Who suspended the account. Only `scim` exists today; a source only ever
+     * lifts its own suspension, so a later source cannot have its suspensions
+     * undone by a directory sync.
+     */
+    suspensionSource: text('suspension_source'),
+  },
+  (table) => ({
+    /**
+     * The folded address, which is how every identity binding by email
+     * compares — credential-group enrollments, the `u:` document access token,
+     * the ambiguity check access resolution runs on every read. Without it
+     * each of those is a sequential scan of `user`.
+     *
+     * Not unique. `email` is unique byte-for-byte only, and a small number of
+     * historical accounts collide once folded; access resolution refuses to
+     * bind an ambiguous address rather than let either account read the
+     * other's documents. Follow-up, after those accounts are merged: promote to
+     * UNIQUE so the state cannot arise at all.
+     */
+    emailLowerIdx: index('user_email_lower_idx').on(foldedEmail(table.email)),
+  })
+)
 
 export const session = pgTable(
   'session',
@@ -467,14 +524,6 @@ export const workflowExecutionLogs = pgTable(
      * `materializeExecutionData`, which resolves the pointer.
      */
     executionData: jsonb('execution_data').notNull().default('{}'),
-    // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
-    // cost. Same procedure and argless-read lint as the user_stats marker
-    // (scripts/check-pending-drop-tables.ts). Script migration
-    // 0009_backfill_wel_residual_cost_total projects the ~23 straggler rows
-    // whose json still held a numeric total into cost_total before the drop;
-    // the contract PR must ALSO deregister that script (it reads this column).
-    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. */
-    cost: jsonb('cost'),
     // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
     // Backs list cost display/filter/sort without live aggregation; never an
     // independently-computed value (cost_total == SUM(usage_log) for the run).
@@ -538,12 +587,6 @@ export const workflowExecutionLogs = pgTable(
       ),
   })
 )
-
-/**
- * Live columns of `workflow_execution_logs` while the `cost` drop is
- * outstanding — see `userStatsColumns` for the pattern.
- */
-export const workflowExecutionLogColumns = omit(getTableColumns(workflowExecutionLogs), ['cost'])
 
 export const executionLargeValueReferenceSourceEnum = pgEnum(
   'execution_large_value_reference_source',
@@ -1191,36 +1234,8 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
-  // the 19 @deprecated columns in this table. Their last readers/writers were
-  // removed by the ledger cutover (#7078/#7113) and #7134; the declarations
-  // remain ONLY so the app schema keeps matching the deployed database until
-  // the drop. Argless select()/relational reads of this table are forbidden
-  // meanwhile — they would put these columns back into generated SQL and break
-  // the old task set when the contract deploy drops them mid-cutover — enforced
-  // by scripts/check-pending-drop-tables.ts. The follow-up PR deletes the
-  // @deprecated declarations plus this marker and ships the generated DROP
-  // migration in the same change.
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalManualExecutions: integer('total_manual_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalApiCalls: integer('total_api_calls').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalChatExecutions: integer('total_chat_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
-  /** @deprecated No readers or writers; report cost from usage_log. */
-  totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
-  /** @deprecated No readers or writers; usage is the attributed usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
-  currentPeriodCost: decimal('current_period_cost').notNull().default('0'),
   /** Previous-period usage; written by the cycle-close sweep from ledger sums. */
   lastPeriodCost: decimal('last_period_cost').default('0'),
   /**
@@ -1231,10 +1246,6 @@ export const userStats = pgTable('user_stats', {
    * by the ordinary per-usage ledger write path.
    */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
-  /** @deprecated No readers or writers; ledger entity stamps attribute pre/post-join usage. Drop via DROP COLUMN in a follow-up migration. */
-  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'),
-  /** @deprecated No readers or writers; see proPeriodCostSnapshot. Drop via DROP COLUMN in a follow-up migration. */
-  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'),
   /**
    * Credit balance tracker.
    *
@@ -1242,22 +1253,8 @@ export const userStats = pgTable('user_stats', {
    * overage collection. It is not a per-usage aggregate counter.
    */
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  /** @deprecated No readers or writers; report Copilot cost from usage_log. */
-  totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
-  /** @deprecated No readers or writers; Copilot usage is the copilot-source usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
-  currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
   /** Previous-period Copilot cost; written by the cycle-close sweep from copilot-source ledger sums. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
-  /** @deprecated No readers or writers; report Copilot tokens from usage_log. */
-  totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
-  /** @deprecated No readers or writers; report Copilot calls from usage_log. */
-  totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
-  /** @deprecated No readers or writers; report MCP Copilot calls from usage_log. */
-  totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
-  /** @deprecated No readers or writers; report MCP Copilot cost from usage_log. */
-  totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
-  /** @deprecated No writer (never incremented or reset). MCP copilot usage lives in usage_log (source 'mcp_copilot'); read it from there, not this column. */
-  currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
   /**
    * Storage upload/delete hot-path tracker for personal plans.
    *
@@ -1265,8 +1262,6 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
-  /** @deprecated No readers or writers; not updated since execution stopped writing user_stats. */
-  lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
   /**
@@ -1285,35 +1280,6 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .default({}),
 })
-
-/**
- * Live columns of `user_stats` — the selection every read of this table goes
- * through while the contract-pending drop (see the marker inside the table) is
- * outstanding, so generated SQL never names the doomed columns. Enforced by
- * `scripts/check-pending-drop-tables.ts`; the contract PR deletes this helper
- * together with the deprecated declarations.
- */
-export const userStatsColumns = omit(getTableColumns(userStats), [
-  'totalManualExecutions',
-  'totalApiCalls',
-  'totalWebhookTriggers',
-  'totalScheduledExecutions',
-  'totalChatExecutions',
-  'totalMcpExecutions',
-  'totalTokensUsed',
-  'totalCost',
-  'currentPeriodCost',
-  'proPeriodCostSnapshot',
-  'proPeriodCostSnapshotAt',
-  'totalCopilotCost',
-  'currentPeriodCopilotCost',
-  'totalCopilotTokens',
-  'totalCopilotCalls',
-  'totalMcpCopilotCalls',
-  'totalMcpCopilotCost',
-  'currentPeriodMcpCopilotCost',
-  'lastActive',
-])
 
 export const customTools = pgTable(
   'custom_tools',
@@ -1454,6 +1420,9 @@ export const rateLimitBucket = pgTable('rate_limit_bucket', {
   key: text('key').primaryKey(),
   tokens: decimal('tokens').notNull(),
   lastRefillAt: timestamp('last_refill_at').notNull(),
+  blockedUntil: timestamp('blocked_until'),
+  /** Bounded adaptive provider budgets and expiring request leases; ordinary buckets leave it null. */
+  capacityState: jsonb('capacity_state'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
@@ -1626,6 +1595,13 @@ export const organization = pgTable('organization', {
    * cache TTL instead of the 24h cookie-cache lifetime.
    */
   securityPolicyVersion: integer('security_policy_version').notNull().default(1),
+  /**
+   * Whether members must sign in through this organization's identity provider.
+   * Checked only when a session is created, so turning it on ends no session that
+   * already exists; signing everyone out stays the separate revoke action. Owners
+   * keep password sign-in as a break-glass path for a broken identity provider.
+   */
+  requireSso: boolean('require_sso').notNull().default(false),
   whitelabelSettings: json('whitelabel_settings').$type<{
     brandName?: string
     logoUrl?: string
@@ -1657,12 +1633,6 @@ export const organization = pgTable('organization', {
     .$type<Record<string, number>>()
     .notNull()
     .default({}),
-  // contract-pending(after #7134 is fully deployed to production): DROP COLUMN
-  // departed_member_usage. The last readers/writers (v1 admin exposure,
-  // cycle-close resets) were removed in #7134; same procedure and argless-read
-  // lint as the user_stats marker (scripts/check-pending-drop-tables.ts).
-  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. */
-  departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
   /**
    * Organization credit balance tracker.
    *
@@ -1673,12 +1643,6 @@ export const organization = pgTable('organization', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
-
-/**
- * Live columns of `organization` while the `departed_member_usage` drop is
- * outstanding — see `userStatsColumns` for the pattern.
- */
-export const organizationColumns = omit(getTableColumns(organization), ['departedMemberUsage'])
 
 export const member = pgTable(
   'member',
@@ -1733,6 +1697,70 @@ export const organizationMemberUsageLimit = pgTable(
       table.userId
     ),
     organizationIdIdx: index('org_member_usage_limit_organization_id_idx').on(table.organizationId),
+  })
+)
+
+/** Organization opt-out; an absent row keeps access requests enabled. */
+export const organizationAccessRequestSettings = pgTable('organization_access_request_settings', {
+  organizationId: text('organization_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  allowRequests: boolean('allow_requests').default(true).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+})
+
+/** Durable review history, scoped to the organization that owned the request at creation. */
+export const permissionAccessRequest = pgTable(
+  'permission_access_request',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id'),
+    scopeKey: text('scope_key').notNull(),
+    targetKey: text('target_key').notNull(),
+    target: jsonb('target').notNull(),
+    targetLabel: text('target_label').notNull(),
+    membershipId: text('membership_id').notNull(),
+    groupId: text('group_id'),
+    groupName: text('group_name'),
+    reason: text('reason').default('').notNull(),
+    status: text('status', { enum: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] })
+      .default('pending')
+      .notNull(),
+    decisionReason: text('decision_reason'),
+    decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+    decision: jsonb('decision'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    decidedAt: timestamp('decided_at'),
+  },
+  (table) => ({
+    pendingUnique: uniqueIndex('permission_access_request_pending_unique')
+      .on(table.organizationId, table.requesterId, table.scopeKey, table.targetKey)
+      .where(sql`${table.status} = 'pending'`),
+    organizationQueue: index('permission_access_request_org_queue_idx').on(
+      table.organizationId,
+      table.status,
+      table.createdAt,
+      table.id
+    ),
+    requesterHistory: index('permission_access_request_requester_idx').on(
+      table.organizationId,
+      table.requesterId,
+      table.scopeKey,
+      table.createdAt,
+      table.id
+    ),
+    statusCheck: check(
+      'permission_access_request_status_check',
+      sql`${table.status} in ('pending', 'fulfilled', 'declined', 'cancelled', 'closed')`
+    ),
   })
 )
 
@@ -1892,6 +1920,7 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'custom_block',
   'custom_tool',
   'skill',
+  'sandbox',
 ])
 
 export const workspaceForkResourceMap = pgTable(
@@ -2109,6 +2138,34 @@ export const backgroundWorkStatus = pgTable(
   })
 )
 
+/** Workspace-lifetime mutation deduplication and bounded, durable operation reports. */
+export const workspaceOperationReceipt = pgTable(
+  'workspace_operation_receipt',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    requestId: text('request_id').notNull(),
+    requestHash: text('request_hash').notNull(),
+    kind: text('kind').notNull(),
+    report: jsonb('report').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    requestUnique: uniqueIndex('workspace_operation_receipt_request_unique').on(
+      table.workspaceId,
+      table.requestId
+    ),
+    workspaceCreatedIdx: index('workspace_operation_receipt_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id
+    ),
+  })
+)
+
 export const workspaceFile = pgTable(
   'workspace_file',
   {
@@ -2144,6 +2201,9 @@ export const workspaceFiles = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
@@ -2169,9 +2229,7 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    /** contract-pending(after the cutover is fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
-    size: integer('size').notNull().default(0),
-    /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
+    /** Exact byte size. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
@@ -2224,6 +2282,11 @@ export const workspaceFiles = pgTable(
     chatDisplayNameUnique: uniqueIndex('workspace_files_chat_display_name_unique')
       .on(table.chatId, table.displayName)
       .where(sql`${table.context} = 'mothership' AND ${table.chatId} IS NOT NULL`),
+    organizationBindingCheck: check(
+      'workspace_files_organization_binding_check',
+      sql`${table.organizationId} IS NULL OR (${table.workspaceId} IS NULL AND ${table.context} = 'knowledge-base' AND ${table.folderId} IS NULL AND ${table.chatId} IS NULL)`
+    ),
+    organizationIdIdx: index('workspace_files_organization_id_idx').on(table.organizationId),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
@@ -2237,9 +2300,7 @@ export const workspaceFiles = pgTable(
   })
 )
 
-/** Canonical application projection; the legacy `size` bridge is migration-only. */
-export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
-export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
+export type WorkspaceFileRow = typeof workspaceFiles.$inferSelect
 
 export const workspaceFileSearchIndexStatusEnum = pgEnum('workspace_file_search_index_status', [
   'pending',
@@ -2392,6 +2453,7 @@ export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
   'knowledge_document',
   'profile_picture',
   'workspace_logo',
+  'organization_logo',
   'mothership_attachment',
   'execution_attachment',
 ])
@@ -2677,6 +2739,20 @@ export const memorySecretProvenance = pgTable(
   })
 )
 
+/** Organization Search approval is independent of credentials, sources, and sync status. */
+export const organizationSearchIntegration = pgTable(
+  'organization_search_integration',
+  {
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    connectorType: text('connector_type').notNull(),
+    approved: boolean('approved').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.connectorType] })]
+)
+
 export const knowledgeBase = pgTable(
   'knowledge_base',
   {
@@ -2685,9 +2761,14 @@ export const knowledgeBase = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     folderId: text('folder_id').references(() => folder.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
+    /** Search indexes retain their identity independently of their display name. */
+    isSearchIndex: boolean('is_search_index').notNull().default(false),
 
     // Token tracking for usage
     tokenCount: integer('token_count').notNull().default(0),
@@ -2709,6 +2790,25 @@ export const knowledgeBase = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'kb_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationSearchIndexCheck: check(
+      'kb_organization_search_index_check',
+      sql`${table.organizationId} IS NULL OR ${table.isSearchIndex}`
+    ),
+    organizationIdIdx: index('kb_organization_id_idx').on(table.organizationId),
+    organizationFolderCheck: check(
+      'kb_organization_folder_check',
+      sql`${table.organizationId} IS NULL OR ${table.folderId} IS NULL`
+    ),
+    organizationSearchIndexUnique: uniqueIndex('kb_organization_search_index_unique')
+      .on(table.organizationId)
+      .where(sql`${table.isSearchIndex} = true AND ${table.deletedAt} IS NULL`),
+    organizationNameActiveUnique: uniqueIndex('kb_organization_name_active_unique')
+      .on(table.organizationId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
     // Primary access patterns
     userIdIdx: index('kb_user_id_idx').on(table.userId),
     workspaceIdIdx: index('kb_workspace_id_idx').on(table.workspaceId),
@@ -2724,6 +2824,9 @@ export const knowledgeBase = pgTable(
     workspaceNameActiveUnique: uniqueIndex('kb_workspace_name_active_unique')
       .on(table.workspaceId, table.name)
       .where(sql`${table.deletedAt} IS NULL`),
+    workspaceSearchIndexUnique: uniqueIndex('kb_workspace_search_index_unique')
+      .on(table.workspaceId)
+      .where(sql`${table.isSearchIndex} = true AND ${table.deletedAt} IS NULL`),
   })
 )
 
@@ -2778,6 +2881,8 @@ export const document = pgTable(
     processingDeferredUntil: timestamp('processing_deferred_until'),
     processingCompletedAt: timestamp('processing_completed_at'),
     processingError: text('processing_error'),
+    /** Retry admission backoff, separate from an accepted worker continuation. */
+    processingRecoveryAfter: timestamp('processing_recovery_after'),
 
     // Document state
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
@@ -2831,8 +2936,14 @@ export const document = pgTable(
      * connector materialises it from `knowledge_document_observation`.
      */
     acl: text('acl').array().notNull().default(sql`'{ws}'::text[]`),
+    /** Additional OR clauses, all of which must match; preserves source permission intersections. */
+    aclRequirements: jsonb('acl_requirements').$type<string[][]>().notNull().default([]),
+    /** Last authoritative source ACL evidence; NULL fails closed for mirrored permissions. */
+    aclVerifiedAt: timestamp('acl_verified_at'),
     /** Source last-modified time when the connector reports one; NULL for uploads. */
     sourceModifiedAt: timestamp('source_modified_at'),
+    /** Start of the durable source-listing cycle that last observed this document. */
+    sourceSeenAt: timestamp('source_seen_at'),
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
@@ -2866,12 +2977,35 @@ export const document = pgTable(
       table.knowledgeBaseId,
       table.processingStatus
     ),
+    /** Bounded oldest-first recovery scans only retained, live connector processing inputs. */
+    processingRecoveryIdx: index('doc_processing_recovery_idx')
+      .on(table.uploadedAt, table.id)
+      .where(
+        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
+    /**
+     * Per-source processing probes (any failed, pending or processing document) behind the
+     * source status, progress and overview reads. Partial on the rare non-terminal states so a
+     * healthy source proves absence without walking every completed document.
+     */
+    connectorProcessingStatusIdx: index('doc_connector_processing_status_idx')
+      .on(table.connectorId, table.processingStatus)
+      .where(
+        sql`${table.processingStatus} IN ('pending', 'processing', 'failed') AND ${table.connectorId} IS NOT NULL AND ${table.userExcluded} = false AND ${table.archivedAt} IS NULL AND ${table.deletedAt} IS NULL`
+      ),
     // Connector document uniqueness (partial — only non-deleted rows)
     connectorExternalIdIdx: uniqueIndex('doc_connector_external_id_idx')
       .on(table.connectorId, table.externalId)
       .where(sql`${table.deletedAt} IS NULL`),
-    // Sync engine: load all active docs for a connector
-    connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
+    /** Source lookups include historical documents that may reappear. */
+    connectorSourceLookupIdx: index('doc_connector_source_lookup_idx').on(
+      table.connectorId,
+      table.externalId
+    ),
+    /** Ordered absence reconciliation includes tombstones and skips excluded or archived rows. */
+    connectorReconciliationIdx: index('doc_connector_reconciliation_idx')
+      .on(table.connectorId, sql`COALESCE(${table.sourceSeenAt}, '-infinity'::timestamp)`, table.id)
+      .where(sql`${table.userExcluded} = false AND ${table.archivedAt} IS NULL`),
     activeKnowledgeBaseTokenCountIdx: index('doc_active_kb_token_count_idx')
       .on(table.knowledgeBaseId, table.tokenCount)
       .where(
@@ -2888,13 +3022,13 @@ export const document = pgTable(
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
     // Text tag indexes
-    tag1Idx: index('doc_tag1_idx').on(table.tag1),
-    tag2Idx: index('doc_tag2_idx').on(table.tag2),
-    tag3Idx: index('doc_tag3_idx').on(table.tag3),
-    tag4Idx: index('doc_tag4_idx').on(table.tag4),
-    tag5Idx: index('doc_tag5_idx').on(table.tag5),
-    tag6Idx: index('doc_tag6_idx').on(table.tag6),
-    tag7Idx: index('doc_tag7_idx').on(table.tag7),
+    tag1Idx: index('doc_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
+    tag2Idx: index('doc_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),
+    tag3Idx: index('doc_kb_tag3_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag3})`),
+    tag4Idx: index('doc_kb_tag4_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag4})`),
+    tag5Idx: index('doc_kb_tag5_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag5})`),
+    tag6Idx: index('doc_kb_tag6_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag6})`),
+    tag7Idx: index('doc_kb_tag7_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag7})`),
     // Number tag indexes (5 slots)
     number1Idx: index('doc_number1_idx').on(table.number1),
     number2Idx: index('doc_number2_idx').on(table.number2),
@@ -3107,14 +3241,31 @@ export const embedding = pgTable(
         ef_construction: 64,
       }),
 
+    /** contract-pending(after stored candidate retrieval is fully deployed): remove these expression indexes; old app versions still query them during rollout. */
+    embeddingBinaryHnswIdx: index('embedding_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding})::bit(1536)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+    embedding384BinaryHnswIdx: index('embedding_384_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding384})::bit(384)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+    embedding768BinaryHnswIdx: index('embedding_768_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding768})::bit(768)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+    embedding1024BinaryHnswIdx: index('embedding_1024_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding1024})::bit(1024)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+    embedding3072BinaryHnswIdx: index('embedding_3072_binary_hnsw_idx')
+      .using('hnsw', sql`(binary_quantize(${table.embedding3072})::bit(3072)) bit_hamming_ops`)
+      .with({ m: 16, ef_construction: 64 }),
+
     // Text tag indexes
-    tag1Idx: index('emb_tag1_idx').on(table.tag1),
-    tag2Idx: index('emb_tag2_idx').on(table.tag2),
-    tag3Idx: index('emb_tag3_idx').on(table.tag3),
-    tag4Idx: index('emb_tag4_idx').on(table.tag4),
-    tag5Idx: index('emb_tag5_idx').on(table.tag5),
-    tag6Idx: index('emb_tag6_idx').on(table.tag6),
-    tag7Idx: index('emb_tag7_idx').on(table.tag7),
+    tag1Idx: index('emb_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
+    tag2Idx: index('emb_kb_tag2_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag2})`),
+    tag3Idx: index('emb_kb_tag3_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag3})`),
+    tag4Idx: index('emb_kb_tag4_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag4})`),
+    tag5Idx: index('emb_kb_tag5_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag5})`),
+    tag6Idx: index('emb_kb_tag6_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag6})`),
+    tag7Idx: index('emb_kb_tag7_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag7})`),
     // Number tag indexes (5 slots)
     number1Idx: index('emb_number1_idx').on(table.number1),
     number2Idx: index('emb_number2_idx').on(table.number2),
@@ -3140,6 +3291,94 @@ export const embedding = pgTable(
     embeddingWidthCheck: check(
       'embedding_width_check',
       sql`num_nonnulls("embedding", "embedding_384", "embedding_768", "embedding_1024", "embedding_3072") = 1`
+    ),
+  })
+)
+
+/** Keyword ranking reads text-search vectors independently of chunk content and semantic vectors. */
+export const embeddingKeywordSearch = pgTable(
+  'embedding_keyword_search',
+  {
+    id: text('id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    knowledgeBaseId: text('knowledge_base_id').notNull(),
+    documentId: text('document_id').notNull(),
+    enabled: boolean('enabled').notNull(),
+    contentTsv: tsvector('content_tsv').notNull(),
+  },
+  (table) => ({
+    knowledgeBaseIdx: index('embedding_keyword_search_kb_idx').on(table.knowledgeBaseId),
+    documentIdx: index('embedding_keyword_search_document_idx').on(table.documentId),
+    contentIdx: index('embedding_keyword_search_content_idx').using('gin', table.contentTsv),
+  })
+)
+
+/**
+ * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
+ * from content prevents candidate scans from fetching full-precision TOAST values.
+ * The embedding write trigger owns this projection; application writers only change embedding.
+ */
+export const embeddingSearch = pgTable(
+  'embedding_search',
+  {
+    id: text('id')
+      .primaryKey()
+      .references(() => embedding.id, { onDelete: 'cascade' }),
+    knowledgeBaseId: text('knowledge_base_id').notNull(),
+    documentId: text('document_id').notNull(),
+    enabled: boolean('enabled').notNull(),
+    /** contract-pending(after half-precision search is fully deployed): drop binary columns and indexes — the previous app is their final reader. */
+    binary: bit('binary', { dimensions: 1536 }),
+    binary384: bit('binary_384', { dimensions: 384 }),
+    binary768: bit('binary_768', { dimensions: 768 }),
+    binary1024: bit('binary_1024', { dimensions: 1024 }),
+    binary3072: bit('binary_3072', { dimensions: 3072 }),
+    vector: halfvec('vector', { dimensions: 1536 }),
+    vector384: halfvec('vector_384', { dimensions: 384 }),
+    vector512: halfvec('vector_512', { dimensions: 512 }),
+    vector768: halfvec('vector_768', { dimensions: 768 }),
+    vector1024: halfvec('vector_1024', { dimensions: 1024 }),
+    vector3072: halfvec('vector_3072', { dimensions: 3072 }),
+  },
+  (table) => ({
+    knowledgeBaseIdx: index('embedding_search_kb_idx').on(table.knowledgeBaseId),
+    binaryIdx: index('embedding_search_binary_hnsw_idx')
+      .using('hnsw', table.binary.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    binary384Idx: index('embedding_search_384_binary_hnsw_idx')
+      .using('hnsw', table.binary384.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    binary768Idx: index('embedding_search_768_binary_hnsw_idx')
+      .using('hnsw', table.binary768.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    binary1024Idx: index('embedding_search_1024_binary_hnsw_idx')
+      .using('hnsw', table.binary1024.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    binary3072Idx: index('embedding_search_3072_binary_hnsw_idx')
+      .using('hnsw', table.binary3072.op('bit_hamming_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vectorIdx: index('embedding_search_cosine_hnsw_idx')
+      .using('hnsw', table.vector.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector512Idx: index('embedding_search_512_cosine_hnsw_idx')
+      .using('hnsw', table.vector512.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector384Idx: index('embedding_search_384_cosine_hnsw_idx')
+      .using('hnsw', table.vector384.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector768Idx: index('embedding_search_768_cosine_hnsw_idx')
+      .using('hnsw', table.vector768.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector1024Idx: index('embedding_search_1024_cosine_hnsw_idx')
+      .using('hnsw', table.vector1024.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    vector3072Idx: index('embedding_search_3072_cosine_hnsw_idx')
+      .using('hnsw', table.vector3072.op('halfvec_cosine_ops'))
+      .with({ m: 16, ef_construction: 64 }),
+    widthCheck: check(
+      'embedding_search_width_check',
+      sql`num_nonnulls("binary", "binary_384", "binary_768", "binary_1024", "binary_3072") = 1`
     ),
   })
 )
@@ -3244,10 +3483,16 @@ export const copilotChats = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
+    /** Stable provider conversation identity; only trusted ingress can bind it to this private chat. */
+    externalConversationKey: text('external_conversation_key'),
+    externalConversationMetadata: jsonb('external_conversation_metadata'),
     previewYaml: text('preview_yaml'),
     /**
      * @deprecated Nothing reads or writes this any more — the plan artifact
@@ -3268,6 +3513,24 @@ export const copilotChats = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'copilot_chats_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) <= 1`
+    ),
+    organizationIdIdx: index('copilot_chats_organization_id_idx').on(table.organizationId),
+    externalConversationUnique: uniqueIndex('copilot_chats_external_conversation_unique')
+      .on(table.externalConversationKey)
+      .where(sql`${table.externalConversationKey} IS NOT NULL`),
+    organizationWorkflowCheck: check(
+      'copilot_chats_organization_workflow_check',
+      sql`${table.organizationId} IS NULL OR ${table.workflowId} IS NULL`
+    ),
+    userOrganizationCreatedIdx: index('copilot_chats_user_org_created_idx').on(
+      table.userId,
+      table.organizationId,
+      table.createdAt,
+      table.id
+    ),
     // Primary access patterns
     userIdIdx: index('copilot_chats_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_chats_workflow_id_idx').on(table.workflowId),
@@ -3463,6 +3726,7 @@ export const copilotRuns = pgTable(
     executionIdIdx: index('copilot_runs_execution_id_idx').on(table.executionId),
     parentRunIdIdx: index('copilot_runs_parent_run_id_idx').on(table.parentRunId),
     chatIdIdx: index('copilot_runs_chat_id_idx').on(table.chatId),
+    chatStartedAtIdx: index('copilot_runs_chat_started_at_idx').on(table.chatId, table.startedAt),
     userIdIdx: index('copilot_runs_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_runs_workflow_id_idx').on(table.workflowId),
     workspaceIdIdx: index('copilot_runs_workspace_id_idx').on(table.workspaceId),
@@ -3716,6 +3980,9 @@ export const outboxEvent = pgTable(
       table.status,
       table.availableAt
     ),
+    pendingTypeAvailableIdx: index('outbox_event_pending_type_available_idx')
+      .on(table.eventType, table.availableAt, table.createdAt, table.id)
+      .where(sql`${table.status} = 'pending'`),
     lockedAtIdx: index('outbox_event_locked_at_idx').on(table.lockedAt),
     eventTypeCreatedIdx: index('outbox_event_type_created_idx').on(
       table.eventType,
@@ -3728,14 +3995,16 @@ export const mcpServers = pgTable(
   'mcp_servers',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     credentialGroupId: text('credential_group_id').references(
       (): AnyPgColumn => credentialGroup.id,
       { onDelete: 'set null' }
     ),
     managedConnectorId: text('managed_connector_id'),
+    oauthConfigVersion: integer('oauth_config_version').notNull().default(1),
 
     // Track who created the server, but workspace owns it
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
@@ -3776,6 +4045,15 @@ export const mcpServers = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'mcp_servers_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationManagedCheck: check(
+      'mcp_servers_organization_managed_check',
+      sql`${table.organizationId} IS NULL OR ${table.credentialGroupId} IS NOT NULL`
+    ),
+    organizationIdx: index('mcp_servers_organization_id_idx').on(table.organizationId),
     // Primary access pattern - active servers by workspace
     workspaceEnabledIdx: index('mcp_servers_workspace_enabled_idx').on(
       table.workspaceId,
@@ -3822,9 +4100,10 @@ export const mcpServerOauth = pgTable(
       .references(() => mcpServers.id, { onDelete: 'cascade' }),
     /** Last workspace user who initiated/completed authorization. */
     userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
 
     /**
      * Encrypted JSON of the RFC 7591 dynamic client registration result.
@@ -3854,6 +4133,10 @@ export const mcpServerOauth = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'mcp_server_oauth_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
     serverUnique: uniqueIndex('mcp_server_oauth_server_unique').on(table.mcpServerId),
     stateIdx: index('mcp_server_oauth_state_idx').on(table.state),
   })
@@ -3926,6 +4209,16 @@ export const ssoDomain = pgTable(
     /** High-entropy token placed in the domain's `_sim-challenge` TXT record. */
     verificationToken: text('verification_token').notNull(),
     verifiedAt: timestamp('verified_at'),
+    /**
+     * The provider sign-in uses for this domain when the organization has more
+     * than one on it, such as while moving from one identity provider to
+     * another. Holds the provider id, not a foreign key: it is honored only
+     * while that provider still belongs to this organization and serves this
+     * domain, and deleting the provider clears it. Null means the domain's
+     * first verified provider by id, which is also the only one when there is
+     * just one. See `sso-primary-provider.ts`.
+     */
+    primaryProviderId: text('primary_provider_id'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4078,6 +4371,7 @@ export const oauthRefreshToken = pgTable(
     revoked: timestamp('revoked'),
     authTime: timestamp('auth_time'),
     scopes: text('scopes').array().notNull(),
+    resource: text('resource'),
     familyId: text('family_id')
       .notNull()
       .references(() => oauthTokenFamily.id, { onDelete: 'cascade' }),
@@ -4096,6 +4390,11 @@ export const oauthRefreshToken = pgTable(
     generationCheck: check(
       'oauth_refresh_token_generation_check',
       sql`${table.generation} BETWEEN 0 AND 1000`
+    ),
+    /** contract-pending(after #7613 is fully deployed): validate oauth_refresh_token_search_resource_check separately so rollout avoids a token-table scan. */
+    searchResourceCheck: check(
+      'oauth_refresh_token_search_resource_check',
+      sql`NOT ('search:read' = ANY(${table.scopes})) OR ${table.resource} IS NOT NULL`
     ),
   })
 )
@@ -4118,6 +4417,7 @@ export const oauthAccessToken = pgTable(
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').notNull(),
     scopes: text('scopes').array().notNull(),
+    resource: text('resource'),
   },
   (table) => ({
     clientIdIdx: index('oauth_access_token_client_id_idx').on(table.clientId),
@@ -4126,6 +4426,11 @@ export const oauthAccessToken = pgTable(
     userClientIdx: index('oauth_access_token_user_client_idx').on(table.userId, table.clientId),
     /** Drives the cleanup pass; nothing else reads tokens by expiry. */
     expiresAtIdx: index('oauth_access_token_expires_at_idx').on(table.expiresAt),
+    /** contract-pending(after #7613 is fully deployed): validate oauth_access_token_search_resource_check separately so rollout avoids a token-table scan. */
+    searchResourceCheck: check(
+      'oauth_access_token_search_resource_check',
+      sql`NOT ('search:read' = ANY(${table.scopes})) OR ${table.resource} IS NOT NULL`
+    ),
   })
 )
 
@@ -4281,6 +4586,12 @@ export const auditLog = pgTable(
     metadata: jsonb('metadata').default('{}'),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
+    /**
+     * The official client the request came from (`web`, `desktop`, `cli`,
+     * `sdk-js`, `sdk-python`), as resolved from `X-Sim-Client-Info`. Null for
+     * background work and callers that do not identify themselves.
+     */
+    surface: text('surface'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
@@ -4328,6 +4639,37 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'voice-output',
   'api-tool',
 ])
+
+/** Content-free organization Search activity, independent of billable model usage. */
+export const organizationSearchInvocation = pgTable(
+  'organization_search_invocation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    surface: text('surface').notNull(),
+    sourceTypes: text('source_types').array().notNull(),
+    resultCount: integer('result_count').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationCreatedAtIdx: index('organization_search_invocation_org_created_idx').on(
+      table.organizationId,
+      table.createdAt
+    ),
+    userIdIdx: index('organization_search_invocation_user_idx').on(table.userId),
+    resultCountBounds: check(
+      'organization_search_invocation_result_count_bounds',
+      sql`${table.resultCount} BETWEEN 0 AND 100`
+    ),
+    sourceTypesBounds: check(
+      'organization_search_invocation_source_types_bounds',
+      sql`cardinality(${table.sourceTypes}) <= 100`
+    ),
+  })
+)
 
 export const usageLog = pgTable(
   'usage_log',
@@ -4435,6 +4777,7 @@ export const credentialTypeEnum = pgEnum('credential_type', [
   'env_workspace',
   'env_personal',
   'service_account',
+  'personal_token',
 ])
 
 export const managedOauthCredentialStatusEnum = pgEnum('managed_oauth_credential_status', [
@@ -4457,13 +4800,16 @@ export interface ManagedMcpToolSnapshot {
   inputSchema: Record<string, unknown>
 }
 
+/** contract-pending(after all GitLab tokens migrate and workspace-token writers are retired): drop credential_personal_token_identity_unique; only the index is retired. */
 export const credential = pgTable(
   'credential',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
+    slackAppId: text('slack_app_id').references((): AnyPgColumn => slackApp.id),
     type: credentialTypeEnum('type').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
@@ -4479,6 +4825,8 @@ export const credential = pgTable(
     envKey: text('env_key'),
     envOwnerUserId: text('env_owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
     encryptedServiceAccountKey: text('encrypted_service_account_key'),
+    /** Encrypted provider token bound immutably to createdBy, providerSubjectId, and providerTenantId. */
+    encryptedPersonalToken: text('encrypted_personal_token'),
     authorizationAppId: text('authorization_app_id'),
     credentialGroupEnrollmentId: text('credential_group_enrollment_id').references(
       (): AnyPgColumn => credentialGroupEnrollment.id,
@@ -4488,6 +4836,7 @@ export const credential = pgTable(
     mcpServerId: text('mcp_server_id').references(() => mcpServers.id, {
       onDelete: 'cascade',
     }),
+    mcpOauthConfigVersion: integer('mcp_oauth_config_version'),
     managedOauthScopeVersion: integer('managed_oauth_scope_version'),
     providerSubjectId: text('provider_subject_id'),
     providerTenantId: text('provider_tenant_id'),
@@ -4507,6 +4856,27 @@ export const credential = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'credential_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('credential_organization_id_idx').on(table.organizationId),
+    organizationTypeCheck: check(
+      'credential_organization_type_check',
+      sql`${table.organizationId} IS NULL OR ${table.type} IN ('oauth', 'managed_oauth', 'managed_mcp', 'service_account', 'personal_token')`
+    ),
+    organizationAccountUnique: uniqueIndex('credential_organization_account_unique')
+      .on(table.organizationId, table.accountId)
+      .where(sql`${table.accountId} IS NOT NULL`),
+    organizationPersonalTokenUnique: uniqueIndex('credential_org_personal_token_unique')
+      .on(
+        table.organizationId,
+        table.createdBy,
+        table.providerId,
+        table.providerTenantId,
+        table.providerSubjectId
+      )
+      .where(sql`${table.type} = 'personal_token'`),
     workspaceIdIdx: index('credential_workspace_id_idx').on(table.workspaceId),
     typeIdx: index('credential_type_idx').on(table.type),
     providerIdIdx: index('credential_provider_id_idx').on(table.providerId),
@@ -4531,6 +4901,35 @@ export const credential = pgTable(
     workspacePersonalEnvUnique: uniqueIndex('credential_workspace_personal_env_unique')
       .on(table.workspaceId, table.type, table.envKey, table.envOwnerUserId)
       .where(sql`type = 'env_personal'`),
+    personalTokenIdentityUnique: uniqueIndex('credential_personal_token_identity_unique')
+      .on(
+        table.workspaceId,
+        table.createdBy,
+        table.providerId,
+        table.providerTenantId,
+        table.providerSubjectId
+      )
+      .where(sql`type = 'personal_token'`),
+    personalTokenSourceConstraint: check(
+      'credential_personal_token_source_check',
+      sql`(type::text <> 'personal_token') OR (
+        created_by IS NOT NULL
+        AND provider_id IS NOT NULL
+        AND provider_id = 'gitlab'
+        AND provider_subject_id IS NOT NULL
+        AND provider_tenant_id IS NOT NULL
+        AND encrypted_personal_token IS NOT NULL
+        AND granted_scopes IS NOT NULL
+        AND cardinality(granted_scopes) > 0
+        AND account_id IS NULL
+        AND env_key IS NULL
+        AND env_owner_user_id IS NULL
+        AND authorization_app_id IS NULL
+        AND encrypted_oauth_token_set IS NULL
+        AND encrypted_service_account_key IS NULL
+        AND unredacted = false
+      )`
+    ),
     oauthSourceConstraint: check(
       'credential_oauth_source_check',
       sql`(type <> 'oauth') OR (account_id IS NOT NULL AND provider_id IS NOT NULL)`
@@ -4544,7 +4943,6 @@ export const credential = pgTable(
         AND provider_subject_id IS NOT NULL
         AND managed_oauth_status IS NOT NULL
         AND granted_scopes IS NOT NULL
-        AND cardinality(granted_scopes) > 0
         AND encrypted_oauth_token_set IS NOT NULL
         AND granted_at IS NOT NULL
       )`
@@ -4615,14 +5013,16 @@ export interface CredentialGroupOptionConfig {
   status: 'active' | 'disabled'
 }
 
-/** Workspace-owned configuration for collecting several managed OAuth credentials. */
+/** Singleton configuration for collecting an organization's connected accounts. */
 export const credentialGroup = pgTable(
   'credential_group',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** contract-pending(org connected accounts fully deployed and legacy Search migrated): remove workspace ownership. */
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     publicId: text('public_id').notNull(),
     name: text('name').notNull(),
     description: text('description'),
@@ -4634,15 +5034,124 @@ export const credentialGroup = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'credential_group_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('credential_group_organization_id_idx').on(table.organizationId),
+    organizationUnique: uniqueIndex('credential_group_organization_unique').on(
+      table.organizationId
+    ),
     publicIdUnique: uniqueIndex('credential_group_public_id_unique').on(table.publicId),
-    workspaceStatusIdx: index('credential_group_workspace_status_idx').on(
-      table.workspaceId,
-      table.status
+    workspaceUnique: uniqueIndex('credential_group_workspace_unique').on(table.workspaceId),
+  })
+)
+
+/** App-wide configuration, shared by every installation of the same Slack app. */
+export const slackApp = pgTable(
+  'slack_app',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
+    kind: text('kind').$type<'custom' | 'shared'>().notNull(),
+    /** Custom app credentials; company app credentials come from the deployment environment. */
+    clientId: text('client_id'),
+    encryptedClientSecret: text('encrypted_client_secret'),
+    encryptedSigningSecret: text('encrypted_signing_secret'),
+    revision: text('revision').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerCheck: check(
+      'slack_app_owner_check',
+      sql`(${table.kind} = 'custom' AND ${table.organizationId} IS NOT NULL) OR (${table.kind} = 'shared' AND ${table.organizationId} IS NULL)`
     ),
-    workspaceNameUnique: uniqueIndex('credential_group_workspace_name_unique').on(
-      table.workspaceId,
-      sql`lower(${table.name})`
+    customCredentialsCheck: check(
+      'slack_app_custom_credentials_check',
+      sql`${table.kind} = 'shared' OR (${table.clientId} IS NOT NULL AND ${table.encryptedClientSecret} IS NOT NULL AND ${table.encryptedSigningSecret} IS NOT NULL)`
     ),
+  })
+)
+
+/** An opt-in organization Search binding with an installation-specific bot credential. */
+export const slackSearchInstallation = pgTable(
+  'slack_search_installation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => credential.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    slackAppId: text('slack_app_id').references(() => slackApp.id),
+    teamId: text('team_id').notNull(),
+    teamName: text('team_name').notNull(),
+    botUserId: text('bot_user_id').notNull(),
+    enterpriseId: text('enterprise_id'),
+    enabled: boolean('enabled').notNull().default(false),
+    credentialVersion: text('credential_version').notNull(),
+    revision: text('revision').notNull(),
+    lastOutcome: text('last_outcome'),
+    lastEventAt: timestamp('last_event_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationIdx: index('slack_search_installation_organization_idx').on(table.organizationId),
+    credentialUnique: uniqueIndex('slack_search_installation_credential_unique').on(
+      table.credentialId
+    ),
+    appTeamUnique: uniqueIndex('slack_search_installation_app_team_unique').on(
+      table.appId,
+      table.teamId
+    ),
+    activeTeamUnique: uniqueIndex('slack_search_installation_active_team_unique')
+      .on(table.teamId)
+      .where(sql`${table.enabled} = true`),
+  })
+)
+
+/** Durable, deduplicated turns; a running turn is never replayed after its lease expires. */
+export const slackSearchTurn = pgTable(
+  'slack_search_turn',
+  {
+    id: text('id').primaryKey(),
+    ordinal: integer('ordinal').generatedAlwaysAsIdentity(),
+    installationId: text('installation_id')
+      .notNull()
+      .references(() => slackSearchInstallation.id, { onDelete: 'cascade' }),
+    conversationKey: text('conversation_key').notNull(),
+    eventId: text('event_id').notNull(),
+    payload: jsonb('payload').$type<unknown>().notNull(),
+    status: text('status')
+      .$type<'pending' | 'running' | 'completed' | 'failed' | 'cancelled'>()
+      .notNull()
+      .default('pending'),
+    leaseId: text('lease_id'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    outcome: text('outcome'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    eventUnique: uniqueIndex('slack_search_turn_event_unique').on(
+      table.installationId,
+      table.eventId
+    ),
+    pendingIdx: index('slack_search_turn_pending_idx').on(
+      table.installationId,
+      table.status,
+      table.createdAt
+    ),
+    threadIdx: index('slack_search_turn_thread_idx').on(table.conversationKey, table.status),
+    activeThreadUnique: uniqueIndex('slack_search_turn_active_thread_unique')
+      .on(table.conversationKey)
+      .where(sql`${table.status} = 'running'`),
   })
 )
 
@@ -4663,6 +5172,8 @@ export const credentialGroupEnrollment = pgTable(
       .notNull()
       .references(() => credentialGroup.id, { onDelete: 'cascade' }),
     email: text('email').notNull(),
+    /** Bound once after the invitee signs in with the verified invitation email. */
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     status: credentialGroupEnrollmentStatusEnum('status').notNull().default('invited'),
     invitationTokenHash: text('invitation_token_hash').notNull(),
     invitationExpiresAt: timestamp('invitation_expires_at').notNull(),
@@ -4676,6 +5187,10 @@ export const credentialGroupEnrollment = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    groupUserUnique: uniqueIndex('credential_group_enrollment_group_user_unique')
+      .on(table.credentialGroupId, table.userId)
+      .where(sql`${table.userId} IS NOT NULL`),
+    userIdx: index('credential_group_enrollment_user_id_idx').on(table.userId),
     groupEmailUnique: uniqueIndex('credential_group_enrollment_group_email_unique').on(
       table.credentialGroupId,
       table.email
@@ -4742,9 +5257,10 @@ export const pendingCredentialDraft = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     providerId: text('provider_id').notNull(),
     displayName: text('display_name').notNull(),
     description: text('description'),
@@ -4754,6 +5270,16 @@ export const pendingCredentialDraft = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'pending_draft_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('pending_draft_organization_id_idx').on(table.organizationId),
+    uniqueOrganizationDraft: uniqueIndex('pending_draft_user_provider_org').on(
+      table.userId,
+      table.providerId,
+      table.organizationId
+    ),
     uniqueDraft: uniqueIndex('pending_draft_user_provider_ws').on(
       table.userId,
       table.providerId,
@@ -4792,6 +5318,20 @@ export const permissionGroup = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     isDefault: boolean('is_default').notNull().default(false),
+    /**
+     * How an empty non-default group behaves.
+     *
+     * `inherit` (the default, and every pre-existing group) keeps the member
+     * invariant above: no member rows means the group governs every member of
+     * its workspaces. `explicit` means the group governs exactly its member
+     * rows and therefore governs nobody when empty.
+     *
+     * Directory-managed groups must be `explicit`. Under `inherit`, an identity
+     * provider removing the last member would silently widen the group from
+     * "these three people" to "everyone in these workspaces" — the opposite of
+     * what the administrator asked for.
+     */
+    membershipMode: text('membership_mode').notNull().default('inherit'),
   },
   (table) => ({
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
@@ -4869,14 +5409,15 @@ export const permissionGroupMember = pgTable(
   })
 )
 
-/** Versioned statement policy attached to one canonical workspace resource. */
+/** Versioned statement policy attached to one canonical workspace or organization resource. */
 export const resourcePolicy = pgTable(
   'resource_policy',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     resourceType: text('resource_type').notNull(),
     resourceId: text('resource_id').notNull(),
     revision: integer('revision').notNull().default(1),
@@ -4887,6 +5428,11 @@ export const resourcePolicy = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'resource_policy_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdx: index('resource_policy_organization_id_idx').on(table.organizationId),
     resourceUnique: uniqueIndex('resource_policy_resource_unique').on(
       table.resourceType,
       table.resourceId
@@ -4950,8 +5496,9 @@ export const knowledgeConnector = pgTable(
       .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
     connectorType: text('connector_type').notNull(),
     /**
-     * The credential a workspace-mode connector syncs as. NULL for a
-     * members-mode connector, whose members are the credentials. Not yet a
+     * The credential used to index content. In members mode it is optional:
+     * NULL indexes the union of members' listings; a dedicated credential
+     * indexes content while members only establish document visibility. Not yet a
      * foreign key: rows written before the `credential` table existed may
      * still hold a raw `account.id`, which script migration 0011 remaps.
      * contract-pending(after 0011 has run in production): add the reference to
@@ -4965,9 +5512,10 @@ export const knowledgeConnector = pgTable(
     syncIntervalMinutes: integer('sync_interval_minutes').notNull().default(1440),
     /**
      * How document access is derived. `workspace`: every synced document is
-     * `{ws}`. `members`: the source is crawled once per credential-group
-     * member with their own token and a document's ACL is the members whose
-     * crawl returned it. `admin` is reserved for the service-account mirror.
+     * `{ws}`. `members`: a document's ACL is the members whose own listing
+     * returned it, optionally with a dedicated credential for content.
+     * `admin`: source permissions and identity groups are mirrored independently
+     * of content changes.
      */
     accessMode: text('access_mode').notNull().default('workspace'),
     /** Members mode: the credential group whose option supplies the member credentials. */
@@ -5009,7 +5557,12 @@ export const knowledgeConnector = pgTable(
     lastSyncAt: timestamp('last_sync_at'),
     lastSyncError: text('last_sync_error'),
     lastSyncDocCount: integer('last_sync_doc_count'),
+    /** Durable content-listing progress; contains cursors and counters, never credentials. */
+    listingCheckpoint: jsonb('listing_checkpoint').$type<Record<string, unknown>>(),
+    /** Member account enumeration resumes independently of the content listing. */
+    directoryCheckpoint: jsonb('directory_checkpoint').$type<Record<string, unknown>>(),
     nextSyncAt: timestamp('next_sync_at'),
+    nextDirectorySyncAt: timestamp('next_directory_sync_at').notNull().defaultNow(),
     consecutiveFailures: integer('consecutive_failures').notNull().default(0),
     /**
      * Identifies the sync run that currently holds this connector's lock.
@@ -5054,6 +5607,9 @@ export const knowledgeConnector = pgTable(
     memberSyncDueIdx: index('kc_member_sync_due_idx')
       .on(table.memberSyncStatus, table.nextMemberSyncAt)
       .where(sql`${table.accessMode} = 'members' AND ${table.deletedAt} IS NULL`),
+    directorySyncDueIdx: index('kc_directory_sync_due_idx')
+      .on(table.nextDirectorySyncAt, table.id)
+      .where(sql`${table.accessMode} = 'admin' AND ${table.deletedAt} IS NULL`),
     accessModeCheck: check(
       'kc_access_mode_check',
       sql`${table.accessMode} IN ('workspace', 'members', 'admin')`
@@ -5066,6 +5622,52 @@ export const knowledgeConnector = pgTable(
     syncLockExclusiveCheck: check(
       'kc_sync_lock_exclusive_check',
       sql`NOT (${table.syncLockToken} IS NOT NULL AND ${table.memberSyncLockToken} IS NOT NULL)`
+    ),
+  })
+)
+
+/** Private provider configuration; metadata reads never materialize the larger normalized payload. */
+export const knowledgeConnectorPermissionSnapshot = pgTable(
+  'knowledge_connector_permission_snapshot',
+  {
+    connectorId: text('connector_id').primaryKey(),
+    revision: integer('revision').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => ({
+    revisionCheck: check('kcps_revision_check', sql`${table.revision} > 0`),
+    connectorFk: foreignKey({
+      name: 'kcps_connector_fk',
+      columns: [table.connectorId],
+      foreignColumns: [knowledgeConnector.id],
+    }).onDelete('cascade'),
+  })
+)
+
+/** Administrator-managed connector groups; provider directory crawls never write these grants. */
+export const knowledgeConnectorPermissionGrant = pgTable(
+  'knowledge_connector_permission_grant',
+  {
+    connectorId: text('connector_id').notNull(),
+    groupKey: text('group_key').notNull(),
+    subjectToken: text('subject_token').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      name: 'kcpg_pk',
+      columns: [table.connectorId, table.groupKey, table.subjectToken],
+    }),
+    subjectIdx: index('kcpg_subject_idx').on(table.subjectToken, table.connectorId, table.groupKey),
+    snapshotFk: foreignKey({
+      name: 'kcpg_snapshot_fk',
+      columns: [table.connectorId],
+      foreignColumns: [knowledgeConnectorPermissionSnapshot.connectorId],
+    }).onDelete('cascade'),
+    groupCheck: check('kcpg_group_check', sql`length(${table.groupKey}) BETWEEN 1 AND 255`),
+    subjectCheck: check(
+      'kcpg_subject_check',
+      sql`${table.subjectToken} ~ '^u:[^[:space:]A-Z]+@[^[:space:]A-Z]+$'`
     ),
   })
 )
@@ -5084,9 +5686,10 @@ export const knowledgeConnectorMember = pgTable(
   'knowledge_connector_member',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     connectorId: text('connector_id')
       .notNull()
       .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
@@ -5115,7 +5718,7 @@ export const knowledgeConnectorMember = pgTable(
     lastCompleteListingAt: timestamp('last_complete_listing_at'),
     lastListedCount: integer('last_listed_count'),
     lastError: text('last_error'),
-    /** Incremental watermark; advances only on a complete, non-suspect full listing. */
+    /** Authorization watermark: complete nonsuspect full listing or completely drained change feed. */
     memberSyncedThrough: timestamp('member_synced_through'),
     /**
      * Where the member's change feed resumes. Opened just before a full listing
@@ -5124,11 +5727,18 @@ export const knowledgeConnectorMember = pgTable(
      * has to be reopened.
      */
     changeCursor: text('change_cursor'),
+    /** Durable full-listing progress, separate from the provider's incremental change token. */
+    listingCheckpoint: jsonb('listing_checkpoint').$type<Record<string, unknown>>(),
     suspendedAt: timestamp('suspended_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    ownerCheck: check(
+      'kcm_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('kcm_organization_id_idx').on(table.organizationId),
     connectorCredentialUnique: uniqueIndex('kcm_connector_credential_unique').on(
       table.connectorId,
       table.credentialId
@@ -5177,6 +5787,147 @@ export const knowledgeDocumentObservation = pgTable(
   })
 )
 
+/** Shared refresh ownership and complete-pass evidence for a workspace/provider/tenant directory. */
+export const knowledgeExternalDirectory = pgTable(
+  'knowledge_external_directory',
+  {
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
+    providerId: text('provider_id').notNull(),
+    tenantId: text('tenant_id').notNull(),
+    syncLockToken: text('sync_lock_token'),
+    syncLockLeaseAt: timestamp('sync_lock_lease_at'),
+    /** A newer attempt invalidates cached completion until that whole pass succeeds. */
+    lastStartedAt: timestamp('last_started_at'),
+    /** Complete directory enumeration, including empty directories; independent of individual group freshness. */
+    lastCompleteSyncAt: timestamp('last_complete_sync_at'),
+  },
+  (table) => ({
+    ownerCheck: check(
+      'ked_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('ked_organization_id_idx').on(table.organizationId),
+    workspaceIdentity: uniqueIndex('ked_workspace_identity_unique').on(
+      table.workspaceId,
+      table.providerId,
+      table.tenantId
+    ),
+    organizationIdentity: uniqueIndex('ked_organization_identity_unique').on(
+      table.organizationId,
+      table.providerId,
+      table.tenantId
+    ),
+  })
+)
+
+/**
+ * A group in an external directory, as an admin-mode crawl names it.
+ *
+ * Scoped by workspace, provider and tenant rather than by connector: two Drive
+ * connectors over the same Google Workspace domain grant the same groups, and
+ * resolving that domain's directory once per connector would multiply the
+ * Admin SDK traffic by the number of knowledge bases.
+ *
+ * `externalGroupId` is whatever the source's permissions API names a group by —
+ * a group email in Drive, a group id in Confluence — canonicalised by
+ * `canonicalGroupId`, exactly as `groupToken` spells it. Keying the directory
+ * by the same identifier the grant carries is what lets a token resolve to
+ * membership with no lookup in between.
+ */
+export const knowledgeExternalGroup = pgTable(
+  'knowledge_external_group',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id'),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
+    /** Matches the provider segment of the `g:` token, e.g. `google-drive`. */
+    providerId: text('provider_id').notNull(),
+    /** The directory this group belongs to: a Workspace domain for Google, a site's cloud id for Confluence. */
+    tenantId: text('tenant_id').notNull(),
+    externalGroupId: text('external_group_id').notNull(),
+    /**
+     * When this group's membership was last enumerated in full, and the only
+     * thing that decides whether it still grants access.
+     *
+     * A failed or partial enumeration writes nothing at all — not the
+     * membership, not this column — which is what makes a transient directory
+     * outage harmless. It is also why the column has to exist: without an age
+     * bound, a group whose sync stopped running would keep granting forever
+     * from membership nobody has checked since. A group unconfirmed for longer
+     * than `EXTERNAL_GROUP_STALE_AFTER_MS` grants nothing.
+     */
+    lastSyncedAt: timestamp('last_synced_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerCheck: check(
+      'keg_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.organizationId}) = 1`
+    ),
+    organizationIdIdx: index('keg_organization_id_idx').on(table.organizationId),
+    organizationIdentityUnique: uniqueIndex('keg_organization_identity_unique').on(
+      table.organizationId,
+      table.providerId,
+      table.tenantId,
+      table.externalGroupId
+    ),
+    organizationSyncedIdx: index('keg_organization_synced_idx').on(
+      table.organizationId,
+      table.lastSyncedAt.asc().nullsFirst()
+    ),
+    /** Named explicitly: drizzle's derived name exceeds Postgres's 63-character limit and would be silently truncated. */
+    workspaceFk: foreignKey({
+      name: 'keg_workspace_fk',
+      columns: [table.workspaceId],
+      foreignColumns: [workspace.id],
+    }).onDelete('cascade'),
+    identityUnique: uniqueIndex('keg_identity_unique').on(
+      table.workspaceId,
+      table.providerId,
+      table.tenantId,
+      table.externalGroupId
+    ),
+    /** The read path's freshness filter: a workspace's groups confirmed within the staleness window. */
+    workspaceSyncedIdx: index('keg_workspace_synced_idx').on(
+      table.workspaceId,
+      table.lastSyncedAt.asc().nullsFirst()
+    ),
+  })
+)
+
+/**
+ * External group membership keyed by canonical identity tokens: verified
+ * addresses (`u:`) or provider account identities (`s:`). Provider identities
+ * preserve permissions when a directory hides email addresses. Nested groups
+ * are flattened by directory sync, without requiring members to have Sim accounts.
+ */
+export const knowledgeExternalGroupMember = pgTable(
+  'knowledge_external_group_member',
+  {
+    groupId: text('group_id').notNull(),
+    /** Includes `u:*@<domain>` for directory-wide grants; source account IDs retain their case. */
+    subjectToken: text('subject_token').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.groupId, table.subjectToken] }),
+    /** Named explicitly: drizzle's derived name exceeds Postgres's 63-character limit and would be silently truncated. */
+    groupFk: foreignKey({
+      name: 'kegm_group_fk',
+      columns: [table.groupId],
+      foreignColumns: [knowledgeExternalGroup.id],
+    }).onDelete('cascade'),
+    /** The read path: every group matching the actor's verified identities. */
+    subjectTokenIdx: index('kegm_subject_token_idx').on(table.subjectToken),
+  })
+)
+
 /**
  * Audit trail for members-mode runs; the content sync log is untouched. The
  * row id doubles as the run's lease token so the scheduler can tell an
@@ -5221,7 +5972,7 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
       .where(sql`${table.status} = 'started'`),
     statusCheck: check(
       'kcmsl_status_check',
-      sql`${table.status} IN ('started', 'completed', 'failed')`
+      sql`${table.status} IN ('started', 'partial', 'completed', 'failed')`
     ),
   })
 )
@@ -5245,6 +5996,8 @@ export const knowledgeConnectorSyncLog = pgTable(
     docsUnchanged: integer('docs_unchanged').notNull().default(0),
     docsSkipped: integer('docs_skipped').notNull().default(0),
     docsFailed: integer('docs_failed').notNull().default(0),
+    /** Complete listing-cycle size; per-worker counters may cover only its last page batch. */
+    listedCount: integer('listed_count'),
     errorMessage: text('error_message'),
   },
   (table) => ({
@@ -5977,5 +6730,408 @@ export const sandboxImage = pgTable(
     ),
     statusIdx: index('sandbox_image_status_idx').on(table.status),
     lastUsedIdx: index('sandbox_image_last_used_idx').on(table.lastUsedAt),
+  })
+)
+
+/** Operations a SCIM bearer credential is allowed to perform. */
+export type ScimScope = 'users:read' | 'users:write' | 'groups:read' | 'groups:write'
+
+export const SCIM_SCOPES: readonly ScimScope[] = [
+  'users:read',
+  'users:write',
+  'groups:read',
+  'groups:write',
+]
+
+/** Administrator-controlled behavior of one organization's SCIM connection. */
+export interface ScimConnectionSettings {
+  /**
+   * Refuse manual invitations, workspace grants, and role edits for users the
+   * identity provider manages; removals stay possible so an administrator can
+   * always act in an emergency. Out-of-band edits desync the directory, so this
+   * defaults to on for a new connection and an owner may turn it off.
+   */
+  lockManualMembership?: boolean
+  /**
+   * Turn off SSO just-in-time provisioning while the connection is active, so
+   * the directory is the only way into the organization.
+   */
+  disableJit?: boolean
+  /** Map a pushed group to an existing permission group of the same name. Nothing is created. */
+  autoMapPermissionGroupsByName?: boolean
+}
+
+/** One email address as the identity provider supplied it. */
+export interface ScimUserEmail {
+  value: string
+  type?: string
+  primary: boolean
+}
+
+/**
+ * The last User resource a connection sent, canonicalized. Stored whole so a
+ * `GET` returns what the provider wrote and a `PATCH` applies to the provider's
+ * own view rather than to a lossy projection of it.
+ */
+export interface ScimUserAttributes {
+  userName: string
+  externalId?: string
+  active: boolean
+  displayName?: string
+  /** Older records synthesized displayName; unmarked records retain formatted-name account projection. */
+  displayNameSource?: 'provider'
+  name: {
+    formatted: string
+    givenName?: string
+    familyName?: string
+  }
+  emails: ScimUserEmail[]
+  enterprise?: {
+    department?: string
+    employeeNumber?: string
+    costCenter?: string
+    division?: string
+    organization?: string
+    manager?: { value?: string; displayName?: string }
+  }
+  /** Attributes Sim does not model, preserved so responses round-trip them. */
+  extra?: Record<string, unknown>
+}
+
+/**
+ * One directory-provisioning connection per organization.
+ *
+ * The bearer credential an identity provider presents resolves to this row, and
+ * that row is the entire authorization scope: no SCIM request names an
+ * organization, so no request can reach another tenant's users.
+ */
+export const scimConnection = pgTable(
+  'scim_connection',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    /** `active` or `disabled`. Disabling refuses every credential immediately. */
+    status: text('status').notNull().default('active'),
+    settings: jsonb('settings').$type<ScimConnectionSettings>().notNull().default({}),
+    lastRequestAt: timestamp('last_request_at'),
+    /** Reconcile-job lease, in the shape the connector member sync already uses. */
+    reconcileLockToken: text('reconcile_lock_token'),
+    reconcileLeaseAt: timestamp('reconcile_lease_at'),
+    reconciledAt: timestamp('reconciled_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationUnique: uniqueIndex('scim_connection_organization_unique').on(table.organizationId),
+    reconcileDueIdx: index('scim_connection_reconcile_due_idx').on(table.reconciledAt),
+  })
+)
+
+/**
+ * A bearer credential for one connection.
+ *
+ * Only the SHA-256 digest is stored, so a database read cannot recover a live
+ * token. Two credentials may be active at once, which is what lets an
+ * administrator rotate without a window where the directory cannot authenticate.
+ */
+export const scimCredential = pgTable(
+  'scim_credential',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    /** Leading characters of the token, for identifying it in the settings list. */
+    tokenPrefix: text('token_prefix').notNull(),
+    scopes: jsonb('scopes').$type<ScimScope[]>().notNull(),
+    expiresAt: timestamp('expires_at'),
+    revokedAt: timestamp('revoked_at'),
+    revokedBy: text('revoked_by').references(() => user.id, { onDelete: 'set null' }),
+    lastUsedAt: timestamp('last_used_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenHashUnique: uniqueIndex('scim_credential_token_hash_unique').on(table.tokenHash),
+    connectionIdx: index('scim_credential_connection_idx').on(table.connectionId),
+  })
+)
+
+/**
+ * The User resource one connection provisioned, and its link to a Sim account.
+ *
+ * `id` is the SCIM resource id the provider stores and addresses; it is never a
+ * Sim user id, so a provider cannot reach an account it did not provision by
+ * guessing one.
+ */
+export const scimUser = pgTable(
+  'scim_user',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    externalId: text('external_id'),
+    /** Lower-cased `userName`; the uniqueness and lookup key within a connection. */
+    userName: text('user_name').notNull(),
+    active: boolean('active').notNull().default(true),
+    attributes: jsonb('attributes').$type<ScimUserAttributes>().notNull(),
+    /**
+     * Stable ascending sort key for pagination. A provider pages with
+     * `startIndex`, so the order must not shift between pages the way
+     * `created_at` alone can when rows share a timestamp.
+     */
+    orderKey: text('order_key').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    connectionUserUnique: uniqueIndex('scim_user_connection_user_unique').on(
+      table.connectionId,
+      table.userId
+    ),
+    connectionUserNameUnique: uniqueIndex('scim_user_connection_user_name_unique').on(
+      table.connectionId,
+      table.userName
+    ),
+    connectionExternalIdUnique: uniqueIndex('scim_user_connection_external_id_unique')
+      .on(table.connectionId, table.externalId)
+      .where(sql`external_id is not null`),
+    connectionOrderIdx: index('scim_user_connection_order_idx').on(
+      table.connectionId,
+      table.orderKey
+    ),
+    userIdx: index('scim_user_user_idx').on(table.userId),
+  })
+)
+
+/**
+ * Remembers which Sim account a deleted external identity belonged to.
+ *
+ * Directories delete and recreate a person for an ordinary rename or rehire. The
+ * tombstone makes the recreated resource relink to the same account instead of
+ * creating a second one, which is what would otherwise strand the original.
+ */
+export const scimUserTombstone = pgTable(
+  'scim_user_tombstone',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    externalId: text('external_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    deletedAt: timestamp('deleted_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    connectionExternalIdUnique: uniqueIndex('scim_user_tombstone_connection_external_id_unique').on(
+      table.connectionId,
+      table.externalId
+    ),
+    userIdx: index('scim_user_tombstone_user_idx').on(table.userId),
+  })
+)
+
+/** A Group resource one connection provisioned. */
+export const scimGroup = pgTable(
+  'scim_group',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    externalId: text('external_id'),
+    displayName: text('display_name').notNull(),
+    /**
+     * Lower-cased `displayName`. Uniqueness is case-insensitive because
+     * Microsoft Entra treats a group name as its match key and will otherwise
+     * create a duplicate whose only difference is capitalization.
+     */
+    displayNameKey: text('display_name_key').notNull(),
+    orderKey: text('order_key').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    connectionDisplayNameUnique: uniqueIndex('scim_group_connection_display_name_unique').on(
+      table.connectionId,
+      table.displayNameKey
+    ),
+    connectionExternalIdUnique: uniqueIndex('scim_group_connection_external_id_unique')
+      .on(table.connectionId, table.externalId)
+      .where(sql`external_id is not null`),
+    connectionOrderIdx: index('scim_group_connection_order_idx').on(
+      table.connectionId,
+      table.orderKey
+    ),
+  })
+)
+
+/** Membership of a provisioned group. */
+export const scimGroupMember = pgTable(
+  'scim_group_member',
+  {
+    id: text('id').primaryKey(),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => scimGroup.id, { onDelete: 'cascade' }),
+    scimUserId: text('scim_user_id')
+      .notNull()
+      .references(() => scimUser.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    groupUserUnique: uniqueIndex('scim_group_member_group_user_unique').on(
+      table.groupId,
+      table.scimUserId
+    ),
+    scimUserIdx: index('scim_group_member_scim_user_idx').on(table.scimUserId),
+  })
+)
+
+/**
+ * What a directory group means inside Sim, as an administrator configured it.
+ *
+ * A group may carry several mappings — a permission group, one or more
+ * workspaces, and the organization admin role are independent targets.
+ */
+export const scimGroupMapping = pgTable(
+  'scim_group_mapping',
+  {
+    id: text('id').primaryKey(),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => scimGroup.id, { onDelete: 'cascade' }),
+    /** `permission_group`, `workspace`, or `org_role`. */
+    targetKind: text('target_kind').notNull(),
+    permissionGroupId: text('permission_group_id').references(() => permissionGroup.id, {
+      onDelete: 'cascade',
+    }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Permission granted on `workspaceId`, for workspace targets. */
+    permissionType: permissionTypeEnum('permission_type'),
+    /** Organization role granted, for `org_role` targets. Only `admin` is accepted. */
+    role: text('role'),
+    /**
+     * `automatic` mappings were made by name matching and are replaced when the
+     * group is renamed; `manual` ones were made by an administrator and are
+     * never removed by a sync. Kept apart from `createdBy`, which goes null when
+     * its author's account is deleted.
+     */
+    source: text('source').notNull().default('manual'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    groupIdx: index('scim_group_mapping_group_idx').on(table.groupId),
+    permissionGroupIdx: index('scim_group_mapping_permission_group_idx').on(
+      table.permissionGroupId
+    ),
+    workspaceIdx: index('scim_group_mapping_workspace_idx').on(table.workspaceId),
+    /**
+     * One mapping per group and target. `coalesce` collapses the three mutually
+     * exclusive target columns into the single value that identifies the target,
+     * so a group cannot carry the same workspace twice at two permissions.
+     */
+    groupTargetUnique: uniqueIndex('scim_group_mapping_group_target_unique').on(
+      table.groupId,
+      table.targetKind,
+      sql`coalesce(${table.permissionGroupId}, ${table.workspaceId}, ${table.role})`
+    ),
+    /** Exactly the columns belonging to `target_kind` are populated. */
+    targetShape: check(
+      'scim_group_mapping_target_shape',
+      sql`(
+        (${table.targetKind} = 'permission_group' AND ${table.permissionGroupId} IS NOT NULL AND ${table.workspaceId} IS NULL AND ${table.permissionType} IS NULL AND ${table.role} IS NULL)
+        OR (${table.targetKind} = 'workspace' AND ${table.workspaceId} IS NOT NULL AND ${table.permissionType} IS NOT NULL AND ${table.permissionGroupId} IS NULL AND ${table.role} IS NULL)
+        OR (${table.targetKind} = 'org_role' AND ${table.role} IS NOT NULL AND ${table.permissionGroupId} IS NULL AND ${table.workspaceId} IS NULL AND ${table.permissionType} IS NULL)
+      )`
+    ),
+  })
+)
+
+/**
+ * Provenance for every access SCIM granted.
+ *
+ * Without it, withdrawing a group's access could not tell an access the
+ * directory granted from one a workspace administrator granted by hand, and a
+ * routine group change would revoke the administrator's work.
+ */
+export const scimProjectionGrant = pgTable(
+  'scim_projection_grant',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    scimUserId: text('scim_user_id')
+      .notNull()
+      .references(() => scimUser.id, { onDelete: 'cascade' }),
+    targetKind: text('target_kind').notNull(),
+    /** Permission group id, workspace id, or the granted organization role. */
+    targetId: text('target_id').notNull(),
+    /** The permission SCIM set, so a later manual upgrade stays detectable. */
+    permissionType: permissionTypeEnum('permission_type'),
+    /** Manual workspace access to restore when an unlocked directory withdraws its grant. */
+    baselinePermission: permissionTypeEnum('baseline_permission'),
+    /**
+     * `directory` when the directory created the access; `adopted` when the
+     * person already held it by hand and a mapping merely covers it. Adopted
+     * access is left in place when the mapping goes away, unless the directory
+     * is the organization's source of truth.
+     */
+    origin: text('origin').notNull().default('directory'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userTargetUnique: uniqueIndex('scim_projection_grant_user_target_unique').on(
+      table.scimUserId,
+      table.targetKind,
+      table.targetId
+    ),
+    connectionIdx: index('scim_projection_grant_connection_idx').on(table.connectionId),
+  })
+)
+
+/**
+ * Recent provisioning requests, for the settings activity view.
+ *
+ * Microsoft Entra reports a failed sync without saying what it sent, so an
+ * administrator debugging a connection has no other way to see the request that
+ * failed. Pruned by the reconcile job.
+ */
+export const scimRequestLog = pgTable(
+  'scim_request_log',
+  {
+    id: text('id').primaryKey(),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => scimConnection.id, { onDelete: 'cascade' }),
+    credentialId: text('credential_id'),
+    method: text('method').notNull(),
+    /** Resource path only. Query strings can carry directory attribute values. */
+    path: text('path').notNull(),
+    status: integer('status').notNull(),
+    scimType: text('scim_type'),
+    detail: text('detail'),
+    userAgent: text('user_agent'),
+    durationMs: integer('duration_ms').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    connectionCreatedIdx: index('scim_request_log_connection_created_idx').on(
+      table.connectionId,
+      table.createdAt
+    ),
   })
 )

@@ -289,7 +289,13 @@ export async function executeResumeWorkflow({
           PauseResumeManager.startResumeExecution({
             ...resumeArgs,
             onStream,
-            onBlockComplete,
+            onBlockComplete: (blockId, data) =>
+              onBlockComplete(
+                blockId,
+                data.output,
+                data.outputBlockId,
+                data.childWorkflowInstanceId
+              ),
             abortSignal,
           }),
       })

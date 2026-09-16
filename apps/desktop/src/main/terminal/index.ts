@@ -165,6 +165,7 @@ export class TerminalService {
   /** Insertion-ordered, which is also the tab order the user sees. */
   private readonly sessions = new Map<string, TerminalSession>()
   private activeId: string | null = null
+  private readonly pendingCloseConfirmations = new Set<string>()
   private agentActiveId: string | null = null
   private activeTerminalUserSelected = false
   /** True while tearing every shell down, so an exit does not respawn one. */
@@ -347,12 +348,20 @@ export class TerminalService {
     return this.getAgentTabs()
   }
 
-  switchTerminal(terminalId: string): TerminalTabsState {
+  /**
+   * Shows a terminal. `claim` records it as the user's own; a switch that only
+   * mirrors the renderer's resource-strip selection passes false so the agent
+   * can still close or adopt the shell as its own.
+   */
+  switchTerminal(
+    terminalId: string,
+    { claim = true }: { claim?: boolean } = {}
+  ): TerminalTabsState {
     if (!this.sessions.has(terminalId)) {
       throw new TerminalError('NO_SUCH_TERMINAL', unknownTerminal(terminalId))
     }
     this.activeId = terminalId
-    this.activeTerminalUserSelected = true
+    if (claim) this.activeTerminalUserSelected = true
     this.emitTabs()
     void this.sessions.get(terminalId)?.refreshCwd()
     return this.getTabs()
@@ -387,19 +396,11 @@ export class TerminalService {
   }
 
   /**
-   * Closes a terminal, or resets it when it is the only one left.
-   *
-   * Emptying the panel is not an option the close button should have: the
-   * resource IS a terminal, so a panel with no shell in it is a dead end the
-   * user has to close and reopen to escape. Replacing the last shell with a
-   * fresh one in the same directory gives the button a sensible meaning at
-   * every count — the same shape as closing a browser's last tab, which
-   * leaves you a tab rather than an empty window.
-   *
-   * A shell that ends by itself — `exit`, or Ctrl-D — goes the same way. It
-   * leaves behind a session that can no longer do anything, so it has to be
-   * reaped either way; treating it as a close means the last one is replaced
-   * rather than leaving a dead tab that cannot be typed into.
+   * Closes a terminal. Each shell is its own resource tab in the renderer, so
+   * closing the last one simply leaves none; the strip drops the tab and a new
+   * shell comes back through `+ Terminal` or the agent. A shell that ends by
+   * itself — `exit`, or Ctrl-D — goes the same way: it leaves behind a session
+   * that can no longer do anything, so it is reaped like a close.
    */
   closeTerminal(terminalId: string): TerminalTabsState {
     if (!this.sessions.has(terminalId)) {
@@ -451,16 +452,13 @@ export class TerminalService {
   }
 
   /**
-   * Drops a terminal and decides what replaces it. Closing and exiting share
-   * this so the two cannot drift into different answers for "what happens to
-   * the last one".
+   * Drops a terminal and moves both cursors to a neighbour. Closing and
+   * exiting share this so the two cannot drift into different answers.
    */
   private retire(terminalId: string): TerminalTabsState {
     const session = this.sessions.get(terminalId)
     if (!session) return this.getTabs()
     const closedCwd = session.currentCwd
-    const cols = session.cols
-    const rows = session.rows
     const order = [...this.sessions.keys()]
     const index = order.indexOf(terminalId)
     session.dispose()
@@ -468,15 +466,10 @@ export class TerminalService {
     this.tmuxCache.delete(terminalId)
     this.releasePendingRuns(terminalId)
 
-    if (this.sessions.size === 0) {
-      this.spawn(this.resolveCwd(closedCwd), cols, rows, {
-        activateVisible: true,
-        activateAgent: true,
-      })
-      return this.getTabs()
-    }
-
     this.rememberClosed(closedCwd)
+    // Nothing is left for the user to hold on to; the next shell the agent
+    // opens must not inherit a claim on a terminal that no longer exists.
+    if (this.sessions.size === 0) this.activeTerminalUserSelected = false
     if (this.activeId === terminalId) {
       this.activeId = order[index + 1] ?? order[index - 1] ?? null
     }
@@ -500,7 +493,7 @@ export class TerminalService {
     shortcut: FocusedResourceShortcut,
     ownerWindow: BrowserWindow | null,
     emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void,
-    confirmCloseRunning?: (running: string) => boolean
+    confirmCloseRunning?: (running: string) => boolean | Promise<boolean>
   ): boolean {
     // Hard reload has no terminal meaning — leave it to the Browser or shell.
     if (shortcut === 'focus-omnibox' || shortcut === 'hard-reload') return false
@@ -535,7 +528,10 @@ export class TerminalService {
         if (this.activeId) {
           const active = this.sessions.get(this.activeId)
           const running = active?.isBusy ? (active.foreground ?? 'A process') : null
-          if (running && confirmCloseRunning && !confirmCloseRunning(running)) return true
+          if (running && active && confirmCloseRunning) {
+            void this.confirmCloseRunningTerminal(active, running, confirmCloseRunning)
+            return true
+          }
           this.closeTerminal(this.activeId)
         }
         return true
@@ -549,6 +545,27 @@ export class TerminalService {
 
     if (this.activeId) emitRendererCommand(shortcut, this.activeId)
     return true
+  }
+
+  /** Revalidates the captured terminal after an asynchronous native-window confirmation. */
+  private async confirmCloseRunningTerminal(
+    terminal: TerminalSession,
+    running: string,
+    confirm: (running: string) => boolean | Promise<boolean>
+  ): Promise<void> {
+    const id = this.activeId
+    if (!id || this.pendingCloseConfirmations.has(id)) return
+    this.pendingCloseConfirmations.add(id)
+    try {
+      if (!(await confirm(running))) return
+      if (this.sessions.get(id) !== terminal) return
+      if (terminal.isBusy && (terminal.foreground ?? 'A process') !== running) return
+      this.closeTerminal(id)
+    } catch {
+      logger.warn('Could not confirm closing the running terminal')
+    } finally {
+      this.pendingCloseConfirmations.delete(id)
+    }
   }
 
   /**
@@ -641,9 +658,17 @@ export class TerminalService {
     )
   }
 
-  /** Whether one renderer may close a tab in the terminal panel it displays. */
+  /**
+   * Whether one renderer may close a tab. The strip that lists shells sits
+   * outside the terminal panel, so a renderer on the chat may close a shell
+   * nobody is displaying; while a window does display the panel, only that
+   * window may close, so a second window on the same chat cannot end a shell
+   * someone is using.
+   */
   acceptsUserClose(owner: WebContents, terminalId: string): boolean {
-    return !owner.isDestroyed() && this.visibleOwner === owner && this.sessions.has(terminalId)
+    if (owner.isDestroyed() || !this.sessions.has(terminalId)) return false
+    const shown = this.visibleOwner && !this.visibleOwner.isDestroyed() ? this.visibleOwner : null
+    return shown === null || shown === owner
   }
 
   /** Drops the claim and unsubscribes from the owner's lifecycle. */

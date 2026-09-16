@@ -38,7 +38,7 @@ const CONSENT_CATEGORY_COPY: Record<string, ConsentCategoryCopy | undefined> = {
   },
   marketing: {
     title: 'Marketing',
-    description: 'Measures which campaigns bring builders to Sim.',
+    description: 'Measures campaigns and personalizes ads on other sites.',
   },
 } satisfies Record<ConsentCategory, ConsentCategoryCopy>
 

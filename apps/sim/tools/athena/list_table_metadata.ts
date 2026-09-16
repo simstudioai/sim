@@ -102,7 +102,7 @@ export const listTableMetadataTool: InternalToolConfig<
   outputs: {
     tables: {
       type: 'array',
-      description: 'Table metadata (name, type, columns, partition keys)',
+      description: 'Table metadata (name, type, columns, partition keys, parameters)',
       items: {
         type: 'object',
         properties: {
@@ -141,6 +141,10 @@ export const listTableMetadataTool: InternalToolConfig<
                 comment: { type: 'string', description: 'Partition key comment', optional: true },
               },
             },
+          },
+          parameters: {
+            type: 'json',
+            description: 'Key/value table properties (e.g., classification, location)',
           },
         },
       },

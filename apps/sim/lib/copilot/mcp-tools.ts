@@ -1,12 +1,14 @@
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { createCopilotChatPrincipal } from '@/lib/copilot/auth/application-delegation'
 import type { ToolSchema } from '@/lib/copilot/chat/payload'
+import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
+import { discoverMcpServerToolsUseCase } from '@/lib/mcp/application/use-cases'
+import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import type { McpTool, McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import type { ToolInput } from '@/executor/handlers/agent/types'
-
-const logger = createLogger('CopilotMcpTools')
 
 function toMothershipMcpTool(tool: {
   serverId: string
@@ -48,24 +50,6 @@ function dedupeMcpTools(tools: ToolSchema[]): ToolSchema[] {
   })
 }
 
-async function discoverServerTools(
-  userId: string,
-  workspaceId: string,
-  serverId: string
-): Promise<McpTool[]> {
-  try {
-    const { mcpService } = await import('@/lib/mcp/service')
-    return await mcpService.discoverServerTools(userId, serverId, workspaceId)
-  } catch (error) {
-    logger.warn('Failed to resolve tagged MCP server tools', {
-      serverId,
-      workspaceId,
-      error: toError(error).message,
-    })
-    return []
-  }
-}
-
 /**
  * Resolves every tool from explicitly tagged MCP servers into request-local,
  * deferred tool schemas. Untagged workspace servers are never inspected.
@@ -73,34 +57,45 @@ async function discoverServerTools(
 export async function buildTaggedMcpToolSchemas(
   userId: string,
   workspaceId: string,
-  serverIds: string[]
+  serverIds: string[],
+  context?: InternalToolOperationContext
 ): Promise<ToolSchema[]> {
   const uniqueServerIds = [...new Set(serverIds.filter(Boolean))]
   if (uniqueServerIds.length === 0) return []
 
   await assertPermissionsAllowed({ userId, workspaceId, toolKind: 'mcp' })
   const discovered = await Promise.all(
-    uniqueServerIds.map((serverId) => discoverServerTools(userId, workspaceId, serverId))
+    uniqueServerIds.map(async (serverId) => {
+      const tools = context
+        ? await discoverMcpServerToolsAsExecutor({ workspaceId, context, serverId })
+        : (
+            await discoverMcpServerToolsUseCase.execute({
+              principal: createCopilotChatPrincipal(
+                { userId, workspaceId },
+                MCP_SERVER_DELEGATION_AUDIENCE
+              ),
+              input: { workspaceId, serverId, requireComplete: true },
+            })
+          ).tools
+      if (!tools.length)
+        throw new Error(`No permitted MCP operations are available for ${serverId}`)
+      return tools
+    })
   )
   return dedupeMcpTools(discovered.flat().map(toMothershipMcpTool))
 }
 
 /**
- * Resolves the individual MCP tools selected on a Mothership block. Cached
- * editor schemas are used directly; legacy selections without a schema fall
- * back to one discovery call per selected server.
+ * Resolves selected MCP tools through authorized discovery, including saved legacy bindings.
  */
 export async function buildSelectedMcpToolSchemas(
   userId: string,
   workspaceId: string,
-  selections: ToolInput[]
+  selections: ToolInput[],
+  context?: InternalToolOperationContext
 ): Promise<ToolSchema[]> {
   const selected = selections.filter(
-    (tool) =>
-      tool.type === 'mcp' &&
-      (tool.usageControl || 'auto') !== 'none' &&
-      typeof tool.params?.serverId === 'string' &&
-      typeof tool.params?.toolName === 'string'
+    (tool) => tool.type === 'mcp' && (tool.usageControl || 'auto') !== 'none'
   )
   if (selected.length === 0) return []
 
@@ -108,35 +103,20 @@ export async function buildSelectedMcpToolSchemas(
   const discoveredByServer = new Map<string, Promise<McpTool[]>>()
   const resolved = await Promise.all(
     selected.map(async (selection) => {
-      const serverId = selection.params!.serverId as string
-      const toolName = selection.params!.toolName as string
-      const serverName =
-        typeof selection.params!.serverName === 'string'
-          ? (selection.params!.serverName as string)
-          : undefined
-
-      if (selection.schema && typeof selection.schema === 'object') {
-        return toMothershipMcpTool({
-          serverId,
-          serverName,
-          name: toolName,
-          description:
-            typeof selection.schema.description === 'string'
-              ? selection.schema.description
-              : undefined,
-          inputSchema: selection.schema as Record<string, unknown>,
-        })
-      }
+      const { serverId, toolName } = resolveMcpToolBinding(selection)
 
       let discovery = discoveredByServer.get(serverId)
       if (!discovery) {
-        discovery = discoverServerTools(userId, workspaceId, serverId)
+        if (!context)
+          throw new Error('MCP workflow tool discovery requires trusted execution scope')
+        discovery = discoverMcpServerToolsAsExecutor({ workspaceId, context, serverId })
         discoveredByServer.set(serverId, discovery)
       }
       const match = (await discovery).find((tool) => tool.name === toolName)
-      return match ? toMothershipMcpTool(match) : null
+      if (!match) throw new Error(`MCP operation "${toolName}" is missing or not permitted`)
+      return toMothershipMcpTool(match)
     })
   )
 
-  return dedupeMcpTools(resolved.filter((tool): tool is ToolSchema => tool !== null))
+  return dedupeMcpTools(resolved)
 }

@@ -41,7 +41,7 @@ Run an SPL search synchronously and return its results in a single call (oneshot
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -74,7 +74,7 @@ Start a Splunk search job and return its search ID (sid). The search runs asynch
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -107,7 +107,7 @@ Get the status and progress of a Splunk search job by search ID, including dispa
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -153,7 +153,7 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -185,7 +185,7 @@ Cancel a running Splunk search job and delete its result cache.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -210,7 +210,7 @@ List saved searches and reports configured in Splunk, including their SPL, sched
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -251,7 +251,7 @@ Get the configuration of a single Splunk saved search by name, including its SPL
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -287,7 +287,7 @@ Run a Splunk saved search immediately and return the search ID (sid) of the disp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -316,7 +316,7 @@ List the saved searches with currently triggered (unexpired) Splunk alerts and h
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -345,7 +345,7 @@ List the unexpired triggered instances of a Splunk alert by saved search name, i
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -379,7 +379,7 @@ List the indexes configured on the Splunk instance with their size, event count,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
@@ -420,7 +420,7 @@ List the apps installed on the Splunk instance with their label, version, author
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089) |
 | `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
 | `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |

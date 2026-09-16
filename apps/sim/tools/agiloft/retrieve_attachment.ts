@@ -93,12 +93,7 @@ export const agiloftRetrieveAttachmentTool: InternalToolConfig<
     return {
       success: true,
       output: {
-        file: {
-          name: data.output.file.name,
-          mimeType: data.output.file.mimeType,
-          data: data.output.file.data,
-          size: data.output.file.size,
-        },
+        file: data.output.file,
       },
     }
   },

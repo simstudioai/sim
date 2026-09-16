@@ -35,6 +35,7 @@ import {
 } from '@/lib/core/execution-limits/metrics'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { LoggingSession, type SessionStartParams } from '@/lib/logs/execution/logging-session'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
@@ -236,7 +237,9 @@ export async function preprocessExecution(
   let workflowRecord: WorkflowRecord | null = prefetchedWorkflowRecord ?? null
   if (!workflowRecord) {
     try {
-      workflowRecord = await getActiveWorkflowRecord(workflowId)
+      workflowRecord = await withDatabaseReadRetry(() => getActiveWorkflowRecord(workflowId), {
+        label: 'getActiveWorkflowRecord',
+      })
 
       if (!workflowRecord) {
         logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
@@ -297,7 +300,9 @@ export async function preprocessExecution(
       },
     }
   } else {
-    const activeWorkflow = await getActiveWorkflowRecord(workflowId)
+    const activeWorkflow = await withDatabaseReadRetry(() => getActiveWorkflowRecord(workflowId), {
+      label: 'getActiveWorkflowRecord',
+    })
     if (!activeWorkflow) {
       logger.warn(`[${requestId}] Workflow archived before execution started: ${workflowId}`)
       return {
@@ -365,7 +370,10 @@ export async function preprocessExecution(
     }
 
     if (!actorUserId) {
-      billingAttribution = await resolveSystemBillingAttribution(workspaceId)
+      billingAttribution = await withDatabaseReadRetry(
+        () => resolveSystemBillingAttribution(workspaceId),
+        { label: 'resolveSystemBillingAttribution' }
+      )
       actorUserId = billingAttribution.actorUserId
       logger.info(`[${requestId}] Using atomically resolved system actor and payer`, {
         actorUserId,
@@ -402,7 +410,11 @@ export async function preprocessExecution(
     }
 
     if (!billingAttribution) {
-      billingAttribution = await resolveBillingAttribution({ actorUserId, workspaceId })
+      const attributionInput = { actorUserId, workspaceId }
+      billingAttribution = await withDatabaseReadRetry(
+        () => resolveBillingAttribution(attributionInput),
+        { label: 'resolveBillingAttribution' }
+      )
     }
   } catch (error) {
     logger.error(`[${requestId}] Error resolving billing attribution`, { error, workflowId })
@@ -487,7 +499,10 @@ export async function preprocessExecution(
       banCandidateIds.push(userId)
     }
     try {
-      const bannedUserIds = await getActivelyBannedUserIds(banCandidateIds)
+      const bannedUserIds = await withDatabaseReadRetry(
+        () => getActivelyBannedUserIds(banCandidateIds),
+        { label: 'getActivelyBannedUserIds' }
+      )
       if (bannedUserIds.length > 0) {
         logger.warn(`[${requestId}] Execution blocked: banned account`, {
           workflowId,
@@ -558,7 +573,10 @@ export async function preprocessExecution(
     if (skipUsageLimits) return { failure: null, snapshot: null }
     let snapshot: UsageSnapshot | null = null
     try {
-      const usageCheck = await checkAttributedUsageLimits(billingAttribution)
+      const usageCheck = await withDatabaseReadRetry(
+        () => checkAttributedUsageLimits(billingAttribution),
+        { label: 'checkAttributedUsageLimits' }
+      )
       snapshot = usageCheck.payerUsage
         ? {
             ...usageCheck.payerUsage,

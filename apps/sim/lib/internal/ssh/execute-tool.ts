@@ -34,9 +34,11 @@ import {
   executeSshWriteFileContent,
   type SshOperationContext,
 } from '@/lib/internal/ssh/operations'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
+  InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
 
 const logger = createLogger('SshToolExecution')
@@ -46,7 +48,7 @@ async function executeOperation<C extends AnyApiRouteContract>(
   request: InternalToolOperationCall,
   operation: (input: ContractBody<C>, context: SshOperationContext) => Promise<unknown>,
   failureMessage: string
-): Promise<Response> {
+): Promise<InternalToolOperationResult> {
   request.signal?.throwIfAborted()
   if (!contract.body) throw new Error(`SSH contract ${contract.path} has no operation input`)
   const parsed = contract.body.safeParse(request.input)
@@ -60,7 +62,7 @@ async function executeOperation<C extends AnyApiRouteContract>(
   try {
     const result = await operation(parsed.data as ContractBody<C>, { signal: request.signal })
     request.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof SshOperationError) {
@@ -79,7 +81,9 @@ async function executeOperation<C extends AnyApiRouteContract>(
   }
 }
 
-export const executeSshTool: InternalToolOperationHandler = async (request) => {
+export const executeSshTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   switch (request.toolId) {
     case 'ssh_check_command_exists':
       return executeOperation(
@@ -114,6 +118,13 @@ export const executeSshTool: InternalToolOperationHandler = async (request) => {
         sshDownloadFileContract,
         request,
         executeSshDownloadFile,
+        'SSH file download failed'
+      )
+    case 'ssh_download_file_v2':
+      return executeOperation(
+        sshDownloadFileContract,
+        request,
+        (input, context) => executeSshDownloadFile(input, context, 'v2'),
         'SSH file download failed'
       )
     case 'ssh_execute_command':

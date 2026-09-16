@@ -1,11 +1,13 @@
 /**
  * @vitest-environment node
  */
+import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getMemberOrganizationId,
   getSecurityPolicyVersion,
+  getSessionCookieCacheVersion,
   invalidateMembershipCache,
   invalidateSecurityPolicyVersionCache,
   membershipCacheTtlMs,
@@ -118,5 +120,34 @@ describe('getSecurityPolicyVersion', () => {
   it('returns the default for an org-less session without touching the database', async () => {
     await expect(getSecurityPolicyVersion(null)).resolves.toBe(1)
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+})
+
+describe('getSessionCookieCacheVersion', () => {
+  it('reads membership and policy version from the transaction without contaminating shared caches', async () => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    invalidateMembershipCache('cookie-user')
+    invalidateSecurityPolicyVersionCache('cookie-org')
+    dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([{ version: 7 }])
+    await expect(getMemberOrganizationId('cookie-user')).resolves.toBeNull()
+    await expect(getSecurityPolicyVersion('cookie-org')).resolves.toBe(7)
+
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([{ organizationId: 'cookie-org' }])
+      .mockResolvedValueOnce([{ version: 8 }])
+    const executor = {
+      ...db,
+      select: vi.fn().mockReturnValue({ from: () => ({ where: () => ({ limit }) }) }),
+    }
+
+    await expect(getSessionCookieCacheVersion({ userId: 'cookie-user' }, executor)).resolves.toBe(
+      'cookie-org:8'
+    )
+    await expect(getSessionCookieCacheVersion({ userId: 'cookie-user' })).resolves.toBe('none')
+    await expect(getSecurityPolicyVersion('cookie-org')).resolves.toBe(7)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
+    expect(limit).toHaveBeenCalledTimes(2)
   })
 })

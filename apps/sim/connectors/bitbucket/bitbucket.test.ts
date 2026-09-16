@@ -774,7 +774,7 @@ describe('bitbucket getDocument', () => {
     expect(doc?.skippedReason).toMatch(/Binary/)
   })
 
-  it('surfaces non-UTF-8 source as skipped instead of indexing replacement characters', async () => {
+  it('decodes non-UTF-8 source as Windows-1252 instead of skipping or indexing replacement characters', async () => {
     mockApi([
       [
         /\/src\/[a-f0-9]+\/latin1\.txt$/,
@@ -784,8 +784,9 @@ describe('bitbucket getDocument', () => {
 
     const doc = await bitbucketConnector.getDocument(ACCESS_TOKEN, CONFIG, 'file:latin1.txt', {})
 
-    expect(doc?.skippedReason).toMatch(/Non-UTF-8/)
-    expect(doc?.content).toBe('')
+    expect(doc?.skippedReason).toBeUndefined()
+    expect(doc?.content).toContain('café')
+    expect(doc?.content).not.toContain('\uFFFD')
   })
 
   it('returns null for a file the ref no longer carries', async () => {

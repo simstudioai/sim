@@ -33,7 +33,7 @@ You need:
   height={760}
 />
 
-3. The HubSpot page lists its skills and templates. Click **+ Add to Sim** in the top right.
+3. Click **Add to Sim** and choose **Connect with OAuth**. For a private app token, follow the [Private App Tokens guide](/integrations/hubspot-service-account).
 
 <Image
   src="/static/integrations/hubspot/hubspot-page-add-to-sim.png"
@@ -63,12 +63,12 @@ You can connect more than one HubSpot account — for example, separate sales an
 
 ## Configure the app in a workflow
 
-The fastest start is from the HubSpot page itself: its **skills** (like *upsert-contact*, *create-deal-for-account*, or *triage-support-ticket*) and **templates** add ready-made HubSpot capabilities to your workspace with one click.
+You can start from a template on the HubSpot page or configure the block directly. Skills such as *upsert-contact* provide instructions an agent can load for a task.
 
 For your own workflows, the integration runs through the **HubSpot block**.
 
 1. Open a workflow in the editor and add a **HubSpot** block.
-2. In the block's **Account** field, select the HubSpot connection you created.
+2. In **HubSpot Account**, select the connection you created.
 3. Pick an **Operation** — for example *Create Contact*, *Search Deals*, *Update Ticket*, or *List Companies*.
 4. Fill in the operation's fields. Reference outputs from earlier blocks with [connection tags](/workflows/connections), like `<agent.content>` or `<start.input>`.
 
@@ -80,7 +80,7 @@ The full list of operations, with every input and output, is on the [HubSpot int
 
 The HubSpot block can also act as a trigger. Toggle **Use as Trigger**, select the connection, and choose which events to watch — contacts, companies, deals, or tickets, created or updated. Sim polls HubSpot for changes and runs the workflow once per changed record, with the record's fields available to downstream blocks.
 
-Triggers run against your workflow's active [deployment](/workflows/deployment), so deploy the workflow to activate them.
+Triggers run against your workflow's active [deployment](/workflows/deployment). Deploy it, allow the first poll to establish a baseline, then create or update a record to test the trigger.
 
 ## Use the app
 

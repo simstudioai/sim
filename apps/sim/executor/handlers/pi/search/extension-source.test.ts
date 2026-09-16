@@ -144,16 +144,20 @@ describe('provider requests', () => {
     expect(JSON.parse(init.body)).toEqual({ q: 'pi agent', num: 2 })
   })
 
-  it('sends the Parallel request with its beta header', async () => {
+  it('sends the Parallel request to the V1 endpoint with the query as both query and objective', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ results: [] }))
 
     await register('parallel').execute('call-1', { query: 'pi agent', numResults: 4 })
 
     const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('https://api.parallel.ai/v1beta/search')
+    expect(url).toBe('https://api.parallel.ai/v1/search')
     expect(init.headers['x-api-key']).toBe('key-123')
-    expect(init.headers['parallel-beta']).toBe('search-extract-2025-10-10')
-    expect(JSON.parse(init.body)).toEqual({ objective: 'pi agent', max_results: 4 })
+    expect(init.headers['parallel-beta']).toBeUndefined()
+    expect(JSON.parse(init.body)).toEqual({
+      search_queries: ['pi agent'],
+      objective: 'pi agent',
+      advanced_settings: { max_results: 4 },
+    })
   })
 
   it('sends the Firecrawl request as a bearer token with a server-side budget', async () => {

@@ -3,7 +3,10 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { copilotChatStopBodySchema } from '@/lib/api/contracts/copilot'
+import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
+import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
@@ -13,6 +16,86 @@ import {
 } from './persisted-message'
 
 describe('persisted-message', () => {
+  it.each(['success', 'cancelled'] as const)(
+    'preserves model-authored activity metadata through persisted %s history and stop validation',
+    (status) => {
+      const result: OrchestratorResult = {
+        success: true,
+        content: '',
+        toolCalls: [],
+        contentBlocks: [
+          {
+            type: 'tool_call',
+            timestamp: 1,
+            toolCall: {
+              id: 'activity-call',
+              name: 'read',
+              status,
+              activityDescription: '  Checking   the project setup  ',
+              displayTitle: 'Checking the project setup',
+              params: { path: 'WORKSPACE.md' },
+            },
+          },
+        ],
+      }
+      const persisted = buildPersistedAssistantMessage(result)
+      const stopped = copilotChatStopBodySchema.parse({
+        chatId: 'chat-1',
+        streamId: 'stream-1',
+        content: '',
+        contentBlocks: persisted.contentBlocks,
+      })
+      expect(stopped.contentBlocks?.[0].toolCall?.activityDescription).toBe(
+        'Checking the project setup'
+      )
+      const display = toDisplayMessage(
+        normalizeMessage(persisted as unknown as Record<string, unknown>)
+      )
+      expect(display.contentBlocks?.[0].toolCall).toMatchObject({
+        status,
+        activityDescription: 'Checking the project setup',
+        params: { path: 'WORKSPACE.md' },
+      })
+    }
+  )
+
+  it('preserves activity metadata on legacy tool blocks without inferring it from old titles', () => {
+    const message = normalizeMessage({
+      id: 'message-1',
+      role: 'assistant',
+      content: '',
+      contentBlocks: [
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'activity-call',
+            name: 'read',
+            state: 'success',
+            activityDescription: 'Checking the project setup',
+            display: { title: 'Checking the project setup' },
+          },
+        },
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'legacy-call',
+            name: 'gmail_read_v2',
+            state: 'success',
+            display: { title: 'Read recent emails' },
+          },
+        },
+      ],
+    })
+    const display = toDisplayMessage(message)
+    expect(display.contentBlocks?.[0].toolCall?.activityDescription).toBe(
+      'Checking the project setup'
+    )
+    expect(display.contentBlocks?.[1].toolCall).toMatchObject({
+      displayTitle: 'Read recent emails',
+    })
+    expect(display.contentBlocks?.[1].toolCall?.activityDescription).toBeUndefined()
+  })
+
   it('round-trips canonical tool blocks through normalizeMessage', () => {
     const blockTimestamp = 1_700_000_000_000
     const result: OrchestratorResult = {
@@ -61,6 +144,51 @@ describe('persisted-message', () => {
         content: 'done',
       },
     ])
+  })
+
+  it('preserves Assistant mode and verified citations through save, compaction, and reload', () => {
+    const result: OrchestratorResult = {
+      success: true,
+      requestId: 'request',
+      toolCalls: [],
+      content: 'Answer <source>{"id":"document:doc"}</source>',
+      contentBlocks: [
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'retrieval',
+            name: 'read_document',
+            status: 'success',
+            result: {
+              success: true,
+              output: {
+                success: true,
+                data: {
+                  citationId: 'document:doc',
+                  citationUrl: 'https://source.test/doc',
+                  documentName: 'Title',
+                  chunks: [{ content: 'large passage' }],
+                },
+              },
+            },
+          },
+        },
+      ],
+    }
+    const persisted = stripToolResultOutput(
+      buildPersistedAssistantMessage(result, undefined, 'assistant')
+    )
+    const normalized = normalizeMessage(persisted as unknown as Record<string, unknown>)
+    const displayed = toDisplayMessage(normalized)
+    expect(displayed.requestMode).toBe('assistant')
+    expect(JSON.stringify(persisted)).not.toContain('large passage')
+    const citations = resolveMessageCitations(
+      displayed.contentBlocks ?? [],
+      displayed.content,
+      true
+    )
+    expect(citations.fallbackContent).toContain('https://source.test/doc')
+    expect(citations.fallbackContent).toContain('Title')
   })
 
   it('prefers an explicit persisted request ID override', () => {

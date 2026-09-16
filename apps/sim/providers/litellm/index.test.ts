@@ -140,6 +140,11 @@ describe('litellmProvider.executeRequest', () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })
 
+  it('preserves a custom proxy model name when stripping an uppercase namespace', async () => {
+    await run({ model: 'LITELLM/Org/CustomModel' })
+    expect(firstPayload().model).toBe('Org/CustomModel')
+  })
+
   it('assembles messages, strips the model prefix, and maps params', async () => {
     const result = await run({
       systemPrompt: 'You are helpful.',

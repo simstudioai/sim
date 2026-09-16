@@ -1,9 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ComponentProps, Suspense } from 'react'
+import { act, type ComponentProps, createRef, Suspense } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { TextEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor'
@@ -18,6 +19,8 @@ interface MockMonacoProps {
 const state = vi.hoisted(() => ({
   content: 'initial',
   streaming: false,
+  loading: false,
+  error: false,
   editorProps: null as MockMonacoProps | null,
 }))
 
@@ -37,8 +40,8 @@ vi.mock(
         state.content = content
       },
       isStreamInteractionLocked: state.streaming,
-      isContentLoading: false,
-      hasContentError: false,
+      isContentLoading: state.loading,
+      hasContentError: state.error,
       saveImmediately: vi.fn(),
     }),
   })
@@ -161,9 +164,48 @@ describe('TextEditor content synchronization', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     state.content = 'initial'
     state.streaming = false
+    state.loading = false
+    state.error = false
     state.editorProps = null
     useFileViewerStore.getState().reset()
   })
+
+  it('exports the current source draft synchronously without saving and clears it on unmount', () => {
+    const downloadSourceRef = createRef<FileDownloadSource | null>()
+    const root = createRoot(document.createElement('div'))
+    act(() => root.render(<TextEditor {...props} downloadSourceRef={downloadSourceRef} />))
+    expect(downloadSourceRef.current).toMatchObject({
+      fileId: file.id,
+      workspaceId: file.workspaceId,
+    })
+    expect(downloadSourceRef.current?.getContent()).toBe('initial')
+    const draft = '# Source ![image](image.png)\n\n| a | b |\n| - | - |\n'
+    act(() => state.editorProps?.onChange?.(draft))
+    expect(downloadSourceRef.current?.getContent()).toBe(draft)
+    act(() => state.editorProps?.onChange?.(''))
+    expect(downloadSourceRef.current?.getContent()).toBe('')
+    act(() => root.unmount())
+    expect(downloadSourceRef.current).toBeNull()
+  })
+
+  it.each(['loading', 'error'] as const)(
+    'does not expose unavailable source content: %s',
+    (condition) => {
+      state[condition] = true
+      const downloadSourceRef = createRef<FileDownloadSource | null>()
+      const root = createRoot(document.createElement('div'))
+      act(() => root.render(<TextEditor {...props} downloadSourceRef={downloadSourceRef} />))
+      expect(downloadSourceRef.current).toBeNull()
+      state[condition] = false
+      act(() =>
+        root.render(
+          <TextEditor {...props} file={{ ...file }} downloadSourceRef={downloadSourceRef} />
+        )
+      )
+      expect(downloadSourceRef.current?.getContent()).toBe('initial')
+      act(() => root.unmount())
+    }
+  )
 
   it('shares page recognition with already mounted viewers and keeps it across remounts', () => {
     const pageFile = { ...file, id: 'page-a', name: 'page.html', type: 'text/html' }

@@ -71,7 +71,10 @@ import {
   type ConnectionBlockSelectorData,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/connection-block-selector/connection-block-selector'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
-import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
+import {
+  ErrorBoundary,
+  ErrorUI,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { FocusBlockDeepLink } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/focus-block-deep-link'
 import { WorkflowSearchReplace } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/workflow-search-replace'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
@@ -2668,6 +2671,10 @@ const WorkflowContent = React.memo(
     const loadingWorkflowRef = useRef<string | null>(null)
     const currentWorkflowExists =
       !isWorkflowMapPlaceholderData && Boolean(workflows[workflowIdParam])
+    const workflowLoadError =
+      hydration.phase === 'error' && hydration.workflowId === workflowIdParam
+        ? hydration.error
+        : null
 
     useEffect(() => {
       const currentId = workflowIdParam
@@ -5126,16 +5133,28 @@ const WorkflowContent = React.memo(
           >
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
-                <div
-                  className='size-[18px] animate-spin rounded-full'
-                  style={{
-                    background:
-                      'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-                    mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-                    WebkitMask:
-                      'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-                  }}
-                />
+                {workflowLoadError ? (
+                  <ErrorUI
+                    title='Unable to load workflow'
+                    message={workflowLoadError}
+                    onReset={() => {
+                      setActiveWorkflow(workflowIdParam).catch((error) => {
+                        logger.error(`Failed to retry workflow ${workflowIdParam}:`, error)
+                      })
+                    }}
+                  />
+                ) : (
+                  <div
+                    className='size-[18px] animate-spin rounded-full'
+                    style={{
+                      background:
+                        'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+                      mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                      WebkitMask:
+                        'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                    }}
+                  />
+                )}
               </div>
             )}
 

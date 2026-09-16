@@ -62,6 +62,20 @@ function streamResponse(body: ReadableStream<Uint8Array>): Response {
   } as unknown as Response
 }
 
+function jsonResponse(data: Record<string, unknown>): Response {
+  return new Response(JSON.stringify({ data }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
+function ndjsonResponse(...events: Array<Record<string, unknown>>): Response {
+  return new Response(bodyOf(events.map((event) => `${JSON.stringify(event)}\n`)), {
+    status: 200,
+    headers: { 'content-type': 'application/x-ndjson; charset=utf-8' },
+  })
+}
+
 function options(overrides: Partial<Parameters<typeof renderRunStream>[1]> = {}) {
   return { includeThinking: false, includeToolCalls: false, stderr: writer(), ...overrides }
 }
@@ -70,6 +84,15 @@ beforeEach(() => {
   output.format = 'json'
   request.mockReset()
   requestRaw.mockReset()
+  requestRaw.mockResolvedValue(
+    jsonResponse({
+      runId: 'run-1',
+      workflowId: WORKFLOW_ID,
+      status: 'completed',
+      output: {},
+      error: null,
+    })
+  )
 })
 
 afterEach(() => {
@@ -322,19 +345,41 @@ describe('sim workflows run --follow', () => {
     })
   })
 
-  it('leaves the generated non-streaming path untouched', async () => {
-    request.mockResolvedValue({ data: { success: true, output: {} } })
+  it('negotiates a heartbeat result stream for an ordinary sync run', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(WORKFLOW_ID, '--input', '{"topic":"otters"}')
 
-    expect(requestRaw).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).toHaveBeenCalledTimes(1)
+    expect(requestRaw.mock.calls[0][1]).toMatchObject({
+      body: { input: { topic: 'otters' } },
+      headers: { accept: 'application/x-ndjson' },
+    })
+  })
+
+  it('translates API field names in synchronous run errors', async () => {
+    requestRaw.mockRejectedValue(
+      new SimApiError('executionTimeoutSeconds must be less than or equal to 3000', 400)
+    )
+
+    await expect(run(WORKFLOW_ID)).rejects.toThrow(
+      '--execution-timeout-seconds must be less than or equal to 3000'
+    )
+  })
+
+  it('keeps async runs on the generated JSON path', async () => {
+    request.mockResolvedValue({ data: { runId: 'run-1', statusUrl: '/runs/run-1' } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--async')
+
     expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls[0][1].body).toEqual({ input: { topic: 'otters' } })
+    expect(requestRaw).not.toHaveBeenCalled()
+    expect(request.mock.calls[0][1].body).toEqual({ async: true })
   })
 
   it('projects manual trigger flags into one nested run selector', async () => {
-    request.mockResolvedValue({ data: { success: true, output: {} } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(
@@ -346,19 +391,18 @@ describe('sim workflows run --follow', () => {
       '{"event":"created"}'
     )
 
-    expect(request.mock.calls[0][1].body).toEqual({
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
       input: { event: 'created' },
       run: { source: 'manual', entry: { type: 'trigger', blockId: 'slack-trigger' } },
     })
   })
 
   it('lets --from-block imply manual and requires an exact source run', async () => {
-    request.mockResolvedValue({ data: { success: true, output: {} } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(WORKFLOW_ID, '--from-block', 'agent-1', '--source-run', 'run-1')
 
-    expect(request.mock.calls[0][1].body).toEqual({
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
       run: {
         source: 'manual',
         entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
@@ -377,6 +421,77 @@ describe('sim workflows run --follow', () => {
       run: { source: 'manual', entry: { type: 'trigger', useMockPayload: true } },
       stream: true,
     })
+  })
+
+  it('consumes heartbeats and prints the final NDJSON result', async () => {
+    requestRaw.mockResolvedValue(
+      ndjsonResponse(
+        { type: 'heartbeat', timestamp: '2026-09-07T00:00:00.000Z' },
+        {
+          type: 'final',
+          data: {
+            runId: 'run-1',
+            workflowId: WORKFLOW_ID,
+            status: 'completed',
+            output: { answer: 42 },
+            error: null,
+          },
+        }
+      )
+    )
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--manual')
+
+    expect(JSON.parse(String(stdout.mock.calls[0][0]))).toMatchObject({
+      runId: 'run-1',
+      status: 'completed',
+      output: { answer: 42 },
+    })
+  })
+
+  it('accepts an older server JSON response without a content type', async () => {
+    requestRaw.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            runId: 'run-1',
+            workflowId: WORKFLOW_ID,
+            status: 'completed',
+            output: { answer: 42 },
+            error: null,
+          },
+        }),
+        { status: 200 }
+      )
+    )
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID)
+
+    expect(JSON.parse(String(stdout.mock.calls[0][0]))).toMatchObject({
+      runId: 'run-1',
+      status: 'completed',
+    })
+  })
+
+  it('prints then fails for a failed NDJSON run just like the JSON path', async () => {
+    requestRaw.mockResolvedValue(
+      ndjsonResponse({
+        type: 'final',
+        data: {
+          runId: 'run-1',
+          workflowId: WORKFLOW_ID,
+          status: 'failed',
+          output: { partial: true },
+          error: { message: 'Agent failed', code: 'BLOCK_EXECUTION_FAILED' },
+        },
+      })
+    )
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await expect(run(WORKFLOW_ID)).rejects.toThrow('Agent failed')
+    expect(stdout).toHaveBeenCalled()
   })
 
   it('fails fast on invalid manual flag combinations', async () => {

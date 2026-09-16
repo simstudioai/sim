@@ -1,7 +1,7 @@
-import { ChipLink } from '@sim/emcn'
+import { StatusPageContent } from '@sim/emcn'
 import type { Metadata } from 'next'
-import { StatusPageContent } from '@/components/status-page'
-import { LogoShell } from '@/app/(landing)/components'
+import { ReturnHomeLink } from '@/components/status-page/return-home-link'
+import { LogoShell } from '@/app/(landing)/components/logo-shell'
 
 export const metadata: Metadata = {
   title: 'Page Not Found',
@@ -10,14 +10,12 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <LogoShell center>
+    <LogoShell center theme='inherit'>
       <StatusPageContent
         title='Page not found'
         description="The page you're looking for doesn't exist or has been moved."
       >
-        <ChipLink variant='primary' href='/'>
-          Return home
-        </ChipLink>
+        <ReturnHomeLink />
       </StatusPageContent>
     </LogoShell>
   )

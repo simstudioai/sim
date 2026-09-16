@@ -2,7 +2,7 @@ import { Node } from '@tiptap/pm/model'
 import type { ProsemirrorBinding } from '@tiptap/y-tiptap'
 import { XmlElement } from 'yjs'
 
-export function getImageYTarget(binding: ProsemirrorBinding, node: Node): XmlElement | undefined {
+function getImageYTarget(binding: ProsemirrorBinding, node: Node): XmlElement | undefined {
   for (const [type, mappedNode] of binding.mapping) {
     if (mappedNode === node && type instanceof XmlElement) return type
   }
@@ -18,7 +18,7 @@ export function createImageTargetGuard(binding: ProsemirrorBinding, node: Node) 
   const images = () =>
     Array.from(
       binding.type.createTreeWalker(
-        (child) => child instanceof XmlElement && child.nodeName === 'image'
+        (child) => child instanceof XmlElement && ['image', 'inlineImage'].includes(child.nodeName)
       )
     )
   const originalImages = images().map((element) => ({

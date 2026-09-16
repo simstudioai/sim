@@ -42,6 +42,7 @@ beforeEach(() => {
 describe('isTerminalRefreshError', () => {
   it.each([
     'invalid_refresh_token',
+    'bad_refresh_token',
     'invalid_grant',
     'access_denied',
     'bad_client_secret',

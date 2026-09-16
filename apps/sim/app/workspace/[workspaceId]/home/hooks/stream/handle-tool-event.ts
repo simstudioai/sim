@@ -46,6 +46,7 @@ function agentIdForSpan(ctx: StreamLoopContext, spanId: string): string | undefi
  */
 function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void {
   const { deps } = ctx
+  if (!deps.workspaceId) return
   const name = node.name
   const output = node.result?.output
   const isSuccess = node.status === 'success'

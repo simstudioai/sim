@@ -8,6 +8,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { GoogleVaultOperationError } from '@/lib/internal/google-vault/errors'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import type { GoogleVaultDownloadExportFileParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
@@ -84,10 +85,8 @@ export async function downloadGoogleVaultExportFile(
     input.fileName,
     input.objectName
   )
-  return {
+  return createInternalToolFileResult({ buffer, name, mimeType }, (file) => ({
     success: true,
-    output: {
-      file: { name, mimeType, data: buffer.toString('base64'), size: buffer.length },
-    },
-  }
+    output: { file },
+  }))
 }

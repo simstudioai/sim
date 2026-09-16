@@ -13,6 +13,7 @@ import {
   prefetchWorkspaceHostContext,
   prefetchWorkspaceSidebar,
 } from '@/app/workspace/[workspaceId]/prefetch'
+import { prefetchWorkspaceAccess } from '@/app/workspace/[workspaceId]/prefetch-access'
 import { BlockVisibilityLoader } from '@/app/workspace/[workspaceId]/providers/block-visibility-loader'
 import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/custom-blocks-loader'
 import { DesktopOAuthConnectListener } from '@/app/workspace/[workspaceId]/providers/desktop-oauth-connect-listener'
@@ -23,6 +24,7 @@ import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings
 import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
+import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
 import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
@@ -59,6 +61,11 @@ export default async function WorkspaceLayout({
       activeOrganizationId
     ),
     isTableRowTtlEnabled(),
+    prefetchWorkspaceAccess(queryClient, workspaceId, {
+      kind: 'session',
+      userId: session.user.id,
+      sessionId: session.session.id,
+    }),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -82,7 +89,10 @@ export default async function WorkspaceLayout({
                 <SessionExpired />
                 <WorkspacePermissionsProvider>
                   <WorkspaceScopeSync />
-                  <WorkspaceChrome initialSidebarCollapsed={initialSidebarCollapsed}>
+                  <WorkspaceChrome
+                    sidebar={<Sidebar />}
+                    initialSidebarCollapsed={initialSidebarCollapsed}
+                  >
                     {children}
                   </WorkspaceChrome>
                 </WorkspacePermissionsProvider>

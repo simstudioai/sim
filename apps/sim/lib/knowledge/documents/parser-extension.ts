@@ -1,4 +1,5 @@
 import { isSupportedFileType } from '@/lib/file-parsers'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import {
   extractStorageKey,
   getExtensionFromMimeType,
@@ -34,13 +35,21 @@ export function resolveParserExtension(
     return fallback
   }
 
+  /**
+   * Typed so the document pipeline classifies it as permanent: a plain `Error`
+   * read as transient and burned the retry budget on every stored `.ppt`.
+   */
   if (filenameExtension) {
-    throw new Error(
+    throw new FileParserError(
+      'unsupported_type',
       `Unsupported file type: ${filenameExtension}. Supported types are: ${SUPPORTED_EXTENSIONS_TEXT}`
     )
   }
 
-  throw new Error(`Could not determine file type for ${filename || 'document'}`)
+  throw new FileParserError(
+    'unsupported_type',
+    `Could not determine file type for ${filename || 'document'}`
+  )
 }
 
 /**

@@ -38,7 +38,7 @@ const FINANCE_CONFIG: SolutionsPageConfig = {
     description:
       'Sim is the open-source AI workspace where finance teams build AI agents for invoice processing, reconciliation, and close. Human approvals, anomaly detection, and full audit trails guard every run.',
     summary:
-      'Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents for invoice processing, reconciliation, and financial reporting. Agents run with human approvals, anomaly detection, and full audit trails across 1,000+ integrations.',
+      'Sim is the open-source AI workspace where finance teams build, deploy, and manage AI agents for invoice processing, reconciliation, and financial reporting. Agents run with human approvals, anomaly detection, and full audit trails across hundreds of integrations.',
     visual: (
       <PlatformHeroVisual>
         <FinanceHeroLoop />

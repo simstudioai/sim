@@ -1,7 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  isInternalToolFileResult,
+  type StoredToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   secureFetchWithPinnedIP: vi.fn(),
@@ -56,12 +61,23 @@ describe('getTwilioRecording', () => {
         signal: controller.signal,
       })
     )
-    expect(result.output).toEqual(
-      expect.objectContaining({
-        duration: 42,
-        transcriptionText: 'hello',
-        file: expect.objectContaining({ name: 'RE123.mp3', data: 'AQID', size: 3 }),
-      })
-    )
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      { name: 'RE123.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from([1, 2, 3]) },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
+      name: 'RE123.mp3',
+      type: 'audio/mpeg',
+      mimeType: 'audio/mpeg',
+      size: 3,
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toMatchObject({
+      success: true,
+      output: { duration: 42, transcriptionText: 'hello', file: storedFile },
+    })
   })
 })

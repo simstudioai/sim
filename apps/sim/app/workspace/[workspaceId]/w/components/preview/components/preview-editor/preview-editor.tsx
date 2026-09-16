@@ -128,7 +128,7 @@ function extractAllReferencesFromSubBlocks(
         }
       }
 
-      const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+      const envMatches = value.match(/\{\{([^{}]+)\}\}/g)
       if (envMatches) {
         envMatches.forEach((match) => envVars.add(match))
       }
@@ -1424,6 +1424,10 @@ function PreviewEditorContent({
                         config={subBlockConfig}
                         isPreview={true}
                         subBlockValues={subBlockValues}
+                        dependencyContext={{
+                          ...subBlockValues,
+                          __canonicalModes: canonicalModeOverrides,
+                        }}
                         disabled={true}
                       />
                       {index < visibleSubBlocks.length - 1 && (

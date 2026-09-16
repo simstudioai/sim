@@ -8,6 +8,7 @@ const clientMocks = vi.hoisted(() => {
   return {
     InvalidJupyterTargetError,
     requestJupyterApi: vi.fn(),
+    requestJupyterFile: vi.fn(),
   }
 })
 const fileInputMocks = vi.hoisted(() => ({

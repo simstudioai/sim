@@ -1,8 +1,4 @@
 import type { Sql } from 'postgres'
-import {
-  backfillWorkspaceFileSizeBytes,
-  createPostgresWorkspaceFileSizeBytesBackfillStore,
-} from './0008_backfill_workspace_file_size_bytes'
 import type { ScriptMigration } from './types'
 
 export const WORKSPACE_STORAGE_RECONCILIATION_BATCH_SIZE = 250
@@ -251,7 +247,6 @@ export function createPostgresStorageReconciliationStore(sql: Sql): StorageRecon
 export const backfillWorkspaceStorageUsage: ScriptMigration = {
   name: '0003_backfill_workspace_storage_usage',
   async up(sql) {
-    await backfillWorkspaceFileSizeBytes(createPostgresWorkspaceFileSizeBytesBackfillStore(sql))
     /**
      * Expand phase: seed only the additive workspace shadow ledger. Payer
      * aggregates remain under the old application's ownership until all old

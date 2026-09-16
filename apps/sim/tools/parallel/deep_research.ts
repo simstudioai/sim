@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { toList } from '@/tools/parallel/search'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -41,6 +43,13 @@ const PROCESSOR_COST_USD: Record<string, number> = {
  * the cost calculation so the tier Sim asks for is always the tier it charges.
  */
 const DEFAULT_PROCESSOR = 'pro'
+
+/**
+ * Longest the result endpoint may block before returning 408. Parallel caps a
+ * single wait at one hour; Sim's own execution budget is usually the tighter
+ * bound, so the wait never outlives the workflow run that is waiting on it.
+ */
+const RESULT_TIMEOUT_SECONDS = Math.min(3600, Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / 1000))
 
 export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolResponse> = {
   id: 'parallel_deep_research',
@@ -86,11 +95,18 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       visibility: 'user-or-llm',
       description: 'Research query or question (up to 15,000 characters)',
     },
+    output_format: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Output format: text for a markdown report with inline citations, auto for a structured JSON object that needs the pro tier or higher (default: text)',
+    },
     processor: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: `Processing tier: pro, ultra, pro-fast, ultra-fast (default: ${DEFAULT_PROCESSOR})`,
+      description: `Processing tier: core, core2x, pro, ultra, ultra2x, ultra4x, ultra8x, or a -fast variant (default: ${DEFAULT_PROCESSOR})`,
     },
     include_domains: {
       type: 'string',
@@ -128,31 +144,17 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
         input: params.input,
         processor: params.processor || DEFAULT_PROCESSOR,
         task_spec: {
-          output_schema: 'auto',
+          output_schema: { type: params.output_format === 'auto' ? 'auto' : 'text' },
         },
+        enable_events: false,
       }
 
-      if (params.include_domains || params.exclude_domains) {
-        const sourcePolicy: Record<string, string[]> = {}
-
-        if (params.include_domains) {
-          sourcePolicy.include_domains = params.include_domains
-            .split(',')
-            .map((d) => d.trim())
-            .filter((d) => d.length > 0)
-        }
-
-        if (params.exclude_domains) {
-          sourcePolicy.exclude_domains = params.exclude_domains
-            .split(',')
-            .map((d) => d.trim())
-            .filter((d) => d.length > 0)
-        }
-
-        if (Object.keys(sourcePolicy).length > 0) {
-          body.source_policy = sourcePolicy
-        }
-      }
+      const sourcePolicy: Record<string, string[]> = {}
+      const includeDomains = toList(params.include_domains)
+      const excludeDomains = toList(params.exclude_domains)
+      if (includeDomains.length > 0) sourcePolicy.include_domains = includeDomains
+      if (excludeDomains.length > 0) sourcePolicy.exclude_domains = excludeDomains
+      if (Object.keys(sourcePolicy).length > 0) body.source_policy = sourcePolicy
 
       return body
     },
@@ -198,7 +200,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
 
     try {
       const resultResponse = await fetch(
-        `https://api.parallel.ai/v1/tasks/runs/${String(runId).trim()}/result`,
+        `https://api.parallel.ai/v1/tasks/runs/${String(runId).trim()}/result?timeout=${RESULT_TIMEOUT_SECONDS}`,
         {
           method: 'GET',
           headers: {
@@ -217,7 +219,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       logger.info(`Parallel AI deep research task ${runId} completed`)
 
       const output = taskResult.output ?? {}
-      const status = taskResult.status ?? 'completed'
+      const status = taskResult.run?.status ?? 'completed'
 
       return {
         success: true,
@@ -258,8 +260,9 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       description: 'Status message',
     },
     content: {
-      type: 'object',
-      description: 'Research results (structured based on output_schema)',
+      type: 'json',
+      description:
+        'Research findings: a markdown report string for the text output format, or a structured object with query-specific keys for the auto format',
     },
     basis: {
       type: 'array',
@@ -276,12 +279,21 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
               type: 'object',
               properties: {
                 url: { type: 'string', description: 'Source URL' },
-                title: { type: 'string', description: 'Source title' },
-                excerpts: { type: 'array', description: 'Relevant excerpts from the source' },
+                title: { type: 'string', description: 'Source title', optional: true },
+                excerpts: {
+                  type: 'array',
+                  description: 'Relevant excerpts from the source',
+                  items: { type: 'string' },
+                  optional: true,
+                },
               },
             },
           },
-          confidence: { type: 'string', description: 'Confidence level (high, medium)' },
+          confidence: {
+            type: 'string',
+            description: 'Confidence level (low, medium, high)',
+            optional: true,
+          },
         },
       },
     },

@@ -3,6 +3,7 @@
  */
 import { createExecutionContext, inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { executeMicrosoftWordExportPdf } from '@/lib/internal/microsoft-word/operations'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -93,7 +94,7 @@ beforeEach(() => {
   })
 })
 
-function executeTool(toolId: string, input: unknown): Promise<Response> {
+async function executeTool(toolId: string, input: unknown): Promise<Response> {
   const request: InternalToolOperationCall = {
     toolId,
     input,
@@ -101,12 +102,43 @@ function executeTool(toolId: string, input: unknown): Promise<Response> {
     context: createExecutionContext({ workflowId: 'workflow-1' }),
     requestId: 'request-1',
   }
-  return executeMicrosoftWordTool(request)
+  const result = await executeMicrosoftWordTool(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
 }
 
 function executeAppend(input: typeof baseBody): Promise<Response> {
   return executeTool('microsoft_word_append', input)
 }
+
+describe('Microsoft Word PDF file output', () => {
+  it('keeps large PDFs in process for the executor to store', async () => {
+    const buffer = Buffer.alloc(12 * 1024 * 1024, 1)
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(itemResponse('version-1'))
+      .mockResolvedValueOnce(new Response(buffer))
+    const result = await executeMicrosoftWordExportPdf(
+      { accessToken: 'token-123', documentId: 'doc-abc' },
+      { requestId: 'request-1' }
+    )
+    expect(result.files).toHaveLength(1)
+    expect(result.files[0]?.name).toBe('notes.pdf')
+    expect(result.files[0]?.mimeType).toBe('application/pdf')
+    expect(result.files[0]?.buffer.length).toBe(buffer.length)
+    expect(result.files[0]?.buffer.equals(buffer)).toBe(true)
+    const file = {
+      id: 'stored',
+      name: 'notes.pdf',
+      size: buffer.length,
+      type: 'application/pdf',
+      mimeType: 'application/pdf',
+      url: '/api/files/stored',
+      key: 'execution/notes.pdf',
+      context: 'execution' as const,
+    }
+    expect(result.present([file])).toEqual({ success: true, output: { file } })
+  })
+})
 
 describe('Microsoft Word direct input validation', () => {
   it('rejects a whitespace-only document name before provider work', async () => {

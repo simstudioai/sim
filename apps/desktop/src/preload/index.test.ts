@@ -1,3 +1,4 @@
+/** @vitest-environment jsdom */
 import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +29,7 @@ describe('desktop preload bridge', () => {
     if (!exposed) throw new Error('Expected the desktop preload API to be exposed')
     expect(exposed.browserAgent.supportsAtomicPanelOcclusion).toBe(true)
 
-    exposed.browserAgent.registerSitePermissionPromptSupport?.()
+    expect(exposed.browserAgent.registerSitePermissionPromptSupport).toBeUndefined()
     await exposed.browserAgent.cancelTool?.('tool-1', 'chat-default')
     await exposed.browserAgent.cancelActiveTool?.('chat-reloaded')
     await exposed.browserAgent.setPanelOccluded(true, 'chat-default')
@@ -46,7 +47,6 @@ describe('desktop preload bridge', () => {
       ['browser-agent:search-suggestions', 'sim ai'],
       ['desktop:settings:set-browser-search-suggestions', false],
     ])
-    expect(send).toHaveBeenCalledWith('browser-agent:register-site-permission-prompt-support')
   })
 
   it('exposes native microphone settings only on supported platforms', async () => {

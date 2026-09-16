@@ -1,6 +1,15 @@
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { requestRaw } from '@/lib/api/client/request'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
+import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+
+/** Action-time content from the mounted viewer, scoped so another file cannot consume it. */
+export interface FileDownloadSource {
+  fileId: string
+  workspaceId: string
+  getContent: () => string | null
+}
 
 export function saveBlob(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob)
@@ -30,11 +39,42 @@ function fileNameFromDisposition(response: Response, fallback: string): string {
   return disposition.match(/filename="([^"]+)"/)?.[1] ?? fallback
 }
 
-export async function triggerFileDownload(record: WorkspaceFileRecord): Promise<void> {
+export async function triggerFileDownload(
+  record: WorkspaceFileRecord,
+  source?: FileDownloadSource | null
+): Promise<void> {
   const isMarkdown =
     record.type === 'text/markdown' ||
     record.type === 'text/x-markdown' ||
     /\.(?:md|markdown)$/i.test(record.name)
+
+  const content =
+    isMarkdown &&
+    (record.storageContext ?? 'workspace') === 'workspace' &&
+    source?.fileId === record.id &&
+    source.workspaceId === record.workspaceId
+      ? source.getContent()
+      : null
+
+  if (content !== null) {
+    /** Source editing accepts larger drafts than the bounded image-bundling endpoint. */
+    if (
+      utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) > PASTE_LIMITS.RICH_MARKDOWN_BYTES
+    ) {
+      saveBlob(new Blob([content], { type: 'text/markdown; charset=utf-8' }), record.name)
+      return
+    }
+    const response = await requestRaw(
+      exportWorkspaceFileSnapshotContract,
+      {
+        params: { id: record.workspaceId, fileId: record.id },
+        body: { content },
+      },
+      { cache: 'no-store' }
+    )
+    saveBlob(await response.blob(), fileNameFromDisposition(response, record.name))
+    return
+  }
 
   const url = isMarkdown
     ? `/api/files/export/${encodeURIComponent(record.id)}`

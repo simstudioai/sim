@@ -12,6 +12,7 @@ import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { completeShopifyOAuthConnection } from '@/lib/oauth/shopify'
 import { parseShopifyOAuthState } from '@/lib/oauth/shopify-state'
 
@@ -63,7 +64,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return NextResponse.redirect(`${baseUrl}/workspace?error=unauthorized`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=unauthorized`)
     }
 
     const { searchParams } = request.nextUrl
@@ -79,28 +80,28 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (!validateHmac(searchParams, clientSecret)) {
       logger.error('HMAC validation failed in Shopify OAuth callback')
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_hmac_invalid`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_hmac_invalid`)
     }
 
     if (!state) {
       logger.error('Missing state in Shopify OAuth callback')
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_state_mismatch`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_state_mismatch`)
     }
 
     if (!code) {
       logger.error('No code received from Shopify')
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_no_code`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_no_code`)
     }
 
     const shopDomain = shop
     if (!shopDomain) {
       logger.error('No shop domain available')
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_no_shop`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_no_shop`)
     }
 
     if (!shopifyShopDomainSchema.safeParse(shopDomain).success) {
       logger.error('Invalid shop domain format:', { shopDomain })
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_invalid_shop`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_invalid_shop`)
     }
 
     const { draftId, returnUrl } = parseShopifyOAuthState({
@@ -128,7 +129,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         status: tokenResponse.status,
         body: errorText,
       })
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_token_error`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_token_error`)
     }
 
     const tokenData = await tokenResponse.json()
@@ -142,7 +143,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (!accessToken) {
       logger.error('No access token in response')
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_no_token`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=shopify_no_token`)
     }
 
     await completeShopifyOAuthConnection({
@@ -157,7 +158,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (returnUrl && !isSameOrigin(returnUrl)) {
       throw new Error('Shopify OAuth state contains an invalid return URL')
     }
-    const redirectUrl = returnUrl ?? `${baseUrl}/workspace`
+    const redirectUrl = returnUrl ?? `${baseUrl}${APP_ENTRY_PATH}`
     const finalUrl = new URL(redirectUrl)
     finalUrl.searchParams.set('shopify_connected', 'true')
 
@@ -169,7 +170,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         ? 'shopify_config_error'
         : 'shopify_callback_error'
     return clearShopifyOAuthCookies(
-      NextResponse.redirect(`${baseUrl}/workspace?error=${errorCode}`)
+      NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=${errorCode}`)
     )
   }
 })

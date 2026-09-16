@@ -38,7 +38,7 @@ Query supported standard Microsoft Dynamics 365 CRM records. Supports OData filt
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `select` | string | No | Comma-separated list of columns to return \(OData $select\) |
 | `filter` | string | No | OData $filter expression \(e.g., statecode eq 0\) |
@@ -69,7 +69,7 @@ Retrieve one supported standard Microsoft Dynamics 365 CRM record by its ID. Sup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to retrieve |
 | `select` | string | No | Comma-separated list of columns to return \(OData $select\) |
@@ -91,7 +91,7 @@ Create a new supported standard Microsoft Dynamics 365 CRM record using Datavers
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `data` | object | Yes | Record data as a JSON object with column names as keys |
 
@@ -111,7 +111,7 @@ Update an existing supported standard Microsoft Dynamics 365 CRM record. Only se
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `entitySetName` | string | Yes | Entity set name \(plural table name, e.g., accounts, contacts\) |
 | `recordId` | string | Yes | The unique identifier \(GUID\) of the record to update |
 | `data` | object | Yes | Record data to update as a JSON object with column names as keys |
@@ -131,7 +131,7 @@ Perform a full-text relevance search across Microsoft Dataverse tables. Requires
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dataverse environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `searchTerm` | string | Yes | Search text \(1-100 chars\). Supports simple syntax: + \(AND\), \| \(OR\), - \(NOT\), * \(wildcard\), "exact phrase" |
 | `entities` | string | No | JSON array of search entity configs. Each object: \{"name":"account","selectColumns":\["name"\],"searchColumns":\["name"\],"filter":"statecode eq 0"\} |
 | `filter` | string | No | Global OData filter applied across all entities \(e.g., "createdon gt 2024-01-01"\) |
@@ -166,7 +166,7 @@ Qualify a Dynamics 365 Sales lead and optionally create linked account, contact,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `leadId` | string | Yes | GUID of the lead to qualify |
 | `createAccount` | boolean | Yes | Whether to create an account from the lead |
 | `createContact` | boolean | Yes | Whether to create a contact from the lead |
@@ -194,7 +194,7 @@ Close a Dynamics 365 Sales opportunity as won or lost.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `opportunityId` | string | Yes | GUID of the opportunity to close |
 | `outcome` | string | Yes | Opportunity outcome: won or lost |
 | `subject` | string | No | Optional subject for the opportunity-close activity \(maximum 200 characters\) |
@@ -217,7 +217,7 @@ Resolve and close a Dynamics 365 Customer Service case.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com\) |
+| `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com) |
 | `caseId` | string | Yes | GUID of the case to close |
 | `subject` | string | Yes | Subject for the case-resolution activity \(maximum 200 characters\) |
 | `description` | string | No | Optional description for the case-resolution activity \(maximum 100,000 characters\) |

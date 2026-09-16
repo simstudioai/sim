@@ -33,8 +33,33 @@ describe('knowledgeAccessCondition', () => {
         tokens: ['pub', 's:confluence:-:557058:abc', 'ws'],
       })
     )
-    expect(sql).toBe('"document"."acl" && ARRAY[$1, $2, $3]::text[]')
-    expect(params).toEqual(['pub', 's:confluence:-:557058:abc', 'ws'])
+    expect(sql).toContain('"document"."acl" && ARRAY[$1, $2, $3]::text[]')
+    expect(params.slice(0, 3)).toEqual(['pub', 's:confluence:-:557058:abc', 'ws'])
+    for (const param of params) expect(Array.isArray(param)).toBe(false)
+  })
+
+  it('binds central Confluence evidence to scalar source, crawler, reader, subject, and site values', () => {
+    const { sql, params } = render(
+      knowledgeAccessCondition({
+        kind: 'user',
+        userId: 'user-1',
+        tokens: ['s:confluence:-:alice'],
+        confluenceSiteGrants: [
+          {
+            connectorId: 'source-1',
+            contentCredentialId: 'crawler-1',
+            readerCredentialId: 'reader-1',
+            readerSubjectToken: 's:confluence:-:alice',
+            domain: 'company.atlassian.net',
+            cloudId: 'cloud-1',
+          },
+        ],
+      })
+    )
+    expect(sql).toContain('confluence_read_grant')
+    expect(params).toEqual(
+      expect.arrayContaining(['source-1', 'crawler-1', 'reader-1', 'company.atlassian.net'])
+    )
     for (const param of params) expect(Array.isArray(param)).toBe(false)
   })
 
@@ -42,8 +67,8 @@ describe('knowledgeAccessCondition', () => {
     const { sql, params } = render(
       knowledgeAccessCondition({ kind: 'workspace', tokens: ['pub', 'ws'] })
     )
-    expect(sql).toBe('"document"."acl" && ARRAY[$1, $2]::text[]')
-    expect(params).toEqual(['pub', 'ws'])
+    expect(sql).toContain('"document"."acl" && ARRAY[$1, $2]::text[]')
+    expect(params.slice(0, 2)).toEqual(['pub', 'ws'])
   })
 
   it('denies everything for an empty token set', () => {
@@ -52,7 +77,11 @@ describe('knowledgeAccessCondition', () => {
     )
   })
 
-  it('exempts only the branded system scope', () => {
-    expect(render(knowledgeAccessCondition(SYSTEM_ACCESS_SCOPE)).sql).toBe('true')
+  it('exempts system jobs from ACL checks while refusing removed sources', () => {
+    const { sql } = render(knowledgeAccessCondition(SYSTEM_ACCESS_SCOPE))
+    expect(sql).toContain('"document"."connector_id" IS NULL OR EXISTS')
+    expect(sql).toContain('"knowledge_connector"."deleted_at" IS NULL')
+    expect(sql).toContain('"knowledge_connector"."archived_at" IS NULL')
+    expect(sql).not.toContain('"document"."acl"')
   })
 })

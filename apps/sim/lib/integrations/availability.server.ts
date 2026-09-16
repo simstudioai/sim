@@ -10,6 +10,7 @@ import {
   resolveIntegrationAvailability,
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
+import type { OAuthServiceMetadata } from '@/lib/oauth/types'
 
 export type {
   IntegrationAvailability,
@@ -21,6 +22,18 @@ const oauthServiceAvailability = new Map<string, boolean>()
 
 export function getIntegrationAvailability() {
   return resolveIntegrationAvailability(env)
+}
+
+/** OAuth clients are independent of the authentication method a workflow block exposes. */
+export function getOAuthServiceAvailability(
+  services: readonly Pick<OAuthServiceMetadata, 'providerId' | 'authType'>[]
+): { providerId: string; available: boolean }[] {
+  return services
+    .filter((service) => service.authType === 'oauth')
+    .map((service) => ({
+      providerId: service.providerId,
+      available: isOAuthServiceDeploymentAvailable(service.providerId),
+    }))
 }
 
 function getIntegrationAvailabilityByType(): ReadonlyMap<string, IntegrationAvailability> {

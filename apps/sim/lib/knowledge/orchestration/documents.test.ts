@@ -174,7 +174,7 @@ describe('performUploadKnowledgeDocument', () => {
 
   it.each([
     { startProcessing: 'queue' as const, expected: mockProcessDocumentsWithQueue },
-    { startProcessing: 'async' as const, expected: mockProcessDocumentAsync },
+    { startProcessing: 'async' as const, expected: mockProcessDocumentsWithQueue },
   ])('hands the record to the $startProcessing pipeline', async ({ startProcessing, expected }) => {
     await performUploadKnowledgeDocument({
       ...ACTOR,
@@ -184,6 +184,7 @@ describe('performUploadKnowledgeDocument', () => {
     })
 
     expect(expected).toHaveBeenCalled()
+    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
   it('classifies a storage-quota rejection as too large, by class not message', async () => {
@@ -521,6 +522,32 @@ describe('document processing state changes', () => {
 
     expect(outcome).toMatchObject({ success: true })
     expect(mockRetryDocumentProcessing).toHaveBeenCalled()
+  })
+
+  it('requires source refresh for missing source content while allowing a manual upload with no hash', async () => {
+    const document = { ...FILE, id: 'doc-1', processingStatus: 'failed', contentHash: null }
+    const blocked = await performRetryKnowledgeDocumentProcessing({
+      knowledgeBaseId: 'kb-1',
+      document: { ...document, connectorId: 'connector' },
+    })
+    expect(blocked).toMatchObject({
+      success: false,
+      errorCode: 'validation',
+      error: expect.stringContaining('Sync the connector'),
+    })
+    expect(mockRetryDocumentProcessing).not.toHaveBeenCalled()
+    mockRetryDocumentProcessing.mockResolvedValue({
+      success: true,
+      status: 'pending',
+      message: 'Retry started',
+    })
+    expect(
+      await performRetryKnowledgeDocumentProcessing({
+        knowledgeBaseId: 'kb-1',
+        document: { ...document, connectorId: null },
+      })
+    ).toMatchObject({ success: true })
+    expect(mockRetryDocumentProcessing).toHaveBeenCalledOnce()
   })
 
   it('reports a retry whose dispatch never got off the ground as a failure', async () => {

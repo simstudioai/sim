@@ -44,8 +44,10 @@ from the repo root). One pass (`generateAllBlockDocs`):
 Core block pages (`blocks/*`), the native trigger pages (`triggers/{start,schedule,webhook,rss,table}`),
 the integrations overview (`integrations/index.mdx`), and the service-account pages are
 fully hand-written. The generator skips them via `HANDWRITTEN_INTEGRATION_DOCS`,
-`HANDWRITTEN_TRIGGER_DOCS`, and `SKIP_TRIGGER_PROVIDERS`. Add a page name to those sets if
-you hand-author a page the generator would otherwise produce.
+`HANDWRITTEN_TRIGGER_DOCS`, and `SKIP_TRIGGER_PROVIDERS`. Integration guides are registered
+in the shared navigation file described below, which feeds `HANDWRITTEN_INTEGRATION_DOCS`.
+Add other hand-written pages to the appropriate set if the generator would otherwise
+produce them.
 
 ## Manual content (the one editable region)
 
@@ -74,6 +76,32 @@ matching spot in the freshly generated structure.
   `apps/sim/{blocks,tools,triggers}` and re-run the generator.
 - **A page's prose intro** → edit its `MANUAL-CONTENT:intro` block directly; it survives regen.
 - **The overview / service-account / core-block / native-trigger pages** → hand-edit freely.
+
+## Sidebar navigation
+
+Section labels link to their `index.mdx` overview; the adjacent arrow expands their
+children. Keep `index` out of a non-root folder's `meta.json` pages array so Fumadocs
+uses it as the folder link instead of a duplicate child. Root tabs such as CLI and
+Academy still list `index` because their root label is not a sidebar row.
+
+Register hand-written integration guides under `guides` in
+`apps/docs/content/integration-navigation.json`. The key is the existing MDX filename
+without its extension; `title` is the shorter
+sidebar label, and `integration` is the parent integration's filename. The docs loader
+groups these pages under a clickable integration row while preserving every URL.
+Omit `integration` for guides shared across providers, which appear under
+**Shared credential guides**. The generator reads the same registry to protect these
+pages from stale-doc cleanup, so adding a guide requires only one registration.
+
+Use `relatedPages` for tutorials elsewhere in the docs tree, retaining their existing
+paths. Register retired integration aliases in `redirects`; those URLs redirect to the
+canonical integration. Remove the retired MDX file so sidebar, sitemap, and LLM
+exports all use the canonical page. Primary integration
+rows are sorted by their visible names; child guides retain the registry's order.
+
+The generated integration `meta.json` remains a sorted inventory of pages. Grouping
+happens when Fumadocs builds the page tree, so it survives regeneration without moving
+content files or changing links, search results, or the docs manifest.
 
 ## Gotchas
 

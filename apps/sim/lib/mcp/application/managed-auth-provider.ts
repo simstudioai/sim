@@ -1,4 +1,6 @@
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import { resourceScopeFields } from '@/lib/core/resource-scope'
+import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
 import {
   loadManagedMcpRuntimeCredential,
   saveManagedMcpRuntimeTokens,
@@ -12,9 +14,17 @@ export async function loadManagedMcpAuthProvider(
   workspaceId: string
 ): Promise<OAuthClientProvider> {
   const current = await loadManagedMcpRuntimeCredential(credentialId, workspaceId)
+  if (current.scope.kind === 'organization') {
+    await requireOrganizationAccountsWorkspaceAccess({
+      workspaceId,
+      workspaceOrganizationId: current.scope.organizationId,
+      organizationId: current.scope.organizationId,
+      credentialGroupId: current.credentialGroupId,
+    })
+  }
   const clientRow = await getOrCreateOauthRow({
     mcpServerId: current.mcpServerId,
-    workspaceId: current.workspaceId,
+    ...resourceScopeFields(current.scope),
   })
   const preregistered = await loadPreregisteredClient(current.mcpServerId)
   let tokenVersion: string | null = current.tokenVersion

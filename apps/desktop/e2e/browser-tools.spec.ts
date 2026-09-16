@@ -18,13 +18,39 @@ const SCOPE = 'browser-tools-e2e'
 const FORM = `<!doctype html><html><head><title>Form fixture</title></head><body>
   <label>Name <input id="name" autocomplete="off"></label>
   <label>Plan <select id="plan" aria-label="Plan"><option value="basic">Basic</option><option value="pro">Pro</option></select></label>
+  <label>Regions <select id="regions" aria-label="Regions" multiple><option value="a">A</option><option value="b">B</option><option value="c" disabled>C</option></select></label>
   <label>Updates <input id="updates" type="checkbox"></label>
+  <label>Date <input id="date" type="date" oninput="this.dataset.events = Number(this.dataset.events || 0) + 1"></label>
+  <label>Time <input id="time" type="time"></label>
+  <label>Appointment <input id="appointment" type="datetime-local"></label>
+  <label>Month <input id="month" type="month"></label>
+  <label>Week <input id="week" type="week"></label>
+  <label>Color <input id="color" type="color"></label>
+  <label>Range <input id="range" type="range"></label>
   <label>Password <input id="password" type="password"></label>
   <label>Route <input id="route" oninput="history.pushState({}, '', '/form?changed=1')"></label>
+  <a href="/redirect">Other website</a>
   <div id="horizontal" role="region" aria-label="Wide table" tabindex="0" style="width:280px;overflow-x:auto">
     <div style="width:1600px;height:100px">Wide content</div>
   </div>
 </body></html>`
+
+const CLICK_FIXTURE = `<!doctype html><title>Click fixture</title>
+<style>body{margin:0;height:2400px}button{position:absolute;left:100px;top:calc(100vh - 100px);width:200px;height:40px}</style>
+<button id="target" role="option" onclick="document.body.dataset.clicks = Number(document.body.dataset.clicks) + 1">Choose option</button>
+<script>
+ document.body.dataset.clicks = '0'; document.body.dataset.scrolls = '0';
+ const mode = new URLSearchParams(location.search).get('mode');
+ if (mode === 'sticky') {
+   document.getElementById('target').style.top = '1010px';
+   document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0 0 auto;height:80px;background:white;z-index:2">Sticky header</div>');
+   scrollTo(0,1000);
+ }
+ addEventListener('scroll', () => {
+   document.body.dataset.scrolls = Number(document.body.dataset.scrolls) + 1;
+   if (mode === 'menu' && document.body.dataset.armed === 'true') document.getElementById('target')?.remove();
+ });
+</script>`
 
 test.describe('browser tools', () => {
   const calls = new Map<
@@ -40,6 +66,11 @@ test.describe('browser tools', () => {
   test.beforeAll(async () => {
     server = createServer(async (request, response) => {
       const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+      if (path === '/redirect') {
+        response.writeHead(302, { Location: `${origin.replace('127.0.0.1', 'localhost')}/landing` })
+        response.end()
+        return
+      }
       if (path === '/api/desktop/tool/authorize') {
         let body = ''
         for await (const chunk of request) body += chunk.toString()
@@ -50,9 +81,11 @@ test.describe('browser tools', () => {
       }
       response.writeHead(200, { 'Content-Type': 'text/html' })
       response.end(
-        path === '/form'
-          ? FORM
-          : '<!doctype html><title>Sim fixture</title><h1>Browser tools fixture</h1>'
+        path === '/click'
+          ? CLICK_FIXTURE
+          : path === '/form'
+            ? FORM
+            : '<!doctype html><title>Sim fixture</title><h1>Browser tools fixture</h1>'
       )
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -72,15 +105,21 @@ test.describe('browser tools', () => {
       },
     })
     window = await app.firstWindow()
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].webContents.setBackgroundThrottling(false)
+    )
     await expect(window.getByRole('heading')).toHaveText('Browser tools fixture')
     await window.evaluate(async (scope) => {
       const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
       await api.browserAgent.activateScope(scope)
-      api.browserAgent.setPanelBounds(
-        { x: 0, y: 80, width: innerWidth, height: innerHeight - 80 },
-        null,
-        scope
-      )
+      const updateBounds = () =>
+        api.browserAgent.setPanelBounds(
+          { x: 0, y: 80, width: innerWidth, height: innerHeight - 80 },
+          null,
+          scope
+        )
+      updateBounds()
+      setInterval(updateBounds, 200)
     }, SCOPE)
   })
 
@@ -113,7 +152,9 @@ test.describe('browser tools', () => {
     const result = response.result as { snapshot: { outline: string } }
     expect(result.snapshot.outline).toContain('Name')
     return (name: string) => {
-      const line = result.snapshot.outline.split('\n').find((line) => line.includes(`"${name}"`))
+      const line = result.snapshot.outline
+        .split('\n')
+        .find((line) => line.includes(`"${name}"`) && /\[ref=\d+\]/.test(line))
       const match = line?.match(/\[ref=(\d+)\]/)
       if (!match) throw new Error(`No reference for ${name}: ${result.snapshot.outline}`)
       return Number(match[1])
@@ -136,6 +177,229 @@ test.describe('browser tools', () => {
       })`)
     }, origin)
   }
+
+  test('sets and clears multiple selections without partial writes for invalid options', async () => {
+    const ref = await openForm()
+    const selected = await execute('browser_select_option', {
+      elementId: ref('Regions'),
+      values: ['A', 'B'],
+    })
+    expect(selected.ok, selected.error).toBe(true)
+    expect(selected.result).toMatchObject({
+      values: ['a', 'b'],
+      effectObserved: true,
+      readback: { values: ['a', 'b'] },
+    })
+    const invalid = await execute('browser_select_option', {
+      elementId: ref('Regions'),
+      values: ['B', 'C'],
+    })
+    expect(invalid.ok).toBe(false)
+    const values = await app.evaluate(async ({ webContents }, origin) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((wc) => wc.getURL() === `${origin}/form`)
+      if (!contents) throw new Error('Missing form fixture')
+      return contents.executeJavaScript(
+        'Array.from(document.getElementById("regions").selectedOptions, option => option.value)'
+      )
+    }, origin)
+    expect(values).toEqual(['a', 'b'])
+    const cleared = await execute('browser_select_option', {
+      elementId: ref('Regions'),
+      values: [],
+    })
+    expect(cleared.result).toMatchObject({
+      values: [],
+      effectObserved: true,
+      readback: { values: [] },
+    })
+  })
+
+  test('fills structured native fields and leaves invalid dates unchanged', async () => {
+    const ref = await openForm()
+    for (const [name, text] of [
+      ['Date', '2026-09-15'],
+      ['Time', '15:48'],
+      ['Appointment', '2026-09-15T15:48:00'],
+      ['Month', '2026-09'],
+      ['Week', '2026-W38'],
+      ['Color', '#AABBCC'],
+      ['Range', '75'],
+    ]) {
+      const response = await execute('browser_type', { elementId: ref(name), text })
+      expect(response.ok, response.error).toBe(true)
+      expect(response.result).toMatchObject({
+        trusted: false,
+        dispatched: true,
+        effectObserved: true,
+      })
+    }
+    const invalid = await execute('browser_type', { elementId: ref('Date'), text: '2026-02-30' })
+    expect(invalid.ok).toBe(false)
+    expect(invalid.error).toContain('Invalid value')
+    const state = await app.evaluate(async ({ webContents }, origin) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((wc) => wc.getURL() === `${origin}/form`)
+      if (!contents) throw new Error('Missing form fixture')
+      return contents.executeJavaScript(
+        '({date:document.getElementById("date").value,time:document.getElementById("time").value,appointment:document.getElementById("appointment").value,month:document.getElementById("month").value,week:document.getElementById("week").value,color:document.getElementById("color").value,range:document.getElementById("range").value,events:document.getElementById("date").dataset.events})'
+      )
+    }, origin)
+    expect(state).toEqual({
+      date: '2026-09-15',
+      time: '15:48',
+      appointment: '2026-09-15T15:48',
+      month: '2026-09',
+      week: '2026-W38',
+      color: '#aabbcc',
+      range: '75',
+      events: '1',
+    })
+  })
+
+  for (const mode of ['menu', 'sticky']) {
+    test(`clicks a ${mode} target without losing its identity`, async () => {
+      const opened = await execute('browser_open_url', { url: `${origin}/click?mode=${mode}` })
+      expect(opened.ok, opened.error).toBe(true)
+      await app.evaluate(
+        async ({ webContents }, { origin, mode }) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((wc) => wc.getURL().startsWith(`${origin}/click`))
+          if (!contents) throw new Error('Missing click fixture')
+          await contents.executeJavaScript(`
+          history.scrollRestoration = 'manual';
+          document.getElementById('target').style.top = ${mode === 'sticky' ? '1010' : 'innerHeight - 100'} + 'px';
+          scrollTo(0, ${mode === 'sticky' ? '1000' : '0'});
+          new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+            document.body.dataset.scrolls = '0'; document.body.dataset.armed = 'true'; resolve();
+          })))
+        `)
+        },
+        { origin, mode }
+      )
+      const snapshot = await execute('browser_snapshot', {})
+      expect(snapshot.ok, snapshot.error).toBe(true)
+      const outline = (snapshot.result as { outline: string }).outline
+      const line = outline.split('\n').find((line) => line.includes('"Choose option"'))
+      const match = line?.match(/\[ref=(\d+)\]/)
+      if (!match) throw new Error(`Missing target: ${outline}`)
+      const result = await execute('browser_click', { elementId: Number(match[1]) })
+      expect(result.ok, result.error).toBe(true)
+      const state = await app.evaluate(async ({ webContents }, origin) => {
+        const contents = webContents
+          .getAllWebContents()
+          .find((wc) => wc.getURL().startsWith(`${origin}/click`))
+        if (!contents) throw new Error('Missing click fixture')
+        return contents.executeJavaScript(
+          '({clicks:document.body.dataset.clicks,scrolls:document.body.dataset.scrolls,scrollY})'
+        )
+      }, origin)
+      expect(state.clicks).toBe('1')
+      if (mode === 'menu') expect(state).toMatchObject({ scrolls: '0', scrollY: 0 })
+      else expect(state.scrollY).toBeLessThan(1000)
+    })
+  }
+
+  for (const mode of ['visible', 'hidden', 'minimized']) {
+    test(`captures a ${mode} window without changing its state`, async () => {
+      test.skip(
+        mode === 'minimized' && process.platform !== 'darwin',
+        'Requires a window manager with minimize events'
+      )
+      await openForm()
+      await app.evaluate(async ({ BrowserWindow }, mode) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        win.blur()
+        if (mode === 'hidden') win.hide()
+        if (mode === 'minimized') {
+          const minimized = new Promise<void>((resolve) => win.once('minimize', () => resolve()))
+          win.minimize()
+          await minimized
+        }
+      }, mode)
+      const state = () =>
+        app.evaluate(async ({ BrowserWindow, webContents }, origin) => {
+          const win = BrowserWindow.getAllWindows()[0]
+          const contents = webContents
+            .getAllWebContents()
+            .find((wc) => wc.getURL() === `${origin}/form`)
+          if (!contents) throw new Error('Missing screenshot fixture')
+          return {
+            visible: win.isVisible(),
+            minimized: win.isMinimized(),
+            bounds: win.getBounds(),
+            focused: BrowserWindow.getFocusedWindow()?.id ?? null,
+            page: await contents.executeJavaScript(
+              '({width:innerWidth,height:innerHeight,scrollX,scrollY,html:document.body.innerHTML,focus:document.activeElement?.id})'
+            ),
+          }
+        }, origin)
+      const before = await state()
+      for (let i = 0; i < 3; i++) {
+        const response = await execute('browser_screenshot', {})
+        expect(response.ok, response.error).toBe(true)
+        const shot = response.result as {
+          dataUrl: string
+          scale: number
+          viewport: { width: number; height: number }
+        }
+        expect(shot.dataUrl.length).toBeGreaterThan(1000)
+        expect(shot.viewport.width).toBeGreaterThan(0)
+        expect(shot.viewport.height).toBeGreaterThan(0)
+        const image = await app.evaluate(({ nativeImage }, dataUrl) => {
+          const image = nativeImage.createFromDataURL(dataUrl)
+          return { empty: image.isEmpty(), ...image.getSize() }
+        }, shot.dataUrl)
+        expect(image).toEqual({
+          empty: false,
+          width: Math.round(shot.viewport.width * shot.scale),
+          height: Math.round(shot.viewport.height * shot.scale),
+        })
+        expect(await state()).toEqual(before)
+      }
+    })
+  }
+
+  test('captures fresh pixels after resizing and repainting the viewport', async () => {
+    await openForm()
+    const viewportWidth = () =>
+      app.evaluate(async ({ webContents }, origin) => {
+        const contents = webContents
+          .getAllWebContents()
+          .find((wc) => wc.getURL() === `${origin}/form`)
+        return contents?.executeJavaScript('innerWidth')
+      }, origin)
+    const beforeWidth = await viewportWidth()
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1280, 900))
+    await expect.poll(viewportWidth).not.toBe(beforeWidth)
+    for (const color of ['red', 'blue']) {
+      await app.evaluate(
+        async ({ webContents }, { origin, color }) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((wc) => wc.getURL() === `${origin}/form`)
+          if (!contents) throw new Error('Missing screenshot fixture')
+          await contents.executeJavaScript(
+            `document.body.style.background = ${JSON.stringify(color)}; void 0`
+          )
+        },
+        { origin, color }
+      )
+      const response = await execute('browser_screenshot', {})
+      expect(response.ok, response.error).toBe(true)
+      const shot = response.result as { dataUrl: string }
+      const pixel = await app.evaluate(({ nativeImage }, dataUrl) => {
+        const image = nativeImage.createFromDataURL(dataUrl)
+        return Array.from(image.toBitmap().subarray(0, 4))
+      }, shot.dataUrl)
+      const dominant = pixel[color === 'red' ? 2 : 0]
+      const other = pixel[color === 'red' ? 0 : 2]
+      expect(dominant - other, `${color}: ${pixel}`).toBeGreaterThan(150)
+    }
+  })
 
   test('opens with references, fills in order, and scrolls a horizontal pane', async () => {
     const ref = await openForm()
@@ -187,6 +451,28 @@ test.describe('browser tools', () => {
       doNotRetry: true,
     })
     expect(await formState()).toMatchObject({ name: '', route: 'change route' })
+  })
+
+  test('follows a link and cross-origin redirect without a website approval prompt', async () => {
+    await openForm()
+    await app.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+      if (!page) throw new Error('Missing browser fixture')
+      await page.executeJavaScript("document.querySelector('a').click()")
+    }, `${origin}/form`)
+
+    const destination = `${origin.replace('127.0.0.1', 'localhost')}/landing`
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ webContents }, url) =>
+            webContents.getAllWebContents().some((contents) => contents.getURL() === url),
+          destination
+        )
+      )
+      .toBe(true)
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+    await expect(window.getByRole('heading')).toHaveText('Browser tools fixture')
   })
 
   test('stops when a new popup exceeds the page summary limit', async () => {

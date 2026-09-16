@@ -11,12 +11,62 @@ import {
 import { MAX_MCP_TOOL_NAME_BYTES } from '@/lib/mcp/constants'
 
 describe('v2AgentToolInputSchema', () => {
+  it.each([
+    { type: 'search', operation: 'search' },
+    { type: 'custom-tool', customToolId: 'cst_123' },
+    {
+      type: 'custom-tool',
+      schema: { type: 'function', function: { name: 'probe', parameters: { type: 'object' } } },
+      code: 'return true',
+    },
+    { type: 'mcp', params: { serverId: 'mcp_123', toolName: 'probe' } },
+    { type: 'mcp-server-advanced', params: { serverId: 'mcp_123' } },
+  ])('enforces expression type and size consistently for $type', (tool) => {
+    for (const value of ['', 'none', '<start.toolMode>', 'a'.repeat(2048)]) {
+      const entry = { ...tool, usageControlExpression: value }
+      expect(v2AgentToolInputSchema.parse([entry])).toEqual([entry])
+    }
+    for (const value of [null, true, 0, ['auto'], { mode: 'auto' }, 'a'.repeat(2049)]) {
+      expect(
+        v2AgentToolInputSchema.safeParse([{ ...tool, usageControlExpression: value }]).success
+      ).toBe(false)
+    }
+  })
+
+  it('accepts literal tool-name policies with a runtime server reference', () => {
+    const tools = [
+      {
+        type: 'mcp-server-advanced',
+        params: { serverId: '<lookup.credentialId>' },
+        operationPolicy: { mode: 'allow', operations: ['read', 'search_docs'] },
+      },
+    ]
+    expect(v2AgentToolInputSchema.parse(tools)).toEqual(tools)
+  })
+
+  it.each([
+    { mode: 'allow', operations: ['<upstream.tool>'] },
+    { mode: 'allow', operations: [{ serverId: 'server-1', name: 'read' }] },
+    '<upstream.policy>',
+  ])('rejects nonliteral or obsolete new policy input %j', (operationPolicy) => {
+    expect(
+      v2AgentToolInputSchema.safeParse([
+        {
+          type: 'mcp-server-advanced',
+          params: { serverId: '<lookup.credentialId>' },
+          operationPolicy,
+        },
+      ]).success
+    ).toBe(false)
+  })
+
   it('accepts catalog integration, custom-tool reference, and both MCP tool shapes', () => {
     const tools = [
       {
         type: 'cloudwatch',
         operation: 'describe_alarm_history',
         usageControl: 'auto',
+        usageControlExpression: '<route.toolMode>',
         params: { region: 'us-east-1' },
       },
       {

@@ -1,0 +1,179 @@
+/**
+ * @vitest-environment node
+ */
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { consumeTokens, getCooldownUntil, setCooldownUntil } = vi.hoisted(() => ({
+  consumeTokens: vi.fn(),
+  getCooldownUntil: vi.fn(),
+  setCooldownUntil: vi.fn(),
+}))
+vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({
+  createStorageAdapter: () => ({
+    consumeTokensAtomically: consumeTokens,
+    getCooldownUntil,
+    setCooldownUntil,
+  }),
+}))
+
+import { waitForProviderAdmission } from '@/lib/core/rate-limiter/provider-admission'
+import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
+
+const INPUT = {
+  providerId: 'openai',
+  credentialFingerprint: 'hashed-credential',
+  operation: 'embedding' as const,
+  inputTokens: 50,
+  maxWaitMs: 10_000,
+}
+
+describe('provider admission', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.clearAllMocks()
+    getCooldownUntil.mockResolvedValue(null)
+    consumeTokens.mockResolvedValue({ allowed: true, tokensRemaining: 1, resetAt: new Date() })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    resetEnvMock()
+  })
+
+  it('shares both credential dimensions in one reservation across concurrent callers', async () => {
+    await Promise.all([waitForProviderAdmission(INPUT), waitForProviderAdmission(INPUT)])
+    expect(consumeTokens).toHaveBeenCalledTimes(2)
+    for (const [reservations, options] of consumeTokens.mock.calls) {
+      expect(reservations.map((item: { key: string }) => item.key)).toEqual([
+        'provider:embedding:openai:hashed-credential:tokens',
+        'provider:embedding:openai:hashed-credential:requests',
+      ])
+      expect(reservations[0].cost).toBe(50)
+      /** Enough burst for every concurrent document to start a batch; the rate still governs throughput. */
+      expect(reservations[1].config).toMatchObject({ maxTokens: 64, refillRate: 10 })
+      expect(options.cooldownKeys).toHaveLength(2)
+    }
+  })
+
+  it('waits for shared capacity without consuming another request reservation', async () => {
+    consumeTokens.mockResolvedValueOnce({ allowed: false, retryAfterMs: 2000 })
+    const pending = waitForProviderAdmission(INPUT)
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(consumeTokens).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await pending
+    expect(consumeTokens).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops waiting immediately when the caller aborts', async () => {
+    consumeTokens.mockResolvedValue({ allowed: false, retryAfterMs: 5000 })
+    const controller = new AbortController()
+    const pending = waitForProviderAdmission({ ...INPUT, signal: controller.signal })
+    const rejected = expect(pending).rejects.toThrow('cancelled')
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort(new Error('cancelled'))
+    await rejected
+    expect(consumeTokens).toHaveBeenCalledTimes(1)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('refuses a wait beyond the caller budget and fails closed on storage errors', async () => {
+    consumeTokens.mockResolvedValueOnce({ allowed: false, retryAfterMs: 20_000 })
+    await expect(waitForProviderAdmission(INPUT)).rejects.toMatchObject({
+      status: 429,
+      retryAfterMs: 20_000,
+    })
+    consumeTokens.mockRejectedValueOnce(new Error('storage unavailable'))
+    await expect(waitForProviderAdmission(INPUT)).rejects.toThrow(
+      'Provider admission storage is unavailable'
+    )
+  })
+
+  it('caps bulk work below the aggregate budget so interactive callers keep headroom', async () => {
+    await waitForProviderAdmission({ ...INPUT, bulk: true })
+    const [reservations, options] = consumeTokens.mock.calls[0]
+    expect(reservations).toMatchObject([
+      { key: 'provider:embedding:openai:hashed-credential:tokens', config: { maxTokens: 600_000 } },
+      { key: 'provider:embedding:openai:hashed-credential:requests', config: { maxTokens: 64 } },
+      {
+        key: 'provider:embedding:openai:hashed-credential:bulk:tokens',
+        cost: 50,
+        config: { maxTokens: 540_000, refillRate: 9_000 },
+      },
+      {
+        key: 'provider:embedding:openai:hashed-credential:bulk:requests',
+        config: { maxTokens: 57, refillRate: 9 },
+      },
+    ])
+    expect(options.cooldownKeys).toEqual([
+      'provider:embedding:openai:hashed-credential:cooldown',
+      'provider:embedding:openai:hashed-credential:quota',
+    ])
+  })
+
+  it('rejects a bulk batch the lane can never hold and keeps one request slot at a minimal burst', async () => {
+    setEnv({
+      KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: '1',
+      KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE: '100',
+    })
+    await expect(
+      waitForProviderAdmission({ ...INPUT, inputTokens: 95, bulk: true })
+    ).rejects.toThrow('exceeds the configured per-credential token budget')
+    await waitForProviderAdmission({ ...INPUT, inputTokens: 95 })
+    await waitForProviderAdmission({ ...INPUT, inputTokens: 90, bulk: true })
+    expect(consumeTokens.mock.calls[1][0].slice(2)).toMatchObject([
+      { key: 'provider:embedding:openai:hashed-credential:bulk:tokens', config: { maxTokens: 90 } },
+      {
+        key: 'provider:embedding:openai:hashed-credential:bulk:requests',
+        config: { maxTokens: 1 },
+      },
+    ])
+  })
+
+  it('isolates another credential and does not impose token costs on OCR', async () => {
+    await waitForProviderAdmission({
+      ...INPUT,
+      operation: 'ocr',
+      credentialFingerprint: 'another-key',
+    })
+    expect(consumeTokens).toHaveBeenCalledOnce()
+    expect(consumeTokens.mock.calls[0][0]).toMatchObject([
+      { key: 'provider:ocr:openai:another-key:requests', config: { maxTokens: 2 } },
+    ])
+  })
+  it('retains the cooldown when an admission storage call consumes the remaining deadline', async () => {
+    consumeTokens.mockImplementationOnce(async () => {
+      vi.setSystemTime(Date.now() + INPUT.maxWaitMs)
+      return { allowed: false, retryAfterMs: 600_000 }
+    })
+    await expect(waitForProviderAdmission(INPUT)).rejects.toMatchObject({
+      status: 429,
+      retryAfterMs: 600_000,
+    })
+    expect(consumeTokens).toHaveBeenCalledOnce()
+  })
+  it('stops before spending capacity when another worker reported exhausted credit', async () => {
+    getCooldownUntil.mockResolvedValue(new Date(Date.now() + 300_000))
+    await expect(waitForProviderAdmission(INPUT)).rejects.toMatchObject({ quotaExhausted: true })
+    expect(consumeTokens).not.toHaveBeenCalled()
+  })
+
+  it('does not spend capacity for an already cancelled or expired operation', async () => {
+    await expect(
+      waitForProviderAdmission({ ...INPUT, signal: AbortSignal.abort(new Error('cancelled')) })
+    ).rejects.toThrow('cancelled')
+    await expect(waitForProviderAdmission({ ...INPUT, maxWaitMs: 0 })).rejects.toMatchObject({
+      status: 429,
+    })
+    expect(consumeTokens).not.toHaveBeenCalled()
+  })
+  it('does not interpret a failed rate_limit_bucket query as a reason to retry provider work', async () => {
+    consumeTokens.mockRejectedValue(new Error('rate_limit_bucket database unavailable'))
+    const operation = vi.fn(() => waitForProviderAdmission(INPUT))
+    await expect(retryWithExponentialBackoff(operation, { maxRetries: 3 })).rejects.toMatchObject({
+      retryable: false,
+    })
+    expect(operation).toHaveBeenCalledOnce()
+  })
+})

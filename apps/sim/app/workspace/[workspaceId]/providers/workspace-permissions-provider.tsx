@@ -237,6 +237,10 @@ export function useWorkspacePermissionsContext(): WorkspacePermissionsContextTyp
   return context
 }
 
+export function useOptionalWorkspacePermissionsContext(): WorkspacePermissionsContextType | null {
+  return useContext(WorkspacePermissionsContext)
+}
+
 /**
  * Accesses the current user's computed permissions including offline mode status.
  * Convenience hook that extracts userPermissions from the context.

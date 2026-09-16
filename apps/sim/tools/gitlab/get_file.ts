@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabGetFileTool: ToolConfig<GitLabGetFileParams, GitLabGetFileResponse> = {
   id: 'gitlab_get_file',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Get File',
   description: 'Get the contents of a file from a GitLab project repository',
   version: '1.0.0',

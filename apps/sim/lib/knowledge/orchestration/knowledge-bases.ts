@@ -128,7 +128,7 @@ export interface PerformUpdateKnowledgeBaseParams extends KnowledgeOperationCont
     name?: string
     description?: string
     /** Moves the knowledge base between workspaces; omitted leaves it in place. */
-    workspaceId?: string | null
+    workspaceId?: string
     folderId?: string | null
     chunkingConfig?: ChunkingConfig
   }
@@ -194,6 +194,7 @@ export async function performUpdateKnowledgeBase(
 }
 
 export interface PerformDeleteKnowledgeBaseParams extends KnowledgeOperationContext {
+  allowSearchIndexDelete?: boolean
   knowledgeBase: { id: string; name: string; workspaceId: string | null }
   assertedWorkspaceId?: string
 }
@@ -216,6 +217,7 @@ export async function performDeleteKnowledgeBase(
   try {
     await deleteKnowledgeBase(knowledgeBase.id, requestId, {
       assertedWorkspaceId: params.assertedWorkspaceId,
+      allowSearchIndexDelete: params.allowSearchIndexDelete,
     })
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Delete knowledge base ${knowledgeBase.id}`)

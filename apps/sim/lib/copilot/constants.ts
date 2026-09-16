@@ -74,9 +74,9 @@ export const TOOL_RESULT_ESTIMATED_CHARS_PER_TOKEN = 4
 export const TOOL_RESULT_MAX_INLINE_CHARS =
   TOOL_RESULT_MAX_INLINE_TOKENS * TOOL_RESULT_ESTIMATED_CHARS_PER_TOKEN
 
-export const COPILOT_MODES = ['ask', 'build', 'plan'] as const
+export const COPILOT_MODES = ['assistant', 'build', 'plan'] as const
 
-export const COPILOT_REQUEST_MODES = ['ask', 'build', 'plan', 'agent'] as const
+export const COPILOT_REQUEST_MODES = ['assistant', 'build', 'plan', 'agent'] as const
 
 /**
  * Model stamped on a mothership conversation row created outside the

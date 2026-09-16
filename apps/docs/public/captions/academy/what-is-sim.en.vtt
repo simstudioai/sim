@@ -1,0 +1,114 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:04.460
+Welcome to Sim. My name is Will, and I'll
+be your instructor throughout Sim Academy.
+
+00:00:04.780 --> 00:00:08.880
+In this series, we'll go over the
+fundamentals of how Sim works and get you
+
+00:00:08.880 --> 00:00:13.520
+comfortable with the building blocks. The
+platform has so much to offer that it's
+
+00:00:13.520 --> 00:00:17.580
+easy to get overwhelmed, but once you
+master the basics, you'll be able to build
+
+00:00:17.580 --> 00:00:22.800
+your own agents and AI systems beyond
+basic automations and chatbots. I'm
+
+00:00:22.800 --> 00:00:24.120
+excited. Let's get started.
+
+00:00:25.520 --> 00:00:30.360
+Sim is a workspace where everything you
+build lives, your data, your workflows,
+
+00:00:30.720 --> 00:00:33.660
+all in one place, and your whole team can
+work in it together.
+
+00:00:35.660 --> 00:00:40.380
+Everything in a workspace is one of two
+kinds. Resources hold what your system
+
+00:00:40.380 --> 00:00:44.800
+knows, your knowledge bases, tables, and
+files. Workflows do the work, the agents
+
+00:00:44.800 --> 00:00:49.940
+that turn that data into action.
+Everything you build in Sim is made from a
+
+00:00:49.940 --> 00:00:53.640
+few main object types. These are the seven
+you'll work with. Let's walk through them
+
+00:00:53.640 --> 00:00:55.720
+quickly and see what each one is for.
+
+00:00:57.580 --> 00:01:02.340
+The first is the workflow, an executable
+process. Each block is one step. This one
+
+00:01:02.340 --> 00:01:07.340
+classifies a customer message and drafts a
+reply. Your system's steps live here.
+
+00:01:08.340 --> 00:01:13.440
+Tables hold your structured data, rows,
+and columns of statuses, scores, and
+
+00:01:13.440 --> 00:01:19.540
+outputs. Anything you want to inspect or
+process repeatedly belongs in a table. A
+
+00:01:19.540 --> 00:01:24.600
+knowledge base is searchable memory over
+your documents. You ask it a question, and
+
+00:01:24.600 --> 00:01:30.780
+it finds the most relevant material. Here,
+the quarterly report. Files are the
+
+00:01:30.780 --> 00:01:35.080
+documents and artifacts your workspace
+holds onto. Some you upload, like this
+
+00:01:35.080 --> 00:01:39.800
+report, and workflows can generate new
+ones, like this summary. Integrations
+
+00:01:39.800 --> 00:01:43.980
+connect your workflows and agents to the
+outside world. Services like Gmail,
+
+00:01:43.980 --> 00:01:49.020
+Notion, and Airtable. A workflow can read
+from these integrations and act through
+
+00:01:49.020 --> 00:01:53.880
+them. Every time something runs, Sim
+records what happened. That record is a
+
+00:01:53.880 --> 00:01:59.440
+log. It lists each step that ran with its
+timing and the output it produced. A
+
+00:01:59.440 --> 00:02:04.460
+deployment makes a workflow usable outside
+the editor. Publish it as a tool, and
+
+00:02:04.460 --> 00:02:09.180
+other AI systems, like Cursor or Claude
+Code, can call your workflow on demand
+
+00:02:09.180 --> 00:02:14.200
+over MCP. And it all comes together in the
+workflow. Let's open one up.

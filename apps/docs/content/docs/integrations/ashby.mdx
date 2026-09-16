@@ -11,25 +11,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Ashby](https://www.ashbyhq.com/) is an all-in-one recruiting platform that combines an applicant tracking system (ATS), CRM, scheduling, and analytics to help teams hire more effectively.
-
-With Ashby, you can:
-
-- **List and search candidates**: Browse your full candidate pipeline or search by name and email to quickly find specific people
-- **Create candidates**: Add new candidates to your Ashby organization with contact details
-- **View candidate details**: Retrieve full candidate profiles including tags, email, phone, and timestamps
-- **Add notes to candidates**: Attach notes to candidate records to capture feedback, context, or follow-up items
-- **List and view jobs**: Browse all open, closed, and archived job postings with location and department info
-- **List applications**: View all applications across your organization with candidate and job details, status tracking, and pagination
-- **Sync jobs incrementally**: Pass the sync token from a previous List Jobs run to fetch only the reqs that changed, instead of rescanning every req on each run
-- **Annotate jobs and reqs**: Set custom field values on a job, application, candidate, or opening, one field at a time or several at once
-- **Delete and anonymize**: Remove an application, or strip personal information from a candidate
+Use [Ashby](https://www.ashbyhq.com/) to manage recruiting records and react to hiring events. List Jobs supports incremental sync tokens; custom-field actions annotate jobs, openings, applications, and candidates.
 
 The Ashby block also supports **webhook triggers** that automatically start workflows in response to Ashby events. Available triggers include Application Submitted, Candidate Stage Change, Candidate Hired, Candidate Deleted, Job Created, and Offer Created. Webhooks are fully managed — Sim automatically creates the webhook in Ashby when you save the trigger and deletes it when you remove it, so there's no manual webhook configuration needed. Just provide your Ashby API key (with `apiKeysWrite` permission) and select the event type.
 
-In Sim, the Ashby integration enables your agents to programmatically manage your recruiting pipeline. Agents can search for candidates, create new candidate records, add notes after interviews, and monitor applications across jobs. This allows you to automate recruiting workflows like candidate intake, interview follow-ups, pipeline reporting, and cross-referencing candidates across roles.
-
-### API key permissions
+## API key permissions
 
 Ashby grants permissions per module rather than per endpoint, and a missing permission fails at **runtime**, not when you build the workflow.
 A key without the right scope returns a 403 in the middle of a run, so check the key before scheduling anything against it.
@@ -51,7 +37,7 @@ Two more settings on the API key are checkboxes rather than module scopes, and b
 
 Every job returned by List Jobs carries a `confidential` flag, so you can filter confidential reqs out at sync time before they reach a prompt or a downstream surface.
 
-### Ashby API limitations
+## Ashby API limitations
 
 These are constraints of the Ashby API itself, not of the Sim block:
 

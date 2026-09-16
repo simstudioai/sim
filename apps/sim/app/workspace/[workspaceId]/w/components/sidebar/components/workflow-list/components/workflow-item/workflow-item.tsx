@@ -6,6 +6,7 @@ import { Lock, MoreHorizontal } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SidebarRowActions } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
@@ -410,6 +411,7 @@ export const WorkflowItem = memo(function WorkflowItem({
             active: active || isContextMenuOpen || (isSelected && selectedWorkflows.size > 1),
             fullWidth: true,
           }),
+          'group/sidebar-row',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         draggable={!isEditing && !dragDisabled && !effectiveLocked}
@@ -448,43 +450,30 @@ export const WorkflowItem = memo(function WorkflowItem({
           </div>
         </div>
         {!isEditing && (
-          <div className='relative size-[18px] shrink-0'>
-            {workflow.locked && (
-              <span
-                role='img'
-                aria-label='Workflow is locked'
-                className={cn(
-                  'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
-                  !isAnyDragActive && 'group-hover:opacity-0',
-                  isContextMenuOpen && 'opacity-0'
-                )}
-              >
-                <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
-              </span>
-            )}
+          <SidebarRowActions
+            open={isContextMenuOpen}
+            revealOnHover={!isAnyDragActive}
+            indicator={
+              workflow.locked ? (
+                <Lock
+                  className='size-[14px] text-[var(--text-icon)]'
+                  role='img'
+                  aria-label='Workflow is locked'
+                  aria-hidden={false}
+                />
+              ) : undefined
+            }
+          >
             <button
               type='button'
               aria-label='Workflow options'
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
-              className={cn(
-                'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
-                !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
-                /**
-                 * `opacity-100` only. `pointer-events-auto` belongs here too,
-                 * but it has never applied: under `clsx` both it and the base
-                 * `pointer-events-none` shipped, and Tailwind emits
-                 * `pointer-events-none` last, so it won. Adding it back under
-                 * `cn` (where the last argument wins) would make the button
-                 * clickable for the first time — a real fix, but a behaviour
-                 * change that does not belong in a rendering-neutral upgrade.
-                 */
-                isContextMenuOpen && 'opacity-100'
-              )}
+              className='flex size-[18px] items-center justify-center rounded-sm'
             >
               <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
             </button>
-          </div>
+          </SidebarRowActions>
         )}
       </Link>
 

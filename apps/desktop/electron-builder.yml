@@ -10,7 +10,7 @@ files:
   - dist/**
   - static/**
   - package.json
-  - from: ../sim/public/brand/fonts
+  - from: ../sim/app/_styles/fonts/season
     to: static
     filter:
       - SeasonSansUprightsVF.woff2

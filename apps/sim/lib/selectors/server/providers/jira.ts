@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { getScopesForService } from '@/lib/oauth/utils'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
@@ -16,14 +15,18 @@ import {
   type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
 
-type JiraSelectorKey = Extract<ServerSelectorKey, 'jira.projects' | 'jira.issues'>
+type JiraSelectorKey = Extract<
+  ServerSelectorKey,
+  'jira.projects' | 'jira.projectKeys' | 'jira.issues'
+>
 
-const JIRA_SCOPES = getScopesForService('jira')
+const JIRA_SCOPES = ['read:jira-work']
 const JIRA_PROJECTS_PAGE_SIZE = 50
 const JIRA_ISSUES_LIMIT = 25
 
 const jiraProjectSchema = z.object({
   id: z.string().min(1).max(100),
+  key: z.string().min(1).max(100),
   name: z.string().min(1).max(1_000),
 })
 
@@ -126,7 +129,10 @@ async function listProjects(args: ExecuteServerSelectorArgs) {
     parsed.data.isLast === false || (parsed.data.isLast === undefined && values.length >= pageSize)
 
   return {
-    items: values.map((project) => ({ id: project.id, label: project.name })),
+    items: values.map((project) => ({
+      id: args.selectorKey === 'jira.projectKeys' ? project.key : project.id,
+      label: project.name,
+    })),
     nextCursor: hasMore ? String(nextStartAt) : undefined,
   }
 }
@@ -143,7 +149,10 @@ async function getProject(args: ExecuteServerSelectorArgs, projectId: string) {
   )
   const parsed = jiraProjectSchema.safeParse(body)
   if (!parsed.success) throw new SelectorOptionsUnavailableError()
-  return { id: projectId, label: parsed.data.name }
+  return {
+    id: args.selectorKey === 'jira.projectKeys' ? parsed.data.key : projectId,
+    label: parsed.data.name,
+  }
 }
 
 async function fetchIssues(
@@ -207,6 +216,12 @@ async function executeIssues(args: ExecuteServerSelectorArgs) {
 const credential = { kind: 'stored', field: 'oauthCredential', serviceIds: ['jira'] } as const
 
 export const jiraSelectorAttachments = {
+  'jira.projectKeys': {
+    credential,
+    destination: 'fixed',
+    auditCredentialUse: true,
+    execute: executeProjects,
+  },
   'jira.projects': {
     credential,
     destination: 'fixed',

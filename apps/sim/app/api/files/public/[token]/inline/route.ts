@@ -11,9 +11,8 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
+import { hasEmbeddedFileRef } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveWorkspaceInlineImage } from '@/lib/uploads/server/inline-image'
-import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 import { serveInlineImage } from '@/app/api/files/serve-inline-image'
 import { createErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
 
@@ -54,7 +53,7 @@ export const GET = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const limited = await enforcePublicFileRateLimit(request, 'content')
+      const limited = await enforcePublicFileRateLimit(request, 'inline')
       if (limited) return limited
 
       const parsed = await parseRequest(getPublicInlineFileContract, request, context)
@@ -99,11 +98,8 @@ export const GET = withRouteHandler(
         logger.info('Shared document too large to scan for embedded references', { token })
         throw new FileNotFoundError('Not found')
       }
-      const { keys, ids } = extractEmbeddedFileRefs(docText)
-      const referenced = ref.fileId
-        ? ids.some((id) => storedFileId(id) === ref.fileId)
-        : keys.includes(ref.key as string)
-      if (!referenced) {
+      const target = ref.fileId ? { fileId: ref.fileId } : ref.key ? { key: ref.key } : null
+      if (!target || !hasEmbeddedFileRef(docText, target)) {
         throw new FileNotFoundError('Not found')
       }
 

@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
 import { FAQ } from '@/components/ui/faq'
 
-Integrations are authenticated connections to third-party services like Gmail, Slack, GitHub, and HubSpot. Sim handles the OAuth flow, token storage, and automatic token refresh — you connect once and select the account in any block that needs it.
+Integrations connect your workflows to services such as Gmail, Slack, GitHub, and HubSpot. Connect with OAuth or use a supported API token or service account, then select the saved credential in a block. Sim stores credentials securely and refreshes OAuth tokens when the provider supports it.
 
 You can connect **multiple accounts per service** — for example, two separate Gmail accounts for different workflows.
 
@@ -37,9 +37,9 @@ Open a service to see what it offers:
   height={717}
 />
 
-## Connecting an account
+## Connecting with OAuth
 
-1. Open the service's page and click **+ Add to Sim**.
+1. Open the service's page and click **Add to Sim**. If a menu appears, choose **Connect with OAuth**.
 2. Enter a **Display name** to identify this connection (e.g. "Work Gmail" or "Sales HubSpot"), and optionally a **Description**.
 3. Review the **Permissions requested** — these are the scopes Sim will ask the provider for.
 4. Click **Connect** and complete the provider's sign-in and approval flow.
@@ -52,6 +52,8 @@ Open a service to see what it offers:
 />
 
 When the provider redirects you back, the connection appears under **Connected**.
+
+For API tokens and service accounts, select the corresponding option from **Add to Sim** and follow the setup guide under that service. These connections have different fields and rotation requirements.
 
 ## Using integrations in workflows
 

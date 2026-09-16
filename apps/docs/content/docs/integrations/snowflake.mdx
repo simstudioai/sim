@@ -11,20 +11,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Snowflake](https://www.snowflake.com/) is a cloud data platform that separates storage from compute: data lives in databases and schemas, while virtual warehouses supply the compute that runs each query. Sim connects to it over the Snowflake SQL API using a programmatic access token.
+[Snowflake](https://www.snowflake.com/) stores data in databases and schemas and uses virtual warehouses to run queries. Sim connects over the SQL API with a programmatic access token.
 
-With the Snowflake integration in Sim, you can:
-
-- **Run SQL**: Execute a parameterized statement, poll a statement's status, and cancel one that is still running
-- **Synchronize rows**: Insert, update, upsert, and delete rows in a table
-- **Move staged data**: Load data from a stage into a table, and unload a table back out to a stage (materialize a query as a view or `CREATE TABLE AS SELECT` first to export its results)
-- **Browse the account**: List databases, schemas, and tables, and introspect a table's schema
-- **Control warehouses**: List and get warehouses, resume or suspend them, and alter their size and settings
-- **Run and schedule tasks**: List and get tasks, run, resume, or suspend them, list task runs, and read a run's output or cancel its query
-- **Review history**: List query history and copy (load) history
-- **Call procedures**: Invoke a stored procedure with arguments
-
-In Sim, the Snowflake integration allows your agents to work directly against your warehouse. Agents can query for facts that inform a decision, write results back as rows, kick off or unblock a scheduled task, resize a warehouse for a heavy job and suspend it afterward, and read query and load history when something needs investigating.
+Use the block to execute SQL, synchronize rows, move staged data, manage warehouses and tasks, and inspect history. To unload a query result, first materialize it as a view or with `CREATE TABLE AS SELECT`.
 {/* MANUAL-CONTENT-END */}
 
 

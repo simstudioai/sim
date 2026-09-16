@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { filterUndefined } from '@sim/utils/object'
 import type { SQL } from 'drizzle-orm'
@@ -17,9 +17,6 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
-import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { ensureUserStatsExists } from '@/lib/billing/core/usage'
 import {
   applyStorageUsageDeltasInTx,
   maybeNotifyStorageLimitForBillingContext,
@@ -27,9 +24,19 @@ import {
   type StorageBillingContext,
 } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type ResourceOwner,
+  resourceScopeColumns,
+  resourceScopeFromOwner,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
+import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
+import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -95,27 +102,11 @@ async function assertKnowledgeBaseFolder(
 
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
 
-type KnowledgeBaseStorageMove =
-  | {
-      kind: 'workspace-to-workspace'
-      sourceContext: StorageBillingContext
-      sourceWorkspaceId: string
-      destinationContext: StorageBillingContext
-    }
-  | {
-      kind: 'workspace-to-personal'
-      sourceContext: StorageBillingContext
-      sourceWorkspaceId: string
-      ownerSubscription: HighestPrioritySubscription | null
-      ownerUserId: string
-    }
-  | {
-      kind: 'personal-to-workspace'
-      sourceWorkspaceId: null
-      destinationContext: StorageBillingContext
-      ownerSubscription: HighestPrioritySubscription | null
-      ownerUserId: string
-    }
+interface KnowledgeBaseStorageMove {
+  sourceContext: StorageBillingContext
+  sourceWorkspaceId: string
+  destinationContext: StorageBillingContext
+}
 
 /** The columns a knowledge-base keyset orders and resumes on. */
 interface KnowledgeBaseSortRow {
@@ -149,6 +140,7 @@ const KNOWLEDGE_BASE_SORTS = {
 } satisfies Record<V2KnowledgeBaseSortBy, readonly KeysetKey<KnowledgeBaseSortRow>[]>
 
 export interface GetKnowledgeBasesOptions {
+  access?: KnowledgeReadAccess
   /** Restrict to one knowledge-base folder; `undefined` lists all and `null` lists the root. */
   folderId?: string | null
   /** Case-insensitive substring match on the knowledge base name. */
@@ -177,13 +169,18 @@ function knowledgeBaseScopeCondition(scope: KnowledgeBaseScope) {
 async function readKnowledgeBaseRows(
   where: SQL | undefined,
   orderBy: SQL[],
-  limit?: number
-): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>>> {
+  limit?: number,
+  access?: KnowledgeReadAccess
+): Promise<
+  Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
+> {
+  const scope = access && 'get' in access ? await access.get() : access
   const query = db
     .select({
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
       name: knowledgeBase.name,
+      isSearchIndex: knowledgeBase.isSearchIndex,
       description: knowledgeBase.description,
       tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
@@ -193,6 +190,7 @@ async function readKnowledgeBaseRows(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       folderId: knowledgeBase.folderId,
       docCount: count(document.knowledgeBaseId),
     })
@@ -203,7 +201,8 @@ async function readKnowledgeBaseRows(
         eq(document.knowledgeBaseId, knowledgeBase.id),
         eq(document.userExcluded, false),
         isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        isNull(document.deletedAt),
+        scope ? knowledgeAccessCondition(scope) : undefined
       )
     )
     .where(where)
@@ -212,16 +211,93 @@ async function readKnowledgeBaseRows(
 
   const rows = limit === undefined ? await query : await query.limit(limit)
 
+  /**
+   * The join above already counted everything the reader's stored ACL admits. Only a
+   * provider can add documents a live source (GitHub, Confluence) authorizes beyond that,
+   * and that supplement is resolved once for the whole list: an unpaged list is bounded by
+   * its own filter, a page by its row IDs, so a workspace with tens of thousands of bases
+   * never turns into hundreds of per-batch round trips.
+   */
+  const liveCounts =
+    access && 'get' in access && rows.length > 0
+      ? await readLiveSourceDocumentCounts(
+          limit === undefined && where
+            ? where
+            : inArray(
+                knowledgeBase.id,
+                rows.map((kb) => kb.id)
+              ),
+          access
+        )
+      : undefined
   return rows.map((kb) => ({
     ...kb,
     chunkingConfig: kb.chunkingConfig as ChunkingConfig,
-    docCount: Number(kb.docCount),
+    docCount: Number(kb.docCount) + (liveCounts?.get(kb.id)?.docCount ?? 0),
+    tokenCount: kb.tokenCount + (liveCounts?.get(kb.id)?.tokenCount ?? 0),
   }))
+}
+
+const ACTIVE_DOCUMENT_CONDITIONS = [
+  eq(document.userExcluded, false),
+  isNull(document.archivedAt),
+  isNull(document.deletedAt),
+] as const
+
+/**
+ * Document totals per knowledge base for one access predicate, restricted to the bases
+ * `subject` selects. `subject` may reference `knowledge_base` columns.
+ */
+async function countDocumentsByKnowledgeBase(
+  subject: SQL,
+  accessCondition: SQL
+): Promise<Array<{ knowledgeBaseId: string; docCount: number; tokenCount: number }>> {
+  return db
+    .select({
+      knowledgeBaseId: document.knowledgeBaseId,
+      docCount: count(),
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
+    })
+    .from(document)
+    .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+    .where(and(subject, ...ACTIVE_DOCUMENT_CONDITIONS, accessCondition))
+    .groupBy(document.knowledgeBaseId)
+}
+
+/**
+ * Totals for documents only a live source authorizes, on top of the reader's stored ACL.
+ * The ordinary predicate is skipped because every caller has already counted it; candidate
+ * discovery stays free of document metadata and returns nothing for a reader without
+ * live-source credentials.
+ */
+async function readLiveSourceDocumentCounts(
+  subject: SQL,
+  access: KnowledgeAccessProvider
+): Promise<Map<string, { docCount: number; tokenCount: number }>> {
+  const counts = new Map<string, { docCount: number; tokenCount: number }>()
+  let ordinary = true
+  for await (const accessCondition of knowledgeReadAccessBatches(access, [
+    subject,
+    ...ACTIVE_DOCUMENT_CONDITIONS,
+  ])) {
+    if (ordinary) {
+      ordinary = false
+      continue
+    }
+    for (const row of await countDocumentsByKnowledgeBase(subject, accessCondition)) {
+      const previous = counts.get(row.knowledgeBaseId)
+      counts.set(row.knowledgeBaseId, {
+        docCount: (previous?.docCount ?? 0) + Number(row.docCount),
+        tokenCount: (previous?.tokenCount ?? 0) + Number(row.tokenCount),
+      })
+    }
+  }
+  return counts
 }
 
 async function attachConnectorTypes(
   knowledgeBases: Array<
-    Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>
+    Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>
   >
 ): Promise<KnowledgeBaseWithCounts[]> {
   const kbIds = knowledgeBases.map((kb) => kb.id)
@@ -245,11 +321,14 @@ async function attachConnectorTypes(
 
   const connectorTypesByKb = new Map<string, string[]>()
   const memberScopedKbIds = new Set<string>()
+  /** Mirrored ACLs scope documents whether or not the feature is on: off, they read as hidden, never as workspace-visible. */
+  const mirroredKbIds = new Set<string>()
   for (const row of connectorRows) {
     const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
     if (!types.includes(row.connectorType)) types.push(row.connectorType)
     connectorTypesByKb.set(row.knowledgeBaseId, types)
     if (row.accessMode === 'members') memberScopedKbIds.add(row.knowledgeBaseId)
+    if (mirrorsSourceAcls(row.accessMode)) mirroredKbIds.add(row.knowledgeBaseId)
   }
   /**
    * A members-mode connector only scopes documents where the feature is on;
@@ -270,7 +349,7 @@ async function attachConnectorTypes(
   return knowledgeBases.map((kb) => ({
     ...kb,
     connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
-    hasMemberScopedConnector: memberScopedKbIds.has(kb.id),
+    hasPermissionScopedConnector: memberScopedKbIds.has(kb.id) || mirroredKbIds.has(kb.id),
   }))
 }
 
@@ -284,7 +363,7 @@ async function readWorkspaceKnowledgeBaseRows(
   scope: KnowledgeBaseScope,
   options?: GetKnowledgeBasesOptions
 ): Promise<{
-  data: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>>
+  data: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
   nextCursorKeys: CursorKey[] | null
 }> {
   const {
@@ -317,7 +396,8 @@ async function readWorkspaceKnowledgeBaseRows(
       resumeKeyset(keys, cursorKeys, sortOrder)
     ),
     listOrderBy(keysetColumns(keys), sortOrder),
-    readLimit
+    readLimit,
+    options?.access
   )
 
   return keysetPage(keys, rows, limit)
@@ -335,76 +415,13 @@ export async function getWorkspaceKnowledgeBases(
   }
 }
 
-/**
- * Lists the caller's legacy personal knowledge bases — the ones that predate workspaces and
- * carry no `workspaceId`, where the creator is the only possible authority. Workspace-owned
- * rows are read by {@link getWorkspaceKnowledgeBases} after an application use case has
- * authorized the workspace; nothing here re-derives that access.
- *
- * @deprecated Nothing creates workspace-less knowledge bases any more, so this population only
- * shrinks. Backfill the remaining rows onto a workspace and this function, its branch in
- * {@link listWorkspaceAndLegacyKnowledgeBases}, and the concept itself can go.
- */
-async function readLegacyPersonalKnowledgeBaseRows(
-  userId: string,
-  scope: KnowledgeBaseScope
-): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>>> {
-  const rows = await readKnowledgeBaseRows(
-    and(
-      knowledgeBaseScopeCondition(scope),
-      eq(knowledgeBase.userId, userId),
-      isNull(knowledgeBase.workspaceId)
-    ),
-    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc')
-  )
-
-  return rows
-}
-
-export async function getLegacyPersonalKnowledgeBases(
-  userId: string,
-  scope: KnowledgeBaseScope = 'active'
-): Promise<KnowledgeBaseWithCounts[]> {
-  return attachConnectorTypes(await readLegacyPersonalKnowledgeBaseRows(userId, scope))
-}
-
-/**
- * Every knowledge base a caller can see under one workspace, as one ordered list.
- *
- * Two reads, because the list answers to two authorities. The workspace's own rows are read
- * once the caller has been authorized FOR that workspace — re-deriving that access from a
- * `permissions` row would contradict the authorization that just passed, since workspace
- * `admin` can come from an organization role with no such row behind it. Legacy workspace-less
- * bases answer only to their creator and belong under no workspace at all, so they ride along
- * here; otherwise they are reachable from nowhere.
- *
- * Callers authorize first. Nothing here decides access.
- */
-export async function listWorkspaceAndLegacyKnowledgeBases(
-  userId: string,
-  workspaceId: string,
-  scope: KnowledgeBaseScope = 'active'
-): Promise<KnowledgeBaseWithCounts[]> {
-  const [workspaceRows, legacyPersonalRows] = await Promise.all([
-    readWorkspaceKnowledgeBaseRows(workspaceId, scope).then((page) => page.data),
-    readLegacyPersonalKnowledgeBaseRows(userId, scope),
-  ])
-
-  /** One connector projection over the merged set, rather than one per source. */
-  return attachConnectorTypes(
-    legacyPersonalRows.length === 0
-      ? workspaceRows
-      : [...workspaceRows, ...legacyPersonalRows].sort(
-          (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
-        )
-  )
-}
-
 /** Loads at most two active exact-name matches so a caller can fail on corrupt ambiguity. */
 export async function findActiveKnowledgeBasesByExactName(
   workspaceId: string,
   name: string
-): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasMemberScopedConnector'>>> {
+): Promise<
+  Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes' | 'hasPermissionScopedConnector'>>
+> {
   return readKnowledgeBaseRows(
     and(
       eq(knowledgeBase.workspaceId, workspaceId),
@@ -438,21 +455,24 @@ export async function createKnowledgeBase(
  * Callers outside the application layer must use {@link createKnowledgeBase}.
  */
 export async function createAuthorizedKnowledgeBase(
-  data: CreateKnowledgeBaseData,
+  data: Omit<CreateKnowledgeBaseData, 'workspaceId'> & ResourceOwner,
   requestId: string
 ): Promise<KnowledgeBaseWithCounts> {
+  const scope = resourceScopeFromOwner(data)
+  const owner = resourceScopeColumns(scope)
   const kbId = generateId()
   const now = new Date()
 
-  await assertKnowledgeBaseFolder(data.folderId, data.workspaceId)
+  await assertKnowledgeBaseFolder(data.folderId, owner.workspaceId)
 
   const folderId = data.folderId ?? null
 
   const newKnowledgeBase = {
     id: kbId,
     name: data.name,
+    isSearchIndex: data.isSearchIndex ?? false,
     description: data.description ?? null,
-    workspaceId: data.workspaceId,
+    ...owner,
     folderId,
     userId: data.userId,
     tokenCount: 0,
@@ -469,7 +489,7 @@ export async function createAuthorizedKnowledgeBase(
     .from(knowledgeBase)
     .where(
       and(
-        eq(knowledgeBase.workspaceId, data.workspaceId),
+        resourceScopeCondition(knowledgeBase, scope),
         eq(knowledgeBase.name, data.name),
         isNull(knowledgeBase.deletedAt)
       )
@@ -503,11 +523,11 @@ export async function createAuthorizedKnowledgeBase(
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
-    workspaceId: data.workspaceId,
+    ...owner,
     folderId,
     docCount: 0,
     connectorTypes: [],
-    hasMemberScopedConnector: false,
+    hasPermissionScopedConnector: false,
   }
 }
 
@@ -519,13 +539,17 @@ export async function updateKnowledgeBase(
   updates: {
     name?: string
     description?: string
-    workspaceId?: string | null
+    workspaceId?: string
     folderId?: string | null
     chunkingConfig?: ChunkingConfig
   },
   requestId: string,
   options?: { actorUserId?: string; assertedWorkspaceId?: string }
 ): Promise<KnowledgeBaseWithCounts> {
+  if (updates.workspaceId !== undefined && !updates.workspaceId) {
+    throw new OrchestrationError('validation', 'Workspace ID is required')
+  }
+
   const now = new Date()
   const updateData: Partial<typeof knowledgeBase.$inferInsert> = {
     updatedAt: now,
@@ -568,7 +592,7 @@ export async function updateKnowledgeBase(
    * below already reads the current row, and re-roots from there.
    */
   if (updates.folderId !== undefined) {
-    let effectiveWorkspaceId = updates.workspaceId
+    let effectiveWorkspaceId: string | null | undefined = updates.workspaceId
     if (effectiveWorkspaceId === undefined) {
       const [snapshot] = await db
         .select({ workspaceId: knowledgeBase.workspaceId })
@@ -601,6 +625,7 @@ export async function updateKnowledgeBase(
     const [kbSnapshot] = await db
       .select({
         workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
         userId: knowledgeBase.userId,
         folderId: knowledgeBase.folderId,
       })
@@ -618,8 +643,13 @@ export async function updateKnowledgeBase(
     if (!kbSnapshot) {
       throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
     }
-    const sourceWorkspaceId = kbSnapshot.workspaceId ?? null
-    const destinationWorkspaceId = updates.workspaceId ?? null
+    if (!kbSnapshot.workspaceId) {
+      throw new KnowledgeBasePermissionError(
+        'Only workspace knowledge bases can move between workspaces'
+      )
+    }
+    const sourceWorkspaceId = kbSnapshot.workspaceId
+    const destinationWorkspaceId = updates.workspaceId
 
     /**
      * Folders never cross workspaces, so a workspace move would leave the row pointing at a
@@ -634,46 +664,15 @@ export async function updateKnowledgeBase(
       updateData.folderId = null
     }
 
-    if (
-      sourceWorkspaceId &&
-      destinationWorkspaceId &&
-      sourceWorkspaceId !== destinationWorkspaceId
-    ) {
+    if (sourceWorkspaceId !== destinationWorkspaceId) {
       const [sourceContext, destinationContext] = await Promise.all([
         resolveStorageBillingContext(sourceWorkspaceId),
         resolveStorageBillingContext(destinationWorkspaceId),
       ])
       storageMove = {
-        kind: 'workspace-to-workspace',
         sourceWorkspaceId,
         sourceContext,
         destinationContext,
-      }
-    } else if (sourceWorkspaceId && !destinationWorkspaceId) {
-      const [sourceContext, ownerSubscription] = await Promise.all([
-        resolveStorageBillingContext(sourceWorkspaceId),
-        getHighestPrioritySubscription(kbSnapshot.userId),
-        ensureUserStatsExists(kbSnapshot.userId),
-      ])
-      storageMove = {
-        kind: 'workspace-to-personal',
-        sourceWorkspaceId,
-        sourceContext,
-        ownerUserId: kbSnapshot.userId,
-        ownerSubscription,
-      }
-    } else if (!sourceWorkspaceId && destinationWorkspaceId) {
-      const [destinationContext, ownerSubscription] = await Promise.all([
-        resolveStorageBillingContext(destinationWorkspaceId),
-        getHighestPrioritySubscription(kbSnapshot.userId),
-        ensureUserStatsExists(kbSnapshot.userId),
-      ])
-      storageMove = {
-        kind: 'personal-to-workspace',
-        sourceWorkspaceId: null,
-        destinationContext,
-        ownerUserId: kbSnapshot.userId,
-        ownerSubscription,
       }
     }
   }
@@ -694,7 +693,12 @@ export async function updateKnowledgeBase(
   try {
     destinationUpdatedUsage = await db.transaction(async (tx) => {
       const [currentKb] = await tx
-        .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
+        .select({
+          workspaceId: knowledgeBase.workspaceId,
+          organizationId: knowledgeBase.organizationId,
+          userId: knowledgeBase.userId,
+          isSearchIndex: knowledgeBase.isSearchIndex,
+        })
         .from(knowledgeBase)
         .where(
           and(
@@ -712,6 +716,14 @@ export async function updateKnowledgeBase(
         throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
       }
 
+      if (
+        currentKb.isSearchIndex &&
+        updates.workspaceId !== undefined &&
+        updates.workspaceId !== currentKb.workspaceId
+      ) {
+        throw new KnowledgeBasePermissionError('The search index must stay in its workspace')
+      }
+
       if (storageMove && (currentKb.workspaceId ?? null) !== storageMove.sourceWorkspaceId) {
         throw new Error(
           `Knowledge base ${knowledgeBaseId} workspace changed; retry with fresh storage billing contexts`
@@ -719,25 +731,17 @@ export async function updateKnowledgeBase(
       }
 
       if (updates.workspaceId !== undefined) {
-        const actorUserId = options?.actorUserId as string
         const currentWorkspaceId = currentKb.workspaceId ?? null
-        const targetWorkspaceId = updates.workspaceId ?? null
+        const targetWorkspaceId = updates.workspaceId
 
-        if (targetWorkspaceId !== currentWorkspaceId) {
-          if (!targetWorkspaceId) {
-            if (actorUserId !== currentKb.userId) {
-              throw new KnowledgeBasePermissionError(
-                'Only the knowledge base owner can remove it from a workspace'
-              )
-            }
-          } else if (
-            targetWorkspacePermission !== 'write' &&
-            targetWorkspacePermission !== 'admin'
-          ) {
-            throw new KnowledgeBasePermissionError(
-              'User does not have permission on the target workspace'
-            )
-          }
+        if (
+          targetWorkspaceId !== currentWorkspaceId &&
+          targetWorkspacePermission !== 'write' &&
+          targetWorkspacePermission !== 'admin'
+        ) {
+          throw new KnowledgeBasePermissionError(
+            'User does not have permission on the target workspace'
+          )
         }
       }
 
@@ -788,39 +792,13 @@ export async function updateKnowledgeBase(
           )
           .limit(1)
         const billableBytes = Number(billableStorage?.bytes ?? 0)
-        if (storageMove.kind === 'workspace-to-workspace') {
-          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
-            workspaceDeltas: [
-              { context: storageMove.sourceContext, deltaBytes: -billableBytes },
-              { context: storageMove.destinationContext, deltaBytes: billableBytes },
-            ],
-            legacyDeltas: [],
-          })
-        } else if (storageMove.kind === 'workspace-to-personal') {
-          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
-            workspaceDeltas: [{ context: storageMove.sourceContext, deltaBytes: -billableBytes }],
-            legacyDeltas: [
-              {
-                userId: storageMove.ownerUserId,
-                subscription: storageMove.ownerSubscription,
-                deltaBytes: billableBytes,
-              },
-            ],
-          })
-        } else {
-          transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
-            workspaceDeltas: [
-              { context: storageMove.destinationContext, deltaBytes: billableBytes },
-            ],
-            legacyDeltas: [
-              {
-                userId: storageMove.ownerUserId,
-                subscription: storageMove.ownerSubscription,
-                deltaBytes: -billableBytes,
-              },
-            ],
-          })
-        }
+        transferUpdatedUsage = await applyStorageUsageDeltasInTx(tx, {
+          workspaceDeltas: [
+            { context: storageMove.sourceContext, deltaBytes: -billableBytes },
+            { context: storageMove.destinationContext, deltaBytes: billableBytes },
+          ],
+          legacyDeltas: [],
+        })
       }
 
       await tx
@@ -836,17 +814,10 @@ export async function updateKnowledgeBase(
           )
         )
 
-      // When a KB changes workspace, re-point the ownership bindings for its
-      // stored files so file authorization (which resolves the owning workspace
-      // from the trusted binding, not from document.fileUrl) follows the KB to
-      // its new workspace. Only bindings the KB's *current* workspace already
-      // owns are moved: this scopes the update to this KB's own files and
-      // prevents a document referencing another tenant's key (e.g. one planted
-      // while the KB had no workspace) from hijacking that key's binding on
-      // move. A null current workspace owns no bindings, so nothing is moved.
+      /** Move only bindings currently owned by this KB's workspace. */
       if (updates.workspaceId !== undefined) {
         const currentWorkspaceId = currentKb.workspaceId ?? null
-        const targetWorkspaceId = updates.workspaceId ?? null
+        const targetWorkspaceId = updates.workspaceId
 
         if (currentWorkspaceId && targetWorkspaceId !== currentWorkspaceId) {
           await tx
@@ -884,16 +855,9 @@ export async function updateKnowledgeBase(
   }
 
   if (storageMove && destinationUpdatedUsage !== undefined) {
-    if (storageMove.kind === 'workspace-to-workspace') {
-      const sourcePayer = storageMove.sourceContext.billingEntity
-      const destinationPayer = storageMove.destinationContext.billingEntity
-      if (sourcePayer.type !== destinationPayer.type || sourcePayer.id !== destinationPayer.id) {
-        void maybeNotifyStorageLimitForBillingContext(
-          storageMove.destinationContext,
-          destinationUpdatedUsage
-        )
-      }
-    } else if (storageMove.kind === 'personal-to-workspace') {
+    const sourcePayer = storageMove.sourceContext.billingEntity
+    const destinationPayer = storageMove.destinationContext.billingEntity
+    if (sourcePayer.type !== destinationPayer.type || sourcePayer.id !== destinationPayer.id) {
       void maybeNotifyStorageLimitForBillingContext(
         storageMove.destinationContext,
         destinationUpdatedUsage
@@ -906,6 +870,7 @@ export async function updateKnowledgeBase(
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
       name: knowledgeBase.name,
+      isSearchIndex: knowledgeBase.isSearchIndex,
       description: knowledgeBase.description,
       tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
       embeddingModel: knowledgeBase.embeddingModel,
@@ -915,6 +880,7 @@ export async function updateKnowledgeBase(
       updatedAt: knowledgeBase.updatedAt,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       folderId: knowledgeBase.folderId,
       docCount: count(document.knowledgeBaseId),
     })
@@ -983,42 +949,78 @@ export async function getKnowledgeBaseNames(
   return new Map(rows.map((row) => [row.id, row.name]))
 }
 
+export type ActiveKnowledgeBaseReference = Omit<
+  KnowledgeBaseWithCounts,
+  'tokenCount' | 'docCount' | 'connectorTypes' | 'hasPermissionScopedConnector'
+>
+
+const ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS = {
+  id: knowledgeBase.id,
+  userId: knowledgeBase.userId,
+  name: knowledgeBase.name,
+  isSearchIndex: knowledgeBase.isSearchIndex,
+  description: knowledgeBase.description,
+  embeddingModel: knowledgeBase.embeddingModel,
+  embeddingDimension: knowledgeBase.embeddingDimension,
+  chunkingConfig: knowledgeBase.chunkingConfig,
+  createdAt: knowledgeBase.createdAt,
+  updatedAt: knowledgeBase.updatedAt,
+  deletedAt: knowledgeBase.deletedAt,
+  workspaceId: knowledgeBase.workspaceId,
+  organizationId: knowledgeBase.organizationId,
+  folderId: knowledgeBase.folderId,
+}
+
+/**
+ * Canonical identity and configuration for application authorization and retrieval.
+ * Reading a reference never scans the base's documents to compute display counts.
+ */
+export async function getActiveKnowledgeBaseReference(
+  knowledgeBaseId: string
+): Promise<ActiveKnowledgeBaseReference | null> {
+  const [row] = await db
+    .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+
+  return row ? { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig } : null
+}
+
+/** Loads active references in one statement while preserving requested order and missing entries. */
+export async function getActiveKnowledgeBaseReferences(
+  knowledgeBaseIds: readonly string[]
+): Promise<Array<ActiveKnowledgeBaseReference | null>> {
+  if (knowledgeBaseIds.length === 0) return []
+  if (knowledgeBaseIds.length === 1)
+    return [await getActiveKnowledgeBaseReference(knowledgeBaseIds[0])]
+
+  const rows = await db
+    .select(ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS)
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [...new Set(knowledgeBaseIds)]),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+  const byId = new Map(
+    rows.map((row) => [row.id, { ...row, chunkingConfig: row.chunkingConfig as ChunkingConfig }])
+  )
+  return knowledgeBaseIds.map((id) => byId.get(id) ?? null)
+}
+
 /**
  * Get a single knowledge base by ID
  */
 export async function getKnowledgeBaseById(
   knowledgeBaseId: string
 ): Promise<KnowledgeBaseWithCounts | null> {
-  const result = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      name: knowledgeBase.name,
-      description: knowledgeBase.description,
-      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
-      embeddingModel: knowledgeBase.embeddingModel,
-      embeddingDimension: knowledgeBase.embeddingDimension,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-      createdAt: knowledgeBase.createdAt,
-      updatedAt: knowledgeBase.updatedAt,
-      deletedAt: knowledgeBase.deletedAt,
-      workspaceId: knowledgeBase.workspaceId,
-      folderId: knowledgeBase.folderId,
-      docCount: count(document.knowledgeBaseId),
-    })
-    .from(knowledgeBase)
-    .leftJoin(
-      document,
-      and(
-        eq(document.knowledgeBaseId, knowledgeBase.id),
-        eq(document.userExcluded, false),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
-      )
-    )
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .groupBy(knowledgeBase.id)
-    .limit(1)
+  const result = await readKnowledgeBaseRows(
+    and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)),
+    [],
+    1
+  )
 
   if (result.length === 0) {
     return null
@@ -1029,7 +1031,7 @@ export async function getKnowledgeBaseById(
     chunkingConfig: result[0].chunkingConfig as ChunkingConfig,
     docCount: Number(result[0].docCount),
     connectorTypes: [],
-    hasMemberScopedConnector: false,
+    hasPermissionScopedConnector: false,
   }
 }
 
@@ -1039,9 +1041,22 @@ export async function getKnowledgeBaseById(
  * resolves its context does not pay for the connector read.
  */
 export async function attachKnowledgeBaseConnectors(
-  knowledgeBase: KnowledgeBaseWithCounts
+  knowledgeBase: KnowledgeBaseWithCounts,
+  access?: KnowledgeReadAccess
 ): Promise<KnowledgeBaseWithCounts> {
-  const [withConnectors] = await attachConnectorTypes([knowledgeBase])
+  let visible = knowledgeBase
+  if (access) {
+    const subject = eq(document.knowledgeBaseId, knowledgeBase.id)
+    const scope = 'get' in access ? await access.get() : access
+    const [ordinary] = await countDocumentsByKnowledgeBase(subject, knowledgeAccessCondition(scope))
+    const live = 'get' in access ? await readLiveSourceDocumentCounts(subject, access) : undefined
+    visible = {
+      ...knowledgeBase,
+      docCount: Number(ordinary?.docCount ?? 0) + (live?.get(knowledgeBase.id)?.docCount ?? 0),
+      tokenCount: (ordinary?.tokenCount ?? 0) + (live?.get(knowledgeBase.id)?.tokenCount ?? 0),
+    }
+  }
+  const [withConnectors] = await attachConnectorTypes([visible])
   return withConnectors
 }
 
@@ -1056,13 +1071,23 @@ export async function attachKnowledgeBaseConnectors(
 export async function deleteKnowledgeBase(
   knowledgeBaseId: string,
   requestId: string,
-  options?: { archivedAt?: Date; assertedWorkspaceId?: string }
+  options?: { archivedAt?: Date; assertedWorkspaceId?: string; allowSearchIndexDelete?: boolean }
 ): Promise<void> {
   const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
+    /**
+     * Soft deletion leaves the referenced key intact. Allow embedding inserts to
+     * take their foreign-key KEY SHARE lock while holding a document row lock,
+     * so they can finish before we archive that document without a lock cycle.
+     */
     const [locked] = await tx
-      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
+      .select({
+        id: knowledgeBase.id,
+        workspaceId: knowledgeBase.workspaceId,
+        organizationId: knowledgeBase.organizationId,
+        isSearchIndex: knowledgeBase.isSearchIndex,
+      })
       .from(knowledgeBase)
       .where(
         and(
@@ -1074,8 +1099,11 @@ export async function deleteKnowledgeBase(
         )
       )
       .limit(1)
-      .for('update')
+      .for('no key update')
     if (!locked) throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
+    if (locked.isSearchIndex && !options?.allowSearchIndexDelete) {
+      throw new KnowledgeBasePermissionError('Only workspace admins can delete the search index')
+    }
 
     await tx
       .update(knowledgeBase)
@@ -1141,6 +1169,7 @@ export async function restoreKnowledgeBase(
       name: knowledgeBase.name,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
       folderId: knowledgeBase.folderId,
     })
     .from(knowledgeBase)
@@ -1246,6 +1275,12 @@ export async function restoreKnowledgeBase(
       })
       break
     } catch (error: unknown) {
+      if (getPostgresConstraintName(error) === 'kb_workspace_search_index_unique') {
+        throw new OrchestrationError(
+          'conflict',
+          'This workspace already has an active search index'
+        )
+      }
       if (getPostgresErrorCode(error) !== '23505') {
         throw error
       }

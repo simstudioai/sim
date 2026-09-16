@@ -6,6 +6,7 @@ import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   getLargeValueMaterializationError,
+  isGrantedLargeValueKey,
   isLargeValueRef,
   isLargeValueStorageKey,
   type LargeValueRef,
@@ -17,7 +18,7 @@ import {
   MAX_INLINE_MATERIALIZATION_BYTES,
 } from '@/lib/execution/payloads/limits'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
-import { resolveKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
+import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { StorageContext } from '@/lib/uploads'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
@@ -28,7 +29,10 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
-import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
+import {
+  readStoredWorkspaceFileRecordByKey,
+  StoredWorkspaceFileUnavailableError,
+} from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
@@ -63,6 +67,8 @@ export interface ReadUserFileContentOptions extends ExecutionMaterializationCont
 export interface ReadUserFileContentResult {
   content: string
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  /** Subset transformed by the renderer; consumers apply their own admission policy. */
+  renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
 function getLogger(options: ExecutionMaterializationContext): Logger {
@@ -105,7 +111,6 @@ export function assertLargeValueRefAccess(
     context.executionId,
     ...(context.largeValueExecutionIds ?? []),
   ])
-  const allowedKeys = new Set(context.largeValueKeys ?? [])
 
   const parts = ref.key?.split('/') ?? []
   const [, workspaceId, workflowId, executionId] = parts
@@ -129,7 +134,7 @@ export function assertLargeValueRefAccess(
   if (context.workflowId && workflowId !== context.workflowId) {
     throw new Error('Large execution value is not available in this execution.')
   }
-  if (allowedKeys.has(ref.key)) {
+  if (isGrantedLargeValueKey(ref.key, context)) {
     return
   }
   if (ref.executionId && !allowedExecutionIds.has(ref.executionId) && !workflowScopeAllowed) {
@@ -215,10 +220,17 @@ function getExecutionKeyParts(key: string):
   }
 }
 
+export class ExecutionFileAccessError extends Error {
+  constructor() {
+    super('File is not available in this execution.')
+    this.name = 'ExecutionFileAccessError'
+  }
+}
+
 function assertExecutionFileScope(key: string, options: ExecutionMaterializationContext): void {
   const parts = getExecutionKeyParts(key)
   if (!parts) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   const allowedExecutionIds = new Set([
@@ -232,11 +244,11 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     options.workflowId === parts.workflowId
 
   if (options.workspaceId && parts.workspaceId !== options.workspaceId) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   if (options.workflowId && parts.workflowId !== options.workflowId) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 
   if (allowedFileKeys.has(key)) {
@@ -247,7 +259,7 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     !options.executionId ||
     (!allowedExecutionIds.has(parts.executionId) && !workflowScopeAllowed)
   ) {
-    throw new Error('File is not available in this execution.')
+    throw new ExecutionFileAccessError()
   }
 }
 
@@ -257,7 +269,11 @@ function getVerifiedStorageContext(file: Pick<UserFile, 'key' | 'context'>): Sto
   }
 
   const inferredContext = inferContextFromKey(file.key)
-  if (file.context && file.context !== inferredContext) {
+  if (
+    file.context &&
+    file.context !== inferredContext &&
+    !(inferredContext === 'workspace' && file.context === 'mothership')
+  ) {
     throw new Error('File context does not match its storage key.')
   }
 
@@ -296,7 +312,7 @@ export async function assertUserFileContentAccess(
           })
         : options.principal
     try {
-      await readWorkspaceFileRecordByKey.execute({
+      await readStoredWorkspaceFileRecordByKey.execute({
         principal,
         input: {
           key: file.key,
@@ -306,7 +322,20 @@ export async function assertUserFileContentAccess(
       return
     } catch (error) {
       if (!(error instanceof OrchestrationError && error.code === 'not_found')) throw error
+      if (error instanceof StoredWorkspaceFileUnavailableError) throw error
+      /** Legacy storage metadata cannot prove a delegated file or chat identity. */
+      if (
+        options.principal.kind === 'delegated' &&
+        (options.principal.resourceScope?.fileId !== undefined ||
+          options.principal.resourceScope?.chatId !== undefined)
+      ) {
+        throw error
+      }
     }
+  }
+
+  if (context === 'workspace' && file.context === 'mothership') {
+    throw new Error('Chat upload access requires canonical file authorization.')
   }
 
   if (!options.userId) {
@@ -321,7 +350,7 @@ export async function assertUserFileContentAccess(
    */
   const knowledgeAccess =
     context === 'knowledge-base' && options.principal
-      ? await resolveKnowledgeAccessScope(options.principal, { workspaceId: options.workspaceId })
+      ? createKnowledgeAccessProvider(options.principal, { workspaceId: options.workspaceId })
       : undefined
   const hasAccess = await verifyFileAccess(file.key, options.userId, undefined, context, false, {
     knowledgeAccess,
@@ -344,7 +373,26 @@ export async function readUserFileContentWithContributors(
     throw new Error('Expected a file object with metadata.')
   }
 
-  await assertUserFileContentAccess(file, options)
+  let sourceIdentity: WorkspaceFileSecretProvenanceIdentity | undefined
+  const storageContext = file.key ? inferContextFromKey(file.key) : undefined
+  if (
+    (storageContext === 'execution' || storageContext === 'workspace') &&
+    options.principal &&
+    options.workspaceId
+  ) {
+    const { resolveStoredFileProvenanceSource } = await import(
+      '@/lib/execution/payloads/file-secret-provenance'
+    )
+    sourceIdentity = (
+      await resolveStoredFileProvenanceSource(file, {
+        ...options,
+        principal: options.principal,
+        workspaceId: options.workspaceId,
+      })
+    )?.identity
+  } else {
+    await assertUserFileContentAccess(file, options)
+  }
 
   const maxSourceBytes = options.maxSourceBytes ?? MAX_FUNCTION_FILE_BYTES
   if (Number.isFinite(file.size) && file.size > maxSourceBytes) {
@@ -357,6 +405,7 @@ export async function readUserFileContentWithContributors(
 
   let buffer: Buffer | null = null
   let contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
+  let renderedContributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
   const log = getLogger(options)
   const requestId = options.requestId ?? 'unknown'
 
@@ -365,7 +414,10 @@ export async function readUserFileContentWithContributors(
       maxBytes: maxSourceBytes,
     })
     buffer = servable.buffer
-    contributingFiles = servable.contributingFiles
+    renderedContributingFiles = servable.contributingFiles
+    contributingFiles = sourceIdentity
+      ? [sourceIdentity, ...(servable.contributingFiles ?? [])]
+      : servable.contributingFiles
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
       if (isGeneratedDocumentSourceType(file.type) && error.observedBytes !== undefined) {
@@ -402,6 +454,7 @@ export async function readUserFileContentWithContributors(
   return {
     content: options.encoding === 'base64' ? bufferToBase64(selected) : selected.toString('utf8'),
     ...(contributingFiles && contributingFiles.length > 0 ? { contributingFiles } : {}),
+    ...(renderedContributingFiles?.length ? { renderedContributingFiles } : {}),
   }
 }
 

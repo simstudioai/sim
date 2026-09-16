@@ -29,7 +29,7 @@ import { validateFileType } from '@/lib/uploads/utils/validation'
 import {
   handleError,
   resolveKnowledgeBase,
-  resolveV1KnowledgeAccessScope,
+  resolveV1KnowledgeReadAccess,
   serializeDate,
 } from '@/app/api/v1/knowledge/utils'
 import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
@@ -79,7 +79,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Docume
         sortOrder: sortOrder as SortOrder,
       },
       requestId,
-      await resolveV1KnowledgeAccessScope(userId, rateLimit, workspaceId)
+      await resolveV1KnowledgeReadAccess(userId, rateLimit, workspaceId)
     )
 
     return NextResponse.json({

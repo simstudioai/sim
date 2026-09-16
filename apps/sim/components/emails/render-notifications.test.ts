@@ -7,10 +7,28 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  renderPermissionAccessRequestEmail,
   renderScheduleDisabledEmail,
   renderSubprocessorChangeEmail,
   renderUsageLimitReachedEmail,
 } from '@/components/emails/render'
+
+describe('renderPermissionAccessRequestEmail', () => {
+  it.each([
+    ['created', 'Review request'],
+    ['decided', 'View request'],
+  ] as const)('renders the authenticated %s link', async (kind, label) => {
+    const html = await renderPermissionAccessRequestEmail({
+      kind,
+      requestLink: 'https://sim.example/requests?request-id=request-one',
+    })
+
+    expect(html).toContain(label)
+    expect(html).toContain('https://sim.example/requests?request-id=request-one')
+    expect(html).toContain('Sign in')
+    expect(html).not.toContain('Unsubscribe')
+  })
+})
 
 describe('renderScheduleDisabledEmail', () => {
   it('renders the failure count for a threshold disable', async () => {

@@ -264,7 +264,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
               'Behavioral remarketing',
               'Cookie and pixel identifiers, browser and Device data, campaign attribution, and website interaction data',
               'Consent — Article 6(1)(a)',
-              'Marketing technologies are disabled until the Marketing category is accepted. Consent may be changed or withdrawn through the cookie preferences link.',
+              'Marketing cookies and ad personalization require Marketing consent. Google Ads may load earlier with ad storage denied and send limited cookieless consent signals. Consent may be changed or withdrawn through the cookie preferences link.',
             ],
             [
               'Retaining transaction and tax records',
@@ -576,7 +576,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'The Company uses Google Ads, Twitter, and Facebook remarketing services to advertise on third-party websites after You visit the Service. These services operate through non-essential Cookies and similar technologies. They are activated only after You give consent to the Marketing category in the cookie banner. No marketing Cookie is set before that consent.'
+            'The Company uses Google Ads, Twitter, and Facebook remarketing services to advertise on third-party websites after You visit the Service. These services operate through non-essential Cookies and similar technologies. Marketing Cookies and ad personalization are enabled only after You give consent to the Marketing category in the cookie banner. Google Ads may load before that consent with ad storage denied and send limited cookieless consent signals, as described in the Cookie Policy.'
           ),
         },
         {

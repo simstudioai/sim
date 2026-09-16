@@ -3,7 +3,12 @@
  *
  * @vitest-environment node
  */
-import { hybridAuthMockFns, storageServiceMock, storageServiceMockFns } from '@sim/testing'
+import {
+  authMockFns,
+  hybridAuthMockFns,
+  storageServiceMock,
+  storageServiceMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -13,6 +18,7 @@ vi.mock('@sim/logger', () => ({
   logger: serveLogger,
   runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
   getRequestContext: vi.fn(() => undefined),
+  setRequestAuth: vi.fn(),
 }))
 
 const {
@@ -33,6 +39,7 @@ const {
   mockCreateErrorResponse,
   FileNotFoundError,
   serveLogger,
+  mockReadOrganizationAssistantImage,
 } = vi.hoisted(() => {
   class FileNotFoundErrorClass extends Error {
     constructor(message: string) {
@@ -42,6 +49,7 @@ const {
   }
   return {
     serveLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    mockReadOrganizationAssistantImage: vi.fn(),
     mockVerifyFileAccess: vi.fn(),
     mockReadFile: vi.fn(),
     mockIsUsingCloudStorage: vi.fn(),
@@ -60,6 +68,10 @@ const {
     FileNotFoundError: FileNotFoundErrorClass,
   }
 })
+
+vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
+  readOrganizationAssistantImage: mockReadOrganizationAssistantImage,
+}))
 
 vi.mock('fs/promises', () => ({
   readFile: mockReadFile,
@@ -188,6 +200,26 @@ describe('File Serve API Route', () => {
     })
   })
 
+  it('requires authentication for execution downloads before reading bytes', async () => {
+    mockResolveStoredFileContext.mockResolvedValue('execution')
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: false,
+      error: 'Unauthorized',
+    })
+    const response = await GET(
+      new NextRequest(
+        'http://localhost/api/files/serve/execution%2Fworkspace%2Fworkflow%2Frun%2Fimage.png?context=execution'
+      ),
+      {
+        params: Promise.resolve({ path: ['execution/workspace/workflow/run/image.png'] }),
+      }
+    )
+    expect(response.status).toBe(401)
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockReadFile).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+  })
+
   it('bounds every buffered read at the shared transfer ceiling', async () => {
     mockIsUsingCloudStorage.mockReturnValue(true)
     mockResolveStoredFileContext.mockResolvedValue('copilot')
@@ -201,6 +233,43 @@ describe('File Serve API Route', () => {
     expect(mockDownloadCopilotFile).toHaveBeenCalledWith('copilot/doc.txt', {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
     })
+  })
+
+  it('serves private Assistant images through session authorization and disables caching', async () => {
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
+    })
+    const key = 'assistant/org-1/user-1/upload-1/image.png'
+    mockReadOrganizationAssistantImage.mockResolvedValue({
+      name: 'image.png',
+      contentType: 'image/webp',
+      buffer: Buffer.from('decoded-image'),
+    })
+    const response = await GET(new NextRequest(`http://localhost/api/files/serve/${key}`), {
+      params: Promise.resolve({ path: key.split('/') }),
+    })
+    expect(response.status).toBe(200)
+    expect(mockReadOrganizationAssistantImage).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      key,
+      signal: expect.any(AbortSignal),
+    })
+    expect(mockCreateFileResponse).toHaveBeenCalledWith(
+      expect.objectContaining({ cacheControl: 'private, no-store', contentType: 'image/webp' })
+    )
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).not.toHaveBeenCalled()
+  })
+
+  it('requires a real session for private Assistant images even when legacy auth succeeds', async () => {
+    authMockFns.mockGetSession.mockResolvedValue(null)
+    const key = 'assistant/org-1/user-1/upload-1/image.png'
+    const response = await GET(new NextRequest(`http://localhost/api/files/serve/${key}`), {
+      params: Promise.resolve({ path: key.split('/') }),
+    })
+    expect(response.status).toBe(401)
+    expect(mockReadOrganizationAssistantImage).not.toHaveBeenCalled()
   })
 
   it('bounds the local read rather than trusting the stored size', async () => {
@@ -405,6 +474,28 @@ describe('File Serve API Route', () => {
       context: 'mothership',
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
     })
+  })
+
+  it('serves organization logos through the existing public asset path', async () => {
+    mockIsUsingCloudStorage.mockReturnValue(true)
+    mockInferContextFromKey.mockReturnValue('organization-logos')
+    const key = 'organization-logos/org-1/upload-1-logo.png'
+    const response = await GET(new NextRequest(`http://localhost/api/files/serve/s3/${key}`), {
+      params: Promise.resolve({ path: ['s3', 'organization-logos', 'org-1', 'upload-1-logo.png'] }),
+    })
+    expect(response.status).toBe(200)
+    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
+      key,
+      context: 'organization-logos',
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+    })
+    expect(mockCreateFileResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cacheControl: 'public, max-age=31536000',
+      })
+    )
+    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(mockAuthenticateWorkspaceFile).not.toHaveBeenCalled()
   })
 
   it('should return 404 when file not found', async () => {

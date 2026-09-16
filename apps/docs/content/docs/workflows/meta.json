@@ -1,7 +1,6 @@
 {
   "title": "Workflows",
   "pages": [
-    "index",
     "how-it-runs",
     "data-flow",
     "connections",

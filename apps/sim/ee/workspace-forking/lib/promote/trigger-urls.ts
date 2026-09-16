@@ -26,6 +26,7 @@ export interface ForkTriggerUrlChange {
  * workflow that this block can take over instead of minting a new one.
  */
 export interface ForkTriggerSlot {
+  sourceWorkflowId: string
   sourceBlockId: string
   targetBlockId: string
   blockName: string
@@ -47,6 +48,8 @@ export interface ForkTriggerPlan {
 
 /** A caller's explicit choice of which retiring URL an arriving trigger takes over. */
 export interface ForkTriggerMappingInput {
+  /** Required by public clients; omitted only by legacy internal block-only callers. */
+  sourceWorkflowId?: string
   sourceBlockId: string
   /** A path from that slot's `adoptablePaths`, or null to mint a new URL. */
   adoptPath: string | null
@@ -118,6 +121,7 @@ export function buildForkTriggerPlan(params: {
       // URL as preserved, so nobody would go looking.
       const provider = resolveBlockTriggerProvider(block)
       arriving.push({
+        sourceWorkflowId: item.sourceWorkflowId,
         sourceBlockId,
         targetBlockId,
         blockName: block.name,
@@ -150,10 +154,8 @@ export function buildForkTriggerPlan(params: {
  * Resolve every trigger block's final path, applying the caller's explicit choices over the
  * plan's defaults, and report the URLs that still retire.
  *
- * An override is honoured only for a path the slot actually offered (same target workflow, still
- * retiring), and each path can be adopted once - so a crafted payload can neither move a URL
- * across workflows nor point two triggers at one path (which the unique webhook path index would
- * reject at deploy time anyway, failing the whole sync).
+ * Source workflow/block identities require exact, unique choices from the plan. Legacy callers
+ * that provide only block IDs retain their existing behavior of ignoring invalid choices.
  */
 export function resolveForkTriggerPaths(
   plan: ForkTriggerPlan,
@@ -163,9 +165,55 @@ export function resolveForkTriggerPaths(
   pathByTargetBlockId: Map<string, string>
   changes: ForkTriggerUrlChange[]
 } {
-  const overrideBySourceBlockId = new Map(
-    overrides.map((entry) => [entry.sourceBlockId, entry.adoptPath])
-  )
+  const scoped = overrides.some((entry) => entry.sourceWorkflowId !== undefined)
+  const identity = (source: { sourceWorkflowId?: string; sourceBlockId: string }) =>
+    scoped ? JSON.stringify([source.sourceWorkflowId, source.sourceBlockId]) : source.sourceBlockId
+  const overrideBySourceIdentity = new Map<string, string | null>()
+  if (scoped) {
+    const slotsByIdentity = new Map<string, ForkTriggerSlot[]>()
+    for (const slot of plan.slots) {
+      const key = identity(slot)
+      const existing = slotsByIdentity.get(key)
+      if (existing) existing.push(slot)
+      else slotsByIdentity.set(key, [slot])
+    }
+    const selectedPaths = new Set<string>()
+    for (const override of overrides) {
+      if (!override.sourceWorkflowId)
+        throw new OrchestrationError('validation', 'Trigger mappings require a source workflow ID')
+      const key = identity(override)
+      if (overrideBySourceIdentity.has(key))
+        throw new OrchestrationError('validation', 'Duplicate source trigger mapping')
+      const slots = slotsByIdentity.get(key)
+      if (!slots?.length)
+        throw new OrchestrationError(
+          'validation',
+          'Trigger mapping does not address an eligible source workflow and block'
+        )
+      if (slots.length !== 1)
+        throw new OrchestrationError('validation', 'Source trigger mapping is ambiguous')
+      const slot = slots[0]
+      if (slot.ownPath !== null)
+        throw new OrchestrationError(
+          'validation',
+          'A trigger with an existing target path preserves that path and cannot adopt another'
+        )
+      if (override.adoptPath !== null) {
+        if (!slot.adoptablePaths.includes(override.adoptPath))
+          throw new OrchestrationError(
+            'validation',
+            'Trigger mapping path is not an adoptable path for this source workflow and block'
+          )
+        if (selectedPaths.has(override.adoptPath))
+          throw new OrchestrationError('validation', 'A retiring path can be adopted only once')
+        selectedPaths.add(override.adoptPath)
+      }
+      overrideBySourceIdentity.set(key, override.adoptPath)
+    }
+  } else {
+    for (const override of overrides)
+      overrideBySourceIdentity.set(identity(override), override.adoptPath)
+  }
 
   const pathByTargetBlockId = new Map<string, string>()
   const adopted = new Set<string>()
@@ -175,8 +223,9 @@ export function resolveForkTriggerPaths(
       pathByTargetBlockId.set(slot.targetBlockId, slot.ownPath)
       continue
     }
-    const requested = overrideBySourceBlockId.has(slot.sourceBlockId)
-      ? overrideBySourceBlockId.get(slot.sourceBlockId)!
+    const key = identity(slot)
+    const requested = overrideBySourceIdentity.has(key)
+      ? overrideBySourceIdentity.get(key)!
       : slot.defaultAdoptPath
     if (requested === null || requested === undefined) continue
     if (!slot.adoptablePaths.includes(requested)) continue
@@ -193,3 +242,5 @@ export function resolveForkTriggerPaths(
   }
   return { pathByTargetBlockId, changes }
 }
+
+import { OrchestrationError } from '@/lib/core/orchestration/types'

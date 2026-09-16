@@ -6,7 +6,7 @@ description: Transfer files via SFTP (SSH File Transfer Protocol)
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="sftp"
+  type="sftp_v2"
   color="#2D3748"
 />
 
@@ -77,19 +77,12 @@ Download a file from a remote SFTP server
 | `privateKey` | string | No | Private key for authentication \(OpenSSH format\) |
 | `passphrase` | string | No | Passphrase for encrypted private key |
 | `remotePath` | string | Yes | Path to the file on the remote server |
-| `encoding` | string | No | Output encoding: utf-8 for text, base64 for binary \(default: utf-8\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the download was successful |
 | `file` | file | Downloaded file stored in execution files |
-| `fileName` | string | Name of the downloaded file |
-| `content` | string | File content \(text or base64 encoded\) |
-| `size` | number | File size in bytes |
-| `encoding` | string | Content encoding \(utf-8 or base64\) |
-| `message` | string | Operation status message |
 
 ### SFTP List Directory
 

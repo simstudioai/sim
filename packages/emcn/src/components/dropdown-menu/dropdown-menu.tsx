@@ -22,9 +22,10 @@
 
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronRight, Circle, Search } from '../../icons'
 import { cn } from '../../lib/cn'
-import { chipContentGap, chipFieldSurfaceClass } from '../chip/chip-chrome'
+import { chipContentGap, chipFieldSurfaceClass, chipGeometryClass } from '../chip/chip-chrome'
 import { InsideModalContext } from '../modal/modal'
 import { OverflowText, type OverflowTextProps } from '../overflow-text/overflow-text'
 
@@ -300,64 +301,145 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
  */
 export const dropdownMenuRowClass = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
 
+/** Large rows match the sidebar's chip geometry without changing menu behavior. */
+export const dropdownMenuItemVariants = cva(dropdownMenuRowClass, {
+  variants: {
+    size: { default: '', lg: chipGeometryClass },
+  },
+  defaultVariants: { size: 'default' },
+})
+
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
-    inset?: boolean
-    /**
-     * Renders the row as selected — the current route, the checked value, the row
-     * whose own menu is open. Selected is a state the row *holds*, so it keeps
-     * `--surface-active` through hover rather than dimming to the hover fill.
-     *
-     * Not for a pointer/keyboard cursor: that is the row highlight, which the row
-     * already paints on its own. A menu that marks its cursor row `active` puts two
-     * selections on screen.
-     */
-    active?: boolean
-    /**
-     * Optional inline action rendered on the right edge of the item — e.g. a
-     * "more" icon button. Reveals on hover/focus of the row, and the row stays
-     * highlighted while the cursor is over the action.
-     */
-    action?: React.ReactNode
-  }
->(({ className, inset, active, action, asChild, children, ...props }, ref) => {
-  const content = asChild ? children : withOverflowLabel(children)
-  const stateClasses = active ? MENU_ROW_SELECTED_CLASS : MENU_ROW_HIGHLIGHT_CLASS
-  if (action) {
-    return (
-      <div className='group/dropdownitem relative'>
-        <DropdownMenuPrimitive.Item
-          ref={ref}
-          className={cn(
-            dropdownMenuRowClass,
-            stateClasses,
-            'pr-[28px]',
-            inset && 'pl-7',
-            className
-          )}
-          asChild={asChild}
-          {...props}
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> &
+    VariantProps<typeof dropdownMenuItemVariants> & {
+      inset?: boolean
+      /**
+       * Renders the row as selected — the current route, the checked value, the row
+       * whose own menu is open. Selected is a state the row *holds*, so it keeps
+       * `--surface-active` through hover rather than dimming to the hover fill.
+       *
+       * Not for a pointer/keyboard cursor: that is the row highlight, which the row
+       * already paints on its own. A menu that marks its cursor row `active` puts two
+       * selections on screen.
+       */
+      active?: boolean
+      /**
+       * Optional inline action rendered on the right edge of the item — e.g. a
+       * "more" icon button. Reveals on hover/focus of the row, and the row stays
+       * highlighted while the cursor is over the action. ArrowRight moves from
+       * the row to its action; ArrowLeft returns to the row.
+       */
+      action?: React.ReactNode
+      /** Keeps the action visible while its portaled menu is open. */
+      actionOpen?: boolean
+      /** Idle indicator sharing the action slot on hover-capable devices. */
+      actionIndicator?: React.ReactNode
+    }
+>(
+  (
+    {
+      className,
+      size,
+      inset,
+      active,
+      action,
+      actionOpen,
+      actionIndicator,
+      asChild,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const actionRef = React.useRef<HTMLDivElement>(null)
+    const content = asChild ? children : withOverflowLabel(children)
+    const stateClasses = active ? MENU_ROW_SELECTED_CLASS : MENU_ROW_HIGHLIGHT_CLASS
+    if (action) {
+      return (
+        <div
+          className='group/dropdownitem relative'
+          onKeyDown={(event) => {
+            if (
+              event.defaultPrevented ||
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.shiftKey
+            )
+              return
+            const row = event.currentTarget.firstElementChild
+            const actionButton =
+              actionRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')
+            if (event.key === 'ArrowRight' && event.target === row && actionButton) {
+              event.preventDefault()
+              event.stopPropagation()
+              actionButton.focus()
+            } else if (
+              event.key === 'ArrowLeft' &&
+              row instanceof HTMLElement &&
+              event.target instanceof Node &&
+              actionRef.current?.contains(event.target)
+            ) {
+              event.preventDefault()
+              event.stopPropagation()
+              row.focus()
+            }
+          }}
         >
-          {content}
-        </DropdownMenuPrimitive.Item>
-        <div className='-translate-y-1/2 absolute top-1/2 right-1 flex items-center opacity-0 transition-opacity group-focus-within/dropdownitem:opacity-100 group-hover/dropdownitem:opacity-100'>
-          {action}
+          <DropdownMenuPrimitive.Item
+            ref={ref}
+            className={cn(
+              dropdownMenuItemVariants({ size }),
+              stateClasses,
+              actionIndicator || actionOpen
+                ? 'pr-[28px]'
+                : '[@media(hover:hover)]:group-focus-within/dropdownitem:pr-[28px] [@media(hover:hover)]:group-hover/dropdownitem:pr-[28px]',
+              actionIndicator ? '[@media(hover:none)]:pr-[52px]' : '[@media(hover:none)]:pr-[28px]',
+              inset && 'pl-7',
+              className
+            )}
+            asChild={asChild}
+            {...props}
+          >
+            {content}
+          </DropdownMenuPrimitive.Item>
+          <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-1 flex size-[18px] items-center gap-1.5 [@media(hover:none)]:w-auto'>
+            {actionIndicator && (
+              <div
+                className={cn(
+                  'pointer-events-none flex size-[18px] shrink-0 items-center justify-center [@media(hover:hover)]:group-focus-within/dropdownitem:opacity-0 [@media(hover:hover)]:group-hover/dropdownitem:opacity-0',
+                  actionOpen && '[@media(hover:hover)]:opacity-0'
+                )}
+              >
+                {actionIndicator}
+              </div>
+            )}
+            <div
+              ref={actionRef}
+              className={cn(
+                'pointer-events-none absolute inset-0 flex items-center opacity-0 transition-opacity group-focus-within/dropdownitem:pointer-events-auto group-focus-within/dropdownitem:opacity-100 group-hover/dropdownitem:pointer-events-auto group-hover/dropdownitem:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:static [@media(hover:none)]:opacity-100',
+                actionOpen && 'pointer-events-auto opacity-100'
+              )}
+            >
+              {action}
+            </div>
+          </div>
         </div>
-      </div>
+      )
+    }
+    return (
+      <DropdownMenuPrimitive.Item
+        ref={ref}
+        className={cn(dropdownMenuItemVariants({ size }), stateClasses, inset && 'pl-7', className)}
+        asChild={asChild}
+        {...props}
+      >
+        {content}
+      </DropdownMenuPrimitive.Item>
     )
   }
-  return (
-    <DropdownMenuPrimitive.Item
-      ref={ref}
-      className={cn(dropdownMenuRowClass, stateClasses, inset && 'pl-7', className)}
-      asChild={asChild}
-      {...props}
-    >
-      {content}
-    </DropdownMenuPrimitive.Item>
-  )
-})
+)
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
 
 /**

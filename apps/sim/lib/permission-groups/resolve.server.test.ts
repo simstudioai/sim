@@ -3,6 +3,7 @@
  */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DbOrTx } from '@/lib/db/types'
 
 const { mockIsOrganizationOnEnterprisePlan, mockGetWorkspaceWithOwner } = vi.hoisted(() => ({
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 import {
   getUserPermissionConfig,
   getUserPermissionConfigForOrganization,
+  isOrganizationPermissionRegimeActive,
   resolveVerifiedUserAccessControlContext,
 } from '@/lib/permission-groups/resolve.server'
 
@@ -100,5 +102,34 @@ describe('permission-group resolution under a failed entitlement read', () => {
       config: null,
     })
     await expect(getUserPermissionConfigForOrganization(ORGANIZATION_ID)).resolves.toBeNull()
+  })
+
+  it('rechecks entitlement on the caller transaction after an unentitled preflight', async () => {
+    const executor = {} as DbOrTx
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+
+    await expect(isOrganizationPermissionRegimeActive(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(isOrganizationPermissionRegimeActive(ORGANIZATION_ID, executor)).resolves.toBe(
+      true
+    )
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenLastCalledWith(
+      ORGANIZATION_ID,
+      'throw',
+      executor
+    )
+  })
+
+  it('propagates a transaction entitlement read failure instead of disabling restrictions', async () => {
+    const executor = {} as DbOrTx
+    entitlementReadFails()
+
+    await expect(isOrganizationPermissionRegimeActive(ORGANIZATION_ID, executor)).rejects.toThrow(
+      'billing database unavailable'
+    )
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      'throw',
+      executor
+    )
   })
 })

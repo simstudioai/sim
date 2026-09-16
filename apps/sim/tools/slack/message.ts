@@ -12,6 +12,7 @@ export const slackMessageTool: InternalToolConfig<SlackMessageParams, SlackMessa
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['chat:write'],
   },
 
   params: {

@@ -27,17 +27,16 @@ describe('unified settings navigation', () => {
       { id: 'terminal', label: 'Terminal', section: 'account' },
       { id: 'access-control', label: 'Permission groups', section: 'organization' },
       { id: 'audit-logs', label: 'Audit logs', section: 'organization' },
-      { id: 'forks', label: 'Workspace forks', section: 'organization' },
+      { id: 'forks', label: 'Workspace forks', section: 'workspace' },
       { id: 'billing', label: 'Subscription', section: 'account' },
       { id: 'teammates', label: 'Teammates', section: 'workspace' },
       { id: 'organization', label: 'Members', section: 'organization' },
-      { id: 'usage', label: 'Usage tracking', section: 'organization' },
+      { id: 'usage', label: 'Insights', section: 'organization' },
       { id: 'secrets', label: 'Secrets', section: 'workspace' },
-      { id: 'credential-groups', label: 'Credential groups', section: 'workspace' },
+      { id: 'connected-accounts', label: 'Connected accounts', section: 'organization' },
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },
       { id: 'mcp', label: 'MCP tools', section: 'workspace' },
       { id: 'apikeys', label: 'Sim API keys', section: 'workspace' },
-      { id: 'authorized-apps', label: 'Authorized apps', section: 'account' },
       { id: 'workflow-mcp-servers', label: 'MCP servers', section: 'workspace' },
       { id: 'byok', label: 'BYOK', section: 'workspace' },
       { id: 'sandboxes', label: 'Sandboxes', section: 'workspace' },
@@ -45,11 +44,11 @@ describe('unified settings navigation', () => {
       { id: 'recently-deleted', label: 'Recently deleted', section: 'workspace' },
       { id: 'self-host', label: 'Self hosting', section: 'platform' },
       { id: 'sso', label: 'Single sign-on', section: 'organization' },
-      { id: 'sessions', label: 'Session policies', section: 'organization' },
+      { id: 'security', label: 'Security', section: 'organization' },
       { id: 'data-retention', label: 'Data retention', section: 'organization' },
       { id: 'data-drains', label: 'Data drains', section: 'organization' },
       { id: 'whitelabeling', label: 'White-labeling', section: 'organization' },
-      { id: 'custom-blocks', label: 'Custom blocks', section: 'organization' },
+      { id: 'custom-blocks', label: 'Custom blocks', section: 'workspace' },
       { id: 'admin', label: 'Admin', section: 'platform' },
       { id: 'mothership', label: 'Mothership', section: 'platform' },
     ])
@@ -68,31 +67,30 @@ describe('unified settings navigation', () => {
       'desktop',
       'browser',
       'terminal',
-      'authorized-apps',
     ])
     expect(idsForSection('workspace')).toEqual([
       'teammates',
       'secrets',
       'mcp',
+      'custom-blocks',
+      'forks',
       'custom-tools',
       'byok',
       'inbox',
       'workflow-mcp-servers',
       'apikeys',
       'sandboxes',
-      'credential-groups',
       'recently-deleted',
     ])
     expect(idsForSection('organization')).toEqual([
       'organization',
       'usage',
-      'custom-blocks',
-      'forks',
+      'connected-accounts',
       'access-control',
       'audit-logs',
       'whitelabeling',
       'sso',
-      'sessions',
+      'security',
       'data-retention',
       'data-drains',
     ])
@@ -126,6 +124,7 @@ describe('resolveSettingsSection', () => {
     team: 'organization',
     'api-keys': 'apikeys',
     domains: 'sso',
+    sessions: 'security',
   } as const
 
   it('keeps legacy section links working', () => {
@@ -146,6 +145,11 @@ describe('resolveSettingsSection', () => {
     expect(resolveSettingsSection('secrets')?.id).toBe('secrets')
     expect(resolveSettingsSection('unknown')).toBeNull()
     expect(resolveSettingsSection('')).toBeNull()
+  })
+
+  it('resolves organization connected accounts in the unified settings shell', () => {
+    expect(resolveSettingsSection('credential-groups')).toBeNull()
+    expect(resolveSettingsSection('connected-accounts')?.id).toBe('connected-accounts')
   })
 
   it('carries the catalog label through as the header title', () => {

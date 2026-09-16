@@ -3,14 +3,13 @@ title: TypeScript
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-The official TypeScript/JavaScript SDK for Sim provides full type safety and supports both Node.js and browser environments, allowing you to execute workflows programmatically from your Node.js applications, web applications, and other JavaScript environments.
+Use the TypeScript SDK to execute workflows from server-side JavaScript or TypeScript. For browser applications, call the SDK through your authenticated backend.
 
 <Callout type="info">
-  The TypeScript SDK provides full type safety, async execution support, automatic rate limiting with exponential backoff, and usage tracking.
+  The TypeScript SDK provides full type safety, async execution support, retry helpers with exponential backoff, and usage tracking.
 </Callout>
 
 ## Installation
@@ -545,7 +544,7 @@ app.listen(3000, () => {
 Use with Next.js API routes:
 
 ```typescript
-// pages/api/workflow.ts or app/api/workflow/route.ts
+// pages/api/workflow.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { SimStudioClient } from 'simstudio-ts-sdk';
 
@@ -580,33 +579,7 @@ export default async function handler(
 
 ### Browser Usage
 
-Use in the browser (with proper CORS configuration):
-
-```typescript
-import { SimStudioClient } from 'simstudio-ts-sdk';
-
-// Note: In production, use a proxy server to avoid exposing API keys
-const client = new SimStudioClient({
-  apiKey: 'your-public-api-key', // Use with caution in browser
-  baseUrl: 'https://sim.ai'
-});
-
-async function executeClientSideWorkflow() {
-  try {
-    const result = await client.executeWorkflow('workflow-id', {
-        userInput: 'Hello from browser'
-    });
-
-    console.log('Workflow result:', result);
-
-    // Update UI with result
-    document.getElementById('result')!.textContent =
-      JSON.stringify(result.output, null, 2);
-  } catch (error) {
-    console.error('Error:', error);
-  }
-}
-```
+Keep the Sim API key on your server. A browser application should call an authenticated backend endpoint that checks which workflow the user can run, then calls the SDK. The [Next.js API Route](#nextjs-api-route) example shows where the server-side SDK call belongs; add your application authentication and authorization before executing a workflow.
 
 ### File Upload
 
@@ -632,134 +605,24 @@ Alternatively, you can manually provide files using the URL format:
 }
 ```
 
-<Tabs items={['Browser', 'Node.js']}>
-  <Tab value="Browser">
-    ```typescript
-    import { SimStudioClient } from 'simstudio-ts-sdk';
-
-    const client = new SimStudioClient({
-      apiKey: process.env.NEXT_PUBLIC_SIM_API_KEY!
-    });
-
-    // From file input
-    async function handleFileUpload(event: Event) {
-      const input = event.target as HTMLInputElement;
-      const files = Array.from(input.files || []);
-
-      // Include files under the field name from your API trigger's input format
-      const result = await client.executeWorkflow('workflow-id', {
-          documents: files,  // Must match your workflow's "files" field name
-          instructions: 'Analyze these documents'
-      });
-
-      console.log('Result:', result);
-    }
-    ```
-  </Tab>
-  <Tab value="Node.js">
-    ```typescript
-    import { SimStudioClient } from 'simstudio-ts-sdk';
-    import fs from 'fs';
-
-    const client = new SimStudioClient({
-      apiKey: process.env.SIM_API_KEY!
-    });
-
-    // Read file and create File object
-    const fileBuffer = fs.readFileSync('./document.pdf');
-    const file = new File([fileBuffer], 'document.pdf', {
-      type: 'application/pdf'
-    });
-
-    // Include files under the field name from your API trigger's input format
-    const result = await client.executeWorkflow('workflow-id', {
-        documents: [file],  // Must match your workflow's "files" field name
-        query: 'Summarize this document'
-    });
-    ```
-  </Tab>
-</Tabs>
-
-<Callout type="warning">
-  When using the SDK in the browser, be careful not to expose sensitive API keys. Consider using a backend proxy or public API keys with limited permissions.
-</Callout>
-
-### React Hook Example
-
-Create a custom React hook for workflow execution:
+Run file uploads on your backend after authenticating the caller and validating the upload. For example, in Node.js:
 
 ```typescript
-import { useState, useCallback } from 'react';
-import { SimStudioClient, WorkflowExecutionResult } from 'simstudio-ts-sdk';
+import { SimStudioClient } from 'simstudio-ts-sdk';
+import { readFile } from 'node:fs/promises';
 
-const client = new SimStudioClient({
-  apiKey: process.env.SIM_API_KEY!
+const client = new SimStudioClient({ apiKey: process.env.SIM_API_KEY! });
+const fileBuffer = await readFile('./document.pdf');
+const file = new File([fileBuffer], 'document.pdf', { type: 'application/pdf' });
+
+const result = await client.executeWorkflow('workflow-id', {
+  documents: [file],
+  query: 'Summarize this document'
 });
-
-interface UseWorkflowResult {
-  result: WorkflowExecutionResult | null;
-  loading: boolean;
-  error: Error | null;
-  executeWorkflow: (workflowId: string, input?: any) => Promise<void>;
-}
-
-export function useWorkflow(): UseWorkflowResult {
-  const [result, setResult] = useState<WorkflowExecutionResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  const executeWorkflow = useCallback(async (workflowId: string, input?: any) => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      const workflowResult = await client.executeWorkflow(workflowId, input, {
-        timeout: 30000
-      });
-      setResult(workflowResult);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Unknown error'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return {
-    result,
-    loading,
-    error,
-    executeWorkflow
-  };
-}
-
-// Usage in component
-function WorkflowComponent() {
-  const { result, loading, error, executeWorkflow } = useWorkflow();
-
-  const handleExecute = () => {
-    executeWorkflow('my-workflow-id', {
-      message: 'Hello from React!'
-    });
-  };
-
-  return (
-    <div>
-      <button onClick={handleExecute} disabled={loading}>
-        {loading ? 'Executing...' : 'Execute Workflow'}
-      </button>
-
-      {error && <div>Error: {error.message}</div>}
-      {result && (
-        <div>
-          <h3>Result:</h3>
-          <pre>{JSON.stringify(result, null, 2)}</pre>
-        </div>
-      )}
-    </div>
-  );
-}
 ```
+
+
+
 
 ### Async Workflow Execution
 
@@ -801,6 +664,10 @@ async function executeAsync() {
         console.log('Workflow completed!');
         console.log('Output:', status.output);
         console.log('Duration:', status.durationMs);
+      } else if (status.status === 'paused') {
+        console.log('Workflow is paused and waiting for input or resumption.');
+      } else if (status.status === 'cancelled') {
+        console.log('Workflow was cancelled.');
       } else {
         console.error('Workflow failed:', status.error);
       }
@@ -934,97 +801,11 @@ data: {"event":"done","success":true,"output":{},"metadata":{"duration":610}}
 data: [DONE]
 ```
 
-**React Streaming Example:**
-
-```typescript
-import { useState, useEffect } from 'react';
-
-function StreamingWorkflow() {
-  const [output, setOutput] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const executeStreaming = async () => {
-    setLoading(true);
-    setOutput('');
-
-    // IMPORTANT: Make this API call from your backend server, not the browser
-    // Never expose your API key in client-side code
-    const response = await fetch('https://sim.ai/api/v2/workflows/WORKFLOW_ID/execute', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': process.env.SIM_API_KEY! // Server-side environment variable only
-      },
-      body: JSON.stringify({
-        input: { message: 'Generate a story' },
-        stream: true,
-        selectedOutputs: ['agent1.content']
-      })
-    });
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-
-    while (reader) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n\n');
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') {
-            setLoading(false);
-            break;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.chunk) {
-              setOutput(prev => prev + parsed.chunk);
-            } else if (parsed.event === 'done') {
-              console.log('Execution complete:', parsed.metadata);
-            }
-          } catch (e) {
-            // Skip invalid JSON
-          }
-        }
-      }
-    }
-  };
-
-  return (
-    <div>
-      <button onClick={executeStreaming} disabled={loading}>
-        {loading ? 'Generating...' : 'Start Streaming'}
-      </button>
-      <div style={{ whiteSpace: 'pre-wrap' }}>{output}</div>
-    </div>
-  );
-}
-```
+For browser streaming, have your authenticated backend forward the Sim SSE response. Keep the Sim API key on the backend, check the upstream response status, and parse complete SSE events across network chunks. See [streaming responses](/workflows/deployment/api#streaming) for the event format.
 
 ## Getting Your API Key
 
-<Steps>
-  <Step title="Log in to Sim">
-    Navigate to [Sim](https://sim.ai) and log in to your account.
-  </Step>
-  <Step title="Open your workflow">
-    Navigate to the workflow you want to execute programmatically.
-  </Step>
-  <Step title="Deploy your workflow">
-    Click on "Deploy" to deploy your workflow if it hasn't been deployed yet.
-  </Step>
-  <Step title="Create or select an API key">
-    During the deployment process, select or create an API key.
-  </Step>
-  <Step title="Copy the API key">
-    Copy the API key to use in your TypeScript/JavaScript application.
-  </Step>
-</Steps>
+Create a key in **Account settings → Sim API keys**, or use a workspace key if your administrator requires one. See [Authentication](/api-reference/authentication) for key types and permissions. Deploy the workflow before calling it through the SDK. Keep the key in a server-side environment variable.
 
 ## Requirements
 
@@ -1034,14 +815,3 @@ function StreamingWorkflow() {
 ## License
 
 Apache-2.0
-
-import { FAQ } from '@/components/ui/faq'
-
-<FAQ items={[
-  { question: "Do I need to deploy a workflow before I can execute it via the SDK?", answer: "Yes. Workflows must be deployed before they can be executed through the SDK. You can use the validateWorkflow() method to check whether a workflow is deployed and ready. If it returns false, deploy the workflow from the Sim UI first and create or select an API key during deployment." },
-  { question: "What is the difference between sync and async execution?", answer: "Sync execution (the default) blocks until the workflow completes and returns the full result. Async execution returns immediately with a run ID and status URL that you can poll using getWorkflowRun(). Use async mode for long-running workflows to avoid request timeouts. Run statuses include queued, pending, running, paused, completed, failed, and cancelled." },
-  { question: "How does streaming work with the SDK?", answer: "Enable streaming by setting stream: true and specifying selectedOutputs with block names and attributes in blockName.attribute format (e.g., ['agent1.content']). The response uses Server-Sent Events (SSE) format, sending incremental chunks as the workflow executes. Each chunk includes the blockId and the text content. A final done event includes the execution metadata." },
-  { question: "How does the SDK handle rate limiting?", answer: "The SDK provides built-in rate limiting support through the executeWithRetry() method. It uses exponential backoff (1s, 2s, 4s, 8s...) with 25% jitter to avoid thundering herd problems. If the API returns a retry-after header, that value is used instead. You can configure maxRetries, initialDelay, maxDelay, and backoffMultiplier. Use getRateLimitInfo() to check your current rate limit status." },
-  { question: "Is it safe to use the SDK in browser-side code?", answer: "You can use the SDK in the browser, but you should not expose your API key in client-side code. In production, use a backend proxy server to handle SDK calls, or use a public API key with limited permissions. The SDK works with both Node.js and browser environments, but sensitive keys should stay server-side." },
-  { question: "How do I send files to a workflow through the SDK?", answer: "File objects are automatically detected and converted to base64 format. Include them in the input object under the field name that matches your workflow's API trigger input format. In the browser, pass File objects directly from file inputs. In Node.js, create File objects from buffers. You can also provide files as URL references with type, data, name, and mime fields." },
-]} />

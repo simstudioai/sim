@@ -1,34 +1,36 @@
-/**
- * The ConnectorSyncGraphic's motion: the connector rows stamp in top to
- * bottom one after another — the audit tile's one-shot settle, never
- * re-played — then the syncing row's icon box carries the family's
- * shared quiet 6s ring-pulse beat. The status dot blink is Tailwind's
- * `animate-pulse`, disabled through its own `motion-reduce:animate-none`.
- * Under prefers-reduced-motion the rows render fully settled.
- */
-
-.row0,
-.row1,
-.row2 {
-  animation: connector-sync-row-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+/** The source cards settle once in reading order; the stack layers move with their card. */
+.card0,
+.card1,
+.card2,
+.card3,
+.card4,
+.card5 {
+  animation: connector-card-in 650ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-.row0 {
-  animation-delay: 0.35s;
+.card0 {
+  animation-delay: 100ms;
+}
+.card1 {
+  animation-delay: 180ms;
+}
+.card2 {
+  animation-delay: 260ms;
+}
+.card3 {
+  animation-delay: 340ms;
+}
+.card4 {
+  animation-delay: 420ms;
+}
+.card5 {
+  animation-delay: 500ms;
 }
 
-.row1 {
-  animation-delay: 0.55s;
-}
-
-.row2 {
-  animation-delay: 0.75s;
-}
-
-@keyframes connector-sync-row-in {
+@keyframes connector-card-in {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -36,28 +38,13 @@
   }
 }
 
-.iconPulse {
-  animation: connector-sync-icon-pulse 6s ease-out 1.4s infinite;
-}
-
-@keyframes connector-sync-icon-pulse {
-  0%,
-  20% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 30%, transparent);
-  }
-  36% {
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-secondary) 0%, transparent);
-  }
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 0%, transparent);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .row0,
-  .row1,
-  .row2,
-  .iconPulse {
+  .card0,
+  .card1,
+  .card2,
+  .card3,
+  .card4,
+  .card5 {
     animation: none;
   }
 }

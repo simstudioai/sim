@@ -2,6 +2,10 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  assertAssistantIntegrationCall,
+  isAssistantIntegrationTool,
+} from '@/lib/copilot/assistant/tool-policy'
 import { executeSlackListConversationsOperation } from '@/lib/internal/slack/operations/list-conversations'
 import { slackListChannelsTool } from '@/tools/slack/list_channels'
 import type { SlackListChannelsParams } from '@/tools/slack/types'
@@ -29,62 +33,70 @@ describe('Slack list channels', () => {
     vi.unstubAllGlobals()
   })
 
-  it('uses the internal operation boundary for bounded multi-page reads', () => {
+  it('uses the internal operation boundary for a single page', () => {
     expect(slackListChannelsTool.operation.input).toBeTypeOf('function')
     expect(slackListChannelsTool.request).toBeUndefined()
-    expect(slackListChannelsTool.params.maxPages).toMatchObject({
-      type: 'number',
-      required: false,
-    })
+    expect(slackListChannelsTool.oauth?.requiredScopes).toEqual([])
+    expect(slackListChannelsTool.params).not.toHaveProperty('maxPages')
+    expect(slackListChannelsTool.outputs).not.toHaveProperty('pages')
   })
 
-  it('continues after a short virtual page while Slack returns a cursor', async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        slackResponse({
-          ok: true,
-          channels: [
-            {
-              id: 'C123',
-              name: 'general',
-              is_channel: true,
-              topic: { value: 'Company news' },
-              purpose: { value: 'Announcements' },
-            },
-          ],
-          response_metadata: { next_cursor: ' cursor-2 ' },
-        })
-      )
-      .mockResolvedValueOnce(
-        slackResponse({
-          ok: true,
-          channels: [
-            {
-              id: 'D123',
-              is_im: true,
-              user: 'U123',
-              is_user_deleted: false,
-            },
-            {
-              id: 'G123',
-              name: 'mpdm-one--two-1',
-              is_mpim: true,
-              is_private: true,
-            },
-          ],
-          response_metadata: { next_cursor: '' },
-        })
-      )
+  it('remains available through the caller’s own Assistant account without model-supplied tokens', () => {
+    expect(isAssistantIntegrationTool(slackListChannelsTool)).toBe(true)
+    expect(() =>
+      assertAssistantIntegrationCall(slackListChannelsTool, {
+        credentialId: 'my-slack-account',
+        includePrivate: true,
+        cursor: 'cursor-2',
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertAssistantIntegrationCall(slackListChannelsTool, {
+        credentialId: 'my-slack-account',
+        accessToken: 'untrusted-token',
+      })
+    ).toThrow('Authentication comes from your connected account')
+  })
+
+  it('returns one page with conversation details and a cursor without fetching more', async () => {
+    fetchMock.mockResolvedValueOnce(
+      slackResponse({
+        ok: true,
+        channels: [
+          {
+            id: 'C123',
+            name: 'general',
+            is_channel: true,
+            topic: { value: 'Company news' },
+            purpose: { value: 'Announcements' },
+          },
+          {
+            id: 'D123',
+            is_im: true,
+            user: 'U123',
+            is_user_deleted: false,
+          },
+          {
+            id: 'G123',
+            name: 'mpdm-one--two-1',
+            is_mpim: true,
+            is_private: true,
+          },
+        ],
+        response_metadata: { next_cursor: ' cursor-2 ' },
+      })
+    )
 
     const result = await executeSlackListConversationsOperation(BASE_PARAMS)
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     const firstUrl = new URL(String(fetchMock.mock.calls[0]?.[0]))
-    const secondUrl = new URL(String(fetchMock.mock.calls[1]?.[0]))
-    expect(firstUrl.searchParams.get('types')).toBe('public_channel,private_channel,im,mpim')
+    expect(firstUrl.searchParams.get('types')).toBe('public_channel,private_channel')
     expect(firstUrl.searchParams.get('limit')).toBe('100')
     expect(firstUrl.searchParams.has('cursor')).toBe(false)
-    expect(secondUrl.searchParams.get('cursor')).toBe('cursor-2')
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(
+      'Bearer xoxp-token'
+    )
     expect(result).toEqual({
       success: true,
       output: {
@@ -112,36 +124,36 @@ describe('Slack list channels', () => {
         ids: ['C123', 'D123', 'G123'],
         names: ['general', 'mpdm-one--two-1'],
         count: 3,
-        hasMore: false,
-        nextCursor: null,
-        pages: 2,
+        hasMore: true,
+        nextCursor: 'cursor-2',
       },
     })
   })
 
-  it('keeps DM access and the private-channel toggle credential-aware', async () => {
-    fetchMock.mockImplementation(async () =>
-      slackResponse({ ok: true, channels: [], response_metadata: { next_cursor: '' } })
-    )
+  it.each([undefined, 'oauth', 'managed_oauth', 'service_account'])(
+    'does not request DM scopes based on credential storage type %s',
+    async (credentialType) => {
+      fetchMock.mockImplementation(async () =>
+        slackResponse({ ok: true, channels: [], response_metadata: { next_cursor: '' } })
+      )
 
-    await executeSlackListConversationsOperation({
-      ...BASE_PARAMS,
-      credentialType: 'oauth',
-    })
-    await executeSlackListConversationsOperation({
-      ...BASE_PARAMS,
-      includePrivate: false,
-    })
+      await executeSlackListConversationsOperation({ ...BASE_PARAMS, credentialType })
+      await executeSlackListConversationsOperation({
+        ...BASE_PARAMS,
+        credentialType,
+        includePrivate: false,
+      })
 
-    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('types')).toBe(
-      'public_channel,private_channel'
-    )
-    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get('types')).toBe(
-      'public_channel,im,mpim'
-    )
-  })
+      expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('types')).toBe(
+        'public_channel,private_channel'
+      )
+      expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get('types')).toBe(
+        'public_channel'
+      )
+    }
+  )
 
-  it('stops at maxPages and returns a resumable cursor', async () => {
+  it('fetches the next page only when the caller supplies the returned cursor', async () => {
     fetchMock
       .mockResolvedValueOnce(
         slackResponse({
@@ -154,75 +166,79 @@ describe('Slack list channels', () => {
         slackResponse({
           ok: true,
           channels: [{ id: 'C2' }],
-          response_metadata: { next_cursor: 'cursor-3' },
+          response_metadata: { next_cursor: '' },
         })
       )
 
-    const result = await executeSlackListConversationsOperation({
+    const legacyParams = { ...BASE_PARAMS, limit: 1, maxPages: 200 }
+    const first = await executeSlackListConversationsOperation(legacyParams)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(first.output).toMatchObject({
+      ids: ['C1'],
+      count: 1,
+      hasMore: true,
+      nextCursor: 'cursor-2',
+    })
+    if (typeof first.output.nextCursor !== 'string') throw new Error('Expected a next cursor')
+
+    const second = await executeSlackListConversationsOperation({
       ...BASE_PARAMS,
-      cursor: 'cursor-1',
+      cursor: ` ${first.output.nextCursor} `,
       limit: 1,
-      maxPages: 2,
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('cursor')).toBe(
-      'cursor-1'
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).searchParams.get('cursor')).toBe(
+      'cursor-2'
     )
-    expect(result.output).toMatchObject({
-      ids: ['C1', 'C2'],
-      count: 2,
-      hasMore: true,
-      nextCursor: 'cursor-3',
-      pages: 2,
+    expect(second.output).toMatchObject({
+      ids: ['C2'],
+      count: 1,
+      hasMore: false,
+      nextCursor: null,
     })
   })
 
-  it('continues beyond ten pages by default until Slack exhausts its cursor', async () => {
-    fetchMock.mockImplementation(async (input) => {
-      const cursor = new URL(String(input)).searchParams.get('cursor')
-      const page = cursor ? Number(cursor.replace('cursor-', '')) : 1
-      return slackResponse({
-        ok: true,
-        channels: [{ id: `C${page}` }],
-        response_metadata: { next_cursor: page < 12 ? `cursor-${page + 1}` : '' },
-      })
-    })
+  it('returns the cursor even when Slack filters every conversation out of the page', async () => {
+    fetchMock.mockResolvedValueOnce(
+      slackResponse({ ok: true, channels: [], response_metadata: { next_cursor: 'cursor-2' } })
+    )
 
     const result = await executeSlackListConversationsOperation(BASE_PARAMS)
 
-    expect(fetchMock).toHaveBeenCalledTimes(12)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(result.output).toMatchObject({
-      count: 12,
-      hasMore: false,
-      nextCursor: null,
-      pages: 12,
+      channels: [],
+      count: 0,
+      hasMore: true,
+      nextCursor: 'cursor-2',
     })
   })
 
-  it('stops at 10,000 conversations and preserves the cursor for resumption', async () => {
-    fetchMock.mockImplementation(async (input) => {
-      const cursor = new URL(String(input)).searchParams.get('cursor')
-      const page = cursor ? Number(cursor.replace('cursor-', '')) : 1
-      return slackResponse({
-        ok: true,
-        channels: Array.from({ length: 200 }, (_, index) => ({ id: `C${page}-${index}` })),
-        response_metadata: { next_cursor: `cursor-${page + 1}` },
-      })
-    })
+  it.each([undefined, { next_cursor: '' }, { next_cursor: ' ' }])(
+    'returns no next cursor for an exhausted page with metadata %j',
+    async (metadata) => {
+      fetchMock.mockResolvedValueOnce(
+        slackResponse({ ok: true, channels: [{ id: 'C1' }], response_metadata: metadata })
+      )
 
-    const result = await executeSlackListConversationsOperation({
-      ...BASE_PARAMS,
-      limit: 200,
-    })
+      const result = await executeSlackListConversationsOperation(BASE_PARAMS)
 
-    expect(fetchMock).toHaveBeenCalledTimes(50)
-    expect(result.output).toMatchObject({
-      count: 10_000,
-      hasMore: true,
-      nextCursor: 'cursor-51',
-      pages: 50,
-    })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(result.output).toMatchObject({ hasMore: false, nextCursor: null })
+    }
+  )
+
+  it('throws rate-limit errors without retrying', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json(
+        { ok: false, error: 'ratelimited' },
+        { status: 429, headers: { 'Retry-After': '60' } }
+      )
+    )
+
+    await expect(executeSlackListConversationsOperation(BASE_PARAMS)).rejects.toThrow('ratelimited')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('fails fast on invalid pagination inputs before a provider request', async () => {
@@ -230,8 +246,8 @@ describe('Slack list channels', () => {
       executeSlackListConversationsOperation({ ...BASE_PARAMS, limit: 0 })
     ).rejects.toThrow('Conversation page size must be an integer between 1 and 200')
     await expect(
-      executeSlackListConversationsOperation({ ...BASE_PARAMS, maxPages: 201 })
-    ).rejects.toThrow('Maximum conversation pages must be an integer between 1 and 200')
+      executeSlackListConversationsOperation({ ...BASE_PARAMS, limit: 201 })
+    ).rejects.toThrow('Conversation page size must be an integer between 1 and 200')
     await expect(
       executeSlackListConversationsOperation({ ...BASE_PARAMS, cursor: ' ' })
     ).rejects.toThrow('Pagination cursor is required')
@@ -246,10 +262,19 @@ describe('Slack list channels', () => {
     await executeSlackListConversationsOperation({
       ...BASE_PARAMS,
       limit: null as never,
-      maxPages: ' ' as never,
     })
 
     expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('limit')).toBe('100')
+  })
+
+  it('does not call Slack for an aborted invocation', async () => {
+    const controller = new AbortController()
+    controller.abort(new Error('Cancelled'))
+
+    await expect(
+      executeSlackListConversationsOperation(BASE_PARAMS, controller.signal)
+    ).rejects.toThrow('Cancelled')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('fails fast on malformed successful responses and repeated cursors', async () => {

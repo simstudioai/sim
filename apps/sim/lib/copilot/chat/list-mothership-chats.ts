@@ -17,7 +17,7 @@ import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
  */
 export async function listMothershipChats(
   userId: string,
-  workspaceId: string,
+  owner: string | { organizationId: string },
   scope: MothershipChatScope = 'active'
 ): Promise<MothershipChat[]> {
   const chats = await db
@@ -34,7 +34,9 @@ export async function listMothershipChats(
     .where(
       and(
         eq(copilotChats.userId, userId),
-        eq(copilotChats.workspaceId, workspaceId),
+        typeof owner === 'string'
+          ? eq(copilotChats.workspaceId, owner)
+          : eq(copilotChats.organizationId, owner.organizationId),
         eq(copilotChats.type, 'mothership'),
         scope === 'archived' ? isNotNull(copilotChats.deletedAt) : isNull(copilotChats.deletedAt)
       )

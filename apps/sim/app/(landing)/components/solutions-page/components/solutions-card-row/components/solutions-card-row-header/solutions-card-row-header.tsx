@@ -25,11 +25,11 @@ export function SolutionsCardRowHeader({ row, headingId }: SolutionsCardRowHeade
       >
         {row.title}
       </h2>
-      <p className='w-full min-w-0 max-w-[48ch] text-pretty text-[15px] text-[var(--text-muted)] leading-[1.6]'>
+      <p className='w-full min-w-0 max-w-[48ch] text-pretty text-[15px] text-[var(--text-secondary)] leading-[1.6]'>
         {row.subtitle}
       </p>
       {row.note ? (
-        <p className='w-full min-w-0 max-w-[48ch] text-pretty text-[15px] text-[var(--text-muted)] leading-[1.6]'>
+        <p className='w-full min-w-0 max-w-[48ch] text-pretty text-[15px] text-[var(--text-secondary)] leading-[1.6]'>
           {row.note}
         </p>
       ) : null}

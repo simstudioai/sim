@@ -89,7 +89,6 @@ describe('CollapsedSidebarMenu nav-link trigger', () => {
                 href: '/workspace/w1/tables/t2',
               },
             ]}
-            icon={Table}
             emptyLabel='No tables yet'
           />
         </CollapsedSidebarMenu>

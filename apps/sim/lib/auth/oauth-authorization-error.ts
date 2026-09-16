@@ -10,7 +10,10 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('OAuthAuthorizationError')
 
-export type OAuthAuthorizationErrorCode = 'invalid_request' | 'unsupported_response_type'
+export type OAuthAuthorizationErrorCode =
+  | 'access_denied'
+  | 'invalid_request'
+  | 'unsupported_response_type'
 
 function isLoopbackIp(hostname: string): boolean {
   const address = hostname.startsWith('[') ? hostname.slice(1, -1) : hostname

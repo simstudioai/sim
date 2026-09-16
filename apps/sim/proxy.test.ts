@@ -130,6 +130,7 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.credentials).toBe(false)
     expect(policy.headers).toContain('X-Run-Id')
     expect(policy.headers).toContain('X-Sim-Stream-Protocol')
+    expect(policy.headers).toContain('X-Sim-Client-Info')
     expect(policy.headers).toContain('Authorization')
     expect(policy.headers).not.toContain('X-Execution-Id')
     // Async is body-selected on v2 — the mode header is deliberately absent.

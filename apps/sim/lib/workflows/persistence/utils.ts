@@ -193,9 +193,10 @@ export async function materializeDeploymentState(
   workflowId: string,
   version: DeploymentStateRow,
   workspaceId: string,
-  executor?: DbOrTx
+  executor?: DbOrTx,
+  options: { cache?: boolean } = {}
 ): Promise<DeployedWorkflowData> {
-  const cached = deployedStateCache.get(version.id)
+  const cached = options.cache === false ? undefined : deployedStateCache.get(version.id)
   if (cached) {
     return structuredClone(cached)
   }
@@ -246,7 +247,7 @@ export async function materializeDeploymentState(
     deploymentVersionId: version.id,
   }
 
-  deployedStateCache.set(version.id, deployedState)
+  if (options.cache !== false) deployedStateCache.set(version.id, deployedState)
   return structuredClone(deployedState)
 }
 
@@ -664,6 +665,32 @@ export function buildWorkflowDeploymentSnapshot(
  * union: the union collapses to a 500 at every caller, and this refusal is a
  * 403.
  */
+const ADMITTED_WORKFLOW_STATE = Symbol('admitted-workflow-state')
+
+export interface AdmittedWorkflowState {
+  readonly [ADMITTED_WORKFLOW_STATE]: true
+  readonly state: WorkflowState
+}
+
+/** Evaluates authoring policy before a compound mutation acquires database locks. */
+export async function admitWorkflowState(
+  state: WorkflowState,
+  governance: WorkflowPersistGovernance
+): Promise<AdmittedWorkflowState> {
+  await assertNoWithheldBlockType(governance, Object.values(state.blocks))
+  return { [ADMITTED_WORKFLOW_STATE]: true, state: structuredClone(state) }
+}
+
+/** Persists a previously admitted graph on the caller's business transaction. */
+export async function saveAdmittedWorkflowState(
+  tx: DbOrTx,
+  workflowId: string,
+  admitted: AdmittedWorkflowState
+): Promise<{ success: boolean; error?: string }> {
+  if (!admitted[ADMITTED_WORKFLOW_STATE]) throw new Error('Workflow state was not admitted')
+  return saveWorkflowToNormalizedTablesRaw(workflowId, admitted.state, tx)
+}
+
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
   state: WorkflowState,

@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabUpdateUserTool: ToolConfig<GitLabUpdateUserParams, GitLabUserResponse> = {
   id: 'gitlab_update_user',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Update User',
   description:
     'Modify an existing GitLab user. Requires an administrator token with admin_mode on the instance.',

@@ -45,6 +45,7 @@ import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { ssoDomain, ssoProvider, user } from '../schema'
+import { keepDomainSignInProvider } from '../sso-primary-provider'
 
 interface SSOMapping {
   id: string
@@ -571,10 +572,15 @@ async function registerSSOProvider(): Promise<boolean> {
       logger.info('Updating existing provider...')
     }
 
+    /**
+     * Stored in the same canonical form the application writes, so sign-in
+     * resolution, the domain ownership check, and the admission domain check
+     * all key on one value.
+     */
     const providerData: SSOProviderData = {
       id: generateId(),
       issuer: ssoConfig.issuer,
-      domain: ssoConfig.domain,
+      domain: normalizeSSODomain(ssoConfig.domain) ?? ssoConfig.domain,
       userId: adminUser.id,
       providerId: ssoConfig.providerId,
       organizationId: process.env.SSO_ORGANIZATION_ID || undefined,
@@ -641,7 +647,10 @@ async function registerSSOProvider(): Promise<boolean> {
       // providerId ends up as exactly this config, atomically. Deleting the
       // ssoProvider row does not touch linked accounts (they key on the
       // providerId string, not the row id), so existing SSO logins keep working.
-      await tx.delete(ssoProvider).where(eq(ssoProvider.providerId, ssoConfig.providerId))
+      const [previous] = await tx
+        .delete(ssoProvider)
+        .where(eq(ssoProvider.providerId, ssoConfig.providerId))
+        .returning({ domain: ssoProvider.domain, domainVerified: ssoProvider.domainVerified })
       await tx.insert(ssoProvider).values(providerData)
 
       // Keep the verified-domains model consistent with script registration: a
@@ -672,9 +681,22 @@ async function registerSSOProvider(): Promise<boolean> {
               eq(ssoDomain.domain, normalizedDomain)
             )
           )
-        if (existingDomain.length === 0) {
+          .for('update')
+
+        /**
+         * A provider joining a domain another provider already signs in does not
+         * take over by sorting first. It joins when it is new, moves to the domain,
+         * or was not yet trusted on it, matching registration in the app.
+         */
+        const joinsDomain =
+          !previous ||
+          !previous.domainVerified ||
+          normalizeSSODomain(previous.domain) !== normalizedDomain
+        let domainRecordId = existingDomain[0]?.id
+        if (!domainRecordId) {
+          domainRecordId = generateId()
           await tx.insert(ssoDomain).values({
-            id: generateId(),
+            id: domainRecordId,
             organizationId: providerData.organizationId,
             domain: normalizedDomain,
             status: 'verified',
@@ -685,7 +707,15 @@ async function registerSSOProvider(): Promise<boolean> {
           await tx
             .update(ssoDomain)
             .set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() })
-            .where(eq(ssoDomain.id, existingDomain[0].id))
+            .where(eq(ssoDomain.id, domainRecordId))
+        }
+        if (joinsDomain) {
+          await keepDomainSignInProvider(tx, {
+            domainRecordId,
+            organizationId: providerData.organizationId,
+            domain: normalizedDomain,
+            joiningProviderId: ssoConfig.providerId,
+          })
         }
       }
     })

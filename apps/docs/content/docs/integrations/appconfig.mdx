@@ -11,18 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS AppConfig](https://docs.aws.amazon.com/appconfig/) is a capability of AWS Systems Manager that lets you create, manage, and deploy application configuration and feature flags independently of your code. You organize configuration into applications, environments, and configuration profiles, store versioned configuration data, and roll it out gradually with deployment strategies that can monitor and automatically roll back on errors.
-
-With the AppConfig integration, you can:
-
-- **Get Configuration**: Retrieve the latest deployed configuration for an application, environment, and profile at runtime, using the AppConfig Data plane to drive feature flags and dynamic settings in your workflows
-- **Manage Applications**: List existing applications or create a new one to group related configuration
-- **Manage Environments**: List or create the environments (such as `development`, `staging`, and `production`) that configuration is deployed to
-- **Manage Configuration Profiles**: List or create the profiles that describe where configuration is stored — AppConfig-hosted, SSM, or S3 — and whether it is freeform or a feature-flag profile
-- **Version Hosted Configuration**: Create a new hosted configuration version from a JSON, YAML, or text document, or read back a specific version's content
-- **Run Deployments**: Start a deployment of a configuration version to an environment with a chosen deployment strategy, inspect deployment status and history, and stop an in-progress deployment
-
-In Sim, the AppConfig integration lets your agents read live configuration to branch behavior, publish new configuration versions, and orchestrate safe, gradual rollouts. This pairs naturally with CloudWatch for monitoring deployment health and Slack for approval gates and rollout alerts, enabling end-to-end configuration and feature-flag automation.
+Use [AWS AppConfig](https://docs.aws.amazon.com/appconfig/) to manage applications, environments, configuration profiles, and deployments. Read deployed configuration at runtime or create hosted configuration versions for a rollout.
 
 Authentication uses an AWS access key ID and secret access key. The associated IAM principal needs the relevant `appconfig:*` permissions (for example `appconfig:GetLatestConfiguration` and `appconfig:StartConfigurationSession` for retrieval, and `appconfig:StartDeployment` for rollouts).
 {/* MANUAL-CONTENT-END */}

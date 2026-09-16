@@ -52,14 +52,11 @@ import {
   addTab,
   findInActiveTab,
   getBrowserDownloadsState,
-  grantSiteOriginForUserNavigation,
   peekTabsState,
   reorderTab,
   setBrowserAppTheme,
-  setTabPinned,
   showBrowserDownloadInFolder,
   showBrowserDownloadsMenu,
-  showTabContextMenu,
   stopFindInActiveTab,
   withBrowserScope,
 } from '@/main/browser-agent/session'
@@ -337,11 +334,7 @@ export interface IpcDeps {
   terminal: TerminalRegistry
   scopeEvents: Pick<
     ScopedEventRouter,
-    | 'activateBrowser'
-    | 'activateTerminal'
-    | 'registerBrowserSitePermissionPromptSupport'
-    | 'sendBrowser'
-    | 'sendTerminal'
+    'activateBrowser' | 'activateTerminal' | 'sendBrowser' | 'sendTerminal'
   >
   settings: DesktopSettingsService
   getWindowState: (sender: WebContents) => DesktopWindowState
@@ -383,6 +376,7 @@ export interface IpcDeps {
  * - `app-origin`: only the remote app origin (main window pages).
  * - `local-page`: only the bundled pages served from the shell's own scheme
  *   (offline, server) — shell control.
+ * - `app-or-local-page`: read-only window state used by both hosted and bundled pages.
  * - `browser-page`: only the built-in browser's own tabs, identified by
  *   WebContents rather than by URL. These carry reports from the browser
  *   preload about untrusted pages, so they are the one inbound surface whose
@@ -390,7 +384,7 @@ export interface IpcDeps {
  *   as an instruction.
  * - `any`: sender-independent channels that validate their input instead.
  */
-type ChannelGate = 'app-origin' | 'local-page' | 'browser-page' | 'any'
+type ChannelGate = 'app-origin' | 'local-page' | 'app-or-local-page' | 'browser-page' | 'any'
 
 /**
  * A desktop surface the user can switch off. Channels that drive one are
@@ -823,7 +817,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     },
     'desktop:window-state:get': {
       kind: 'invoke',
-      gate: 'app-origin',
+      gate: 'app-or-local-page',
+      deviationReason:
+        'Bundled offline pages share the app title-bar geometry and need their own native fullscreen state.',
       passSender: true,
       denied: { isFullScreen: false },
       handler: (sender) => deps.getWindowState(sender as WebContents),
@@ -930,15 +926,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         })
       },
     },
-    'browser-agent:register-site-permission-prompt-support': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender) => {
-        deps.scopeEvents.registerBrowserSitePermissionPromptSupport(sender as WebContents)
-      },
-    },
     'browser-agent:open-url': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -955,7 +942,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
         return withBrowserScope(scope, () => {
           const tab = addTab()
-          if (!grantSiteOriginForUserNavigation(tab.view.webContents, destination)) {
+          if (tab.view.webContents.isDestroyed()) {
             return peekTabsState()
           }
           void tab.view.webContents.loadURL(destination).catch(() => {})
@@ -1148,11 +1135,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       needsUserActivation: ([action]) => {
         if (!isRecordLike(action)) return false
         if (action.action === 'navigate') return true
-        return (
-          (action.action === 'respond-media-permission' ||
-            action.action === 'respond-site-permission') &&
-          action.allowed === true
-        )
+        return action.action === 'respond-media-permission' && action.allowed === true
       },
       handler: (sender, action, rawScope) => {
         const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
@@ -1172,30 +1155,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           return
         }
         void handlePanelAction(scope, panelAction).catch(() => {})
-      },
-    },
-    'browser-agent:set-tab-pinned': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, tabId, pinned, rawScope) => {
-        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        if (!scope || typeof tabId !== 'string' || typeof pinned !== 'boolean') return
-        try {
-          withBrowserScope(scope, () => setTabPinned(tabId, pinned))
-        } catch {}
-      },
-    },
-    'browser-agent:show-tab-context-menu': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, tabId, rawScope) => {
-        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        if (!scope || typeof tabId !== 'string') return
-        withBrowserScope(scope, () => showTabContextMenu(tabId))
       },
     },
     'browser-agent:reorder-tab': {
@@ -1542,39 +1501,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return fillCoordinator()?.fillCredential(id, scope) ?? false
       },
     },
-    'terminal:start': {
+    'terminal:restore-scope': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
       passSender: true,
-      denied: { ok: false, code: 'ACCESS_DENIED', error: 'Not allowed from this page.' },
-      handler: (sender, raw, rawScope) => {
-        const contents = sender as WebContents
-        const scope = rendererScope(terminalScopeBySender, contents, rawScope)
-        if (!scope) {
-          return { ok: false, code: 'STALE_SCOPE', error: 'This terminal chat is not active.' }
-        }
-        const options = isRecordLike(raw) ? raw : {}
-        const cols = Number(options.cols)
-        const rows = Number(options.rows)
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (sender, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
         try {
-          return {
-            ok: true,
-            tabs: {
-              ...deps.terminal.start(scope, {
-                cols: toCellCount(cols, 80),
-                rows: toCellCount(rows, 24),
-              }),
-              scopeId: scope,
-            },
-          }
+          return { ...deps.terminal.restoreScope(scope), scopeId: scope }
         } catch (error) {
-          const failure = error as { code?: string; message?: string }
-          return {
-            ok: false,
-            code: failure.code ?? 'SPAWN_FAILED',
-            error: failure.message ?? 'Could not open a terminal.',
-          }
+          logger.warn('Could not restore saved terminals', { error: getErrorMessage(error) })
+          return { ...deps.terminal.getTabs(scope), scopeId: scope }
         }
       },
     },
@@ -1804,12 +1744,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requires: 'terminal',
       passSender: true,
       denied: { tabs: [], activeTerminalId: null },
-      handler: (sender, terminalId, rawScope) => {
+      handler: (sender, terminalId, rawScope, rawOptions) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope) return { tabs: [], activeTerminalId: null }
+        const claim = !(isRecordLike(rawOptions) && rawOptions.claim === false)
         const tabs =
           typeof terminalId === 'string'
-            ? deps.terminal.switchTerminal(scope, terminalId)
+            ? deps.terminal.switchTerminal(scope, terminalId, { claim })
             : deps.terminal.getTabs(scope)
         return { ...tabs, scopeId: scope }
       },
@@ -1876,7 +1817,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, terminalId, cols, rows, rawScope) => {
         // `typeof NaN === 'number'`, and the downstream `cols <= 0` guard is
         // false for NaN, so an unfinite value reached pty.resize() intact.
-        // Matches the clamping terminal:start already applies to these fields.
         if (typeof terminalId !== 'string') return
         if (!isPositiveFinite(cols) || !isPositiveFinite(rows)) return
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
@@ -1920,6 +1860,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   const senderAllowed = (event: IpcMainEvent | IpcMainInvokeEvent, gate: ChannelGate): boolean => {
     if (gate === 'any') return true
     if (gate === 'app-origin') return isAppOriginSender(event, deps.appOrigin())
+    if (gate === 'app-or-local-page') {
+      return (
+        isAppOriginSender(event, deps.appOrigin()) || isLocalPageSender(event, deps.isLocalPageUrl)
+      )
+    }
     if (gate === 'browser-page') return isAgentWebContents(event.sender)
     return isLocalPageSender(event, deps.isLocalPageUrl)
   }

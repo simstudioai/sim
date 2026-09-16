@@ -28,7 +28,6 @@ import {
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
-import { isCustomBlockStreamSource } from '@/lib/workflows/streaming/custom-block-output'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -37,6 +36,7 @@ import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/
 import {
   type CustomBlockInput,
   type CustomBlockOutput,
+  isCustomBlockStreamSource,
   isReservedOutputName,
 } from '@/blocks/custom/build-config'
 import { SettingRow } from '@/ee/components/setting-row'

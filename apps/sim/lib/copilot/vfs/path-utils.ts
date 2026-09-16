@@ -99,14 +99,14 @@ export function canonicalWorkflowVfsDir(parts: {
   return parts.folderPath ? `workflows/${parts.folderPath}/${safeName}` : `workflows/${safeName}`
 }
 
-/** Canonical VFS path for a table's metadata file (`tables/{name}/meta.json`). */
-export function canonicalTableVfsPath(name: string): string {
-  return `tables/${encodeVfsSegment(name)}/meta.json`
+/** Canonical table metadata path; folderPath is already encoded per segment. */
+export function canonicalTableVfsPath(name: string, folderPath?: string | null): string {
+  return `tables/${folderPath ? `${folderPath}/` : ''}${encodeVfsSegment(name)}/meta.json`
 }
 
-/** Canonical VFS directory for a knowledge base (`knowledgebases/{name}`). */
-export function canonicalKnowledgeBaseVfsDir(name: string): string {
-  return `knowledgebases/${encodeVfsSegment(name)}`
+/** Canonical knowledge-base directory; folderPath is already encoded per segment. */
+export function canonicalKnowledgeBaseVfsDir(name: string, folderPath?: string | null): string {
+  return `knowledgebases/${folderPath ? `${folderPath}/` : ''}${encodeVfsSegment(name)}`
 }
 
 /** Canonical VFS path for a block catalog entry (`components/blocks/{type}.json`). */

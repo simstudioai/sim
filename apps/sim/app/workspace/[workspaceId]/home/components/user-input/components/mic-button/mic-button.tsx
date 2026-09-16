@@ -5,7 +5,7 @@ import { Button, cn, Tooltip, usePrefersReducedMotion } from '@sim/emcn'
 import { Mic } from '@sim/emcn/icons'
 
 const WAVEFORM_BAR_COUNT = 5
-const WAVEFORM_MIN_HEIGHT = 3
+const WAVEFORM_MIN_HEIGHT = 1
 const WAVEFORM_MAX_HEIGHT = 14
 const WAVEFORM_CENTER = 9
 const WAVEFORM_EASING = 0.24
@@ -71,7 +71,7 @@ function VoiceWaveform({ audioLevelsRef, isListening }: VoiceWaveformProps) {
             y2={WAVEFORM_CENTER + WAVEFORM_MIN_HEIGHT / 2}
             stroke='currentColor'
             strokeLinecap='round'
-            strokeWidth='1.7'
+            strokeWidth='1.5'
           />
         )
       })}
@@ -108,6 +108,7 @@ export const MicButton = memo(function MicButton({
             <VoiceWaveform audioLevelsRef={audioLevelsRef} isListening={isListening} />
           </span>
           <Mic
+            strokeWidth='1.25'
             className={cn(
               'size-[16px] transition-[opacity,filter,scale] duration-300 [transition-timing-function:cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
               isListening ? 'scale-[0.25] opacity-0 blur-[4px]' : 'scale-100 opacity-100 blur-none'

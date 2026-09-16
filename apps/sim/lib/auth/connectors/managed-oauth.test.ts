@@ -45,7 +45,6 @@ describe('Atlassian managed OAuth connector', () => {
       requiresRefreshToken: true,
       pkce: false,
       nonceVerification: 'state_only',
-      includeLoginHint: false,
       authorizationUrlParams: { audience: 'api.atlassian.com' },
     })
     expect(fetchMock).toHaveBeenCalledWith(
@@ -115,6 +114,19 @@ describe('Atlassian managed OAuth connector', () => {
     expect(jira.isTerminalRefreshError('invalid_grant')).toBe(true)
     expect(jira.isTerminalRefreshError('temporarily_unavailable')).toBe(false)
   })
+
+  it.each(['jira', 'confluence'] as const)(
+    'requires reconnect after %s rejects a revoked refresh grant',
+    (provider) => {
+      const connector = createAtlassianManagedOAuthConnector(provider)
+      expect(connector.isTerminalRefreshError('invalid_grant')).toBe(true)
+      expect(connector.isTerminalRefreshError('unauthorized_client')).toBe(true)
+      expect(connector.isTerminalRefreshError('invalid_client')).toBe(false)
+      expect(connector.isTerminalRefreshError('temporarily_unavailable')).toBe(false)
+      expect(connector.isTerminalRefreshError('server_error')).toBe(false)
+      expect(connector.isTerminalRefreshError(undefined)).toBe(false)
+    }
+  )
 })
 
 describe('userinfo-backed managed OAuth connectors', () => {
@@ -477,7 +489,6 @@ describe('Microsoft managed OAuth connector', () => {
           requiresRefreshToken: true,
           pkce: true,
           nonceVerification: 'id_token',
-          includeLoginHint: true,
           prompt: 'select_account',
         })
         return policy.getAuthorizationAppId(CLIENT_ID)

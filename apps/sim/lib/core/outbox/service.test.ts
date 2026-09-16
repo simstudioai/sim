@@ -33,7 +33,8 @@ import {
   outboxEventHasSourceOperationId,
   outboxPayloadHasSourceOperationId,
   processOutboxEvents,
-} from './service'
+  withOutboxHandlerTimeout,
+} from '@/lib/core/outbox/service'
 
 function makePendingRow(overrides: Partial<OutboxRow> = {}): OutboxRow {
   return {
@@ -64,6 +65,15 @@ const updateSets = (): Record<string, unknown>[] =>
  */
 function holdLease() {
   dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValue([{ id: 'evt-1' }])
+}
+
+/** Queue metadata discovery followed by individually claimed rows. */
+function queuePendingEvents(rows: OutboxRow[]) {
+  queueTableRows(
+    outboxEvent,
+    [...new Set(rows.map(({ eventType }) => eventType))].map((eventType) => ({ eventType }))
+  )
+  for (const row of rows) queueTableRows(outboxEvent, [row])
 }
 
 afterAll(resetDbChainMock)
@@ -256,7 +266,7 @@ describe('processOutboxEvents — empty / no handler', () => {
   })
 
   it('retries events with no registered handler during rolling deployments', async () => {
-    queueTableRows(outboxEvent, [makePendingRow({ eventType: 'unknown.event' })])
+    queuePendingEvents([makePendingRow({ eventType: 'unknown.event' })])
     holdLease()
 
     const result = await processOutboxEvents({})
@@ -268,7 +278,7 @@ describe('processOutboxEvents — empty / no handler', () => {
   })
 
   it('dead-letters a missing handler after the configured retry budget', async () => {
-    queueTableRows(outboxEvent, [
+    queuePendingEvents([
       makePendingRow({ eventType: 'unknown.event', attempts: 2, maxAttempts: 3 }),
     ])
     holdLease()
@@ -293,7 +303,7 @@ describe('processOutboxEvents — handler success and retry', () => {
       handlerCalls.push({ payload, eventId: ctx.eventId, attempts: ctx.attempts })
     })
 
-    queueTableRows(outboxEvent, [makePendingRow()])
+    queuePendingEvents([makePendingRow()])
     holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
@@ -314,7 +324,7 @@ describe('processOutboxEvents — handler success and retry', () => {
         await ctx.checkpointPayload({ stripeProgress: { customerId: 'cus_1' } })
       }
     )
-    queueTableRows(outboxEvent, [makePendingRow()])
+    queuePendingEvents([makePendingRow()])
     holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
@@ -332,7 +342,7 @@ describe('processOutboxEvents — handler success and retry', () => {
         await ctx.checkpointPayload({ stripeProgress: { customerId: 'cus_1' } })
       }
     )
-    queueTableRows(outboxEvent, [makePendingRow()])
+    queuePendingEvents([makePendingRow()])
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
@@ -345,7 +355,7 @@ describe('processOutboxEvents — handler success and retry', () => {
       throw new Error('transient failure')
     })
 
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 2 })])
+    queuePendingEvents([makePendingRow({ attempts: 2 })])
     holdLease()
 
     const before = Date.now()
@@ -364,7 +374,7 @@ describe('processOutboxEvents — handler success and retry', () => {
 
   it('keeps an acknowledged external wait pending without recording a failure', async () => {
     const handler = vi.fn(async () => deferOutboxHandler('waiting for webhook'))
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 2 })])
+    queuePendingEvents([makePendingRow({ attempts: 2 })])
     holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
@@ -376,7 +386,7 @@ describe('processOutboxEvents — handler success and retry', () => {
 
   it('dead-letters a deferred wait only after its acknowledgement budget is exhausted', async () => {
     const handler = vi.fn(async () => deferOutboxHandler('webhook acknowledgement missing'))
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 9, maxAttempts: 10 })])
+    queuePendingEvents([makePendingRow({ attempts: 9, maxAttempts: 10 })])
     holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
@@ -391,7 +401,7 @@ describe('processOutboxEvents — handler success and retry', () => {
 
   it('reschedules an internal dependency wait without consuming its attempt budget', async () => {
     const handler = vi.fn(async () => deferOutboxHandler('waiting for dependency', 5_000, false))
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 4, maxAttempts: 5 })])
+    queuePendingEvents([makePendingRow({ attempts: 4, maxAttempts: 5 })])
     holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
@@ -403,7 +413,7 @@ describe('processOutboxEvents — handler success and retry', () => {
 
   it('re-runs a continued handler without consuming its attempt budget', async () => {
     const handler = vi.fn(async () => continueOutboxHandler('continuing bounded cleanup'))
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 4, maxAttempts: 5 })])
+    queuePendingEvents([makePendingRow({ attempts: 4, maxAttempts: 5 })])
     holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
@@ -420,7 +430,7 @@ describe('processOutboxEvents — handler success and retry', () => {
       throw new Error('permanent failure')
     })
 
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 9, maxAttempts: 10 })])
+    queuePendingEvents([makePendingRow({ attempts: 9, maxAttempts: 10 })])
     holdLease()
 
     const result = await processOutboxEvents({ 'test.event': handler })
@@ -437,7 +447,7 @@ describe('processOutboxEvents — handler success and retry', () => {
       throw new Error('transient')
     })
 
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 20, maxAttempts: 100 })])
+    queuePendingEvents([makePendingRow({ attempts: 20, maxAttempts: 100 })])
     holdLease()
 
     const before = Date.now()
@@ -463,7 +473,7 @@ describe('processOutboxEvents — lease CAS / reaper race', () => {
       // "succeeds" but terminal write will fail the lease CAS
     })
 
-    queueTableRows(outboxEvent, [makePendingRow()])
+    queuePendingEvents([makePendingRow()])
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
@@ -476,7 +486,7 @@ describe('processOutboxEvents — lease CAS / reaper race', () => {
       throw new Error('transient')
     })
 
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 2 })])
+    queuePendingEvents([makePendingRow({ attempts: 2 })])
 
     const result = await processOutboxEvents({ 'test.event': handler })
 
@@ -496,10 +506,64 @@ describe('processOutboxEvents — handler timeout', () => {
     vi.useRealTimers()
   })
 
+  it('allows an opted-in handler to finish after the default 90-second window', async () => {
+    let observedDeadline = 0
+    const startedAt = Date.now()
+    const handler = withOutboxHandlerTimeout(async (_payload, context) => {
+      observedDeadline = context.deadlineAt ?? 0
+      await new Promise<void>((resolve) => setTimeout(resolve, 120_000))
+    }, 550_000)
+    queuePendingEvents([makePendingRow()])
+    holdLease()
+    const promise = processOutboxEvents({ 'test.event': handler }, { maxRuntimeMs: 790_000 })
+    await vi.advanceTimersByTimeAsync(120_001)
+    expect(await promise).toMatchObject({ processed: 1, leaseLost: 0 })
+    expect(observedDeadline).toBe(startedAt + 550_000)
+  })
+
+  it('leaves a long handler pending when the remaining invocation cannot fit its complete window', async () => {
+    const handler = withOutboxHandlerTimeout(
+      vi.fn(async () => {}),
+      550_000
+    )
+    queuePendingEvents([makePendingRow()])
+    holdLease()
+    expect(
+      await processOutboxEvents({ 'test.event': handler }, { maxRuntimeMs: 110_000 })
+    ).toMatchObject({ processed: 0, retried: 0 })
+    expect(handler).not.toHaveBeenCalled()
+    expect(updateSets().some((set) => set.status === 'processing')).toBe(false)
+    expect(updateSets().some((set) => 'attempts' in set)).toBe(false)
+  })
+
+  it('continues serving short handlers when another type cannot fit the remaining deadline', async () => {
+    const longHandler = withOutboxHandlerTimeout(
+      vi.fn(async () => {}),
+      550_000
+    )
+    const shortHandler = vi.fn(async () => {})
+    queueTableRows(outboxEvent, [{ eventType: 'test.long' }, { eventType: 'test.short' }])
+    queueTableRows(outboxEvent, [makePendingRow({ eventType: 'test.short' })])
+    holdLease()
+
+    const result = await processOutboxEvents(
+      { 'test.long': longHandler, 'test.short': shortHandler },
+      { maxRuntimeMs: 110_000 }
+    )
+
+    expect(result).toMatchObject({ processed: 1, retried: 0 })
+    expect(shortHandler).toHaveBeenCalledOnce()
+    expect(longHandler).not.toHaveBeenCalled()
+  })
+
+  it('refuses a handler window that can overlap the ten-minute stale-lease reaper', () => {
+    expect(() => withOutboxHandlerTimeout(async () => {}, 600_000)).toThrow(/550000/)
+  })
+
   it('times out a stuck handler without releasing it for overlapping retry', async () => {
     const neverResolves = vi.fn(() => new Promise<void>(() => {}))
 
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 0 })])
+    queuePendingEvents([makePendingRow({ attempts: 0 })])
     holdLease()
 
     const promise = processOutboxEvents({ 'test.event': neverResolves })
@@ -529,7 +593,7 @@ describe('processOutboxEvents — handler timeout', () => {
         })
       }
     )
-    queueTableRows(outboxEvent, [makePendingRow({ attempts: 0 })])
+    queuePendingEvents([makePendingRow({ attempts: 0 })])
     holdLease()
 
     const promise = processOutboxEvents({ 'test.event': handler })

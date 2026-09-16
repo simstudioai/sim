@@ -1,0 +1,117 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:05.640
+In Sim, workflows are the repeatable
+processes that power your workspace's AI
+
+00:00:05.640 --> 00:00:10.260
+systems. They're where your business's
+logic, automations, and agents are
+
+00:00:10.260 --> 00:00:15.520
+defined, where data and resources get
+converted into action. Almost everything
+
+00:00:15.520 --> 00:00:21.140
+you'll make will use them. Whether it's a
+support agent that triages tickets, or a
+
+00:00:21.140 --> 00:00:25.940
+pipeline that enriches your leads, or a
+monitoring process that runs on a
+
+00:00:25.940 --> 00:00:30.840
+schedule, these functions are all
+expressed through workflows. Let's open
+
+00:00:30.840 --> 00:00:35.600
+one up. This is a workflow, a visual
+program, a process laid out as connected
+
+00:00:35.600 --> 00:00:39.100
+blocks, each one a step. Here it is,
+running once, start to finish.
+
+00:00:42.640 --> 00:00:47.380
+Some blocks can act as triggers, which
+start the workflow. And Sim offers
+
+00:00:47.380 --> 00:00:51.540
+thousands of integrations with other
+services, a library of third -party
+
+00:00:51.540 --> 00:00:56.800
+actions and triggers that's actively
+maintained and always growing. Each block
+
+00:00:56.800 --> 00:01:01.260
+is configured by its parameters. Open one
+up and you can see them. The operation it
+
+00:01:01.260 --> 00:01:05.200
+performs, the query it searches for, and
+how many results to bring back.
+
+00:01:07.820 --> 00:01:13.100
+A parameter can hold a fixed value, or use
+the result of a previous block via a
+
+00:01:13.100 --> 00:01:17.400
+connection tag. The answer's message
+inserts the excerpts that retrieve context
+
+00:01:17.400 --> 00:01:21.980
+found. A connection tag names the block
+and the field, enclosed in angle brackets,
+
+00:01:22.140 --> 00:01:27.840
+and points right at that block's output.
+You can follow any tag back to where its
+
+00:01:27.840 --> 00:01:32.040
+value came from. This one reads from the
+block right beside it, and this one
+
+00:01:32.040 --> 00:01:33.500
+reaches much further back.
+
+00:01:36.080 --> 00:01:41.020
+When it runs, each block starts the moment
+the blocks feeding it are done. So once
+
+00:01:41.020 --> 00:01:45.640
+retrieve context returns, the answer and
+the log both run at the same time.
+
+00:01:47.060 --> 00:01:51.380
+And when several feed into one, it waits
+for all of them. The log finishes
+
+00:01:51.380 --> 00:01:56.000
+instantly, but the result holds until the
+answer is done too, then runs once with
+
+00:01:56.000 --> 00:01:57.000
+both ready.
+
+00:01:59.340 --> 00:02:03.980
+That's the whole model. A trigger starts
+it. Each block runs as soon as its inputs
+
+00:02:03.980 --> 00:02:07.920
+arrive. Data moves through connection
+tags, and the run ends at the result.
+
+00:02:10.140 --> 00:02:14.960
+And the same rules apply no matter how big
+a workflow gets. Add more blocks, more
+
+00:02:14.960 --> 00:02:19.760
+branches, loops, even whole sub workflows
+nested inside. And it all still runs the
+
+00:02:19.760 --> 00:02:20.760
+same way.

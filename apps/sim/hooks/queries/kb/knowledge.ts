@@ -1,8 +1,8 @@
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
+import { contractUrl, requestJson } from '@/lib/api/client/request'
 import {
   type BulkChunkOperationData,
   type BulkDeleteKnowledgeItemsBody,
@@ -25,6 +25,7 @@ import {
   deleteKnowledgeChunkContract,
   deleteKnowledgeDocumentContract,
   deleteTagDefinitionContract,
+  exportKnowledgeBaseContract,
   getKnowledgeBaseContract,
   getKnowledgeDocumentContract,
   getTagUsageContract,
@@ -44,22 +45,32 @@ import {
   searchWorkspaceKnowledgeContract,
   type TagDefinitionData,
   type TagUsageData,
+  type UpdateKnowledgeBaseBody,
   type UpdateKnowledgeDocumentResponseData,
   updateKnowledgeBaseContract,
   updateKnowledgeChunkContract,
   updateKnowledgeDocumentContract,
   updateKnowledgeDocumentTagsContract,
   type WorkspaceKnowledgeSearchBody,
-  type WorkspaceKnowledgeSearchResult,
+  type WorkspaceKnowledgeSearchData,
 } from '@/lib/api/contracts/knowledge'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import { useSession } from '@/lib/auth/auth-client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+import {
+  type ResourceScope,
+  resourceScopeFields,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { connectorKeys } from '@/hooks/queries/kb/connectors'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   KNOWLEDGE_BASE_LIST_STALE_TIME,
   type KnowledgeQueryScope,
   knowledgeKeys,
 } from '@/hooks/queries/utils/knowledge-keys'
+import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 const logger = createLogger('KnowledgeQueries')
 
@@ -233,7 +244,6 @@ export function useKnowledgeBasesQuery(
     queryFn: ({ signal }) => fetchKnowledgeBases(workspaceId, scope, signal),
     enabled: options?.enabled ?? true,
     staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -252,7 +262,6 @@ export function useDocumentQuery(knowledgeBaseId?: string, documentId?: string) 
     queryFn: ({ signal }) => fetchDocument(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -283,7 +292,12 @@ export function useKnowledgeDocumentsQuery(
     queryFn: ({ signal }) => fetchKnowledgeDocuments(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId),
     staleTime: KNOWLEDGE_DOCUMENT_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .documentLists(params.knowledgeBaseId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
     refetchInterval: options?.refetchInterval ?? false,
   })
 }
@@ -310,7 +324,12 @@ export function useKnowledgeChunksQuery(
     queryFn: ({ signal }) => fetchKnowledgeChunks(params, signal),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId && params.documentId),
     staleTime: KNOWLEDGE_CHUNK_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .document(params.knowledgeBaseId, params.documentId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 
@@ -371,7 +390,12 @@ export function useDocumentChunkSearchQuery(
       (options?.enabled ?? true) &&
       Boolean(params.knowledgeBaseId && params.documentId && params.search.trim()),
     staleTime: KNOWLEDGE_CHUNK_SEARCH_STALE_TIME,
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, previousQuery) =>
+      knowledgeKeys
+        .document(params.knowledgeBaseId, params.documentId)
+        .every((part, index) => previousQuery?.queryKey[index] === part)
+        ? previous
+        : undefined,
   })
 }
 
@@ -535,6 +559,8 @@ export function useUpdateDocument() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
+      queryClient.invalidateQueries({ queryKey: connectorKeys.all(knowledgeBaseId) })
+      queryClient.invalidateQueries({ queryKey: searchSourceKeys.lists() })
     },
   })
 }
@@ -652,13 +678,7 @@ export function useCreateKnowledgeBase() {
 
 interface UpdateKnowledgeBaseParams {
   knowledgeBaseId: string
-  updates: {
-    name?: string
-    description?: string
-    workspaceId?: string | null
-    /** Moves the knowledge base between folders; `null` moves it to the workspace root. */
-    folderId?: string | null
-  }
+  updates: UpdateKnowledgeBaseBody
 }
 
 async function updateKnowledgeBase({
@@ -725,6 +745,25 @@ async function deleteKnowledgeBase({ knowledgeBaseId }: DeleteKnowledgeBaseParam
   await requestJson(deleteKnowledgeBaseContract, {
     params: { id: knowledgeBaseId },
   })
+}
+
+/**
+ * Starts a browser download of a knowledge base's bundle archive.
+ *
+ * An anchor navigation rather than a fetch: the archive is streamed and can run
+ * to gigabytes, and the browser saving it straight to disk is what keeps it out
+ * of page memory. The session cookie authenticates the same-origin request.
+ */
+export function downloadKnowledgeBaseExport(knowledgeBaseId: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = contractUrl(exportKnowledgeBaseContract, {
+    params: { id: knowledgeBaseId },
+    query: {},
+  })
+  anchor.download = ''
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
 }
 
 export function useDeleteKnowledgeBase() {
@@ -839,7 +878,6 @@ export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
     queryFn: ({ signal }) => fetchTagDefinitions(knowledgeBaseId as string, signal),
     enabled: Boolean(knowledgeBaseId),
     staleTime: KNOWLEDGE_TAG_DEFINITION_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -984,7 +1022,6 @@ export function useDocumentTagDefinitionsQuery(
       fetchDocumentTagDefinitions(knowledgeBaseId as string, documentId as string, signal),
     enabled: Boolean(knowledgeBaseId && documentId),
     staleTime: KNOWLEDGE_DOCUMENT_TAG_DEFINITION_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -1161,34 +1198,52 @@ export function useBulkDeleteKnowledgeBases(workspaceId: string) {
 async function searchWorkspaceKnowledge(
   body: WorkspaceKnowledgeSearchBody,
   signal?: AbortSignal
-): Promise<WorkspaceKnowledgeSearchResult[]> {
+): Promise<WorkspaceKnowledgeSearchData> {
   const data = await requestJson(searchWorkspaceKnowledgeContract, { body, signal })
-  return data.data.results
+  return data.data
 }
 
-/**
- * What the signed-in person may read that matches `query`, across the given
- * knowledge bases. Off until there is a query and a base to search.
- */
+/** Searches the canonical index under the signed-in person's ACLs. */
 export function useWorkspaceKnowledgeSearch(
-  workspaceId: string | undefined,
-  knowledgeBaseIds: readonly string[],
-  query: string
+  owner: string | ResourceScope | undefined,
+  query: string,
+  filters?: WorkspaceSearchFilters
 ) {
+  const { data: session } = useSession()
+  const queryClient = useQueryClient()
+  const userId = session?.user?.id
   const trimmed = query.trim()
+  const scope =
+    typeof owner === 'string'
+      ? owner
+        ? { kind: 'workspace' as const, workspaceId: owner }
+        : undefined
+      : owner
+  const scopeKey =
+    scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    queryKey: knowledgeKeys.search(workspaceId, knowledgeBaseIds, trimmed),
+    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters, userId),
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
-          workspaceId: workspaceId as string,
-          knowledgeBaseIds: [...knowledgeBaseIds],
+          ...(scope ? resourceScopeFields(scope) : {}),
           query: trimmed,
+          filters,
         },
         signal
       ),
-    enabled: Boolean(workspaceId) && knowledgeBaseIds.length > 0 && trimmed.length > 0,
+    enabled: Boolean(scope && userId) && trimmed.length > 0,
     staleTime: WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
-    placeholderData: keepPreviousData,
+    retry: false,
+    placeholderData: (previous, previousQuery) =>
+      userId &&
+      previousQuery?.state.status === 'success' &&
+      !previousQuery.state.isInvalidated &&
+      knowledgeKeys
+        .searchQuery(scopeKey, trimmed, userId)
+        .every((part, index) => previousQuery.queryKey[index] === part) &&
+      queryClient.getQueryData(previousQuery.queryKey) === previous
+        ? previous
+        : undefined,
   })
 }

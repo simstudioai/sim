@@ -3,12 +3,14 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const mocks = vi.hoisted(() => ({ getZohoDeskAttachment: vi.fn() }))
 
 vi.mock('@/lib/internal/zoho-desk/operations', () => ({
   getZohoDeskAttachment: mocks.getZohoDeskAttachment,
-  MAX_ZOHO_DESK_ATTACHMENT_BYTES: 7 * 1024 * 1024,
 }))
 
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
@@ -33,21 +35,38 @@ function request(overrides: Partial<InternalToolOperationCall> = {}): InternalTo
 describe('executeZohoDeskTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getZohoDeskAttachment.mockResolvedValue({
-      success: true,
-      output: { file: { name: 'file.pdf', mimeType: 'application/pdf', data: 'YQ==' } },
-    })
   })
 
   it('dispatches the typed operation with cancellation', async () => {
     const controller = new AbortController()
-    const response = await executeZohoDeskTool(request({ signal: controller.signal }))
+    const result = createInternalToolFileResult(
+      { buffer: Buffer.alloc(12 * 1024 * 1024), name: 'file.pdf', mimeType: 'application/pdf' },
+      (file) => ({ success: true, output: { file } })
+    )
+    mocks.getZohoDeskAttachment.mockResolvedValue(result)
 
-    expect(response.status).toBe(200)
+    expect(await executeZohoDeskTool(request({ signal: controller.signal }))).toBe(result)
     expect(mocks.getZohoDeskAttachment).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: 'org-1' }),
       { signal: controller.signal }
     )
+  })
+
+  it('projects the buffered file limit as 413', async () => {
+    mocks.getZohoDeskAttachment.mockRejectedValue(
+      new PayloadSizeLimitError({
+        label: 'Zoho Desk attachment',
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        observedBytes: MAX_BUFFERED_TRANSFER_BYTES + 1,
+      })
+    )
+    const response = await executeZohoDeskTool(request())
+    if (!(response instanceof Response)) throw new Error('Expected an error response')
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'Attachment exceeds the 100 MB download limit',
+    })
   })
 
   it('preserves operation status', async () => {
@@ -55,6 +74,7 @@ describe('executeZohoDeskTool', () => {
       new ZohoDeskOperationError('Invalid attachment href', 400)
     )
     const response = await executeZohoDeskTool(request())
+    if (!(response instanceof Response)) throw new Error('Expected an error response')
     expect(response.status).toBe(400)
   })
 })

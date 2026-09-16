@@ -1,1 +1,1 @@
-export { type CodeSegment, CodeWindowGraphic } from './code-window-graphic'
+export { CodeWindowGraphic } from './code-window-graphic'

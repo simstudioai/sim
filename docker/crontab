@@ -28,7 +28,7 @@ SHELL=/bin/sh
 
 # Time-based workflow resume and the transactional outbox
 */1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/resume/poll"
-*/1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/webhooks/outbox/process"
+*/1 * * * * curl -fsS -m 810 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/webhooks/outbox/process"
 
 # Workspace file search indexing dispatcher
 */1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/workspace-file-search-dispatch"
@@ -36,12 +36,16 @@ SHELL=/bin/sh
 # Knowledge base connector syncs
 */5 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/knowledge/connectors/sync"
 */5 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/knowledge/connectors/member-sync"
+*/5 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/knowledge/connectors/directory-sync"
 
 # Workspace event triggers
 */15 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/workspace-events/poll"
 
 # Enterprise data drains
 0 * * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/run-data-drains"
+
+# Directory provisioning drift sweep (re-applies SCIM group mappings)
+17 * * * * curl -fsS -m 300 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/scim-reconcile"
 
 # Deletes table rows whose TTL column has expired
 */15 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-table-row-ttl"

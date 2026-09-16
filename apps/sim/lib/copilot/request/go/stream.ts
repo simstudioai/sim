@@ -20,6 +20,7 @@ import {
   processFilePreviewStreamEvent,
 } from '@/lib/copilot/request/go/file-preview-adapter'
 import { FatalSseEventError, processSSEStream } from '@/lib/copilot/request/go/parser'
+import { scopeProviderToolCallEvent } from '@/lib/copilot/request/go/tool-call-identity'
 import {
   handleSubagentRouting,
   prePersistClientExecutableToolCall,
@@ -326,7 +327,15 @@ export async function runStreamLoop(
         }
 
         const envelope = parsedEvent.event
-        const streamEvent = eventToStreamEvent(envelope)
+        let streamEvent: ReturnType<typeof eventToStreamEvent>
+        try {
+          streamEvent = scopeProviderToolCallEvent(
+            eventToStreamEvent(envelope),
+            context.providerToolCallIdentity
+          )
+        } catch (error) {
+          throw new FatalSseEventError(getErrorMessage(error))
+        }
         if (envelope.trace?.requestId) {
           const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
           context.trace.setGoTraceId(goTraceId)

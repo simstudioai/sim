@@ -1,3 +1,4 @@
+export { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/pending-tag-indicator'
 export type {
   ContentSegment,
   CredentialItemData,
@@ -26,7 +27,6 @@ export {
   credentialTagHasVisibleCard,
   formatCredentialSubmissionMessage,
   isHttpUrl,
-  PendingTagIndicator,
   parseCredentialSubmissionMessage,
   parseCredentialSubmissionProgress,
   parseCredentialTagBody,

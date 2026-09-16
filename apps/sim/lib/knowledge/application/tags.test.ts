@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   updateTag: vi.fn(),
   deleteTag: vi.fn(),
   readUsage: vi.fn(),
+  readDetailedUsage: vi.fn(),
   saveTags: vi.fn(),
   cleanupTags: vi.fn(),
   deleteAllTags: vi.fn(),
@@ -53,6 +54,7 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   updateTagDefinition: mocks.updateTag,
   deleteTagDefinition: mocks.deleteTag,
   getTagUsageStats: mocks.readUsage,
+  getTagUsage: mocks.readDetailedUsage,
   normalizeDisplayName: (displayName: string) => displayName.trim().toLowerCase(),
   createOrUpdateTagDefinitionsBulk: mocks.saveTags,
   cleanupUnusedTagDefinitions: mocks.cleanupTags,
@@ -65,6 +67,7 @@ import {
   deleteKnowledgeDocumentTagDefinitions,
   deleteKnowledgeTag,
   listKnowledgeTags,
+  readDetailedKnowledgeTagUsage,
   readKnowledgeTagUsage,
   readNextKnowledgeTagSlot,
   saveKnowledgeDocumentTagDefinitions,
@@ -72,7 +75,11 @@ import {
 } from '@/lib/knowledge/application/tags'
 
 /** Every mocked context carries the workspace read scope the resolvers would attach. */
-const knowledgeAccess = { get: async () => WORKSPACE_ACCESS_SCOPE }
+const knowledgeAccess = {
+  get: async () => WORKSPACE_ACCESS_SCOPE,
+  getForConnectors: async () => WORKSPACE_ACCESS_SCOPE,
+  getForDocuments: async () => WORKSPACE_ACCESS_SCOPE,
+}
 
 const crossWorkspaceContext = {
   access: knowledgeAccess,
@@ -134,6 +141,18 @@ describe('knowledge tag application use cases', () => {
     mocks.saveTags.mockResolvedValue({ created: [], updated: [], errors: [] })
     mocks.listAllTags.mockResolvedValue([])
     mocks.listTags.mockResolvedValue([])
+  })
+
+  it('retains live workspace access in summary and detailed tag counts', async () => {
+    const input = { knowledgeBaseId: 'knowledge-b', assertedWorkspaceId: 'workspace-b' }
+    await readKnowledgeTagUsage.execute({ principal: sessionPrincipal, input })
+    await readDetailedKnowledgeTagUsage.execute({ principal: sessionPrincipal, input })
+    expect(mocks.readUsage).toHaveBeenCalledWith('knowledge-b', knowledgeAccess, expect.any(String))
+    expect(mocks.readDetailedUsage).toHaveBeenCalledWith(
+      'knowledge-b',
+      expect.any(String),
+      knowledgeAccess
+    )
   })
 
   it.each([

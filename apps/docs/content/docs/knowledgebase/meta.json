@@ -1,11 +1,11 @@
 {
   "title": "Knowledge Base",
   "pages": [
-    "index",
     "using-in-workflows",
     "connectors",
     "tags",
     "debugging-retrieval",
-    "chunking-strategies"
+    "chunking-strategies",
+    "export-import"
   ]
 }

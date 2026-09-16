@@ -1,3 +1,5 @@
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+
 /**
  * Where the user goes once authentication finishes, carried across the login →
  * signup → verify hops. Written only after `validateCallbackUrl` accepts it, and
@@ -8,19 +10,22 @@ export const POST_AUTH_REDIRECT_STORAGE_KEY = 'postAuthRedirectUrl'
 /** Route the verify hop lives at, entered only from signup. */
 export const VERIFY_FROM_SIGNUP_ROUTE = '/verify?fromSignup=true'
 
-/** Default post-auth destination when no callback URL was carried in. */
-export const DEFAULT_POST_AUTH_ROUTE = '/workspace'
+/**
+ * Default post-auth destination when no callback URL was carried in: the app
+ * entry, which resolves to the viewer's organization or their workspaces.
+ */
+export const DEFAULT_POST_AUTH_ROUTE = APP_ENTRY_PATH
 
 /**
  * Where a successful email signup goes next.
  * - `verify`: the verification hop, which owns the post-auth redirect from there
  * - `redirect`: the validated callback URL the visitor arrived with
- * - `workspace`: the default destination
+ * - `entry`: the default destination, {@link DEFAULT_POST_AUTH_ROUTE}
  */
 export type PostSignupDestination =
   | { kind: 'verify' }
   | { kind: 'redirect'; url: string }
-  | { kind: 'workspace' }
+  | { kind: 'entry' }
 
 interface PostSignupDestinationParams {
   /** The server-derived effective flag — verification enabled AND deliverable. */
@@ -40,7 +45,7 @@ export function resolvePostSignupDestination({
   redirectUrl,
 }: PostSignupDestinationParams): PostSignupDestination {
   if (emailVerificationEnabled) return { kind: 'verify' }
-  return redirectUrl ? { kind: 'redirect', url: redirectUrl } : { kind: 'workspace' }
+  return redirectUrl ? { kind: 'redirect', url: redirectUrl } : { kind: 'entry' }
 }
 
 /** The raw redirect-carrying params, as read from a URL on client or server. */

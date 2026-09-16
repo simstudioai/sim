@@ -130,7 +130,7 @@ export async function resolveSelectorAtlassianCloudId(input: {
   }
 
   try {
-    return requireCloudId(selectAtlassianCloudId(resources, domain, input.product))
+    return requireCloudId(selectAtlassianCloudId(resources, domain, input.product, true))
   } catch (error) {
     if (
       error instanceof SelectorContextUnavailableError ||

@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { testDataDrainContract } from '@/lib/api/contracts/data-drains'
 import { parseRequest } from '@/lib/api/server'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { authorizeDrainAccess, loadDrain } from '@/lib/data-drains/access'
 import { getDestination } from '@/lib/data-drains/destinations/registry'
@@ -29,7 +30,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
   }
 
   const destination = getDestination(drain.destinationType)
-  if (!destination.test) {
+  const testConnection = destination.test
+  if (!testConnection) {
     return NextResponse.json(
       { error: `Destination '${drain.destinationType}' does not support connection testing` },
       { status: 400 }
@@ -44,7 +46,9 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TEST_TIMEOUT_MS)
   try {
-    await destination.test({ config, credentials, signal: controller.signal })
+    await runWithOutboundOrganization(drain.organizationId, () =>
+      testConnection({ config, credentials, signal: controller.signal })
+    )
     recordAudit({
       workspaceId: null,
       actorId: access.session.user.id,

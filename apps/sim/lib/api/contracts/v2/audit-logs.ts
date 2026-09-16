@@ -61,16 +61,10 @@ export const v2AuditLogEntrySchema = z
     resourceId: z
       .string()
       .nullable()
-      .describe(
-        'Identifier of the affected resource. Always null when `resourceType` is `folder`: folders are addressed by canonical path on this API, so their internal identifiers are withheld rather than published as an id no other endpoint accepts.'
-      ),
+      .describe('Affected resource ID. Null for folder events, which identify folders by path.'),
     resourceName: z.string().nullable().describe('Display name of the affected resource.'),
     description: z.string().nullable().describe('Human-readable description of the action.'),
-    metadata: z
-      .unknown()
-      .describe(
-        'Arbitrary per-action JSON metadata. Internal folder identifiers are stripped at every nesting level, for the same reason `resourceId` is null on a folder entry.'
-      ),
+    metadata: z.unknown().describe('Additional JSON details specific to the action.'),
     createdAt: z
       .string()
       .describe('ISO 8601 timestamp when the action occurred.')

@@ -399,6 +399,15 @@ describe('getCanonicalScopesForProvider', () => {
     expect(getScopesForService('quickbooks')).toEqual(expected)
   })
 
+  it.concurrent('requests the group and user reads used by Confluence permission syncing', () => {
+    const scopes = getCanonicalScopesForProvider('confluence')
+
+    expect(scopes).toEqual(
+      expect.arrayContaining(['read:group:confluence', 'read:user:confluence'])
+    )
+    expect(getScopesForService('confluence')).toEqual(scopes)
+  })
+
   it.concurrent('should handle providers with empty scopes array', () => {
     const scopes = getCanonicalScopesForProvider('notion')
 
@@ -415,6 +424,11 @@ describe('getCanonicalScopesForProvider', () => {
 })
 
 describe('getScopeDescription', () => {
+  it('describes Confluence directory access', () => {
+    expect(getScopeDescription('read:group:confluence', 'confluence')).toBe(
+      'View Confluence groups and memberships'
+    )
+  })
   it.concurrent('uses provider-specific labels for Bitbucket scope names', () => {
     expect(getScopeDescription('account', 'bitbucket')).toBe(
       'View your Bitbucket account and workspace memberships'
@@ -752,11 +766,31 @@ describe('getMissingRequiredScopes', () => {
     expect(missing).toEqual(['write'])
   })
 
+  it.concurrent('requires older Confluence OAuth grants to reconnect for group access', () => {
+    const scopes = getCanonicalScopesForProvider('confluence')
+    const previousGrant = scopes.filter((scope) => scope !== 'read:group:confluence')
+
+    expect(getMissingRequiredScopes({ scopes: previousGrant }, scopes)).toEqual([
+      'read:group:confluence',
+    ])
+    expect(getMissingRequiredScopes({ scopes }, scopes)).toEqual([])
+  })
+
   it.concurrent('should return all required scopes when credential is undefined', () => {
     const missing = getMissingRequiredScopes(undefined, ['read', 'write'])
 
     expect(missing).toEqual(['read', 'write'])
   })
+
+  it.concurrent(
+    'should report nothing missing for a service account, which grants no scopes',
+    () => {
+      const credential = { type: 'service_account', scopes: undefined }
+      const missing = getMissingRequiredScopes(credential, ['read', 'write'])
+
+      expect(missing).toEqual([])
+    }
+  )
 
   it.concurrent('should return all required scopes when credential has undefined scopes', () => {
     const missing = getMissingRequiredScopes({ scopes: undefined }, ['read', 'write'])

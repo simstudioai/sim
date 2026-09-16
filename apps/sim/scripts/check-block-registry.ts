@@ -100,7 +100,7 @@ function getPreviousIds(): PreviousIdsResult {
   let hasChanges = false
   try {
     const diff = execSync(
-      `git diff --name-only ${baseRef} HEAD -- ${registryPath} ${blocksDir}`,
+      `git diff --name-only ${baseRef} -- ${registryPath} ${blocksDir}`,
       gitOpts
     ).trim()
     hasChanges = diff.length > 0

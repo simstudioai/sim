@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const mocks = vi.hoisted(() => ({
@@ -16,12 +16,54 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 
 vi.mock('@/lib/uploads/shared/types', () => ({ MAX_BUFFERED_TRANSFER_BYTES: 5 }))
 
+import {
+  isInternalToolFileResult,
+  type StoredToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 import { getZoomMeetingRecordings } from '@/lib/internal/zoom/operations'
 
 describe('getZoomMeetingRecordings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+  })
+
+  it('returns stored recording references with the original recording metadata', async () => {
+    mocks.secureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        Response.json({
+          id: 'meeting-1',
+          recording_files: [{ id: 'one', download_url: 'https://files.example/one' }],
+        })
+      )
+      .mockResolvedValueOnce(new Response('one', { headers: { 'content-type': 'video/mp4' } }))
+
+    const result = await getZoomMeetingRecordings(
+      { accessToken: 'token', meetingId: 'meeting-1', downloadFiles: true },
+      { requestId: 'request-1' }
+    )
+
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      { name: 'zoom-recording-one.mp4', mimeType: 'video/mp4', buffer: Buffer.from('one') },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
+      name: 'zoom-recording-one.mp4',
+      type: 'video/mp4',
+      mimeType: 'video/mp4',
+      size: 3,
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toMatchObject({
+      success: true,
+      output: {
+        recording: { id: 'meeting-1', recording_files: [{ id: 'one' }] },
+        files: [storedFile],
+      },
+    })
   })
 
   it('downloads sequentially and rejects cumulative recording bytes', async () => {

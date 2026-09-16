@@ -1,6 +1,6 @@
 import chalk from 'chalk'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
-import { USER_AGENT } from '../version'
+import { identityHeaders } from '../telemetry/client-info'
 import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
 
 /**
@@ -14,7 +14,8 @@ export class SimApiError extends Error {
     message: string,
     readonly status: number,
     readonly code: string | null = null,
-    readonly details?: unknown
+    readonly details?: unknown,
+    readonly exitCode = 1
   ) {
     super(message)
     this.name = 'SimApiError'
@@ -185,6 +186,43 @@ function toApiError(
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}…`
+}
+
+/**
+ * Keeps the useful nested reason from Node/Undici transport failures without
+ * serializing request options, headers, socket objects, or credentials.
+ */
+function transportErrorMessage(error: unknown): string {
+  const messages: string[] = []
+  const seen = new Set<object>()
+  let current: unknown = error
+
+  while (current && typeof current === 'object' && messages.length < 4 && !seen.has(current)) {
+    seen.add(current)
+    const candidate = current as { message?: unknown; code?: unknown; cause?: unknown }
+    const message =
+      typeof candidate.message === 'string'
+        ? truncate(candidate.message.replace(/\s+/g, ' ').trim(), 300)
+        : ''
+    const code = typeof candidate.code === 'string' ? candidate.code : ''
+    const detail = `${message}${code && !message.includes(code) ? ` (${code})` : ''}`
+    if (detail && messages.at(-1) !== detail) messages.push(detail)
+    current = candidate.cause
+  }
+
+  return messages.join(': ') || 'Unknown network error'
+}
+
+async function readResponseText(response: Response): Promise<string> {
+  try {
+    return await response.text()
+  } catch (error) {
+    throw new SimApiError(
+      `Unable to read the response: ${transportErrorMessage(error)}`,
+      response.status,
+      'RESPONSE_READ_FAILED'
+    )
+  }
 }
 
 /**
@@ -531,7 +569,7 @@ export class SimClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const { response, url } = await this.send(path, options)
-    const raw = await response.text()
+    const raw = await readResponseText(response)
 
     if (!raw) return undefined as T
     try {
@@ -580,7 +618,7 @@ export class SimClient {
             ? { authorization: `Bearer ${credential.oauth.accessToken}` }
             : {}),
           accept: 'application/json',
-          'user-agent': USER_AGENT,
+          ...identityHeaders(),
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },
@@ -600,7 +638,7 @@ export class SimClient {
         )
       }
       throw new SimApiError(
-        `Could not reach ${this.profile.endpoint}: ${(cause as Error).message}`,
+        `Could not reach ${this.profile.endpoint}: ${transportErrorMessage(cause)}`,
         0
       )
     }
@@ -627,7 +665,7 @@ export class SimClient {
     }
 
     if (!response.ok) {
-      const raw = await response.text()
+      const raw = await readResponseText(response)
       const error = toApiError(url, response.status, response.headers.get('content-type'), raw)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
@@ -738,33 +776,27 @@ export function pageProgress(): PageProgress {
   }
 }
 
+/** Rejects cursor cycles before a pager repeats requests or returns an unusable continuation. */
+export function assertCursorAdvances(cursor: string | null, seenCursors: Set<string>): void {
+  if (cursor === null) return
+  if (seenCursors.has(cursor)) {
+    throw new SimApiError('The API returned a repeated pagination cursor; cannot continue.', 0)
+  }
+  seenCursors.add(cursor)
+}
+
 /** Follows a standard v2 cursor envelope without duplicating pagination loops. */
 export async function requestAllPages<T>(
   client: Pick<SimClient, 'request'>,
   path: string,
   options: RequestAllPagesOptions
 ): Promise<T[]> {
-  return (await requestPages<T>(client, path, options)).items
-}
-
-/**
- * The same walk, also stating whether it stopped short.
- *
- * A caller that prints the rows itself has to say so — `files list` announces
- * "showing the first N" off the surviving cursor and `files ls` did not, so the
- * same capped answer looked complete on one command and incomplete on its
- * neighbour.
- */
-export async function requestPages<T>(
-  client: Pick<SimClient, 'request'>,
-  path: string,
-  options: RequestAllPagesOptions
-): Promise<{ items: T[]; truncated: boolean }> {
   const { query, pageSize, limit: requestedLimit, ...requestOptions } = options
   const limit = requestedLimit ?? Number.POSITIVE_INFINITY
-  if (limit <= 0) return { items: [], truncated: false }
+  if (limit <= 0) return []
 
   const items: T[] = []
+  const seenCursors = new Set<string>()
   const progress = pageProgress()
   let cursor: string | null = null
   // `finally`, because a page that throws part-way through would otherwise skip
@@ -780,6 +812,7 @@ export async function requestPages<T>(
           cursor,
         },
       })
+      assertCursorAdvances(page.nextCursor, seenCursors)
       items.push(...page.data)
       cursor = page.nextCursor
 
@@ -789,7 +822,7 @@ export async function requestPages<T>(
     progress.finish()
   }
 
-  return { items: items.slice(0, limit), truncated: cursor !== null || items.length > limit }
+  return items.slice(0, limit)
 }
 
 /**

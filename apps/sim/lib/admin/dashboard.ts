@@ -3,7 +3,6 @@ import { db } from '@sim/db'
 import {
   member,
   organization,
-  organizationColumns,
   organizationMemberUsageLimit,
   outboxEvent,
   permissions,
@@ -652,11 +651,7 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
 async function getDashboardOrganizationSummary(organizationId: string) {
   const [[org], [memberCountRow], [externalCountRow], latestSubscription, provisionings] =
     await Promise.all([
-      db
-        .select(organizationColumns)
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1),
+      db.select().from(organization).where(eq(organization.id, organizationId)).limit(1),
       db.select({ value: count() }).from(member).where(eq(member.organizationId, organizationId)),
       db
         .select({ value: countDistinct(permissions.userId) })
@@ -1282,7 +1277,7 @@ export async function updateDashboardOrganizationLimits(
   const providerBacked = await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
     const [org] = await tx
-      .select(organizationColumns)
+      .select()
       .from(organization)
       .where(eq(organization.id, organizationId))
       .for('update')
@@ -1416,7 +1411,7 @@ export async function grantDashboardOrganizationBalance(
       }),
       operation: async () => {
         const [org] = await tx
-          .select(organizationColumns)
+          .select()
           .from(organization)
           .where(eq(organization.id, organizationId))
           .for('update')

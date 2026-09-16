@@ -1,4 +1,5 @@
 ---
+description: Component patterns and structure for React components
 paths:
   - "apps/sim/**/*.tsx"
 ---

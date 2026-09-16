@@ -52,6 +52,7 @@ describe('ConsentStoreProvider', () => {
         expect.objectContaining({ id: 'ahrefs-analytics', category: 'measurement' }),
       ],
       store: {
+        storageConfig: { defaultExpiryDays: 365 },
         reloadOnConsentRevoked: true,
         iframeBlockerConfig: { disableAutomaticBlocking: true },
       },

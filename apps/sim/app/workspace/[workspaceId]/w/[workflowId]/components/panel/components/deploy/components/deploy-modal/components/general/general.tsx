@@ -3,8 +3,8 @@
 import { useId, useState } from 'react'
 import {
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -204,19 +204,19 @@ export function GeneralDeploy({
                 : 'Live Workflow'}
             </Label>
             <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
-              <ButtonGroup
+              <ChipButtonGroup
                 value={previewMode}
                 onValueChange={(val) =>
                   setShowActiveDespiteSelection((val as PreviewMode) === 'active')
                 }
               >
-                <ButtonGroupItem value='active'>Live</ButtonGroupItem>
-                <ButtonGroupItem value='selected' className='truncate'>
+                <ChipButtonGroupItem value='active'>Live</ChipButtonGroupItem>
+                <ChipButtonGroupItem value='selected' className='truncate'>
                   {selectedVersionInfo
                     ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
                     : `v${selectedVersion}`}
-                </ButtonGroupItem>
-              </ButtonGroup>
+                </ChipButtonGroupItem>
+              </ChipButtonGroup>
             </div>
           </div>
 

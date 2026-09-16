@@ -10,7 +10,8 @@ import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview } from '@/components/workflow-preview'
 import { AV_INVOICE_INTAKE_WORKFLOW } from '@/components/workflow-preview/academy-video-workflows'
 
-<VideoPlaceholder eyebrow="Files" title="The File Object" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/files-object.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Files" title="The File Object" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/files-object.mp4"
+  captionsSrc="/captions/academy/files-object.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -24,8 +25,8 @@ Your workflows make files from very different places: an email attachment, a gen
       body: 'A PDF, an image, and an audio clip arrive from different blocks, each delivered exactly the same way.',
     },
     {
-      title: 'The fields never change',
-      body: "Every file object carries an I.D., a name, a URL where the bytes live, a size, a type, and the content, no matter which block made it.",
+      title: 'Read the file metadata',
+      body: "The common fields include an ID, name, URL, size, and MIME type. File content is not always embedded in the object.",
     },
     {
       title: 'Producers are swappable',
@@ -59,19 +60,19 @@ Your workflows make files from very different places: an email attachment, a gen
 
 ## The common shape
 
-Catch a file mid-run and look inside: an I.D., a name, a URL where the bytes live, a size, a type, and the content itself. A couple more fields exist under the hood, but the shape never changes: which is exactly what lets a Gmail attachment, a generated image, and a text-to-speech clip all feed the same agent without special handling.
+A file object identifies a file through fields such as `id`, `name`, `url`, `size`, and `type`. The bytes may be stored separately; content is not always included inline. Pass the file object to a compatible block, or use the File block to read its content. See [Passing files between blocks](/files/passing-files).
 
-The video closes on this machine: one file object riding the whole chain:
+The video follows an invoice attachment through parsing and extraction:
 
 <WorkflowPreview workflow={AV_INVOICE_INTAKE_WORKFLOW} />
 
-## Why one shape matters
+## Passing files between blocks
 
-Swap which producer feeds the agent, and nothing on the agent side changes. Point the same object at a different consumer, an email, cloud storage, another agent, and it just rides. In the closing machine, an invoice lands in Gmail, gets parsed, an agent extracts the fields, and the result settles in the database: one object carried the whole way through.
+Use a connection tag such as `<file.files[0]>` in a compatible block's file input. The shared object format lets blocks pass file references without copying the file's content into every parameter. The receiving block still determines which file types it can read.
 
 <FAQ items={[
-  { question: "What fields does a file object carry?", answer: "An I.D., a name, a URL where the bytes live, a size, a MIME type, and the content. A few internal fields exist under the hood, but the shape is the same for every file, whatever block made it." },
-  { question: "Why does one common shape matter?", answer: "Producers and consumers compose without special handling. You can swap which block feeds an agent, or point the same file at a different destination, and nothing else changes." },
+  { question: "What fields does a file object carry?", answer: "Common fields include id, name, url, size, and MIME type. Content may be stored separately rather than embedded in the object." },
+  { question: "Why does one common shape matter?", answer: "Blocks can pass the same file reference through compatible file inputs. Check that the receiving block supports the file type." },
   { question: "How does an agent read a file?", answer: "Through the Files field on the Agent block, usually referenced with a connection tag such as <file.files[0]>. The agent reads the document content directly." },
   { question: "Do generated files work the same as uploaded ones?", answer: "Yes. An image from a generator, an audio clip from text-to-speech, and an email attachment all travel as the same object, so downstream blocks treat them identically." },
 ]} />

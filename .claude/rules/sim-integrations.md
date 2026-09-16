@@ -1,4 +1,5 @@
 ---
+description: Adding new integrations (tools, blocks, triggers)
 paths:
   - "apps/sim/tools/**"
   - "apps/sim/blocks/**"

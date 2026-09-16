@@ -1,9 +1,18 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Chip, cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
-import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
+import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS, utf8ByteLength } from '@sim/utils/paste'
 import type { Extensions, JSONContent, Range } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import type { Editor } from '@tiptap/react'
@@ -14,8 +23,8 @@ import {
   buildFileSelectionLabel,
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
+import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { extractEmbeddedFileRef, extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { FileSaveConflict } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-save-conflict'
 import { PreviewLoadingFrame } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
@@ -38,8 +47,10 @@ import { findHeadingPos } from '@/app/workspace/[workspaceId]/files/components/f
 import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
 import {
   extractImageFiles,
-  findHostedImageAttrs,
-  shouldSkipFileUpload,
+  getImageFileFallback,
+  type ImageFileFallback,
+  normalizePastedImageSources,
+  resolveImageFileFallback,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
 import {
   beginImageUploads,
@@ -58,7 +69,6 @@ import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/componen
 import { isPlainTextPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
 import { useEditorMentions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention'
 import { EditorBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/bubble-menu'
-import { ImageBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/image-menu'
 import { LinkHoverCard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-hover-card'
 import { TableBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/table-menu'
 import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
@@ -184,6 +194,7 @@ interface RichMarkdownEditorProps {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: SaveStatus, retry?: () => Promise<void>) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
@@ -252,6 +263,7 @@ function RichMarkdownSurface({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  downloadSourceRef,
   discardRef,
   streamingContent,
   isAgentEditing,
@@ -349,6 +361,7 @@ function RichMarkdownSurface({
         collaborative={collaborative}
         onChange={setDraftContent}
         onSaveShortcut={saveImmediately}
+        downloadSourceRef={downloadSourceRef}
         onClientAutosaveChange={setCanClientAutosave}
         onDeriveTitleFromHeading={onDeriveTitleFromHeading}
         enableFind={enableFind}
@@ -382,6 +395,7 @@ interface LoadedRichMarkdownEditorProps {
   collaborative?: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   /** Reports client autosave eligibility; collaborative documents are persisted by the relay. */
   onClientAutosaveChange: (canAutosave: boolean) => void
   /** See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}. */
@@ -396,11 +410,19 @@ type CollaborationStatus = 'connecting' | 'ready' | 'reconnecting' | 'fatal'
 interface SettledContent {
   frontmatter: string
   verdict: boolean
+  /** Large source-only previews retain stored export; live growth is validated at download time. */
+  canExportSnapshot: boolean
 }
 
 /** Assess an accepted source snapshot before rich editing can change its representation. */
 function lockSettled(content: string): SettledContent {
-  return { frontmatter: splitFrontmatter(content).frontmatter, verdict: isRoundTripSafe(content) }
+  return {
+    frontmatter: splitFrontmatter(content).frontmatter,
+    verdict: isRoundTripSafe(content),
+    canExportSnapshot:
+      content.length <= PASTE_LIMITS.RICH_MARKDOWN_BYTES &&
+      utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) <= PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+  }
 }
 
 /** The single TipTap editor: read-only while streaming, editable on settle; frontmatter is held aside and re-applied. */
@@ -421,6 +443,7 @@ export function LoadedRichMarkdownEditor({
   collaborative = false,
   onChange,
   onSaveShortcut,
+  downloadSourceRef,
   onClientAutosaveChange,
   onDeriveTitleFromHeading,
   enableFind,
@@ -496,8 +519,10 @@ export function LoadedRichMarkdownEditor({
    * a collaborative doc waits for its server seed. Held only when collaborating; the local path seeds
    * the live editor directly, so it needs no placeholder.
    */
-  const [placeholderContent] = useState<JSONContent | null>(() =>
-    collaborationEnabled ? parseMarkdownToDoc(splitFrontmatter(content).body) : null
+  const [placeholder] = useState(() =>
+    collaborationEnabled
+      ? { content: parseMarkdownToDoc(splitFrontmatter(content).body), markdown: content }
+      : null
   )
   /**
    * The body currently shown in the editor: seeded from a settled mount, updated on local edits (via
@@ -508,6 +533,7 @@ export function LoadedRichMarkdownEditor({
   const lastSyncedBodyRef = useRef<string | null>(
     streamingAtMount ? null : splitFrontmatter(content).body
   )
+  const lastSyncedFrontmatterRef = useRef(settled?.frontmatter ?? '')
   /**
    * The body the AGENT last applied into the collaborative doc — a dedup guard for the collab streaming
    * tick, so an unchanged frame skips a redundant shadow reconcile/reparse. Written ONLY by the streaming
@@ -569,10 +595,14 @@ export function LoadedRichMarkdownEditor({
    * Uploads are sequential; every position is anchored before awaiting so queued images also follow
    * edits. Capture the editor instance, never a later file's editor, for completion and teardown.
    */
-  const insertImagesRef = useRef<(images: File[], range: Range) => Promise<void>>(() =>
-    Promise.resolve()
-  )
-  const insertImages = async (images: File[], range: Range) => {
+  const insertImagesRef = useRef<
+    (images: File[], range: Range, fallback?: ImageFileFallback | null) => Promise<void>
+  >(() => Promise.resolve())
+  const insertImages = async (
+    images: File[],
+    range: Range,
+    fallback?: ImageFileFallback | null
+  ) => {
     const editor = editorInstanceRef.current
     if (!editor) return
     const anchors = beginImageUploads(
@@ -594,36 +624,19 @@ export function LoadedRichMarkdownEditor({
         .catch(() => null)
       toast.dismiss(uploadingToastId)
       if (result) {
-        const inserted = finishImageUpload(editor, anchor, result.file.url, image.name)
+        const inserted = finishImageUpload(
+          editor,
+          anchor,
+          result.file.url,
+          image.name,
+          fallback ? resolveImageFileFallback(fallback, result.file.url) : undefined
+        )
         if (!inserted && !editor.isDestroyed) {
           toast.info('The image was uploaded to the workspace but was not inserted.')
         }
       } else {
         removeImageUpload(editor, anchor)
       }
-    }
-  }
-
-  /**
-   * A same-page copy/drag of an already-hosted `<img>` carries the clipboard/dataTransfer `html`'s
-   * *display* src (`source.resolveImageSrc`'s rewrite), not the real persisted one — inserting a node
-   * built straight from that html would bake the display-only URL into the document, breaking public
-   * share/export/referenced-by-doc tracking for it (they only recognize the persisted shape).
-   * `findHostedImageAttrs` finds the real, already-present node with a matching resolved src instead,
-   * so the clone gets the exact real `src` (and every other attribute — width, href, title…) rather
-   * than a re-derived guess. Returns `false` (falls through to a normal upload) if no match is found,
-   * which is always correct, just occasionally a redundant upload — unlike blindly trusting the html.
-   */
-  const cloneHostedImageRef = useRef<(imgSrcs: string[], range: Range) => boolean>(() => false)
-  const cloneHostedImage = (imgSrcs: string[], range: Range) => {
-    const editor = editorInstanceRef.current
-    if (!editor) return false
-    const matchedAttrs = findHostedImageAttrs(editor.state.doc, imgSrcs, source.resolveImageSrc)
-    if (!matchedAttrs) return false
-    try {
-      return editor.chain().insertContentAt(range, { type: 'image', attrs: matchedAttrs }).run()
-    } catch {
-      return false
     }
   }
 
@@ -724,72 +737,33 @@ export function LoadedRichMarkdownEditor({
         window.open(normalized, '_blank', 'noopener,noreferrer')
         return true
       },
-      /**
-       * Inserts pasted image files at the caret. A same-page copy of an already-hosted `<img>` (e.g.
-       * Cmd+C after clicking it to select it) makes the browser add BOTH `text/html` (the real node,
-       * with its real hosted `src`) AND a synthesized image `File` to the clipboard — indistinguishable
-       * from a genuine external image paste by `clipboardData` files/items alone. When the HTML sibling
-       * already names one of our own hosted files, look up the matching node already in this doc and
-       * clone ITS real attrs (see `cloneHostedImageRef`) instead of re-uploading the pasted bytes as a
-       * brand-new, distinct file — letting the editor's DEFAULT html-based paste do that clone instead
-       * would persist the html's display-layer src rather than the real one. Only applied when exactly
-       * one image file is offered: a genuinely mixed paste (the hosted image plus a separate new one)
-       * must still upload the new file rather than have the whole paste diverted by this bypass.
-       */
-      handlePaste: (view, event) => {
+      transformPasted: (slice, view) =>
+        normalizePastedImageSources(slice, view.state.doc, resolveImageSrcRef.current),
+      handlePaste: (view, event, slice) => {
         if (!view.editable) return false
         const currentEditor = editorInstanceRef.current
         if (currentEditor && isPlainTextPaste(currentEditor)) return false
-        const images = extractImageFiles(event.clipboardData)
         const html = event.clipboardData?.getData('text/html') ?? ''
-        if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
-          const cloned = cloneHostedImageRef.current(extractImgSrcs(html), view.state.selection)
-          if (cloned) {
-            event.preventDefault()
-            return true
-          }
-        }
+        const images = extractImageFiles(event.clipboardData)
+        const fallback = getImageFileFallback(slice, images)
+        if (html && slice.content.size > 0 && !fallback) return false
         if (images.length === 0) return false
         event.preventDefault()
-        void insertImagesRef.current(images, view.state.selection)
+        void insertImagesRef.current(images, view.state.selection, fallback)
         return true
       },
-      /**
-       * Inserts dropped image files at the drop point. Any other file drop (e.g. a PDF) is swallowed so
-       * the browser doesn't navigate away from the editor; internal text drags carry no files and fall
-       * through to the default behavior.
-       *
-       * Drag-REORDER of an image node is the deceptive case, and {@link moveDraggedImageNode} owns it —
-       * uploading would duplicate the image (the original never moves), and falling through to
-       * ProseMirror is no better, since with `view.dragging` unset its default drop PARSES the html into
-       * a copy (persisting the display-layer src, which share/export tracking don't recognize) and never
-       * deletes the original.
-       *
-       * PM-serialized drags (a text selection spanning an image, dragged from a textblock) still reach
-       * the `shouldSkipFileUpload` bail below: PM set `view.dragging` for those itself, so its default
-       * move logic is correct there.
-       */
-      handleDrop: (view, event) => {
+      handleDrop: (view, event, slice, moved) => {
         if (!view.editable) return false
-        const images = extractImageFiles(event.dataTransfer)
         const html = event.dataTransfer?.getData('text/html') ?? ''
-        if (
-          moveDraggedImageNode(view, event, {
-            images,
-            html,
-            resolveSrc: resolveImageSrcRef.current,
-          })
-        ) {
-          return true
-        }
-        if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
-          return false
-        }
+        const images = extractImageFiles(event.dataTransfer)
+        const uploadFallback = getImageFileFallback(slice, images)
+        if (!uploadFallback && moveDraggedImageNode(view, event, slice, moved)) return true
+        if (html && slice.content.size > 0 && !uploadFallback) return false
         if (images.length > 0) {
           event.preventDefault()
           const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
           const at = dropPos ?? view.state.selection.from
-          void insertImagesRef.current(images, { from: at, to: at })
+          void insertImagesRef.current(images, { from: at, to: at }, uploadFallback)
           return true
         }
         if (event.dataTransfer?.files.length) {
@@ -804,7 +778,8 @@ export function LoadedRichMarkdownEditor({
       if (!collaborationEnabled && transaction.docChanged) {
         const md = postProcessSerializedMarkdown(editor.getMarkdown())
         lastSyncedBodyRef.current = md
-        onChangeRef.current(applyFrontmatter(saveFrontmatterResolverRef.current(), md))
+        lastSyncedFrontmatterRef.current = saveFrontmatterResolverRef.current()
+        onChangeRef.current(applyFrontmatter(lastSyncedFrontmatterRef.current, md))
       }
       // While the file is still untitled, name it after its leading heading once typing settles — but
       // only for the LOCAL user's own edits. `isChangeOrigin` is true for a remote Yjs change (a peer
@@ -852,7 +827,6 @@ export function LoadedRichMarkdownEditor({
     routerRef.current = router
     resolveImageSrcRef.current = source.resolveImageSrc
     insertImagesRef.current = insertImages
-    cloneHostedImageRef.current = cloneHostedImage
     editorInstanceRef.current = editor
   })
 
@@ -998,14 +972,16 @@ export function LoadedRichMarkdownEditor({
 
   const wasStreamingRef = useRef(streamingAtMount)
 
-  const pendingStreamBodyRef = useRef<string | null>(null)
+  const pendingStreamSourceRef = useRef<ReturnType<typeof splitFrontmatter> | null>(null)
   const streamRafRef = useRef<number | null>(null)
   const lastStreamParseAtRef = useRef(0)
   const settleRunSeqRef = useRef(0)
   const pendingCollapseRef = useRef(false)
   useEffect(() => {
     if (!editor) return
-    const syncEditorBody = (body: string) => {
+    const syncEditorContent = (markdown: string) => {
+      const { body, frontmatter } = splitFrontmatter(markdown)
+      lastSyncedFrontmatterRef.current = frontmatter
       if (body === lastSyncedBodyRef.current) return
       lastSyncedBodyRef.current = body
       editor.commands.setContent(parseMarkdownToDoc(body), {
@@ -1052,12 +1028,12 @@ export function LoadedRichMarkdownEditor({
           agentAnnouncedRef.current = true
           if (collaboration) announceAgentApplying(collaboration.awareness)
         }
-        const body = splitFrontmatter(content).body
-        if (body === lastStreamedBodyRef.current) return
-        pendingStreamBodyRef.current = body
+        const source = splitFrontmatter(content)
+        if (source.body === lastStreamedBodyRef.current) return
+        pendingStreamSourceRef.current = source
         if (streamRafRef.current !== null) return
         const tick = () => {
-          const pending = pendingStreamBodyRef.current
+          const pending = pendingStreamSourceRef.current?.body ?? null
           if (pending === null || pending === lastStreamedBodyRef.current) {
             streamRafRef.current = null
             return
@@ -1176,13 +1152,14 @@ export function LoadedRichMarkdownEditor({
           if (editor.isEditable) editor.setEditable(false)
         })
       }
-      const body = splitFrontmatter(content).body
-      if (body === lastSyncedBodyRef.current) return
-      pendingStreamBodyRef.current = body
+      const source = splitFrontmatter(content)
+      if (source.body === lastSyncedBodyRef.current) return
+      pendingStreamSourceRef.current = source
       if (streamRafRef.current !== null) return
       /** Self-re-arming tick: parse the latest pending body, but throttle a large one (cheap re-check, no parse) until due. */
       const tick = () => {
-        const pending = pendingStreamBodyRef.current
+        const source = pendingStreamSourceRef.current
+        const pending = source?.body ?? null
         if (pending === null || pending === lastSyncedBodyRef.current) {
           streamRafRef.current = null
           return
@@ -1202,6 +1179,7 @@ export function LoadedRichMarkdownEditor({
         }
         streamRafRef.current = null
         lastSyncedBodyRef.current = pending
+        lastSyncedFrontmatterRef.current = source?.frontmatter ?? ''
         lastStreamParseAtRef.current = performance.now()
         const el = containerRef.current
         const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
@@ -1237,7 +1215,7 @@ export function LoadedRichMarkdownEditor({
       // permanently painting every divider/image with the rich-leaf-in-selection decoration (keymap.ts)
       // until the user clicks away. setTextSelection (not .focus()) never steals DOM focus.
       runOffRender(() => {
-        syncEditorBody(splitFrontmatter(content).body)
+        syncEditorContent(content)
         pendingCollapseRef.current = false
         editor.commands.setTextSelection(editor.state.doc.content.size)
         editor.setEditable(canEdit && settledVerdict && collabReady)
@@ -1246,7 +1224,7 @@ export function LoadedRichMarkdownEditor({
       return
     }
     runOffRender(() => {
-      syncEditorBody(splitFrontmatter(content).body)
+      syncEditorContent(content)
       // Honor a collapse a superseded settle owed but never applied (its microtask was dropped when this
       // run bumped the token), so a post-stream select-all can't keep the leaf-in-selection decoration.
       if (pendingCollapseRef.current) {
@@ -1302,6 +1280,40 @@ export function LoadedRichMarkdownEditor({
   const showReconnecting = collaborationEnabled && collabStatus === 'reconnecting'
   const collabFailure = collaboration?.provider?.joinError ?? null
   const showCollabFailure = collaborationEnabled && collabStatus === 'fatal' ? collabFailure : null
+  const canExportSnapshot = settled?.canExportSnapshot !== false
+
+  useImperativeHandle<FileDownloadSource | null, FileDownloadSource | null>(
+    downloadSourceRef,
+    () =>
+      editor && canExportSnapshot
+        ? {
+            fileId: file.id,
+            workspaceId,
+            getContent: () => {
+              if (editor.isDestroyed) return null
+              if (showPlaceholder) return placeholder?.markdown ?? null
+              if (collaborationEnabled) {
+                return applyFrontmatter(
+                  saveFrontmatterResolverRef.current(),
+                  postProcessSerializedMarkdown(editor.getMarkdown())
+                )
+              }
+              /** Preserve unsupported source syntax and the displayed frame of a held rewrite. */
+              if (lastSyncedBodyRef.current === null) return null
+              return applyFrontmatter(lastSyncedFrontmatterRef.current, lastSyncedBodyRef.current)
+            },
+          }
+        : null,
+    [
+      editor,
+      file.id,
+      workspaceId,
+      showPlaceholder,
+      placeholder,
+      collaborationEnabled,
+      canExportSnapshot,
+    ]
+  )
 
   useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId, !showPlaceholder)
 
@@ -1398,7 +1410,6 @@ export function LoadedRichMarkdownEditor({
           />
         )}
         {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
-        {editor && <ImageBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
         {editor && <LinkHoverCard editor={editor} />}
         <input
           ref={imageInputRef}
@@ -1425,8 +1436,12 @@ export function LoadedRichMarkdownEditor({
             void insertImagesRef.current(images, range)
           }}
         />
-        {showPlaceholder && placeholderContent && (
-          <ReadOnlyPlaceholder content={placeholderContent} file={file} workspaceId={workspaceId} />
+        {showPlaceholder && placeholder && (
+          <ReadOnlyPlaceholder
+            content={placeholder.content}
+            file={file}
+            workspaceId={workspaceId}
+          />
         )}
         <EditorContent
           editor={editor}

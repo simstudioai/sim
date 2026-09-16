@@ -26,7 +26,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: { publishStatusChanged: mockPublishStatusChanged },
+  publishChatStatusChanged: mockPublishStatusChanged,
 }))
 
 vi.mock('@/lib/posthog/server', () => ({
@@ -101,11 +101,13 @@ describe('POST /api/mothership/chats/[chatId]/restore', () => {
       updatedAt: expect.any(Date),
       lastSeenAt: expect.any(Date),
     })
-    expect(mockPublishStatusChanged).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      chatId: 'chat-1',
-      type: 'created',
-    })
+    expect(mockPublishStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-1' }),
+      {
+        chatId: 'chat-1',
+        type: 'created',
+      }
+    )
   })
 
   it('returns 404 when the chat is restored concurrently before the update lands', async () => {

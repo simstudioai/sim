@@ -65,7 +65,7 @@ Sim fits calendar logic that has to obey rules a generic booking flow may not ex
 
 Executive calendars run on exceptions: no meetings before 10am, a board member takes precedence over a vendor, travel days change what is available, and a reschedule should notify a chief of staff. A Sim workflow can combine calendar actions with Slack, CRM, or table updates, allowing the team to make those exceptions visible in the workflow rather than leaving them in an assistant's memory. [Best AI agents for scheduling and calendar management](https://www.sim.ai/library/best-ai-agents-for-scheduling-and-calendar-management-in-2026) covers the wider scheduling field and the questions to ask about each deployment surface.
 
-[Lindy documents Google Calendar](https://www.lindy.ai/integrations/google-calendar) and [Outlook Calendar](https://www.lindy.ai/integrations/outlook-calendar) integrations. Review those sources for the actions, permissions, and scheduling behavior currently available before relying on an assistant to make or change executive appointments.
+[Lindy documents Google Calendar](https://www.lindy.ai/integrations/google-calendar) and [Outlook Calendar](https://wf.lindy.ai/integrations/microsoft-outlook) integrations. Review those sources for the actions, permissions, and scheduling behavior currently available before relying on an assistant to make or change executive appointments.
 
 [Zapier](https://zapier.com/apps/google-calendar/integrations), [Make](https://www.make.com/en/integrations/google-calendar), and [n8n](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.googlecalendar/) all document Google Calendar integrations. They are appropriate when a calendar event should deterministically copy data to another application. For priority conflicts and exception handling, explicitly model the decision and the human approval point instead of assuming any automation will make the right judgment.
 
@@ -75,7 +75,7 @@ Sim fits teams where a completed meeting should start work outside the EA lane. 
 
 A useful follow-up is a trigger, not an endpoint. A Sim workflow can draft a recap and pass the same structured output to a separate workflow that updates a CRM, files a task, or briefs a sales team. Workflows can also be deployed in multiple ways, including as an API or an [MCP server](https://docs.sim.ai/workflows/deployment/mcp), so another compatible AI client can call the workflow as a tool. If MCP is new to your team, read [what an MCP server is](https://www.sim.ai/library/what-is-an-mcp-server) before choosing it as the integration surface.
 
-[Lindy's meeting-assistant page](https://www.lindy.ai/meeting-assistant) describes its current meeting-oriented capabilities. It is the right primary source for confirming whether the product can create the recap, reminder, task, or handoff your workflow requires.
+[Lindy's meeting-assistant page](https://www.lindy.ai/solutions/meeting-notes) describes its current meeting-oriented capabilities. It is the right primary source for confirming whether the product can create the recap, reminder, task, or handoff your workflow requires.
 
 [Zapier](https://zapier.com/apps/categories/calendar) and [Make](https://www.make.com/en/integrations/calendar) can connect calendar events to task and messaging applications. That makes them a fit for mechanical follow-ups; a team that needs an AI-generated recap should validate the model step, review process, and source context it will use.
 
@@ -83,7 +83,7 @@ A useful follow-up is a trigger, not an endpoint. A Sim workflow can draft a rec
 
 Choose Sim when you need to specify the pipeline and route the result somewhere useful. Choose a packaged meeting assistant when a recap with minimal configuration is the whole requirement.
 
-[Lindy's meeting assistant](https://www.lindy.ai/meeting-assistant) is the primary source for its current recording, transcription, and summary behavior. A packaged product can be a good fit for a team that wants the vendor's supported defaults and a recap delivery flow without assembling a pipeline.
+[Lindy's meeting assistant](https://www.lindy.ai/solutions/meeting-notes) is the primary source for its current recording, transcription, and summary behavior. A packaged product can be a good fit for a team that wants the vendor's supported defaults and a recap delivery flow without assembling a pipeline.
 
 Sim lets a team compose a workflow around the transcription source, summarization model, review step, and destination. That is useful when a meeting summary must start a follow-up email, update a task, or add context to a CRM record. The same workflow can be exposed through an API, hosted chat, or MCP deployment where supported. Do not send recordings or transcripts to a provider until its retention, data-processing, and consent requirements have been reviewed.
 

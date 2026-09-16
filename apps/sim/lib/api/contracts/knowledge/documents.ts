@@ -16,6 +16,7 @@ import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primiti
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { getFieldTypeForSlot, MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
+import { DOCUMENT_PROCESSING_STATUSES } from '@/lib/knowledge/documents/types'
 import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
 import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
 
@@ -257,7 +258,8 @@ export const documentDataSchema = z
     chunkCount: z.number(),
     tokenCount: z.number(),
     characterCount: z.number(),
-    processingStatus: z.enum(['pending', 'processing', 'completed', 'failed']),
+    processingStatus: z.enum(DOCUMENT_PROCESSING_STATUSES),
+    processingOutcome: z.literal('skipped').nullable().default(null),
     /** When indexing was last dispatched to a worker, which precedes a worker starting it. */
     processingQueuedAt: nullableWireDateSchema.optional(),
     processingStartedAt: nullableWireDateSchema.optional(),
@@ -420,3 +422,30 @@ export const upsertKnowledgeDocumentContract = defineRouteContract({
     ),
   },
 })
+
+/** Bounded indexed text returned by Search's document reader. */
+export const readSearchDocumentResultSchema = z.object({
+  documentId: z.string().min(1),
+  knowledgeBaseId: z.string().min(1),
+  documentName: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+  chunks: z
+    .array(
+      z.object({
+        content: z.string().max(8000),
+        chunkIndex: z.number().int().min(0),
+        startOffset: z.number().int().min(0),
+        endOffset: z.number().int().min(0),
+        totalCharacters: z.number().int().min(0),
+      })
+    )
+    .max(8),
+  hasMore: z.boolean(),
+  next: z
+    .object({
+      startChunkIndex: z.number().int().min(0),
+      startOffset: z.number().int().min(0),
+    })
+    .nullable(),
+})
+export type ReadSearchDocumentResult = z.output<typeof readSearchDocumentResultSchema>

@@ -1,4 +1,9 @@
 import { createLogger } from '@sim/logger'
+import {
+  AttachmentDownloadBudget,
+  readAttachmentJson,
+  rethrowAttachmentDownloadError,
+} from '@/lib/uploads/utils/attachment-download-budget'
 import type { MicrosoftTeamsAttachment } from '@/tools/microsoft_teams/types'
 import type { ToolFileData } from '@/tools/types'
 
@@ -64,154 +69,127 @@ export function extractMessageAttachments(message: any): MicrosoftTeamsAttachmen
   return attachments
 }
 
-/**
- * Fetch hostedContents for a chat message, upload each item to storage, and return uploaded file infos.
- * Hosted contents expose base64 contentBytes via Microsoft Graph.
- */
+/** List hosted-content IDs, then fetch each item's raw bytes; Graph JSON omits contentBytes. */
+async function fetchHostedContents(
+  path: string,
+  accessToken: string,
+  budget: AttachmentDownloadBudget
+): Promise<ToolFileData[]> {
+  const results: ToolFileData[] = []
+  try {
+    budget.signal?.throwIfAborted()
+    const response = await fetch(path, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: budget.signal,
+    })
+    if (!response.ok) {
+      await response.body?.cancel()
+      budget.signal?.throwIfAborted()
+      return results
+    }
+    const data = await readAttachmentJson<{ value?: Array<{ id?: string }> }>(
+      response,
+      'Teams hosted-content metadata',
+      budget.signal
+    )
+    for (const item of data.value ?? []) {
+      if (!item.id) continue
+      budget.signal?.throwIfAborted()
+      const content = await fetch(`${path}/${encodeURIComponent(item.id)}/$value`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: budget.signal,
+      })
+      if (!content.ok) {
+        await content.body?.cancel()
+        budget.signal?.throwIfAborted()
+        continue
+      }
+      const buffer = await budget.read(content, 'Teams attachments')
+      results.push({
+        name: `teams-hosted-${item.id}`,
+        mimeType: content.headers.get('content-type') || 'application/octet-stream',
+        data: buffer,
+      })
+    }
+  } catch (error) {
+    rethrowAttachmentDownloadError(error, budget.signal)
+    logger.error('Error downloading Teams hosted content:', error)
+  }
+  return results
+}
+
 export async function fetchHostedContentsForChatMessage(params: {
   accessToken: string
   chatId: string
   messageId: string
+  budget?: AttachmentDownloadBudget
 }): Promise<ToolFileData[]> {
-  const { accessToken, chatId, messageId } = params
-  try {
-    const url = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/hostedContents`
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
-    if (!res.ok) {
-      return []
-    }
-    const data = await res.json()
-    const items = Array.isArray(data.value) ? data.value : []
-    const results: ToolFileData[] = []
-    for (const item of items) {
-      const base64: string | undefined = item.contentBytes
-      if (!base64) continue
-      const contentType: string =
-        typeof item.contentType === 'string' ? item.contentType : 'application/octet-stream'
-      const name: string = item.id ? `teams-hosted-${item.id}` : 'teams-hosted-content'
-      results.push({ name, mimeType: contentType, data: base64 })
-    }
-    return results
-  } catch (error) {
-    logger.error('Error fetching/uploading hostedContents for chat message:', error)
-    return []
-  }
+  return fetchHostedContents(
+    `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(params.chatId)}/messages/${encodeURIComponent(params.messageId)}/hostedContents`,
+    params.accessToken,
+    params.budget ?? new AttachmentDownloadBudget()
+  )
 }
 
-/**
- * Fetch hostedContents for a channel message, upload each item to storage, and return uploaded file infos.
- */
 export async function fetchHostedContentsForChannelMessage(params: {
   accessToken: string
   teamId: string
   channelId: string
   messageId: string
+  budget?: AttachmentDownloadBudget
 }): Promise<ToolFileData[]> {
-  const { accessToken, teamId, channelId, messageId } = params
-  try {
-    const url = `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/hostedContents`
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
-    if (!res.ok) {
-      return []
-    }
-    const data = await res.json()
-    const items = Array.isArray(data.value) ? data.value : []
-    const results: ToolFileData[] = []
-    for (const item of items) {
-      const base64: string | undefined = item.contentBytes
-      if (!base64) continue
-      const contentType: string =
-        typeof item.contentType === 'string' ? item.contentType : 'application/octet-stream'
-      const name: string = item.id ? `teams-hosted-${item.id}` : 'teams-hosted-content'
-      results.push({ name, mimeType: contentType, data: base64 })
-    }
-    return results
-  } catch (error) {
-    logger.error('Error fetching/uploading hostedContents for channel message:', error)
-    return []
-  }
+  return fetchHostedContents(
+    `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(params.teamId)}/channels/${encodeURIComponent(params.channelId)}/messages/${encodeURIComponent(params.messageId)}/hostedContents`,
+    params.accessToken,
+    params.budget ?? new AttachmentDownloadBudget()
+  )
 }
 
-/**
- * Download a reference-type attachment (SharePoint/OneDrive file) from Teams.
- * These are files shared in Teams that are stored in SharePoint/OneDrive.
- *
- */
-async function downloadReferenceAttachment(params: {
-  accessToken: string
-  attachment: MicrosoftTeamsAttachment
-}): Promise<ToolFileData | null> {
-  const { accessToken, attachment } = params
-
-  if (attachment.contentType !== 'reference') {
-    return null
-  }
-
-  const contentUrl = attachment.contentUrl
-  if (!contentUrl) {
-    logger.warn('Reference attachment has no contentUrl', { attachmentId: attachment.id })
-    return null
-  }
-
+/** Download a shared SharePoint/OneDrive attachment with the same budget as hosted content. */
+async function downloadReferenceAttachment(
+  accessToken: string,
+  attachment: MicrosoftTeamsAttachment,
+  budget: AttachmentDownloadBudget
+): Promise<ToolFileData | null> {
+  if (attachment.contentType !== 'reference' || !attachment.contentUrl) return null
   try {
-    const encodedUrl = Buffer.from(contentUrl)
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '')
-    const shareId = `u!${encodedUrl}`
-
-    const metadataUrl = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem`
-    const metadataRes = await fetch(metadataUrl, {
+    budget.signal?.throwIfAborted()
+    const shareId = `u!${Buffer.from(attachment.contentUrl).toString('base64url')}`
+    const path = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem`
+    const metadataResponse = await fetch(`${path}?$select=name,size,file`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: budget.signal,
     })
-
-    if (!metadataRes.ok) {
-      const errorData = await metadataRes.json().catch(() => ({}))
-      logger.error('Failed to get driveItem metadata via shares API', {
-        status: metadataRes.status,
-        error: errorData,
-        attachmentName: attachment.name,
-      })
+    if (!metadataResponse.ok) {
+      await metadataResponse.body?.cancel()
+      budget.signal?.throwIfAborted()
       return null
     }
-
-    const driveItem = await metadataRes.json()
-    const mimeType = driveItem.file?.mimeType || 'application/octet-stream'
-    const fileName = attachment.name || driveItem.name || 'attachment'
-
-    const downloadUrl = `https://graph.microsoft.com/v1.0/shares/${shareId}/driveItem/content`
-    const downloadRes = await fetch(downloadUrl, {
+    const item = await readAttachmentJson<{
+      name?: string
+      size?: number
+      file?: { mimeType?: string }
+    }>(metadataResponse, 'Teams attachment metadata', budget.signal)
+    if (item.size !== undefined) budget.assertSize(item.size, 'Teams attachments')
+    const content = await fetch(`${path}/content`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: budget.signal,
     })
-
-    if (!downloadRes.ok) {
-      logger.error('Failed to download file content', {
-        status: downloadRes.status,
-        fileName,
-      })
+    if (!content.ok) {
+      await content.body?.cancel()
+      budget.signal?.throwIfAborted()
       return null
     }
-
-    const arrayBuffer = await downloadRes.arrayBuffer()
-    const base64Data = Buffer.from(arrayBuffer).toString('base64')
-
-    logger.info('Successfully downloaded reference attachment', {
-      fileName,
-      size: arrayBuffer.byteLength,
-    })
-
+    const buffer = await budget.read(content, 'Teams attachments')
     return {
-      name: fileName,
-      mimeType,
-      data: base64Data,
+      name: attachment.name || item.name || 'attachment',
+      mimeType:
+        item.file?.mimeType || content.headers.get('content-type') || 'application/octet-stream',
+      data: buffer,
     }
   } catch (error) {
-    logger.error('Error downloading reference attachment:', {
-      error,
-      attachmentId: attachment.id,
-      attachmentName: attachment.name,
-    })
+    rethrowAttachmentDownloadError(error, budget.signal)
+    logger.error('Error downloading Teams reference attachment:', error)
     return null
   }
 }
@@ -219,25 +197,14 @@ async function downloadReferenceAttachment(params: {
 export async function downloadAllReferenceAttachments(params: {
   accessToken: string
   attachments: MicrosoftTeamsAttachment[]
+  budget?: AttachmentDownloadBudget
 }): Promise<ToolFileData[]> {
-  const { accessToken, attachments } = params
+  const budget = params.budget ?? new AttachmentDownloadBudget()
   const results: ToolFileData[] = []
-
-  const referenceAttachments = attachments.filter((att) => att.contentType === 'reference')
-
-  if (referenceAttachments.length === 0) {
-    return results
+  for (const attachment of params.attachments) {
+    const file = await downloadReferenceAttachment(params.accessToken, attachment, budget)
+    if (file) results.push(file)
   }
-
-  logger.info(`Downloading ${referenceAttachments.length} reference attachment(s)`)
-
-  for (const attachment of referenceAttachments) {
-    const file = await downloadReferenceAttachment({ accessToken, attachment })
-    if (file) {
-      results.push(file)
-    }
-  }
-
   return results
 }
 

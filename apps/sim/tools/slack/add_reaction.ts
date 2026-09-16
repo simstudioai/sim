@@ -14,6 +14,7 @@ export const slackAddReactionTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['reactions:write'],
   },
 
   params: {

@@ -1,13 +1,21 @@
+import { posix } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { z } from 'zod'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
+import { type RetryOptions, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { parseGitHubRepository } from '@/lib/oauth/github-repository'
 import { githubConnectorMeta } from '@/connectors/github/meta'
+import { fetchGitHubWithRetry as fetchWithRetry } from '@/connectors/github/request'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  isPerMemberListing,
   markSkipped,
   parseTagDate,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
@@ -27,13 +35,18 @@ const GITHUB_API_URL = 'https://api.github.com'
 const BATCH_SIZE = 200
 const GIT_SHA_PREFIX = 'git-sha:'
 const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
+/** Rehydrates formats formerly skipped or decoded as plain text once through their real parser. */
+const SOURCE_FILE_HASH_SUFFIX = ':source-file-v1'
 const BINARY_SNIFF_BYTES = 8000
+const MAX_SYMLINK_DEPTH = 40
+const MAX_SYMLINK_TARGET_BYTES = 4096
 /**
  * Recorded on binary blobs so they surface once as a skipped row instead of being
  * dropped silently — a dropped file stays an `add` forever and its blob is
  * re-downloaded in full on every sync.
  */
 const BINARY_SKIP_REASON = 'Binary file was not indexed'
+const EMPTY_SKIP_REASON = 'Empty file was not indexed'
 
 /**
  * Heuristic binary detection: Git treats files containing a NUL byte in the
@@ -45,18 +58,6 @@ function isBinaryBuffer(buf: Buffer): boolean {
     if (buf[i] === 0) return true
   }
   return false
-}
-
-/**
- * Parses the repository string into owner and repo.
- */
-function parseRepo(repository: string): { owner: string; repo: string } {
-  const cleaned = repository.replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '')
-  const parts = cleaned.split('/')
-  if (parts.length < 2 || !parts[0] || !parts[1]) {
-    throw new Error(`Invalid repository format: "${repository}". Use "owner/repo".`)
-  }
-  return { owner: parts[0], repo: parts[1] }
 }
 
 /**
@@ -91,12 +92,116 @@ function matchesExtension(filePath: string, extSet: Set<string> | null): boolean
   return extSet.has(fileName.slice(lastDot).toLowerCase())
 }
 
-interface TreeItem {
-  path: string
-  mode: string
-  type: string
+const treeItemSchema = z.object({
+  path: z.string().min(1),
+  mode: z.string().min(1),
+  type: z.enum(['blob', 'tree', 'commit']),
+  sha: z.string().min(1),
+  size: z.number().nonnegative().optional(),
+})
+const treeSchema = z.object({
+  sha: z.string().min(1),
+  tree: z.array(treeItemSchema).max(100_000),
+  truncated: z.boolean(),
+})
+const cursorSchema = z.object({
+  version: z.literal(1),
+  treeSha: z.string().min(1).max(128),
+  branch: z.string().min(1).max(1024),
+  offset: z.number().int().min(0).max(100_000),
+})
+
+class GitHubListingCursorInvalidError extends Error {}
+
+/** A restarted listing must resolve current scope rather than reuse the expired snapshot's branch. */
+function clearListingContext(syncContext?: Record<string, unknown>): void {
+  if (!syncContext) return
+  syncContext.githubBranch = undefined
+  syncContext.githubTreeSnapshot = undefined
+  syncContext.filteredTree = undefined
+  syncContext.listingCapped = undefined
+}
+
+function readCursor(
+  cursor?: string,
+  syncContext?: Record<string, unknown>
+): z.output<typeof cursorSchema> | undefined {
+  if (!cursor) return undefined
+  try {
+    return cursorSchema.parse(JSON.parse(cursor))
+  } catch {
+    /** Legacy numeric offsets cannot identify the tree they were paginating. */
+    clearListingContext(syncContext)
+    throw new GitHubListingCursorInvalidError('GitHub listing snapshot must be restarted')
+  }
+}
+
+const repositorySchema = z.object({ default_branch: z.string().min(1) })
+type TreeItem = z.output<typeof treeItemSchema>
+
+interface TreeSnapshot {
   sha: string
-  size?: number
+  items: Map<string, TreeItem>
+  truncated: boolean
+}
+
+class GitHubApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(`${message}: ${status}`)
+    this.name = 'GitHubApiError'
+  }
+}
+
+/** The shared transport separates throttles before repository access errors reach this path. */
+async function repositoryRequestError(
+  message: string,
+  response: Response
+): Promise<GitHubApiError> {
+  await response.body?.cancel()
+  return new GitHubApiError(message, response.status)
+}
+
+/** Search sources follow the repository default; existing workspace sources retain main. */
+async function resolveBranch(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  sourceConfig: Record<string, unknown>,
+  syncContext?: Record<string, unknown>,
+  retryOptions?: RetryOptions
+): Promise<string> {
+  const configuredBranch = typeof sourceConfig.branch === 'string' ? sourceConfig.branch.trim() : ''
+  if (configuredBranch) return configuredBranch
+  const isInstallationSource = typeof sourceConfig.githubRepositoryId === 'string'
+  if (!isPerMemberListing(syncContext) && !isInstallationSource) return 'main'
+  if (typeof syncContext?.githubBranch === 'string') return syncContext.githubBranch
+
+  const response = await fetchWithRetry(
+    `${GITHUB_API_URL}/repos/${owner}/${repo}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'Sim',
+      },
+    },
+    retryOptions
+  )
+  if (!response.ok) {
+    throw await repositoryRequestError('Failed to access GitHub repository', response)
+  }
+  const repository = repositorySchema.parse(
+    await readResponseJsonWithLimit(response, {
+      maxBytes: 1024 * 1024,
+      label: 'GitHub repository response',
+    })
+  )
+  if (syncContext) syncContext.githubBranch = repository.default_branch
+  return repository.default_branch
 }
 
 /**
@@ -111,9 +216,13 @@ async function fetchTree(
   accessToken: string,
   owner: string,
   repo: string,
-  branch: string
-): Promise<{ items: TreeItem[]; truncated: boolean }> {
-  const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`
+  branch: string,
+  syncContext?: Record<string, unknown>,
+  treeSha?: string
+): Promise<TreeSnapshot> {
+  const cached = syncContext?.githubTreeSnapshot as TreeSnapshot | undefined
+  if (cached && (!treeSha || cached.sha === treeSha)) return cached
+  const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(treeSha ?? branch)}?recursive=1`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -121,67 +230,123 @@ async function fetchTree(
       Accept: 'application/vnd.github+json',
       Authorization: `Bearer ${accessToken}`,
       'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'Sim',
     },
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    logger.error('Failed to fetch GitHub tree', { status: response.status, error: errorText })
-    throw new Error(`Failed to fetch repository tree: ${response.status}`)
+    if (treeSha && response.status === 404) {
+      await response.body?.cancel()
+      clearListingContext(syncContext)
+      throw new GitHubListingCursorInvalidError('GitHub listing snapshot is no longer available')
+    }
+    throw await repositoryRequestError('Failed to fetch repository tree', response)
   }
 
-  const data = await response.json()
+  const data = treeSchema.parse(
+    await readResponseJsonWithLimit(response, {
+      maxBytes: 8 * 1024 * 1024,
+      label: 'GitHub repository tree response',
+    })
+  )
 
   const truncated = Boolean(data.truncated)
   if (truncated) {
     logger.warn('GitHub tree was truncated — some files may be missing', { owner, repo, branch })
   }
 
-  return {
-    items: (data.tree || []).filter((item: TreeItem) => item.type === 'blob'),
+  const snapshot: TreeSnapshot = {
+    sha: data.sha,
+    items: new Map(data.tree.map((item) => [item.path, item])),
     truncated,
   }
+  if (syncContext) syncContext.githubTreeSnapshot = snapshot
+  return snapshot
 }
 
-/**
- * Fetches blob content via the Git Blobs API. Used as a fallback when the
- * `/contents/` endpoint cannot return the file body (files larger than 1 MB
- * return `content: ""` and `encoding: "none"`). Supports blobs up to 100 MB.
- */
-async function fetchBlobContent(
+/** Keeps original bytes available to the shared parsers while bounding every blob read. */
+async function fetchBlobBytes(
   accessToken: string,
   owner: string,
   repo: string,
-  sha: string
-): Promise<string | null> {
+  sha: string,
+  maxBytes = MAX_FILE_SIZE
+): Promise<Buffer> {
   const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/git/blobs/${encodeURIComponent(sha)}`
+  const label = `git blob ${sha}`
   const response = await fetchWithRetry(url, {
     method: 'GET',
     headers: {
       Accept: 'application/vnd.github.raw+json',
       Authorization: `Bearer ${accessToken}`,
       'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'Sim',
     },
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch git blob ${sha}: ${response.status}`)
+    throw await repositoryRequestError(`Failed to fetch ${label}`, response)
   }
 
   if (!response.body) {
     const contentLength = Number.parseInt(response.headers.get('content-length') ?? '', 10)
-    if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE) {
-      throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      throw new ConnectorFileTooLargeError(maxBytes)
     }
-    throw new Error(`GitHub git blob ${sha} returned no body`)
+    throw new Error(`GitHub ${label} returned no body`)
   }
 
-  const buffer = await readBodyWithLimit(response, MAX_FILE_SIZE)
+  const buffer = await readBodyWithLimit(response, maxBytes)
   if (!buffer) {
-    throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
+    throw new ConnectorFileTooLargeError(maxBytes)
   }
-  if (isBinaryBuffer(buffer)) return null
-  return buffer.toString('utf8')
+  return buffer
+}
+
+/** Resolves links within one snapshot; Contents can truncate dereferenced targets at 1 MiB. */
+async function resolveSymlinkTarget(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  link: TreeItem,
+  snapshot: TreeSnapshot
+): Promise<TreeItem | null> {
+  const visited = new Set<string>()
+  let item = link
+  for (let depth = 0; depth < MAX_SYMLINK_DEPTH; depth++) {
+    if (item.mode !== '120000') return item.type === 'blob' ? item : null
+    if (visited.has(item.path) || (item.size ?? 0) > MAX_SYMLINK_TARGET_BYTES) return null
+    visited.add(item.path)
+    let targetBytes: Buffer
+    try {
+      targetBytes = await fetchBlobBytes(
+        accessToken,
+        owner,
+        repo,
+        item.sha,
+        MAX_SYMLINK_TARGET_BYTES
+      )
+    } catch (error) {
+      if (error instanceof ConnectorFileTooLargeError) return null
+      throw error
+    }
+    if (isBinaryBuffer(targetBytes)) return null
+    const target = decodeTextBuffer(targetBytes).text
+    if (!target || posix.isAbsolute(target)) return null
+    const targetPath = posix.normalize(posix.join(posix.dirname(item.path), target))
+    if (targetPath === '..' || targetPath.startsWith('../')) return null
+    const next = snapshot.items.get(targetPath)
+    if (!next) {
+      if (snapshot.truncated) {
+        throw new Error(
+          'GitHub tree was truncated before the symbolic link target could be resolved'
+        )
+      }
+      return null
+    }
+    item = next
+  }
+  return item.mode !== '120000' && item.type === 'blob' ? item : null
 }
 
 /**
@@ -194,16 +359,21 @@ function treeItemToStub(
   owner: string,
   repo: string,
   branch: string,
-  item: { path: string; sha: string; size?: number }
+  item: { path: string; sha: string; size?: number; mode?: string },
+  treeSha: string
 ): ExternalDocument {
   return {
     externalId: item.path,
     title: item.path.split('/').pop() || item.path,
     content: '',
     contentDeferred: true,
+    skippedRetryPolicy: 'source-change',
+    /** Verified immutable omissions replace older content; fetch failures still throw. */
+    skippedExistingDisposition: 'replace',
     mimeType: 'text/plain',
     sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch.split('/').map(encodeURIComponent).join('/')}/${item.path.split('/').map(encodeURIComponent).join('/')}`,
-    contentHash: `${GIT_SHA_PREFIX}${item.sha}`,
+    /** Contents dereferences symlinks but retains their SHA even when the target changes. */
+    contentHash: `${GIT_SHA_PREFIX}${item.sha}${item.mode === '120000' ? `:${treeSha}` : ''}${pipelineParsedMimeType(item.path) ? SOURCE_FILE_HASH_SUFFIX : ''}`,
     metadata: {
       path: item.path,
       sha: item.sha,
@@ -216,6 +386,13 @@ function treeItemToStub(
 
 export const githubConnector: ConnectorConfig = {
   ...githubConnectorMeta,
+  contentConcurrency: 1,
+  isListingCursorInvalidError: (error) => error instanceof GitHubListingCursorInvalidError,
+
+  isCredentialInvalidError: (error) => error instanceof GitHubApiError && error.status === 401,
+  /** Provider throttles preserve membership; a genuine scope denial withdraws it. */
+  isListingScopeUnavailableError: (error) =>
+    error instanceof GitHubApiError && (error.status === 403 || error.status === 404),
 
   listDocuments: async (
     accessToken: string,
@@ -223,28 +400,37 @@ export const githubConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const { owner, repo } = parseRepo(sourceConfig.repository as string)
-    const branch = ((sourceConfig.branch as string) || 'main').trim()
+    const { owner, repo } = parseGitHubRepository(sourceConfig.repository as string)
+    const position = readCursor(cursor, syncContext)
+    const branch =
+      position?.branch ?? (await resolveBranch(accessToken, owner, repo, sourceConfig, syncContext))
+    if (syncContext) syncContext.githubBranch = branch
     const pathPrefix = ((sourceConfig.pathPrefix as string) || '').trim()
     const extSet = parseExtensions((sourceConfig.extensions as string) || '')
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const snapshot = await fetchTree(
+      accessToken,
+      owner,
+      repo,
+      branch,
+      syncContext,
+      position?.treeSha
+    )
 
     let capped: TreeItem[]
     if (syncContext?.filteredTree) {
       capped = syncContext.filteredTree as TreeItem[]
     } else {
-      const { items: tree, truncated } = await fetchTree(accessToken, owner, repo, branch)
+      const { items: tree, truncated } = snapshot
 
-      // Filter by path prefix and extensions. Oversized files are kept here and
-      // surfaced as skipped (failed) documents at stub time so they stay visible.
-      const filtered = tree.filter((item) => {
+      /** Oversized files remain visible as skipped documents and never consume the file cap. */
+      const filtered = [...tree.values()].filter((item) => {
+        if (item.type !== 'blob') return false
         if (pathPrefix && !item.path.startsWith(pathPrefix)) return false
         if (!matchesExtension(item.path, extSet)) return false
         return true
       })
 
-      // Apply the max-files limit to indexable files only; oversized files within
-      // the capped window are kept (and surfaced as skipped) but never consume the cap.
       capped =
         maxFiles > 0
           ? takeIndexableWithinCap(
@@ -277,8 +463,10 @@ export const githubConnector: ConnectorConfig = {
       if (syncContext) syncContext.filteredTree = capped
     }
 
-    // Paginate using offset cursor
-    const offset = cursor ? Number(cursor) : 0
+    const offset = position?.offset ?? 0
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new Error('Invalid GitHub listing cursor')
+    }
     const batch = capped.slice(offset, offset + BATCH_SIZE)
 
     logger.info('Listing GitHub files', {
@@ -290,16 +478,24 @@ export const githubConnector: ConnectorConfig = {
       batchSize: batch.length,
     })
 
-    const documents = batch.map((item) =>
-      stubOrSkipBySize(treeItemToStub(owner, repo, branch, item), item.size, MAX_FILE_SIZE)
-    )
+    const documents = batch.map((item) => {
+      const stub = stubOrSkipBySize(
+        treeItemToStub(owner, repo, branch, item, snapshot.sha),
+        item.size,
+        MAX_FILE_SIZE
+      )
+      return item.size === 0 ? markSkipped(stub, EMPTY_SKIP_REASON) : stub
+    })
 
     const nextOffset = offset + BATCH_SIZE
     const hasMore = nextOffset < capped.length
 
     return {
       documents,
-      nextCursor: hasMore ? String(nextOffset) : undefined,
+      currentCursor: JSON.stringify({ version: 1, treeSha: snapshot.sha, branch, offset }),
+      nextCursor: hasMore
+        ? JSON.stringify({ version: 1, treeSha: snapshot.sha, branch, offset: nextOffset })
+        : undefined,
       hasMore,
     }
   },
@@ -308,96 +504,60 @@ export const githubConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     externalId: string,
-    _syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const { owner, repo } = parseRepo(sourceConfig.repository as string)
-    const branch = ((sourceConfig.branch as string) || 'main').trim()
-
-    // externalId is the file path
+    const { owner, repo } = parseGitHubRepository(sourceConfig.repository as string)
     const path = externalId
 
     try {
-      const encodedPath = path.split('/').map(encodeURIComponent).join('/')
-      const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`
-      const response = await fetchWithRetry(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/vnd.github.object+json',
-          Authorization: `Bearer ${accessToken}`,
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      })
-
-      if (!response.ok) {
-        if (response.status === 404) return null
-        throw new Error(`Failed to fetch file ${path}: ${response.status}`)
+      const branch = await resolveBranch(accessToken, owner, repo, sourceConfig, syncContext)
+      const snapshot = await fetchTree(accessToken, owner, repo, branch, syncContext)
+      const treeItem = snapshot.items.get(path)
+      if (!treeItem && snapshot.truncated) {
+        throw new Error('GitHub tree was truncated before the file could be resolved')
       }
-
-      const lastModifiedHeader = response.headers.get('last-modified') || undefined
-      const data = await response.json()
-
-      const size = typeof data.size === 'number' ? data.size : 0
-      // Shared stub keeps externalId, sourceUrl, contentHash, and metadata byte-identical
-      // to what `listDocuments` produced, so hydration never looks like a content change.
-      const stub = treeItemToStub(owner, repo, branch, {
-        path,
-        sha: data.sha as string,
-        size,
-      })
-
-      if (size > MAX_FILE_SIZE) {
-        logger.info('Skipping GitHub file exceeding size limit', {
-          path,
-          size,
-          limit: MAX_FILE_SIZE,
-        })
-        return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+      if (!treeItem || treeItem.type !== 'blob') return null
+      const symlink = treeItem.mode === '120000' ? treeItem : undefined
+      const target = symlink
+        ? await resolveSymlinkTarget(accessToken, owner, repo, symlink, snapshot)
+        : treeItem
+      const size = target?.size ?? 0
+      const stub = treeItemToStub(owner, repo, branch, { ...treeItem, size }, snapshot.sha)
+      if (!target) {
+        return markSkipped(stub, 'Symbolic link target is not a repository file')
       }
-
-      const rawContent = (data.content as string) || ''
-      const encoding = data.encoding as string | undefined
-      let content: string
-      if (encoding === 'base64' && rawContent.length > 0) {
-        const buf = Buffer.from(rawContent, 'base64')
-        if (isBinaryBuffer(buf)) {
-          logger.info('Skipping binary GitHub file', { path, size })
-          return markSkipped(stub, BINARY_SKIP_REASON)
-        }
-        content = buf.toString('utf8')
-      } else if (encoding === 'none' && data.sha && size > 0) {
-        /**
-         * Per https://docs.github.com/en/rest/repos/contents, for files of 1-100 MB
-         * "only the `raw` or `object` custom media types are supported", and it is
-         * specifically "when using the `object` media type" that "the `content` field
-         * will be an empty string and the `encoding` field will be `none`".
-         * The Git Blobs fallback streams that same blob through GitHub's documented raw
-         * media type and supports blobs up to 100 MB.
-         */
-        let blobContent: string | null
-        try {
-          blobContent = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
-        } catch (error) {
-          if (error instanceof ConnectorFileTooLargeError) {
-            return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
-          }
-          throw error
-        }
-        if (blobContent === null) {
-          logger.info('Skipping binary GitHub file', { path, size })
-          return markSkipped(stub, BINARY_SKIP_REASON)
-        }
-        content = blobContent
-      } else {
-        content = ''
+      if (size > MAX_FILE_SIZE) return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+      if (target.size === 0) return markSkipped(stub, EMPTY_SKIP_REASON)
+      /** The immutable listed blob avoids ref drift and a redundant Contents API request. */
+      let bytes: Buffer
+      try {
+        bytes = await fetchBlobBytes(accessToken, owner, repo, target.sha)
+      } catch (error) {
+        if (error instanceof ConnectorFileTooLargeError)
+          return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+        throw error
       }
+      if (bytes.length === 0) return markSkipped(stub, EMPTY_SKIP_REASON)
+      const mimeType = pipelineParsedMimeType(stub.title)
+      if (mimeType) {
+        return {
+          ...stub,
+          contentDeferred: false,
+          mimeType,
+          sourceFile: { bytes, fileName: stub.title, mimeType },
+        }
+      }
+      if (isBinaryBuffer(bytes)) return markSkipped(stub, BINARY_SKIP_REASON)
+      const content = decodeTextBuffer(bytes).text
+      if (!content.trim()) return markSkipped(stub, EMPTY_SKIP_REASON)
 
       return {
         ...stub,
         content,
         contentDeferred: false,
-        metadata: { ...stub.metadata, lastModified: lastModifiedHeader },
       }
     } catch (error) {
+      if (error instanceof GitHubApiError && error.status === 404) return null
       /**
        * Rethrow so hydration rejects and the sync engine counts a visible `docsFailed`
        * row. Returning `null` instead reports a transient GitHub failure as success —
@@ -413,7 +573,8 @@ export const githubConnector: ConnectorConfig = {
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const repository = (sourceConfig.repository as string)?.trim()
     if (!repository) {
@@ -423,7 +584,7 @@ export const githubConnector: ConnectorConfig = {
     let owner: string
     let repo: string
     try {
-      const parsed = parseRepo(repository)
+      const parsed = parseGitHubRepository(repository)
       owner = parsed.owner
       repo = parsed.repo
     } catch (error) {
@@ -434,14 +595,19 @@ export const githubConnector: ConnectorConfig = {
     }
 
     const maxFiles = sourceConfig.maxFiles as string | undefined
-    if (maxFiles && (Number.isNaN(Number(maxFiles)) || Number(maxFiles) <= 0)) {
-      return { valid: false, error: 'Max files must be a positive number' }
+    if (maxFiles && (!Number.isSafeInteger(Number(maxFiles)) || Number(maxFiles) <= 0)) {
+      return { valid: false, error: 'Max files must be a positive whole number' }
     }
 
-    const branch = ((sourceConfig.branch as string) || 'main').trim()
-
     try {
-      // Verify repo and branch are accessible
+      const branch = await resolveBranch(
+        accessToken,
+        owner,
+        repo,
+        sourceConfig,
+        syncContext,
+        VALIDATE_RETRY_OPTIONS
+      )
       const url = `${GITHUB_API_URL}/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`
       const response = await fetchWithRetry(
         url,
@@ -451,20 +617,29 @@ export const githubConnector: ConnectorConfig = {
             Accept: 'application/vnd.github+json',
             Authorization: `Bearer ${accessToken}`,
             'X-GitHub-Api-Version': '2022-11-28',
+            'User-Agent': 'Sim',
           },
         },
         VALIDATE_RETRY_OPTIONS
       )
 
+      await response.body?.cancel()
+
       if (response.status === 404) {
         return {
           valid: false,
-          error: `Repository "${owner}/${repo}" or branch "${branch}" not found`,
+          error: `Repository "${owner}/${repo}" or branch "${branch}" is unavailable. Check repository access and the GitHub App installation.`,
         }
       }
 
       if (!response.ok) {
-        return { valid: false, error: `Cannot access repository: ${response.status}` }
+        return {
+          valid: false,
+          error:
+            response.status === 403
+              ? 'GitHub denied access. Check repository permissions and authorize your organization’s SSO session before reconnecting.'
+              : `Cannot access repository: ${response.status}`,
+        }
       }
 
       return { valid: true }

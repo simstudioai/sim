@@ -7,6 +7,7 @@ import {
   organization,
   permissions,
   tableRunDispatches,
+  uploadSession,
   user,
   workspaceFile,
   workspaceFiles,
@@ -14,7 +15,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { formatQuotedNameList } from '@sim/utils/string'
-import { and, eq, gt, inArray, isNotNull, ne, notExists, or, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
   AccountDeletionBlocker,
   AccountDeletionPlan,
@@ -415,7 +416,7 @@ export function extractProfilePictureKey(image: string | null): string | null {
 }
 
 /**
- * Collects every stored object held by workspaces that go with the account.
+ * Collects the account's private images and stored objects in workspaces that go with it.
  *
  * This has to run *before* the rows are deleted: they disappear with the
  * workspace through `ON DELETE CASCADE`, and the retention sweep that normally
@@ -429,6 +430,27 @@ async function collectAccountStorageKeys(
   workspaceIds: string[]
 ): Promise<StorageKeyBatch[]> {
   const batches: StorageKeyBatch[] = []
+
+  await collectPages(
+    (afterId) =>
+      db
+        .select({ id: uploadSession.id, key: uploadSession.finalKey })
+        .from(uploadSession)
+        .where(
+          and(
+            eq(uploadSession.userId, userId),
+            eq(uploadSession.purpose, 'mothership_attachment'),
+            isNull(uploadSession.workspaceId),
+            eq(uploadSession.status, 'completed'),
+            gt(uploadSession.id, afterId)
+          )
+        )
+        .orderBy(uploadSession.id)
+        .limit(STORAGE_PAGE_SIZE),
+    batches,
+    () => 'mothership'
+  )
+
   if (!isUsingCloudStorage()) return batches
 
   const [profile] = await db
@@ -497,7 +519,7 @@ async function collectAccountStorageKeys(
  * failure for work that cannot be undone. An orphaned object is recoverable from
  * the log; a deletion the caller believes failed is not.
  */
-async function purgeStorageObjects(batches: StorageKeyBatch[]): Promise<void> {
+async function purgeStorageObjects(userId: string, batches: StorageKeyBatch[]): Promise<void> {
   for (const { context, keys } of batches) {
     if (keys.length === 0) continue
     try {
@@ -509,8 +531,34 @@ async function purgeStorageObjects(batches: StorageKeyBatch[]): Promise<void> {
           error,
         })
       }
+
+      if (context === 'mothership') {
+        const failedKeys = new Set(failed.map(({ key }) => key))
+        const deletedImageKeys = keys.filter(
+          (key) => key.startsWith('assistant/') && !failedKeys.has(key)
+        )
+        if (deletedImageKeys.length > 0) {
+          /**
+           * Keep ownership records while a signed PUT can recreate the object.
+           * The upload-session sweep retries these and failed object deletions
+           * after the deleted uploader and transfer expiry are confirmed.
+           */
+          await db
+            .delete(uploadSession)
+            .where(
+              and(
+                eq(uploadSession.userId, userId),
+                eq(uploadSession.purpose, 'mothership_attachment'),
+                isNull(uploadSession.workspaceId),
+                eq(uploadSession.status, 'completed'),
+                lte(uploadSession.expiresAt, new Date()),
+                inArray(uploadSession.finalKey, deletedImageKeys)
+              )
+            )
+        }
+      }
     } catch (error) {
-      logger.error('Storage batch deletion failed during account deletion', { context, error })
+      logger.error('Storage cleanup failed during account deletion', { context, error })
     }
   }
 }
@@ -743,7 +791,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
 
-  await purgeStorageObjects(storageKeys)
+  await purgeStorageObjects(userId, storageKeys)
 
   logger.info('Deleted account', {
     userId,

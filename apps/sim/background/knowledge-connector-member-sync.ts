@@ -13,31 +13,50 @@ import { MEMBER_SYNC_MAX_DURATION_SECONDS } from '@/lib/knowledge/connectors/syn
 
 const logger = createLogger('TriggerKnowledgeConnectorMemberSync')
 
-export type MemberSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed'
+export type MemberSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed' | 'deferred'
 
 /** A run is partial when any member or document failed; skipped and failed mirror the content task. */
 export function classifyMemberSyncResult(result: MemberSyncResult): MemberSyncTaskOutcome {
   if (result.skipReason) return 'skipped'
   if (result.error) return 'failed'
-  if (result.membersFailed > 0 || result.docsFailed > 0 || result.processingDispatch.failed > 0) {
+  if (
+    result.deferred &&
+    result.docsFailed === 0 &&
+    result.processingDispatch.failed === 0 &&
+    result.membersFailed === 0
+  )
+    return 'deferred'
+  if (
+    result.listingIncomplete ||
+    result.membersIncomplete > 0 ||
+    result.membersRemaining ||
+    result.membersFailed > 0 ||
+    result.docsFailed > 0 ||
+    result.processingDispatch.failed > 0
+  ) {
     return 'partial'
   }
   return 'completed'
 }
 
 export async function executeMemberSyncJob(payload: unknown) {
-  const { connectorId, requestId, billingAttribution, dispatchToken } =
+  const { connectorId, requestId, billingAttribution, dispatchToken, forceContentRefresh } =
     assertMemberSyncPayload(payload)
 
   logger.info(`[${requestId}] Starting member sync: ${connectorId}`)
 
   try {
-    const result = await executeMemberSync(connectorId, { billingAttribution, dispatchToken })
+    const result = await executeMemberSync(connectorId, {
+      billingAttribution,
+      dispatchToken,
+      forceContentRefresh,
+    })
     const outcome = classifyMemberSyncResult(result)
 
     logger.info(`[${requestId}] Member sync completed`, {
       connectorId,
       outcome,
+      deferred: result.deferred,
       membersClaimed: result.membersClaimed,
       membersCompleted: result.membersCompleted,
       membersIncomplete: result.membersIncomplete,

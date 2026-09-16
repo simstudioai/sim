@@ -119,7 +119,7 @@ vi.mock('@/lib/copilot/request/session/sse', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat-status', () => ({
-  chatPubSub: null,
+  publishChatStatusChanged: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/request/go/fetch', () => ({
@@ -414,14 +414,17 @@ describe('requestChatTitle billing protocol', () => {
   })
 
   it('freezes and forwards a dedicated attributed identity before title work', async () => {
+    const signal = new AbortController().signal
     const title = await requestChatTitle({
       message: 'explain billing',
       model: 'claude-opus-4.8',
       userId: 'user-1',
       workspaceId: 'workspace-1',
       billingAttribution: BILLING_ATTRIBUTION,
+      signal,
     })
 
+    expect(fetchGo.mock.calls[0]?.[1]?.signal).toBe(signal)
     expect(title).toBe('Billing Protocol')
     const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
     const billingRequestId = headers['x-sim-billing-request-id']
@@ -435,6 +438,41 @@ describe('requestChatTitle billing protocol', () => {
     expect(JSON.parse(decodeURIComponent(headers['x-sim-billing-attribution']))).toEqual(
       BILLING_ATTRIBUTION
     )
+  })
+
+  it('forwards the exact organization and private chat for title billing admission', async () => {
+    const attribution = { ...BILLING_ATTRIBUTION, workspaceId: null }
+    await expect(
+      requestChatTitle({
+        message: 'search connected sources',
+        model: 'claude-opus-4.8',
+        userId: 'user-1',
+        organizationId: 'org-1',
+        chatId: 'chat-1',
+        billingAttribution: attribution,
+      })
+    ).resolves.toBe('Billing Protocol')
+    const options = fetchGo.mock.calls[0]?.[1]
+    expect(JSON.parse(options.body)).toEqual(
+      expect.objectContaining({ organizationId: 'org-1', chatId: 'chat-1' })
+    )
+    expect(JSON.parse(options.body)).not.toHaveProperty('workspaceId')
+    expect(JSON.parse(decodeURIComponent(options.headers['x-sim-billing-attribution']))).toEqual(
+      attribution
+    )
+  })
+
+  it('does not send organization title work without a canonical private chat', async () => {
+    await expect(
+      requestChatTitle({
+        message: 'search connected sources',
+        model: 'claude-opus-4.8',
+        userId: 'user-1',
+        organizationId: 'org-1',
+        billingAttribution: { ...BILLING_ATTRIBUTION, workspaceId: null },
+      })
+    ).resolves.toBeNull()
+    expect(fetchGo).not.toHaveBeenCalled()
   })
 
   it('fails before hosted title egress without a billing workspace', async () => {

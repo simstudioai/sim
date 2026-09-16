@@ -39,7 +39,6 @@ export const hybridAuthMockFns = {
   mockCheckHybridAuth: vi.fn(defaultCheckSessionOrInternalAuth),
   mockCheckSessionOrInternalAuth: vi.fn(defaultCheckSessionOrInternalAuth),
   mockCheckInternalAuth: vi.fn(),
-  mockHasExternalApiCredentials: vi.fn(() => false),
 }
 
 /**
@@ -71,5 +70,4 @@ export const hybridAuthMock = {
   checkHybridAuth: hybridAuthMockFns.mockCheckHybridAuth,
   checkSessionOrInternalAuth: hybridAuthMockFns.mockCheckSessionOrInternalAuth,
   checkInternalAuth: hybridAuthMockFns.mockCheckInternalAuth,
-  hasExternalApiCredentials: hybridAuthMockFns.mockHasExternalApiCredentials,
 }

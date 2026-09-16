@@ -1,15 +1,13 @@
 import { db } from '@sim/db'
-import {
-  permissionGroup,
-  permissionGroupMember,
-  permissionGroupWorkspace,
-  user,
-  workspace,
-} from '@sim/db/schema'
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { permissionGroup, permissionGroupWorkspace, workspace } from '@sim/db/schema'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import type { DbOrTx } from '@/lib/db/types'
+import type {
+  AllMembersConflict,
+  ScopeConflict,
+} from '@/lib/permission-groups/application/group-membership'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
 /** A workspace reference (id + display name). */
@@ -58,6 +56,7 @@ export async function loadGroupInOrganization(
       createdAt: permissionGroup.createdAt,
       updatedAt: permissionGroup.updatedAt,
       isDefault: permissionGroup.isDefault,
+      membershipMode: permissionGroup.membershipMode,
     })
     .from(permissionGroup)
     .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.organizationId, organizationId)))
@@ -129,125 +128,6 @@ export async function listOrganizationWorkspaces(organizationId: string): Promis
 }
 
 /** A member whose other group membership would conflict with a candidate scope. */
-export interface ScopeConflict {
-  userId: string
-  userName: string | null
-  userEmail: string | null
-  /** The group the member already belongs to that causes the conflict. */
-  conflictingGroupId: string
-  conflictingGroupName: string
-}
-
-/**
- * Which of `candidateUserIds` would be governed by two groups on the same
- * workspace: each is already an explicit member of another non-default group
- * that shares one of `workspaceIds`. The candidate group (`excludeGroupId`) and
- * the org default group are ignored — the default never governs through
- * membership. Returns at most one conflict per user.
- */
-export async function findScopeConflicts(
-  params: {
-    organizationId: string
-    excludeGroupId: string
-    workspaceIds: string[]
-    candidateUserIds: string[]
-  },
-  executor: DbOrTx = db
-): Promise<ScopeConflict[]> {
-  const { organizationId, excludeGroupId, workspaceIds, candidateUserIds } = params
-  if (candidateUserIds.length === 0 || workspaceIds.length === 0) return []
-
-  const rows = await executor
-    .select({
-      userId: permissionGroupMember.userId,
-      userName: user.name,
-      userEmail: user.email,
-      otherGroupId: permissionGroup.id,
-      otherGroupName: permissionGroup.name,
-    })
-    .from(permissionGroupMember)
-    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-    .innerJoin(
-      permissionGroupWorkspace,
-      eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id)
-    )
-    .leftJoin(user, eq(permissionGroupMember.userId, user.id))
-    .where(
-      and(
-        eq(permissionGroupMember.organizationId, organizationId),
-        inArray(permissionGroupMember.userId, candidateUserIds),
-        ne(permissionGroupMember.permissionGroupId, excludeGroupId),
-        eq(permissionGroup.isDefault, false),
-        inArray(permissionGroupWorkspace.workspaceId, workspaceIds)
-      )
-    )
-
-  const conflictByUser = new Map<string, ScopeConflict>()
-  for (const row of rows) {
-    if (conflictByUser.has(row.userId)) continue
-    conflictByUser.set(row.userId, {
-      userId: row.userId,
-      userName: row.userName,
-      userEmail: row.userEmail,
-      conflictingGroupId: row.otherGroupId,
-      conflictingGroupName: row.otherGroupName,
-    })
-  }
-  return Array.from(conflictByUser.values())
-}
-
-/** An existing all-members group that already governs everyone in a shared workspace. */
-export interface AllMembersConflict {
-  conflictingGroupId: string
-  conflictingGroupName: string
-  workspaceName: string
-}
-
-/**
- * For a group that will govern *all members* of `workspaceIds` (a non-default
- * group with no explicit members), return the first other non-default
- * all-members group already targeting one of those workspaces, or `null`. Two
- * all-members groups on one workspace would both claim everyone there, so this
- * is rejected at assignment time. The candidate group (`excludeGroupId`) is
- * ignored.
- */
-export async function findAllMembersWorkspaceConflict(
-  params: { organizationId: string; excludeGroupId: string; workspaceIds: string[] },
-  executor: DbOrTx = db
-): Promise<AllMembersConflict | null> {
-  const { organizationId, excludeGroupId, workspaceIds } = params
-  if (workspaceIds.length === 0) return null
-
-  const [row] = await executor
-    .select({
-      conflictingGroupId: permissionGroup.id,
-      conflictingGroupName: permissionGroup.name,
-      workspaceName: workspace.name,
-    })
-    .from(permissionGroup)
-    .innerJoin(
-      permissionGroupWorkspace,
-      eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id)
-    )
-    .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
-    .where(
-      and(
-        eq(permissionGroup.organizationId, organizationId),
-        eq(permissionGroup.isDefault, false),
-        ne(permissionGroup.id, excludeGroupId),
-        inArray(permissionGroupWorkspace.workspaceId, workspaceIds),
-        sql`not exists (
-          select 1 from ${permissionGroupMember}
-          where ${permissionGroupMember.permissionGroupId} = ${permissionGroup.id}
-        )`
-      )
-    )
-    .orderBy(asc(workspace.name))
-    .limit(1)
-
-  return row ?? null
-}
-
 /**
  * Human-readable 409 message for a scope/membership conflict, naming the member
  * and the group they already belong to that overlaps the requested workspaces.

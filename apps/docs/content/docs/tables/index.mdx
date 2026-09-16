@@ -1,5 +1,5 @@
 ---
-title: Overview
+title: Tables
 description: A grid of typed columns and rows in your workspace, for data your workflows read and write.
 ---
 
@@ -48,11 +48,8 @@ A [Table block](/tables/using-in-workflows) reads and writes rows from inside a 
 </Cards>
 
 <FAQ items={[
-  { question: "Is there a row limit per table?", answer: "Tables are built for working datasets. For very large ones (100k+ rows), paginate your API reads or split the data across multiple tables." },
-  { question: "Can I import data from a spreadsheet?", answer: "Yes. Copy rows from any spreadsheet and paste them straight into the table; the values are validated against the column types." },
+  { question: "Is there a row limit per table?", answer: "Yes. Row and table counts depend on the plan and deployment configuration. By default, a row may contain up to 400 KB of data and a table up to 1,000 columns. Use pagination for large reads; query responses have a 5 MB row-data budget." },
   { question: "Do tables support formulas?", answer: "No. Tables store raw data. Use workflow logic (a Function or Agent block) to compute values and write them back." },
   { question: "Can multiple workflows write to the same table?", answer: "Yes. Writes are atomic at the row level, so multiple workflows can write to the same table at once." },
-  { question: "How do I reference a table from a workflow?", answer: "Use the Table block: select the table, choose an operation (query, insert, update), and configure the fields." },
-  { question: "Are tables shared across workspace members?", answer: "Yes. Tables are workspace-scoped and available to all members with the right permissions." },
   { question: "Can I undo changes?", answer: "In the table editor, Cmd/Ctrl+Z undoes recent cell edits, row insertions, and row deletions. Changes made through the API are not part of the editor's undo history." },
 ]} />

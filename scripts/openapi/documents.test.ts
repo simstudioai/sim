@@ -108,11 +108,11 @@ async function routeApplicationOperation(routePath: string, method: string): Pro
 }
 
 const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
-  ['apps/docs/openapi-v2-workflows.json', 38],
+  ['apps/docs/openapi-v2-workflows.json', 58],
   ['apps/docs/openapi-v2-logs.json', 3],
   ['apps/docs/openapi-v2-files-audit.json', 29],
   ['apps/docs/openapi-v2-tables.json', 53],
-  ['apps/docs/openapi-v2-knowledge.json', 44],
+  ['apps/docs/openapi-v2-knowledge.json', 45],
   ['apps/docs/openapi-v2-billing.json', 2],
   ['apps/docs/openapi-v2-resources.json', 51],
 ])
@@ -246,7 +246,7 @@ function anonymousTopLevelResponseObjects(spec: JsonObject): string[] {
 }
 
 describe('generated OpenAPI documents', () => {
-  it('documents the same canonical operation and OAuth scope each route admits', async () => {
+  it('documents the canonical operation and its public API OAuth scope', async () => {
     for (const document of DOCUMENTS) {
       for (const route of document.routes) {
         const runtimeOperation = await routeApplicationOperation(
@@ -262,7 +262,10 @@ describe('generated OpenAPI documents', () => {
           route.contract.method.toLowerCase()
         )
         expect(generated['x-sim-operation']).toBe(route.operation.applicationOperation.id)
-        expect(generated['x-oauth-scope']).toBe(route.operation.applicationOperation.oauthScope)
+        const operationScope = route.operation.applicationOperation.oauthScope
+        expect(generated['x-oauth-scope']).toBe(
+          operationScope === 'search:read' ? 'api:read' : operationScope
+        )
       }
     }
   })
@@ -307,7 +310,7 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-    expect(totalOperations).toBe(220)
+    expect(totalOperations).toBe(241)
   })
 
   it('documents mixed workflow execution and resume responses', () => {
@@ -320,12 +323,17 @@ describe('generated OpenAPI documents', () => {
     const executeQueuedContent = executeQueued.content as JsonObject
 
     expect((spec.tags as JsonObject[]).map((tag) => tag.name)).toEqual([
+      'Workspace Sync',
       'Workflows',
       'Workflow Runs',
     ])
     expect(execute.tags).toEqual(['Workflows'])
     expect(execute.security).toEqual([{ apiKey: [] }, { oauthBearer: [] }, {}])
-    expect(Object.keys(executeOkContent).sort()).toEqual(['application/json', 'text/event-stream'])
+    expect(Object.keys(executeOkContent).sort()).toEqual([
+      'application/json',
+      'application/x-ndjson',
+      'text/event-stream',
+    ])
     expect(Object.keys(executeQueuedContent)).toEqual(['application/json'])
 
     const resume = getOperation(spec, '/api/v2/workflows/{workflowId}/runs/{runId}/resume', 'post')

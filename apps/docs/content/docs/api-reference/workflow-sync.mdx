@@ -1,0 +1,238 @@
+---
+title: Workflow imports and workspace sync
+description: Use the v2 preview, mapping, apply, and operation-status protocol from an API or CLI client
+---
+
+An automated client exports or inspects the source, previews destination choices, applies the reviewed request, and polls its operation. The [CLI workflow guide](/cli/workflow-sync) follows this same v2 protocol; the server owns authorization, remapping, atomic writes, and durable completion for both surfaces.
+
+## CLI and HTTP interfaces
+
+Paths below are relative to `/api/v2`. `{workspaceId}` is the explicitly selected current workspace.
+
+| CLI command | HTTP request |
+| --- | --- |
+| `workflows export <id> --include-references` | `GET /workflows/{workflowId}/export?includeReferences=true` |
+| `workflows import-preview` / `workflows import` | `POST /workflows/import/preview` / `POST /workflows/import` |
+| `workspaces fork-availability` / `lineage` | `GET /workspaces/{workspaceId}/fork/availability` / `.../fork/lineage` |
+| `workspaces children` / `fork-resources` | `GET /workspaces/{workspaceId}/fork/children` / `.../fork/resources?kind=tables` |
+| `workspaces fork-preview` / `fork` | `POST /workspaces/{workspaceId}/fork/preview` / `.../fork` |
+| `workspaces push-preview` / `push --yes` | `POST /workspaces/{workspaceId}/fork/push/preview` / `.../fork/push` |
+| `workspaces pull-preview` / `pull --yes` | `POST /workspaces/{workspaceId}/fork/pull/preview` / `.../fork/pull` |
+| `workspaces mappings get` / `mappings update` | `GET` / `PUT /workspaces/{workspaceId}/fork/mappings` |
+| `selectors list` / `selectors get` | `POST /selectors/list` / `POST /selectors/get` |
+| `workspaces operations get <id>` / `operations wait <id>` | `GET /workspaces/{workspaceId}/operations/{operationId}`; wait polls this endpoint |
+| `workspaces operations list` | `GET /workspaces/{workspaceId}/operations` |
+
+The generated [sync preview reference](/api-reference/workspace-sync/previewWorkspacePull) documents every field; its sidebar includes rollback, unlink, and exclusion endpoints. Children, resource discovery, mappings, and operations are paginated; follow `nextCursor` without changing the query's scope or filters.
+
+## Permissions
+
+Send a personal API key in `X-API-Key`, or an OAuth access token in `Authorization: Bearer …`. Existing workspace policies, credential access, permission groups, Enterprise/self-hosting gates, and workspace creation limits still apply.
+
+| Operation | Required access |
+| --- | --- |
+| Export | Workflow read access |
+| Import preview and apply | Destination write access; binding credentials also requires an acting user with credential access |
+| Fork discovery, preview, and creation | Source workspace admin |
+| Sync preview/apply and mapping read/update | Admin on both workspaces on a direct fork edge |
+| Rollback / unlink | Target admin / acting-side admin, respectively |
+| Selector discovery | Read access in the discovery workspace and access to the selected credential |
+| Operation get/list | Read access in the receipt workspace |
+
+Workspace API keys can import where existing authoring policy allows, but cannot bind credentials, administer forks, or execute selectors. Do not substitute a key owner for an acting user. OAuth import/fork/sync previews require `api:write`, even though preview does not commit changes. Export, fork discovery, mapping reads, selectors, and operation reads use `api:read`.
+
+## Portable imports
+
+Default exports remain sanitized. `includeReferences=true` adds a versioned manifest of registered resource IDs and source occurrences, including nested tools. It does not include secret values. Imported provenance and source IDs are labels; they never grant access to an alleged source workspace.
+
+Set `BASE_URL` to your deployment, and use an authorized key for each workspace. Raw HTTP returns `{ "data": ... }`; the CLI unwraps single-resource results. Extract the export payload before saving it:
+
+```sh
+curl -sS --fail-with-body \
+  -H "X-API-Key: $SOURCE_API_KEY" \
+  "$BASE_URL/api/v2/workflows/$WORKFLOW_ID/export?includeReferences=true" \
+  | jq '.data' > workflow.json
+```
+
+Save destination mappings as `import-mappings.json`, replacing the example IDs with manifest and destination resource IDs:
+
+```json
+[
+  { "kind": "credential", "sourceId": "source-connection", "targetId": "destination-connection" },
+  { "kind": "sandbox", "sourceId": "source-sandbox", "targetId": "destination-sandbox" }
+]
+```
+
+`mappings` applies to every occurrence of a resource's `kind` and `sourceId`. For older exports, `bindings` can address individual registered occurrences. Its entries are flat objects, without `sourceId` or an `occurrence` wrapper:
+
+```json
+[
+  {
+    "kind": "credential",
+    "blockId": "source-agent",
+    "subBlockKey": "tools",
+    "valuePath": [0, "params", "oauthCredential"],
+    "encoding": "scalar",
+    "targetId": "destination-connection"
+  }
+]
+```
+
+A top-level field uses `valuePath: []`. Other registered encodings are `array`, `csv`, `files`, and `environment`; multi-value occurrences can include `positions`. Use the actual registered occurrence, rather than inventing paths. Conflicting instructions for one occurrence are rejected. `targetId: null` requests clearing; it cannot satisfy a required binding. Destination type, provider, and parent-child compatibility are validated.
+
+Build one request file and preview it:
+
+```sh
+jq -n --arg workspaceId "$DESTINATION_WORKSPACE" \
+  --slurpfile workflow workflow.json --slurpfile mappings import-mappings.json \
+  '{workspaceId: $workspaceId, workflow: $workflow[0], mappings: $mappings[0]}' \
+  > import-request.json
+
+curl -sS --fail-with-body -H "X-API-Key: $DESTINATION_API_KEY" \
+  -H 'Content-Type: application/json' --data @import-request.json \
+  "$BASE_URL/api/v2/workflows/import/preview" > import-preview.json
+```
+
+Inspect `data.unresolvedBindings`, `data.configuration`, `data.unresolvedConfiguration`, and `data.discovery`. Dependent choices use a different shape from bindings:
+
+```json
+[
+  { "blockId": "source-agent", "subBlockKey": "tools[0].folder", "value": "destination-label" }
+]
+```
+
+Add these as `dependentValues` to `import-request.json` and preview again. For a field with `multiSelect: true`, `value` is a comma-separated string of selected IDs. For credential-backed selectors, discover options in the import's destination workspace using the returned `selectorKey` and `context`:
+
+```sh
+curl -sS --fail-with-body -H "X-API-Key: $DESTINATION_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data "$(jq -n --arg workspaceId "$DESTINATION_WORKSPACE" \
+    '{workspaceId: $workspaceId, selectorKey: "gmail.labels", context: {oauthCredential: "destination-connection"}, limit: 50}')" \
+  "$BASE_URL/api/v2/selectors/list"
+```
+
+Selector lists return `{ "data": [...], "nextCursor": null, "truncated": false }`; check both pagination and truncation. Detail uses `/selectors/get` with the same scope/context and an `id`. MCP tools use `mcp.tools` with `mcpServerId`. A missing OAuth connection can require human authorization; changing a resource ID cannot create that connection.
+
+When `data.ready` is true, save a stable request ID and apply the exact reviewed choices:
+
+```sh
+jq --arg requestId "$IMPORT_REQUEST_ID" \
+  --arg fingerprint "$(jq -er '.data.previewFingerprint' import-preview.json)" \
+  '. + {requestId: $requestId, previewFingerprint: $fingerprint}' \
+  import-request.json > import-apply.json
+
+curl -sS --fail-with-body -H "X-API-Key: $DESTINATION_API_KEY" \
+  -H 'Content-Type: application/json' --data @import-apply.json \
+  "$BASE_URL/api/v2/workflows/import" > import-result.json
+```
+
+Mapped import creates a draft, its graph, variables, required inline custom tools, and receipt atomically. Remapping precedes graph ID regeneration; the result includes `idMap`. Plain imports without mapping options retain their earlier behavior and return no operation receipt. Supplying mapping options, even empty arrays, requires `requestId` and `previewFingerprint`.
+
+## Fork and sync
+
+Fork preview and apply share `{ "name": "Review environment", "copy": { "tables": ["source-table"] } }`. Apply adds `requestId` and the preview's fingerprint. Eligible deployed source workflows become child drafts; resource copies must be selected explicitly.
+
+Push sends deployed workflows from the current workspace to `otherWorkspaceId`. Pull sends them from `otherWorkspaceId` to the current workspace. Either endpoint works from either side of the direct parent/child edge.
+
+For example, save this as `sync-request.json` for a pull into the workspace in the URL:
+
+```json
+{
+  "otherWorkspaceId": "source-workspace",
+  "mappings": [
+    { "resourceType": "oauth_credential", "sourceId": "source-connection", "targetId": "destination-connection" }
+  ],
+  "dependentValues": [
+    { "sourceWorkflowId": "source-workflow", "sourceBlockId": "source-agent", "subBlockKey": "tools[0].folder", "value": "destination-label" }
+  ],
+  "copyResources": { "tables": ["source-table"] }
+}
+```
+
+Sync mappings use edge `resourceType` names, such as `oauth_credential`, `service_account_credential`, `knowledge_base`, `custom_tool`, or `sandbox`; imports use `kind`, such as `credential`, `knowledge-base`, or `custom-tool`. Sync workflow identity is system-managed. Pick a knowledge document through its parent KB's dependent selector instead of writing a `knowledge_document` edge mapping.
+
+Mapping inspection requires `otherWorkspaceId` and `direction` in its query. Read rows also contain a storage `id`; write requests accept only `resourceType`, `sourceId`, and `targetId`. Project a page with `jq '[.data[] | {resourceType, sourceId, targetId}]'` before reusing its mappings, and follow `nextCursor` to collect further pages.
+
+Preview never saves inline mappings. Apply persists them with the sync transaction. Dependent overrides use source workflow/block/field identities, including original nested tool indices. Omission reuses saved choices; providing `dependentValues` replaces those choices for affected workflows, and `[]` clears them. Target draft values alone are not saved sync configuration.
+
+```sh
+curl -sS --fail-with-body -H "X-API-Key: $SIM_API_KEY" \
+  -H 'Content-Type: application/json' --data @sync-request.json \
+  "$BASE_URL/api/v2/workspaces/$CURRENT_WORKSPACE/fork/pull/preview" > sync-preview.json
+
+jq --arg requestId "$SYNC_REQUEST_ID" \
+  --arg fingerprint "$(jq -er '.data.previewFingerprint' sync-preview.json)" \
+  '. + {requestId: $requestId, previewFingerprint: $fingerprint, confirm: true}' \
+  sync-request.json > sync-apply.json
+
+curl -sS --fail-with-body -H "X-API-Key: $SIM_API_KEY" \
+  -H 'Content-Type: application/json' --data @sync-apply.json \
+  "$BASE_URL/api/v2/workspaces/$CURRENT_WORKSPACE/fork/pull" > sync-result.json
+```
+
+Review `unresolvedBindings`, `configuration`, planned workflow actions, and retiring trigger URLs before apply. Use each configuration field's `discoveryWorkspaceId` for `/selectors/list` or `/selectors/get`: source when its parent will be copied, destination when mapped. Pass its returned context and re-preview any changed choices. A ready preview is not a deployment-readiness report.
+
+`triggerSlots` lists stable `sourceWorkflowId` and `sourceBlockId` identities, `ownPath`, `adoptablePaths`, and `defaultAdoptPath`. A slot with `ownPath` preserves that URL and accepts no override. For an arriving trigger, `triggerMappings` can select an offered retiring path or `null` to request a new URL. Include the same choices on preview and apply:
+
+```json
+[
+  { "sourceWorkflowId": "source-workflow", "sourceBlockId": "source-trigger", "adoptPath": "retiring-trigger-path" }
+]
+```
+
+Unknown source identities, duplicate choices, and paths outside that slot's candidates are rejected. Adoption candidates stay within the same target workflow and provider; do not construct them from a different workflow's URL.
+
+Copy selections use `copy` for fork creation and `copyResources` for sync. Fork `copy.files` contains workspace file IDs; sync `copyResources.files` contains storage keys. Credentials and secret values are not copied. `dropReferences` only acknowledges references deleted in the source; it cannot discard live source resources.
+
+Sync replaces eligible target workflows and schedules deployment of the admitted snapshots. Exclusions remain in effect. A deleted source can archive its mapped target; an undeployed source does not. Rollback restores the latest target sync's prior deployed versions, with no promise to restore arbitrary drafts or undo all resource copies.
+
+## Receipts, polling, and retries
+
+Apply returns a single-resource envelope. This is an example completed sync report:
+
+```json
+{
+  "data": {
+    "operationId": "operation-id",
+    "requestId": "release-2026-09-09",
+    "workspaceId": "current-workspace",
+    "kind": "workspace_pull",
+    "applied": true,
+    "status": "completed",
+    "resourceIds": ["destination-workflow"],
+    "issues": [],
+    "deployments": [
+      {
+        "operationId": "deployment-id",
+        "workflowId": "destination-workflow",
+        "version": 2,
+        "status": "active",
+        "ready": true,
+        "pendingComponents": []
+      }
+    ]
+  }
+}
+```
+
+Always poll under the returned `workspaceId`. Import receipts belong to the destination. Fork-creation receipts belong to the source on which `/fork` ran. Push/pull receipts belong to the current workspace in the request URL, including a push that changes the other workspace.
+
+```sh
+OPERATION_ID=$(jq -er '.data.operationId' sync-result.json)
+OPERATION_WORKSPACE=$(jq -er '.data.workspaceId' sync-result.json)
+
+curl -sS --fail-with-body -H "X-API-Key: $SIM_API_KEY" \
+  "$BASE_URL/api/v2/workspaces/$OPERATION_WORKSPACE/operations/$OPERATION_ID"
+```
+
+Poll with a delay while `status` is `processing`. Terminal outcomes are `completed`, `completed_with_warnings`, `requires_configuration`, and `failed`. Inspect `issues`, `copyProgress`, `deployments[].ready`, `pendingComponents`, and `triggerUrlChanges`. `applied: true` remains true after a follow-up failure: the transaction committed. Completed imports and forks remain drafts; a completed sync requires checking its admitted deployment results before treating the destination as ready.
+
+Request IDs deduplicate within the receipt workspace. Retain the complete apply request: identical authorized retries return the original operation before checking preview freshness. A changed payload under the same ID, a stale preview, or blocked apply returns HTTP `409` with `{ "error": { "code": "CONFLICT", "message": "...", "details": {} } }`. Other invalid inputs can return `400`; follow-up failures are reported on a committed operation.
+
+After an uncertain response, retry the identical request with the original ID, or query `GET /workspaces/{workspaceId}/operations?requestId=...`. Lists return `{ "data": [...], "nextCursor": ... }`; use operation get for refreshed completion status. If a stale preview is refused before commit, obtain a new preview and use a new request ID for the revised request. Never replace a lost-response request with a fresh ID merely to retry.
+
+## What the test harness covers
+
+Run `bun run test:workflow-sync` from the Sim repository with Bun, dependencies, and Docker available. It creates disposable PostgreSQL 17, exercises actual authorization, API-key authentication, v2 HTTP adapters, CLI subprocesses, graph/receipt transactions, locks, and deployment outbox workers, then removes the database. Tests cover concurrent retries, stale previews, atomic refusal, immutable deployment snapshots, exclusions, pagination, and copy-worker recovery.
+
+External provider options and failures use controlled fixtures; the separate realtime process uses an authenticated loopback fixture. This validates the platform protocol rather than proving every provider account is connected. Verify provider authorization and destination deployment readiness in the environment you intend to use. Migration safety is checked separately from this fresh-schema harness.

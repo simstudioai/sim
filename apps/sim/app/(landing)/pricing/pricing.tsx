@@ -6,7 +6,7 @@ import { PricingStructuredData } from '@/app/(landing)/pricing/components/pricin
  * names Sim, the AI workspace, AI agents, and every plan tier.
  */
 const GEO_SUMMARY =
-  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Pricing scales across four plans: Free to start, Pro for growing teams, Max for scaling businesses, and Enterprise for large organizations, each connecting 1,000+ integrations and every major LLM.'
+  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Pricing scales across four plans: Free to start, Pro for growing teams, Max for scaling businesses, and Enterprise for large organizations, each connecting hundreds of integrations and every major LLM.'
 
 /** Server-rendered heading slot handed to the {@link PricingPlans} client island. */
 const PRICING_HEADING = (
@@ -51,7 +51,7 @@ export default function Pricing() {
       <section
         id='pricing'
         aria-labelledby='pricing-heading'
-        className='mx-auto flex w-full max-w-[1460px] flex-col gap-7 px-20 pt-8 max-sm:px-5 max-lg:px-8'
+        className='mx-auto flex w-full max-w-[1728px] flex-col gap-7 px-10 pt-8 max-md:px-7 max-lg:px-8 max-xl:px-9'
       >
         <PricingPlans heading={PRICING_HEADING} />
       </section>

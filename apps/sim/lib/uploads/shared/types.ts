@@ -74,6 +74,7 @@ export type StorageContext =
   | 'og-images'
   | 'logs'
   | 'workspace-logos'
+  | 'organization-logos'
 
 /**
  * The contexts stored under the `workspace/` key prefix. They share a bucket and
@@ -127,6 +128,11 @@ export interface UploadFileOptions {
    * Disable when a caller finalizes metadata in its own database transaction.
    */
   persistMetadata?: boolean
+  /** Only for newly allocated, unique execution or Copilot keys; never enable for replacements. */
+  cleanupOnMetadataFailure?: boolean
+  /** Internal create-only upload identity when metadata and cleanup were reserved before writing bytes. */
+  createOnlyUploadId?: string
+  signal?: AbortSignal
 }
 
 export interface DownloadFileOptions {
@@ -139,6 +145,7 @@ export interface DownloadFileOptions {
 export interface DeleteFileOptions {
   key: string
   context?: StorageContext
+  signal?: AbortSignal
 }
 
 export interface StoredObjectInfo {

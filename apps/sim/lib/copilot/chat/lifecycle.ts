@@ -1,3 +1,4 @@
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -6,7 +7,9 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { authorizeOrganizationChat } from '@/lib/copilot/chat/organization-chats'
 import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -32,6 +35,7 @@ const copilotChatAuthColumns = {
   userId: copilotChats.userId,
   workflowId: copilotChats.workflowId,
   workspaceId: copilotChats.workspaceId,
+  organizationId: copilotChats.organizationId,
   type: copilotChats.type,
 } as const
 
@@ -100,7 +104,7 @@ function ownedLiveChatWhere(chatId: string, userId: string) {
 
 type CopilotChatAuthRow = Pick<
   typeof copilotChats.$inferSelect,
-  'id' | 'userId' | 'workflowId' | 'workspaceId' | 'type'
+  'id' | 'userId' | 'workflowId' | 'workspaceId' | 'organizationId' | 'type'
 >
 
 export type CopilotChatDetailRow = Pick<
@@ -109,6 +113,7 @@ export type CopilotChatDetailRow = Pick<
   | 'userId'
   | 'workflowId'
   | 'workspaceId'
+  | 'organizationId'
   | 'type'
   | 'title'
   | 'conversationId'
@@ -126,14 +131,27 @@ export type CopilotChatLegacyDetailRow = CopilotChatDetailRow &
 async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
   chat: T | undefined,
   chatId: string,
-  userId: string
+  userId: string,
+  principal?: Principal
 ): Promise<T | null> {
   if (!chat) {
     logger.warn('Copilot chat not found or not owned by user', { chatId, userId })
     return null
   }
 
-  if (chat.workflowId) {
+  if (chat.organizationId) {
+    if (!principal || resolvePrincipalSubjectUserId(principal) !== userId) return null
+    try {
+      await authorizeOrganizationChat.execute({
+        principal,
+        input: { organizationId: chat.organizationId },
+      })
+    } catch (error) {
+      const code = asOrchestrationError(error)?.code
+      if (code === 'not_found' || code === 'forbidden') return null
+      throw error
+    }
+  } else if (chat.workflowId) {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId: chat.workflowId,
       userId,
@@ -170,7 +188,8 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
  */
 export async function getAccessibleCopilotChatAuth(
   chatId: string,
-  userId: string
+  userId: string,
+  options?: { principal?: Principal }
 ): Promise<CopilotChatAuthRow | null> {
   const [chat] = await db
     .select(copilotChatAuthColumns)
@@ -178,7 +197,7 @@ export async function getAccessibleCopilotChatAuth(
     .where(ownedLiveChatWhere(chatId, userId))
     .limit(1)
 
-  return authorizeCopilotChatRow(chat, chatId, userId)
+  return authorizeCopilotChatRow(chat, chatId, userId, options?.principal)
 }
 
 /**
@@ -188,7 +207,8 @@ export async function getAccessibleCopilotChatAuth(
  */
 export async function getAccessibleCopilotChat(
   chatId: string,
-  userId: string
+  userId: string,
+  options?: { principal?: Principal }
 ): Promise<CopilotChatLegacyDetailRow | null> {
   const [chat] = await db
     .select(copilotChatLegacyDetailColumns)
@@ -196,7 +216,7 @@ export async function getAccessibleCopilotChat(
     .where(ownedLiveChatWhere(chatId, userId))
     .limit(1)
 
-  const authorized = await authorizeCopilotChatRow(chat, chatId, userId)
+  const authorized = await authorizeCopilotChatRow(chat, chatId, userId, options?.principal)
   if (!authorized) return null
 
   const messages = await loadCopilotChatMessages(chatId)
@@ -213,7 +233,7 @@ export async function getAccessibleCopilotChat(
 export async function getAccessibleCopilotChatWithMessages(
   chatId: string,
   userId: string,
-  options?: { includeTranscript?: boolean }
+  options?: { includeTranscript?: boolean; principal?: Principal }
 ): Promise<CopilotChatDetailRow | null> {
   const [chat] = await db
     .select(copilotChatDetailColumns)
@@ -221,7 +241,7 @@ export async function getAccessibleCopilotChatWithMessages(
     .where(ownedLiveChatWhere(chatId, userId))
     .limit(1)
 
-  const authorized = await authorizeCopilotChatRow(chat, chatId, userId)
+  const authorized = await authorizeCopilotChatRow(chat, chatId, userId, options?.principal)
   if (!authorized) return null
 
   /**
@@ -250,6 +270,8 @@ export async function resolveOrCreateChat(params: {
   userId: string
   workflowId?: string
   workspaceId?: string
+  organizationId?: string
+  principal?: Principal
   model: string
   type?: 'mothership' | 'copilot'
   title?: string
@@ -259,7 +281,28 @@ export async function resolveOrCreateChat(params: {
    */
   includeTranscript?: boolean
 }): Promise<ChatLoadResult> {
-  const { chatId, userId, workflowId, workspaceId, model, type, title, includeTranscript } = params
+  const {
+    chatId,
+    userId,
+    workflowId,
+    workspaceId,
+    organizationId,
+    principal,
+    model,
+    type,
+    title,
+    includeTranscript,
+  } = params
+
+  if (organizationId) {
+    if (workspaceId || workflowId || type === 'copilot') {
+      throw new Error('Organization conversations cannot have workspace or workflow scope')
+    }
+    if (!principal || resolvePrincipalSubjectUserId(principal) !== userId) {
+      throw new Error('Organization conversations require the authenticated principal')
+    }
+    await authorizeOrganizationChat.execute({ principal, input: { organizationId } })
+  }
 
   if (workspaceId) {
     await assertActiveWorkspaceAccess(workspaceId, userId)
@@ -268,9 +311,13 @@ export async function resolveOrCreateChat(params: {
   if (chatId) {
     const chat = await getAccessibleCopilotChatWithMessages(chatId, userId, {
       includeTranscript,
+      principal,
     })
 
     if (chat) {
+      if ((organizationId ?? null) !== (chat.organizationId ?? null)) {
+        return { chatId, chat: null, conversationHistory: [], isNew: false }
+      }
       if (workflowId && chat.workflowId !== workflowId) {
         logger.warn('Copilot chat workflow mismatch', {
           chatId,
@@ -329,7 +376,8 @@ export async function resolveOrCreateChat(params: {
       userId,
       ...(workflowId ? { workflowId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
-      type: type ?? 'copilot',
+      ...(organizationId ? { organizationId } : {}),
+      type: type ?? (organizationId ? 'mothership' : 'copilot'),
       title: title ?? null,
       model,
       lastSeenAt: now,

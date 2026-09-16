@@ -3,7 +3,6 @@ title: API
 description: The API block makes an HTTP request to an external service and returns the response.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview, WorkflowPreview, API_FETCH_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
@@ -71,10 +70,7 @@ The API block builds its URL from the Start input, fetches the data, and the Age
 - **Reference only the field you need.** Pull `<api.data.id>` rather than the whole `<api.data>` when the response is large.
 
 <FAQ items={[
-  { question: "What is the default request timeout?", answer: "The default timeout is 300,000 milliseconds (5 minutes). You can configure it up to a maximum of 600,000 milliseconds (10 minutes) in the block's Advanced settings." },
   { question: "Which HTTP errors trigger automatic retries?", answer: "Retries are attempted for network and connection failures, timeouts, rate-limit responses (HTTP 429), and server errors (5xx). Client errors like 400 or 404 are not retried." },
   { question: "How does retry backoff work?", answer: "Retries use exponential backoff starting from the configured retry delay (default 500ms). Each subsequent retry doubles the delay, up to the maximum retry delay (default 30,000ms)." },
-  { question: "Are POST and PATCH requests retried by default?", answer: "No. POST and PATCH are non-idempotent, so retries are disabled for them by default to avoid creating duplicate resources. You can enable retries with the 'Retry non-idempotent methods' toggle in Advanced settings, but be aware this may cause duplicate requests." },
   { question: "What headers are included automatically?", answer: "Standard headers such as User-Agent, Accept, and Cache-Control are added automatically. Any custom headers you configure are merged with these defaults, and your values override automatic headers with the same name." },
-  { question: "Can I send form data or file uploads?", answer: "The block sends JSON request bodies through the UI. The underlying HTTP tool also supports form data: if you pass form-data parameters, it constructs a multipart/form-data request automatically. For most cases the JSON body field is sufficient." },
 ]} />

@@ -19,7 +19,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getEffectiveEnvironmentSnapshot } from '@/lib/environment/utils'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
@@ -96,7 +96,8 @@ async function resolveConnectorApiKey(
   const braced = apiKey.match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)
   const dollar = apiKey.match(/^\$([A-Za-z_][A-Za-z0-9_]*)$/)
   const referencedName = braced?.[1] ?? dollar?.[1]
-  const env = await getEffectiveDecryptedEnv(context.userId, workspaceId)
+  const environment = await getEffectiveEnvironmentSnapshot(context.userId, workspaceId)
+  const env = { ...environment.personalDecrypted, ...environment.workspaceDecrypted }
   const name = referencedName ?? (Object.hasOwn(env, apiKey) ? apiKey : undefined)
   if (!name) return { apiKey }
   const value = env[name]
@@ -105,9 +106,10 @@ async function resolveConnectorApiKey(
       error: `Environment variable "${name}" is not set for this workspace or user, so it cannot be used as the connector API key. Set it first, pass a different {{ENV_VAR}} reference, or pass the raw key.`,
     }
   }
-  // Activate the resolved secret on the call's egress registry so any
-  // accidental echo of it (provider error bodies, logs) is redacted.
-  context.resolvedSecretTraceRegistry?.recordResolved(name, value)
+  context.resolvedSecretTraceRegistry?.recordResolvedFromEnvironment(name, value, {
+    ...environment,
+    scope: { userId: context.userId, workspaceId },
+  })
   return { apiKey: value }
 }
 
@@ -449,7 +451,9 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               knowledgeBaseIds: [args.knowledgeBaseId],
               query: modelQuery,
               topK,
+              surface: context?.searchSurface ?? 'copilot',
               resultSecretRegistry: context.resolvedSecretTraceRegistry,
+              signal: context.abortSignal,
             }),
             /**
              * Whether to ask for a citation is a presentation choice, and it is
@@ -1023,6 +1027,9 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 requireKnowledgeBillingAttribution(context, billingWorkspaceId),
               source: 'agent',
             })
+          if (canonicalWorkspaceId !== workspaceId) {
+            throw new Error('Knowledge connector workspace does not match the authorized workspace')
+          }
           captureKnowledgeConnectorAdded(
             context.userId,
             canonicalWorkspaceId,
@@ -1139,6 +1146,9 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               requireKnowledgeBillingAttribution(context, canonicalWorkspaceId),
             source: 'agent',
           })
+          if (outcome.workspaceId !== workspaceId) {
+            throw new Error('Knowledge connector workspace does not match the authorized workspace')
+          }
           captureKnowledgeConnectorSynced(
             context.userId,
             outcome.workspaceId,

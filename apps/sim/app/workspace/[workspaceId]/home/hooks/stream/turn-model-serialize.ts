@@ -44,12 +44,13 @@ function isOpenToolStatus(status: ToolCallStatus): boolean {
 
 /**
  * Resolves a tool row's display title with the same precedence the live handler
- * used: the integration gateway's model-authored activity description first
- * (live even mid-argument-stream; the integration brand is the row icon), then
+ * used: the per-call model-authored activity description, then the legacy
+ * integration gateway description (live even mid-argument-stream), then
  * the streaming-args title while args stream, then the arg-derived title, then
  * the explicit `ui.title`.
  */
 function toolDisplayTitle(node: ToolNode): string | undefined {
+  if (node.activityDescription) return node.activityDescription
   const integrationTitle = resolveIntegrationToolDisplayTitle(node)
   if (integrationTitle) return integrationTitle
   const streamingTitle = node.streamingArgs
@@ -136,6 +137,7 @@ export function modelToContentBlocks(model: TurnModel): ContentBlock[] {
             name: node.name,
             status: nodeToToolStatus(node.status),
             ...(displayTitle ? { displayTitle } : {}),
+            ...(node.activityDescription ? { activityDescription: node.activityDescription } : {}),
             ...(node.integrationDescription
               ? { integrationDescription: node.integrationDescription }
               : {}),
@@ -308,6 +310,7 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
             toolCallId: tc.id,
             toolName: tc.name,
             arguments: tc.params,
+            ...(tc.activityDescription ? { activityDescription: tc.activityDescription } : {}),
             // Carries an unanswered permission prompt across a snapshot rebuild
             // so the reloaded row is still actionable rather than a spinner.
             ...(tc.status === ToolCallStatus.awaiting_approval

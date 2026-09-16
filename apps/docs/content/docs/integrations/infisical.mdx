@@ -11,17 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Infisical](https://infisical.com/) is an open-source secrets management platform that helps teams centralize and manage application secrets, environment variables, and sensitive configuration data across their infrastructure. This integration brings Infisical's secrets management capabilities directly into Sim workflows.
-
-With Infisical in Sim, you can:
-
-- **List secrets**: Retrieve all secrets from a project environment with filtering by path, tags, and recursive subdirectory support
-- **Get a secret**: Fetch a specific secret by name, with optional version pinning and secret reference expansion
-- **Create secrets**: Add new secrets to any project environment with support for comments, paths, and tag assignments
-- **Update secrets**: Modify existing secret values, comments, names, and tags
-- **Delete secrets**: Remove secrets from a project environment
-
-In Sim, the Infisical integration enables your agents to programmatically manage secrets as part of automated workflows — for example, rotating credentials, syncing environment variables across environments, or auditing secret usage. Simply configure the Infisical block with your API key, select the operation, and provide the project ID and environment slug to get started.
+Use [Infisical](https://infisical.com/) to list, read, create, update, or delete secrets in a project environment. Configure the API key, project ID, environment slug, and any secret path required by the selected operation.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -42,7 +32,7 @@ List all secrets in a project environment. Returns secret keys, values, comments
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project to list secrets from |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretPath` | string | No | The path of the secrets \(default: "/"\) |
@@ -100,7 +90,7 @@ Retrieve a single secret by name from a project environment.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretName` | string | Yes | The name of the secret to retrieve |
@@ -157,7 +147,7 @@ Create a new secret in a project environment.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretName` | string | Yes | The name of the secret to create |
@@ -214,7 +204,7 @@ Update an existing secret in a project environment.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretName` | string | Yes | The name of the secret to update |
@@ -272,7 +262,7 @@ Delete a secret from a project environment.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Infisical API token |
-| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
 | `projectId` | string | Yes | The ID of the project |
 | `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
 | `secretName` | string | Yes | The name of the secret to delete |

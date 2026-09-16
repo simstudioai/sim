@@ -37,9 +37,9 @@ const COMPLIANCE_CONFIG: SolutionsPageConfig = {
     eyebrow: 'Compliance',
     heading: 'Automate evidence, control checks, and audit reports with AI agents in Sim.',
     description:
-      'Sim is the open-source AI workspace where compliance teams build AI agents for evidence collection and control monitoring. Stay audit-ready year-round, across 1,000+ integrations.',
+      'Sim is the open-source AI workspace where compliance teams build AI agents for evidence collection and control monitoring. Stay audit-ready year-round, across hundreds of integrations.',
     summary:
-      'Sim is the open-source AI workspace where compliance teams build, deploy, and manage AI agents for evidence collection, control monitoring, and audit reports. Agents keep the organization audit-ready year-round across 1,000+ integrations.',
+      'Sim is the open-source AI workspace where compliance teams build, deploy, and manage AI agents for evidence collection, control monitoring, and audit reports. Agents keep the organization audit-ready year-round across hundreds of integrations.',
     visual: (
       <PlatformHeroVisual>
         <ComplianceHeroLoop />

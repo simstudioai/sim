@@ -28,6 +28,7 @@ export const SendButton = React.memo(function SendButton({
         variant='ghost'
         className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
         title='Stop generation'
+        aria-label='Stop generation'
       >
         <svg
           className='block h-[14px] w-[14px] fill-white dark:fill-black'
@@ -42,6 +43,7 @@ export const SendButton = React.memo(function SendButton({
   return (
     <Button
       onClick={onSubmit}
+      aria-label='Send message'
       variant='ghost'
       disabled={!canSubmit}
       className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}

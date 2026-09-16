@@ -28,7 +28,9 @@ import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
@@ -64,6 +66,8 @@ const {
   mockCreateExecutorPrincipalFromExecutionContext,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
+  mockUploadExecutionFile,
+  mockUploadCopilotFile,
 } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
@@ -84,11 +88,14 @@ const {
   mockCreateExecutorPrincipalFromExecutionContext: vi.fn(),
   mockGetInternalToolOperationHandler: vi.fn(),
   mockExecuteInternalToolOperation: vi.fn(),
+  mockUploadExecutionFile: vi.fn(),
+  mockUploadCopilotFile: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
 const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
-const mockGetEffectiveDecryptedEnv = environmentUtilsMockFns.mockGetEffectiveDecryptedEnv
+const mockGetEffectiveEnvironmentSnapshot =
+  environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
 // Mock getBYOKKey
 vi.mock('@/lib/api-key/byok', () => ({
@@ -137,6 +144,23 @@ vi.mock('@/lib/internal/principals/executor', () => ({
 
 vi.mock('@/lib/internal/tool-operations/registry.server', () => ({
   getInternalToolOperationHandler: mockGetInternalToolOperationHandler,
+}))
+
+vi.mock('@/lib/uploads/contexts/execution', () => ({
+  uploadExecutionFile: mockUploadExecutionFile,
+  uploadFileFromRawData: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/contexts/copilot', () => ({
+  uploadCopilotFile: mockUploadCopilotFile,
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  deleteFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  deleteFileMetadata: vi.fn(),
 }))
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
@@ -470,6 +494,8 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
+  mockUploadExecutionFile.mockReset()
+  mockUploadCopilotFile.mockReset()
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   mockGetInternalToolOperationHandler.mockResolvedValue(mockExecuteInternalToolOperation)
   mockExecuteInternalToolOperation.mockImplementation(async (request: InternalToolOperationCall) =>
@@ -1322,41 +1348,7 @@ describe('executeTool Function', () => {
     )
   })
 
-  it('retries transient database failures during permission preflight', async () => {
-    const driverError = Object.assign(new Error('read ECONNRESET'), {
-      code: 'ECONNRESET',
-      errno: 'ECONNRESET',
-      syscall: 'read',
-    })
-    const databaseError = new DrizzleQueryError(
-      'select "id" from "workspace" where "workspace"."id" = $1 limit $2',
-      ['workspace-secret-id', 1],
-      driverError
-    )
-    mockAssertPermissionsAllowed.mockRejectedValueOnce(databaseError)
-    mockToolsLogger.warn.mockClear()
-
-    const result = await executeTool(
-      'function_execute',
-      { code: 'return 1' },
-      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
-    )
-
-    expect(result.success).toBe(true)
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(2)
-    expect(mockExecuteFunction).toHaveBeenCalledTimes(1)
-    expect(global.fetch).not.toHaveBeenCalled()
-    expect(mockToolsLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Retrying tool permission preflight after database error'),
-      expect.objectContaining({
-        attempt: 1,
-        maxAttempts: 3,
-        cause: expect.objectContaining({ code: 'ECONNRESET' }),
-      })
-    )
-  })
-
-  it('logs exhausted database retries without exposing query details to the caller', async () => {
+  it('logs a permission database failure without exposing query details to the caller', async () => {
     const driverError = Object.assign(new Error('read ECONNRESET'), {
       code: 'ECONNRESET',
       errno: 'ECONNRESET',
@@ -1382,7 +1374,7 @@ describe('executeTool Function', () => {
     )
     expect(JSON.stringify(result)).not.toContain('Failed query')
     expect(JSON.stringify(result)).not.toContain('workspace-secret-id')
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(3)
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
     expect(global.fetch).not.toHaveBeenCalled()
 
     const loggedError = mockToolsLogger.error.mock.calls.at(-1)?.[1]
@@ -1403,28 +1395,6 @@ describe('executeTool Function', () => {
     )
     expect(loggedError).not.toHaveProperty('stack')
     expect(JSON.stringify(loggedError)).not.toContain('workspace-secret-id')
-  })
-
-  it('does not retry non-transient database failures during permission preflight', async () => {
-    const databaseError = new DrizzleQueryError(
-      'select "missing_column" from "workspace"',
-      [],
-      Object.assign(new Error('column does not exist'), { code: '42703' })
-    )
-    mockAssertPermissionsAllowed.mockRejectedValue(databaseError)
-
-    const result = await executeTool(
-      'function_execute',
-      { code: 'return 1' },
-      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toBe(
-      'An internal error occurred while executing the tool. Please try again.'
-    )
-    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
-    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('surfaces cancellation instead of a concurrent permission database failure', async () => {
@@ -1561,6 +1531,66 @@ describe('executeTool Function', () => {
       { plaintext: 'secret-value', replacement: '{{API_KEY}}' },
     ])
   })
+
+  it.each([true, false])(
+    'carries File Fetch lineage into later durable values when complete=%s',
+    async (complete) => {
+      const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+      const registry = new ResolvedSecretTraceRegistry([], scope)
+      const entry = { name: 'API_KEY', encryptedValue: 'encrypted-value' }
+      encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        Response.json(
+          {
+            success: true,
+            output: {
+              content: 'secret-value',
+              name: 'report.txt',
+              fileType: 'text/plain',
+              size: 12,
+              binary: false,
+            },
+            __resolvedSecretTraceProvenance: {
+              version: 1,
+              complete,
+              entries: complete ? [entry] : [],
+              scope,
+            },
+          },
+          { headers: { 'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1' } }
+        )
+      )
+
+      const result = await executeTool(
+        'file_fetch',
+        { fileUrl: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/report.txt' },
+        {
+          executionContext: createToolExecutionContext(scope),
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+
+      expect(result).toMatchObject({
+        success: true,
+        output: { combinedContent: 'secret-value' },
+      })
+      expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+      expect(
+        mockExecuteInternalToolOperation.mock.calls[0]?.[0].headers.get(
+          'x-sim-request-private-tool-metadata'
+        )
+      ).toBe('resolved-secret-provenance-v1')
+      for (const durableValue of [
+        { 'column-id': 'secret-value' },
+        { role: 'assistant', content: 'secret-value' },
+      ]) {
+        expect(registry.exportCommittedProvenanceForValue(durableValue)).toMatchObject({
+          complete,
+          entries: complete ? [entry] : [],
+        })
+      }
+    }
+  )
 
   it.each([
     {
@@ -3932,6 +3962,291 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it.each(['test_large_download', 'mcp-server-download'])(
+    'stores %s before response admission and preserves the file reference',
+    async (toolId) => {
+      const bytes = Buffer.alloc(20 * 1024 * 1024 + 3, 42)
+      const storedFile = {
+        id: 'stored-workbook',
+        name: 'dashboard.xlsx',
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        size: bytes.length,
+        key: 'execution/workspace-456/workflow-1/execution-1/dashboard.xlsx',
+        url: 'https://storage.example.com/dashboard.xlsx',
+        context: 'execution' as const,
+      }
+      const tool = {
+        id: toolId,
+        name: 'Large download',
+        description: 'Returns a stored workbook',
+        version: '1.0.0',
+        params: {},
+        operation: { input: () => ({}) },
+        outputs: { file: { type: 'file' } },
+      }
+      ;(tools as Record<string, unknown>)[tool.id] = tool
+      mockUploadExecutionFile.mockResolvedValueOnce(storedFile)
+      mockExecuteInternalToolOperation.mockResolvedValueOnce(
+        createInternalToolFileResult(
+          { buffer: bytes, name: storedFile.name, mimeType: storedFile.type },
+          (file) => ({ success: true, output: { file } })
+        )
+      )
+      try {
+        const result = await executeTool(
+          tool.id,
+          { _context: { workspaceId: 'forged', executionId: 'forged', userId: 'forged' } },
+          {
+            executionContext: createToolExecutionContext({
+              userId: 'user-1',
+              workspaceId: 'workspace-456',
+              workflowId: 'workflow-1',
+              executionId: 'execution-1',
+            }),
+          }
+        )
+        expect(result).toMatchObject({ success: true, output: { file: storedFile } })
+        expect(mockUploadExecutionFile).toHaveBeenCalledOnce()
+        const [scope, uploadedBytes, name, mimeType, owner] = mockUploadExecutionFile.mock.calls[0]!
+        expect(scope).toEqual({
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        })
+        expect(uploadedBytes).toBe(bytes)
+        expect([name, mimeType, owner]).toEqual([storedFile.name, storedFile.type, 'user-1'])
+        expect(JSON.stringify(result).length).toBeLessThan(2048)
+      } finally {
+        Reflect.deleteProperty(tools, tool.id)
+      }
+    }
+  )
+
+  it('stores late JSON-response attachments and their nested aliases for Copilot', async () => {
+    const bytes = Buffer.alloc(12 * 1024 * 1024, 42)
+    const stored = {
+      id: 'copilot-attachment',
+      name: 'attachment.bin',
+      size: bytes.length,
+      type: 'application/octet-stream',
+      key: 'copilot/attachment.bin',
+      url: 'https://storage.example.com/attachment.bin',
+      context: 'copilot',
+    }
+    const attachment = { name: stored.name, mimeType: stored.type, data: bytes }
+    const transformResponse = vi.fn(async (response: Response) => {
+      const metadata = await response.json()
+      return {
+        success: true,
+        output: { metadata, files: [attachment], messages: [{ attachments: [attachment] }] },
+      }
+    })
+    const tool = {
+      id: 'test_copilot_late_attachment',
+      name: 'Copilot attachment',
+      description: 'Stores late attachments',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/messages',
+        method: 'GET' as const,
+        headers: () => ({}),
+      },
+      outputs: { files: { type: 'file[]' } },
+      transformResponse,
+    }
+    ;(tools as Record<string, unknown>)[tool.id] = tool
+    mockUploadCopilotFile.mockResolvedValueOnce(stored)
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      toSecureFetchResponse(Response.json({ id: 'message-1' }))
+    )
+    const controller = new AbortController()
+    try {
+      const result = await executeTool(
+        tool.id,
+        {},
+        {
+          operationContext: {
+            workflowId: '',
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution: true,
+          },
+          signal: controller.signal,
+        }
+      )
+      expect(result).toMatchObject({
+        success: true,
+        output: { files: [stored], messages: [{ attachments: [stored] }] },
+      })
+      expect(JSON.stringify(result).length).toBeLessThan(2048)
+      expect(mockUploadCopilotFile).toHaveBeenCalledOnce()
+      expect(mockUploadCopilotFile.mock.calls[0]?.[0].buffer).toBe(bytes)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+      expect(transformResponse.mock.calls[0]).toHaveLength(3)
+      const transformContext = (transformResponse.mock.calls[0] as unknown[])[2] as {
+        signal: AbortSignal
+      }
+      expect(transformContext.signal).toBeInstanceOf(AbortSignal)
+    } finally {
+      Reflect.deleteProperty(tools, tool.id)
+    }
+  })
+
+  it('persists external binary downloads for Copilot as file references', async () => {
+    const bytes = Buffer.alloc(12 * 1024 * 1024, 42)
+    const stored = {
+      id: 'copilot-download',
+      name: 'download.bin',
+      size: bytes.length,
+      type: 'application/octet-stream',
+      key: 'copilot/download.bin',
+      url: 'https://storage.example.com/download.bin',
+      context: 'copilot',
+    }
+    const tool = {
+      id: 'test_copilot_binary',
+      name: 'Copilot binary download',
+      description: 'Preserves file ownership',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: 'https://api.example.com/download',
+        method: 'GET' as const,
+        headers: () => ({}),
+        responseType: 'binary' as const,
+      },
+      transformResponse: async (response: Response) => {
+        const buffer = Buffer.from(await response.arrayBuffer())
+        return {
+          success: true,
+          output: {
+            file: { name: stored.name, mimeType: stored.type, data: buffer, size: buffer.length },
+          },
+        }
+      },
+    }
+    ;(tools as Record<string, unknown>)[tool.id] = tool
+    mockUploadCopilotFile.mockResolvedValueOnce(stored)
+    mockSecureFetchWithPinnedIP.mockResolvedValueOnce(toSecureFetchResponse(new Response(bytes)))
+    try {
+      const result = await executeTool(
+        tool.id,
+        {},
+        {
+          operationContext: {
+            workflowId: '',
+            workspaceId: 'workspace-456',
+            userId: 'user-1',
+            copilotToolExecution: true,
+          },
+        }
+      )
+      expect(result).toMatchObject({ success: true, output: { file: stored } })
+      expect(result.output).not.toHaveProperty('content')
+      expect(result.output.file).not.toHaveProperty('data')
+      expect(JSON.stringify(result).length).toBeLessThan(2048)
+      expect(mockUploadCopilotFile).toHaveBeenCalledOnce()
+      const upload = mockUploadCopilotFile.mock.calls[0]?.[0]
+      expect(upload.userId).toBe('user-1')
+      expect(upload.buffer.equals(bytes)).toBe(true)
+      expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, tool.id)
+    }
+  })
+
+  it.each([
+    {
+      responseType: 'binary' as const,
+      status: 200,
+      succeeds: true,
+      declaredSize: 12 * 1024 * 1024,
+    },
+    { responseType: undefined, status: 200, succeeds: false, declaredSize: 12 * 1024 * 1024 },
+    {
+      responseType: 'binary' as const,
+      status: 500,
+      succeeds: false,
+      declaredSize: 12 * 1024 * 1024,
+    },
+    {
+      responseType: 'binary' as const,
+      status: 200,
+      succeeds: false,
+      declaredSize: 100 * 1024 * 1024 + 1,
+    },
+  ])(
+    'bounds external $responseType responses at status $status and size $declaredSize',
+    async ({ responseType, status, succeeds, declaredSize }) => {
+      const transformResponse = vi.fn(async (response: Response) => {
+        const buffer = Buffer.from(await response.arrayBuffer())
+        return {
+          success: true,
+          output: {
+            file: {
+              name: 'download.bin',
+              mimeType: 'application/octet-stream',
+              data: buffer,
+              size: buffer.length,
+            },
+          },
+        }
+      })
+      mockUploadExecutionFile.mockResolvedValueOnce({
+        id: 'download',
+        name: 'download.bin',
+        size: 12 * 1024 * 1024,
+        type: 'application/octet-stream',
+        key: 'execution/download.bin',
+        url: 'https://storage.example.com/download.bin',
+        context: 'execution',
+      })
+      const tool = {
+        id: 'test_binary_admission',
+        name: 'Binary admission',
+        description: 'Checks file and JSON response limits',
+        version: '1.0.0',
+        params: {},
+        request: {
+          url: 'https://api.example.com/download',
+          method: 'GET' as const,
+          headers: () => ({}),
+          responseType,
+        },
+        transformResponse,
+      }
+      ;(tools as Record<string, unknown>)[tool.id] = tool
+      mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+        toSecureFetchResponse(
+          new Response(new Uint8Array(12 * 1024 * 1024), {
+            status,
+            headers: { 'content-length': String(declaredSize) },
+          })
+        )
+      )
+      try {
+        const result = await executeTool(
+          tool.id,
+          {},
+          {
+            executionContext: createToolExecutionContext({ userId: 'user-1' }),
+          }
+        )
+        expect(result.success).toBe(succeeds)
+        expect(transformResponse).toHaveBeenCalledTimes(succeeds ? 1 : 0)
+        expect(mockUploadExecutionFile).toHaveBeenCalledTimes(succeeds ? 1 : 0)
+        expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+          tool.request.url,
+          expect.any(String),
+          expect.objectContaining({ maxResponseBytes: (responseType ? 100 : 10) * 1024 * 1024 })
+        )
+      } finally {
+        Reflect.deleteProperty(tools, tool.id)
+      }
+    }
+  )
+
   it('should reject internal tool responses that exceed the response body cap', async () => {
     const mockTool = {
       id: 'test_oversized_internal_tool',
@@ -4672,6 +4987,21 @@ describe('Managed OAuth Credential Delegation', () => {
 describe('Copilot Env Variable Reference Resolution', () => {
   let cleanupEnvVars: () => void
 
+  function environmentSnapshot(variables: Record<string, string>): EnvironmentResolutionSnapshot {
+    return {
+      personalEncrypted: {},
+      workspaceEncrypted: Object.fromEntries(
+        Object.keys(variables).map((name) => [name, `encrypted-${name}`])
+      ),
+      personalDecrypted: {},
+      workspaceDecrypted: variables,
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceUnredactedKeys: [],
+    }
+  }
+
   function sentOperationInput(): Record<string, unknown> {
     const call = mockExecuteInternalToolOperation.mock.calls.findLast(
       ([request]) => request.toolId === 'test_env_ref_tool'
@@ -4700,8 +5030,10 @@ describe('Copilot Env Variable Reference Resolution', () => {
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
       INTERNAL_API_BASE_URL: '',
     })
-    mockGetEffectiveDecryptedEnv.mockReset()
-    mockGetEffectiveDecryptedEnv.mockResolvedValue({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
+    mockGetEffectiveEnvironmentSnapshot.mockReset()
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue(
+      environmentSnapshot({ SENTRY_AUTH_TOKEN: 'sntrys_real_token' })
+    )
   })
 
   afterEach(() => {
@@ -4717,32 +5049,34 @@ describe('Copilot Env Variable Reference Resolution', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', 'workspace-456')
     expect(sentOperationInput().apiKey).toBe('sntrys_real_token')
   })
 
   it('keeps direct integration execution raw while projecting only its active workspace secret', async () => {
     const activeSecret = 'xxxxxxxx'
     const unusedSecret = 'true'
-    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({
-      SERPER_API_KEY: activeSecret,
-      UNUSED_SECRET: unusedSecret,
-    })
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce(
+      environmentSnapshot({ SERPER_API_KEY: activeSecret, UNUSED_SECRET: unusedSecret })
+    )
     mockExecuteInternalToolOperation.mockResolvedValueOnce(
       Response.json({ reflected: activeSecret, ordinary: unusedSecret })
     )
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'SERPER_API_KEY',
-        plaintext: activeSecret,
-        encryptedValue: 'encrypted-active',
-      },
-      {
-        name: 'UNUSED_SECRET',
-        plaintext: unusedSecret,
-        encryptedValue: 'encrypted-unused',
-      },
-    ])
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'SERPER_API_KEY',
+          plaintext: activeSecret,
+          encryptedValue: 'encrypted-active',
+        },
+        {
+          name: 'UNUSED_SECRET',
+          plaintext: unusedSecret,
+          encryptedValue: 'encrypted-unused',
+        },
+      ],
+      { userId: 'user-123', workspaceId: 'workspace-456' }
+    )
     const callerParams = { apiKey: '{{SERPER_API_KEY}}' }
 
     const result = await executeTool('test_env_ref_tool', callerParams, {
@@ -4755,7 +5089,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
       output: { reflected: activeSecret, ordinary: unusedSecret },
     })
     expect(callerParams).toEqual({ apiKey: '{{SERPER_API_KEY}}' })
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', 'workspace-456')
     expect(sentOperationInput().apiKey).toBe(activeSecret)
     expect(projectToolResultForCopilot(result, registry)).toMatchObject({
       success: true,
@@ -4763,23 +5097,64 @@ describe('Copilot Env Variable Reference Resolution', () => {
     })
   })
 
+  it('tracks a secret added after the Copilot turn started', async () => {
+    const secret = 'new-workspace-api-key'
+    environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce({
+      personalEncrypted: {},
+      workspaceEncrypted: { ADDED_API_KEY: 'encrypted-new-key' },
+      personalDecrypted: {},
+      workspaceDecrypted: { ADDED_API_KEY: secret },
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceUnredactedKeys: [],
+    })
+    const parent = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-123',
+      workspaceId: 'workspace-456',
+    })
+    const registry = parent.forkForInputPaths([])
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(Response.json({ reflected: secret }))
+
+    const result = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{ADDED_API_KEY}}' },
+      { executionContext: copilotContext(), resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(sentOperationInput().apiKey).toBe(secret)
+    expect(projectToolResultForCopilot(result, registry)).toMatchObject({
+      success: true,
+      output: { reflected: '{{ADDED_API_KEY}}' },
+    })
+    expect(registry.isComplete()).toBe(true)
+    expect(parent.getActiveMatches()).toEqual([])
+    parent.mergeToolCallRegistry(registry)
+    expect(parent.getActiveMatches()).toEqual([
+      { plaintext: secret, replacement: '{{ADDED_API_KEY}}' },
+    ])
+  })
+
   it('does not let a pending user-only reference affect an unrelated result', async () => {
     const secret = 'sntrys_real_token'
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'SENTRY_AUTH_TOKEN',
-        plaintext: secret,
-        encryptedValue: 'encrypted-token',
-      },
-    ])
-    let resolveEnvironment!: (variables: Record<string, string>) => void
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'SENTRY_AUTH_TOKEN',
+          plaintext: secret,
+          encryptedValue: 'encrypted-token',
+        },
+      ],
+      { userId: 'user-123', workspaceId: 'workspace-456' }
+    )
+    let resolveEnvironment!: (environment: EnvironmentResolutionSnapshot) => void
     let markResolutionStarted!: () => void
     const resolutionStarted = new Promise<void>((resolve) => {
       markResolutionStarted = resolve
     })
-    mockGetEffectiveDecryptedEnv.mockImplementationOnce(
+    mockGetEffectiveEnvironmentSnapshot.mockImplementationOnce(
       () =>
-        new Promise<Record<string, string>>((resolve) => {
+        new Promise<EnvironmentResolutionSnapshot>((resolve) => {
           resolveEnvironment = resolve
           markResolutionStarted()
         })
@@ -4799,7 +5174,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
       projectToolResultForCopilot({ success: true, output: { result: secret } }, registry)
     ).toMatchObject({ output: { result: secret } })
 
-    resolveEnvironment({ SENTRY_AUTH_TOKEN: secret })
+    resolveEnvironment(environmentSnapshot({ SENTRY_AUTH_TOKEN: secret }))
     await expect(execution).resolves.toMatchObject({ success: true })
 
     expect(registry.isComplete()).toBe(true)
@@ -4839,7 +5214,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(true)
     expect(sentOperationInput().apiKey).toBe('Bearer {{SENTRY_AUTH_TOKEN}}')
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 
   it('fails with a clear error before any request when the variable is missing', async () => {
@@ -4870,7 +5245,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('authenticated user context')
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
     expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
@@ -4889,7 +5264,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('only personal variables are available')
-    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', undefined)
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', undefined)
     expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
@@ -4901,7 +5276,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockGetEffectiveDecryptedEnv).not.toHaveBeenCalled()
+    expect(mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
     expect(sentOperationInput().apiKey).toBe('{{SENTRY_AUTH_TOKEN}}')
   })
 

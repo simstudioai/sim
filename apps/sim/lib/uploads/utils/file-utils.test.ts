@@ -113,6 +113,7 @@ describe('inferContextFromKey', () => {
     expect(inferContextFromKey('profile-pictures/x')).toBe('profile-pictures')
     expect(inferContextFromKey('og-images/x')).toBe('og-images')
     expect(inferContextFromKey('workspace-logos/x')).toBe('workspace-logos')
+    expect(inferContextFromKey('organization-logos/x')).toBe('organization-logos')
     expect(inferContextFromKey('logs/x')).toBe('logs')
   })
 
@@ -158,6 +159,7 @@ describe('resolveTrustedFileContext', () => {
       'workspace'
     )
     expect(resolveTrustedFileContext('chat/x', 'workspace-logos')).toBe('chat')
+    expect(resolveTrustedFileContext('chat/x', 'organization-logos')).toBe('chat')
     expect(resolveTrustedFileContext('workspace/ws/x', 'mothership')).toBe('workspace')
   })
 

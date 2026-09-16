@@ -6,9 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
+  AGENT_STREAM_PROTOCOL_HEADER,
+  AGENT_STREAM_PROTOCOL_V1,
+  CHAT_OUTPUT_PROTOCOL_V1,
+} from '@/lib/workflows/streaming/agent-stream-protocol'
+import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
+import type { ExecutionResult } from '@/executor/types'
 import type { AgentStreamSink } from '@/providers/stream-events'
 
 const workflowStreamingLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
@@ -235,6 +241,214 @@ describe('createStreamingResponse', () => {
     expect(events).toEqual([
       { event: 'error', error: 'Custom block streamed an unselected output' },
     ])
+  })
+
+  it('emits selected files from a block that already streamed its answer', async () => {
+    const file = {
+      id: 'file-image',
+      name: 'image.png',
+      size: 3,
+      type: 'image/png',
+      key: 'execution/image.png',
+      url: '/api/files/serve/execution%2Fimage.png',
+      base64: 'YWJj',
+    }
+    const stream = await createStreamingResponse({
+      requestId: 'request-streamed-chat-files',
+      executionId: 'execution-1',
+      requestHeaders: new Headers({
+        [AGENT_STREAM_PROTOCOL_HEADER]: `${AGENT_STREAM_PROTOCOL_V1}, ${CHAT_OUTPUT_PROTOCOL_V1}`,
+      }),
+      streamConfig: {
+        selectedOutputs: ['agent_content', 'agent_files'],
+        workflowTriggerType: 'chat',
+        includeFileBase64: false,
+      },
+      executeFn: async ({ onStream, onBlockComplete }) => {
+        await onStream({
+          blockId: 'agent',
+          stream: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('Your image.'))
+              controller.close()
+            },
+          }),
+          execution: { success: true, output: {} },
+        })
+        await onBlockComplete('agent', { content: 'Your image.', files: [file] })
+        return { success: true, output: {}, logs: [], metadata: { duration: 1 } }
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.filter((event) => 'chunk' in event)).toEqual([
+      { blockId: 'agent', chunk: 'Your image.' },
+    ])
+    expect(events).toContainEqual({ blockId: 'agent', event: 'output', data: [file] })
+  })
+
+  it('emits composite response-format selections once as structured outputs', async () => {
+    const result = {
+      content: 'Your image.',
+      files: [
+        {
+          id: 'file-image',
+          name: 'image.png',
+          size: 3,
+          type: 'image/png',
+          key: 'execution/image.png',
+          url: '/api/files/serve/execution%2Fimage.png',
+          base64: 'YWJj',
+        },
+      ],
+      count: 1,
+    }
+    const stream = await createStreamingResponse({
+      requestId: 'request-chat-composite',
+      requestHeaders: new Headers({ [AGENT_STREAM_PROTOCOL_HEADER]: CHAT_OUTPUT_PROTOCOL_V1 }),
+      streamConfig: {
+        selectedOutputs: ['agent_result'],
+        workflowTriggerType: 'chat',
+        includeFileBase64: false,
+      },
+      executeFn: async ({ onStream, onBlockComplete }) => {
+        await onStream({
+          blockId: 'agent',
+          clientStreamTransformed: true,
+          stream: new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(JSON.stringify(result)))
+              controller.close()
+            },
+          }),
+          execution: { success: true, output: {} },
+        })
+        await onBlockComplete('agent', { result })
+        return { success: true, output: {}, logs: [], metadata: { duration: 1 } }
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.filter((event) => 'chunk' in event)).toEqual([])
+    expect(events.filter((event) => event.event === 'output')).toEqual([
+      { blockId: 'agent', event: 'output', data: result },
+    ])
+  })
+
+  it('enforces the aggregate inline byte limit for structured chat outputs', async () => {
+    const value = { text: 'x'.repeat(9 * 1024 * 1024) }
+    const stream = await createStreamingResponse({
+      requestId: 'request-chat-output-limit',
+      requestHeaders: new Headers({ [AGENT_STREAM_PROTOCOL_HEADER]: CHAT_OUTPUT_PROTOCOL_V1 }),
+      streamConfig: {
+        selectedOutputs: ['block_first', 'block_second'],
+        workflowTriggerType: 'chat',
+        includeFileBase64: false,
+      },
+      executeFn: async ({ onBlockComplete }) => {
+        await onBlockComplete('block', { first: value, second: value })
+        return { success: true, output: {}, logs: [], metadata: { duration: 1 } }
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+    expect(events.filter((event) => event.event === 'output')).toHaveLength(1)
+    expect(events).toContainEqual({
+      blockId: 'block',
+      event: 'error',
+      error:
+        'Selected output is too large to inline; select a nested field or use pagination/preview.',
+    })
+    expect(events.some((event) => event.event === 'final')).toBe(false)
+  })
+
+  it.each([
+    {
+      trigger: 'chat' as const,
+      protocol: `${AGENT_STREAM_PROTOCOL_V1}, ${CHAT_OUTPUT_PROTOCOL_V1}`,
+      structured: true,
+    },
+    { trigger: 'chat' as const, protocol: AGENT_STREAM_PROTOCOL_V1, structured: false },
+    {
+      trigger: 'api' as const,
+      protocol: `${AGENT_STREAM_PROTOCOL_V1}, ${CHAT_OUTPUT_PROTOCOL_V1}`,
+      structured: false,
+    },
+  ])(
+    'preserves selected output data only for capable chat clients: $trigger / $protocol',
+    async ({ trigger, protocol, structured }) => {
+      const files = [
+        {
+          id: 'file-image',
+          name: 'image.png',
+          size: 3,
+          type: 'image/png',
+          key: 'execution/image.png',
+          url: '/api/files/serve/execution%2Fimage.png',
+          base64: 'YWJj',
+        },
+      ]
+      const output = { files, emptyFiles: [] }
+      const stream = await createStreamingResponse({
+        requestId: 'request-chat-files',
+        executionId: 'execution-1',
+        requestHeaders: new Headers({ [AGENT_STREAM_PROTOCOL_HEADER]: protocol }),
+        streamConfig: {
+          selectedOutputs: ['block_files', 'block_emptyFiles'],
+          workflowTriggerType: trigger,
+          includeFileBase64: false,
+        },
+        executeFn: async ({ onBlockComplete }) => {
+          await onBlockComplete('block', output)
+          return { success: true, output: {}, logs: [], metadata: { duration: 1 } }
+        },
+      })
+
+      const events = await collectSSEEvents(stream)
+      if (structured) {
+        expect(events).toContainEqual({ blockId: 'block', event: 'output', data: files })
+        expect(events).toContainEqual({ blockId: 'block', event: 'output', data: [] })
+        expect(events.some((event) => 'chunk' in event)).toBe(false)
+      } else {
+        expect(events).toContainEqual({ blockId: 'block', chunk: JSON.stringify(files, null, 2) })
+        expect(events).toContainEqual({ blockId: 'block', chunk: '\n\n[]' })
+        expect(events.some((event) => event.event === 'output')).toBe(false)
+      }
+      expect(events).toContainEqual({ event: 'final', data: { success: true, output: {} } })
+    }
+  )
+
+  it('emits an immediate keepalive and repeats it while execution is silent', async () => {
+    vi.useFakeTimers()
+    let finishExecution!: (result: ExecutionResult) => void
+    try {
+      const stream = await createStreamingResponse({
+        requestId: 'request-keepalive',
+        executionId: 'execution-1',
+        streamConfig: {},
+        executeFn: async () =>
+          await new Promise<ExecutionResult>((resolve) => {
+            finishExecution = resolve
+          }),
+      })
+      const reader = stream.getReader()
+      const decoder = new TextDecoder()
+
+      expect(decoder.decode((await reader.read()).value)).toBe(': keepalive\n\n')
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(decoder.decode((await reader.read()).value)).toBe(': keepalive\n\n')
+
+      finishExecution({
+        success: true,
+        status: 'completed',
+        output: {},
+        logs: [],
+        metadata: { duration: 1 },
+      })
+      while (!(await reader.read()).done) {}
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('forwards raw execution state to terminal logging', async () => {
@@ -1080,16 +1294,6 @@ describe('agent stream protocol response headers', () => {
   it('stays inactive for legacy clients and when no headers are supplied', () => {
     expect(agentStreamProtocolResponseHeaders({ requestHeaders: new Headers() })).toEqual({})
     expect(agentStreamProtocolResponseHeaders({})).toEqual({})
-  })
-
-  it('echoes the negotiated capability for field-scoped retractions', () => {
-    expect(
-      agentStreamProtocolResponseHeaders({
-        requestHeaders: new Headers({
-          'x-sim-stream-protocol': 'agent-events-v1, scoped-output-v1',
-        }),
-      })
-    ).toEqual({ 'x-sim-stream-protocol': 'agent-events-v1, scoped-output-v1' })
   })
 })
 

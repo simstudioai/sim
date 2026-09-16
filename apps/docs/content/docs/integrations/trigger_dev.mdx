@@ -11,18 +11,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Trigger.dev](https://trigger.dev/) is an open-source platform for running background jobs and AI workloads. You write tasks in plain TypeScript, deploy them to Trigger.dev, and get durable runs with automatic retries, queues, cron schedules, and full observability — no servers or infrastructure to manage.
+[Trigger.dev](https://trigger.dev/) runs deployed background tasks. Start one task or batch up to 1,000 runs, then poll run status and pass completed output to later workflow steps. You can also inspect and control runs, schedules, queues, and environment resources.
 
-With Trigger.dev, you can:
-
-- **Trigger tasks on demand**: Start a background task with any JSON payload and get back a run ID to track it
-- **Batch trigger at scale**: Kick off up to 1,000 runs of a task in a single request
-- **Track and control runs**: Retrieve a run's status, payload, output, and attempts; list and filter runs; cancel, replay, or reschedule them
-- **Run tasks on a schedule**: Create, update, activate, and deactivate cron schedules with timezone support
-- **Manage environment variables**: List, create, read, update, and delete env vars across dev, staging, and prod
-- **Control queues**: Inspect queue depth and concurrency, and pause or resume queues during incidents
-
-In Sim, the Trigger.dev integration lets your agents drive this entire lifecycle. An agent can trigger a deployed task with a payload, poll the run until it completes and use its output downstream, monitor for failed runs and replay the transient ones, manage per-customer cron schedules, and pause a queue when something goes wrong. Connect it with a project-scoped secret API key (starts with `tr_`) — the key determines which environment the runs, schedules, and queues belong to. This makes Sim a natural control plane for the background jobs that power your product.
+Connect with a project-scoped secret API key beginning with `tr_`. The key determines the environment used for runs, schedules, and queues.
 
 Note: the environment variable operations (List Env Vars, Get Env Var) return variable values in plaintext, and those values appear in workflow outputs and run history. Scope workflows that read environment variables carefully.
 {/* MANUAL-CONTENT-END */}

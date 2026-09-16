@@ -57,6 +57,7 @@ const MEMBER_ROWS = [
     userName: 'Admin User',
     userEmail: 'admin@example.com',
     userImage: null,
+    userSuspendedAt: null,
   },
   {
     memberId: 'member-reader',
@@ -66,6 +67,7 @@ const MEMBER_ROWS = [
     userName: 'Reader User',
     userEmail: 'reader@example.com',
     userImage: 'https://example.com/reader.png',
+    userSuspendedAt: null,
   },
 ]
 
@@ -118,6 +120,7 @@ describe('GET /api/organizations/[id]/roster', () => {
             name: 'Admin User',
             email: 'admin@example.com',
             image: null,
+            suspendedAt: null,
             workspaces: [],
           },
           {
@@ -128,6 +131,7 @@ describe('GET /api/organizations/[id]/roster', () => {
             name: 'Reader User',
             email: 'reader@example.com',
             image: 'https://example.com/reader.png',
+            suspendedAt: null,
             workspaces: [],
           },
         ],
@@ -167,6 +171,7 @@ describe('GET /api/organizations/[id]/roster', () => {
         userName: 'External User',
         userEmail: 'external@example.com',
         userImage: null,
+        userSuspendedAt: null,
         workspaceId: 'workspace-1',
         permission: 'read',
         createdAt: new Date('2026-03-01T00:00:00.000Z'),

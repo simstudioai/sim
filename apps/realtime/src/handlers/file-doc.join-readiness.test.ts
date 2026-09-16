@@ -12,6 +12,7 @@
 import {
   FILE_DOC_EVENTS,
   FILE_DOC_MESSAGE_TYPE,
+  FILE_DOC_SCHEMA_VERSION,
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
 import * as decoding from 'lib0/decoding'
@@ -272,7 +273,15 @@ describe('file-doc join readiness (shared store enabled)', () => {
     backing.readDelayTicks = 6
     const { socket, handlers } = setup('socket-1', sockets)
 
-    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: FILE_ID, clientId: 1 })
+    await handlers[FILE_DOC_EVENTS.JOIN]({
+      fileId: FILE_ID,
+      clientId: 1,
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
+    })
+    expect(socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_SUCCESS,
+      expect.objectContaining({ fileId: FILE_ID, schemaVersion: FILE_DOC_SCHEMA_VERSION })
+    )
     requestSyncStep2(handlers)
     await flushPendingWork()
 
@@ -283,9 +292,17 @@ describe('file-doc join readiness (shared store enabled)', () => {
 
   it('does not fetch a seed for a room the stream can already reconstruct', async () => {
     seedWarmStreamHistory()
-    const { handlers } = setup('socket-1', sockets)
+    const { socket, handlers } = setup('socket-1', sockets)
 
-    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: FILE_ID, clientId: 1 })
+    await handlers[FILE_DOC_EVENTS.JOIN]({
+      fileId: FILE_ID,
+      clientId: 1,
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
+    })
+    expect(socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_SUCCESS,
+      expect.objectContaining({ fileId: FILE_ID, schemaVersion: FILE_DOC_SCHEMA_VERSION })
+    )
 
     expect(mockFetchFileDocSeed).not.toHaveBeenCalled()
   })
@@ -302,7 +319,15 @@ describe('file-doc join readiness (shared store enabled)', () => {
     doc.destroy()
 
     const { socket, handlers } = setup('socket-1', sockets)
-    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: FILE_ID, clientId: 1 })
+    await handlers[FILE_DOC_EVENTS.JOIN]({
+      fileId: FILE_ID,
+      clientId: 1,
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
+    })
+    expect(socket.emit).toHaveBeenCalledWith(
+      FILE_DOC_EVENTS.JOIN_SUCCESS,
+      expect.objectContaining({ fileId: FILE_ID, schemaVersion: FILE_DOC_SCHEMA_VERSION })
+    )
     requestSyncStep2(handlers)
     await flushPendingWork()
 

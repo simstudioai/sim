@@ -133,6 +133,23 @@ describe('TriggerDevJobQueue enqueue', () => {
     )
   })
 
+  it('dispatches Slack Search to its task with installation concurrency and a stable event key', async () => {
+    await new TriggerDevJobQueue().enqueue(
+      'slack-search',
+      { installationId: 'i1' },
+      { jobId: 'slack-search:i1:Ev1', maxDurationSeconds: 60, concurrencyKey: 'i1', maxAttempts: 1 }
+    )
+    expect(mockTrigger).toHaveBeenCalledWith(
+      'slack-search',
+      { installationId: 'i1' },
+      expect.objectContaining({
+        idempotencyKey: 'slack-search:i1:Ev1',
+        concurrencyKey: 'i1',
+        maxDuration: 60,
+      })
+    )
+  })
+
   it('passes the execution timeout and execution ID tag to Trigger.dev', async () => {
     const queue = new TriggerDevJobQueue()
 

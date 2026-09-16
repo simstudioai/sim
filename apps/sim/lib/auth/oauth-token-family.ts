@@ -14,7 +14,7 @@ import { generateSecureToken } from '@sim/security/tokens'
 import { generateId } from '@sim/utils/id'
 import { symmetricDecrypt } from 'better-auth/crypto'
 import { and, eq, isNull } from 'drizzle-orm'
-import { isBanActive } from '@/lib/auth/ban'
+import { isAccountBlocked } from '@/lib/auth/ban'
 import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
 import {
   OAUTH_ACCESS_TOKEN_PREFIX,
@@ -22,7 +22,16 @@ import {
   OAUTH_REFRESH_TOKEN_PREFIX,
   OAUTH_TOKEN_FAMILY_MAX_GENERATION,
 } from '@/lib/auth/oauth-provider'
+import { parseOAuthSearchResource } from '@/lib/auth/oauth-resource'
+import {
+  acquireOrganizationUserMutationLocks,
+  getUserOrganization,
+} from '@/lib/billing/organizations/membership'
 import { env } from '@/lib/core/config/env'
+import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
+import { isEntitledOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 
 const logger = createLogger('OAuthTokenFamily')
 
@@ -40,6 +49,7 @@ export interface RotateOAuthRefreshTokenInput {
   credentials: OAuthClientCredentials
   refreshToken: string
   requestedScopes?: string[]
+  resource?: string
 }
 
 export type OAuthProtocolErrorCode =
@@ -47,6 +57,7 @@ export type OAuthProtocolErrorCode =
   | 'invalid_grant'
   | 'invalid_scope'
   | 'unauthorized_client'
+  | 'invalid_target'
 
 export type OAuthProtocolResult<T> =
   | { success: true; value: T }
@@ -81,6 +92,7 @@ interface RefreshTokenRow {
   revoked: Date | null
   authTime: Date | null
   scopes: string[]
+  resource: string | null
   familyId: string
   familyConsentId: string | null
   generation: number
@@ -208,6 +220,7 @@ async function readRefreshToken(
       revoked: oauthRefreshToken.revoked,
       authTime: oauthRefreshToken.authTime,
       scopes: oauthRefreshToken.scopes,
+      resource: oauthRefreshToken.resource,
       familyId: oauthRefreshToken.familyId,
       familyConsentId: oauthTokenFamily.consentId,
       generation: oauthRefreshToken.generation,
@@ -265,20 +278,49 @@ export async function rotateOAuthRefreshToken(
   if (provisionalToken.clientId !== input.credentials.clientId) {
     return protocolError('invalid_grant', 'Refresh token is invalid.')
   }
+  if (input.resource !== undefined && input.resource !== provisionalToken.resource) {
+    return protocolError('invalid_target', 'The resource must match the original token grant.')
+  }
+  try {
+    parseOAuthSearchResource(provisionalToken.resource)
+  } catch {
+    return protocolError('invalid_target', 'The original resource is no longer supported.')
+  }
 
+  const membership = await getUserOrganization(provisionalToken.userId, database)
+  const organizationId = membership?.organizationId ?? null
   const nextRefreshBody = generateSecureToken(32)
   const nextAccessBody = generateSecureToken(32)
   const nextRefreshId = generateId()
   const nextAccessId = generateId()
 
   return database.transaction(async (tx) => {
+    await acquireOrganizationUserMutationLocks(tx, {
+      userId: provisionalToken.userId,
+      organizationIds: organizationId ? [organizationId] : [],
+    })
+    const currentMembership = await getUserOrganization(provisionalToken.userId, tx)
+    if ((currentMembership?.organizationId ?? null) !== organizationId) {
+      return protocolError(
+        'invalid_grant',
+        'Organization membership changed. Please sign in again.'
+      )
+    }
+    const permissionRegimeActive =
+      organizationId !== null && (await isOrganizationPermissionRegimeActive(organizationId, tx))
+
     const [activeUser] = await tx
-      .select({ id: user.id, banned: user.banned, banExpires: user.banExpires })
+      .select({
+        id: user.id,
+        banned: user.banned,
+        banExpires: user.banExpires,
+        suspendedAt: user.suspendedAt,
+      })
       .from(user)
       .where(eq(user.id, provisionalToken.userId))
       .for('share')
       .limit(1)
-    if (!activeUser || isBanActive(activeUser)) {
+    if (!activeUser || isAccountBlocked(activeUser)) {
       return protocolError('invalid_grant', 'Refresh token is invalid.')
     }
 
@@ -353,6 +395,7 @@ export async function rotateOAuthRefreshToken(
       currentToken.userId !== family.userId ||
       currentToken.sessionId !== family.sessionId ||
       currentToken.referenceId !== family.referenceId ||
+      currentToken.resource !== provisionalToken.resource ||
       currentToken.revoked ||
       currentToken.expiresAt <= rotationTime ||
       family.expiresAt <= rotationTime ||
@@ -376,6 +419,14 @@ export async function rotateOAuthRefreshToken(
     if (family.currentGeneration >= OAUTH_TOKEN_FAMILY_MAX_GENERATION) {
       await tx.delete(oauthTokenFamily).where(eq(oauthTokenFamily.id, family.id))
       return protocolError('invalid_grant', 'Refresh token grant reached its rotation limit.')
+    }
+
+    /** permission-group-enforced: oauth_apps.use — serialize the current policy with admin updates before consuming the token. */
+    if (organizationId && permissionRegimeActive) {
+      await acquirePermissionGroupOrgLock(tx, organizationId, { lockTimeoutAlreadyBounded: true })
+      if (await isEntitledOrganizationCapabilityWithheld(organizationId, 'oauth_apps.use', tx)) {
+        return protocolError('invalid_grant', capabilityRefusal('oauth_apps.use'))
+      }
     }
 
     const scopes = validateScopes(currentToken.scopes, lockedClient.scopes, input.requestedScopes)
@@ -411,6 +462,7 @@ export async function rotateOAuthRefreshToken(
       revoked: null,
       authTime: currentToken.authTime,
       scopes: currentToken.scopes,
+      resource: currentToken.resource,
       familyId: family.id,
       generation: nextGeneration,
     })
@@ -425,6 +477,7 @@ export async function rotateOAuthRefreshToken(
       expiresAt: accessExpiresAt,
       createdAt: rotationTime,
       scopes: scopes.value,
+      resource: currentToken.resource,
     })
 
     return {

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
 const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
@@ -13,9 +13,10 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
     TABLE_ROW_TTL: undefined as boolean | undefined,
+    PERMISSION_ACCESS_REQUESTS_ENABLED: undefined as boolean | undefined,
     CREDENTIAL_GROUPS: undefined as boolean | undefined,
     KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
-    OAUTH_PROVIDER_ENABLED: undefined as boolean | undefined,
+    SLACK_SEARCH_SHARED_APP: undefined as boolean | undefined,
   },
 }))
 
@@ -126,33 +127,39 @@ describe('isFeatureEnabled', () => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
-    envRef.OAUTH_PROVIDER_ENABLED = undefined
+    envRef.SLACK_SEARCH_SHARED_APP = undefined
   })
 
-  describe('oauth-provider flag', () => {
-    it('uses the global fallback only when AppConfig has no document', async () => {
-      expect(await isFeatureEnabled('oauth-provider')).toBe(false)
-      envRef.OAUTH_PROVIDER_ENABLED = true
-      expect(await isFeatureEnabled('oauth-provider')).toBe(true)
-
-      setEnvFlags({ isAppConfigEnabled: true })
-      mockFetch.mockResolvedValue(null)
-      expect(await isFeatureEnabled('oauth-provider')).toBe(true)
+  describe('slack-search-shared-app flag', () => {
+    it('enables only the allowlisted organization', async () => {
+      withAppConfig({ 'slack-search-shared-app': { enabled: false, orgIds: ['review-org'] } })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'other-org' })).toBe(false)
+      expect(await isFeatureEnabled('slack-search-shared-app')).toBe(false)
+      expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
     })
 
-    it('reads runtime changes from AppConfig without targeting or admin lookups', async () => {
-      envRef.OAUTH_PROVIDER_ENABLED = true
-      withAppConfig({ 'oauth-provider': { enabled: false } })
-      expect(await isFeatureEnabled('oauth-provider')).toBe(false)
-
-      withAppConfig({ 'oauth-provider': { enabled: true } })
-      expect(await isFeatureEnabled('oauth-provider')).toBe(true)
-
-      withAppConfig({ 'oauth-provider': { enabled: false } })
-      expect(await isFeatureEnabled('oauth-provider')).toBe(false)
-      withAppConfig({})
-      expect(await isFeatureEnabled('oauth-provider')).toBe(false)
+    it('does not grant organization access from user or workspace targeting', async () => {
+      withAppConfig({
+        'slack-search-shared-app': {
+          userIds: ['review-org'],
+          workspaceIds: ['review-org'],
+          adminEnabled: true,
+        },
+      })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
       expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
+    })
+
+    it('preserves the global AppConfig switch', async () => {
+      withAppConfig({ 'slack-search-shared-app': { enabled: true } })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'any-org' })).toBe(true)
+    })
+
+    it('preserves the global fallback switch off AppConfig', async () => {
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
+      envRef.SLACK_SEARCH_SHARED_APP = true
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
     })
   })
 
@@ -202,11 +209,16 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
 
-    it('opens for an allowlisted workspace only', async () => {
-      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
-      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-1' })).toBe(true)
-      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-2' })).toBe(false)
+    it('opens for an allowlisted organization only', async () => {
+      withAppConfig({ 'credential-groups': { orgIds: ['org-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(true)
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-2' })).toBe(false)
       expect(await isFeatureEnabled('credential-groups')).toBe(false)
+    })
+
+    it('a legacy workspace allowlist does not enable the organization gate', async () => {
+      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(false)
     })
   })
 
@@ -323,5 +335,28 @@ describe('table-row-ttl flag', () => {
   it('uses the global AppConfig clause', async () => {
     withAppConfig({ 'table-row-ttl': { enabled: true } })
     expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
+  })
+})
+
+describe('permission access request rollout', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isAppConfigEnabled: false })
+    envRef.PERMISSION_ACCESS_REQUESTS_ENABLED = undefined
+  })
+  afterEach(() => {
+    envRef.PERMISSION_ACCESS_REQUESTS_ENABLED = undefined
+  })
+  it('defaults off and can be enabled with the fallback secret', async () => {
+    expect(await isFeatureEnabled('permission-access-requests')).toBe(false)
+    envRef.PERMISSION_ACCESS_REQUESTS_ENABLED = true
+    expect(await isFeatureEnabled('permission-access-requests')).toBe(true)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+  it('uses a global AppConfig rule without organization targeting', async () => {
+    withAppConfig({ 'permission-access-requests': { enabled: false, orgIds: ['org'] } })
+    expect(await isFeatureEnabled('permission-access-requests')).toBe(false)
+    withAppConfig({ 'permission-access-requests': { enabled: true } })
+    expect(await isFeatureEnabled('permission-access-requests')).toBe(true)
   })
 })

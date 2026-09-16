@@ -21,7 +21,7 @@ import {
 export const SOLUTIONS_SPACING = {
   /**
    * The one horizontal gutter, owned solely by `SolutionsPage`. Matches the
-   * navbar and landing hero exactly (`px-20 max-lg:px-8 max-sm:px-5`) so
+   * navbar and landing hero exactly (`px-10 max-md:px-7 max-lg:px-8 max-xl:px-9`) so
    * solutions content starts on the wordmark's vertical line at every
    * breakpoint. Sections and cards never set their own gutter.
    */
@@ -124,7 +124,7 @@ export const SOLUTIONS_FEATURE_TILE_TONE = {
   light: {
     surface: 'bg-[var(--surface-3)]',
     title: 'text-[var(--text-primary)]',
-    description: 'text-[var(--text-muted)]',
+    description: 'text-[var(--text-secondary)]',
   },
   dark: {
     surface: 'bg-[var(--text-secondary)]',

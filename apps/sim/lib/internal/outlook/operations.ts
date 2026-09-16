@@ -9,17 +9,22 @@ import type {
   OutlookMoveBody,
   OutlookSendBody,
 } from '@/lib/api/contracts/tools/microsoft'
-import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { OutlookClient, type OutlookJsonObject } from '@/lib/internal/outlook/client'
 import { OutlookOperationError } from '@/lib/internal/outlook/errors'
+import type { OutlookGetAttachmentInput } from '@/lib/internal/outlook/get-attachment-input'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import type { CleanedOutlookAttachmentMetadata } from '@/tools/outlook/types'
 
 const logger = createLogger('OutlookOperations')
 const OUTLOOK_SEND_ATTACHMENT_MAX_BYTES = 3 * 1024 * 1024
 const OUTLOOK_DRAFT_ATTACHMENT_MAX_BYTES = 4 * 1024 * 1024
+const OUTLOOK_ATTACHMENT_METADATA_FIELDS = 'id,name,contentType,size,isInline,lastModifiedDateTime'
 
 interface OutlookMailOperationContext {
   requestId: string
@@ -146,6 +151,62 @@ async function buildMessage(
   const attachments = await resolveAttachments(input.attachments, context, kind)
   if (attachments.length > 0) message.attachments = attachments
   return message
+}
+
+export async function executeOutlookGetAttachment(
+  input: OutlookGetAttachmentInput,
+  signal?: AbortSignal
+) {
+  signal?.throwIfAborted()
+  const client = new OutlookClient(input.accessToken)
+  const path = `/me/messages/${encodeURIComponent(input.messageId.trim())}/attachments/${encodeURIComponent(input.attachmentId.trim())}`
+  try {
+    const data = await client.json(
+      `${path}?$select=${OUTLOOK_ATTACHMENT_METADATA_FIELDS}`,
+      { method: 'GET' },
+      'Failed to retrieve attachment',
+      signal
+    )
+    signal?.throwIfAborted()
+    const results: CleanedOutlookAttachmentMetadata = {
+      id: optionalString(data, 'id') ?? input.attachmentId.trim(),
+      name: optionalString(data, 'name') ?? null,
+      contentType: optionalString(data, 'contentType') ?? null,
+      size: typeof data.size === 'number' ? data.size : null,
+      isInline: optionalBoolean(data, 'isInline') ?? null,
+      attachmentType: optionalString(data, '@odata.type') ?? null,
+      lastModifiedDateTime: optionalString(data, 'lastModifiedDateTime') ?? null,
+    }
+    const output = {
+      message: `Successfully retrieved attachment "${results.name ?? ''}".`,
+      results,
+    }
+    if (results.attachmentType !== '#microsoft.graph.fileAttachment') {
+      return { success: true, output: { ...output, attachments: [] } }
+    }
+    if (results.size !== null && results.size !== undefined) {
+      assertKnownSizeWithinLimit(results.size, MAX_BUFFERED_TRANSFER_BYTES, 'Outlook attachment')
+    }
+    const { buffer, contentType } = await client.buffer(
+      `${path}/$value`,
+      MAX_BUFFERED_TRANSFER_BYTES,
+      'Failed to download attachment',
+      signal
+    )
+    signal?.throwIfAborted()
+    return createInternalToolFileResult(
+      {
+        buffer,
+        name: results.name || 'attachment',
+        mimeType: results.contentType || contentType || 'application/octet-stream',
+      },
+      (file) => ({ success: true, output: { ...output, attachments: [file] } })
+    )
+  } catch (error) {
+    signal?.throwIfAborted()
+    if (isPayloadSizeLimitError(error)) throw new OutlookOperationError(error.message, 413)
+    throw error
+  }
 }
 
 export async function executeOutlookCopy(input: OutlookCopyBody, signal?: AbortSignal) {

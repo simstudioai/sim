@@ -9,6 +9,7 @@ const {
   mockCal,
   mockCalComponent,
   mockConsent,
+  mockTheme,
   mockGetCalApi,
   mockTrackGoogleAdsConversion,
   mockTrackGoogleEvent,
@@ -16,10 +17,13 @@ const {
   mockCal: vi.fn(),
   mockCalComponent: vi.fn(() => null),
   mockConsent: { marketing: true, measurement: true },
+  mockTheme: { resolvedTheme: 'light' },
   mockGetCalApi: vi.fn(),
   mockTrackGoogleAdsConversion: vi.fn(),
   mockTrackGoogleEvent: vi.fn(),
 }))
+
+vi.mock('next-themes', () => ({ useTheme: () => mockTheme }))
 
 vi.mock('@calcom/embed-react', () => ({
   default: mockCalComponent,
@@ -65,6 +69,7 @@ describe('DemoScheduler', () => {
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     vi.clearAllMocks()
+    mockTheme.resolvedTheme = 'light'
     mockConsent.marketing = true
     mockConsent.measurement = true
     mockGetCalApi.mockResolvedValue(mockCal)
@@ -82,7 +87,7 @@ describe('DemoScheduler', () => {
     window.twq = undefined
   })
 
-  it('passes the main-branch presentation and lead config to the official embed', async () => {
+  it('passes the current theme and lead config to the official embed', async () => {
     await act(async () => {
       root.render(<DemoScheduler lead={LEAD} />)
       await Promise.resolve()
@@ -108,9 +113,28 @@ describe('DemoScheduler', () => {
       undefined
     )
     expect(mockCal).toHaveBeenCalledWith('ui', {
+      theme: 'light',
       hideEventTypeDetails: true,
       styles: { branding: { brandColor: '#6f3dfa' } },
     })
+  })
+
+  it('updates the embed when the visitor switches to dark mode', async () => {
+    await act(async () => {
+      root.render(<DemoScheduler lead={LEAD} />)
+    })
+    mockTheme.resolvedTheme = 'dark'
+    await act(async () => {
+      root.render(<DemoScheduler lead={LEAD} />)
+    })
+
+    expect(mockCalComponent).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ theme: 'dark', 'ui.color-scheme': 'dark' }),
+      }),
+      undefined
+    )
+    expect(mockCal).toHaveBeenCalledWith('ui', expect.objectContaining({ theme: 'dark' }))
   })
 
   it('registers consent-aware booking analytics and removes the listener on unmount', async () => {
@@ -172,6 +196,7 @@ describe('DemoScheduler', () => {
     })
 
     expect(mockCal).toHaveBeenCalledWith('ui', {
+      theme: 'light',
       hideEventTypeDetails: true,
       styles: { branding: { brandColor: '#6f3dfa' } },
     })

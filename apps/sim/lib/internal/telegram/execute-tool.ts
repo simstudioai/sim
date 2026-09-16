@@ -2,7 +2,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { TelegramOperationError } from '@/lib/internal/telegram/errors'
 import { sendTelegramDocument } from '@/lib/internal/telegram/operations'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 
@@ -13,7 +16,9 @@ const inputSchema = z.object({
   caption: z.string().optional().nullable(),
 })
 
-export const executeTelegramTool: InternalToolOperationHandler = async (request) => {
+export const executeTelegramTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   if (request.toolId !== 'telegram_send_document') {
     return Response.json(
@@ -30,13 +35,11 @@ export const executeTelegramTool: InternalToolOperationHandler = async (request)
     return Response.json({ success: false, error: 'Invalid request data' }, { status: 400 })
   }
   try {
-    return Response.json(
-      await sendTelegramDocument(parsed.data, {
-        userId,
-        requestId: request.requestId,
-        signal: request.signal,
-      })
-    )
+    return await sendTelegramDocument(parsed.data, {
+      userId,
+      requestId: request.requestId,
+      signal: request.signal,
+    })
   } catch (error) {
     request.signal?.throwIfAborted()
     const notReady = docNotReadyResponse(error)

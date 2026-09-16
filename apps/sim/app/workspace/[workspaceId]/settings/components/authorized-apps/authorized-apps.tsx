@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { summarizeOAuthAccess } from '@/lib/auth/oauth-provider'
@@ -18,12 +19,16 @@ import {
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useAuthorizedApps, useRevokeAuthorizedApp } from '@/hooks/queries/oauth-provider'
 
+interface AuthorizedAppsProps {
+  onBack: () => void
+}
+
 /**
  * The apps this account has authorized through Sim's OAuth provider. Revoking
  * one withdraws its consent and kills every token it holds, so the next
  * request it makes fails and the next sign-in asks again.
  */
-export function AuthorizedApps() {
+export function AuthorizedApps({ onBack }: AuthorizedAppsProps) {
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const apps = useAuthorizedApps(searchTerm.trim())
   const revoke = useRevokeAuthorizedApp()
@@ -46,6 +51,16 @@ export function AuthorizedApps() {
   return (
     <>
       <SettingsPanel
+        back={{
+          text: 'General',
+          icon: ArrowLeft,
+          onSelect: () => {
+            setSearchTerm('')
+            onBack()
+          },
+        }}
+        title='Authorized apps'
+        description='Review and revoke apps that can act on your account.'
         search={{
           value: searchTerm,
           onChange: setSearchTerm,

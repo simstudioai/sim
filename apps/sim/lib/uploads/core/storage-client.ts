@@ -84,7 +84,9 @@ export async function getFileMetadata(
      * absence, because GCS answers a missing object and a missing bucket the same
      * way and only the caller's own bucket configuration separates them.
      */
-    const { getGcsObjectMetadata } = await import('@/lib/uploads/providers/gcs/client')
+    const { getGcsObjectMetadata } = await import(
+      '@/lib/uploads/providers/google-cloud-storage/client'
+    )
     return getGcsObjectMetadata(
       key,
       customConfig?.bucket ? { bucket: customConfig.bucket } : undefined

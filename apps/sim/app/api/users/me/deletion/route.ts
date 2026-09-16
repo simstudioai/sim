@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { deleteAccountContract, getAccountDeletionPlanContract } from '@/lib/api/contracts'
 import {
   defineInternalJsonRoute,
@@ -5,11 +6,14 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { auth } from '@/lib/auth'
 import {
   deleteAccountUseCase,
   previewAccountDeletionUseCase,
 } from '@/lib/users/application/delete-account'
 import { userAccountOperations } from '@/lib/users/application/operations'
+
+const logger = createLogger('AccountDeletionRoute')
 
 export const dynamic = 'force-dynamic'
 
@@ -39,4 +43,19 @@ export const POST = defineInternalJsonRoute({
   mapInput: ({ body }) => ({ confirmEmail: body.confirmEmail }),
   useCase: deleteAccountUseCase,
   present: () => ({ success: true as const }),
+  /**
+   * The session row is gone, but the signed cookie cache authenticates this
+   * browser for up to five more minutes. Clear the cookies on the deletion
+   * response itself so nothing the page does afterwards can carry them.
+   */
+  finalizeResponse: async ({ request }) => {
+    try {
+      const { headers } = await auth.api.signOut({ headers: request.headers, returnHeaders: true })
+      return { headers }
+    } catch (error) {
+      /** The account is gone either way; the client's own sign-out and full reload still drop the cookie. */
+      logger.warn('Could not clear session cookies after account deletion', { error })
+      return {}
+    }
+  },
 })

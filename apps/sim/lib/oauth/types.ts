@@ -32,6 +32,8 @@ export const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot' as const
 export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
 export type OAuthProvider =
+  | 'github-repositories'
+  | 'github-app-installation'
   | 'google'
   | 'google-email'
   | 'google-drive'
@@ -94,6 +96,7 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'github-repositories'
   | 'google'
   | 'google-email'
   | 'google-drive'
@@ -235,7 +238,7 @@ export interface Credential {
   id: string
   name: string
   provider: OAuthProvider
-  type?: 'oauth' | 'service_account'
+  type?: 'oauth' | 'service_account' | 'managed_oauth'
   serviceId?: string
   lastUsed?: string
   isDefault?: boolean

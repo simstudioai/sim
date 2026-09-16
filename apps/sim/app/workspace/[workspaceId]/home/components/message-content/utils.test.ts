@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
+import { Blimp, Wrench } from '@sim/emcn'
 import { describe, expect, it } from 'vitest'
-import { collectMessageSources, deriveMessagePhase, resolveToolDisplayState } from './utils'
+import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
+import {
+  deriveMessagePhase,
+  getAgentIcon,
+  getToolIcon,
+  resolveToolDisplayState,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 
 describe('deriveMessagePhase', () => {
   it('is streaming whenever the transport is live', () => {
@@ -57,4 +64,14 @@ describe('collectMessageSources', () => {
   it('returns nothing for prose without sources', () => {
     expect(collectMessageSources(['Plain prose.', ''])).toEqual([])
   })
+})
+
+describe('unknown activity icons', () => {
+  it.each(['future_tool', '', 'constructor', 'toString', '__proto__'])(
+    'uses fallback icons for %s',
+    (name) => {
+      expect(getToolIcon(name)).toBe(Wrench)
+      expect(getAgentIcon(name)).toBe(Blimp)
+    }
+  )
 })

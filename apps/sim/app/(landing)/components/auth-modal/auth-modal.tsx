@@ -21,6 +21,7 @@ import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
@@ -143,7 +144,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   async function handleSocialLogin(provider: 'github' | 'google' | 'microsoft') {
     setSocialLoading(provider)
     try {
-      await client.signIn.social({ provider, callbackURL: '/workspace' })
+      await client.signIn.social({ provider, callbackURL: APP_ENTRY_PATH })
     } catch (error) {
       logger.warn('Social sign-in did not complete', { provider, error })
     } finally {

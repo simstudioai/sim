@@ -1,11 +1,11 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { bindPreviewWheelZoom } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { openSimPptxViewer, type SimPptxViewerHandle } from '@/lib/pptx-renderer/sim-pptx-viewer'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
-import { bindPreviewWheelZoom } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
 
 const logger = createLogger('PptxSandboxHost')
 

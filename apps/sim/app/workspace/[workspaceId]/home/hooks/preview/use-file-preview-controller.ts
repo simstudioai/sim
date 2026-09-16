@@ -25,7 +25,7 @@ import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/type
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface FilePreviewControllerDeps {
-  workspaceId: string
+  workspaceId?: string
   setResources: Dispatch<SetStateAction<MothershipResource[]>>
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
   activeResourceIdRef: MutableRefObject<string | null>
@@ -97,6 +97,7 @@ export function useFilePreviewController({
 
   const seedCompletedPreviewContentCache = useCallback(
     (fileId: string, previewText: string) => {
+      if (!workspaceId) return
       queryClient.setQueriesData<string>(
         { queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'text') },
         previewText
@@ -374,7 +375,7 @@ export function useFilePreviewController({
         if (hasRenderableFilePreviewContent(nextSession)) {
           seedCompletedPreviewContentCache(fileId, nextSession.previewText)
         }
-        invalidateResourceQueries(queryClient, workspaceId, 'file', fileId)
+        if (workspaceId) invalidateResourceQueries(queryClient, workspaceId, 'file', fileId)
       } else {
         const activePreview =
           nextState.activeSessionId !== null

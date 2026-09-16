@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
+import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
@@ -249,6 +250,7 @@ export class Serializer {
       }
     }
 
+    block = migrateMcpOperationControls(block)
     const blockConfig = getBlock(block.type)
     if (!blockConfig) {
       throw new Error(`Invalid block type: ${block.type}`)
@@ -515,6 +517,7 @@ export function selectToolId(blockConfig: any, params: Record<string, any>): str
  * params exactly the way execution (serializeBlock) does.
  */
 export function extractBlockParams(block: BlockState): Record<string, any> {
+  block = migrateMcpOperationControls(block)
   if (block.type === 'loop' || block.type === 'parallel') {
     return {}
   }

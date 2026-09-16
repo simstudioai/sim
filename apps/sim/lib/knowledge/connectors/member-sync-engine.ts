@@ -1,38 +1,59 @@
 import { db } from '@sim/db'
 import {
   credential,
+  credentialGroupEnrollment,
   document,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeConnectorMemberSyncLog,
+  knowledgeConnectorSyncLog,
+  knowledgeDocumentObservation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, eq, inArray, isNull, lte, notExists, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lte, notExists, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import {
+  assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import {
+  CredentialGroupCredentialCursorNotFoundError,
   type CredentialGroupOptionCredentialReference,
   isManagedCredentialGroupBindingLive,
-  loadCredentialGroupCredentialListContext,
+  loadScopedAccountsCredentialListContext,
 } from '@/lib/credential-groups/credentials'
 import type { DbOrTx } from '@/lib/db/types'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { EMPTY_ACL, subjectToken } from '@/lib/knowledge/access/tokens'
+import { effectiveConnectorSyncIntervalMinutes } from '@/lib/knowledge/connectors/access-modes'
 import {
-  KnowledgeConnectorMemberAccessDeniedError,
+  resolveConnectorAccessToken,
+  resolveConnectorTokenUserId,
+  syncContextForToken,
+} from '@/lib/knowledge/connectors/access-token'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import {
+  beginListingCheckpoint,
+  type ListingCheckpoint,
+  listingFingerprint,
+  readListingCheckpoint,
+  runResumableListing,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
+import {
   listKnowledgeConnectorMemberCredentials,
   mintKnowledgeConnectorMemberToken,
+  rejectKnowledgeConnectorMemberToken,
 } from '@/lib/knowledge/connectors/member-access'
 import {
   applyMemberDocumentLifecycle,
-  listObservedDocumentIds,
   materializeDocumentAcls,
   recordMemberObservations,
   removeMemberObservationsForDocuments,
@@ -40,6 +61,11 @@ import {
   rewriteConnectorAcls,
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
+import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import {
+  deferConnectorSync,
+  getConnectorSyncDeferral,
+} from '@/lib/knowledge/connectors/sync-deferral'
 import {
   CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
@@ -50,6 +76,7 @@ import {
   MEMBER_SUSPENDED_PURGE_DAYS,
   MEMBER_SYNC_MAX_PAGES_PER_MEMBER,
   MEMBER_SYNC_SOFT_BUDGET_SECONDS,
+  SOURCE_CONTENT_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
 import {
   assertSyncLeaseHeldInTx,
@@ -59,28 +86,24 @@ import {
   SyncLockLostException,
   stillHoldsMemberSyncLock,
 } from '@/lib/knowledge/connectors/sync-lock'
-import type {
-  KnowledgeBaseOwner,
-  PersistedDocument,
+import {
+  type KnowledgeBaseOwner,
+  persistSourceDocumentFailures,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import {
-  addSourcePagePayloadBytes,
   ConnectorDeletedException,
   ConnectorSyncCapacityError,
-  ConnectorSyncWorkingSetLimitError,
   classifyListing,
   classifySuspectListing,
   createSyncRunState,
-  loadOwnedCorpus,
+  loadPageCorpus,
   processDocOps,
   RETRY_WINDOW_DAYS,
   runChangeFeedPass,
-  runListingPass,
-  sourcePageFitsSyncWorkingSet,
   sweepStuckDocuments,
-  syncWorkingSetQueryLimit,
 } from '@/lib/knowledge/connectors/sync-primitives'
-import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
+import { getRetryAfterMs } from '@/lib/knowledge/documents/utils'
+import { getConnectorRequiredScopes } from '@/connectors/auth'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorConfig,
@@ -126,6 +149,8 @@ export interface MemberSyncResult extends SyncResult {
 
 export interface ExecuteMemberSyncOptions {
   billingAttribution: BillingAttributionSnapshot
+  /** Explicit sync requests refresh content even when its configured interval has not elapsed. */
+  forceContentRefresh?: boolean
   /** The queue entry this run is allowed to consume; see `MemberSyncPayload.dispatchToken`. */
   dispatchToken?: string
 }
@@ -133,7 +158,7 @@ export interface ExecuteMemberSyncOptions {
 type MemberRow = typeof knowledgeConnectorMember.$inferSelect
 
 /** One member's credential as the option reports it, with the membership state it implies. */
-export interface MemberCredentialSnapshot {
+interface MemberCredentialSnapshot {
   credentialId: string
   subjectToken: string
   active: boolean
@@ -162,41 +187,12 @@ interface MemberListingOutcome {
    * retry cannot improve on, such as a capped or truncated source.
    */
   resumable: boolean
-  /**
-   * The member was the run's only claim and still ran out of budget: a listing
-   * no run can finish alone, so it backs off instead of re-dispatching forever.
-   */
-  exhaustedRunAlone: boolean
   suspect: boolean
+  contentFailures: boolean
   /** Cursor to store when this outcome lands: a value, null to close the feed, undefined to leave it. */
   changeCursor: string | null | undefined
-}
-
-/**
- * The documents a batch wrote, grouped by each member who listed them, so a
- * grant can be recorded per observer the moment the row exists. A document
- * nobody in the union listed (it cannot happen for a persisted one, but the
- * map is the source of truth) grants nothing.
- */
-export function persistedDocumentsByObserver(
-  persisted: readonly PersistedDocument[],
-  union: ReadonlyMap<string, Pick<UnionEntry, 'observers'>>
-): Map<string, string[]> {
-  const byMember = new Map<string, string[]>()
-  for (const { externalId, documentId } of persisted) {
-    for (const memberId of union.get(externalId)?.observers ?? []) {
-      const documentIds = byMember.get(memberId)
-      if (documentIds) documentIds.push(documentId)
-      else byMember.set(memberId, [documentId])
-    }
-  }
-  return byMember
-}
-
-interface UnionEntry {
-  document: ExternalDocument
-  /** Member ids whose listings returned the document, in listing order. */
-  observers: string[]
+  checkpoint?: ListingCheckpoint
+  observationRunId?: string
 }
 
 function emptyResult(): MemberSyncResult {
@@ -267,16 +263,18 @@ export function shouldListFully(
   return now.getTime() - lastCompleteListingAt.getTime() >= recrawlMinutes * 60 * 1000
 }
 
-/** Whether a connector can keep a per-member change feed at all. */
+/** Whether a connector's change feed covers the configured source scope. */
 function supportsChangeFeed(
-  connectorConfig: ConnectorConfig
+  connectorConfig: ConnectorConfig,
+  sourceConfig: Record<string, unknown>
 ): connectorConfig is ConnectorConfig & {
   listChanges: NonNullable<ConnectorConfig['listChanges']>
   getChangeCursor: NonNullable<ConnectorConfig['getChangeCursor']>
 } {
   return (
     typeof connectorConfig.listChanges === 'function' &&
-    typeof connectorConfig.getChangeCursor === 'function'
+    typeof connectorConfig.getChangeCursor === 'function' &&
+    connectorConfig.supportsChangeFeed?.(sourceConfig) !== false
   )
 }
 
@@ -325,7 +323,8 @@ export function buildMemberSyncFailureUpdate(
  * Null on a manual-only connector: with its next manual run.
  */
 export function memberNextAttemptAt(now: Date, syncIntervalMinutes: number): Date | null {
-  return syncIntervalMinutes > 0 ? new Date(now.getTime() + syncIntervalMinutes * 60_000) : null
+  const interval = effectiveConnectorSyncIntervalMinutes('members', syncIntervalMinutes)
+  return interval > 0 ? new Date(now.getTime() + interval * 60_000) : null
 }
 
 /** The next scheduled run: immediately while members remain due, else the interval plus jitter. */
@@ -335,50 +334,17 @@ export function nextMemberSyncTime(
   membersRemaining: boolean
 ): Date | null {
   if (membersRemaining) return now
-  if (syncIntervalMinutes <= 0) return null
-  const jitterMs = randomInt(0, Math.min(syncIntervalMinutes * 6_000, 300_000))
-  return new Date(now.getTime() + syncIntervalMinutes * 60_000 + jitterMs)
-}
-
-/**
- * Admits one member's listing into the run's union: first writer wins on a
- * repeated external id, every writer is recorded as an observer, and the
- * union is held to the same working-set and payload limits as a single
- * workspace-mode listing.
- */
-export function admitMemberListing(
-  union: Map<string, UnionEntry>,
-  memberId: string,
-  documents: readonly ExternalDocument[],
-  connectorId: string,
-  retainedBytes: number
-): { seenExternalIds: Set<string>; retainedBytes: number } {
-  const seenExternalIds = new Set<string>()
-  const admitted: ExternalDocument[] = []
-  for (const doc of documents) {
-    if (seenExternalIds.has(doc.externalId)) continue
-    seenExternalIds.add(doc.externalId)
-    const existing = union.get(doc.externalId)
-    if (existing) {
-      existing.observers.push(memberId)
-      continue
-    }
-    admitted.push(doc)
-  }
-  if (!sourcePageFitsSyncWorkingSet(union.size, admitted.length)) {
-    throw new ConnectorSyncWorkingSetLimitError(connectorId, 'source listing')
-  }
-  const nextBytes = addSourcePagePayloadBytes(retainedBytes, admitted)
-  for (const doc of admitted) {
-    union.set(doc.externalId, { document: doc, observers: [memberId] })
-  }
-  return { seenExternalIds, retainedBytes: nextBytes }
+  const interval = effectiveConnectorSyncIntervalMinutes('members', syncIntervalMinutes)
+  if (interval <= 0) return null
+  const jitterMs = randomInt(0, Math.min(interval * 6_000, 300_000))
+  return new Date(now.getTime() + interval * 60_000 + jitterMs)
 }
 
 interface MemberSyncRun {
   connectorId: string
   knowledgeBaseId: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   runId: string
   runStartedAt: Date
   deadlineAt: number
@@ -389,10 +355,12 @@ interface MemberSyncRun {
 /** A token minted for a member, reused within the run until it ages out. */
 interface MemberTokenCache {
   get(memberId: string): Promise<string>
+  reject(memberId: string): Promise<boolean>
 }
 
 function createMemberTokenCache(input: {
   run: MemberSyncRun
+  sourceConfig: Record<string, unknown>
   connectorConfig: Pick<ConnectorConfig, 'auth'>
   credentialIdByMemberId: Map<string, string>
 }): MemberTokenCache {
@@ -407,9 +375,10 @@ function createMemberTokenCache(input: {
       const minted = await mintKnowledgeConnectorMemberToken({
         connectorId: input.run.connectorId,
         workspaceId: input.run.workspaceId,
+        organizationId: input.run.organizationId,
         credentialId,
         expectedProviderId: auth.provider,
-        requiredScopes: auth.requiredScopes ?? [],
+        requiredScopes: getConnectorRequiredScopes(auth, input.sourceConfig),
         runId: input.run.runId,
       })
       input.run.result.credentialsAudited += 1
@@ -417,6 +386,22 @@ function createMemberTokenCache(input: {
     },
   })
   return {
+    async reject(memberId) {
+      const rejectedAccessToken = tokens.get(memberId)
+      const credentialId = input.credentialIdByMemberId.get(memberId)
+      if (!rejectedAccessToken || !credentialId) return false
+      tokens.delete(memberId)
+      return rejectKnowledgeConnectorMemberToken({
+        connectorId: input.run.connectorId,
+        workspaceId: input.run.workspaceId,
+        organizationId: input.run.organizationId,
+        credentialId,
+        expectedProviderId: auth.provider,
+        requiredScopes: getConnectorRequiredScopes(auth, input.sourceConfig),
+        rejectedAccessToken,
+        runId: input.run.runId,
+      })
+    },
     async get(memberId) {
       const accessToken = await tokens.fetch(memberId)
       if (!accessToken) throw new Error(`No token could be minted for member ${memberId}`)
@@ -512,9 +497,80 @@ async function finishPendingAccessRewrite(run: MemberSyncRun): Promise<boolean> 
   return true
 }
 
-interface MembershipReconciliation {
-  /** Documents whose ACL must be rematerialised because an observer's state or token changed. */
-  affectedDocumentIds: Set<string>
+interface MembershipRewriteCheckpoint {
+  kind: 'membership'
+  cursor: string | null
+  removeMember: boolean
+}
+
+function membershipRewrite(value: unknown): MembershipRewriteCheckpoint | null {
+  if (!value || typeof value !== 'object') return null
+  const checkpoint = value as Record<string, unknown>
+  return checkpoint.kind === 'membership' &&
+    (checkpoint.cursor === null || typeof checkpoint.cursor === 'string') &&
+    typeof checkpoint.removeMember === 'boolean'
+    ? { kind: 'membership', cursor: checkpoint.cursor, removeMember: checkpoint.removeMember }
+    : null
+}
+
+/** Keeps observations available until every changed ACL is rewritten, resuming by document identity. */
+export async function resumeMembershipRewrites(
+  run: Pick<MemberSyncRun, 'connectorId' | 'runId' | 'deadlineAt' | 'lease'>
+): Promise<boolean> {
+  for (;;) {
+    if (Date.now() >= run.deadlineAt) return false
+    await run.lease.beatIfDue()
+    const [member] = await db
+      .select({
+        id: knowledgeConnectorMember.id,
+        checkpoint: knowledgeConnectorMember.listingCheckpoint,
+      })
+      .from(knowledgeConnectorMember)
+      .where(
+        and(
+          eq(knowledgeConnectorMember.connectorId, run.connectorId),
+          sql`${knowledgeConnectorMember.listingCheckpoint}->>'kind' = 'membership'`
+        )
+      )
+      .orderBy(asc(knowledgeConnectorMember.id))
+      .limit(1)
+    if (!member) return true
+    const checkpoint = membershipRewrite(member.checkpoint)
+    if (!checkpoint) throw new Error('Invalid membership ACL checkpoint')
+    await withMemberLease(run, async (tx) => {
+      const documents = await tx
+        .select({ documentId: knowledgeDocumentObservation.documentId })
+        .from(knowledgeDocumentObservation)
+        .where(
+          and(
+            eq(knowledgeDocumentObservation.memberId, member.id),
+            checkpoint.cursor
+              ? gt(knowledgeDocumentObservation.documentId, checkpoint.cursor)
+              : undefined
+          )
+        )
+        .orderBy(asc(knowledgeDocumentObservation.documentId))
+        .limit(500)
+      await materializeDocumentAcls(
+        run.connectorId,
+        documents.map((row) => row.documentId),
+        tx
+      )
+      if (documents.length === 0 && checkpoint.removeMember) {
+        await tx.delete(knowledgeConnectorMember).where(eq(knowledgeConnectorMember.id, member.id))
+      } else {
+        await tx
+          .update(knowledgeConnectorMember)
+          .set({
+            listingCheckpoint:
+              documents.length === 0
+                ? null
+                : { ...checkpoint, cursor: documents.at(-1)!.documentId },
+          })
+          .where(eq(knowledgeConnectorMember.id, member.id))
+      }
+    })
+  }
 }
 
 /** The credential-group option the connector was bound to no longer exists. */
@@ -523,6 +579,26 @@ class MemberBindingGoneError extends Error {
     super(message)
     this.name = 'MemberBindingGoneError'
   }
+}
+
+interface DirectoryCheckpoint {
+  version: 1
+  fingerprint: string
+  phase: 'listing' | 'cleanup' | 'complete'
+  cursor: string | null
+}
+
+function readDirectoryCheckpoint(value: unknown, fingerprint: string): DirectoryCheckpoint | null {
+  if (!value || typeof value !== 'object') return null
+  const item = value as Record<string, unknown>
+  if (
+    item.version !== 1 ||
+    item.fingerprint !== fingerprint ||
+    (item.phase !== 'listing' && item.phase !== 'cleanup' && item.phase !== 'complete') ||
+    !(item.cursor === null || (typeof item.cursor === 'string' && item.cursor.length <= 512))
+  )
+    return null
+  return { version: 1, fingerprint, phase: item.phase, cursor: item.cursor }
 }
 
 /**
@@ -534,9 +610,14 @@ class MemberBindingGoneError extends Error {
  */
 async function reconcileMembership(
   run: MemberSyncRun,
-  binding: { credentialGroupId: string; credentialGroupOptionId: string }
-): Promise<MembershipReconciliation> {
-  const group = await loadCredentialGroupCredentialListContext(binding.credentialGroupId)
+  binding: { credentialGroupId: string; credentialGroupOptionId: string },
+  savedCheckpoint: unknown,
+  forceRefresh: boolean
+): Promise<boolean> {
+  const group = await loadScopedAccountsCredentialListContext(
+    resourceScopeFromOwner(run),
+    binding.credentialGroupId
+  )
   if (!group) {
     throw new MemberBindingGoneError(
       'The Credential Group this connector synced through was deleted'
@@ -553,135 +634,229 @@ async function reconcileMembership(
     optionActive: option.status === 'active',
   }
 
-  const snapshots = new Map<string, MemberCredentialSnapshot>()
-  let cursor: string | undefined
-  do {
-    const page = await listKnowledgeConnectorMemberCredentials({
-      workspaceId: run.workspaceId,
-      credentialGroupId: binding.credentialGroupId,
-      credentialGroupOptionId: binding.credentialGroupOptionId,
-      connectorId: run.connectorId,
-      limit: MEMBER_CREDENTIAL_PAGE_SIZE,
-      cursor,
-    })
-    for (const credential of page.credentials) {
-      snapshots.set(credential.credentialId, {
-        credentialId: credential.credentialId,
-        subjectToken: subjectToken(credential),
-        active: deriveMemberActive(credential, optionState),
-      })
-    }
-    cursor = page.nextCursor ?? undefined
-  } while (cursor)
-
-  const existing = await db
-    .select()
-    .from(knowledgeConnectorMember)
-    .where(eq(knowledgeConnectorMember.connectorId, run.connectorId))
-  const existingByCredential = new Map(existing.map((row) => [row.credentialId, row]))
+  const fingerprint = listingFingerprint({
+    workspaceId: run.workspaceId,
+    organizationId: run.organizationId,
+    ...binding,
+    option,
+    status: group.status,
+  })
+  let checkpoint: DirectoryCheckpoint = readDirectoryCheckpoint(savedCheckpoint, fingerprint) ?? {
+    version: 1,
+    fingerprint,
+    phase: 'listing',
+    cursor: null,
+  }
+  if (forceRefresh && checkpoint.phase === 'complete')
+    checkpoint = { ...checkpoint, phase: 'listing', cursor: null }
+  if (checkpoint.phase === 'complete') return true
+  const saveCheckpoint = (tx: DbOrTx, next: DirectoryCheckpoint | null) =>
+    tx
+      .update(knowledgeConnector)
+      .set({ directoryCheckpoint: next ? { ...next } : null })
+      .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
+  await withMemberLease(run, (tx) => saveCheckpoint(tx, checkpoint))
+  let restartedMissingCursor = false
   const now = new Date()
   const purgeCutoff = new Date(now.getTime() - MEMBER_SUSPENDED_PURGE_DAYS * 24 * 60 * 60 * 1000)
-
-  const inserts: (typeof knowledgeConnectorMember.$inferInsert)[] = []
-  const affectedMemberIds: string[] = []
-  const updates: Array<{
-    id: string
-    values: Partial<typeof knowledgeConnectorMember.$inferInsert>
-  }> = []
-  const deleteMemberIds: string[] = []
-
-  for (const snapshot of snapshots.values()) {
-    const row = existingByCredential.get(snapshot.credentialId)
-    const status = snapshot.active ? 'active' : 'suspended'
-    if (!row) {
-      inserts.push({
-        id: generateId(),
+  const counts = { credentials: 0, inserted: 0, changed: 0, removed: 0 }
+  while (checkpoint.phase === 'listing') {
+    if (Date.now() >= run.deadlineAt) return false
+    await run.lease.beatIfDue()
+    let page: Awaited<ReturnType<typeof listKnowledgeConnectorMemberCredentials>>
+    try {
+      page = await listKnowledgeConnectorMemberCredentials({
         workspaceId: run.workspaceId,
+        organizationId: run.organizationId,
+        ...binding,
         connectorId: run.connectorId,
-        credentialId: snapshot.credentialId,
-        subjectToken: snapshot.subjectToken,
-        status,
-        suspendedAt: snapshot.active ? null : now,
-        /** Due now, so a run that cannot reach everyone re-dispatches until it has. */
-        nextAttemptAt: now,
-        createdAt: now,
-        updatedAt: now,
+        limit: MEMBER_CREDENTIAL_PAGE_SIZE,
+        cursor: checkpoint.cursor ?? undefined,
       })
+    } catch (error) {
+      if (
+        !(error instanceof CredentialGroupCredentialCursorNotFoundError) ||
+        !checkpoint.cursor ||
+        restartedMissingCursor
+      )
+        throw error
+      checkpoint = { ...checkpoint, cursor: null }
+      restartedMissingCursor = true
+      await withMemberLease(run, (tx) => saveCheckpoint(tx, checkpoint))
       continue
     }
-    if (
-      row.status === 'suspended' &&
-      !snapshot.active &&
-      row.suspendedAt &&
-      row.suspendedAt < purgeCutoff
-    ) {
-      deleteMemberIds.push(row.id)
-      continue
+    if (page.nextCursor && page.nextCursor === checkpoint.cursor)
+      throw new Error('Credential directory pagination did not advance')
+    const next: DirectoryCheckpoint = {
+      ...checkpoint,
+      cursor: page.nextCursor,
+      phase: page.nextCursor ? 'listing' : 'cleanup',
     }
-    const tokenChanged = row.subjectToken !== snapshot.subjectToken
-    const statusChanged = row.status !== status
-    if (!tokenChanged && !statusChanged) continue
-    updates.push({
-      id: row.id,
-      values: {
-        subjectToken: snapshot.subjectToken,
-        status,
-        suspendedAt: snapshot.active ? null : (row.suspendedAt ?? now),
-        /** A reactivated member is due immediately; their observations may be stale. */
-        ...(statusChanged && snapshot.active ? { nextAttemptAt: now, consecutiveFailures: 0 } : {}),
-        updatedAt: now,
-      },
-    })
-    affectedMemberIds.push(row.id)
-  }
-
-  for (const row of existing) {
-    if (!snapshots.has(row.credentialId)) deleteMemberIds.push(row.id)
-  }
-
-  const affectedDocumentIds = new Set<string>()
-  if (deleteMemberIds.length > 0 || affectedMemberIds.length > 0) {
-    for (const documentId of await listObservedDocumentIds(db, [
-      ...deleteMemberIds,
-      ...affectedMemberIds,
-    ])) {
-      affectedDocumentIds.add(documentId)
-    }
-  }
-  if (updates.length > 0 || deleteMemberIds.length > 0 || inserts.length > 0) {
+    const snapshots = page.credentials.map(
+      (entry): MemberCredentialSnapshot => ({
+        credentialId: entry.credentialId,
+        subjectToken: subjectToken(entry),
+        active: deriveMemberActive(entry, optionState),
+      })
+    )
+    counts.credentials += snapshots.length
     await withMemberLease(run, async (tx) => {
-      for (const update of updates) {
-        await tx
-          .update(knowledgeConnectorMember)
-          .set(update.values)
-          .where(eq(knowledgeConnectorMember.id, update.id))
-      }
-      if (deleteMemberIds.length > 0) {
-        await tx
-          .delete(knowledgeConnectorMember)
+      if (snapshots.length > 0) {
+        const existing = await tx
+          .select()
+          .from(knowledgeConnectorMember)
           .where(
             and(
               eq(knowledgeConnectorMember.connectorId, run.connectorId),
-              inArray(knowledgeConnectorMember.id, deleteMemberIds)
+              inArray(
+                knowledgeConnectorMember.credentialId,
+                snapshots.map((entry) => entry.credentialId)
+              )
             )
           )
+        const existingByCredential = new Map(existing.map((row) => [row.credentialId, row]))
+        const inserts: (typeof knowledgeConnectorMember.$inferInsert)[] = []
+        for (const snapshot of snapshots) {
+          const row = existingByCredential.get(snapshot.credentialId)
+          const status = snapshot.active ? 'active' : 'suspended'
+          if (!row) {
+            inserts.push({
+              id: generateId(),
+              workspaceId: run.workspaceId,
+              organizationId: run.organizationId,
+              connectorId: run.connectorId,
+              credentialId: snapshot.credentialId,
+              subjectToken: snapshot.subjectToken,
+              status,
+              suspendedAt: snapshot.active ? null : now,
+              nextAttemptAt: now,
+              createdAt: now,
+              updatedAt: now,
+            })
+            continue
+          }
+          if (
+            row.status === 'suspended' &&
+            !snapshot.active &&
+            row.suspendedAt &&
+            row.suspendedAt < purgeCutoff
+          ) {
+            if (!membershipRewrite(row.listingCheckpoint)?.removeMember) {
+              await tx
+                .update(knowledgeConnectorMember)
+                .set({
+                  listingCheckpoint: { kind: 'membership', cursor: null, removeMember: true },
+                  updatedAt: now,
+                })
+                .where(eq(knowledgeConnectorMember.id, row.id))
+              counts.removed += 1
+            }
+            continue
+          }
+          const tokenChanged = row.subjectToken !== snapshot.subjectToken
+          const statusChanged = row.status !== status
+          if (!tokenChanged && !statusChanged) continue
+          await tx
+            .update(knowledgeConnectorMember)
+            .set({
+              subjectToken: snapshot.subjectToken,
+              status,
+              listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
+              suspendedAt: snapshot.active ? null : (row.suspendedAt ?? now),
+              /** New identities cannot reuse the previous account's permission listing. */
+              ...(tokenChanged || (statusChanged && snapshot.active)
+                ? {
+                    nextAttemptAt: now,
+                    consecutiveFailures: 0,
+                    changeCursor: null,
+                    memberSyncedThrough: null,
+                    lastCompleteListingAt: null,
+                    lastListedCount: null,
+                  }
+                : {}),
+              updatedAt: now,
+            })
+            .where(eq(knowledgeConnectorMember.id, row.id))
+          counts.changed += 1
+        }
+        if (inserts.length > 0) {
+          await tx.insert(knowledgeConnectorMember).values(inserts).onConflictDoNothing()
+          counts.inserted += inserts.length
+        }
       }
-      if (inserts.length > 0) {
-        await tx.insert(knowledgeConnectorMember).values(inserts).onConflictDoNothing()
-      }
+      await saveCheckpoint(tx, next)
     })
+    checkpoint = next
   }
 
+  /** Only a complete enumeration permits removing members whose credential left this option. */
+  for (;;) {
+    if (Date.now() >= run.deadlineAt) return false
+    await run.lease.beatIfDue()
+    const removed = await withMemberLease(run, async (tx) => {
+      const rows = await tx
+        .select({ id: knowledgeConnectorMember.id })
+        .from(knowledgeConnectorMember)
+        .where(
+          and(
+            eq(knowledgeConnectorMember.connectorId, run.connectorId),
+            sql`coalesce(${knowledgeConnectorMember.listingCheckpoint}->>'removeMember', 'false') <> 'true'`,
+            notExists(
+              tx
+                .select({ id: credential.id })
+                .from(credential)
+                .innerJoin(
+                  credentialGroupEnrollment,
+                  eq(credentialGroupEnrollment.id, credential.credentialGroupEnrollmentId)
+                )
+                .where(
+                  and(
+                    eq(credential.id, knowledgeConnectorMember.credentialId),
+                    resourceScopeCondition(credential, resourceScopeFromOwner(run)),
+                    eq(credential.type, 'managed_oauth'),
+                    eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId),
+                    eq(credentialGroupEnrollment.credentialGroupId, binding.credentialGroupId)
+                  )
+                )
+            )
+          )
+        )
+        .orderBy(asc(knowledgeConnectorMember.id))
+        .limit(500)
+      if (rows.length > 0)
+        await tx
+          .update(knowledgeConnectorMember)
+          .set({
+            status: 'suspended',
+            suspendedAt: now,
+            listingCheckpoint: { kind: 'membership', cursor: null, removeMember: true },
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(knowledgeConnectorMember.connectorId, run.connectorId),
+              inArray(
+                knowledgeConnectorMember.id,
+                rows.map((row) => row.id)
+              )
+            )
+          )
+      return rows.length
+    })
+    counts.removed += removed
+    if (removed === 0) break
+  }
   logger.info('Reconciled members-mode membership', {
     connectorId: run.connectorId,
-    credentials: snapshots.size,
-    inserted: inserts.length,
-    changed: affectedMemberIds.length,
-    removed: deleteMemberIds.length,
+    ...counts,
     groupActive: optionState.groupActive,
     optionActive: optionState.optionActive,
   })
-  return { affectedDocumentIds }
+  if (!(await resumeMembershipRewrites(run))) return false
+  await withMemberLease(run, (tx) =>
+    saveCheckpoint(tx, { ...checkpoint, phase: 'complete', cursor: null })
+  )
+  return true
 }
 
 /**
@@ -751,7 +926,7 @@ async function countDueMembers(
     .from(credential)
     .where(
       and(
-        eq(credential.workspaceId, run.workspaceId),
+        resourceScopeCondition(credential, resourceScopeFromOwner(run)),
         eq(credential.credentialGroupOptionId, binding.credentialGroupOptionId),
         eq(credential.type, 'managed_oauth'),
         eq(credential.managedOauthStatus, 'active'),
@@ -768,6 +943,14 @@ async function countDueMembers(
         )
       )
     )
+  if ((unenrolled?.count ?? 0) > 0) {
+    await withMemberLease(run, (tx) =>
+      tx
+        .update(knowledgeConnector)
+        .set({ directoryCheckpoint: null })
+        .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
+    )
+  }
   return (due?.count ?? 0) + (unenrolled?.count ?? 0)
 }
 
@@ -775,20 +958,36 @@ async function recordMemberFailure(
   run: MemberSyncRun,
   member: MemberRow,
   error: unknown,
-  syncIntervalMinutes: number
+  syncIntervalMinutes: number,
+  credentialRejected = false
 ): Promise<void> {
   const failures = member.consecutiveFailures + 1
-  await withMemberLease(run, (tx) =>
-    tx
+  await withMemberLease(run, async (tx) => {
+    if (credentialRejected)
+      await tx
+        .update(knowledgeConnector)
+        .set({ directoryCheckpoint: null })
+        .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
+    await tx
       .update(knowledgeConnectorMember)
       .set({
+        ...(credentialRejected
+          ? {
+              status: 'suspended',
+              suspendedAt: new Date(),
+              listingCheckpoint: { kind: 'membership', cursor: null, removeMember: false },
+              changeCursor: null,
+              memberSyncedThrough: null,
+              lastCompleteListingAt: null,
+            }
+          : {}),
         consecutiveFailures: failures,
         nextAttemptAt: new Date(Date.now() + memberFailureBackoffMs(failures, syncIntervalMinutes)),
         lastError: getErrorMessage(error),
         updatedAt: new Date(),
       })
       .where(eq(knowledgeConnectorMember.id, member.id))
-  )
+  })
 }
 
 /**
@@ -813,6 +1012,8 @@ interface MemberListing {
   startedAt: Date
   /** Cursor to store once the listing lands: a value, null to close the feed, undefined to leave it. */
   changeCursor: string | null | undefined
+  checkpoint?: ListingCheckpoint
+  observationRunId?: string
 }
 
 async function listForMember(input: {
@@ -825,12 +1026,20 @@ async function listForMember(input: {
   syncIntervalMinutes: number
   /** Relist fully even inside the recrawl window: the member's change feed could not be read. */
   forceFull?: boolean
+  processPage: (
+    documents: ExternalDocument[],
+    checkpoint: ListingCheckpoint
+  ) => Promise<undefined | boolean>
 }): Promise<MemberListing | { kind: 'failed' }> {
   const { run, member, connectorConfig, sourceConfig, syncContext } = input
   const startedAt = new Date()
-  const feed = supportsChangeFeed(connectorConfig)
+  const feed = supportsChangeFeed(connectorConfig, sourceConfig)
   const feedOpen = feed && Boolean(member.changeCursor)
   const full =
+    (!feed && !connectorConfig.supportsIncrementalSync) ||
+    connectorConfig.supportsChangeFeed?.(sourceConfig) === false ||
+    Boolean(member.listingCheckpoint) ||
+    member.lastError === SOURCE_CONTENT_ERROR ||
     input.forceFull === true ||
     shouldListFully(
       member.memberSyncedThrough,
@@ -863,7 +1072,7 @@ async function listForMember(input: {
         })
         return listForMember({ ...input, forceFull: true })
       }
-      const complete = pass.exhausted && !pass.budgetAborted
+      const complete = pass.exhausted
       return {
         kind: 'listed',
         mode: 'changes',
@@ -878,63 +1087,77 @@ async function listForMember(input: {
       }
     }
 
-    /**
-     * The feed opens before the listing starts so a change that lands while
-     * the listing is running is reported by the first feed read instead of
-     * waiting for the next full listing.
-     */
-    const openedCursor =
-      full && feed
-        ? await connectorConfig.getChangeCursor(
-            await input.tokens.get(member.id),
-            sourceConfig,
-            syncContext
-          )
-        : undefined
-    const lastSyncAt =
-      full || !member.memberSyncedThrough
-        ? undefined
-        : new Date(member.memberSyncedThrough.getTime() - INCREMENTAL_OVERLAP_MS)
-    /**
-     * A listing pass has no cursor to resume from, so a page cap would relist
-     * the same first pages every run and never reach the documents behind
-     * them. The run's deadline is its only bound: a member the budget cuts off
-     * is re-armed at once (`resumable`), and one no run can finish alone
-     * backs off (`exhaustedRunAlone`) instead of being silently truncated.
-     */
-    const listing = await runListingPass({
-      connectorId: run.connectorId,
+    const fingerprint = listingFingerprint({
+      connectorType: connectorConfig.id,
+      sourceConfig,
+      credentialId: member.credentialId,
+      subjectToken: member.subjectToken,
+    })
+    let checkpoint = readListingCheckpoint(member.listingCheckpoint, fingerprint)
+    if (checkpoint?.incrementalSince && !feed && !connectorConfig.supportsIncrementalSync) {
+      checkpoint = null
+    }
+    if (!checkpoint) {
+      const openedCursor =
+        full && feed
+          ? await connectorConfig.getChangeCursor(
+              await input.tokens.get(member.id),
+              sourceConfig,
+              syncContext
+            )
+          : undefined
+      checkpoint = beginListingCheckpoint({
+        fingerprint,
+        generationId: run.runId,
+        startedAt,
+        changeCursor: openedCursor,
+        incrementalSince:
+          full || !member.memberSyncedThrough
+            ? undefined
+            : new Date(member.memberSyncedThrough.getTime() - INCREMENTAL_OVERLAP_MS),
+      })
+      await withMemberLease(run, (tx) =>
+        tx
+          .update(knowledgeConnectorMember)
+          .set({ listingCheckpoint: checkpoint })
+          .where(eq(knowledgeConnectorMember.id, member.id))
+      )
+    }
+    checkpoint = await runResumableListing({
       connectorConfig,
       sourceConfig,
       syncContext,
-      lastSyncAt,
+      checkpoint,
+      deadlineAt: run.deadlineAt,
       beforePage: run.lease.beatIfDue,
       getAccessToken: () => input.tokens.get(member.id),
-      deadlineAt: run.deadlineAt,
-      maxPages: Number.POSITIVE_INFINITY,
+      processPage: input.processPage,
+      saveCheckpoint: (next) =>
+        withMemberLease(run, (tx) =>
+          tx
+            .update(knowledgeConnectorMember)
+            .set({ listingCheckpoint: next })
+            .where(eq(knowledgeConnectorMember.id, member.id))
+        ).then(() => undefined),
     })
-    const complete =
-      listing.exhausted &&
-      !listing.budgetAborted &&
-      !syncContext.listingCapped &&
-      !syncContext.reconciliationUnsafe
     return {
       kind: 'listed',
-      mode: full ? 'full' : 'incremental',
-      documents: listing.documents,
+      mode: checkpoint.incrementalSince ? 'incremental' : 'full',
+      documents: [],
       removedExternalIds: [],
-      complete,
-      /** Only the deadline is worth retrying at once; a capped or truncated source reads the same next time. */
-      resumable: listing.budgetAborted,
+      complete: checkpoint.complete && !checkpoint.unsafe,
+      resumable: !checkpoint.complete,
       authoritative: false,
-      startedAt,
-      changeCursor: full && complete ? openedCursor : undefined,
+      startedAt: new Date(checkpoint.startedAt),
+      changeCursor: checkpoint.complete && !checkpoint.unsafe ? checkpoint.changeCursor : undefined,
+      checkpoint,
+      observationRunId: checkpoint.generationId,
     }
   } catch (error) {
     if (error instanceof SyncLockLostException || error instanceof ConnectorSyncCapacityError) {
       throw error
     }
-    if (isRateLimitError(error)) throw error
+    if (getConnectorSyncDeferral(error)) throw error
     if (isScopeUnavailableError(connectorConfig, error)) {
       logger.info('Member cannot reach the configured source scope; treating as an empty listing', {
         connectorId: run.connectorId,
@@ -958,7 +1181,16 @@ async function listForMember(input: {
       memberId: member.id,
       error: getErrorMessage(error),
     })
-    await recordMemberFailure(input.run, member, error, input.syncIntervalMinutes)
+    const credentialRejected =
+      connectorConfig.isCredentialInvalidError?.(error) === true &&
+      (await input.tokens.reject(member.id))
+    await recordMemberFailure(
+      input.run,
+      member,
+      error,
+      input.syncIntervalMinutes,
+      credentialRejected
+    )
     run.result.membersFailed += 1
     return { kind: 'failed' }
   }
@@ -982,12 +1214,40 @@ async function applyMemberListing(
     const documentId = documentIdByExternalId.get(externalId)
     if (documentId) seenDocumentIds.push(documentId)
   }
-  const removesAllowed = outcome.mode === 'full' && outcome.complete && !outcome.suspect
-  const exhaustedFailures = (outcome.member.consecutiveFailures ?? 0) + 1
+  let removesAllowed = outcome.mode === 'full' && outcome.complete && !outcome.suspect
   const now = new Date()
 
+  if (removesAllowed) {
+    for (;;) {
+      if (Date.now() >= run.deadlineAt) {
+        removesAllowed = false
+        outcome.complete = false
+        outcome.resumable = true
+        break
+      }
+      await run.lease.beatIfDue()
+      const batch = await withMemberLease(run, (tx) =>
+        removeUnseenMemberObservations(
+          tx,
+          outcome.member.id,
+          outcome.observationRunId ?? run.runId,
+          async (removed) => {
+            await materializeDocumentAcls(run.connectorId, removed, tx)
+          }
+        )
+      )
+      run.result.observationsRemoved += batch.removed
+      if (batch.finished) break
+    }
+  }
+
   await withMemberLease(run, async (tx) => {
-    const added = await recordMemberObservations(tx, outcome.member.id, seenDocumentIds, run.runId)
+    const added = await recordMemberObservations(
+      tx,
+      outcome.member.id,
+      seenDocumentIds,
+      outcome.observationRunId ?? run.runId
+    )
     run.result.observationsAdded += added
     /**
      * Every seen document is rematerialised, not only the newly observed ones:
@@ -996,11 +1256,7 @@ async function applyMemberListing(
      * Rematerialising an already-correct ACL is a no-op write.
      */
     for (const documentId of seenDocumentIds) affected.add(documentId)
-    if (removesAllowed) {
-      const removed = await removeUnseenMemberObservations(tx, outcome.member.id, run.runId)
-      run.result.observationsRemoved += removed.length
-      for (const documentId of removed) affected.add(documentId)
-    } else if (outcome.mode === 'changes') {
+    if (outcome.mode === 'changes') {
       const removedDocumentIds: string[] = []
       for (const externalId of outcome.removedExternalIds) {
         const documentId = documentIdByExternalId.get(externalId)
@@ -1017,18 +1273,13 @@ async function applyMemberListing(
     await tx
       .update(knowledgeConnectorMember)
       .set({
-        ...(outcome.exhaustedRunAlone
-          ? {
-              consecutiveFailures: exhaustedFailures,
-              lastError: 'Listing did not finish within one run',
-            }
-          : { consecutiveFailures: 0, lastError: null }),
-        ...(outcome.mode === 'full' ? { lastListedCount: outcome.listedCount } : {}),
-        nextAttemptAt: outcome.exhaustedRunAlone
-          ? new Date(now.getTime() + memberFailureBackoffMs(exhaustedFailures, syncIntervalMinutes))
-          : outcome.resumable
-            ? now
-            : memberNextAttemptAt(now, syncIntervalMinutes),
+        consecutiveFailures: 0,
+        lastError: outcome.contentFailures ? SOURCE_CONTENT_ERROR : null,
+        ...(outcome.mode === 'full' &&
+        (!outcome.checkpoint || (outcome.checkpoint.complete && !outcome.checkpoint.unsafe))
+          ? { lastListedCount: outcome.listedCount }
+          : {}),
+        nextAttemptAt: outcome.resumable ? now : memberNextAttemptAt(now, syncIntervalMinutes),
         ...(removesAllowed
           ? { lastCompleteListingAt: now, memberSyncedThrough: outcome.listingStartedAt }
           : {}),
@@ -1036,6 +1287,10 @@ async function applyMemberListing(
           ? { memberSyncedThrough: outcome.listingStartedAt }
           : {}),
         ...(outcome.changeCursor !== undefined ? { changeCursor: outcome.changeCursor } : {}),
+        ...(!outcome.resumable &&
+        (outcome.checkpoint?.complete || (outcome.mode === 'full' && outcome.complete))
+          ? { listingCheckpoint: null }
+          : {}),
         updatedAt: now,
       })
       .where(eq(knowledgeConnectorMember.id, outcome.member.id))
@@ -1046,18 +1301,137 @@ async function applyMemberListing(
   return affected
 }
 
-async function loadDocumentIdsByExternalId(connectorId: string): Promise<Map<string, string>> {
-  const rows = await db
-    .select({ id: document.id, externalId: document.externalId })
-    .from(document)
-    .where(and(eq(document.connectorId, connectorId), isNull(document.archivedAt)))
-    .limit(syncWorkingSetQueryLimit(0))
-  const byExternalId = new Map<string, string>()
-  for (const row of rows) {
-    if (row.externalId && !byExternalId.has(row.externalId))
-      byExternalId.set(row.externalId, row.id)
+/** Exclusion pauses content ingestion, while observations must still track source access for restoration. */
+async function loadDocumentIdsByExternalId(
+  connectorId: string,
+  externalIds: readonly string[]
+): Promise<Map<string, string>> {
+  const corpus = await loadPageCorpus(connectorId, externalIds)
+  return new Map([...corpus.priorByExternalId].map(([externalId, row]) => [externalId, row.id]))
+}
+
+/**
+ * Supplies the member connector's corpus from its dedicated credential. The
+ * shared content pass owns hydration and removal; member observations only own
+ * visibility. A completed content log provides the same consecutive-listing
+ * evidence used by ordinary connector deletion guards.
+ */
+async function syncDedicatedMemberContent(input: {
+  run: MemberSyncRun
+  connector: typeof knowledgeConnector.$inferSelect
+  connectorConfig: ConnectorConfig
+  sourceConfig: Record<string, unknown>
+  kbOwner: KnowledgeBaseOwner
+  billingAttribution: BillingAttributionSnapshot
+}) {
+  const { run, connector, connectorConfig, sourceConfig, kbOwner } = input
+  const userId = await resolveConnectorTokenUserId({
+    credentialId: connector.credentialId,
+    workspaceId: run.workspaceId,
+    organizationId: run.organizationId,
+    fallbackUserId: kbOwner.userId,
+  })
+  if (!userId) throw new Error('The content credential is no longer available in this workspace')
+  const resolveToken = async () => {
+    const token = await resolveConnectorAccessToken({
+      auth: connectorConfig.auth,
+      accessMode: 'members',
+      connector,
+      userId,
+      requestId: run.runId,
+      sourceConfig,
+    })
+    if (!token) throw new Error('The content credential needs to be reconnected')
+    return token
   }
-  return byExternalId
+  let token = await resolveToken()
+  const syncContext: Record<string, unknown> = {
+    syncRunId: run.runId,
+    ...syncContextForToken(token),
+  }
+  const refresh = async () => {
+    token = await resolveToken()
+  }
+  const pass = await runConnectorContentPass({
+    connectorId: run.connectorId,
+    connector,
+    connectorConfig,
+    sourceConfig,
+    syncContext,
+    kbOwner,
+    billingAttribution: input.billingAttribution,
+    result: run.result,
+    lease: run.lease,
+    documentAccess: 'members',
+    forceRehydrate: false,
+    /** Content yields half the remaining worker budget to directory and permission refreshes. */
+    deadlineAt: Math.floor((Date.now() + run.deadlineAt) / 2),
+    runId: run.runId,
+    leaseKind: 'member',
+    fingerprint: listingFingerprint({
+      connectorType: connector.connectorType,
+      credentialId: connector.credentialId,
+      sourceConfig,
+      accessMode: connector.accessMode,
+    }),
+    getAccessToken: async (pageNum) => {
+      if (pageNum > 0) await refresh()
+      return token.accessToken
+    },
+    hydration: {
+      concurrency: connectorConfig.contentConcurrency,
+      beforeHydration: refresh,
+      getDocument: (externalId) =>
+        connectorConfig.getDocument(token.accessToken, sourceConfig, externalId, syncContext),
+    },
+  })
+  run.result.docsHydratedOnce = pass.hydratedCount
+  const incompleteListing =
+    !pass.complete || pass.checkpoint.unsafe || pass.checkpoint.contentFailures
+  if (pass.checkpoint.contentFailures) run.result.listingIncomplete = true
+  const contentNotice = pass.holdNotice
+  await withMemberLease(run, async (tx) => {
+    const [{ count }] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(document)
+      .where(
+        and(
+          eq(document.connectorId, run.connectorId),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
+      )
+    const now = new Date()
+    await tx.insert(knowledgeConnectorSyncLog).values({
+      id: run.runId,
+      connectorId: run.connectorId,
+      status: incompleteListing ? 'partial' : 'completed',
+      errorMessage: contentNotice,
+      startedAt: run.runStartedAt,
+      completedAt: now,
+      listedCount: pass.complete ? pass.checkpoint.listedCount : null,
+      docsAdded: run.result.docsAdded,
+      docsUpdated: run.result.docsUpdated,
+      docsDeleted: run.result.docsDeleted,
+      docsUnchanged: run.result.docsUnchanged,
+      docsSkipped: run.result.docsSkipped,
+      docsFailed: run.result.docsFailed,
+    })
+    await tx
+      .update(knowledgeConnector)
+      .set({
+        ...(run.result.docsFailed === 0 && !incompleteListing
+          ? { lastSyncAt: new Date(pass.checkpoint.startedAt) }
+          : {}),
+        ...(pass.complete ? { listingCheckpoint: null } : {}),
+        lastSyncDocCount: count,
+        lastSyncError: contentNotice,
+        updatedAt: now,
+      })
+      .where(stillHoldsMemberSyncLock(run.connectorId, run.runId))
+  })
+  return { complete: pass.complete }
 }
 
 async function completeMemberSync(
@@ -1110,7 +1484,15 @@ async function completeMemberSync(
     const [closedLog] = await tx
       .update(knowledgeConnectorMemberSyncLog)
       .set({
-        status: 'completed',
+        status:
+          result.listingIncomplete ||
+          result.membersRemaining ||
+          result.membersIncomplete > 0 ||
+          result.membersFailed > 0 ||
+          result.docsFailed > 0 ||
+          result.processingDispatch.failed > 0
+            ? 'partial'
+            : 'completed',
         completedAt: now,
         membersClaimed: result.membersClaimed,
         membersCompleted: result.membersCompleted,
@@ -1140,6 +1522,7 @@ async function completeMemberSync(
     const [written] = await tx
       .update(knowledgeConnector)
       .set({
+        ...(!result.membersRemaining ? { directoryCheckpoint: null } : {}),
         memberSyncStatus: 'idle',
         lastMemberSyncAt: now,
         nextMemberSyncAt,
@@ -1223,7 +1606,7 @@ async function disableMemberSync(run: MemberSyncRun, reason: string): Promise<vo
   const now = new Date()
   /** Suspension, the ACLs it changes, and the disable itself land together, and only under the lease. */
   await withMemberLease(run, async (tx) => {
-    const suspended = await tx
+    await tx
       .update(knowledgeConnectorMember)
       .set({ status: 'suspended', suspendedAt: now, updatedAt: now })
       .where(
@@ -1232,14 +1615,10 @@ async function disableMemberSync(run: MemberSyncRun, reason: string): Promise<vo
           eq(knowledgeConnectorMember.status, 'active')
         )
       )
-      .returning({ id: knowledgeConnectorMember.id })
-    if (suspended.length > 0) {
-      const affected = await listObservedDocumentIds(
-        tx,
-        suspended.map((row) => row.id)
-      )
-      await materializeDocumentAcls(run.connectorId, affected, tx)
-    }
+    await tx
+      .update(document)
+      .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
+      .where(eq(document.connectorId, run.connectorId))
     await tx
       .update(knowledgeConnector)
       .set({
@@ -1295,7 +1674,11 @@ export async function executeMemberSync(
   }
 
   const [kbRow] = await db
-    .select({ userId: knowledgeBase.userId, workspaceId: knowledgeBase.workspaceId })
+    .select({
+      userId: knowledgeBase.userId,
+      workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
+    })
     .from(knowledgeBase)
     .where(
       and(
@@ -1319,431 +1702,559 @@ export async function executeMemberSync(
       .where(eq(knowledgeConnector.id, connectorId))
     return skipped(result, 'knowledge_base_deleted')
   }
-  if (!kbRow.workspaceId) {
+  if (!kbRow.workspaceId && !kbRow.organizationId) {
     throw new Error(
       `Knowledge base ${connectorBeforeLock.knowledgeBaseId} is missing workspace billing context`
     )
   }
-  if (billingAttribution.workspaceId !== kbRow.workspaceId) {
-    throw new Error(
-      `Member sync billing attribution does not match knowledge base workspace ${kbRow.workspaceId}`
-    )
-  }
-  const kbOwner: KnowledgeBaseOwner = { workspaceId: kbRow.workspaceId, userId: kbRow.userId }
-
-  const runId = generateId()
-  const connector = await acquireMemberSyncLock(connectorId, runId, options.dispatchToken)
-  if (!connector) {
-    const [current] = await db
-      .select({
-        status: knowledgeConnector.status,
-        memberSyncStatus: knowledgeConnector.memberSyncStatus,
-        memberSyncLockToken: knowledgeConnector.memberSyncLockToken,
-        syncLockToken: knowledgeConnector.syncLockToken,
-      })
-      .from(knowledgeConnector)
-      .where(eq(knowledgeConnector.id, connectorId))
-      .limit(1)
-    if (
-      current?.memberSyncStatus === 'disabled' ||
-      current?.syncLockToken ||
-      (current && !MEMBER_LOCKABLE_CONNECTOR_STATUSES.some((status) => status === current.status))
-    ) {
-      logger.info('Connector is not accepting member syncs, skipping', {
-        connectorId,
-        status: current.status,
-      })
-      return skipped(result, 'connector_not_syncable')
-    }
-    if (options.dispatchToken && current?.memberSyncLockToken !== options.dispatchToken) {
-      logger.info('Member sync superseded by a newer dispatch, skipping', { connectorId })
-      return skipped(result, 'dispatch_superseded')
-    }
-    logger.info('Member sync already in progress, skipping', { connectorId })
-    return skipped(result, 'sync_in_progress')
-  }
-
-  const runStartedAt = new Date()
-  const run: MemberSyncRun = {
-    connectorId,
-    knowledgeBaseId: connector.knowledgeBaseId,
+  assertBillingAttributionOwner(billingAttribution, kbRow)
+  const kbOwner: KnowledgeBaseOwner = {
     workspaceId: kbRow.workspaceId,
-    runId,
-    runStartedAt,
-    deadlineAt: runStartedAt.getTime() + MEMBER_SYNC_SOFT_BUDGET_SECONDS * 1000,
-    result,
-    lease: createMemberSyncLease(connectorId, runId),
+    organizationId: kbRow.organizationId,
+    userId: kbRow.userId,
   }
-  await insertMemberSyncLog(runId, connectorId, runStartedAt)
 
-  try {
-    /**
-     * Where the feature is off — flag, plan, or a flag read that could not
-     * reach its source — nothing changes: readers already see no member-scoped
-     * document, and the run waits for the next schedule to look again.
-     */
-    if (!(await isKnowledgeMemberAccessAvailable({ workspaceId: run.workspaceId }))) {
-      await deferMemberSync(run, connector.syncIntervalMinutes)
-      return {
-        ...skipped(result, 'connector_not_syncable'),
-        error: 'Per-member access is not available for this workspace',
-      }
-    }
-    if (!connector.credentialGroupId || !connector.credentialGroupOptionId) {
-      await disableMemberSync(run, 'Connector is no longer attached to a Credential Group option')
-      return {
-        ...skipped(result, 'connector_not_syncable'),
-        error: 'Connector is no longer attached to a Credential Group option',
-      }
-    }
-    if (!connectorConfig.permissionScopedListing || connectorConfig.auth.mode !== 'oauth') {
-      throw new Error(`Connector ${connectorConfig.id} cannot sync per member`)
-    }
-    const binding = {
-      credentialGroupId: connector.credentialGroupId,
-      credentialGroupOptionId: connector.credentialGroupOptionId,
-    }
-    const sourceConfig = connector.sourceConfig as Record<string, unknown>
-
-    if (connector.accessRewritePending && !(await finishPendingAccessRewrite(run))) {
-      /** The rewrite is not done, so nothing is listed yet; the next run picks it up at once. */
-      result.membersRemaining = true
-      const landed = await completeMemberSync(run, connector.syncIntervalMinutes)
-      if (!landed) return skipped(result, 'sync_superseded')
-      logger.info('Member sync spent its budget hiding documents after a mode switch', {
-        connectorId,
-        runId,
-      })
-      return result
-    }
-
-    const affectedDocumentIds = new Set<string>()
-    /**
-     * Anyone who joined the workspace since the last run is invited now, so
-     * membership grows on its own; the invitation is the only thing they need.
-     */
-    const invited = await inviteWorkspaceMembersToCredentialGroup({
-      workspaceId: run.workspaceId,
-      credentialGroupId: connector.credentialGroupId,
-      beforeBatch: run.lease.beatIfDue,
-    }).catch((error) => {
-      logger.warn('Failed to invite new workspace members during a member run', {
-        connectorId,
-        error: getErrorMessage(error),
-      })
-      return null
-    })
-    if (invited && invited.invited > 0) {
-      logger.info('Invited new workspace members to the connector credential group', {
-        connectorId,
-        ...invited,
-      })
-    }
-    const membership = await reconcileMembership(run, binding)
-    for (const documentId of membership.affectedDocumentIds) affectedDocumentIds.add(documentId)
-
-    const members = await db
-      .select({
-        id: knowledgeConnectorMember.id,
-        credentialId: knowledgeConnectorMember.credentialId,
-      })
-      .from(knowledgeConnectorMember)
-      .where(
-        and(
-          eq(knowledgeConnectorMember.connectorId, connectorId),
-          eq(knowledgeConnectorMember.status, 'active')
-        )
-      )
-    const credentialIdByMemberId = new Map(
-      members.map((member) => [member.id, member.credentialId])
-    )
-    const tokens = createMemberTokenCache({ run, connectorConfig, credentialIdByMemberId })
-    const syncContexts = new Map<string, Record<string, unknown>>()
-
-    const union = new Map<string, UnionEntry>()
-    const outcomes: MemberListingOutcome[] = []
-    let retainedBytes = 0
-
-    while (Date.now() < run.deadlineAt) {
-      const member = await claimNextMember(run)
-      if (!member) break
-      result.membersClaimed += 1
-      const syncContext: Record<string, unknown> = {
-        syncRunId: runId,
-        memberId: member.id,
-        ...PER_MEMBER_LISTING_CONTEXT,
-      }
-      syncContexts.set(member.id, syncContext)
-
-      const listed = await listForMember({
-        run,
-        member,
-        connectorConfig,
-        sourceConfig,
-        tokens,
-        syncContext,
-        syncIntervalMinutes: connector.syncIntervalMinutes,
-      })
-      if (listed.kind === 'failed') continue
-
-      const admitted = admitMemberListing(
-        union,
-        member.id,
-        listed.documents,
-        connectorId,
-        retainedBytes
-      )
-      retainedBytes = admitted.retainedBytes
-      result.docsListed += admitted.seenExternalIds.size
-      /**
-       * A listing that collapsed against the member's previous one is doubted
-       * once: removals wait for the next full listing to say the same, which it
-       * does by then comparing against the collapsed count. A source that said
-       * outright the member reaches nothing is not a shape to doubt.
-       */
-      const suspect =
-        listed.mode === 'full' &&
-        !listed.authoritative &&
-        classifySuspectListing(admitted.seenExternalIds.size, member.lastListedCount ?? 0) !== null
-      if (suspect) {
-        logger.warn('Suspect member listing; removals withheld', {
+  return withResourceOutboundScope(kbOwner, async (): Promise<MemberSyncResult> => {
+    const runId = generateId()
+    const connector = await acquireMemberSyncLock(connectorId, runId, options.dispatchToken)
+    if (!connector) {
+      const [current] = await db
+        .select({
+          status: knowledgeConnector.status,
+          memberSyncStatus: knowledgeConnector.memberSyncStatus,
+          memberSyncLockToken: knowledgeConnector.memberSyncLockToken,
+          syncLockToken: knowledgeConnector.syncLockToken,
+        })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, connectorId))
+        .limit(1)
+      if (
+        current?.memberSyncStatus === 'disabled' ||
+        current?.syncLockToken ||
+        (current && !MEMBER_LOCKABLE_CONNECTOR_STATUSES.some((status) => status === current.status))
+      ) {
+        logger.info('Connector is not accepting member syncs, skipping', {
           connectorId,
-          memberId: member.id,
-          listed: admitted.seenExternalIds.size,
-          previouslyListed: member.lastListedCount,
+          status: current.status,
         })
+        return skipped(result, 'connector_not_syncable')
       }
-      outcomes.push({
-        member,
-        mode: listed.mode,
-        listingStartedAt: listed.startedAt,
-        seenExternalIds: admitted.seenExternalIds,
-        removedExternalIds: listed.removedExternalIds,
-        listedCount: admitted.seenExternalIds.size,
-        complete: listed.complete,
-        resumable: listed.resumable,
-        exhaustedRunAlone:
-          listed.resumable && result.membersClaimed === 1 && Date.now() >= run.deadlineAt,
-        suspect,
-        /** A doubted listing does not open the feed either: the next full listing decides. */
-        changeCursor: suspect ? undefined : listed.changeCursor,
-      })
+      if (options.dispatchToken && current?.memberSyncLockToken !== options.dispatchToken) {
+        logger.info('Member sync superseded by a newer dispatch, skipping', { connectorId })
+        return skipped(result, 'dispatch_superseded')
+      }
+      logger.info('Member sync already in progress, skipping', { connectorId })
+      return skipped(result, 'sync_in_progress')
     }
 
-    const corpus = await loadOwnedCorpus(connectorId)
-    const state = createSyncRunState(result)
-    const externalDocs = [...union.values()].map((entry) => entry.document)
-    const pendingOps = classifyListing({ externalDocs, corpus, forceRehydrate: false, state })
-    result.docsHydratedOnce = pendingOps.filter(
-      (op) => op.type !== 'skip' && op.extDoc.contentDeferred
-    ).length
-
-    await processDocOps({
-      connectorId,
-      connector,
-      sourceConfig,
-      kbOwner,
-      billingAttribution,
-      pendingOps,
-      corpus,
-      forceRehydrate: false,
-      state,
-      hydration: {
-        getDocument: async (externalId) => {
-          const observers = union.get(externalId)?.observers ?? []
-          let lastError: unknown
-          for (const memberId of observers.slice(0, HYDRATION_OBSERVER_ATTEMPTS)) {
-            try {
-              const accessToken = await tokens.get(memberId)
-              const hydrated = await connectorConfig.getDocument(
-                accessToken,
-                sourceConfig,
-                externalId,
-                syncContexts.get(memberId)
-              )
-              if (hydrated) return hydrated
-            } catch (error) {
-              if (isRateLimitError(error)) throw error
-              if (error instanceof KnowledgeConnectorMemberAccessDeniedError) continue
-              lastError = error
-            }
-          }
-          if (lastError) throw lastError
-          return null
-        },
-      },
-      lease: run.lease,
-      documentAccess: 'members',
-      /**
-       * Grants surface as each batch lands: every member who listed a document
-       * observes it the moment its row exists, and its ACL is materialised in
-       * the same lease-proved transaction. The listing's own pass below records
-       * the same observations again, idempotently, and is still what decides
-       * removals; this only brings the additions forward from the end of the
-       * run to the moment they are indexed.
-       */
-      onBatchPersisted: async (persisted) => {
-        const byMember = persistedDocumentsByObserver(persisted, union)
-        if (byMember.size === 0) return
-        await withMemberLease(run, async (tx) => {
-          for (const [memberId, documentIds] of byMember) {
-            result.observationsAdded += await recordMemberObservations(
-              tx,
-              memberId,
-              documentIds,
-              runId
-            )
-          }
-          await materializeDocumentAcls(
-            connectorId,
-            persisted.map(({ documentId }) => documentId),
-            tx
-          )
-        })
-      },
-    })
-
-    const documentIdByExternalId = await loadDocumentIdsByExternalId(connectorId)
-    for (const outcome of outcomes) {
-      await run.lease.beatIfDue()
-      const affected = await applyMemberListing(
-        run,
-        outcome,
-        documentIdByExternalId,
-        connector.syncIntervalMinutes
-      )
-      for (const documentId of affected) affectedDocumentIds.add(documentId)
-    }
-
-    await withMemberLease(run, (tx) =>
-      materializeDocumentAcls(connectorId, affectedDocumentIds, tx)
-    )
-
-    /**
-     * Nobody has completed a listing yet — a connector that just entered
-     * members mode, waiting for its first member to connect — so an
-     * unobserved document says nothing about access and must not be
-     * tombstoned, let alone purged a week later.
-     */
-    const [listed] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(knowledgeConnectorMember)
-      .where(
-        and(
-          eq(knowledgeConnectorMember.connectorId, connectorId),
-          sql`${knowledgeConnectorMember.lastCompleteListingAt} IS NOT NULL`
-        )
-      )
-    const lifecycle = await applyMemberDocumentLifecycle({
+    const runStartedAt = new Date()
+    const run: MemberSyncRun = {
       connectorId,
       knowledgeBaseId: connector.knowledgeBaseId,
+      ...resourceScopeFields(resourceScopeFromOwner(kbRow)),
       runId,
-      lease: run.lease,
-      withLease: (fn) => withMemberLease(run, fn),
-      failedExternalIds: state.failedExternalIds,
-      allowRemoval: (listed?.count ?? 0) > 0,
-    })
-    result.docsTombstoned = lifecycle.tombstoned
-    result.docsResurrected = lifecycle.resurrected
-    result.docsPurged = lifecycle.purged
-    result.docsDeleted = lifecycle.purged
-
-    await sweepStuckDocuments({
-      connectorId,
-      knowledgeBaseId: connector.knowledgeBaseId,
-      syncStartedAt: runStartedAt,
-      retryCutoff: new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000),
-      billingAttribution,
+      runStartedAt,
+      deadlineAt: runStartedAt.getTime() + MEMBER_SYNC_SOFT_BUDGET_SECONDS * 1000,
       result,
-      lease: run.lease,
-    })
+      lease: createMemberSyncLease(connectorId, runId),
+    }
+    await insertMemberSyncLog(runId, connectorId, runStartedAt)
 
-    result.membersRemaining = (await countDueMembers(run, binding)) > 0
-    const landed = await completeMemberSync(run, connector.syncIntervalMinutes)
-    if (!landed) {
-      logger.warn(
-        'Member sync result discarded — connector was reclaimed while this run was executing',
-        {
+    try {
+      /**
+       * Where the feature is off — flag, plan, or a flag read that could not
+       * reach its source — nothing changes: readers already see no member-scoped
+       * document, and the run waits for the next schedule to look again.
+       */
+      if (!(await isKnowledgeMemberAccessAvailable(run))) {
+        await deferMemberSync(run, connector.syncIntervalMinutes)
+        return {
+          ...skipped(result, 'connector_not_syncable'),
+          error: 'Per-member access is not available for this workspace',
+        }
+      }
+      if (!connector.credentialGroupId || !connector.credentialGroupOptionId) {
+        await disableMemberSync(run, 'Connector is no longer attached to a Credential Group option')
+        return {
+          ...skipped(result, 'connector_not_syncable'),
+          error: 'Connector is no longer attached to a Credential Group option',
+        }
+      }
+      if (!connectorConfig.permissionScopedListing || connectorConfig.auth.mode !== 'oauth') {
+        throw new Error(`Connector ${connectorConfig.id} cannot sync per member`)
+      }
+      if (connector.credentialId && !connectorConfig.supportsSeparateContentCredential) {
+        throw new Error(`${connectorConfig.name} does not support a separate content credential`)
+      }
+      const binding = {
+        credentialGroupId: connector.credentialGroupId,
+        credentialGroupOptionId: connector.credentialGroupOptionId,
+      }
+      const sourceConfig = connector.sourceConfig as Record<string, unknown>
+
+      if (connector.accessRewritePending && !(await finishPendingAccessRewrite(run))) {
+        /** The rewrite is not done, so nothing is listed yet; the next run picks it up at once. */
+        result.membersRemaining = true
+        const landed = await completeMemberSync(run, connector.syncIntervalMinutes)
+        if (!landed) return skipped(result, 'sync_superseded')
+        logger.info('Member sync spent its budget hiding documents after a mode switch', {
           connectorId,
           runId,
-        }
-      )
-      return skipped(result, 'sync_superseded')
-    }
-    logger.info('Member sync completed', { connectorId, runId, ...result })
-    return result
-  } catch (error) {
-    if (error instanceof SyncLockLostException) {
-      logger.warn('Member sync abandoned — lock was reclaimed while this run was executing', {
-        connectorId,
-        runId,
-      })
-      return skipped(result, 'sync_superseded')
-    }
-    if (error instanceof ConnectorDeletedException) {
-      logger.info('Connector deleted during member sync', { connectorId })
-      await failMemberSyncLog(runId, result, 'Connector deleted during sync').catch((logError) =>
-        logger.error('Failed to record member sync failure', {
-          connectorId,
-          error: getErrorMessage(logError),
         })
-      )
-      return skipped(result, 'connector_deleted_during_sync')
-    }
-    if (error instanceof MemberBindingGoneError) {
-      try {
-        await disableMemberSync(run, error.message)
-      } catch (disableError) {
-        if (!(disableError instanceof SyncLockLostException)) throw disableError
-        logger.warn('Member sync abandoned — lock was reclaimed before it could be disabled', {
+        return result
+      }
+
+      const contentDue =
+        Boolean(connector.listingCheckpoint) ||
+        options.forceContentRefresh ||
+        connector.accessRewritePending ||
+        !connector.lastSyncAt ||
+        connector.syncIntervalMinutes <= 0 ||
+        runStartedAt.getTime() - connector.lastSyncAt.getTime() >=
+          connector.syncIntervalMinutes * 60_000
+      if (connector.credentialId && options.forceContentRefresh) {
+        /** An interrupted explicit crawl stays due when its continuation no longer carries the force flag. */
+        await withMemberLease(run, (tx) =>
+          tx
+            .update(knowledgeConnector)
+            .set({ lastSyncAt: null, updatedAt: new Date() })
+            .where(stillHoldsMemberSyncLock(connectorId, runId))
+        )
+      }
+      const serviceContent = connector.credentialId
+        ? contentDue
+          ? await syncDedicatedMemberContent({
+              run,
+              connector,
+              connectorConfig,
+              sourceConfig,
+              kbOwner,
+              billingAttribution,
+            })
+          : { complete: true }
+        : undefined
+      /**
+       * Anyone who joined the workspace since the last run is invited now, so
+       * membership grows on its own; the invitation is the only thing they need.
+       */
+      const invited = run.workspaceId
+        ? await inviteWorkspaceMembersToCredentialGroup({
+            workspaceId: run.workspaceId,
+            credentialGroupId: connector.credentialGroupId,
+            beforeBatch: run.lease.beatIfDue,
+            deadlineAt: run.deadlineAt,
+          }).catch((error) => {
+            logger.warn('Failed to invite new workspace members during a member run', {
+              connectorId,
+              error: getErrorMessage(error),
+            })
+            return null
+          })
+        : null
+      if (invited && invited.invited > 0) {
+        logger.info('Invited new workspace members to the connector credential group', {
+          connectorId,
+          ...invited,
+        })
+      }
+      if (
+        !(await reconcileMembership(
+          run,
+          binding,
+          connector.directoryCheckpoint,
+          Boolean(options.forceContentRefresh)
+        ))
+      ) {
+        result.membersRemaining = true
+        if (!(await completeMemberSync(run, connector.syncIntervalMinutes)))
+          return skipped(result, 'sync_superseded')
+        return result
+      }
+
+      const credentialIdByMemberId = new Map<string, string>()
+      const tokens = createMemberTokenCache({
+        run,
+        connectorConfig,
+        credentialIdByMemberId,
+        sourceConfig,
+      })
+
+      while (Date.now() < run.deadlineAt) {
+        const member = await claimNextMember(run)
+        if (!member) break
+        result.membersClaimed += 1
+        credentialIdByMemberId.clear()
+        credentialIdByMemberId.set(member.id, member.credentialId)
+        const syncContext: Record<string, unknown> = {
+          syncRunId: runId,
+          memberId: member.id,
+          ...PER_MEMBER_LISTING_CONTEXT,
+        }
+        let contentFailures = false
+        const processPage = async (
+          documents: ExternalDocument[],
+          checkpoint: ListingCheckpoint,
+          durableCheckpoint = true
+        ) => {
+          const externalIds = documents.map((item) => item.externalId)
+          const observeAttempted = async (attempted: ExternalDocument[]) => {
+            if (attempted.length === 0) return
+            const documentIds = [
+              ...(
+                await loadDocumentIdsByExternalId(
+                  connectorId,
+                  attempted.map((item) => item.externalId)
+                )
+              ).values(),
+            ]
+            await withMemberLease(run, async (tx) => {
+              result.observationsAdded += await recordMemberObservations(
+                tx,
+                member.id,
+                documentIds,
+                checkpoint.generationId
+              )
+              await materializeDocumentAcls(connectorId, documentIds, tx)
+              if (durableCheckpoint && checkpoint.contentFailures) {
+                await tx
+                  .update(knowledgeConnectorMember)
+                  .set({ listingCheckpoint: checkpoint })
+                  .where(eq(knowledgeConnectorMember.id, member.id))
+              }
+              if (!serviceContent) {
+                for (let offset = 0; offset < documentIds.length; offset += 500) {
+                  await tx
+                    .update(document)
+                    .set({ sourceSeenAt: run.runStartedAt })
+                    .where(
+                      and(
+                        eq(document.connectorId, connectorId),
+                        inArray(document.id, documentIds.slice(offset, offset + 500))
+                      )
+                    )
+                }
+              }
+            })
+            result.docsListed += attempted.length
+          }
+          if (!serviceContent) {
+            const corpus = await loadPageCorpus(connectorId, externalIds)
+            const pageState = createSyncRunState(result)
+            let rejectedCredentialError: Error | undefined
+            /** Commit sibling observations and failures before capacity pressure can end this page. */
+            const persistAttempted = async (attempted: ExternalDocument[]) => {
+              if (rejectedCredentialError) throw rejectedCredentialError
+              if (attempted.some((item) => pageState.failedExternalIds.has(item.externalId))) {
+                await persistSourceDocumentFailures({
+                  knowledgeBaseId: connector.knowledgeBaseId,
+                  connectorId,
+                  connectorType: connector.connectorType,
+                  documents: attempted,
+                  failedExternalIds: pageState.failedExternalIds,
+                  sourceFailures: pageState.sourceFailures,
+                  priorByExternalId: corpus.priorByExternalId,
+                  sourceConfig,
+                  access: 'members',
+                  lease: run.lease,
+                })
+                checkpoint.contentFailures = true
+                contentFailures = true
+                result.listingIncomplete = true
+              }
+              await observeAttempted(attempted)
+            }
+            const pendingOps = classifyListing({
+              externalDocs: documents.filter((item) => {
+                const alreadyRead = corpus.priorByExternalId.get(item.externalId)?.sourceSeenAt
+                if (
+                  alreadyRead &&
+                  alreadyRead >= run.runStartedAt &&
+                  corpus.priorByExternalId.get(item.externalId)?.contentHash !== null
+                ) {
+                  result.docsUnchanged += 1
+                  return false
+                }
+                return true
+              }),
+              corpus,
+              forceRehydrate: false,
+              state: pageState,
+            })
+            const pendingIds = new Set(pendingOps.map((op) => op.extDoc.externalId))
+            await persistAttempted(documents.filter((item) => !pendingIds.has(item.externalId)))
+            const finished = await processDocOps({
+              connectorId,
+              connector,
+              sourceConfig,
+              kbOwner,
+              billingAttribution,
+              pendingOps,
+              corpus,
+              forceRehydrate: false,
+              state: pageState,
+              hydration: {
+                concurrency: connectorConfig.contentConcurrency,
+                getDocument: async (externalId) => {
+                  if (rejectedCredentialError) throw rejectedCredentialError
+                  try {
+                    return await connectorConfig.getDocument(
+                      await tokens.get(member.id),
+                      sourceConfig,
+                      externalId,
+                      syncContext
+                    )
+                  } catch (error) {
+                    if (connectorConfig.isCredentialInvalidError?.(error) === true) {
+                      rejectedCredentialError = toError(error)
+                      if (await tokens.reject(member.id))
+                        await recordMemberFailure(
+                          run,
+                          member,
+                          error,
+                          connector.syncIntervalMinutes,
+                          true
+                        )
+                    }
+                    throw error
+                  }
+                },
+              },
+              lease: run.lease,
+              documentAccess: 'members',
+              deadlineAt: durableCheckpoint ? run.deadlineAt : undefined,
+              onBatchComplete: async (attempted) => {
+                result.docsHydratedOnce += attempted.filter((item) => item.contentDeferred).length
+                await persistAttempted(attempted)
+              },
+            })
+            if (rejectedCredentialError) throw rejectedCredentialError
+            if (!finished) return false
+          } else {
+            await observeAttempted(documents)
+          }
+        }
+        const listed = await listForMember({
+          run,
+          member,
+          connectorConfig,
+          sourceConfig,
+          tokens,
+          syncContext,
+          syncIntervalMinutes: connector.syncIntervalMinutes,
+          forceFull: Boolean(
+            serviceContent &&
+              (result.docsAdded > 0 ||
+                (connector.lastSyncAt &&
+                  (!member.memberSyncedThrough ||
+                    member.memberSyncedThrough < connector.lastSyncAt)))
+          ),
+          processPage,
+        })
+        if (listed.kind === 'failed') continue
+        if (listed.checkpoint?.contentFailures) result.listingIncomplete = true
+        if (listed.documents.length > 0) {
+          await processPage(
+            listed.documents,
+            beginListingCheckpoint({
+              fingerprint: listingFingerprint({ connectorId, memberId: member.id }),
+              generationId: runId,
+              startedAt: listed.startedAt,
+            }),
+            false
+          )
+        }
+        const listedCount = listed.checkpoint?.listedCount ?? listed.documents.length
+        const suspect =
+          listed.mode === 'full' &&
+          !listed.authoritative &&
+          listed.complete &&
+          classifySuspectListing(listedCount, member.lastListedCount ?? 0) !== null
+        const outcome: MemberListingOutcome = {
+          member,
+          mode: listed.mode,
+          listingStartedAt: listed.startedAt,
+          seenExternalIds: new Set(listed.documents.map((doc) => doc.externalId)),
+          removedExternalIds: listed.removedExternalIds,
+          listedCount,
+          complete: listed.complete,
+          resumable: listed.resumable,
+          suspect,
+          contentFailures: contentFailures || Boolean(listed.checkpoint?.contentFailures),
+          changeCursor: suspect ? undefined : listed.changeCursor,
+          checkpoint: listed.checkpoint,
+          observationRunId: listed.observationRunId,
+        }
+        const relevantIds = [...outcome.seenExternalIds, ...outcome.removedExternalIds]
+        const affected = await applyMemberListing(
+          run,
+          outcome,
+          await loadDocumentIdsByExternalId(connectorId, relevantIds),
+          connector.syncIntervalMinutes
+        )
+        await withMemberLease(run, (tx) => materializeDocumentAcls(connectorId, affected, tx))
+      }
+
+      /** A service-owned corpus outlives its last observer; only the content pass removes it. */
+      if (!serviceContent) {
+        /**
+         * Nobody has completed a listing yet — a connector that just entered
+         * members mode, waiting for its first member to connect — so an
+         * unobserved document says nothing about access and must not be
+         * tombstoned, let alone purged a week later.
+         */
+        const [listed] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(knowledgeConnectorMember)
+          .where(
+            and(
+              eq(knowledgeConnectorMember.connectorId, connectorId),
+              sql`${knowledgeConnectorMember.lastCompleteListingAt} IS NOT NULL`
+            )
+          )
+        const lifecycle = await applyMemberDocumentLifecycle({
+          connectorId,
+          knowledgeBaseId: connector.knowledgeBaseId,
+          runId,
+          lease: run.lease,
+          withLease: (fn) => withMemberLease(run, fn),
+          deadlineAt: run.deadlineAt,
+          allowRemoval: (listed?.count ?? 0) > 0,
+        })
+        result.docsTombstoned = lifecycle.tombstoned
+        result.docsResurrected = lifecycle.resurrected
+        result.docsPurged = lifecycle.purged
+        result.docsDeleted = lifecycle.purged
+        result.membersRemaining = !lifecycle.finished
+      }
+
+      await sweepStuckDocuments({
+        connectorId,
+        knowledgeBaseId: connector.knowledgeBaseId,
+        syncStartedAt: runStartedAt,
+        retryCutoff: new Date(Date.now() - RETRY_WINDOW_DAYS * 24 * 60 * 60 * 1000),
+        billingAttribution,
+        result,
+        lease: run.lease,
+      })
+
+      result.membersRemaining =
+        result.membersRemaining ||
+        serviceContent?.complete === false ||
+        (await countDueMembers(run, binding)) > 0
+      const landed = await completeMemberSync(run, connector.syncIntervalMinutes)
+      if (!landed) {
+        logger.warn(
+          'Member sync result discarded — connector was reclaimed while this run was executing',
+          {
+            connectorId,
+            runId,
+          }
+        )
+        return skipped(result, 'sync_superseded')
+      }
+      logger.info('Member sync completed', { connectorId, runId, ...result })
+      return result
+    } catch (error) {
+      if (error instanceof SyncLockLostException) {
+        logger.warn('Member sync abandoned — lock was reclaimed while this run was executing', {
           connectorId,
           runId,
         })
         return skipped(result, 'sync_superseded')
       }
-      return { ...skipped(result, 'connector_not_syncable'), error: error.message }
-    }
+      if (error instanceof ConnectorDeletedException) {
+        logger.info('Connector deleted during member sync', { connectorId })
+        await failMemberSyncLog(runId, result, 'Connector deleted during sync').catch((logError) =>
+          logger.error('Failed to record member sync failure', {
+            connectorId,
+            error: getErrorMessage(logError),
+          })
+        )
+        return skipped(result, 'connector_deleted_during_sync')
+      }
+      if (error instanceof MemberBindingGoneError) {
+        try {
+          await disableMemberSync(run, error.message)
+        } catch (disableError) {
+          if (!(disableError instanceof SyncLockLostException)) throw disableError
+          logger.warn('Member sync abandoned — lock was reclaimed before it could be disabled', {
+            connectorId,
+            runId,
+          })
+          return skipped(result, 'sync_superseded')
+        }
+        return { ...skipped(result, 'connector_not_syncable'), error: error.message }
+      }
 
-    const errorMessage = toError(error).message
-    const retryAfterMs = getRetryAfterMs(error)
-    logger.error('Member sync failed', { connectorId, runId, error: errorMessage })
-    try {
-      await failMemberSyncLog(runId, result, errorMessage)
-      const failureUpdate =
-        error instanceof ConnectorSyncCapacityError
-          ? {
-              memberSyncStatus: 'error' as const,
-              lastMemberSyncError: errorMessage,
-              nextMemberSyncAt: null,
-              memberSyncConsecutiveFailures: connector.memberSyncConsecutiveFailures,
-              memberSyncLockToken: null,
-              memberSyncLockLeaseAt: null,
-              updatedAt: new Date(),
-            }
-          : buildMemberSyncFailureUpdate(
-              new Date(),
-              connector.memberSyncConsecutiveFailures,
-              errorMessage,
-              retryAfterMs
-            )
-      const written = await db
-        .update(knowledgeConnector)
-        .set(failureUpdate)
-        .where(stillHoldsMemberSyncLock(connectorId, runId))
-        .returning({ id: knowledgeConnector.id })
-      if (written.length === 0) {
-        logger.warn('Member sync failure discarded — connector was reclaimed', {
+      if (getConnectorSyncDeferral(error)) {
+        try {
+          result.deferred = await deferConnectorSync({
+            connectorId,
+            knowledgeBaseId: connector.knowledgeBaseId,
+            runId,
+            lease: run.lease,
+            kind: 'member',
+            result,
+            error,
+          })
+          result.listingIncomplete = true
+          logger.info('Member source sync deferred', { connectorId, ...result.deferred })
+          return result
+        } catch (persistenceError) {
+          logger.error('Failed to persist member source deferral', {
+            connectorId,
+            error:
+              getConnectorFailureDiagnostic(persistenceError)?.message ??
+              toError(persistenceError).message,
+          })
+          result.error = 'Could not persist the member sync retry after provider deferral'
+          return result
+        }
+      }
+
+      const diagnostic = getConnectorFailureDiagnostic(error)
+      const errorMessage = diagnostic?.message ?? toError(error).message
+      const retryAfterMs = getRetryAfterMs(error)
+      logger.error('Member sync failed', { connectorId, runId, error: errorMessage, diagnostic })
+      try {
+        await failMemberSyncLog(runId, result, errorMessage)
+        const failureUpdate =
+          error instanceof ConnectorSyncCapacityError
+            ? {
+                memberSyncStatus: 'error' as const,
+                lastMemberSyncError: errorMessage,
+                nextMemberSyncAt: null,
+                memberSyncConsecutiveFailures: connector.memberSyncConsecutiveFailures,
+                memberSyncLockToken: null,
+                memberSyncLockLeaseAt: null,
+                updatedAt: new Date(),
+              }
+            : buildMemberSyncFailureUpdate(
+                new Date(),
+                connector.memberSyncConsecutiveFailures,
+                errorMessage,
+                retryAfterMs
+              )
+        const written = await db
+          .update(knowledgeConnector)
+          .set(failureUpdate)
+          .where(stillHoldsMemberSyncLock(connectorId, runId))
+          .returning({ id: knowledgeConnector.id })
+        if (written.length === 0) {
+          logger.warn('Member sync failure discarded — connector was reclaimed', {
+            connectorId,
+            runId,
+          })
+        }
+      } catch (recoveryError) {
+        logger.error('Failed to record member sync failure', {
           connectorId,
-          runId,
+          error:
+            getConnectorFailureDiagnostic(recoveryError)?.message ?? toError(recoveryError).message,
         })
       }
-    } catch (recoveryError) {
-      logger.error('Failed to record member sync failure', {
-        connectorId,
-        error: toError(recoveryError).message,
-      })
+      result.error = errorMessage
+      return result
     }
-    result.error = errorMessage
-    return result
-  }
+  })
 }

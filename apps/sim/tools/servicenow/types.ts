@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 /**
@@ -552,6 +553,12 @@ export interface ServiceNowDownloadAttachmentResponse extends ToolResponse {
       size: number
     }
     content: string
+  }
+}
+
+export interface ServiceNowDownloadAttachmentV2Response<File = UserFile> extends ToolResponse {
+  output: Omit<ServiceNowDownloadAttachmentResponse['output'], 'file' | 'content'> & {
+    file: File
   }
 }
 

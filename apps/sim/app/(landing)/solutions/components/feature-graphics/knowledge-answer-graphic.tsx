@@ -59,7 +59,7 @@ export function KnowledgeAnswerGraphic({
         <div className='flex w-full max-w-[312px] flex-col gap-3 sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div
             className={cn(
-              'max-w-[85%] self-end rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 text-[var(--text-primary)] text-caption leading-[1.5]',
+              'max-w-[85%] self-end rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 text-[var(--text-primary)] text-caption leading-[1.5] dark:bg-[var(--surface-4)]',
               styles.stepQuestion
             )}
           >
@@ -77,7 +77,7 @@ export function KnowledgeAnswerGraphic({
 
           <div
             className={cn(
-              'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs',
+              'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]',
               styles.stepSource
             )}
           >

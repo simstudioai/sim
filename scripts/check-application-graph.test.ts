@@ -122,22 +122,21 @@ describe('a deferred edge into a forbidden tree', () => {
   it('is reported when a root defers the load of a forbidden module', () => {
     /**
      * Walked from a module that defers the block registry — `const
-     * { getBlockRegistry } = await import('@/blocks/registry')` — and nothing
-     * else about it matters here. Before the deferred pass this root was green
-     * on `blocks/`, which is the whole evasion in one line.
+     * { getBlockRegistry } = await import('@/blocks/registry')`. A root's own
+     * deferred edges are checked before its static imports, so the reported chain
+     * is that single deferred hop, whatever else the root reaches.
      */
+    const root =
+      'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data.ts'
     const violations = findViolations({
-      root: 'lib/copilot/chat/process-contents.ts',
+      root,
       forbidden: { 'blocks/': FORBIDDEN_PREFIXES['blocks/'] },
     })
 
     expect(violations).toHaveLength(1)
     expect(violations[0].forbidden).toBe('blocks/registry.ts')
     expect(violations[0].reason).toContain('deferred')
-    expect(violations[0].path).toEqual([
-      'lib/copilot/chat/process-contents.ts',
-      'blocks/registry.ts',
-    ])
+    expect(violations[0].path).toEqual([root, 'blocks/registry.ts'])
   })
 
   /**

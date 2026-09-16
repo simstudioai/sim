@@ -81,11 +81,14 @@ export const cerebrasProvider: ProviderConfig = {
         : undefined
 
       const payload: any = {
-        model: request.model.replace('cerebras/', ''),
+        model: request.model.replace(/^cerebras\//i, ''),
         messages: formattedMessages,
       }
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
+      if (request.reasoningEffort && request.reasoningEffort !== 'auto') {
+        payload.reasoning_effort = request.reasoningEffort
+      }
       if (request.responseFormat) {
         payload.response_format = {
           type: 'json_schema',

@@ -20,9 +20,11 @@ import {
   executeGoogleDriveUpload,
   type GoogleDriveOperationContext,
 } from '@/lib/internal/google-drive/operations'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
+  InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
@@ -92,7 +94,9 @@ function unexpectedResponse(request: InternalToolOperationCall, error: unknown):
   return Response.json({ success: false, error: message }, { status })
 }
 
-export const executeGoogleDriveTool: InternalToolOperationHandler = async (request) => {
+export const executeGoogleDriveTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   let serialized: string
   try {
@@ -118,7 +122,9 @@ export const executeGoogleDriveTool: InternalToolOperationHandler = async (reque
       userId: request.context.userId,
     })
     request.signal?.throwIfAborted()
-    return result instanceof Response ? result : Response.json(result)
+    return result instanceof Response || isInternalToolFileResult(result)
+      ? result
+      : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof GoogleDriveOperationError) {

@@ -17,10 +17,13 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
 import { extractInputFieldsFromBlocks, type WorkflowInputField } from '@/lib/workflows/input-format'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
-import { assertCustomBlockStreamingOutputs } from '@/lib/workflows/streaming/custom-block-output'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { CustomBlockOutput, CustomBlockRow } from '@/blocks/custom/build-config'
-import { CUSTOM_BLOCK_TYPE_PREFIX, isReservedOutputName } from '@/blocks/custom/build-config'
+import {
+  assertCustomBlockStreamingOutputs,
+  CUSTOM_BLOCK_TYPE_PREFIX,
+  isReservedOutputName,
+} from '@/blocks/custom/build-config'
 
 const logger = createLogger('CustomBlocksOperations')
 const CUSTOM_BLOCK_HYDRATION_CONCURRENCY = 10

@@ -2,10 +2,10 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { validationErrorResponseFromError } from '@/lib/api/server'
 import {
-  resolveUserKnowledgeAccessScope,
+  createUserKnowledgeAccessProvider,
   WORKSPACE_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/scope'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import {
@@ -53,16 +53,16 @@ export async function resolveKnowledgeBase(
 }
 
 /**
- * The document-access scope of a v1 API caller. A personal key acts as its
+ * The document reader of a v1 API caller. A personal key acts as its
  * user; a workspace key has no person behind it and reads as the workspace.
  */
-export async function resolveV1KnowledgeAccessScope(
+export async function resolveV1KnowledgeReadAccess(
   userId: string,
   rateLimit: { keyType?: 'personal' | 'workspace' | 'oauth_access_token' },
   workspaceId: string | undefined
-): Promise<KnowledgeAccessScope> {
+): Promise<KnowledgeAccessScope | KnowledgeAccessProvider> {
   if (rateLimit.keyType === 'workspace') return WORKSPACE_ACCESS_SCOPE
-  return resolveUserKnowledgeAccessScope(userId, workspaceId)
+  return createUserKnowledgeAccessProvider(userId, { workspaceId })
 }
 
 /**

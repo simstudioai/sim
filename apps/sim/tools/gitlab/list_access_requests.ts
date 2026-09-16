@@ -10,6 +10,7 @@ export const gitlabListAccessRequestsTool: ToolConfig<
   GitLabListAccessRequestsResponse
 > = {
   id: 'gitlab_list_access_requests',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Access Requests',
   description: 'List pending access requests for a GitLab project or group',
   version: '1.0.0',

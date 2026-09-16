@@ -11,24 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Agiloft](https://www.agiloft.com/) is an enterprise contract lifecycle management (CLM) platform that helps organizations automate and manage contracts, agreements, and related business processes across any knowledge base.
-
-With the Agiloft integration in Sim, you can:
-
-- **Create records**: Add new records to any Agiloft table with custom field values
-- **Read records**: Retrieve individual records by ID with optional field selection
-- **Update records**: Modify existing record fields in any table
-- **Delete records**: Remove records from your knowledge base
-- **Search records**: Find records using Agiloft's query syntax with pagination support
-- **Select records**: Query records using SQL WHERE clauses for advanced filtering
-- **Saved searches**: List saved search definitions available for a table
-- **Attach files**: Upload and attach files to record fields
-- **Retrieve attachments**: Download attached files from record fields
-- **Remove attachments**: Delete attached files from record fields by position
-- **Attachment info**: Get metadata about all files attached to a record field
-- **Lock records**: Check, acquire, or release locks on records for concurrent editing
-
-In Sim, the Agiloft integration enables your agents to manage contracts and records programmatically as part of automated workflows. Agents can create and update records, search across tables, handle file attachments, and manage record locks — enabling intelligent contract lifecycle automation.
+[Agiloft](https://www.agiloft.com/) stores records in knowledge-base tables. Use this integration to find, create, update, and delete records, work with attachments, manage record locks, and run action buttons. Select the target knowledge base and table for each operation; the action reference below lists its required fields.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -48,7 +31,7 @@ Check whether an asynchronous Agiloft call, such as a run action button, has com
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -72,7 +55,7 @@ Attach a file to a field in an Agiloft record.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -100,7 +83,7 @@ Get information about file attachments on a record field.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -126,7 +109,7 @@ Create a new record in an Agiloft table.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -148,7 +131,7 @@ Delete a record from an Agiloft table.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -172,7 +155,7 @@ Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHER
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -194,7 +177,7 @@ List the tables and fields in an Agiloft knowledge base, to discover the logical
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -230,7 +213,7 @@ Lock, unlock, or check the lock status of an Agiloft record.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -257,7 +240,7 @@ Search Agiloft records by describing what you want in plain language, such as "a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -282,7 +265,7 @@ Read a record by ID from an Agiloft table.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -305,7 +288,7 @@ Remove an attached file from a field in an Agiloft record.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -330,7 +313,7 @@ Download an attached file from an Agiloft record field.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -353,7 +336,7 @@ Run an action button on an Agiloft record, such as an approval or send-for-signa
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -376,7 +359,7 @@ List the saved searches defined for an Agiloft table.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -401,7 +384,7 @@ Search for records in an Agiloft table using a query.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -430,7 +413,7 @@ Select record IDs matching a SQL WHERE clause from an Agiloft table.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -453,7 +436,7 @@ Update an existing record in an Agiloft table.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
@@ -476,7 +459,7 @@ Create an Agiloft record, or update it when a record already matches the given f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com) |
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |

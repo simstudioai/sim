@@ -14,10 +14,11 @@ interface CellContentProps {
   /** Current workspace id — lets string cells holding an in-workspace resource
    *  URL render as a tagged-resource chip instead of a plain external link. */
   workspaceId: string
-  timeZone: string
   timezoneStatus: TimezoneState['status']
   isEditing: boolean
   initialCharacter?: string | null
+  /** Opens the inline editor read-only; text stays selectable and copyable. */
+  readOnly?: boolean
   onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
   /**
@@ -41,10 +42,10 @@ export function CellContent({
   exec,
   column,
   workspaceId,
-  timeZone,
   timezoneStatus,
   isEditing,
   initialCharacter,
+  readOnly,
   onSave,
   onCancel,
   waitingOnLabels,
@@ -57,7 +58,6 @@ export function CellContent({
     waitingOnLabels,
     isEnrichmentOutput,
     currentWorkspaceId: workspaceId,
-    timeZone,
     timezoneStatus,
   })
 
@@ -69,6 +69,7 @@ export function CellContent({
             value={value}
             column={column}
             initialCharacter={initialCharacter ?? undefined}
+            readOnly={readOnly}
             onSave={onSave}
             onCancel={onCancel}
           />

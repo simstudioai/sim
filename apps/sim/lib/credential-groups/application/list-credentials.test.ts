@@ -3,9 +3,11 @@
  */
 import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 
 const mocks = vi.hoisted(() => ({
   getWorkspaceOwnerSubscriptionAccess: vi.fn(),
+  requirePolicy: vi.fn(),
   listCredentials: vi.fn(),
   loadEnrollmentAccess: vi.fn(),
   loadGroup: vi.fn(),
@@ -18,8 +20,12 @@ vi.mock('@/lib/billing/core/workspace-access', () => ({
   getWorkspaceOwnerSubscriptionAccess: mocks.getWorkspaceOwnerSubscriptionAccess,
 }))
 
-vi.mock('@/lib/credential-groups/availability', () => ({
-  resolveCredentialGroupsAvailability: mocks.resolveCredentialGroupsAvailability,
+vi.mock('@/lib/credential-groups/scoped-availability', () => ({
+  isScopedCredentialGroupsAvailable: async () =>
+    (await mocks.resolveCredentialGroupsAvailability()).available,
+}))
+vi.mock('@/lib/resource-policies/repository', () => ({
+  requireResourcePolicy: mocks.requirePolicy,
 }))
 
 vi.mock('@/lib/credential-groups/credentials', () => ({
@@ -31,7 +37,7 @@ vi.mock('@/lib/credential-groups/credentials', () => ({
   },
   listCredentialGroupCredentialReferences: mocks.listCredentials,
   loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
-  loadCredentialGroupCredentialListContext: mocks.loadGroup,
+  loadScopedAccountsCredentialListContext: mocks.loadGroup,
   MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE: 100,
 }))
 
@@ -78,23 +84,22 @@ const groupContext = {
 }
 const workspaceContext = {
   workspaceId: 'workspace-1',
-  workspaceOrganizationId: null,
+  workspaceOrganizationId: 'org-1',
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const input = { credentialGroupId: 'group-1', limit: 50 }
+const input = { workspaceId: 'workspace-1', limit: 50 }
 
-function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDelegatedPrincipal {
+function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'executor',
     subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
+    workspaceId,
     delegationId: 'delegation-1',
     audience: 'sim:credential-groups',
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialGroupId },
     delegationContext: {
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
@@ -111,6 +116,9 @@ function executorPrincipal(credentialGroupId = 'group-1'): WorkflowExecutionDele
 describe('listCredentialGroupCredentials', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', ['workspace-1']),
+    })
     mocks.loadGroup.mockResolvedValue(groupContext)
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
@@ -148,10 +156,19 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.loadGroup).not.toHaveBeenCalled()
   })
 
-  it('rejects executor delegation scoped to another group', async () => {
+  it('requires the workspace accounts container before listing credentials', async () => {
+    mocks.loadGroup.mockResolvedValue(null)
+    await expect(
+      listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.loadGroup).toHaveBeenCalledWith({ kind: 'organization', organizationId: 'org-1' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
+  })
+
+  it('rejects executor delegation scoped to another workspace', async () => {
     await expect(
       listCredentialGroupCredentials.execute({
-        principal: executorPrincipal('group-2'),
+        principal: executorPrincipal('workspace-2'),
         input,
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -184,14 +201,25 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.listCredentials).toHaveBeenCalled()
   })
 
-  it('does not use the executor subject to filter credential references', async () => {
+  it('rejects inconsistent execution attribution', async () => {
     const principal = executorPrincipal()
     principal.subjectUserId = 'different-user'
+    await expect(
+      listCredentialGroupCredentials.execute({ principal, input })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
+  })
 
-    await listCredentialGroupCredentials.execute({ principal, input })
-
-    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
-    expect(mocks.listCredentials).toHaveBeenCalled()
+  it('rechecks workspace revocation for the next discovery', async () => {
+    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+    mocks.listCredentials.mockClear()
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', []),
+    })
+    await expect(
+      listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('returns a bounded page after current workspace and entitlement checks', async () => {
@@ -200,11 +228,17 @@ describe('listCredentialGroupCredentials', () => {
       input,
     })
 
-    expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', 'workspace-1', null, undefined, {
-      forUpdate: undefined,
-    })
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      'org-1',
+      undefined,
+      {
+        forUpdate: undefined,
+      }
+    )
     expect(mocks.listCredentials).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
+      organizationId: 'org-1',
       credentialGroupId: 'group-1',
       limit: 50,
       cursor: undefined,
@@ -291,8 +325,8 @@ describe('listCredentialGroupCredentials', () => {
     await expect(
       listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
     ).rejects.toMatchObject({
-      code: 'forbidden',
-      message: 'Credential Groups are not available',
+      code: 'not_found',
+      message: 'Organization connected accounts are not available',
     })
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
@@ -307,8 +341,8 @@ describe('listCredentialGroupCredentials', () => {
     await expect(
       listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
     ).rejects.toMatchObject({
-      code: 'forbidden',
-      message: 'Credential Groups are not available. Enterprise plan required.',
+      code: 'not_found',
+      message: 'Organization connected accounts are not available',
     })
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })

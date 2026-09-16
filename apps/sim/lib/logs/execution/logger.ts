@@ -4,7 +4,6 @@ import {
   usageLog,
   user as userTable,
   workflow,
-  workflowExecutionLogColumns,
   workflowExecutionLogs,
   workspace,
 } from '@sim/db/schema'
@@ -652,7 +651,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     // Check if execution log already exists (idempotency check)
     const existingLog = await execDb
-      .select(workflowExecutionLogColumns)
+      .select()
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)
@@ -723,7 +722,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           traceSpanCount: 0,
         },
       })
-      .returning(workflowExecutionLogColumns)
+      .returning()
 
     execLog.debug('Created workflow log', { logId: workflowLog.id })
 
@@ -957,7 +956,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     execLog.debug('Completing workflow execution', { isResume })
 
     const [existingLog] = await execDb
-      .select(workflowExecutionLogColumns)
+      .select()
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)
@@ -1205,11 +1204,11 @@ export class ExecutionLogger implements IExecutionLoggerService {
               : sql`${workflowExecutionLogs.status} != 'cancelled'`
           )
         )
-        .returning(workflowExecutionLogColumns)
+        .returning()
 
       if (!log) {
         const [currentLog] = await tx
-          .select(workflowExecutionLogColumns)
+          .select()
           .from(workflowExecutionLogs)
           .where(eq(workflowExecutionLogs.executionId, executionId))
           .limit(1)
@@ -1444,7 +1443,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
   async getWorkflowExecution(executionId: string): Promise<WorkflowExecutionLog | null> {
     const [workflowLog] = await execDb
-      .select(workflowExecutionLogColumns)
+      .select()
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)

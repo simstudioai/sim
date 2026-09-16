@@ -13,6 +13,41 @@ import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/
 
 describe('isRoundTripSafe', () => {
   it.each([
+    '<pre>[https://example.com](https://example.com)</pre>',
+    '<!-- [https://example.com](https://example.com) -->',
+    '<span>[https://example.com](https://example.com)</span>',
+    '<details>\n> \\[!NOTE\\]\nparent\n  - \n</details>',
+    '````\n```\n[https://example.com](https://example.com)\n```\n````',
+  ])('preserves literal content on its first serialization: %s', (source) => {
+    const once = serializeMarkdownDocument(source)
+    expect(once.trimEnd()).toBe(source)
+    expect(serializeMarkdownDocument(once)).toBe(once)
+    expect(isRoundTripSafe(source)).toBe(true)
+  })
+
+  it.each([
+    'See [label](/path "[unused]").',
+    '`[unused]`',
+    '<span>[unused]</span>',
+    '<!-- [unused] -->',
+    '    [unused]',
+    '\\[unused]',
+  ])('does not count literal reference labels as definition usage: %s', (body) => {
+    expect(isRoundTripSafe(`${body}\n\n[unused]: https://example.com`)).toBe(false)
+  })
+
+  it.each(['[label][used]', '[used][]', '[USED]', '![image][used]', '> [label][used]'])(
+    'recognizes parsed reference usage: %s',
+    (body) => {
+      expect(isRoundTripSafe(`${body}\n\n[used]: https://example.com`)).toBe(true)
+    }
+  )
+
+  it('does not confuse different reference labels sharing one destination', () => {
+    expect(isRoundTripSafe('[used]\n\n[used]: /image\n[unused]: /image')).toBe(false)
+  })
+
+  it.each([
     { field: 'alt', linked: false },
     { field: 'title', linked: false },
     { field: 'alt', linked: true },
@@ -150,6 +185,42 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('![kept](/image)\n\n| h |\n| --- |\n| <img src="/image"> |')).toBe(false)
   })
 
+  it.each([
+    '# Before ![Image](/image.png) after',
+    '# [![Image](/image.png)](/destination)',
+    '# Before <img src="/image.png" width="320"> after',
+    'Before ![Image](/image.png) after\n===',
+    '> # Before ![Image](/image.png) after',
+    '- # Before ![Image](/image.png) after',
+  ])('keeps images within headings editable: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(true)
+  })
+
+  it.each([
+    '| Header |\n| --- |\n| Before ![Image](/image.png) after |',
+    '| Before ![Image](/image.png) after |\n| --- |\n| Cell |',
+    '| Header |\n| --- |\n| [![Image](/image.png)](/destination) |',
+    '| Header |\n| --- |\n| ![Image][image] |\n\n[image]: /image.png',
+    '| Header |\n| --- |\n| Before <img src="/image.png" width="320"> after |',
+  ])('preserves unsupported table images in source mode: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(false)
+    expect(normalizeMarkdownContent(source)).toBe(source)
+  })
+
+  it.each([
+    '# Example `![Image](/image.png)`',
+    '# Example `<img src="/image.png">`',
+    '# Example <!-- <img src="/image.png"> -->',
+    '# Example \\![Image](/image.png)',
+    '| Header |\n| --- |\n| `![Image](/image.png)` |',
+    '| Header |\n| --- |\n| `<img src="/image.png">` |',
+    'Before ![Image](/image.png) after',
+    '- Before ![Image](/image.png) after',
+    '- [x] Before ![Image](/image.png) after',
+  ])('keeps literal image examples and supported block images editable: %s', (source) => {
+    expect(isRoundTripSafe(source)).toBe(true)
+  })
+
   it('passes a code block followed by other content (idempotent block separation)', () => {
     expect(isRoundTripSafe('```\ncode\n```\n\ntext after')).toBe(true)
     expect(
@@ -187,7 +258,8 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('A [shortcut] ref.\n\n[shortcut]: https://example.com')).toBe(true)
     expect(isRoundTripSafe('Case [Foo] insensitive.\n\n[foo]: https://example.com')).toBe(true)
     expect(isRoundTripSafe('A note.\n\n[^x]: the footnote body')).toBe(true)
-    expect(isRoundTripSafe('See [ foo ] here.\n\n[foo]: https://example.com')).toBe(true)
+    /** The installed lexer does not resolve the padded shortcut; its definition would be dropped. */
+    expect(isRoundTripSafe('See [ foo ] here.\n\n[foo]: https://example.com')).toBe(false)
   })
 
   it('does not flag HTML/comments/entities inside tilde or nested code fences', () => {

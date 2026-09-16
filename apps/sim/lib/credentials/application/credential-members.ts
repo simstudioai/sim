@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, type SessionPrincipal } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireOrdinaryCredentialType } from '@/lib/credentials/access'
 import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
@@ -40,7 +41,12 @@ export const listCredentialMembersUseCase = defineAuthorizedWorkspaceUseCase({
     input: CredentialMemberResourceInput
   }) => resolveSessionCredentialContext(principal, input),
   authorizationOptions: {},
-  async execute({ context }) {
+  async execute({ principal, context }) {
+    if (context.credential.type === 'personal_token') {
+      if (context.credential.createdBy !== principal.userId)
+        throw new OrchestrationError('not_found', 'Credential not found')
+      return { members: [] }
+    }
     return { members: await listCredentialMembers(context.credential) }
   },
 })

@@ -16,10 +16,11 @@ export const POST = defineInternalJsonRoute({
     reason:
       'A member connecting their own account by hand; each call only re-issues their own invitation',
   }),
-  errorPolicy: internalKnowledgeErrorPolicies.connectors,
-  mapInput: ({ params }) => ({
+  errorPolicy: internalKnowledgeErrorPolicies.connectAccount,
+  mapInput: ({ params, query }) => ({
     connectorId: params.connectorId,
     knowledgeBaseId: params.id,
+    oauthCompletionId: query.oauthCompletionId,
   }),
   useCase: startKnowledgeConnectorMemberEnrollment,
   present: ({ url }) => ({ success: true as const, data: { url } }),

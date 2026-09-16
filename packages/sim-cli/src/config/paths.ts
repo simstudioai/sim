@@ -33,3 +33,14 @@ export function credentialsPath(): string {
 export function updateCachePath(): string {
   return join(configDir(), 'update-check.json')
 }
+
+/**
+ * Where usage telemetry keeps its device id, session, and on/off setting.
+ *
+ * State rather than configuration, so it follows `SIM_CONFIG_DIR` the way the
+ * update cache does and gets no override of its own. Deleting it forgets the
+ * device id and shows the first-run notice again; nothing else is lost.
+ */
+export function telemetryStatePath(): string {
+  return join(configDir(), 'telemetry.json')
+}

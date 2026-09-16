@@ -406,4 +406,28 @@ describe('async tool repository single-row semantics', () => {
       expect(dbChainMockFns.values).not.toHaveBeenCalled()
     }
   )
+
+  it('refuses a provider-ID collision with an existing row in another run', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { runId: 'old-run', toolCallId: 'provider-shared-call', toolName: 'browser_close_tab' },
+    ])
+    await expect(
+      upsertAsyncToolCall({
+        runId: 'current-run',
+        toolCallId: 'provider-shared-call',
+        toolName: 'glob',
+      })
+    ).rejects.toThrow('Async tool call belongs to another run')
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
+  })
+
+  it('refuses a foreign row that wins the insert race', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ runId: 'other-run', toolCallId: 'call-race' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    await expect(
+      upsertAsyncToolCall({ runId: 'current-run', toolCallId: 'call-race', toolName: 'glob' })
+    ).rejects.toThrow('Async tool call belongs to another run')
+  })
 })

@@ -1,4 +1,5 @@
 import { cn } from '@sim/emcn'
+import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -109,15 +110,18 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
  * so adding a new resource type fails compilation here until a conversion is
  * supplied — preventing silent drift between the two taxonomies.
  */
-// Browser/terminal resources may name either the singleton panel or one live
-// inner tab. The singleton ids ask the agent to inspect the whole resource;
-// every other id is a precise live-tab pointer.
+// A browser resource is one live page and a terminal resource one live shell,
+// so each id is a precise pointer the agent can act on directly.
 const RESOURCE_TO_CONTEXT: Record<
   MothershipResourceType,
   (resource: MothershipResource) => ChatContext
 > = {
   browser: (r) => ({ kind: 'browser_tab', tabId: r.id, label: r.title }),
-  terminal: (r) => ({ kind: 'terminal_tab', terminalId: r.id, label: r.title }),
+  terminal: (r) => ({
+    kind: 'terminal_tab',
+    terminalId: terminalIdFromResourceId(r.id),
+    label: r.title,
+  }),
   workflow: (r) => ({ kind: 'workflow', workflowId: r.id, label: r.title }),
   knowledgebase: (r) => ({ kind: 'knowledge', knowledgeId: r.id, label: r.title }),
   table: (r) => ({ kind: 'table', tableId: r.id, label: r.title }),

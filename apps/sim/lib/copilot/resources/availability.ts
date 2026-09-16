@@ -5,12 +5,9 @@ import { isTerminalAvailable } from '@/lib/terminal/transport'
 /**
  * Whether this client can show the resource's panel at all.
  *
- * The browser and terminal panels are stored with the chat like any other
- * resource, so the tab is still there when the chat is reopened. But they are
- * windows onto something the desktop app owns — an embedded browser view, a
- * pty — and opening that same chat in the web app would otherwise restore a
- * tab that leads to an error. Such resources stay in the chat's stored
- * resources either way; this only decides whether to put them on screen.
+ * Browser and terminal tabs are windows onto something the desktop app owns —
+ * an embedded browser view, a pty — so the web app has nothing to show for
+ * them. This only decides whether to put a resource on screen.
  */
 export function canDisplayResource(resource: MothershipResource): boolean {
   if (!isDesktopOnlyResource(resource)) return true

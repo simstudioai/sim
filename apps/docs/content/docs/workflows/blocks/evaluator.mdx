@@ -3,7 +3,6 @@ title: Evaluator
 description: The Evaluator block uses a model to score content against metrics you define.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview, WorkflowPreview, EVALUATOR_GATE_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
@@ -40,7 +39,7 @@ The Evaluator returns a number for each metric, read by the metric's lowercase n
 | Output | What it is |
 | --- | --- |
 | `<evaluator.accuracy>` | The score for a metric (one output per metric you define) |
-| `<evaluator.content>` | The evaluation summary |
+| `<evaluator.content>` | The original content that was evaluated |
 | `<evaluator.model>` | The model that scored |
 | `<evaluator.tokens>` | Token usage |
 | `<evaluator.cost>` | Estimated cost of the call |
@@ -66,9 +65,4 @@ The same shape covers other quality work: score several [parallel](/workflows/bl
 
 <FAQ items={[
   { question: "What format does the Evaluator return scores in?", answer: "A JSON object where each key is the lowercase metric name and the value is the numeric score within the range you defined. A metric named 'Accuracy' with range 1-5 appears as { \"accuracy\": 4 }, read downstream as <evaluator.accuracy>." },
-  { question: "Which models work best for evaluation?", answer: "Models with strong reasoning give the most consistent scores. The default is claude-sonnet-4-6; for simple, clearly distinct metrics a faster model is fine." },
-  { question: "Can I evaluate non-text content?", answer: "The content field takes any string. JSON or structured data is detected and formatted before scoring, but the evaluation is text-based, so it can't directly score images or audio." },
-  { question: "What happens if a metric is incomplete?", answer: "Metrics missing a name or a range are skipped. The Evaluator only scores metrics that have both a name and a defined min/max range." },
-  { question: "Does the Evaluator use structured output?", answer: "Yes. It builds a JSON Schema from your metrics and enforces strict mode, so the model returns only the expected metric scores as numbers, with no extra text." },
-  { question: "How are evaluation costs calculated?", answer: "From the underlying model call's token usage. The outputs include token counts and a cost breakdown so you can track spend per evaluation." },
 ]} />

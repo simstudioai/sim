@@ -18,6 +18,49 @@ class TestHttpError extends HttpError {
 }
 
 describe('withRouteHandler', () => {
+  it('carries the workflow call chain into the request context', async () => {
+    const seen: unknown[] = []
+    vi.mocked(loggerMock.runWithRequestContext).mockImplementationOnce((context, fn) => {
+      seen.push(context)
+      return fn()
+    })
+    const handler = withRouteHandler(async () => NextResponse.json({ ok: true }))
+
+    await handler(
+      new NextRequest('http://localhost/api/test', { headers: { 'x-sim-via': 'wf-1, wf-2' } }),
+      undefined
+    )
+
+    expect(seen[0]).toEqual(expect.objectContaining({ callChain: ['wf-1', 'wf-2'] }))
+  })
+
+  it('resolves the sending client into the request context for logs and analytics', async () => {
+    const seen: unknown[] = []
+    vi.mocked(loggerMock.runWithRequestContext).mockImplementationOnce((context, fn) => {
+      seen.push(context)
+      return fn()
+    })
+    const handler = withRouteHandler(async () => NextResponse.json({ ok: true }))
+
+    await handler(
+      new NextRequest('http://localhost/api/test', {
+        headers: { 'x-sim-client-info': 'cli/2.1.2; node/22.14.0; agent/claude-code' },
+      }),
+      undefined
+    )
+
+    expect(seen[0]).toEqual(
+      expect.objectContaining({
+        client: expect.objectContaining({
+          surface: 'cli',
+          version: '2.1.2',
+          agent: 'claude-code',
+          source: 'header',
+        }),
+      })
+    )
+  })
+
   it('classifies errors after a client disconnect without using the unhandled fallback', async () => {
     const routeHandlerLogger = vi.mocked(loggerMock.createLogger).mock.results[
       vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'RouteHandler')

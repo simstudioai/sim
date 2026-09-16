@@ -39,7 +39,6 @@ import {
 } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
-import type { ExecuteWorkflowOptions } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
   type ExecutionEvent,
@@ -419,7 +418,7 @@ interface StartResumeExecutionArgs {
   userId: string
   sendEvent?: (event: ExecutionEvent) => void
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
-  onBlockComplete?: ExecuteWorkflowOptions['onBlockComplete']
+  onBlockComplete?: (blockId: string, data: BlockCompletionCallbackData) => Promise<void>
   abortSignal?: AbortSignal
 }
 
@@ -970,6 +969,7 @@ export class PauseResumeManager {
       }
 
       if (result.status === 'paused') {
+        /** persistPauseResult already settles the answered context and recounts the merged pauses. */
         await PauseResumeManager.markResumeCompleted({
           resumeEntryId,
           pausedExecutionId: pausedExecution.id,
@@ -1072,7 +1072,7 @@ export class PauseResumeManager {
     userId: string
     sendEvent?: (event: ExecutionEvent) => void
     onStream?: (streamingExec: StreamingExecution) => Promise<void>
-    onBlockComplete?: ExecuteWorkflowOptions['onBlockComplete']
+    onBlockComplete?: (blockId: string, data: BlockCompletionCallbackData) => Promise<void>
     abortSignal?: AbortSignal
   }): Promise<ExecutionResult> {
     const {
@@ -1425,9 +1425,10 @@ export class PauseResumeManager {
       })
     }
 
+    /** Resume attempts have separate stream IDs; new pauses must retain the durable run ID. */
     const metadata = {
       ...baseSnapshot.metadata,
-      executionId: resumeExecutionId,
+      executionId: parentExecutionId,
       requestId: baseSnapshot.metadata.requestId,
       startTime: new Date().toISOString(),
       userId: effectiveUserId,
@@ -1728,12 +1729,7 @@ export class PauseResumeManager {
         } as ExecutionEvent)
 
         if (externalOnBlockComplete) {
-          await externalOnBlockComplete(
-            blockId,
-            callbackData.output,
-            callbackData.outputBlockId,
-            callbackData.childWorkflowInstanceId
-          )
+          await externalOnBlockComplete(blockId, callbackData)
         }
       },
       onChildWorkflowInstanceReady: async (
@@ -2030,7 +2026,7 @@ export class PauseResumeManager {
           )
         })
       }
-      void cleanupExecutionBase64Cache(resumeExecutionId)
+      void cleanupExecutionBase64Cache(parentExecutionId)
     }
 
     /**

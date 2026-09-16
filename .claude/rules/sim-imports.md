@@ -1,4 +1,5 @@
 ---
+description: Import patterns for the Sim application
 paths:
   - "apps/sim/**/*.ts"
   - "apps/sim/**/*.tsx"

@@ -2,20 +2,23 @@ import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
+  Button,
   Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
   cn,
+  FieldDivider,
   Popover,
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
   Tooltip,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronRight, Pencil, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
+import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import {
@@ -31,6 +34,11 @@ import {
 } from '@/lib/permission-groups/operation-access'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
+import {
+  buildAgentToolUsageControlCanonicalKey,
+  getAgentToolUsageControlMode,
+  resolveAgentToolUsageControl,
+} from '@/lib/workflows/tool-input/usage-control'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -39,6 +47,7 @@ import {
   CustomToolModal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { ToolSubBlockRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/sub-block-renderer'
+import { ToolUsageControl } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/usage-control'
 import { clearDependentToolParams } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
 import {
@@ -112,7 +121,7 @@ const ADVANCED_MCP_SERVER_TOOL_SCHEMA: McpToolSchema = {
   properties: {
     serverId: {
       type: 'string',
-      description: 'Canonical workspace MCP server ID',
+      description: 'MCP server or managed connection ID, or upstream reference',
     },
   },
   required: ['serverId'],
@@ -381,7 +390,6 @@ export const ToolInput = memo(function ToolInput({
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const [usageControlPopoverIndex, setUsageControlPopoverIndex] = useState<number | null>(null)
   const [mcpRemovePopoverIndex, setMcpRemovePopoverIndex] = useState<number | null>(null)
   const [mcpServerDrilldown, setMcpServerDrilldown] = useState<string | null>(null)
 
@@ -391,15 +399,8 @@ export const ToolInput = memo(function ToolInput({
       [blockId]
     )
   )
-  const { collaborativeSetBlockCanonicalMode, collaborativeSetBlockCanonicalModes } =
+  const { collaborativeSetBlockCanonicalMode, collaborativeSetSubblockValueWithCanonicalModes } =
     useCollaborativeWorkflow()
-  const reindexCanonicalModesOnMutate = useCallback(
-    (oldTools: StoredTool[], newTools: StoredTool[]) => {
-      const next = reindexToolCanonicalModes(oldTools, newTools, canonicalModeOverrides)
-      if (next) collaborativeSetBlockCanonicalModes(blockId, next)
-    },
-    [canonicalModeOverrides, collaborativeSetBlockCanonicalModes, blockId]
-  )
 
   const value = isPreview ? previewValue : storeValue
 
@@ -410,6 +411,39 @@ export const ToolInput = memo(function ToolInput({
     typeof value[0]?.type === 'string'
       ? (value as StoredTool[])
       : []
+
+  /**
+   * Commits a tool list that moves or drops selected tools. Their canonical-mode overrides are
+   * keyed by position, so when any must move they persist in the same operation as the list.
+   * `positionedTools` is the list holding the kept tool references when `nextTools` clones them.
+   */
+  const setToolsWithReindexedModes = useCallback(
+    (nextTools: StoredTool[], positionedTools: StoredTool[] = nextTools) => {
+      const canonicalModes = reindexToolCanonicalModes(
+        selectedTools,
+        positionedTools,
+        canonicalModeOverrides
+      )
+      if (!canonicalModes) {
+        setStoreValue(nextTools)
+        return
+      }
+      collaborativeSetSubblockValueWithCanonicalModes(
+        blockId,
+        subBlockId,
+        structuredClone(nextTools),
+        canonicalModes
+      )
+    },
+    [
+      selectedTools,
+      canonicalModeOverrides,
+      setStoreValue,
+      collaborativeSetSubblockValueWithCanonicalModes,
+      blockId,
+      subBlockId,
+    ]
+  )
 
   // Tool categories the consuming block can't run (declared on its tool-input
   // subBlock): shown in the picker but greyed out with a tooltip instead of added.
@@ -832,6 +866,7 @@ export const ToolInput = memo(function ToolInput({
               type: 'custom-tool',
               customToolId: customTool.id,
               usageControl: existingTool.usageControl || 'auto',
+              usageControlExpression: existingTool.usageControlExpression,
               isExpanded: existingTool.isExpanded,
             }
           : {
@@ -856,10 +891,9 @@ export const ToolInput = memo(function ToolInput({
     (toolIndex: number) => {
       if (isPreview || disabled) return
       const updatedTools = selectedTools.filter((_, index) => index !== toolIndex)
-      reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-      setStoreValue(updatedTools)
+      setToolsWithReindexedModes(updatedTools)
     },
-    [isPreview, disabled, selectedTools, reindexCanonicalModesOnMutate, setStoreValue]
+    [isPreview, disabled, selectedTools, setToolsWithReindexedModes]
   )
 
   const handleRemoveAllFromServer = useCallback(
@@ -868,10 +902,9 @@ export const ToolInput = memo(function ToolInput({
       const updatedTools = selectedTools.filter(
         (t) => !(t.type === 'mcp' && t.params?.serverId === serverId)
       )
-      reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-      setStoreValue(updatedTools)
+      setToolsWithReindexedModes(updatedTools)
     },
-    [isPreview, disabled, selectedTools, reindexCanonicalModesOnMutate, setStoreValue]
+    [isPreview, disabled, selectedTools, setToolsWithReindexedModes]
   )
 
   const handleDeleteTool = useCallback(
@@ -899,11 +932,10 @@ export const ToolInput = memo(function ToolInput({
       })
 
       if (updatedTools.length !== selectedTools.length) {
-        reindexCanonicalModesOnMutate(selectedTools, updatedTools)
-        setStoreValue(updatedTools)
+        setToolsWithReindexedModes(updatedTools)
       }
     },
-    [selectedTools, customTools, reindexCanonicalModesOnMutate, setStoreValue]
+    [selectedTools, customTools, setToolsWithReindexedModes]
   )
 
   const handleParamChange = useCallback(
@@ -985,23 +1017,36 @@ export const ToolInput = memo(function ToolInput({
     [isPreview, disabled, selectedTools, getToolIdForOperation, blockId, setStoreValue]
   )
 
-  const handleUsageControlChange = useCallback(
-    (toolIndex: number, usageControl: string) => {
-      if (isPreview || disabled) return
+  const handleUsageControlChange = (
+    toolIndex: number,
+    usageControl: NonNullable<StoredTool['usageControl']>
+  ) => {
+    if (isPreview || disabled) return
 
-      setStoreValue(
-        selectedTools.map((tool, index) =>
-          index === toolIndex
-            ? {
-                ...tool,
-                usageControl: usageControl as 'auto' | 'force' | 'none',
-              }
-            : tool
-        )
+    setStoreValue(
+      selectedTools.map((tool, index) =>
+        index === toolIndex
+          ? {
+              ...tool,
+              usageControl,
+            }
+          : tool
       )
-    },
-    [isPreview, disabled, selectedTools, setStoreValue]
-  )
+    )
+  }
+
+  const handleUsageControlExpressionChange = (
+    toolIndex: number,
+    usageControlExpression: string
+  ) => {
+    if (isPreview || disabled) return
+
+    setStoreValue(
+      selectedTools.map((tool, index) =>
+        index === toolIndex ? { ...tool, usageControlExpression } : tool
+      )
+    )
+  }
 
   const [localExpanded, setLocalExpanded] = useState<Record<number, boolean>>({})
 
@@ -1076,8 +1121,7 @@ export const ToolInput = memo(function ToolInput({
       newTools.splice(adjustedDropIndex, 0, draggedTool)
     }
 
-    reindexCanonicalModesOnMutate(selectedTools, newTools)
-    setStoreValue(newTools)
+    setToolsWithReindexedModes(newTools)
     setDraggedIndex(null)
     setDragOverIndex(null)
   }
@@ -1153,7 +1197,7 @@ export const ToolInput = memo(function ToolInput({
 
       if (supportsAdvancedMcpServer) {
         serverToolItems.push({
-          label: 'Use all available tools',
+          label: 'Configure operations access',
           value: `mcp-server-all-${mcpServerDrilldown}`,
           iconElement: createToolIcon('var(--brand-agent)', ServerIcon),
           onSelect: () => {
@@ -1167,16 +1211,16 @@ export const ToolInput = memo(function ToolInput({
             )
             const serverBinding: StoredTool = {
               type: MCP_SERVER_ADVANCED_TOOL_TYPE,
+              operationPolicy: { mode: 'allow', operations: [] },
               params: { serverId: mcpServerDrilldown },
-              isExpanded: false,
+              isExpanded: true,
               usageControl: 'auto',
             }
             const nextTools = [
               ...filteredTools.map((tool) => ({ ...tool, isExpanded: false })),
               serverBinding,
             ]
-            reindexCanonicalModesOnMutate(selectedTools, filteredTools)
-            setStoreValue(nextTools)
+            setToolsWithReindexedModes(nextTools, filteredTools)
             setMcpServerDrilldown(null)
             setOpen(false)
           },
@@ -1404,6 +1448,7 @@ export const ToolInput = memo(function ToolInput({
                 ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
                 {
                   type: MCP_SERVER_ADVANCED_TOOL_TYPE,
+                  operationPolicy: { mode: 'allow', operations: [] },
                   params: { serverId: '' },
                   isExpanded: true,
                   usageControl: 'auto',
@@ -1442,7 +1487,7 @@ export const ToolInput = memo(function ToolInput({
     supportsAdvancedMcpServer,
     availableWorkflows,
     isToolAlreadySelected,
-    reindexCanonicalModesOnMutate,
+    setToolsWithReindexedModes,
   ])
 
   return (
@@ -1490,6 +1535,13 @@ export const ToolInput = memo(function ToolInput({
             toolIndex,
             tool.type
           )
+          const toolUsageControlMode = getAgentToolUsageControlMode(
+            toolIndex,
+            canonicalModeOverrides
+          )
+          const isToolDisabled =
+            supportsToolControl &&
+            resolveAgentToolUsageControl(tool, toolIndex, canonicalModeOverrides) === 'none'
 
           const subBlocksResult: SubBlocksForToolInput | null =
             !isCustomTool && !isMcpFamily && currentToolId
@@ -1540,7 +1592,7 @@ export const ToolInput = memo(function ToolInput({
                 isAdvancedMcpServer
                   ? ADVANCED_MCP_SERVER_TOOL_SCHEMA
                   : (mcpToolSchema ?? undefined),
-                formatParameterLabel
+                isAdvancedMcpServer ? () => 'MCP Server' : formatParameterLabel
               )
             : (subBlocksResult?.subBlocks ?? []).filter(
                 (sb) =>
@@ -1550,12 +1602,14 @@ export const ToolInput = memo(function ToolInput({
 
           const hasOperations =
             !isCustomTool && !isMcpFamily && hasMultipleOperations(toolBlock ?? undefined)
-          const hasToolBody = hasOperations || displaySubBlocks.length > 0
+          const showToolControl = supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool))
+          const hasToolBody = showToolControl || hasOperations || displaySubBlocks.length > 0
 
           const isSearchExpanded =
             activeSearchTarget?.subBlockId === subBlockId &&
             activeSearchTarget.valuePath[0] === toolIndex &&
-            activeSearchTarget.valuePath[1] === 'params'
+            (activeSearchTarget.valuePath[1] === 'params' ||
+              activeSearchTarget.valuePath[1] === 'usageControlExpression')
           const isExpandedForDisplay = hasToolBody
             ? isPreview || disabled
               ? isSearchExpanded || (localExpanded[toolIndex] ?? !!tool.isExpanded)
@@ -1582,23 +1636,24 @@ export const ToolInput = memo(function ToolInput({
               <div
                 className={cn(
                   'flex items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]',
-                  (isCustomTool || hasToolBody) && 'cursor-pointer'
+                  (isCustomTool || hasToolBody) && 'cursor-pointer',
+                  showToolControl && isToolDisabled && 'opacity-50 grayscale'
                 )}
                 role={isCustomTool || hasToolBody ? 'button' : undefined}
                 tabIndex={isCustomTool || hasToolBody ? 0 : undefined}
                 onClick={() => {
-                  if (isCustomTool) {
-                    handleEditCustomTool(toolIndex)
-                  } else if (hasToolBody) {
+                  if (hasToolBody) {
                     toggleToolExpansion(toolIndex)
+                  } else if (isCustomTool) {
+                    handleEditCustomTool(toolIndex)
                   }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
-                    if (isCustomTool) {
-                      handleEditCustomTool(toolIndex)
-                    } else if (hasToolBody) {
+                    if (hasToolBody) {
                       toggleToolExpansion(toolIndex)
+                    } else if (isCustomTool) {
+                      handleEditCustomTool(toolIndex)
                     }
                   }
                 }}
@@ -1675,65 +1730,19 @@ export const ToolInput = memo(function ToolInput({
                     )}
                 </div>
                 <div className='flex shrink-0 items-center gap-2'>
-                  {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
-                    <Popover
-                      open={usageControlPopoverIndex === toolIndex}
-                      onOpenChange={(open) => setUsageControlPopoverIndex(open ? toolIndex : null)}
-                      colorScheme='inverted'
+                  {isCustomTool && hasToolBody && (
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      aria-label='Edit custom tool'
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleEditCustomTool(toolIndex)
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
                     >
-                      <PopoverTrigger asChild>
-                        <button
-                          className='flex items-center justify-center text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
-                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                          aria-label='Tool usage control'
-                        >
-                          {tool.usageControl === 'auto' && 'Auto'}
-                          {tool.usageControl === 'force' && 'Force'}
-                          {tool.usageControl === 'none' && 'None'}
-                          {!tool.usageControl && 'Auto'}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        side='bottom'
-                        align='end'
-                        sideOffset={8}
-                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                        className='gap-0.5'
-                        border
-                      >
-                        <PopoverItem
-                          active={(tool.usageControl || 'auto') === 'auto'}
-                          onClick={() => {
-                            handleUsageControlChange(toolIndex, 'auto')
-                            setUsageControlPopoverIndex(null)
-                          }}
-                        >
-                          Auto <span className='text-[var(--text-tertiary)]'>(model decides)</span>
-                        </PopoverItem>
-                        <PopoverItem
-                          active={tool.usageControl === 'force'}
-                          disabled={!supportsForce}
-                          onClick={() => {
-                            handleUsageControlChange(toolIndex, 'force')
-                            setUsageControlPopoverIndex(null)
-                          }}
-                        >
-                          Force{' '}
-                          <span className='text-[var(--text-tertiary)]'>
-                            {supportsForce ? '(always use)' : '(not supported by model)'}
-                          </span>
-                        </PopoverItem>
-                        <PopoverItem
-                          active={tool.usageControl === 'none'}
-                          onClick={() => {
-                            handleUsageControlChange(toolIndex, 'none')
-                            setUsageControlPopoverIndex(null)
-                          }}
-                        >
-                          None
-                        </PopoverItem>
-                      </PopoverContent>
-                    </Popover>
+                      <Pencil className='size-[14px]' />
+                    </Button>
                   )}
                   {isMcpTool &&
                   selectedTools.filter(
@@ -1803,8 +1812,52 @@ export const ToolInput = memo(function ToolInput({
                 </div>
               </div>
 
-              {!isCustomTool && isExpandedForDisplay && (
+              {isExpandedForDisplay && (
                 <div className='flex flex-col gap-2.5 overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] p-2'>
+                  {showToolControl && (
+                    <>
+                      <ToolUsageControl
+                        blockId={blockId}
+                        aggregateSubBlockId={subBlockId}
+                        toolIndex={toolIndex}
+                        tool={tool}
+                        mode={toolUsageControlMode}
+                        supportsForce={supportsForce}
+                        disabled={disabled || isPreview}
+                        onFixedChange={(usageControl) =>
+                          handleUsageControlChange(toolIndex, usageControl)
+                        }
+                        onExpressionChange={(usageControlExpression) =>
+                          handleUsageControlExpressionChange(toolIndex, usageControlExpression)
+                        }
+                        onModeToggle={() => {
+                          const nextMode =
+                            toolUsageControlMode === 'advanced' ? 'basic' : 'advanced'
+                          collaborativeSetBlockCanonicalMode(
+                            blockId,
+                            buildAgentToolUsageControlCanonicalKey(toolIndex),
+                            nextMode
+                          )
+                        }}
+                      />
+                      {(hasOperations || displaySubBlocks.length > 0) && (
+                        <FieldDivider className='py-0' />
+                      )}
+                    </>
+                  )}
+                  {isAdvancedMcpServer && (
+                    <McpOperationPolicyEditor
+                      value={tool.operationPolicy}
+                      disabled={disabled || isPreview}
+                      onChange={(operationPolicy) =>
+                        setStoreValue(
+                          selectedTools.map((candidate, index) =>
+                            index === toolIndex ? { ...candidate, operationPolicy } : candidate
+                          )
+                        )
+                      }
+                    />
+                  )}
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     if (!hasOperations) return null
@@ -1837,6 +1890,8 @@ export const ToolInput = memo(function ToolInput({
                   })()}
 
                   {(() => {
+                    if (displaySubBlocks.length === 0) return null
+
                     const renderSubBlock = (sb: BlockSubBlockConfig): React.ReactNode => {
                       const effectiveParamId = sb.id
                       const canonicalId = toolCanonicalIndex?.canonicalIdBySubBlockId[sb.id]

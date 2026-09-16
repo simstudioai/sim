@@ -20,6 +20,7 @@ export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenam
   const inputRef = useRef<HTMLInputElement>(null)
   const cancelRequestedRef = useRef(false)
   const isSavingRef = useRef(false)
+  const activeTargetRef = useRef<RenameTarget | null>(null)
 
   useEffect(() => {
     if (editingTarget && inputRef.current) {
@@ -29,13 +30,20 @@ export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenam
   }, [editingTarget])
 
   const startRename = useCallback((target: RenameTarget) => {
+    const nextTarget = { ...target }
+    activeTargetRef.current = nextTarget
     cancelRequestedRef.current = false
-    setEditingTarget(target)
+    isSavingRef.current = false
+    setIsSaving(false)
+    setEditingTarget(nextTarget)
     setValue(target.name)
   }, [])
 
   const cancelRename = useCallback(() => {
+    activeTargetRef.current = null
     cancelRequestedRef.current = true
+    isSavingRef.current = false
+    setIsSaving(false)
     setEditingTarget(null)
   }, [])
 
@@ -45,21 +53,24 @@ export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenam
       return
     }
 
-    if (!editingTarget || isSavingRef.current) {
+    if (!editingTarget || activeTargetRef.current !== editingTarget || isSavingRef.current) {
       return
     }
 
     const trimmedValue = value.trim()
     if (!trimmedValue || trimmedValue === editingTarget.name) {
+      activeTargetRef.current = null
       setEditingTarget(null)
       return
     }
 
     isSavingRef.current = true
     setIsSaving(true)
+    let saved = false
     try {
       await onSave(editingTarget.id, trimmedValue)
-      setEditingTarget(null)
+      saved = true
+      if (activeTargetRef.current === editingTarget) setEditingTarget(null)
     } catch (error) {
       logger.error(`Failed to rename ${itemType}:`, {
         error,
@@ -67,10 +78,14 @@ export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenam
         oldName: editingTarget.name,
         newName: trimmedValue,
       })
-      setValue(editingTarget.name)
+      if (activeTargetRef.current === editingTarget) setValue(editingTarget.name)
     } finally {
-      isSavingRef.current = false
-      setIsSaving(false)
+      /** A late save must not clear a newer row's rename session or pending state. */
+      if (activeTargetRef.current === editingTarget) {
+        isSavingRef.current = false
+        setIsSaving(false)
+        if (saved) activeTargetRef.current = null
+      }
     }
   }, [editingTarget, itemType, onSave, value])
 

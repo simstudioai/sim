@@ -13,11 +13,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 [Harmonic](https://harmonic.ai/) is a private-market intelligence platform for researching companies, people, and investors. Its Scout agent accepts a natural-language sourcing request—such as “find forward-deployed engineers in enterprise software”—and the Harmonic block converts the result into a predictable `contacts` table for downstream scoring, review, storage in Sim tables, or delivery to CRM and other integration blocks.
 
-### Authentication
+## Authentication
 
 This integration uses a reusable Harmonic **team API key** connection. It does not use delegated OAuth. You need an existing Harmonic workspace with API access; ask your Harmonic workspace administrator or [Harmonic support](mailto:support@harmonic.ai) for the team key, then create a Harmonic connection from the block's **Harmonic Account** field. Sim validates and stores the key once, then sends it only in Harmonic's `apikey` request header. The same connection can be reused across Harmonic blocks and replaced or revoked from the credentials settings.
 
-### Working with people data
+## Working with people data
 
 - **Scout search:** **Search People with Scout** uses an integration-owned schema so every successful request returns the same normalized contact fields. Scout task errors, timeouts, interruptions, and malformed structured results stop the workflow instead of returning an ambiguous partial result.
 - **Saved searches:** A team API key can read only saved searches shared with the team. Make a private people search shared in the Harmonic console, then choose it with the basic selector. Advanced mode accepts a numeric saved-search ID or full URN when a search is not shown. Follow `pageInfo.nextCursor` while `pageInfo.hasNext` is true.

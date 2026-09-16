@@ -372,12 +372,10 @@ function SignupFormContent({
 
       if (destination.kind === 'verify') {
         router.push(VERIFY_FROM_SIGNUP_ROUTE)
-      } else if (destination.kind === 'redirect') {
-        // Full navigation, matching the verify hop: the destination (invite, CLI
-        // handoff) is server-rendered and must see the fresh session cookie.
-        window.location.href = destination.url
       } else {
-        router.push(DEFAULT_POST_AUTH_ROUTE)
+        /** Match login/verification: refresh session-bound shells and their theme default. */
+        window.location.href =
+          destination.kind === 'redirect' ? destination.url : DEFAULT_POST_AUTH_ROUTE
       }
     } catch (error) {
       logger.error('Signup error:', error)
@@ -408,7 +406,9 @@ function SignupFormContent({
     <div className='space-y-6'>
       <AuthHeader title='Create an account' description='Create an account or log in' />
 
-      {hasOnlySSO && <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />}
+      {hasOnlySSO && (
+        <SSOLoginButton callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE} variant='primary' />
+      )}
 
       {emailEnabled && (
         <form onSubmit={onSubmit} className='space-y-6'>
@@ -486,10 +486,13 @@ function SignupFormContent({
           githubAvailable={githubAvailable}
           googleAvailable={googleAvailable}
           microsoftAvailable={microsoftAvailable}
-          callbackURL={redirectUrl || '/workspace'}
+          callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE}
         >
           {ssoEnabled && !hasOnlySSO && (
-            <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
+            <SSOLoginButton
+              callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE}
+              variant='outline'
+            />
           )}
         </SocialLoginButtons>
       )}

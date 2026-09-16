@@ -42,10 +42,8 @@ RSS triggers only fire for items published after you save the trigger. Existing 
 </Callout>
 
 <FAQ items={[
-  { question: "How often is the RSS feed checked for new items?", answer: "Every minute. On each poll, Sim fetches the feed, compares items against the last checked timestamp and a list of previously seen GUIDs, and runs your workflow only for genuinely new items." },
   { question: "How does the poller avoid processing the same item twice?", answer: "It tracks up to 100 recent item GUIDs and the last checked timestamp. An item is new only if its GUID hasn't been seen and its publication date is after the last check. An idempotency layer also prevents duplicate runs for the same item." },
   { question: "Is there a limit on how many new items are processed per poll?", answer: "Yes — at most 25 new items per poll, newest first. If a feed publishes more than 25 between polls, only the 25 most recent run." },
   { question: "What output fields are available from the RSS trigger?", answer: "title, link, and pubDate as top-level convenience fields, plus a full item object (guid, summary, content, contentSnippet, author, categories, enclosure, isoDate), a feed object (title, link, description), and a processed timestamp." },
   { question: "What happens if the RSS feed is temporarily unreachable?", answer: "A failed fetch increments the consecutive-failure counter. After 100 consecutive failures the trigger auto-disables; any successful poll resets the counter to zero." },
-  { question: "Does the RSS trigger support Atom feeds?", answer: "Yes. The underlying parser supports both RSS and Atom, so a URL of either format works in the Feed URL field." },
 ]} />

@@ -33,6 +33,7 @@ export const POST = defineInternalJsonRoute({
     slackBotCredentialId: body.slackBotCredentialId,
     clientId: body.clientId,
     clientSecret: body.clientSecret,
+    requiredScopes: body.requiredScopes,
   }),
   useCase: startSlackCredentialGroupConfiguration,
 })

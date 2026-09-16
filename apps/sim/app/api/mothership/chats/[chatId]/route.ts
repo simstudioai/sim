@@ -18,7 +18,7 @@ import {
 } from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
-import { chatPubSub } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -36,7 +36,7 @@ const logger = createLogger('MothershipChatAPI')
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
-      const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+      const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
@@ -45,7 +45,7 @@ export const GET = withRouteHandler(
       if (!paramsResult.success) return paramsResult.response
       const { chatId } = paramsResult.data.params
 
-      const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
+      const chat = await getAccessibleCopilotChatWithMessages(chatId, userId, { principal })
       if (!chat || chat.type !== 'mothership') {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
@@ -154,7 +154,7 @@ export const GET = withRouteHandler(
 export const PATCH = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
-      const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+      const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
@@ -163,6 +163,10 @@ export const PATCH = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { chatId } = parsed.data.params
       const { title, isUnread, pinned } = parsed.data.body
+      const chat = await getAccessibleCopilotChatAuth(chatId, userId, { principal })
+      if (!chat || chat.type !== 'mothership') {
+        return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
+      }
 
       const updates: Record<string, unknown> = {}
 
@@ -195,19 +199,22 @@ export const PATCH = withRouteHandler(
         .returning({
           id: copilotChats.id,
           workspaceId: copilotChats.workspaceId,
+          organizationId: copilotChats.organizationId,
         })
 
       if (!updatedChat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
+      publishChatStatusChanged(
+        { ...updatedChat, userId },
+        {
+          chatId,
+          type: title !== undefined ? 'renamed' : 'updated',
+        }
+      )
       if (updatedChat.workspaceId) {
         if (title !== undefined) {
-          chatPubSub?.publishStatusChanged({
-            workspaceId: updatedChat.workspaceId,
-            chatId,
-            type: 'renamed',
-          })
           captureServerEvent(
             userId,
             'task_renamed',
@@ -250,7 +257,7 @@ export const PATCH = withRouteHandler(
 export const DELETE = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ chatId: string }> }) => {
     try {
-      const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+      const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
       if (!isAuthenticated || !userId) {
         return createUnauthorizedResponse()
       }
@@ -259,7 +266,7 @@ export const DELETE = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { chatId } = parsed.data.params
 
-      const chat = await getAccessibleCopilotChatAuth(chatId, userId)
+      const chat = await getAccessibleCopilotChatAuth(chatId, userId, { principal })
       if (!chat || chat.type !== 'mothership') {
         return NextResponse.json({ success: true })
       }
@@ -277,18 +284,15 @@ export const DELETE = withRouteHandler(
         )
         .returning({
           workspaceId: copilotChats.workspaceId,
+          organizationId: copilotChats.organizationId,
         })
 
       if (!deletedChat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
+      publishChatStatusChanged({ ...deletedChat, userId }, { chatId, type: 'deleted' })
       if (deletedChat.workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId: deletedChat.workspaceId,
-          chatId,
-          type: 'deleted',
-        })
         captureServerEvent(
           userId,
           'task_deleted',

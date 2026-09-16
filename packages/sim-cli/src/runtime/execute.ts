@@ -1,11 +1,18 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { Command } from 'commander'
+import {
+  assertWorkspaceOperationOutcome,
+  readWorkspaceOperation,
+  waitWorkspaceOperation,
+  workspaceWaitTimeout,
+} from '../commands/protocol/workspace-operation-wait'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
-import type { V2OperationName } from '../generated/v2-api'
-import { pageProgress, SimApiError, type V2Page } from '../http/client'
+import type { GetWorkspaceOperationResponse, V2OperationName } from '../generated/v2-api'
+import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
 import { safeOneLine } from '../output/render'
 import { camel } from './derive'
-import { DEFAULT_LIMIT } from './options'
+import { DEFAULT_PAGE_SIZE, defaultListLimit } from './options'
 import { warnRenamedFlag } from './renamed'
 import {
   buildRequest,
@@ -16,6 +23,15 @@ import {
 } from './request'
 import { foldPageEnvelope, renderPage, renderResult } from './result'
 import type { OperationSpec } from './types'
+
+const WORKSPACE_OPERATION_KINDS: Readonly<
+  Partial<Record<V2OperationName, GetWorkspaceOperationResponse['data']['kind']>>
+> = {
+  importWorkflow: 'workflow_import',
+  forkWorkspace: 'workspace_fork',
+  pushWorkspace: 'workspace_push',
+  pullWorkspace: 'workspace_pull',
+}
 
 /**
  * Operations that report the outcome of the work they did in band.
@@ -59,7 +75,7 @@ const RUN_OUTCOME_OPERATIONS: Readonly<
 }
 
 /** The one-line explanation of an in-band run failure, or `null` if there is none. */
-function runFailureMessage(operation: V2OperationName, payload: unknown): string | null {
+export function runFailureMessage(operation: V2OperationName, payload: unknown): string | null {
   const failureMessages = RUN_OUTCOME_OPERATIONS[operation]
   if (!failureMessages) return null
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
@@ -222,8 +238,8 @@ const EXCLUSIVE_CAP_FIELDS: Readonly<
  * this, `--limit ''` would go from today's error to an unbounded walk of a
  * shared workspace.
  */
-function readPagedLimit(raw: unknown): number {
-  const text = String(raw ?? DEFAULT_LIMIT).trim()
+function readPagedLimit(raw: unknown, operation: V2OperationName): number {
+  const text = String(raw ?? defaultListLimit(operation)).trim()
   const value = text === '' ? Number.NaN : Number(text)
   if (!Number.isInteger(value) || value < 0) {
     throw new SimApiError('--limit must be a whole number of 0 or more (0 for everything)', 0)
@@ -384,21 +400,41 @@ export async function executeOperation(
    * generic integer refusal — losing the `0 for everything` this pager depends
    * on the caller knowing.
    */
-  const pagedLimit = paging ? readPagedLimit(requestFlags.limit) : 0
-  const request = buildRequest(
-    operation,
-    positional,
-    requestFlags,
-    needsWorkspace ? client.requireWorkspace() : profile.workspaceId
-  )
+  const pagedLimit = paging ? readPagedLimit(requestFlags.limit, operation) : 0
+  const requestWorkspaceId = needsWorkspace ? client.requireWorkspace() : profile.workspaceId
+  const request = buildRequest(operation, positional, requestFlags, requestWorkspaceId)
+
+  if (commandSpec.workspaceOperation) {
+    if (!WORKSPACE_OPERATION_KINDS[operation])
+      throw new SimApiError('This command has no workspace operation identity configured', 0)
+    workspaceWaitTimeout(requestFlags.waitTimeout)
+    if (requestFlags.waitTimeout !== undefined && requestFlags.wait !== true)
+      throw new SimApiError('--wait-timeout requires --wait', 0)
+    if (
+      requestFlags.wait === true &&
+      (!request.body?.requestId || !request.body?.previewFingerprint)
+    )
+      throw new SimApiError(
+        '--wait requires --request-id and --preview-fingerprint from the reviewed preview',
+        0
+      )
+    if (operationSpec.body?.confirm && requestFlags.yes === true && request.body)
+      request.body.confirm = true
+  }
 
   if (paging) {
+    const initialCursor = request[paging]?.cursor
+    if (
+      initialCursor !== undefined &&
+      (typeof initialCursor !== 'string' || initialCursor.trim() === '')
+    ) {
+      throw new SimApiError('--cursor must be a non-empty string', 0)
+    }
     const limit = pagedLimit === 0 ? Number.POSITIVE_INFINITY : pagedLimit
-    const pageSize = Math.min(Number.isFinite(limit) ? limit : DEFAULT_LIMIT, DEFAULT_LIMIT)
-    const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
     const rows: unknown[] = []
+    const seenCursors = new Set<string>(initialCursor ? [initialCursor] : [])
     const progress = pageProgress()
-    let cursor: string | null = null
+    let cursor: string | null = initialCursor ?? null
     /** The first page's envelope: where a fact about the whole query is stated. */
     let envelope: unknown
 
@@ -406,6 +442,8 @@ export async function executeOperation(
     // would otherwise leave the progress text on the line the error prints onto.
     try {
       do {
+        const pageSize = Math.min(DEFAULT_PAGE_SIZE, limit - rows.length)
+        const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
         const page: V2Page<unknown> = await client.request(request.path, {
           method: operationSpec.method,
           headers: request.headers,
@@ -415,6 +453,13 @@ export async function executeOperation(
               ? { ...(request.body ?? {}), ...pageLimit, ...(cursor ? { cursor } : {}) }
               : request.body,
         })
+        if (page.data.length > pageSize) {
+          throw new SimApiError(
+            `The API returned ${page.data.length} items for a page limit of ${pageSize}; nextCursor would skip unreturned items.`,
+            0
+          )
+        }
+        assertCursorAdvances(page.nextCursor, seenCursors)
         envelope = foldPageEnvelope(envelope, page)
         rows.push(...page.data)
         cursor = page.nextCursor
@@ -423,26 +468,90 @@ export async function executeOperation(
     } finally {
       progress.finish()
     }
-    // A cursor still in hand means the walk stopped at `--limit`, not at the
-    // end of the list — the one fact that separates a clipped answer from a
-    // complete one, and it was dropped with the loop variable.
-    renderPage(
-      profile.output,
-      Number.isFinite(limit) ? rows.slice(0, limit) : rows,
-      commandSpec,
-      envelope,
-      { truncated: Boolean(cursor) }
-    )
+    renderPage(profile.output, { data: rows, nextCursor: cursor }, commandSpec, envelope)
     return
   }
 
-  const result = await client.request<{ data?: unknown }>(request.path, {
-    method: operationSpec.method,
-    headers: request.headers,
-    query: request.query,
-    body: request.body,
-  })
-  const payload = result?.data ?? result
+  let result: { data?: unknown }
+  try {
+    result = await client.request<{ data?: unknown }>(request.path, {
+      method: operationSpec.method,
+      headers: request.headers,
+      query: request.query,
+      body: request.body,
+    })
+  } catch (error) {
+    if (
+      commandSpec.workspaceOperation &&
+      request.body?.requestId &&
+      (!(error instanceof SimApiError) ||
+        error.status === 0 ||
+        error.status >= 500 ||
+        (error.status >= 200 && error.status < 300))
+    ) {
+      const failure =
+        error instanceof SimApiError
+          ? error
+          : new SimApiError(getErrorMessage(error, 'Unable to read the mutation response'), 0)
+      throw new SimApiError(
+        failure.message,
+        failure.status,
+        'MUTATION_OUTCOME_UNKNOWN',
+        {
+          cause: failure.details,
+          requestId: request.body.requestId,
+          workspaceId: requestWorkspaceId,
+          applied: 'unknown',
+          reconciliation:
+            'Find the operation using this requestId, or retry identical inputs with the same requestId.',
+        },
+        failure.exitCode
+      )
+    }
+    throw error
+  }
+  let payload = result?.data ?? result
+  if (
+    commandSpec.workspaceOperation &&
+    (Boolean(request.body?.requestId) ||
+      requestFlags.wait === true ||
+      (payload && typeof payload === 'object' && 'operationId' in payload))
+  ) {
+    let report
+    try {
+      report = readWorkspaceOperation(payload)
+      const expectedRequestId =
+        operation !== 'importWorkflow' && typeof request.body?.requestId === 'string'
+          ? request.body.requestId.trim()
+          : request.body?.requestId
+      if (
+        report.requestId !== expectedRequestId ||
+        report.workspaceId !== requestWorkspaceId ||
+        report.kind !== WORKSPACE_OPERATION_KINDS[operation]
+      )
+        throw new SimApiError('The operation receipt does not match the submitted mutation', 0)
+    } catch {
+      throw new SimApiError(
+        'The mutation response did not contain a matching operation receipt; reconcile using the same request ID',
+        0,
+        'MUTATION_OUTCOME_UNKNOWN',
+        { requestId: request.body?.requestId, workspaceId: requestWorkspaceId, applied: 'unknown' }
+      )
+    }
+    let timedOut = false
+    if (requestFlags.wait === true)
+      ({ report, timedOut } = await waitWorkspaceOperation(
+        client,
+        report.workspaceId,
+        report.operationId,
+        workspaceWaitTimeout(requestFlags.waitTimeout),
+        report
+      ))
+    payload = report
+    renderResult(operation, profile.output, payload, commandSpec)
+    assertWorkspaceOperationOutcome(report, timedOut)
+    return
+  }
   renderResult(
     operation,
     profile.output,

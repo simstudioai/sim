@@ -1,0 +1,31 @@
+/** Face and contour palettes for the two platform illustrations. */
+.onLight {
+  --iso-stroke: color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted));
+  --iso-low: var(--surface-6);
+  --iso-mid: color-mix(in srgb, var(--surface-3) 58%, var(--surface-6));
+  --iso-high: var(--surface-3);
+}
+
+.onDark {
+  --iso-stroke: color-mix(in srgb, var(--surface-6) 72%, var(--text-secondary));
+  --iso-low: color-mix(in srgb, var(--text-secondary) 82%, var(--surface-6));
+  --iso-mid: color-mix(in srgb, var(--text-secondary) 64%, var(--surface-6));
+  --iso-high: color-mix(in srgb, var(--text-secondary) 46%, var(--surface-6));
+}
+
+/** Soft gray faces keep the layers distinct without bright highlights on dark cards. */
+:global(.dark) .onLight,
+:global(.dark) .onDark {
+  --iso-stroke: var(--text-primary);
+  --iso-low: color-mix(in srgb, var(--text-icon) 80%, var(--surface-6));
+  --iso-mid: var(--text-icon);
+  --iso-high: color-mix(in srgb, var(--text-icon) 70%, var(--text-secondary));
+}
+
+/** Quiet, unfilled contours on the solid menu-preview surface in either theme. */
+.outline {
+  --iso-stroke: var(--text-icon);
+  --iso-low: none;
+  --iso-mid: none;
+  --iso-high: none;
+}

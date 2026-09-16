@@ -72,7 +72,7 @@ In Python, use `int()`, `== "true"`, and `json.loads()` the same way.
 
 Two cases are easy to miss:
 
-- **Booleans.** A bare `if ({{FEATURE_ON}})` is always true, because the string `"false"` is truthy. Compare against `'true'` instead.
+- **Booleans.** A bare `if ({{FEATURE_ON}})` tests string truthiness, so the string `"false"` is truthy. Compare against `'true'` instead.
 - **Lists and objects.** Store the value as JSON so you can parse it back. `["^[A-Z]{2}-\\d{4}$", "^\\d{7,15}$"]` becomes an array; a JavaScript array of regex literals does not. It arrives as one long string, and iterating it walks character by character.
 
 [Condition](/workflows/blocks/condition) blocks differ in one way: a number, boolean, or `null` value compares as a literal there, so `{{MAX_RETRIES}} === 3` is true. Every other value is a string, exactly as it is here.
@@ -150,7 +150,7 @@ workspace path instead, or keep the secret out of the output.
 
 JavaScript without imports runs in a fast local sandbox. JavaScript with `import` or `require`, Python, and Shell run in the configured remote sandbox provider.
 
-| | JavaScript | Python | Shell |
+| Feature | JavaScript | Python | Shell |
 | --- | --- | --- | --- |
 | **Execution** | Local when there are no imports; remote with imports | Always remote | Always remote |
 | **Return a value** | `return { … }` | Assign `__sim_result__ = { … }` | Print `__SIM_RESULT__={…}` |
@@ -365,8 +365,8 @@ The Function sanitizes the form input and returns the clean value, which the API
 const { purchaseHistory, accountAge, supportTickets } = <agent>;
 
 const totalSpent = purchaseHistory.reduce((sum, p) => sum + p.amount, 0);
-const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
-const ticketRatio = supportTickets.resolved / supportTickets.total;
+const purchaseFrequency = accountAge > 0 ? purchaseHistory.length / (accountAge / 365) : 0;
+const ticketRatio = supportTickets.total > 0 ? supportTickets.resolved / supportTickets.total : 0;
 
 const spendScore = Math.min((totalSpent / 1000) * 30, 30);
 const frequencyScore = Math.min(purchaseFrequency * 20, 40);
@@ -388,8 +388,8 @@ def calculate_loyalty(data):
     support_tickets = data["supportTickets"]
 
     total_spent = sum(p["amount"] for p in purchase_history)
-    purchase_frequency = len(purchase_history) / (account_age / 365)
-    ticket_ratio = support_tickets["resolved"] / support_tickets["total"]
+    purchase_frequency = len(purchase_history) / (account_age / 365) if account_age > 0 else 0
+    ticket_ratio = support_tickets["resolved"] / support_tickets["total"] if support_tickets["total"] > 0 else 0
 
     spend_score = min(total_spent / 1000 * 30, 30)
     frequency_score = min(purchase_frequency * 20, 40)
@@ -441,11 +441,5 @@ The lazy `sim.files` and `sim.values` helpers are available only in JavaScript f
 - **Use stdout to debug.** `console.log()`, `print()`, and ordinary shell output land in `<function.stdout>` and the run logs.
 
 <FAQ items={[
-  { question: "What languages does the Function block support?", answer: "JavaScript, Python, and Shell. JavaScript is the default. Python remains a stable saved language choice; Shell and custom Sandbox controls appear when a remote sandbox provider is enabled. Python and Shell execution require that provider." },
-  { question: "When does code run locally vs. in a sandbox?", answer: "JavaScript without external imports runs in a local isolated sandbox for speed. JavaScript that uses import or require, Python, and Shell run in the configured remote sandbox." },
-  { question: "Does JavaScript still work without E2B or Daytona?", answer: "Yes. JavaScript without import or require runs in Sim's local isolated VM and does not require a remote provider. JavaScript with external imports, Python, Shell, and custom Sandboxes require E2B or Daytona and fail explicitly when it is unavailable." },
-  { question: "How do I reference outputs from other blocks inside my code?", answer: "Use angle-bracket syntax directly, like <agent.content> or <api.data>, with no quotes around the tag — Sim replaces it with the real value before execution. For environment variables, use double curly braces: {{API_KEY}}. To read a file, reference its path — <gmail.attachments[0].path> mounts it and resolves to a location any language can open." },
-  { question: "What does the Function block return?", answer: "Three outputs: result, stdout, and files. Use return in JavaScript, assign __sim_result__ in Python, or print an __SIM_RESULT__= marker in Shell to set result. Ordinary console, print, and command output goes to stdout. Anything your code writes to /tmp/sim/outputs comes back in files as a file object later blocks can accept directly." },
-  { question: "Can I make HTTP requests from a Function block?", answer: "Yes. fetch() is available in JavaScript with async/await. In Python, use requests or httpx. In Shell, use curl or a CLI available on the selected sandbox." },
   { question: "Is there a timeout for Function block execution?", answer: "Yes, a configurable execution timeout. If your code exceeds it, the run is terminated and the block reports an error. Keep this in mind for external calls or heavy processing." },
 ]} />

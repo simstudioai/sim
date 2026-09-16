@@ -1,175 +1,55 @@
 import {
-  PlatformHeroVisual,
   SolutionsPage,
-  type SolutionsPageConfig,
-} from '@/app/(landing)/components'
-import {
-  AuditTrailGraphic,
-  RunMonitoringGraphic,
-  StagingGraphic,
-} from '@/app/(landing)/enterprise/components/feature-graphics'
-import {
-  FailureAlertGraphic,
-  FilterRunsGraphic,
-  RunTraceGraphic,
-} from '@/app/(landing)/logs/components/feature-graphics'
-import { LogsHeroLoop } from '@/app/(landing)/logs/components/logs-hero-loop'
+  type SolutionsProductPageConfig,
+} from '@/app/(landing)/components/solutions-page'
+import { ProductHeroPreview } from '@/app/(landing)/components/solutions-page/components/solutions-product-page/components/product-hero-preview'
+import { LogHistoryPreview } from '@/app/(landing)/logs/components/log-history-preview'
+import { LogSnapshotPreview } from '@/app/(landing)/logs/components/log-snapshot-preview'
+import { LogTracePreview } from '@/app/(landing)/logs/components/log-trace-preview'
 
-/**
- * Logs platform page - a consumer of {@link SolutionsPage} rendered with
- * the enterprise page's feature-tile treatment.
- *
- * The whole page is one typed {@link SolutionsPageConfig} rendered inside
- * the shared route-group layout chrome: identity (for structured data), a
- * hero carrying the live Logs table loop, and two rows of three feature
- * tiles. Where the workflows page's "Trace every run" card introduces run
- * tracing in passing, this page goes deeper on the same story: the trace
- * itself (a new block-by-block waterfall vignette), live run details, the
- * run record, search and filters, failure debugging (the staging surface
- * retold as a failed run's snapshot), and alerting (a new failed-run →
- * Slack-alert vignette).
- *
- * The JSON-LD emitted by {@link SolutionsPage} is structurally identical
- * to the platform page's (`WebPage` + `BreadcrumbList` +
- * `WebApplication`), so the feature-tile treatment is SEO-neutral.
- */
-/** Shared meta + JSON-LD description for the Logs page (one string, zero drift). */
+/** Shared description for page metadata and structured data. */
 export const LOGS_PAGE_DESCRIPTION =
-  'Sim gives teams AI agent observability: trace every run step by step, search and filter across runs, and catch failures with alerts.'
+  'Inspect AI workflow runs in Sim. Filter run history, trace block inputs and outputs, and open the workflow snapshot behind each execution.'
 
-const LOGS_CONFIG: SolutionsPageConfig = {
+const LOGS_CONFIG: SolutionsProductPageConfig = {
   module: 'Logs',
   path: '/logs',
   seoDescription: LOGS_PAGE_DESCRIPTION,
   hero: {
+    visual: <ProductHeroPreview product='logs' />,
     eyebrow: 'Logs',
-    heading: 'Trace every agent run with full observability in Sim.',
+    heading: 'A clear view of every agent run.',
     description:
-      'Logs is the AI agent observability layer in Sim, the open-source AI workspace. Follow each run block by block, search across every run, and catch failures with alerts.',
+      'Follow every execution, inspect the details, and understand what happened in Sim.',
     summary:
-      'Logs is the AI agent observability layer in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Sim records every step of every run, so teams trace each decision, tool call, and output, and catch failures with alerts.',
-    visual: (
-      <PlatformHeroVisual>
-        <LogsHeroLoop />
-      </PlatformHeroVisual>
-    ),
+      'Sim Logs brings AI workflow run history and debugging into the open-source AI workspace. Teams filter runs by workflow, status, trigger, and time, inspect block inputs and outputs, compare duration and credits, and view the saved workflow snapshot behind an execution.',
   },
-  rows: [
+  features: [
     {
-      id: 'trace',
-      title: 'See exactly what every AI agent did.',
-      subtitle:
-        'Sim records every step of every agent run, so teams can follow each decision, tool call, and output on one timeline.',
-      cta: { label: 'Explore Logs in Sim', href: '/signup' },
-      cards: [
-        {
-          title: 'Trace runs block by block',
-          description:
-            'Sim captures every step of a run: each block, tool call, and model response, with its duration.',
-          featureTileTone: 'dark',
-          featureTileDescriptionTone: 'soft',
-          visual: <RunTraceGraphic />,
-        },
-        {
-          title: 'Watch runs as they happen',
-          description:
-            'Sim shows each run the moment it starts, with its trigger, duration, and output, so teams see agents working in real time.',
-          visual: (
-            <RunMonitoringGraphic
-              fields={[
-                { label: 'Workflow', value: 'Support ticket routing', variant: 'strong' },
-                { label: 'Status', value: 'Completed', variant: 'chip' },
-                { label: 'Latency', value: '1.86s', variant: 'mono' },
-                { label: 'Tokens', value: '8.4K', variant: 'mono' },
-              ]}
-              outputPairs={[
-                { key: 'status', value: '"completed"' },
-                { key: 'tokens', value: '8412' },
-              ]}
-            />
-          ),
-        },
-        {
-          title: 'Every run on the record',
-          description:
-            'Sim keeps a permanent history of every run and follow-up, so teams can answer what happened, when, and who resolved it.',
-          visual: (
-            <AuditTrailGraphic
-              entries={[
-                {
-                  action: 'Error resolved',
-                  actor: 'Maya Chen',
-                  resource: 'Nightly data sync',
-                  time: 'Now',
-                  avatar: '/landing/team-avatar-1.jpg',
-                },
-                {
-                  action: 'Run traced',
-                  actor: 'Jordan Lee',
-                  resource: 'Invoice matching · run 8f2a',
-                  time: '12 min ago',
-                  avatar: '/landing/team-avatar-2.jpg',
-                },
-                {
-                  action: 'Logs exported',
-                  actor: 'Sam Ortiz',
-                  resource: 'June runs · CSV',
-                  time: '1h ago',
-                  avatar: '/landing/team-avatar-3.jpg',
-                },
-                {
-                  action: 'Alert acknowledged',
-                  actor: 'Maya Chen',
-                  resource: 'Churn-risk alerts',
-                  time: 'Jul 8',
-                  avatar: '/landing/team-avatar-1.jpg',
-                },
-              ]}
-            />
-          ),
-        },
-      ],
+      id: 'history',
+      label: 'Run history',
+      title: 'From history to the full picture.',
+      description: 'Filter your runs and open an execution to see its timing, status, and steps.',
+      visual: <LogHistoryPreview />,
+      cta: { label: 'Explore run history', href: 'https://docs.sim.ai/logs-debugging/logging' },
     },
     {
-      id: 'catch',
-      title: 'Catch failures before they spread.',
-      subtitle:
-        'Sim surfaces failed runs the moment they happen, with the alerts and context teams need to fix them fast.',
-      cta: { label: 'Start tracing runs', href: '/signup' },
-      cards: [
-        {
-          title: 'Filter to the runs that matter',
-          description:
-            'Search and filter every run in Sim by workflow, status, trigger, and time, so failed runs surface fast.',
-          visual: <FilterRunsGraphic />,
-        },
-        {
-          title: 'Debug with full context',
-          description:
-            'Sim snapshots each run, so teams open a failed run with inputs, outputs, and trace intact and see which block broke.',
-          visual: (
-            <StagingGraphic
-              title='Nightly data sync'
-              headerTag='run 8f2a'
-              changeTag='error'
-              changeTitle='Timeout in Post to ledger'
-              attribution='Maya Chen · reviewing now'
-              checks={['Inputs captured', 'Output snapshot saved', 'Trace preserved']}
-              fromLabel='Error'
-              toLabel='Resolved'
-              actionLabel='Review run'
-            />
-          ),
-        },
-        {
-          title: 'Catch failures with alerting',
-          description:
-            'When a run fails, Sim alerts the channel your team already watches, naming the failing block and linking straight to the trace.',
-          featureTileTone: 'dark',
-          featureTileDescriptionTone: 'soft',
-          visual: <FailureAlertGraphic />,
-        },
-      ],
+      id: 'trace',
+      label: 'Execution traces',
+      title: 'Every step, in view.',
+      description:
+        'Inspect inputs, outputs, model responses, and tool calls in an execution trace.',
+      visual: <LogTracePreview />,
+      cta: { label: 'Explore traces', href: 'https://docs.sim.ai/logs-debugging/logging' },
+    },
+    {
+      id: 'snapshot',
+      label: 'Workflow snapshots',
+      title: 'Go back to what actually ran.',
+      description:
+        'Open the saved workflow snapshot to inspect the original blocks and configuration.',
+      visual: <LogSnapshotPreview />,
+      cta: { label: 'Explore debugging', href: 'https://docs.sim.ai/logs-debugging/logging' },
     },
   ],
 }

@@ -9,16 +9,15 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
-import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
 import {
   getSlotsForFieldType,
   isValidSlotForFieldType,
   SUPPORTED_FIELD_TYPES,
 } from '@/lib/knowledge/constants'
+import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type {
   CreateTagDefinitionData,
@@ -202,23 +201,23 @@ export async function getNextAvailableSlot(
   return null // All slots for this field type are used
 }
 
-/**
- * Get all tag definitions for a knowledge base
- */
+const DOCUMENT_TAG_DEFINITION_FIELDS = {
+  id: knowledgeBaseTagDefinitions.id,
+  knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
+  tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+  displayName: knowledgeBaseTagDefinitions.displayName,
+  fieldType: knowledgeBaseTagDefinitions.fieldType,
+  createdAt: knowledgeBaseTagDefinitions.createdAt,
+  updatedAt: knowledgeBaseTagDefinitions.updatedAt,
+}
+
+/** Get all tag definitions for a knowledge base. */
 export async function getDocumentTagDefinitions(
   knowledgeBaseId: string,
   txDb?: DbOrTx
 ): Promise<DocumentTagDefinition[]> {
   const definitions = await (txDb ?? db)
-    .select({
-      id: knowledgeBaseTagDefinitions.id,
-      knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
-      tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-      displayName: knowledgeBaseTagDefinitions.displayName,
-      fieldType: knowledgeBaseTagDefinitions.fieldType,
-      createdAt: knowledgeBaseTagDefinitions.createdAt,
-      updatedAt: knowledgeBaseTagDefinitions.updatedAt,
-    })
+    .select(DOCUMENT_TAG_DEFINITION_FIELDS)
     .from(knowledgeBaseTagDefinitions)
     .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
     .orderBy(knowledgeBaseTagDefinitions.tagSlot)
@@ -227,6 +226,35 @@ export async function getDocumentTagDefinitions(
     ...def,
     tagSlot: def.tagSlot as string,
   }))
+}
+
+/** Loads each requested base's slot-ordered definitions in one statement, including empty bases. */
+export async function getDocumentTagDefinitionsByKnowledgeBaseIds(
+  knowledgeBaseIds: readonly string[]
+): Promise<Map<string, DocumentTagDefinition[]>> {
+  const definitionsByKnowledgeBase = new Map<string, DocumentTagDefinition[]>(
+    knowledgeBaseIds.map((id) => [id, []])
+  )
+  if (definitionsByKnowledgeBase.size === 0) return definitionsByKnowledgeBase
+  if (definitionsByKnowledgeBase.size === 1) {
+    const id = knowledgeBaseIds[0]
+    definitionsByKnowledgeBase.set(id, await getDocumentTagDefinitions(id))
+    return definitionsByKnowledgeBase
+  }
+  const definitions = await db
+    .select(DOCUMENT_TAG_DEFINITION_FIELDS)
+    .from(knowledgeBaseTagDefinitions)
+    .where(
+      inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, [...definitionsByKnowledgeBase.keys()])
+    )
+    .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+  for (const definition of definitions) {
+    definitionsByKnowledgeBase.get(definition.knowledgeBaseId)!.push({
+      ...definition,
+      tagSlot: definition.tagSlot as string,
+    })
+  }
+  return definitionsByKnowledgeBase
 }
 
 /**
@@ -535,17 +563,20 @@ export async function getTagDefinitionById(
  */
 export async function cleanupUnusedTagDefinitions(
   knowledgeBaseId: string,
-  requestId: string
+  requestId: string,
+  options?: { executor: DbOrTx; signal: AbortSignal }
 ): Promise<number> {
-  const definitions = await getDocumentTagDefinitions(knowledgeBaseId)
+  const executor = options?.executor ?? db
+  const definitions = await getDocumentTagDefinitions(knowledgeBaseId, executor)
   let cleanedUp = 0
 
   for (const def of definitions) {
+    options?.signal.throwIfAborted()
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
-    const docCountResult = await db
-      .select({ count: sql<number>`count(*)` })
+    const [taggedDocument] = await executor
+      .select({ id: document.id })
       .from(document)
       .where(
         and(
@@ -555,9 +586,12 @@ export async function cleanupUnusedTagDefinitions(
           sql`${sql.raw(tagSlot)} IS NOT NULL`
         )
       )
+      .limit(1)
+    if (taggedDocument) continue
 
-    const chunkCountResult = await db
-      .select({ count: sql<number>`count(*)` })
+    options?.signal.throwIfAborted()
+    const [taggedChunk] = await executor
+      .select({ id: embedding.id })
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))
       .where(
@@ -568,12 +602,13 @@ export async function cleanupUnusedTagDefinitions(
           sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
         )
       )
+      .limit(1)
 
-    const docCount = Number(docCountResult[0]?.count || 0)
-    const chunkCount = Number(chunkCountResult[0]?.count || 0)
-
-    if (docCount === 0 && chunkCount === 0) {
-      await db.delete(knowledgeBaseTagDefinitions).where(eq(knowledgeBaseTagDefinitions.id, def.id))
+    if (!taggedChunk) {
+      options?.signal.throwIfAborted()
+      await executor
+        .delete(knowledgeBaseTagDefinitions)
+        .where(eq(knowledgeBaseTagDefinitions.id, def.id))
 
       cleanedUp++
       logger.info(
@@ -806,7 +841,7 @@ export async function updateTagDefinition(
 export async function getTagUsage(
   knowledgeBaseId: string,
   requestId: string,
-  access: KnowledgeAccessScope
+  access: KnowledgeReadAccess
 ): Promise<
   Array<{
     tagName: string
@@ -832,7 +867,6 @@ export async function getTagUsage(
       eq(document.userExcluded, false),
       isNull(document.archivedAt),
       isNull(document.deletedAt),
-      knowledgeAccessCondition(access),
       isNotNull(sql`${sql.raw(tagSlot)}`),
     ]
 
@@ -840,14 +874,19 @@ export async function getTagUsage(
       whereConditions.push(sql`${sql.raw(tagSlot)} != ''`)
     }
 
-    const documentsWithTag = await db
-      .select({
-        id: document.id,
-        filename: document.filename,
-        tagValue: sql<string>`${sql.raw(tagSlot)}::text`,
-      })
-      .from(document)
-      .where(and(...whereConditions))
+    const documentsWithTag: { id: string; filename: string; tagValue: string }[] = []
+    for await (const accessCondition of knowledgeReadAccessBatches(access, whereConditions)) {
+      documentsWithTag.push(
+        ...(await db
+          .select({
+            id: document.id,
+            filename: document.filename,
+            tagValue: sql<string>`${sql.raw(tagSlot)}::text`,
+          })
+          .from(document)
+          .where(and(...whereConditions, accessCondition)))
+      )
+    }
 
     usage.push({
       tagName: def.displayName,
@@ -871,7 +910,7 @@ export async function getTagUsage(
  */
 export async function getTagUsageStats(
   knowledgeBaseId: string,
-  access: KnowledgeAccessScope,
+  access: KnowledgeReadAccess,
   requestId: string
 ): Promise<
   Array<{
@@ -890,42 +929,54 @@ export async function getTagUsageStats(
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
-    const docCountResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(document)
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          knowledgeAccessCondition(access),
-          sql`${sql.raw(tagSlot)} IS NOT NULL`
+    const conditions = [
+      eq(document.knowledgeBaseId, knowledgeBaseId),
+      eq(document.userExcluded, false),
+      isNull(document.archivedAt),
+      isNull(document.deletedAt),
+    ]
+    let documentCount = 0
+    let chunkCount = 0
+    for await (const accessCondition of knowledgeReadAccessBatches(access, conditions)) {
+      const docCountResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(document)
+        .where(
+          and(
+            eq(document.knowledgeBaseId, knowledgeBaseId),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt),
+            accessCondition,
+            sql`${sql.raw(tagSlot)} IS NOT NULL`
+          )
         )
-      )
 
-    const chunkCountResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(embedding)
-      .innerJoin(document, eq(embedding.documentId, document.id))
-      .where(
-        and(
-          eq(embedding.knowledgeBaseId, knowledgeBaseId),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          knowledgeAccessCondition(access),
-          sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
+      const chunkCountResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(embedding)
+        .innerJoin(document, eq(embedding.documentId, document.id))
+        .where(
+          and(
+            eq(embedding.knowledgeBaseId, knowledgeBaseId),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt),
+            accessCondition,
+            sql`${sql.raw(`embedding.${tagSlot}`)} IS NOT NULL`
+          )
         )
-      )
 
+      documentCount += Number(docCountResult[0]?.count || 0)
+      chunkCount += Number(chunkCountResult[0]?.count || 0)
+    }
     stats.push({
       id: def.id,
       tagSlot: def.tagSlot,
       displayName: def.displayName,
       fieldType: def.fieldType,
-      documentCount: Number(docCountResult[0]?.count || 0),
-      chunkCount: Number(chunkCountResult[0]?.count || 0),
+      documentCount,
+      chunkCount,
     })
   }
 

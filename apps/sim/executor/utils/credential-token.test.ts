@@ -8,14 +8,24 @@ const {
   mockBindExecutorManagedOAuthDelegation,
   mockCreateCopilotManagedOAuthPrincipal,
   mockResolveCredentialAccessToken,
+  mockPersonalCredentialUseCase,
 } = vi.hoisted(() => ({
   mockBindExecutorManagedOAuthDelegation: vi.fn(),
   mockCreateCopilotManagedOAuthPrincipal: vi.fn(),
   mockResolveCredentialAccessToken: vi.fn(),
+  mockPersonalCredentialUseCase: vi.fn(),
 }))
 
 vi.mock('@/lib/credentials/application/copilot-managed-oauth-delegation', () => ({
   createCopilotManagedOAuthPrincipal: mockCreateCopilotManagedOAuthPrincipal,
+}))
+
+vi.mock('@/lib/copilot/application/execute-credential-use-case', () => ({
+  executeCopilotCredentialUseCase: mockPersonalCredentialUseCase,
+}))
+vi.mock('@/tools/metadata', () => ({
+  getToolMetadata: (id: string) =>
+    id === 'gmail_read' ? { oauth: { required: true, provider: 'google-email' } } : undefined,
 }))
 
 vi.mock('@/lib/oauth/token-resolution', () => ({
@@ -194,5 +204,57 @@ describe('resolveExecutorCredentialToken', () => {
         userId: 'user-1',
       })
     ).resolves.toEqual(token)
+  })
+})
+
+describe('Assistant token boundary', () => {
+  const context = {
+    userId: 'user-1',
+    workspaceId: 'ws-1',
+    chatId: 'chat-1',
+    toolCallId: 'tool-1',
+    copilotToolExecution: true,
+    requestMode: 'assistant',
+  }
+  const params = {
+    requestId: 'req-1',
+    credentialId: 'mine',
+    userId: 'user-1',
+    toolId: 'gmail_read',
+    copilotExecutionContext: context,
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPersonalCredentialUseCase.mockResolvedValue({ id: 'mine' })
+    mockResolveCredentialAccessToken.mockResolvedValue({
+      ok: true,
+      token: { accessToken: 'fresh' },
+    })
+  })
+  it('checks the current personal account before using the shared refresh/audit resolver', async () => {
+    await expect(resolveExecutorCredentialToken(params)).resolves.toEqual({ accessToken: 'fresh' })
+    expect(mockPersonalCredentialUseCase).toHaveBeenCalledWith(context, expect.anything(), {
+      workspaceId: 'ws-1',
+      credentialId: 'mine',
+      expectedProviderId: 'google-email',
+    })
+    expect(mockPersonalCredentialUseCase.mock.invocationCallOrder[0]).toBeLessThan(
+      mockResolveCredentialAccessToken.mock.invocationCallOrder[0]
+    )
+  })
+  it('refuses revocation after discovery or approval without resolving a token', async () => {
+    mockPersonalCredentialUseCase.mockRejectedValue(new Error('Account disconnected'))
+    await expect(resolveExecutorCredentialToken(params)).rejects.toThrow('Account disconnected')
+    expect(mockResolveCredentialAccessToken).not.toHaveBeenCalled()
+  })
+  it.each([
+    { userId: 'other-user' },
+    { impersonateEmail: 'other@example.com' },
+    { toolId: 'http_request' },
+    { copilotExecutionContext: { ...context, workspaceId: undefined } },
+    { executorDelegationOrigin: ORIGIN },
+  ])('refuses invalid Assistant authority before token resolution', async (override) => {
+    await expect(resolveExecutorCredentialToken({ ...params, ...override })).rejects.toThrow()
+    expect(mockResolveCredentialAccessToken).not.toHaveBeenCalled()
   })
 })

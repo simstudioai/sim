@@ -1,37 +1,31 @@
-/**
- * The FileLibraryGraphic's motion: the library rows stamp in top to
- * bottom one after another — the audit tile's one-shot settle, never
- * re-played, since the library is filled once. Under
- * prefers-reduced-motion the rows render fully settled.
- */
-
-.row0,
-.row1,
-.row2,
-.row3 {
-  animation: file-library-row-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+/** The folders settle first, followed by the individual files; the sequence runs once. */
+.item0,
+.item1,
+.item2,
+.item3 {
+  animation: file-library-item-in 0.5s ease-out backwards;
 }
 
-.row0 {
-  animation-delay: 0.35s;
+.item0 {
+  animation-delay: 0.2s;
 }
 
-.row1 {
+.item1 {
+  animation-delay: 0.3s;
+}
+
+.item2 {
+  animation-delay: 0.4s;
+}
+
+.item3 {
   animation-delay: 0.5s;
 }
 
-.row2 {
-  animation-delay: 0.65s;
-}
-
-.row3 {
-  animation-delay: 0.8s;
-}
-
-@keyframes file-library-row-in {
+@keyframes file-library-item-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -40,10 +34,98 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .row0,
-  .row1,
-  .row2,
-  .row3 {
+  .item0,
+  .item1,
+  .item2,
+  .item3 {
     animation: none;
+  }
+}
+
+.folderButton {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  touch-action: manipulation;
+  border-radius: 12px;
+  outline-offset: 4px;
+}
+.folderButton:focus-visible {
+  outline: 2px solid var(--text-primary);
+}
+.folderScene {
+  position: absolute;
+  width: 321px;
+  height: 270px;
+  left: 50%;
+  bottom: 0;
+  margin-left: -160.5px;
+  perspective: 800px;
+  transform-origin: bottom center;
+}
+.folderBack {
+  position: absolute;
+  inset: -20px 0 0;
+  border-radius: 25px;
+  background: color-mix(in srgb, var(--surface-6) 85%, #000);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.folderPaper {
+  position: absolute;
+  width: 164px;
+  height: 214px;
+  left: 78.5px;
+  top: 28px;
+  border-radius: 20px;
+  border: 2px solid var(--border);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-subtle);
+  padding: 26px 16px;
+}
+.paperTitle {
+  display: block;
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--border);
+}
+.paperLines {
+  display: block;
+  height: 128px;
+  margin-top: 20px;
+  background: repeating-linear-gradient(to bottom, var(--border) 0 3px, transparent 3px 14px);
+}
+.folderFlap {
+  position: absolute;
+  width: 321px;
+  height: 241px;
+  left: 0;
+  bottom: 0;
+  transform-origin: bottom center;
+  transform-style: preserve-3d;
+}
+.folderLabel {
+  position: absolute;
+  left: 25px;
+  right: 25px;
+  bottom: 30px;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: 24px;
+  line-height: 30px;
+}
+.folderLabel > span:last-child {
+  font-size: 20px;
+  color: var(--text-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .folderPaper,
+  .folderFlap {
+    transition: none;
   }
 }

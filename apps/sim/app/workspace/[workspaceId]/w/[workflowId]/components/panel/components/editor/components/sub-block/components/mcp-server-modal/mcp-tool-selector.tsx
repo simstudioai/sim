@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Combobox } from '@sim/emcn'
+import { useMemo } from 'react'
+import { ChipCombobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useMcpBlockConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-mcp-block-config'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
@@ -31,70 +31,44 @@ export function McpToolSelector({
   const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [inputValue, setInputValue] = useState('')
 
-  const { mcpTools, isLoading, error, refreshTools, getToolsByServer } = useMcpTools(workspaceId)
+  const { mcpTools, isLoading, error, refreshTools } = useMcpTools(workspaceId)
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
   const [, setSchemaCache] = useSubBlockValue(blockId, '_toolSchema')
 
-  const [serverFromStore] = useSubBlockValue(blockId, 'server')
-  const serverValue = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.server)
-    : serverFromStore
+  const { server: serverValue } = useMcpBlockConfig({ blockId, previewContextValues })
 
   const label = subBlock.placeholder || 'Select tool'
 
   const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
   const selectedToolId = effectiveValue || ''
 
-  const availableTools = useMemo(() => {
-    if (!serverValue) return []
-    return getToolsByServer(serverValue)
-  }, [serverValue, getToolsByServer])
+  const availableTools = useMemo(
+    () => mcpTools.filter((tool) => tool.serverId === serverValue),
+    [mcpTools, serverValue]
+  )
 
-  const selectedTool = availableTools.find((tool) => tool.id === selectedToolId)
-
-  useEffect(() => {
-    if (serverValue && selectedToolId && !selectedTool && availableTools.length === 0) {
-      refreshTools()
-    }
-  }, [serverValue, selectedToolId, selectedTool, availableTools.length, refreshTools])
-
-  useEffect(() => {
-    if (
-      storeValue &&
-      availableTools.length > 0 &&
-      !availableTools.find((tool) => tool.id === storeValue)
-    ) {
-      if (!isPreview && !disabled) {
-        setStoreValue('')
-      }
-    }
-  }, [serverValue, availableTools, storeValue, setStoreValue, isPreview, disabled])
+  const selectedTool = availableTools.find(
+    (tool) => tool.id === selectedToolId || tool.name === selectedToolId
+  )
 
   const comboboxOptions = useMemo(
     () =>
       availableTools.map((tool) => ({
         label: tool.name,
-        value: tool.id,
+        value: tool.name,
       })),
     [availableTools]
   )
 
+  const inputValue =
+    selectedTool?.name ?? (typeof effectiveValue === 'string' ? effectiveValue : '')
   const handleComboboxChange = (value: string) => {
-    const matchedTool = availableTools.find((t) => t.id === value)
-    if (matchedTool) {
-      setInputValue(matchedTool.name)
-      if (!isPreview) {
-        setStoreValue(value)
-        if (matchedTool.inputSchema) {
-          setSchemaCache(matchedTool.inputSchema)
-        }
-      }
-    } else {
-      setInputValue(value)
-    }
+    if (isPreview) return
+    const matchedTool = availableTools.find((tool) => tool.name === value)
+    setStoreValue(matchedTool?.name ?? value)
+    setSchemaCache(matchedTool?.inputSchema ?? null)
   }
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -102,14 +76,6 @@ export function McpToolSelector({
       refreshTools()
     }
   }
-
-  useEffect(() => {
-    if (selectedTool) {
-      setInputValue(selectedTool.name)
-    } else {
-      setInputValue('')
-    }
-  }, [selectedTool])
 
   const isDisabled = disabled || !serverValue
   const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
@@ -120,7 +86,7 @@ export function McpToolSelector({
   })
 
   return (
-    <Combobox
+    <ChipCombobox
       options={comboboxOptions}
       value={inputValue}
       selectedValue={selectedToolId}
@@ -128,15 +94,15 @@ export function McpToolSelector({
       onOpenChange={handleOpenChange}
       placeholder={serverValue ? label : 'Select server first'}
       disabled={isDisabled}
-      editable={true}
-      filterOptions={true}
+      editable={false}
+      searchable
+      filterOptions={false}
       isLoading={isLoading}
       error={error || null}
+      overlayLabel={inputValue || undefined}
       overlayContent={
         workflowSearchHighlight ? (
-          <span className='block truncate'>
-            {formatDisplayText(inputValue, { workflowSearchHighlight })}
-          </span>
+          <span>{formatDisplayText(inputValue, { workflowSearchHighlight })}</span>
         ) : undefined
       }
     />

@@ -25,10 +25,8 @@ vi.mock('@/components/icons', () => ({
   RootlyIcon: () => null,
   AzureIcon: () => null,
 }))
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  fetchWithRetry: vi.fn(),
-  VALIDATE_RETRY_OPTIONS: {},
-}))
+vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({ fetchWithRetry: vi.fn() }))
 vi.mock('@/tools/jira/utils', () => ({ extractAdfText: vi.fn(), getJiraCloudId: vi.fn() }))
 vi.mock('@/tools/confluence/utils', () => ({ getConfluenceCloudId: vi.fn() }))
 vi.mock('@/tools/jsm/utils', () => ({
@@ -78,17 +76,57 @@ import {
   MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
   MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
   markSkipped,
+  memberDocumentId,
   PER_MEMBER_LISTING_CONTEXT,
   parseDefaultedUnlimitedSafeInteger,
   pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
+  sourceDocumentId,
   takeIndexableWithinCap,
 } from '@/connectors/utils'
 import { xConnector } from '@/connectors/x/x'
 import { youtubeConnector } from '@/connectors/youtube/youtube'
 
 const ISO_DATE = '2025-06-15T10:30:00.000Z'
+
+describe('member document identity', () => {
+  const alice = { ...PER_MEMBER_LISTING_CONTEXT, memberId: 'alice' }
+  const bob = { ...PER_MEMBER_LISTING_CONTEXT, memberId: 'bob' }
+
+  it('isolates different member representations of the same source item', () => {
+    const aliceId = memberDocumentId('site:document', alice)
+    const bobId = memberDocumentId('site:document', bob)
+    expect(aliceId).not.toBe(bobId)
+    expect(sourceDocumentId(aliceId, alice)).toBe('site:document')
+    expect(sourceDocumentId(aliceId, bob)).toBeNull()
+    expect(sourceDocumentId(bobId, alice)).toBeNull()
+    expect(sourceDocumentId('site:document', alice)).toBeNull()
+  })
+
+  it('preserves workspace document identities', () => {
+    expect(memberDocumentId('site:document', undefined)).toBe('site:document')
+    expect(sourceDocumentId('site:document', undefined)).toBe('site:document')
+    expect(memberDocumentId('site:document', { memberId: 'alice' })).toBe('site:document')
+  })
+
+  it('encodes member delimiters without changing the source identity', () => {
+    const context = { ...PER_MEMBER_LISTING_CONTEXT, memberId: 'alice:team/%' }
+    const id = memberDocumentId('calendar:recurring:event', context)
+    expect(sourceDocumentId(id, context)).toBe('calendar:recurring:event')
+    expect(sourceDocumentId(id, alice)).toBeNull()
+    expect(sourceDocumentId('member:alice:', alice)).toBeNull()
+  })
+
+  it.each([undefined, '', ' ', 42])(
+    'fails closed without a canonical member ID (%s)',
+    (memberId) => {
+      const context = { ...PER_MEMBER_LISTING_CONTEXT, memberId }
+      expect(() => memberDocumentId('document', context)).toThrow('connector member ID')
+      expect(() => sourceDocumentId('document', context)).toThrow('connector member ID')
+    }
+  )
+})
 
 describe('Jira mapTags', () => {
   const mapTags = jiraConnector.mapTags!
@@ -1458,17 +1496,13 @@ describe('htmlToPlainText entity decoding', () => {
 
 describe('isIndexableConnectorFile', () => {
   it('accepts the Office and PDF formats the knowledge base can parse', () => {
-    for (const name of [
-      'sop.pdf',
-      'sop.doc',
-      'sop.docx',
-      'sheet.xls',
-      'sheet.xlsx',
-      'deck.ppt',
-      'deck.pptx',
-    ]) {
+    for (const name of ['sop.pdf', 'sop.doc', 'sop.docx', 'sheet.xls', 'sheet.xlsx', 'deck.pptx']) {
       expect(isIndexableConnectorFile(name)).toBe(true)
     }
+  })
+
+  it('refuses legacy .ppt up front because no parser reads it', () => {
+    expect(isIndexableConnectorFile('deck.ppt')).toBe(false)
   })
 
   it('still accepts the plain-text formats connectors already synced', () => {
@@ -1537,6 +1571,30 @@ describe('extractConnectorText', () => {
 
   it('leaves whitespace-only content alone for the caller to reject', () => {
     expect(extractConnectorText(Buffer.from('   '), 'blank.txt')).toBe('   ')
+  })
+
+  it('decodes a Latin-1 file as Windows-1252 instead of indexing mojibake', () => {
+    expect(extractConnectorText(Buffer.from('Caf\xe9 \xa3 42', 'latin1'), 'notes.txt')).toBe(
+      'Café £ 42'
+    )
+  })
+
+  it('strips a UTF-8 BOM', () => {
+    expect(
+      extractConnectorText(
+        Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('a,b')]),
+        'data.csv'
+      )
+    ).toBe('a,b')
+  })
+
+  it('decodes UTF-16 with a BOM', () => {
+    expect(
+      extractConnectorText(
+        Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('<p>Hällo</p>', 'utf16le')]),
+        'page.html'
+      )
+    ).toBe('Hällo')
   })
 })
 

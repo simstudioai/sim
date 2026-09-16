@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import type { SearchParams } from 'nuqs/server'
 import { getSession } from '@/lib/auth'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { OAuthConsentView } from '@/app/(auth)/oauth/consent/consent-view'
 import { oauthConsentSearchParamsCache } from '@/app/(auth)/oauth/consent/search-params'
 
@@ -22,7 +22,7 @@ export default async function OAuthConsentPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  if (!(await isOAuthProviderEnabled())) redirect('/')
+  if (isAuthDisabled) redirect('/')
 
   const [session, raw] = await Promise.all([getSession(), searchParams])
 

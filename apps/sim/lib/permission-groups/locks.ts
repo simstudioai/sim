@@ -17,9 +17,9 @@ const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
  * correct than fine-grained per-user/per-group locks with acquire-ordering.
  *
  * Readers take it too, when the value they read decides whether a write in the
- * same transaction may commit — workspace creation re-reads the default group's
- * `workspace.create` capability under this lock, which is the only thing that
- * makes the check-to-insert window closed rather than merely narrow.
+ * same transaction may commit. Workspace creation and OAuth refresh re-read
+ * the default group's capability under this lock and hold it through their
+ * protected writes, closing the check-to-write window.
  *
  * `pg_advisory_xact_lock` auto-releases at transaction end (safe on pooled
  * connections), and `lock_timeout` bounds the wait (raising SQLSTATE 55P03)
@@ -35,10 +35,8 @@ const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
  * evaluation order is unspecified, so the bound might not be in force when the
  * lock is requested.
  *
- * LOCK ORDER: this is a LEAF lock. Every transaction that holds it — the five
- * `organizations/[id]/permission-groups` route transactions, and the workspace
- * creation transaction — acquires no further advisory lock afterwards. That is
- * what makes it safe for workspace creation to take it *last*, after
+ * LOCK ORDER: this is a LEAF lock. Transactions that hold it acquire no further
+ * advisory lock afterwards. Workspace creation and OAuth refresh take it last, after
  * `organization-mutation`, `user-billing-identity`, and the membership lock: a
  * deadlock needs a holder of this lock to wait on one of those, and no such
  * holder exists. Keep it a leaf.

@@ -48,7 +48,11 @@ vi.mock('@/providers/models', () => ({
     .fn()
     .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
   INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getModelCapabilities: vi.fn(),
+  getModelCapabilities: vi.fn((model: string) =>
+    model === 'nvidia/nemotron-3.5-lightning-30b-a3b'
+      ? { nativeStructuredOutputs: false }
+      : undefined
+  ),
   getProviderModels: vi.fn((provider: string) => [`${provider}/test-model`]),
   getProviderDefaultModel: vi.fn((provider: string) => `${provider}/test-model`),
 }))
@@ -182,6 +186,12 @@ const PROVIDERS = [
 
 const REASONING_HISTORY_PROVIDERS = [
   {
+    name: 'Sakana Namazu',
+    provider: sakanaProvider,
+    model: 'sakana-namazu-v1.0',
+    field: 'reasoning_content',
+  },
+  {
     name: 'Cerebras',
     provider: cerebrasProvider,
     model: 'cerebras/test-model',
@@ -238,6 +248,13 @@ const CAPPED_PROVIDERS = [
 ] as const
 
 const STRUCTURED_OUTPUT_PROVIDERS = [
+  {
+    name: 'NVIDIA Lightning',
+    provider: nvidiaProvider,
+    model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+    responseFormatType: 'json_object',
+    disablesTools: 'none',
+  },
   {
     name: 'Baseten',
     provider: basetenProvider,
@@ -387,6 +404,36 @@ describe('settled provider tool streams', () => {
     mockCreate.mockReset()
     mockExecuteTool.mockReset()
     mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'found' } })
+  })
+
+  it('normalizes the NVIDIA namespace while preserving the upstream model name', async () => {
+    mockCreate.mockResolvedValueOnce(response('ok'))
+    await nvidiaProvider.executeRequest({
+      apiKey: 'test-key',
+      model: 'NVIDIA/CustomModel',
+      messages: [{ role: 'user', content: 'Hello' }],
+    })
+    expect(mockCreate.mock.calls[0][0].model).toBe('nvidia/CustomModel')
+  })
+
+  it('uses NVIDIA Lightning JSON mode with schema instructions and reasoning disabled', async () => {
+    mockCreate.mockResolvedValueOnce(response('{"value":"found"}'))
+
+    await nvidiaProvider.executeRequest({
+      apiKey: 'test-key',
+      model: 'nvidia/nemotron-3.5-lightning-30b-a3b',
+      messages: [{ role: 'user', content: 'Return a value' }],
+      responseFormat: {
+        name: 'result',
+        schema: { type: 'object', properties: { value: { type: 'string' } } },
+      },
+    })
+
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({
+      response_format: { type: 'json_object' },
+      chat_template_kwargs: { enable_thinking: false },
+      messages: expect.arrayContaining([{ role: 'system', content: 'SCHEMA_INSTRUCTIONS' }]),
+    })
   })
 
   it.each(PROVIDERS)(

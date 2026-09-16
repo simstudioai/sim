@@ -1,0 +1,1 @@
+ALTER TABLE "rate_limit_bucket" ADD COLUMN "capacity_state" jsonb;

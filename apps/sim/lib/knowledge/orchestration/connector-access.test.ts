@@ -50,7 +50,7 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
   stripListingCapFields: (_meta: unknown, sourceConfig: Record<string, unknown>) => sourceConfig,
 }))
 vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadCredentialGroupCredentialListContext: mocks.loadGroup,
+  loadScopedAccountsCredentialListContext: mocks.loadGroup,
 }))
 vi.mock('@/lib/knowledge/access/availability', async () => {
   const { OrchestrationError } = await import('@/lib/core/orchestration/types')
@@ -155,6 +155,10 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.memberAccessAvailable.mockResolvedValue(true)
+    mocks.provision.mockResolvedValue({
+      credentialGroupId: 'group-1',
+      credentialGroupOptionId: 'option-1',
+    })
   })
 
   it('refuses a connector whose listing is not permission-scoped, before loading anything', async () => {
@@ -163,7 +167,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         workspaceId: 'ws-1',
         connectorMeta: { name: 'Slack', auth: { mode: 'oauth' }, configFields: [] } as never,
         actingUserId: 'admin-1',
-        binding: null,
         sourceConfig: {},
       })
     ).rejects.toMatchObject({ code: 'validation' })
@@ -171,19 +174,23 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     expect(mocks.loadGroup).not.toHaveBeenCalled()
   })
 
-  it('provisions the group when none is named, then validates it like a named one', async () => {
+  it('resolves and validates the workspace account option for the acting admin', async () => {
     mocks.provision.mockResolvedValue({
       credentialGroupId: 'group-9',
       credentialGroupOptionId: 'option-9',
     })
-    mocks.loadGroup.mockResolvedValue({ workspaceId: 'ws-1', status: 'active', options: [] })
+    mocks.loadGroup.mockResolvedValue({
+      credentialGroupId: 'group-9',
+      workspaceId: 'ws-1',
+      status: 'active',
+      options: [],
+    })
     mocks.validateBinding.mockReturnValue({ ok: true, option: {} })
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
         connectorMeta: SCOPED_META,
         actingUserId: 'admin-1',
-        binding: null,
         sourceConfig: {},
       })
     ).resolves.toEqual({
@@ -196,7 +203,7 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
       connectorMeta: SCOPED_META,
       userId: 'admin-1',
     })
-    expect(mocks.loadGroup).toHaveBeenCalledWith('group-9')
+    expect(mocks.loadGroup).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'ws-1' })
   })
 
   it('refuses members mode where the feature is off, before loading anything', async () => {
@@ -206,7 +213,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         workspaceId: 'ws-1',
         connectorMeta: SCOPED_META,
         actingUserId: 'admin-1',
-        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
       })
     ).rejects.toMatchObject({ message: 'Per-member access is not available for this workspace' })
@@ -221,7 +227,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
         workspaceId: 'ws-1',
         connectorMeta: SCOPED_META,
         actingUserId: 'admin-1',
-        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: {},
       })
     ).rejects.toMatchObject({ code: 'validation' })
@@ -229,14 +234,18 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
   })
 
   it('surfaces the validator refusal as a validation error', async () => {
-    mocks.loadGroup.mockResolvedValue({ workspaceId: 'ws-1', status: 'active', options: [] })
+    mocks.loadGroup.mockResolvedValue({
+      credentialGroupId: 'group-1',
+      workspaceId: 'ws-1',
+      status: 'active',
+      options: [],
+    })
     mocks.validateBinding.mockReturnValue({ ok: false, message: 'Max Files cannot be set' })
     await expect(
       resolveKnowledgeConnectorMembersBinding({
         workspaceId: 'ws-1',
         connectorMeta: SCOPED_META,
         actingUserId: 'admin-1',
-        binding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
         sourceConfig: { maxFiles: '5' },
       })
     ).rejects.toMatchObject({ code: 'validation', message: 'Max Files cannot be set' })
@@ -355,42 +364,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
   })
 
-  it('keeps the lease until the previous group is revoked when moving between groups', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
-    queueGroupRow('option-2')
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-      .mockResolvedValueOnce([
-        { ...MEMBERS_CONNECTOR, credentialGroupId: 'group-2', credentialGroupOptionId: 'option-2' },
-      ])
-
-    const outcome = await switchTo({
-      accessMode: 'members',
-      binding: {
-        credentialGroupId: 'group-2',
-        credentialGroupOptionId: 'option-2',
-        sourceConfig: {},
-      },
-    })
-
-    expect(outcome).toMatchObject({ success: true, changed: true })
-    expect(mocks.revoke).toHaveBeenCalledWith(
-      { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: 'c-1' },
-      'admin-1'
-    )
-    /**
-     * A revoke drops the connector from every option of the group. Released
-     * first, a switch that had re-granted group-1 in between would lose it.
-     */
-    const revokedAt = mocks.revoke.mock.invocationCallOrder[0]
-    const releasedAt = dbChainMockFns.set.mock.invocationCallOrder.at(-1) ?? 0
-    expect(revokedAt).toBeLessThan(releasedAt)
-    expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
-      expect.objectContaining({ status: 'active', syncLockToken: null })
-    )
-  })
-
   it('drops the members, restores workspace access, revokes the grant, flips, and queues a content sync', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
     dbChainMockFns.returning
@@ -447,6 +420,69 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
       requireRunnable: true,
     })
     expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The bug this pins: administrator mode hides on entry, and a flip that
+   * landed before the rewrite showed every workspace-visible document under a
+   * mode whose reader expects source ACLs. The rewrite must precede the flip,
+   * exactly as it does for members mode.
+   */
+  it('hides the documents before flipping to administrator mode, then queues a content sync', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+      .mockResolvedValueOnce([
+        { ...WORKSPACE_CONNECTOR, accessMode: 'admin', credentialId: 'cred-2' },
+      ])
+
+    const outcome = await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
+
+    expect(outcome).toMatchObject({ success: true, changed: true })
+    expect(mocks.rewriteAcls).toHaveBeenCalledWith(
+      'c-1',
+      [],
+      expect.objectContaining({
+        lease: expect.objectContaining({ stillHeld: expect.any(Function) }),
+      })
+    )
+    const flipIndex = dbChainMockFns.set.mock.calls.findIndex(
+      ([values]) => (values as Record<string, unknown>).accessMode !== undefined
+    )
+    const flippedAt = dbChainMockFns.set.mock.invocationCallOrder[flipIndex]
+    const rewrittenAt = mocks.rewriteAcls.mock.invocationCallOrder[0]
+    expect(rewrittenAt).toBeLessThan(flippedAt)
+    expect(setCallWith('accessMode')).toMatchObject({
+      accessMode: 'admin',
+      credentialId: 'cred-2',
+      accessRewritePending: false,
+      lastSyncAt: null,
+      nextSyncAt: expect.any(Date),
+    })
+    expect(mocks.dispatchSync).toHaveBeenCalledWith(
+      'c-1',
+      expect.objectContaining({ requireRunnable: true })
+    )
+    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
+  })
+
+  it('flips to administrator mode with the rewrite pending when it outgrows the request budget', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
+    mocks.rewriteAcls.mockResolvedValue(false)
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+      .mockResolvedValueOnce([
+        { ...WORKSPACE_CONNECTOR, accessMode: 'admin', credentialId: 'cred-2' },
+      ])
+
+    await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
+
+    expect(setCallWith('accessMode')).toMatchObject({
+      accessMode: 'admin',
+      accessRewritePending: true,
+    })
   })
 
   it('changes a workspace credential without the lease, drops the watermark, and queues a full sync', async () => {
@@ -519,6 +555,138 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
       expect.objectContaining({ credentialId: 'cred-2', lastSyncAt: null })
     )
     expect(mocks.dispatchSync).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { accessMode: 'admin' as const, credentialId: 'revoked-credential' },
+    { accessMode: 'admin' as const, credentialId: null },
+    { accessMode: 'workspace' as const, credentialId: 'revoked-credential' },
+    { accessMode: 'workspace' as const, credentialId: null },
+  ])(
+    'replaces a disabled $accessMode credential ($credentialId) without resuming the source',
+    async ({ accessMode, credentialId }) => {
+      const disabled = {
+        ...WORKSPACE_CONNECTOR,
+        accessMode,
+        credentialId,
+        status: 'disabled',
+        consecutiveFailures: 10,
+        lastSyncError: 'Auto-disabled after repeated authentication failures',
+        lastSyncAt: new Date('2026-08-01T00:00:00Z'),
+        listingCheckpoint: { pageToken: 'old-listing' },
+        directoryCheckpoint: { pageToken: 'old-directory' },
+      }
+      queueTableRows(schemaMock.knowledgeConnector, [disabled])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { ...disabled, credentialId: 'cred-2', lastSyncAt: null },
+      ])
+
+      const outcome = await switchTo({ accessMode, credentialId: 'cred-2' })
+
+      expect(outcome).toMatchObject({
+        success: true,
+        changed: true,
+        connector: {
+          credentialId: 'cred-2',
+          status: 'disabled',
+          consecutiveFailures: 10,
+          lastSyncError: disabled.lastSyncError,
+        },
+      })
+      expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.set).toHaveBeenCalledWith({
+        credentialId: 'cred-2',
+        lastSyncAt: null,
+        listingCheckpoint: null,
+        directoryCheckpoint: null,
+        nextSyncAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      })
+      const condition = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+      expect(
+        hasMockCondition(
+          condition,
+          (node: MockCondition) =>
+            node.type === 'inArray' &&
+            node.column === schemaMock.knowledgeConnector.status &&
+            Array.isArray(node.values) &&
+            node.values.includes('disabled')
+        )
+      ).toBe(true)
+      for (const [column, value] of [
+        [schemaMock.knowledgeConnector.id, 'c-1'],
+        [schemaMock.knowledgeConnector.knowledgeBaseId, 'kb-1'],
+        [schemaMock.knowledgeConnector.status, 'disabled'],
+      ]) {
+        expect(
+          hasMockCondition(
+            condition,
+            (node: MockCondition) =>
+              node.type === 'eq' && node.left === column && node.right === value
+          )
+        ).toBe(true)
+      }
+      for (const column of [
+        schemaMock.knowledgeConnector.syncLockToken,
+        schemaMock.knowledgeConnector.archivedAt,
+        schemaMock.knowledgeConnector.deletedAt,
+      ]) {
+        expect(
+          hasMockCondition(
+            condition,
+            (node: MockCondition) => node.type === 'isNull' && node.column === column
+          )
+        ).toBe(true)
+      }
+      expect(resolveBillingAttribution).not.toHaveBeenCalled()
+      expect(mocks.dispatchSync).not.toHaveBeenCalled()
+      expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
+      expect(mocks.rewriteAcls).not.toHaveBeenCalled()
+      expect(mocks.grant).not.toHaveBeenCalled()
+      expect(mocks.revoke).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses a disabled credential replacement when Resume acquires the row first', async () => {
+    const disabled = { ...WORKSPACE_CONNECTOR, accessMode: 'admin', status: 'disabled' }
+    queueTableRows(schemaMock.knowledgeConnector, [disabled])
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { ...disabled, status: 'syncing', syncLockToken: 'run-1' },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
+
+    expect(outcome).toEqual({
+      success: false,
+      error: 'Sync already in progress',
+      errorCode: 'conflict',
+    })
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(mocks.dispatchSync).not.toHaveBeenCalled()
+    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
+  })
+
+  it('still refuses access-mode switches while a source is disabled', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [{ ...WORKSPACE_CONNECTOR, status: 'disabled' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const outcome = await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(
+      hasMockCondition(
+        dbChainMockFns.where.mock.calls.at(-1)?.[0],
+        (node: MockCondition) =>
+          node.type === 'inArray' &&
+          node.column === schemaMock.knowledgeConnector.status &&
+          Array.isArray(node.values) &&
+          !node.values.includes('disabled')
+      )
+    ).toBe(true)
+    expect(mocks.rewriteAcls).not.toHaveBeenCalled()
+    expect(mocks.dispatchSync).not.toHaveBeenCalled()
+    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
   })
 
   it('leaves a paused connector paused and queues nothing', async () => {

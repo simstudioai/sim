@@ -597,6 +597,7 @@ export async function searchOperation(
         : [bodyInput.knowledgeBaseIds],
       query: bodyInput.query,
       topK: bodyInput.topK,
+      surface: 'workflow',
       tagFilters: bodyInput.tagFilters,
       searchMode: bodyInput.searchMode,
       rerankerEnabled: bodyInput.rerankerEnabled,

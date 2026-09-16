@@ -83,6 +83,7 @@ export const GET = withRouteHandler(
           userName: user.name,
           userEmail: user.email,
           userImage: user.image,
+          userSuspendedAt: user.suspendedAt,
         })
         .from(member)
         .innerJoin(user, eq(member.userId, user.id))
@@ -96,6 +97,7 @@ export const GET = withRouteHandler(
         name: row.userName,
         email: row.userEmail,
         image: row.userImage,
+        suspendedAt: row.userSuspendedAt?.toISOString() ?? null,
         workspaces: [] as RosterWorkspaceAccess[],
       }))
 
@@ -189,6 +191,7 @@ export const GET = withRouteHandler(
                 userName: user.name,
                 userEmail: user.email,
                 userImage: user.image,
+                userSuspendedAt: user.suspendedAt,
                 workspaceId: permissions.entityId,
                 permission: permissions.permissionType,
                 createdAt: permissions.createdAt,
@@ -218,6 +221,7 @@ export const GET = withRouteHandler(
           name: string
           email: string
           image: string | null
+          suspendedAt: string | null
           workspaces: RosterWorkspaceAccess[]
         }
       >()
@@ -247,6 +251,7 @@ export const GET = withRouteHandler(
           name: row.userName,
           email: row.userEmail,
           image: row.userImage,
+          suspendedAt: row.userSuspendedAt?.toISOString() ?? null,
           workspaces: [workspaceAccess],
         })
       }

@@ -1,0 +1,101 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:06.100
+Files can look completely different on the
+outside. A PDF from Gmail, an image from a
+
+00:00:06.100 --> 00:00:12.080
+generation, an audio clip, a document from
+a parser. But for workflows to use them
+
+00:00:12.080 --> 00:00:18.380
+reliably, they need a common shape. This
+is the file object. It gives Sim one
+
+00:00:18.380 --> 00:00:24.120
+consistent interface to pass files between
+blocks so producers and consumers can work
+
+00:00:24.120 --> 00:00:29.840
+together without every file source needing
+special handling. Let me show you how the
+
+00:00:29.840 --> 00:00:35.520
+files object works. Your workflows make
+files from very different places. An email
+
+00:00:35.520 --> 00:00:39.980
+arrives carrying an attachment. One block
+generates an image, another turns text
+
+00:00:39.980 --> 00:00:45.800
+into speech, and another reads a document.
+Wire them all into one agent, and every
+
+00:00:45.800 --> 00:00:51.140
+lane feeds the same reader. The Gmail
+trigger fires first, and its attachment
+
+00:00:51.140 --> 00:00:56.580
+lands in the workflow as a file object.
+Then the image, the audio clip, and the
+
+00:00:56.580 --> 00:01:00.660
+parsed document arrive, each one delivered
+exactly the same way.
+
+00:01:02.380 --> 00:01:07.040
+Look at what's settled underneath. Four
+very different payloads, and the identical
+
+00:01:07.040 --> 00:01:11.920
+package around every one of them. Run it
+at full speed, and whatever a lane
+
+00:01:11.920 --> 00:01:14.720
+produces, the agent simply reads the next
+file object.
+
+00:01:16.740 --> 00:01:18.760
+Catch one mid -run and look closer.
+
+00:01:20.780 --> 00:01:26.180
+Every file object carries the same fields,
+an ID, a name, a URL, where the bytes
+
+00:01:26.180 --> 00:01:31.560
+live, a size, a type, and the content
+itself. A couple more fields exist under
+
+00:01:31.560 --> 00:01:36.600
+the hood, but this shape never changes, no
+matter which block made the file. Put it
+
+00:01:36.600 --> 00:01:38.280
+back, and the machine keeps moving.
+
+00:01:40.120 --> 00:01:44.420
+Because every producer speaks the same
+format, you can swap which one feeds the
+
+00:01:44.420 --> 00:01:46.680
+agent, and the agent side never changes.
+
+00:01:47.940 --> 00:01:52.840
+It works downstream, too. The same object
+can ride to any consumer, into an agent,
+
+00:01:53.000 --> 00:01:58.920
+out as an email attachment, or straight
+into storage. This is a real template. An
+
+00:01:58.920 --> 00:02:03.740
+invoice lands in Gmail, gets parsed, an
+agent pulls out the fields, and the result
+
+00:02:03.740 --> 00:02:07.680
+settles in your database. One object
+riding the whole way through.

@@ -7,7 +7,13 @@ import {
   mcpServers,
 } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import {
+  resourceScopeColumns,
+  resourceScopeFromOwner,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   getManagedMcpConnector,
@@ -81,6 +87,34 @@ function toSummary(row: typeof mcpServers.$inferSelect): ManagedMcpConnectorSumm
   }
 }
 
+/** Loads setup fields without reading the stored OAuth client secret. */
+export async function loadOrganizationDatabricksSetup(
+  organizationId: string,
+  credentialGroupId: string
+) {
+  const [server] = await db
+    .select({
+      id: mcpServers.id,
+      name: mcpServers.name,
+      url: mcpServers.url,
+      oauthClientId: mcpServers.oauthClientId,
+      hasOauthClientSecret: sql<boolean>`${mcpServers.oauthClientSecret} IS NOT NULL`,
+      enabled: mcpServers.enabled,
+    })
+    .from(mcpServers)
+    .where(
+      and(
+        eq(mcpServers.organizationId, organizationId),
+        eq(mcpServers.credentialGroupId, credentialGroupId),
+        eq(mcpServers.managedConnectorId, 'databricks'),
+        isNull(mcpServers.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!server) throw new ManagedMcpConnectorError('Databricks has not been added', 'not_found')
+  return server
+}
+
 async function validateServerUrl(url: string): Promise<void> {
   try {
     validateMcpDomain(url)
@@ -142,47 +176,24 @@ async function retireManagedMcpCredentials(
   return retired.map((row) => row.id)
 }
 
-export async function retireManagedMcpServersForGroup(
-  workspaceId: string,
-  credentialGroupId: string,
-  executor: DbOrTx
-): Promise<{ serverIds: string[]; connectionIds: string[] }> {
-  const servers = await executor
-    .select({ id: mcpServers.id })
-    .from(mcpServers)
-    .where(
-      and(
-        eq(mcpServers.workspaceId, workspaceId),
-        eq(mcpServers.credentialGroupId, credentialGroupId),
-        isNull(mcpServers.deletedAt)
-      )
-    )
-    .for('update')
-  const serverIds = servers.map((server) => server.id)
-  if (serverIds.length === 0) return { serverIds: [], connectionIds: [] }
-  const connectionIds = await retireManagedMcpCredentials(credentialGroupId, serverIds, executor)
-  const now = new Date()
-  await executor
-    .update(mcpServers)
-    .set({ enabled: false, deletedAt: now, updatedAt: now })
-    .where(inArray(mcpServers.id, serverIds))
-  await executor.delete(mcpServerOauth).where(inArray(mcpServerOauth.mcpServerId, serverIds))
-  return { serverIds, connectionIds }
-}
-
 export async function createManagedMcpConnector(params: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   credentialGroupId: string
   userId: string
   input: CreateManagedMcpConnectorInput
 }): Promise<ManagedMcpConnectorMutationResult> {
+  const scope = resourceScopeFromOwner(params)
   const connector = getManagedMcpConnector(params.input.connectorId)
   const url = resolveManagedMcpConnectorUrl(
     connector.id,
     params.input.connectorId === 'databricks' ? params.input.url : undefined
   )
   await validateServerUrl(url)
-  const serverId = generateMcpServerId(params.workspaceId, url)
+  const serverId = generateMcpServerId(
+    scope.kind === 'workspace' ? scope.workspaceId : resourceScopeKey(scope),
+    url
+  )
   const oauthClientId =
     params.input.connectorId === 'databricks' ? params.input.oauthClientId.trim() : null
   const oauthClientSecret =
@@ -204,7 +215,7 @@ export async function createManagedMcpConnector(params: {
         .where(
           and(
             eq(credentialGroup.id, params.credentialGroupId),
-            eq(credentialGroup.workspaceId, params.workspaceId)
+            resourceScopeCondition(credentialGroup, scope)
           )
         )
         .limit(1)
@@ -216,7 +227,7 @@ export async function createManagedMcpConnector(params: {
         .from(mcpServers)
         .where(
           and(
-            eq(mcpServers.workspaceId, params.workspaceId),
+            resourceScopeCondition(mcpServers, scope),
             eq(mcpServers.credentialGroupId, params.credentialGroupId),
             eq(mcpServers.managedConnectorId, connector.id),
             isNull(mcpServers.deletedAt)
@@ -235,7 +246,7 @@ export async function createManagedMcpConnector(params: {
         .from(mcpServers)
         .where(
           and(
-            eq(mcpServers.workspaceId, params.workspaceId),
+            resourceScopeCondition(mcpServers, scope),
             eq(mcpServers.url, url),
             isNull(mcpServers.deletedAt)
           )
@@ -252,7 +263,7 @@ export async function createManagedMcpConnector(params: {
       const [existingUrl] = await tx
         .select()
         .from(mcpServers)
-        .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, params.workspaceId)))
+        .where(and(eq(mcpServers.id, serverId), resourceScopeCondition(mcpServers, scope)))
         .limit(1)
         .for('update')
       const now = new Date()
@@ -270,6 +281,7 @@ export async function createManagedMcpConnector(params: {
             authType: 'oauth',
             oauthClientId,
             oauthClientSecret,
+            oauthConfigVersion: existingUrl.oauthConfigVersion + 1,
             headers: {},
             enabled: true,
             connectionStatus: 'disconnected',
@@ -288,7 +300,7 @@ export async function createManagedMcpConnector(params: {
         .insert(mcpServers)
         .values({
           id: serverId,
-          workspaceId: params.workspaceId,
+          ...resourceScopeColumns(scope),
           credentialGroupId: params.credentialGroupId,
           managedConnectorId: connector.id,
           createdBy: params.userId,
@@ -327,11 +339,13 @@ export async function createManagedMcpConnector(params: {
 }
 
 export async function updateManagedMcpConnector(params: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   credentialGroupId: string
   connectorId: ManagedMcpConnectorId
   input: UpdateManagedMcpConnectorInput
 }): Promise<ManagedMcpConnectorMutationResult> {
+  const scope = resourceScopeFromOwner(params)
   if (params.connectorId !== 'databricks') {
     throw new ManagedMcpConnectorError(
       'Only Databricks connector settings can be changed',
@@ -343,7 +357,7 @@ export async function updateManagedMcpConnector(params: {
     .from(mcpServers)
     .where(
       and(
-        eq(mcpServers.workspaceId, params.workspaceId),
+        resourceScopeCondition(mcpServers, scope),
         eq(mcpServers.credentialGroupId, params.credentialGroupId),
         eq(mcpServers.managedConnectorId, params.connectorId),
         isNull(mcpServers.deletedAt)
@@ -371,7 +385,7 @@ export async function updateManagedMcpConnector(params: {
       .where(
         and(
           eq(credentialGroup.id, params.credentialGroupId),
-          eq(credentialGroup.workspaceId, params.workspaceId)
+          resourceScopeCondition(credentialGroup, scope)
         )
       )
       .limit(1)
@@ -384,7 +398,7 @@ export async function updateManagedMcpConnector(params: {
       .where(
         and(
           eq(mcpServers.id, current.id),
-          eq(mcpServers.workspaceId, params.workspaceId),
+          resourceScopeCondition(mcpServers, scope),
           eq(mcpServers.credentialGroupId, params.credentialGroupId),
           eq(mcpServers.managedConnectorId, 'databricks'),
           isNull(mcpServers.deletedAt)
@@ -394,7 +408,10 @@ export async function updateManagedMcpConnector(params: {
       .for('update')
     if (!locked) throw new ManagedMcpConnectorError('Managed MCP connector not found', 'not_found')
     const urlChanged = url !== locked.url
-    const targetServerId = generateMcpServerId(params.workspaceId, url)
+    const targetServerId = generateMcpServerId(
+      scope.kind === 'workspace' ? scope.workspaceId : resourceScopeKey(scope),
+      url
+    )
     if (urlChanged && targetServerId === locked.id) {
       throw new Error(`MCP server ID collision for ${locked.id}`)
     }
@@ -404,7 +421,7 @@ export async function updateManagedMcpConnector(params: {
         .from(mcpServers)
         .where(
           and(
-            eq(mcpServers.workspaceId, params.workspaceId),
+            resourceScopeCondition(mcpServers, scope),
             eq(mcpServers.url, url),
             ne(mcpServers.id, locked.id),
             isNull(mcpServers.deletedAt)
@@ -444,6 +461,9 @@ export async function updateManagedMcpConnector(params: {
         .set({
           name: nextName,
           oauthClientId: nextOauthClientId,
+          oauthConfigVersion: changedCredentials
+            ? locked.oauthConfigVersion + 1
+            : locked.oauthConfigVersion,
           ...(encryptedSecret !== undefined ? { oauthClientSecret: encryptedSecret } : {}),
           ...(changedCredentials
             ? { connectionStatus: 'disconnected', lastConnected: null, lastError: null }
@@ -463,7 +483,7 @@ export async function updateManagedMcpConnector(params: {
     const [target] = await tx
       .select()
       .from(mcpServers)
-      .where(and(eq(mcpServers.id, targetServerId), eq(mcpServers.workspaceId, params.workspaceId)))
+      .where(and(eq(mcpServers.id, targetServerId), resourceScopeCondition(mcpServers, scope)))
       .limit(1)
       .for('update')
     if (target?.deletedAt === null) {
@@ -491,6 +511,7 @@ export async function updateManagedMcpConnector(params: {
       authType: 'oauth',
       oauthClientId: nextOauthClientId,
       oauthClientSecret: nextOauthClientSecret,
+      oauthConfigVersion: locked.oauthConfigVersion + 1,
       headers: {},
       enabled: true,
       connectionStatus: 'disconnected',
@@ -505,7 +526,7 @@ export async function updateManagedMcpConnector(params: {
           .insert(mcpServers)
           .values({
             id: targetServerId,
-            workspaceId: params.workspaceId,
+            ...resourceScopeColumns(scope),
             ...rowValues,
             createdAt: now,
           })
@@ -521,7 +542,8 @@ export async function updateManagedMcpConnector(params: {
 }
 
 export async function deleteManagedMcpConnector(params: {
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   credentialGroupId: string
   connectorId: ManagedMcpConnectorId
 }): Promise<{
@@ -529,6 +551,7 @@ export async function deleteManagedMcpConnector(params: {
   serverIds: string[]
   retiredMcpConnectionIds: string[]
 }> {
+  const scope = resourceScopeFromOwner(params)
   return db.transaction(async (tx) => {
     const [group] = await tx
       .select({ id: credentialGroup.id })
@@ -536,7 +559,7 @@ export async function deleteManagedMcpConnector(params: {
       .where(
         and(
           eq(credentialGroup.id, params.credentialGroupId),
-          eq(credentialGroup.workspaceId, params.workspaceId)
+          resourceScopeCondition(credentialGroup, scope)
         )
       )
       .limit(1)
@@ -548,7 +571,7 @@ export async function deleteManagedMcpConnector(params: {
       .from(mcpServers)
       .where(
         and(
-          eq(mcpServers.workspaceId, params.workspaceId),
+          resourceScopeCondition(mcpServers, scope),
           eq(mcpServers.credentialGroupId, params.credentialGroupId),
           eq(mcpServers.managedConnectorId, params.connectorId),
           isNull(mcpServers.deletedAt)

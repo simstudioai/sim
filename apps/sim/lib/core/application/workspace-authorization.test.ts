@@ -741,6 +741,90 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
     ).resolves.toBeUndefined()
   })
 
+  it.each(['sim-cli', 'partner-app'])(
+    'rechecks OAuth app permission for an existing %s token',
+    async (clientId) => {
+      const existingToken = token({ clientId })
+      await expect(
+        authorizeWorkspaceOperation(existingToken, readOperation, context)
+      ).resolves.toBeUndefined()
+
+      resolveGroupConfigMock.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableOAuthAppAccess: true,
+      })
+      await expect(
+        authorizeWorkspaceOperation(existingToken, readOperation, context)
+      ).rejects.toMatchObject({
+        capability: 'oauth_apps.use',
+        detailCode: 'PERMISSION_GROUP_CAPABILITY_BLOCKED',
+      })
+    }
+  )
+
+  it('restricts the OAuth token only in the workspace whose group withholds apps', async () => {
+    resolveGroupConfigMock.mockImplementation(async (_userId: string, workspaceId: string) => ({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableOAuthAppAccess: workspaceId === context.workspaceId,
+    }))
+    const existingToken = token({ clientId: 'partner-app' })
+    await expect(
+      authorizeWorkspaceOperation(existingToken, readOperation, context)
+    ).rejects.toMatchObject({ capability: 'oauth_apps.use' })
+    await expect(
+      authorizeWorkspaceOperation(existingToken, readOperation, {
+        ...context,
+        workspaceId: 'workspace-allowed',
+      })
+    ).resolves.toBeUndefined()
+  })
+
+  it('keeps session and API-key callers independent of the OAuth app restriction', async () => {
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableOAuthAppAccess: true,
+    })
+    await expect(
+      authorizeWorkspaceOperation(principal, readOperation, context)
+    ).resolves.toBeUndefined()
+    await expect(
+      authorizeWorkspaceOperation(personalKeyPrincipal, readOperation, context)
+    ).resolves.toBeUndefined()
+    await expect(
+      authorizeWorkspaceOperation(
+        { ...workspaceKeyPrincipal, workspaceId: context.workspaceId },
+        workspaceKeyOperation,
+        context
+      )
+    ).resolves.toBeUndefined()
+  })
+
+  it('does not apply an organization OAuth restriction to a personal workspace', async () => {
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableOAuthAppAccess: true,
+    })
+    await expect(
+      authorizeWorkspaceOperation(token(), readOperation, {
+        ...context,
+        workspaceOrganizationId: null,
+      })
+    ).resolves.toBeUndefined()
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
+  })
+
+  it('conceals missing membership before revealing an OAuth app restriction', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableOAuthAppAccess: true,
+    })
+    await expect(
+      authorizeWorkspaceOperation(token(), readOperation, context)
+    ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
+    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
+  })
+
   it('refuses a lapsed token as unauthorized rather than forbidden', async () => {
     const failure = await authorizeWorkspaceOperation(
       token({ expiresAt: new Date('2000-01-01T00:00:00.000Z') }),

@@ -7,14 +7,14 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 vi.unmock('@/blocks/registry')
 
-import * as blocksBarrel from '@/blocks'
-import { getBlock as getRealBlock } from '@/blocks/registry'
 import {
   backfillCanonicalModes,
   migrateCanonicalModeIds,
   migrateSubblockIds,
   SUBBLOCK_ID_MIGRATIONS,
-} from './subblock-migrations'
+} from '@/lib/workflows/migrations/subblock-migrations'
+import * as blocksBarrel from '@/blocks'
+import { getBlock as getRealBlock } from '@/blocks/registry'
 
 /**
  * Under `isolate: false` the module under test may already be cached from an
@@ -126,6 +126,57 @@ describe('migration targets', () => {
 })
 
 describe('migrateSubblockIds', () => {
+  it('preserves MCP canonical modes through the full normalization pipeline', () => {
+    const block = makeBlock({
+      type: 'mcp',
+      advancedMode: true,
+      subBlocks: {
+        server: { id: 'server', type: 'mcp-server-selector', value: 'parent-server' },
+        connection: { id: 'connection', type: 'mcp-server-selector', value: '<lookup.id>' },
+        tool: { id: 'tool', type: 'mcp-tool-selector', value: 'read' },
+        operation: { id: 'operation', type: 'dropdown', value: 'run' },
+        arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"sim"}' },
+      },
+    })
+    const result = migrateSubblockIds({ 'block-1': block })
+    expect(result.migrated).toBe(true)
+    expect(result.blocks['block-1'].data?.canonicalModes).toEqual({
+      server: 'advanced',
+      tool: 'advanced',
+    })
+    expect(result.blocks['block-1'].subBlocks.serverReference.value).toBe('<lookup.id>')
+    expect(result.blocks['block-1'].subBlocks.toolReference.value).toBe('read')
+    expect(result.blocks['block-1'].subBlocks.connection).toBeUndefined()
+    expect(result.blocks['block-1'].subBlocks.arguments.value).toBe('{"query":"sim"}')
+    expect(migrateSubblockIds(result.blocks).migrated).toBe(false)
+  })
+
+  it('discards group selectors while preserving connected-account operation settings', () => {
+    const email = { id: 'email', type: 'short-input' as const, value: 'person@example.com' }
+    const operation = { id: 'operation', type: 'dropdown' as const, value: 'list_credentials' }
+    const input = {
+      b1: makeBlock({
+        type: 'credential_group',
+        subBlocks: {
+          credentialGroup: { id: 'credentialGroup', type: 'dropdown', value: 'group-1' },
+          manualCredentialGroup: {
+            id: 'manualCredentialGroup',
+            type: 'short-input',
+            value: '<other-group.id>',
+          },
+          email,
+          operation,
+        },
+      }),
+    }
+
+    const { blocks, migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.subBlocks).toEqual({ email, operation })
+    expect(migrateSubblockIds(blocks).migrated).toBe(false)
+  })
+
   it('should preserve Instagram insight metrics after the subblock rename', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({
@@ -150,6 +201,34 @@ describe('migrateSubblockIds', () => {
     })
     expect(blocks.b1.subBlocks.metrics).toBeUndefined()
   })
+
+  it.each(['slack', 'slack_v2'])(
+    'removes the retired channel page cap from %s while preserving pagination inputs',
+    (type) => {
+      const input = {
+        b1: makeBlock({
+          type,
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'list_channels' },
+            channelMaxPages: { id: 'channelMaxPages', type: 'short-input', value: '200' },
+            channelLimit: { id: 'channelLimit', type: 'short-input', value: '50' },
+            paginationCursor: { id: 'paginationCursor', type: 'short-input', value: 'cursor-2' },
+            historyMaxPages: { id: 'historyMaxPages', type: 'short-input', value: '10' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks).not.toHaveProperty('channelMaxPages')
+      expect(blocks.b1.subBlocks).not.toHaveProperty('_removed_channelMaxPages')
+      expect(blocks.b1.subBlocks.channelLimit.value).toBe('50')
+      expect(blocks.b1.subBlocks.paginationCursor.value).toBe('cursor-2')
+      expect(blocks.b1.subBlocks.historyMaxPages.value).toBe('10')
+      expect(migrateSubblockIds(blocks).migrated).toBe(false)
+    }
+  )
 
   describe('snowflake block', () => {
     it('renames the object fields onto their advanced text inputs', () => {

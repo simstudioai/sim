@@ -6,17 +6,20 @@ import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
 import { oauthAuthorizationErrorResponse } from '@/lib/auth/oauth-authorization-error'
 import { validateOAuthPkceAuthorizationRequest } from '@/lib/auth/oauth-protocol-request'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
+import { narrowSearchOAuthScopes, OAUTH_SEARCH_READ_SCOPE } from '@/lib/auth/oauth-provider'
+import { InvalidOAuthResourceError, parseOAuthSearchResource } from '@/lib/auth/oauth-resource'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
-import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
+import { launchScopedCredentialConnection } from '@/lib/credentials/application/launch-scoped-credential-connection'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { decryptQuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
 import { QUICKBOOKS_AUTHORIZATION_URL } from '@/lib/oauth/quickbooks-constants'
 import { createQuickBooksOAuthState } from '@/lib/oauth/quickbooks-state'
@@ -73,7 +76,7 @@ function isOAuthProviderAuthorize(request: NextRequest): boolean {
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   if (isOAuthProviderAuthorize(request)) {
-    if (!(await isOAuthProviderEnabled())) {
+    if (isAuthDisabled) {
       return NextResponse.json(
         { error: 'OAuth provider is not enabled' },
         { status: 404, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }
@@ -102,11 +105,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         'The redirect_uri parameter is required.'
       )
     }
-    if (params.has('resource')) {
+    const scopes = (params.get('scope') ?? '').split(' ').filter(Boolean)
+    let resource: string | null
+    try {
+      resource = parseOAuthSearchResource(params.get('resource'))
+    } catch (error) {
+      if (!(error instanceof InvalidOAuthResourceError)) throw error
       return oauthAuthorizationErrorResponse(
         request,
         'invalid_request',
-        'The resource parameter is not supported.'
+        'The resource must be a Sim Search server URL.'
+      )
+    }
+    const searchScope = resource ? narrowSearchOAuthScopes(params.get('scope') ?? '') : null
+    if ((resource && !searchScope) || (!resource && scopes.includes(OAUTH_SEARCH_READ_SCOPE))) {
+      return oauthAuthorizationErrorResponse(
+        request,
+        'invalid_request',
+        'Sim Search requires its server URL and the search:read scope.'
       )
     }
     if (params.has('request_uri')) {
@@ -135,7 +151,27 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (pkceError) {
       return oauthAuthorizationErrorResponse(request, 'invalid_request', pkceError)
     }
-    return betterAuthGET(request)
+    let providerRequest: Request = request
+    if (searchScope && params.get('scope') !== searchScope) {
+      const url = new URL(request.url)
+      url.searchParams.set('scope', searchScope)
+      providerRequest = new Request(url, { headers: request.headers })
+    }
+    const response = await betterAuthGET(providerRequest)
+    if (response.status === 403) {
+      const body: unknown = await response
+        .clone()
+        .json()
+        .catch(() => null)
+      if (body && typeof body === 'object' && 'error' in body && body.error === 'access_denied') {
+        const description =
+          'error_description' in body && typeof body.error_description === 'string'
+            ? body.error_description
+            : 'Access denied.'
+        return oauthAuthorizationErrorResponse(request, 'access_denied', description)
+      }
+    }
+    return response
   }
 
   const baseUrl = getBaseUrl()
@@ -157,18 +193,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   let { providerId, workspaceId, callbackURL: requestedCallback, credentialId } = parsed.data.query
 
   try {
+    let organizationId: string | undefined
     let fromConnectionDraft = false
     let connectionDraftId: string | undefined
     let encryptedQuickBooksClientConfig: string | null | undefined
     if (draftId) {
       try {
-        const { draft } = await launchCredentialConnection.execute({
+        const { draft } = await launchScopedCredentialConnection({
           principal,
           input: { draftId },
           request,
         })
         providerId = draft.providerId
-        workspaceId = draft.workspaceId
+        workspaceId = draft.workspaceId ?? undefined
+        organizationId = draft.organizationId ?? undefined
         credentialId = draft.credentialId ?? undefined
         connectionDraftId = draft.id
         encryptedQuickBooksClientConfig = draft.oauthConfig
@@ -176,11 +214,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       } catch (error) {
         if (!(error instanceof OrchestrationError)) throw error
         logger.warn('Rejected OAuth connection draft', { userId, draftId, code: error.code })
-        return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_link_invalid`)
+        return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_invalid`)
       }
     }
 
-    if (!providerId || !workspaceId) {
+    if (!providerId || (!workspaceId && !organizationId)) {
       throw new Error('Validated OAuth authorization request is missing its target')
     }
     if (providerId !== 'quickbooks') {
@@ -195,9 +233,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         : connectionCompleteUrl.toString()
       : requestedCallback?.startsWith(`${baseUrl}/`)
         ? requestedCallback
-        : `${baseUrl}/workspace`
+        : `${baseUrl}${APP_ENTRY_PATH}`
 
     if (!fromConnectionDraft) {
+      if (!workspaceId) throw new Error('Workspace OAuth launch is missing its owner')
       try {
         const connection = await createCredentialConnection.execute({
           principal,
@@ -212,22 +251,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         connectionDraftId = connection.draftId
       } catch (error) {
         if (error instanceof CredentialConnectionProviderMismatchError) {
-          return NextResponse.redirect(`${baseUrl}/workspace?error=credential_provider_mismatch`)
+          return NextResponse.redirect(
+            `${baseUrl}${APP_ENTRY_PATH}?error=credential_provider_mismatch`
+          )
         }
         if (
           credentialId &&
           error instanceof ForbiddenOperationError &&
           error.detailCode === 'CREDENTIAL_ADMIN_ACCESS_REQUIRED'
         ) {
-          return NextResponse.redirect(`${baseUrl}/workspace?error=credential_access_denied`)
+          return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=credential_access_denied`)
         }
         if (error instanceof OrchestrationError && error.code === 'not_found') {
           return NextResponse.redirect(
-            `${baseUrl}/workspace?error=${credentialId ? 'credential_access_denied' : 'workspace_access_denied'}`
+            `${baseUrl}${APP_ENTRY_PATH}?error=${credentialId ? 'credential_access_denied' : 'workspace_access_denied'}`
           )
         }
         if (error instanceof OrchestrationError && error.code === 'forbidden') {
-          return NextResponse.redirect(`${baseUrl}/workspace?error=workspace_access_denied`)
+          return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=workspace_access_denied`)
         }
         throw error
       }
@@ -239,7 +280,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (providerId === 'quickbooks') {
       if (!encryptedQuickBooksClientConfig) {
-        const { draft } = await launchCredentialConnection.execute({
+        const { draft } = await launchScopedCredentialConnection({
           principal,
           input: { draftId: connectionDraftId },
           request,
@@ -295,7 +336,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         providerId,
         status: linkResponse.status,
       })
-      return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_link_failed`)
+      return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_failed`)
     }
 
     const response = NextResponse.redirect(payload.url)
@@ -310,6 +351,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return response
   } catch (error) {
     logger.error('Failed to initiate OAuth2 authorization', { providerId, error })
-    return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_link_failed`)
+    return NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=oauth_link_failed`)
   }
 })

@@ -1,0 +1,89 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.840 --> 00:00:05.300
+Agents. Everybody's talking about them,
+but nobody really seems to agree on what
+
+00:00:05.300 --> 00:00:10.940
+they actually are. In Sim, the answer is
+pretty simple. An agent is just a workflow
+
+00:00:10.940 --> 00:00:15.880
+that can reason through agent blocks. That
+means everything you already know about
+
+00:00:15.880 --> 00:00:20.540
+building workflows still applies. You're
+just giving them the ability to think for
+
+00:00:20.540 --> 00:00:25.220
+themselves. And once that clicks, you'll
+see how workflows can be more than basic
+
+00:00:25.220 --> 00:00:30.020
+automations and power AI systems that
+genuinely think and adapt. Let me show you
+
+00:00:30.020 --> 00:00:35.680
+what I mean. Here's a workflow that runs
+the same way every time. It scores a lead,
+
+00:00:35.780 --> 00:00:41.600
+then writes the result to a table.
+Deterministic and predictable. Swap the
+
+00:00:41.600 --> 00:00:46.400
+scoring step for an agent block, and that
+one step starts to think, reasoning about
+
+00:00:46.400 --> 00:00:51.760
+each lead instead of following a fixed
+rule. An agent block is where it thinks.
+
+00:00:52.080 --> 00:00:56.560
+Running it spins up a fresh chat, like
+ChatGPT or Claude, but driven by your
+
+00:00:56.560 --> 00:01:00.340
+workflow. And it works in a loop, calling
+tools, reading what comes back, and
+
+00:01:00.340 --> 00:01:03.980
+changing course when it has to. The
+homepage had no pricing, so it just opened
+
+00:01:03.980 --> 00:01:05.140
+the pricing page itself.
+
+00:01:07.840 --> 00:01:11.360
+Compose blocks around it, and a
+deterministic pipeline becomes an
+
+00:01:11.360 --> 00:01:16.020
+intelligent one. And each agentic workflow
+you build becomes a block for the next.
+
+00:01:16.620 --> 00:01:21.480
+And these systems only get more capable
+over time. As the models improve, the same
+
+00:01:21.480 --> 00:01:22.760
+workflows improve with them.
+
+00:01:24.660 --> 00:01:29.120
+Sim keeps up to date with the latest
+models, patterns, and AI techniques, so
+
+00:01:29.120 --> 00:01:33.780
+the newest capabilities are always
+available. As you get more familiar with
+
+00:01:33.780 --> 00:01:38.480
+Sim, you'll see how serious agentic
+systems are assembled from the same simple
+
+00:01:38.480 --> 00:01:39.560
+blocks and workflows.

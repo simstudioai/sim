@@ -25,6 +25,32 @@ You can also run a command without installing the package globally:
 npx sim --help
 ```
 
+## Updates
+
+The CLI checks for a newer stable release on eligible interactive invocations,
+at most once per day. It prints an optional update notice and continues your
+command. Updates install only when you run `sim update`.
+
+Update immediately, including in CI or with automatic checks disabled:
+
+```bash
+sim update
+```
+
+The updater uses the package manager that installed the running copy and verifies
+its global installation before making changes. Supported managers are npm, pnpm,
+Bun, and Yarn Classic. Use `sim update --package-manager bun` if detection does
+not match a custom installation. Manual updates preserve staging and dev channels.
+Installation failures exit with an error; concurrent update attempts are refused.
+The updater resolves the channel through that package manager, refuses older
+releases, and installs the exact version it checked.
+
+Set `SIM_NO_UPDATE_CHECK=1` to disable update notices. Project-local installs and
+temporary package-runner copies must be updated through their package manager.
+
+Older releases without `sim update` need one upgrade using the package manager
+that installed them before this mechanism becomes available.
+
 ## Get started
 
 Sign in to the default profile:
@@ -33,16 +59,27 @@ Sign in to the default profile:
 sim login
 ```
 
-The CLI opens Sim in your browser, asks you to approve the requested access,
+With no `--method`, the CLI prefers OAuth when the server offers it and a local
+browser callback is possible. It selects API-key pairing for remote terminals
+or servers without OAuth. Use `sim login --method oauth` to require OAuth;
+if the server does not offer it, login fails without creating an API key.
+
+OAuth login opens Sim in your browser, asks you to approve the requested access,
 and receives the one-time authorization code on a loopback callback. It stores
 a short-lived OAuth login that renews automatically and can be revoked under
-**Settings → Authorized apps**. Choose a default workspace afterward with
+**Settings → General → Authorized apps**. Choose a default workspace afterward with
 `sim configure --set-workspace <id>`.
 
-Use `sim login --no-browser` to print the OAuth URL without opening it. The
-browser must still be able to reach the CLI's loopback callback. Over SSH or in
-a container without port forwarding, use `sim login --browserless`; that
-pairing-code fallback creates a permanent personal API key instead.
+Use `--no-browser` with either method to print the approval URL without opening
+it. OAuth still needs the browser to reach the CLI's loopback callback. Over SSH
+or in a container without port forwarding, use
+`sim login --method api-key --no-browser` to approve from another device and
+create a permanent personal API key. `--method api-key` creates a new key;
+set `SIM_API_KEY` to supply an existing one.
+
+Pairing requires a server that supports `platform` API keys. Upgrade older
+deployments that only issue `copilot` keys before login; they are not compatible
+with the platform CLI. OAuth discovery does not check pairing compatibility.
 
 Check the active profile and verify that its endpoint, credential, and workspace
 work together:
@@ -177,6 +214,7 @@ The commands you will use most often are:
 | Upload or download files | `sim files upload ./report.pdf`, `sim files get <fileId>` |
 | Search knowledge bases | `sim knowledge search --query "refund policy" --kb <knowledgeBaseId>` |
 | Upload a knowledge document | `sim knowledge documents upload <knowledgeBaseId> ./handbook.pdf` |
+| Export a knowledge base | `sim knowledge export <knowledgeBaseId> -o ./kb.simkb.zip` |
 | Manage integration credentials | `sim credentials --help` |
 | Manage workspace secrets | `sim secrets list`, `sim secrets set <name>` |
 
@@ -209,9 +247,24 @@ will consume the result, and `text` for tab-separated shell output:
 
 ```bash
 sim workflows list --output json
-sim logs list --output json | jq -r '.[].runId'
+sim logs list --output json | jq -r '.data[].runId'
 SIM_OUTPUT=yaml sim tables get <tableId>
 sim configure --set-output json
+```
+
+Paginated lists return `{ "data": [...], "nextCursor": "..." }` in JSON and YAML.
+`nextCursor` is `null` when no pages remain. Resource lists and directory `ls`
+fetch every page by default; use `--limit N` to cap them. Table rows (including
+queries), logs, audit/billing events, workflow runs/versions, and knowledge
+documents/chunks keep a default limit of 100. Use `--limit 0` to fetch every page
+of those datasets, or pass the returned `nextCursor` to `--cursor` to continue
+with another bounded result. Keep the same resource, filters, and sort order
+when resuming; stop when `nextCursor` is `null`. Results accumulate in memory
+before printing, so large datasets need an explicit limit or filter.
+
+```bash
+sim tables rows list <tableId> --limit 100 --output json
+sim tables rows list <tableId> --limit 100 --cursor "$nextCursor" --output json
 ```
 
 JSON-valued options accept inline JSON, a file prefixed with `@`, or stdin with
@@ -263,12 +316,13 @@ The main environment variables are:
 | `SIM_CONFIG_DIR` | Base directory for CLI config, credentials, and the update cache |
 | `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely |
 | `SIM_DEBUG` | Print request diagnostics to stderr |
-| `SIM_NO_UPDATE_CHECK` | Turn off the update notice |
+| `SIM_NO_UPDATE_CHECK` | Turn off update notices |
+| `SIM_TELEMETRY_DISABLED` | Turn off anonymous usage reporting (`DO_NOT_TRACK=1` also works) |
 
 On eligible interactive invocations, `sim` uses a daily cache before asking
-`registry.npmjs.org` what is published under the `latest` tag and prints one
-line on stderr when a newer version exists. Prerelease installs are skipped
-entirely. The cache lives in `~/.sim` by default and follows `SIM_CONFIG_DIR`;
+`registry.npmjs.org` what is published under the `latest` tag and prints an
+optional notice on stderr when a newer version exists. Prerelease installs are
+skipped entirely. The cache lives in `~/.sim` by default and follows `SIM_CONFIG_DIR`;
 without a writable cache, each eligible invocation checks again. Concurrent
 invocations can also perform duplicate checks. The registry request has a
 one-second deadline; the short-lived request process is terminated on expiry.
@@ -281,6 +335,22 @@ use the public default; non-empty malformed or non-HTTP(S) values fail closed.
 The full list of cases where it stays quiet is in the
 [configuration guide](https://docs.sim.ai/cli/configuration).
 
+## Usage data
+
+The CLI reports anonymous usage data — which commands run, whether they
+succeed, and how long they take — so the team can see how it is used. Nothing
+you type is sent: no argument or flag values, paths, ids, error messages, or
+credentials. The first interactive run prints a notice and is not reported.
+
+```bash
+sim telemetry status
+sim telemetry disable
+```
+
+`DO_NOT_TRACK=1` or `SIM_TELEMETRY_DISABLED=1` in the environment also turns it
+off. The full description of what is sent is in the
+[usage data guide](https://docs.sim.ai/cli/usage-data).
+
 ## Documentation
 
 - [CLI documentation](https://docs.sim.ai/cli)
@@ -289,6 +359,7 @@ The full list of cases where it stays quiet is in the
 - [Profiles and configuration](https://docs.sim.ai/cli/configuration)
 - [Scripting](https://docs.sim.ai/cli/scripting)
 - [Troubleshooting](https://docs.sim.ai/cli/troubleshooting)
+- [Usage data](https://docs.sim.ai/cli/usage-data)
 
 ## License
 

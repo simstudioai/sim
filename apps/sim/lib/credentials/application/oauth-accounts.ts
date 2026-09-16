@@ -71,6 +71,7 @@ function captureDeletedCredentialEvents(
   providerId?: string
 ): void {
   for (const credential of credentials) {
+    if (!credential.workspaceId) continue
     captureServerEvent(
       userId,
       'credential_deleted',
@@ -79,7 +80,7 @@ function captureDeletedCredentialEvents(
         provider_id: credential.providerId ?? providerId ?? provider,
         workspace_id: credential.workspaceId,
       },
-      { groups: { workspace: credential.workspaceId } }
+      { groups: credential.workspaceId ? { workspace: credential.workspaceId } : {} }
     )
   }
 }

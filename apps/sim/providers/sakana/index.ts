@@ -7,6 +7,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createReadableStreamFromSakanaStream } from '@/providers/sakana/utils'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
@@ -38,7 +39,7 @@ const SAKANA_BASE_URL = 'https://api.sakana.ai/v1'
 export const sakanaProvider: ProviderConfig = {
   id: 'sakana',
   name: 'Sakana AI',
-  description: "Sakana AI's Fugu multi-agent models via an OpenAI-compatible API",
+  description: 'Sakana AI Fugu and Namazu models via an OpenAI-compatible API',
   version: '1.0.0',
   models: getProviderModels('sakana'),
   defaultModel: getProviderDefaultModel('sakana'),
@@ -339,18 +340,16 @@ export const sakanaProvider: ProviderConfig = {
 
           const executionResults = await Promise.all(toolExecutionPromises)
 
-          currentMessages.push({
-            role: 'assistant',
-            content: null,
-            tool_calls: toolCallsInResponse.map((tc) => ({
-              id: tc.id,
-              type: 'function',
-              function: {
-                name: tc.function.name,
-                arguments: tc.function.arguments,
-              },
-            })),
-          })
+          const assistantMessage = currentResponse.choices[0]?.message
+          if (assistantMessage) {
+            currentMessages.push(
+              createOpenAICompatAssistantHistory({
+                message: assistantMessage,
+                toolCalls: toolCallsInResponse,
+                reasoningFields: ['reasoning_content'],
+              })
+            )
+          }
 
           for (const executionResult of executionResults) {
             const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =

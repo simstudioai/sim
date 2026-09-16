@@ -189,6 +189,7 @@ interface ToolInput {
   title?: string
   toolId?: string
   usageControl?: string
+  usageControlExpression?: string
   isExpanded?: boolean
   [key: string]: unknown
 }
@@ -198,6 +199,7 @@ interface SanitizedTool {
   type: string
   customToolId?: string
   usageControl?: string
+  usageControlExpression?: string
   title?: string
   toolId?: string
   schema?: {
@@ -224,6 +226,7 @@ function sanitizeTools(tools: ToolInput[]): SanitizedTool[] {
           type: tool.type,
           customToolId: tool.customToolId,
           usageControl: tool.usageControl,
+          usageControlExpression: tool.usageControlExpression,
         }
       }
 
@@ -233,6 +236,7 @@ function sanitizeTools(tools: ToolInput[]): SanitizedTool[] {
         title: tool.title,
         toolId: tool.toolId,
         usageControl: tool.usageControl,
+        usageControlExpression: tool.usageControlExpression,
       }
 
       // Include schema for inline format (legacy format)
@@ -682,7 +686,10 @@ export function sanitizeForCopilot(
  * Sanitize workflow state for export by removing secrets but keeping positions
  * Users need positions to restore the visual layout when importing
  */
-export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
+export function sanitizeForExport(
+  state: WorkflowState,
+  options: { includeReferences?: boolean } = {}
+): ExportWorkflowState {
   const canonicalLoops = generateLoopBlocks(state.blocks || {})
   const canonicalParallels = generateParallelBlocks(state.blocks || {})
 
@@ -700,6 +707,7 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
   const sanitizedState = sanitizeWorkflowForSharing(fullState, {
     preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
     redactOpaqueCredentialInputs: true,
+    preserveReferenceMetadata: options.includeReferences,
   }) as ExportWorkflowState['state']
 
   return {

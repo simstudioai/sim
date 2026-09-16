@@ -16,6 +16,7 @@ import {
 import {
   BRAND_ICON_BY_BASE_TYPE,
   sourceLabel,
+  sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -133,7 +134,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
     : undefined
   const updatedAt = parseUpdatedAt(source.updatedAt)
   const meta = [
-    sourceLabel(source),
+    sourceSiteName(source),
     source.author?.trim() || null,
     updatedAt ? formatDate(updatedAt) : null,
   ].filter((part): part is string => Boolean(part))

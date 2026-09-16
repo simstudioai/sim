@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { getPollingHandler } from '@/lib/webhooks/polling/registry'
 import type { PollSummary } from '@/lib/webhooks/polling/types'
 import { fetchActiveWebhooks, runWithConcurrency } from '@/lib/webhooks/polling/utils'
@@ -26,12 +27,14 @@ export async function pollProvider(providerName: string): Promise<PollSummary> {
     activeWebhooks,
     async (entry) => {
       const requestId = generateShortId()
-      return handler.pollWebhook({
-        webhookData: entry.webhook,
-        workflowData: entry.workflow,
-        requestId,
-        logger,
-      })
+      return withResourceOutboundScope({ workspaceId: entry.workflow.workspaceId }, () =>
+        handler.pollWebhook({
+          webhookData: entry.webhook,
+          workflowData: entry.workflow,
+          requestId,
+          logger,
+        })
+      )
     },
     logger
   )

@@ -4,7 +4,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   findTermMatches,
+  matchPassage,
   matchSnippet,
+  passageWindow,
   queryTerms,
   SNIPPET_LENGTH,
   stripLeadingHeaders,
@@ -89,6 +91,41 @@ describe('matchSnippet', () => {
     expect(matchSnippet(german, 'Zürich')).toContain('nach Zürich')
   })
 
+  it.each([
+    {
+      query: 'Where is the updated backup meeting location for Birch?',
+      title: 'Project Birch field kit',
+      answer: 'The backup meeting location has changed to the Juniper room.',
+      expected: 'Juniper room',
+    },
+    {
+      query: 'Where are the Cedar pilot kits stored?',
+      title: 'Project Cedar — Demo handbook',
+      answer: 'Equipment pickup: Pilot kits are stored in Room 2B.',
+      expected: 'Room 2B',
+    },
+    {
+      query: 'Who owns the Cedar demo checklist?',
+      title: 'Project Cedar — Demo decisions',
+      answer: 'The owner of the demo checklist is Riley Chen.',
+      expected: 'Riley Chen',
+    },
+  ])(
+    'shows the relevant passage past an early title match: $query',
+    ({ query, title, answer, expected }) => {
+      const content = `${title}\n\n${'Background information. '.repeat(20)}${answer} ${'Further context. '.repeat(20)}`
+      const snippet = matchSnippet(content, query)
+      expect(snippet).toContain(expected)
+      expect(snippet.length).toBeLessThanOrEqual(SNIPPET_LENGTH + 2)
+    }
+  )
+
+  it('keeps the earliest passage when matching terms are equally specific', () => {
+    const content = `Cedar information. ${'Background. '.repeat(40)}Birch information.`
+    expect(matchSnippet(content, 'Birch Cedar')).toContain('Cedar information')
+    expect(matchSnippet(content, 'Birch Cedar')).not.toContain('Birch information')
+  })
+
   it('never splits a surrogate pair at a window edge', () => {
     const emoji = `${'🙂'.repeat(200)} volvo ${'🙂'.repeat(200)}`
     const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
@@ -101,5 +138,32 @@ describe('matchSnippet', () => {
     const snippet = matchSnippet(EMAIL, 'unrelated')
     expect(snippet.startsWith('Thanks for your patience.')).toBe(true)
     expect(snippet.endsWith('…')).toBe(true)
+  })
+})
+
+describe('verbatim model passages', () => {
+  it('preserves formatting and exposes the location of evidence past the opening', () => {
+    const content = `Subject: Release\n\n${'Unrelated text. '.repeat(150)}\n\tdeploy_token = "orion"\n${'Trailing text. '.repeat(100)}`
+    const preview = matchPassage(content, 'orion', 1200)
+    expect(preview.content).toContain('\n\tdeploy_token = "orion"\n')
+    expect(preview.content).toBe(content.slice(preview.startOffset, preview.endOffset))
+    expect(preview.content.length).toBeLessThanOrEqual(1200)
+    expect(preview.startOffset).toBeGreaterThan(0)
+    expect(preview.totalCharacters).toBe(content.length)
+  })
+
+  it('reassembles long Unicode chunks without splitting characters or losing text', () => {
+    const content = '中é🔎\n  code();\n'.repeat(1900)
+    let position = 0
+    let rebuilt = ''
+    while (position < content.length) {
+      const page = passageWindow(content, position, 8000)
+      expect(page.content.isWellFormed()).toBe(true)
+      expect(Buffer.byteLength(page.content)).toBeLessThanOrEqual(24000)
+      expect(page.endOffset).toBeGreaterThan(position)
+      rebuilt += page.content
+      position = page.endOffset
+    }
+    expect(rebuilt).toBe(content)
   })
 })

@@ -20,6 +20,7 @@ import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
 
 const {
   MockV2ApiKeyUnauthenticatedError,
+  mockAdmissionRelease,
   mockAuthenticateV2ApiKey,
   mockClaimExecutionId,
   mockCheckOperationRate,
@@ -35,6 +36,7 @@ const {
   mockValidatePublicApiAllowed,
 } = vi.hoisted(() => ({
   MockV2ApiKeyUnauthenticatedError: class MockV2ApiKeyUnauthenticatedError extends Error {},
+  mockAdmissionRelease: vi.fn(),
   mockAuthenticateV2ApiKey: vi.fn(),
   mockClaimExecutionId: vi.fn(),
   mockCheckOperationRate: vi.fn(),
@@ -48,6 +50,10 @@ const {
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockValidatePublicApiAllowed: vi.fn(),
+}))
+
+vi.mock('@/lib/core/admission/gate', () => ({
+  tryAdmit: vi.fn(() => ({ release: mockAdmissionRelease })),
 }))
 
 vi.mock('@/lib/workflows/application/execute-manual-workflow', () => ({
@@ -353,6 +359,128 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     })
   })
 
+  it('streams an immediate heartbeat and the same sync result when NDJSON is accepted', async () => {
+    vi.useFakeTimers()
+    try {
+      let finishExecution!: (result: unknown) => void
+      mockExecuteWorkflowCore.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishExecution = resolve
+        })
+      )
+
+      const response = await callExecute(
+        { input: { hello: 'world' } },
+        { Accept: 'application/x-ndjson' }
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('content-type')).toContain('application/x-ndjson')
+      expect(response.headers.get('X-Run-Id')).toBe('execution-123')
+      if (!response.body) throw new Error('Expected NDJSON response body')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      expect(JSON.parse(decoder.decode((await reader.read()).value))).toMatchObject({
+        type: 'heartbeat',
+      })
+      expect(mockAdmissionRelease).not.toHaveBeenCalled()
+      expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(JSON.parse(decoder.decode((await reader.read()).value))).toMatchObject({
+        type: 'heartbeat',
+      })
+
+      finishExecution({
+        success: true,
+        output: { result: 'done' },
+        metadata: {
+          duration: 42,
+          startTime: '2026-07-31T00:00:00.000Z',
+          endTime: '2026-07-31T00:00:01.000Z',
+        },
+      })
+
+      expect(JSON.parse(decoder.decode((await reader.read()).value))).toEqual({
+        type: 'final',
+        data: {
+          runId: 'execution-123',
+          workflowId: 'workflow-1',
+          status: 'completed',
+          output: { result: 'done' },
+          error: null,
+          startedAt: '2026-07-31T00:00:00.000Z',
+          endedAt: '2026-07-31T00:00:01.000Z',
+          durationMs: 42,
+        },
+      })
+      expect((await reader.read()).done).toBe(true)
+      expect(mockAdmissionRelease).toHaveBeenCalledTimes(1)
+      expect(mockReleaseExecutionIdClaim).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the JSON response when NDJSON is explicitly rejected', async () => {
+    const response = await callExecute(
+      { input: { hello: 'world' } },
+      { Accept: 'application/json, application/x-ndjson;q=0' }
+    )
+
+    expect(response.headers.get('content-type')).toContain('application/json')
+    expect(await response.json()).toMatchObject({
+      data: { runId: 'execution-123', status: 'completed' },
+    })
+  })
+
+  it('uses the heartbeat result transport for a manual draft run', async () => {
+    authenticatePersonalKey()
+    let finishExecution!: (result: unknown) => void
+    const pending = new Promise((resolve) => {
+      finishExecution = resolve
+    })
+    mockExecuteManualTrigger.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'execution-123',
+      pending,
+      cancel: vi.fn(),
+    })
+
+    const response = await callExecute(
+      { run: { source: 'manual' }, input: { hello: 'world' } },
+      { Accept: 'application/x-ndjson' }
+    )
+
+    expect(response.headers.get('content-type')).toContain('application/x-ndjson')
+    expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ mode: 'sync-result-stream' }),
+      })
+    )
+    if (!response.body) throw new Error('Expected NDJSON response body')
+    const reader = response.body.getReader()
+    await reader.read()
+
+    finishExecution({
+      ok: true,
+      executionId: 'execution-123',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      aborted: null,
+      output: { result: 'manual done' },
+      error: null,
+      hasResponseBlock: false,
+    })
+
+    const final = JSON.parse(new TextDecoder().decode((await reader.read()).value))
+    expect(final).toMatchObject({
+      type: 'final',
+      data: { runId: 'execution-123', output: { result: 'manual done' } },
+    })
+    expect((await reader.read()).done).toBe(true)
+    expect(mockAdmissionRelease).toHaveBeenCalledTimes(1)
+  })
+
   it('returns status failed with a structured error instead of an HTTP error', async () => {
     const error = new Error('Send Email: Invalid credentials')
     Object.assign(error, { blockId: 'block-9', blockName: 'Send Email', blockType: 'gmail' })
@@ -548,6 +676,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toContain('text/event-stream')
+    expect(response.headers.get('X-Run-Id')).toBe('execution-123')
     expect(await response.text()).toBe('data: "[DONE]"\n\n')
     expect(mockExecuteManualTrigger).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ mode: 'stream' }) })

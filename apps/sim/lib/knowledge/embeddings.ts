@@ -10,11 +10,14 @@ import { env, envNumber } from '@/lib/core/config/env'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { embedKnowledge } from '@/lib/embeddings'
 import { isOllamaEmbeddingModel } from '@/lib/embeddings/catalog'
+import { EmbeddingInputLimitError } from '@/lib/embeddings/client'
 import {
   getOllamaEmbeddingModelMetadata,
   OllamaEmbeddingModelNotFoundError,
   OllamaEmbeddingWidthUnknownError,
 } from '@/lib/embeddings/ollama-model-catalog.server'
+import type { EmbeddingBatchCheckpoints } from '@/lib/embeddings/types'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
   assertKbEmbeddingModel,
   DEFAULT_EMBEDDING_MODEL,
@@ -174,7 +177,9 @@ export interface GenerateEmbeddingsResult {
 export async function generateEmbeddings(
   texts: string[],
   target: KbEmbeddingTarget,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  signal?: AbortSignal,
+  checkpoints?: EmbeddingBatchCheckpoints
 ): Promise<GenerateEmbeddingsResult> {
   assertKbEmbeddingModel(target.model, target.dimensions)
 
@@ -182,8 +187,16 @@ export async function generateEmbeddings(
     model: target.model,
     workspaceId,
     taskType: 'document',
+    checkpoints,
+    inputOverflow: 'reject',
     dimensions: target.dimensions,
     projectInputs: projectKnowledgeModelInputs,
+    signal,
+  }).catch((error: unknown) => {
+    if (error instanceof EmbeddingInputLimitError) {
+      throw new PermanentDocumentProcessingError('document_complexity_limit', error.message, error)
+    }
+    throw error
   })
 
   return {
@@ -199,7 +212,8 @@ export async function generateEmbeddings(
 export async function generateSearchEmbedding(
   query: string,
   target: KbEmbeddingTarget,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  signal?: AbortSignal
 ): Promise<{ embedding: number[]; isBYOK: boolean }> {
   assertKbEmbeddingModel(target.model, target.dimensions)
 
@@ -208,6 +222,7 @@ export async function generateSearchEmbedding(
     workspaceId,
     taskType: 'query',
     dimensions: target.dimensions,
+    signal,
     projectInputs: projectKnowledgeModelInputs,
   })
 

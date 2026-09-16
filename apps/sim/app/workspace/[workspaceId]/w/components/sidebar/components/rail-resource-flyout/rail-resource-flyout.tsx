@@ -65,7 +65,6 @@ export function TablesRailFlyout({ workspaceId }: { workspaceId: string }) {
   return (
     <CollapsedResourceFlyout
       entries={entries}
-      icon={TABLE_META.rootIcon}
       currentItemId={typeof params.tableId === 'string' ? params.tableId : undefined}
       isLoading={isResolving(tablesQuery) || isResolving(foldersQuery)}
       emptyLabel='No tables yet'
@@ -97,7 +96,6 @@ export function FilesRailFlyout({ workspaceId }: { workspaceId: string }) {
   return (
     <CollapsedResourceFlyout
       entries={entries}
-      icon={FILE_META.rootIcon}
       currentItemId={typeof params.fileId === 'string' ? params.fileId : undefined}
       isLoading={isResolving(filesQuery) || isResolving(foldersQuery)}
       emptyLabel='No files yet'

@@ -80,8 +80,5 @@ The Router sends enterprise leads to a sales agent and everyone else into a self
 
 <FAQ items={[
   { question: "How does the Router decide which route to take?", answer: "It sends your context and every route description to a model, which selects the route whose description best matches. The model is prompted to prefer choosing a route over returning nothing, and only returns NO_MATCH when the context is unrelated to every route." },
-  { question: "What happens when the Router cannot match any route?", answer: "The model returns NO_MATCH and the Router directs execution to the error path. Connect an error handler there for graceful fallback rather than letting the workflow fail silently." },
-  { question: "Does the Router cost money to run?", answer: "Yes. It makes a model call for every routing decision, which consumes tokens. Monitor it with <router.tokens> and <router.cost>. If your routing can be expressed as boolean conditions, use the Condition block instead — it is free and faster." },
-  { question: "Can I see why the Router chose a particular route?", answer: "Yes. The reasoning output (<router.reasoning>) contains a brief explanation of why the selected route was chosen, which is useful for debugging routing decisions." },
   { question: "How many routes can I define?", answer: "There is no hard limit, and each route adds its own output port. Keep in mind that more routes with overlapping descriptions are harder for the model to distinguish, so aim for clear, mutually exclusive routes." },
 ]} />

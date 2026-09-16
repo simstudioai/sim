@@ -6,12 +6,12 @@ import { DemoBooking } from '@/app/(landing)/demo/components/demo-booking'
  * content (not absolute panels) and a content-height right card.
  *
  * The section is a two-column CSS grid capped and centered at the shared
- * `max-w-[1460px]` with the navbar-aligned `px-20` gutter, so the headline starts
+ * `max-w-[1728px]` with the navbar-aligned `px-10` gutter, so the headline starts
  * on the same vertical line as the wordmark. The desktop split is
  * `xl:grid-cols-2` with `xl:gap-x-0` - the columns split at the exact horizontal
  * center, so the right booking card occupies the same rectangle as the hero's
  * right visual panel: its left edge on the center line, its right edge on the
- * `px-20` gutter. The card is also inset from the section's top and bottom by 32px
+ * `px-10` gutter. The card is also inset from the section's top and bottom by 32px
  * (`xl:pt-8`/`xl:pb-8`), matching the hero panel's `top-8`/`bottom-8`. The booking
  * card spans both rows (`xl:row-span-2`) and its content drives the column
  * height - the left column stretches to match, so the logos bottom-anchor to the
@@ -28,7 +28,7 @@ import { DemoBooking } from '@/app/(landing)/demo/components/demo-booking'
  * proof reuses the shared {@link TrustedBy} block (the same label + logo grid the
  * hero uses), bottom-anchored (`xl:row-start-2 xl:self-end`) so it rests on the
  * card's lower edge. Below `xl` it stacks; the gutter follows the navbar
- * convention (`px-20 max-lg:px-8 max-sm:px-5`) so the headline stays on the
+ * convention (`px-10 max-md:px-7 max-lg:px-8 max-xl:px-9`) so the headline stays on the
  * wordmark line, and `max-sm` drops to the smallest type scale.
  *
  * Carries an sr-only product summary for AI citation (landing CLAUDE.md → GEO).
@@ -39,13 +39,13 @@ export default function Demo() {
       <section
         id='demo'
         aria-labelledby='demo-heading'
-        className='mx-auto grid w-full max-w-[1460px] grid-cols-1 gap-y-10 px-20 pt-20 pb-24 max-sm:gap-y-8 max-sm:px-5 max-sm:pt-16 max-sm:pb-16 max-lg:px-8 xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-0 xl:pt-8 xl:pb-8'
+        className='mx-auto grid w-full max-w-[1728px] grid-cols-1 gap-y-10 px-10 pt-20 pb-24 max-sm:gap-y-8 max-sm:pt-16 max-sm:pb-16 max-md:px-7 max-lg:px-8 max-xl:px-9 xl:grid-cols-2 xl:grid-rows-[auto_1fr] xl:gap-x-0 xl:pt-8 xl:pb-8'
       >
         <div className='flex flex-col gap-5 xl:col-start-1 xl:row-start-1 xl:self-start xl:pt-[80px]'>
           <p className='sr-only'>
             Operationalize AI with Sim, the AI agent workspace where teams build, deploy, and manage
             AI agents and workflows. A Sim specialist walks your team through building agents that
-            automate real work across 1,000+ integrations and every major LLM, visually,
+            automate real work across hundreds of integrations and every major LLM, visually,
             conversationally, or with code.
           </p>
 

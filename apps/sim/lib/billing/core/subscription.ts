@@ -2,7 +2,6 @@ import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import {
@@ -37,6 +36,7 @@ import {
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('SubscriptionCore')
 
@@ -167,15 +167,16 @@ export async function syncSubscriptionPlan(
  */
 interface GetOrganizationSubscriptionUsableOptions {
   onError?: 'return-null' | 'throw'
+  executor?: DbOrTx
 }
 
 export async function getOrganizationSubscriptionUsable(
   organizationId: string,
   options: GetOrganizationSubscriptionUsableOptions = {}
 ) {
-  const { onError = 'return-null' } = options
+  const { onError = 'return-null', executor = db } = options
   try {
-    const [orgSub] = await db
+    const [orgSub] = await executor
       .select()
       .from(subscription)
       .where(
@@ -273,6 +274,7 @@ export async function getOrganizationCoverageForMember(
   }
 }
 
+/** Resolves the subscription's exact organization reference without inferring ownership from membership. */
 export async function getOrganizationIdForSubscriptionReference(
   referenceId: string
 ): Promise<string | null> {
@@ -282,24 +284,7 @@ export async function getOrganizationIdForSubscriptionReference(
     .where(eq(organization.id, referenceId))
     .limit(1)
 
-  if (referencedOrganization) {
-    return referencedOrganization.id
-  }
-
-  const [memberRecord] = await db
-    .select({
-      organizationId: member.organizationId,
-      role: member.role,
-    })
-    .from(member)
-    .where(eq(member.userId, referenceId))
-    .limit(1)
-
-  if (memberRecord && isOrgAdminRole(memberRecord.role)) {
-    return memberRecord.organizationId
-  }
-
-  return null
+  return referencedOrganization?.id ?? null
 }
 
 /**
@@ -467,7 +452,8 @@ export type EnterprisePlanErrorPolicy = 'return-false' | 'throw'
 
 async function resolveOrganizationEnterprisePlan(
   organizationId: string,
-  onError: EnterprisePlanErrorPolicy = 'return-false'
+  onError: EnterprisePlanErrorPolicy = 'return-false',
+  executor: DbOrTx = db
 ): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
@@ -478,7 +464,7 @@ async function resolveOrganizationEnterprisePlan(
       return true
     }
 
-    if (await isOrganizationBillingBlocked(organizationId)) {
+    if (await isOrganizationBillingBlocked(organizationId, executor)) {
       return false
     }
 
@@ -488,10 +474,10 @@ async function resolveOrganizationEnterprisePlan(
      * `false` — the catch below never sees it. A caller that asked to throw
      * needs that failure propagated too.
      */
-    const orgSub = await getOrganizationSubscriptionUsable(
-      organizationId,
-      onError === 'throw' ? { onError: 'throw' } : {}
-    )
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId, {
+      executor,
+      ...(onError === 'throw' ? { onError: 'throw' as const } : {}),
+    })
 
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
@@ -602,10 +588,12 @@ export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterpris
  */
 export async function isOrganizationFeatureEntitled(
   organizationId: string,
-  selfHostEntitlement: boolean
+  selfHostEntitlement: boolean,
+  executor: DbOrTx = db,
+  options: { onError?: EnterprisePlanErrorPolicy } = {}
 ): Promise<boolean> {
   if (!isBillingEnabled) return selfHostEntitlement
-  return isOrganizationOnEnterprisePlan(organizationId)
+  return isOrganizationOnEnterprisePlan(organizationId, options.onError ?? 'return-false', executor)
 }
 
 /**

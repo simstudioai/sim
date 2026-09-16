@@ -1,0 +1,32 @@
+# Permission access requests
+
+Members request access from locked features, the block picker, or **My access requests**. Organization owners and administrators review requests in **Access control → Requests**, **Review access requests** in the workspace menu, or through an authenticated email link. The same queue handles increases to an administrator-set member credit cap.
+
+## Rollout
+
+1. Apply migration `0349_permission_access_requests.sql` before deploying the application changes.
+2. Enable the global AppConfig `permission-access-requests` flag. Outside AppConfig deployments, set `PERMISSION_ACCESS_REQUESTS_ENABLED=true`.
+3. Each organization starts with **Allow users to request permissions** enabled. An explicit organization opt-out disables creation and approval and restores existing feature hiding. History, cancellation, and decline remain available.
+4. The existing outbox worker delivers notifications. Email links open authenticated review/history; email never applies a change.
+
+## Policy and lifecycle
+
+- Requests refer to canonical public feature identifiers. Private resource names, preview blocks, deployment-disabled integrations, and unknown tenant model names are excluded from discovery.
+- Fulfillment updates the current governing group. The preview lists every required change, including parent restrictions, and a conservative upper bound of affected people/workspaces. It does not create individual grants or move members between groups.
+- Approval rechecks administrator authority, requester membership identity, workspace ownership, entitlement at admission, organization preference, group resolution, and the preview fingerprint. Membership, policy, or scope changes require a fresh review or request.
+- The group/credit-limit update, final request record, and notification enqueue share one database transaction. The final decision stores its original change and impact for history; later policy edits do not rewrite it.
+- One pending request per requester/scope/target is enforced by a database index and organization serialization. Member cap requests share an organization-wide key. Submission is bounded to 100 requests per rolling 24 hours and 100 pending requests per requester/organization, in addition to HTTP rate admission.
+- A usage request increases the existing member credit cap. It does not change the pooled organization budget, buy credits, or alter temporary request-rate limits.
+- Notifications recheck current membership and reviewer authority. Outbox fan-out is bounded and replay-safe; delivery to an email provider remains at-least-once across a crash after send.
+
+## Validation
+
+Domain and application tests cover denial/delta parity, deployment ceilings, current authorization, duplicate submissions, stale previews, membership changes, monotonic credit increases, and outbox behavior. DOM tests cover locked pages, request-only block actions, keyboard order, and query reconciliation.
+
+The optional PostgreSQL migration tests require a disposable local database named `sim_access_requests_test`:
+
+```sh
+ACCESS_REQUESTS_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/sim_access_requests_test bunx vitest run permission-access-requests-migration.postgres.test.ts
+```
+
+Run that command from `packages/db`. The fixture uses a unique schema and verifies pending uniqueness across independent transactions, lifecycle constraints, default settings, and preservation of decision history.

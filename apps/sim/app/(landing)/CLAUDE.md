@@ -6,22 +6,22 @@ This route group owns `/` and the entire public marketing surface - the home pag
 
 ## What this is
 
-- `app/(landing)/` - the marketing site. A shared `layout.tsx` renders the chrome once (the `LandingShell`: light tokens, navbar with server-side GitHub stars, footer, site-wide JSON-LD); each page supplies only its `<main>` content.
+- `app/(landing)/` - the marketing site. A shared `layout.tsx` renders the chrome once (the `LandingShell`: light tokens, navbar with server-side GitHub stars, painted pre-footer CTA, footer, site-wide JSON-LD); each page supplies only its `<main>` content. The painted light/dark CTA and footer are owned by `LandingShell`; never add page-specific closing CTA bands or footer instances.
 - The legacy `app/(home)/` group (old dark landing + `--landing-*` tokens) has been **deleted** - its marketing pages were migrated here and its chrome retired. Do not reintroduce `--landing-*` tokens, Martian Mono accents, or a separate marketing theme.
 
-## Styling - draw from the platform's light mode
+## Styling - draw from the platform's tokens
 
-The landing page looks like the product. Its visual language is the workspace UI in light mode, not a separate marketing theme.
+The landing page looks like the product. Its visual language is the workspace UI - light by default, dark on request - not a separate marketing theme.
 
-- **Always light.** The root wrapper in `landing.tsx` carries the `light` class, which pins every token to its light value (see `app/_styles/globals.css`, the `:root, .light` block). Never add `dark:` variants here; never read the user's theme.
-- **Use platform tokens, never hex.** Canvas `--bg`, surfaces `--surface-1`…`--surface-7`, cards/modals `--surface-2`, hover `--surface-hover`, active `--surface-active`; text `--text-primary` / `--text-secondary` / `--text-muted` / `--text-body`, icons `--text-icon`; borders `--border` (dividers) / `--border-1` (fields); brand `--brand-agent` / `--brand-secondary` / `--brand-accent`. Do **not** use the legacy `--landing-*` tokens - they belong to the old dark landing.
+- **Light by default, dark on request.** The landing family follows the theme class on `<html>` (next-themes, storage key `sim-landing-theme` - its own store, separate from the workspace's account-synced `sim-theme`, which holds `system` for every signed-in user): a visitor who has not chosen otherwise here gets light, the design baseline, and the footer's `ThemeToggle` switches to dark - the platform's own `.dark` token values from `app/_styles/globals.css`, no separate palette. Tokens flip on their own, so `dark:` variants exist here only to pair the handful of deliberate literals (the `#F8F8F8` paper band, the composer send button, the pale CTA drawing) with their dark value in the same class string - never leave a literal unpaired. Never read the theme in a Server Component; the toggle is the one client reader.
+- **Use platform tokens, never hex.** Canvas `--bg`, surfaces `--surface-1`…`--surface-7`, cards/modals `--surface-2`, hover `--surface-hover`, active `--surface-active`; text `--text-primary` / `--text-secondary` / `--text-muted` / `--text-body`, icons `--text-icon`; borders `--border` (its legacy alias `--border-1` is not for new work); brand `--brand-agent` / `--brand-secondary` / `--brand-accent`. Do **not** use the legacy `--landing-*` tokens - they belong to the old dark landing.
 - **Use emcn components where they fit.** The chip family (`Chip`, `ChipLink`, `ChipTag`, `ChipInput`, `ChipModal*`, …) from `@/components/emcn` is the canonical chrome - a demo-request form is a `ChipModal` with `ChipModalField`s, a pill CTA is a `Chip`/`ChipLink`. Components own their chrome; pass props, not className overrides. Full consumer rules: `.claude/rules/sim-styling.md`.
 - **Typography is the platform's.** Season is the global body font (`font-season` is applied on `<body>` in the root layout). Use the platform text scale (`text-small` = 13px, `text-base` = 15px, etc. - see the `@theme` block in `app/_styles/globals.css`). Don't add new fonts or font CSS variables without explicit direction.
 - **Never touch global styles.** No additions to `app/_styles/globals.css`. All styling is local Tailwind classes; `cn()` from `@/lib/core/utils/cn` for conditionals; no inline `style` attributes.
 - **Responsive - desktop is the source of truth, scaled down via `max-*` overrides.** The page is fully responsive (iPad + phone). The desktop layout stays the unprefixed baseline; smaller screens are handled by *layering* `max-*` overrides on top, so desktop renders byte-identically. Tiers:
   - `max-xl:` (≤1279) - the hero's two-panel split (absolute visual + logos) collapses to a stacked, in-flow column. The split needs ≥1280 to avoid the headline colliding with the visual panel; iPad-landscape (1024) therefore gets the stacked hero with the desktop nav.
-  - `max-lg:` (≤1023) - the desktop nav clusters hide (`hidden lg:flex`) and `MobileNav` (hamburger sheet) takes over; multi-column grids step down (mothership 4→2, footer 7→3); shared gutter `px-20 → max-lg:px-8`; section gaps tighten.
-  - `max-md:` (≤767) - Features beats drop the floating callout (`max-md:hidden`) and show the un-masked backdrop preview full-width.
+  - `max-lg:` (≤1023) - the desktop nav clusters hide (`hidden lg:flex`) and `MobileNav` (hamburger sheet) takes over; multi-column grids step down (footer 7→3); the shared gutter narrows; section gaps tighten.
+  - `max-md:` (≤767) - two-up feature and card rows stack to one column.
   - `max-sm:` (≤639) - single-column grids, smallest type scale, `px-5` gutter, hero CTA row stacks.
 
   When adding a new section, give it the same `px-20 max-lg:px-8 max-sm:px-5` gutter so the navbar wordmark stays aligned with section content at every width. Verify desktop is unchanged and there is zero horizontal overflow at 1280 / 1024 / 768 / 390 before shipping.
@@ -79,8 +79,8 @@ Follow `.claude/rules/constitution.md` exactly: Sim is "the open-source AI works
 └── components/
     ├── index.ts                         # top barrel
     ├── navbar/{navbar.tsx, index.ts, components/<chip>/…}   # <header><nav>: wordmark, dropdowns, stars, auth chips
-    ├── hero/{hero.tsx, index.ts, components/hero-visual/…}  # h1, description, CTA, platform visual, logos
-    ├── lifecycle/, features/, footer/, testimonials/        # each: <name>.tsx + index.ts (+ components/)
+    ├── hero/{hero.tsx, index.ts, components/hero-platform-loop/…}  # h1, description, CTA, lazy product loop
+    ├── features/, footer/, platform-suite/, product-demo/, security/, …  # each: <name>.tsx + index.ts (+ components/)
     ├── shared/                          # cross-page reused chrome (folder-per-component + barrel)
     │   ├── landing-shell/               # light wrapper + skip link + Navbar(stars) + Footer; wraps every page
     │   ├── hero-cta/                    # the one email-capture + Sign-up CTA (hero + every platform hero)
@@ -99,7 +99,7 @@ Absolute imports only in component code (`@/app/(landing)/components/...`); `ind
 
 1. Server Component unless it provably needs client state; if client, it's a leaf.
 2. H2 with `id` + `aria-labelledby` wiring; heading hierarchy intact.
-3. Platform light tokens and emcn chrome only - no hex colors, no `--landing-*`, no `dark:`.
+3. Platform tokens and emcn chrome only - no hex colors, no `--landing-*`. Check the section in dark mode too (footer toggle); any deliberate literal carries its `dark:` pair.
 4. Images: `next/image`, explicit dimensions, `priority` only on the LCP element.
 5. Copy passes the constitution (language table, claim hierarchy, tone).
 6. "Sim" named explicitly; section quotable in isolation.

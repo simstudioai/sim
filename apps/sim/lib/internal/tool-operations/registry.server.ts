@@ -1,7 +1,12 @@
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { isMcpTool } from '@/executor/constants'
 
-type InternalToolOperationHandlerLoader = () => Promise<InternalToolOperationHandler>
+type InternalToolOperationHandlerLoader = () => Promise<
+  InternalToolOperationHandler<InternalToolOperationResult>
+>
 
 const STS_TOOL_IDS = [
   'sts_assume_role',
@@ -359,18 +364,33 @@ const MYSQL_TOOL_IDS = [
 ] as const
 
 const ATHENA_TOOL_IDS = [
+  'athena_batch_get_named_query',
+  'athena_batch_get_prepared_statement',
   'athena_batch_get_query_execution',
   'athena_create_named_query',
+  'athena_create_prepared_statement',
   'athena_delete_named_query',
+  'athena_delete_prepared_statement',
+  'athena_get_data_catalog',
+  'athena_get_database',
   'athena_get_named_query',
+  'athena_get_prepared_statement',
   'athena_get_query_execution',
   'athena_get_query_results',
+  'athena_get_query_runtime_statistics',
+  'athena_get_table_metadata',
+  'athena_get_work_group',
+  'athena_list_data_catalogs',
   'athena_list_databases',
   'athena_list_named_queries',
+  'athena_list_prepared_statements',
   'athena_list_query_executions',
   'athena_list_table_metadata',
+  'athena_list_work_groups',
   'athena_start_query',
   'athena_stop_query',
+  'athena_update_named_query',
+  'athena_update_prepared_statement',
 ] as const
 
 const CLICKHOUSE_TOOL_IDS = [
@@ -441,6 +461,7 @@ const JUPYTER_TOOL_IDS = [
   'jupyter_delete_content',
   'jupyter_delete_session',
   'jupyter_get_content',
+  'jupyter_get_content_v2',
   'jupyter_interrupt_kernel',
   'jupyter_list_contents',
   'jupyter_list_kernels',
@@ -715,6 +736,7 @@ const OUTLOOK_TOOL_IDS = [
   'outlook_copy',
   'outlook_delete',
   'outlook_draft',
+  'outlook_get_attachment',
   'outlook_mark_read',
   'outlook_mark_unread',
   'outlook_move',
@@ -727,6 +749,7 @@ const SSH_TOOL_IDS = [
   'ssh_create_directory',
   'ssh_delete_file',
   'ssh_download_file',
+  'ssh_download_file_v2',
   'ssh_execute_command',
   'ssh_execute_script',
   'ssh_get_system_info',
@@ -997,6 +1020,7 @@ const CURSOR_TOOL_IDS = ['cursor_download_artifact', 'cursor_download_artifact_v
 const SFTP_TOOL_IDS = [
   'sftp_delete',
   'sftp_download',
+  'sftp_download_v2',
   'sftp_list',
   'sftp_mkdir',
   'sftp_upload',
@@ -1054,7 +1078,12 @@ const PERSONA_TOOL_IDS = ['persona_import_accounts'] as const
 
 const SHAREPOINT_TOOL_IDS = ['sharepoint_download_file', 'sharepoint_upload_file'] as const
 
-const QUIVER_TOOL_IDS = ['quiver_text_to_svg', 'quiver_image_to_svg'] as const
+const QUIVER_TOOL_IDS = [
+  'quiver_text_to_svg',
+  'quiver_image_to_svg',
+  'quiver_text_to_svg_v2',
+  'quiver_image_to_svg_v2',
+] as const
 
 const TELEGRAM_TOOL_IDS = ['telegram_send_document'] as const
 
@@ -1753,6 +1782,15 @@ registerFamily(handlerLoaders, LOG_TOOL_IDS, async () => {
   return (await import('@/lib/internal/logs/execute-tool')).executeLogsTool
 })
 
+handlerLoaders.set(
+  'mcp_run_operation',
+  async () => (await import('@/lib/internal/mcp/execute-tool')).executeMcpTool
+)
+handlerLoaders.set(
+  'mcp_list_operations',
+  async () => (await import('@/lib/internal/mcp/list-operations')).listMcpOperations
+)
+
 export function isInternalToolOperationRegistered(toolId: string): boolean {
   return handlerLoaders.has(toolId) || isMcpTool(toolId)
 }
@@ -1763,7 +1801,7 @@ export function getRegisteredInternalToolOperationIds(): string[] {
 
 export async function getInternalToolOperationHandler(
   toolId: string
-): Promise<InternalToolOperationHandler | null> {
+): Promise<InternalToolOperationHandler<InternalToolOperationResult> | null> {
   const loader = handlerLoaders.get(toolId)
   if (loader) return loader()
   if (isMcpTool(toolId)) {

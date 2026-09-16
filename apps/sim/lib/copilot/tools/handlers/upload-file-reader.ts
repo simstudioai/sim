@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
@@ -95,6 +95,7 @@ function toWorkspaceFileRecord(row: WorkspaceFileRow): WorkspaceFileRecord {
     deletedAt: row.deletedAt,
     uploadedAt: row.uploadedAt,
     updatedAt: row.updatedAt,
+    contentUpdatedAt: row.contentUpdatedAt,
     storageContext: 'mothership',
   }
 }
@@ -114,7 +115,7 @@ export async function findMothershipUploadRowByChatAndName(
   fileName: string
 ): Promise<WorkspaceFileRow | null> {
   const exactRows = await db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
@@ -135,7 +136,7 @@ export async function findMothershipUploadRowByChatAndName(
   }
 
   const allRows = await db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
@@ -156,7 +157,7 @@ export async function findMothershipUploadRowByChatAndName(
 export async function listChatUploads(chatId: string): Promise<WorkspaceFileRecord[]> {
   try {
     const rows = await db
-      .select(workspaceFileColumns)
+      .select()
       .from(workspaceFiles)
       .where(
         and(
@@ -207,7 +208,12 @@ export async function readChatUploadWithProvenance(
     if (!result) return null
     return {
       value: result,
-      file: { fileId: record.id, key: record.key, context: 'mothership' },
+      file: {
+        fileId: record.id,
+        key: record.key,
+        context: 'mothership',
+        contentUpdatedAt: row.contentUpdatedAt,
+      },
       view: isReadableFileType(record.type) ? 'complete' : 'derived',
     }
   } catch (err) {
@@ -260,6 +266,11 @@ export async function grepChatUploadWithProvenance(
   const uploadsPath = `uploads/${canonicalUploadKey(record.name)}`
   return {
     value: grepReadResult(uploadsPath, result, pattern, uploadsPath, options),
-    file: { fileId: record.id, key: record.key, context: 'mothership' },
+    file: {
+      fileId: record.id,
+      key: record.key,
+      context: 'mothership',
+      contentUpdatedAt: row.contentUpdatedAt,
+    },
   }
 }

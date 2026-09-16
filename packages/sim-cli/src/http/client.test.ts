@@ -81,6 +81,23 @@ describe('cursor pagination', () => {
     })
   })
 
+  it.each([{ cursors: ['c1', 'c1'] }, { cursors: ['c1', 'c2', 'c1'] }])(
+    'rejects cursor cycles $cursors before making another request',
+    async ({ cursors }) => {
+      const request = vi.fn().mockRejectedValue(new Error('Pagination did not stop at the cycle'))
+      for (const nextCursor of cursors) {
+        request.mockResolvedValueOnce({ data: ['item'], nextCursor })
+      }
+
+      await expect(
+        requestAllPages<string>({ request } as Pick<SimClient, 'request'>, '/api/v2/items', {
+          pageSize: 100,
+        })
+      ).rejects.toThrow('repeated pagination cursor')
+      expect(request).toHaveBeenCalledTimes(cursors.length)
+    }
+  )
+
   it('reports progress on stderr once a second page is coming, then clears the line', async () => {
     const request = vi
       .fn()
@@ -257,6 +274,23 @@ describe('redirects', () => {
 })
 
 describe('non-JSON responses', () => {
+  it.each([200, 409, 503])('normalizes unreadable HTTP %s response bodies', async (status) => {
+    const response = new Response(null, { status })
+    vi.spyOn(response, 'text').mockRejectedValue(new Error('Connection closed during response'))
+    const fetch = vi.fn().mockResolvedValue(response)
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      client().request('/api/v2/workspaces/ws_1/operations/operation-1')
+    ).rejects.toMatchObject({
+      name: 'SimApiError',
+      status,
+      code: 'RESPONSE_READ_FAILED',
+      message: 'Unable to read the response: Connection closed during response',
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('names the URL and the shape instead of dumping a page of HTML', async () => {
     vi.stubGlobal(
       'fetch',
@@ -321,6 +355,20 @@ describe('non-JSON responses', () => {
 })
 
 describe('a request that never answers', () => {
+  it('reports the nested Undici reason behind fetch failed', async () => {
+    const socketError = Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('fetch failed', { cause: socketError }))
+    )
+
+    await expect(client().request('/api/v2/workflows')).rejects.toMatchObject({
+      message:
+        'Could not reach https://sim.example: fetch failed: other side closed (UND_ERR_SOCKET)',
+      status: 0,
+    })
+  })
+
   it('bounds a request by default, above every timeout the server itself applies', async () => {
     // A synchronous workflow run is allowed 3000s on a paid plan, so a tighter
     // default would abort real work and report it as a transport failure. What
@@ -953,6 +1001,10 @@ describe('destructive operations are gated', () => {
    * default by being named something the old regex did not match.
    */
   const DESTRUCTIVE_NON_DELETE = new Set<V2OperationName>([
+    'pushWorkspace',
+    'pullWorkspace',
+    'rollbackWorkspaceFork',
+    'unlinkWorkspaceFork',
     // The same application operation as `rollbackWorkflow`, under a different
     // transition: both switch which version production serves away from the one
     // the caller last chose.
@@ -974,6 +1026,15 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    'forkWorkspace',
+    'getSelector',
+    'listSelector',
+    'previewWorkflowImport',
+    'previewWorkspaceFork',
+    'previewWorkspacePull',
+    'previewWorkspacePush',
+    'updateWorkspaceForkExclusions',
+    'updateWorkspaceForkMappings',
     'addTableColumn',
     'addWorkflowGroup',
     'addWorkspaceFilesToKnowledgeBase',

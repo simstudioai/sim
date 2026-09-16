@@ -1,122 +1,98 @@
+import type { ComponentType } from 'react'
 import { ChipTag, cn } from '@sim/emcn'
-import { ConfluenceIcon, GoogleDriveIcon, NotionIcon } from '@/components/icons'
+import { Check } from '@sim/emcn/icons'
+import {
+  ConfluenceIcon,
+  GithubIcon,
+  GoogleDriveIcon,
+  MicrosoftSharepointIcon,
+  NotionIcon,
+  SlackIcon,
+} from '@/components/icons'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/knowledge/components/feature-graphics/connector-sync-graphic.module.css'
 
-interface ConnectorRow {
-  /** Connector brand mark. */
-  icon: React.ComponentType<{ className?: string }>
-  /** Connector name. */
+interface ConnectorSource {
+  icon: ComponentType<{ className?: string }>
   name: string
-  /** Document count attribution line. */
   documents: string
-  /** Right-aligned sync status. */
-  status: string
-  /** Whether this row is the mid-sync one carrying the live beat. */
   syncing?: boolean
 }
 
-/**
- * Three sources feeding one knowledge base: Notion mid-sync as the live
- * beat, Drive and Confluence settled from earlier passes.
- */
-const CONNECTOR_ROWS: readonly ConnectorRow[] = [
-  {
-    icon: NotionIcon,
-    name: 'Notion',
-    documents: '128 docs',
-    status: 'Syncing',
-    syncing: true,
-  },
-  {
-    icon: GoogleDriveIcon,
-    name: 'Google Drive',
-    documents: '342 docs',
-    status: 'Synced · 2m ago',
-  },
-  {
-    icon: ConfluenceIcon,
-    name: 'Confluence',
-    documents: '96 docs',
-    status: 'Synced · 1h ago',
-  },
-] as const
+interface ConnectorCardProps {
+  source: ConnectorSource
+  index: number
+}
 
-/** Per-row stamp-in classes - the stagger order is baked into each class's delay. */
-const ROW_STEP_CLASSES = [styles.row0, styles.row1, styles.row2] as const
+/** Supported knowledge sources, shown with illustrative document counts. */
+const CONNECTOR_SOURCES: readonly ConnectorSource[] = [
+  { icon: NotionIcon, name: 'Notion', documents: '128 docs', syncing: true },
+  { icon: GoogleDriveIcon, name: 'Google Drive', documents: '342 docs' },
+  { icon: ConfluenceIcon, name: 'Confluence', documents: '96 docs' },
+  { icon: SlackIcon, name: 'Slack', documents: '24 channels' },
+  { icon: GithubIcon, name: 'GitHub', documents: '86 files' },
+  { icon: MicrosoftSharepointIcon, name: 'SharePoint', documents: '214 docs' },
+]
 
-/**
- * Source syncing told as a frameless connector ledger (the audit tile's
- * composition): a small "Connectors" header with an `Auto-sync` mono
- * ChipTag (fill stepped up to `--surface-6` so the pill stays legible on
- * the grey ground) above three source rows, each a white card in the
- * audit tile's exact chrome (`--white` fill, 1px `--border-1` hairline,
- * `rounded-xl`, `shadow-xs`) pairing the connector's real brand mark in
- * the lifecycle header's outlined `size-6` icon box with the source name,
- * its document count, and a right-aligned sync status. The top row is
- * mid-sync - a pulsing dot beside "Syncing" and the family's quiet 6s
- * ring pulse on its icon box - while the settled rows read "Synced".
- *
- * Motion (from `connector-sync-graphic.module.css`): the rows stamp in
- * top to bottom once - the audit tile's one-shot settle, never re-played -
- * then the syncing row's icon box carries the shared ring-pulse beat. The
- * dot blink is Tailwind's `animate-pulse` with its own
- * `motion-reduce:animate-none`; everything renders settled under
- * `prefers-reduced-motion`.
- *
- * The feature tile's visual slot bleeds `2rem` right (`1.5rem` under
- * `max-lg`) but not left, so this centered vignette adds matching right
- * padding to land on the tile's visible center. The column is fluid
- * (`w-full max-w-[312px]`), relaxing to 400px on the wide spanned tile of
- * the two-column band (container ≥500px inside `sm`..`lg`).
- */
+const CARD_STEPS = [
+  styles.card0,
+  styles.card1,
+  styles.card2,
+  styles.card3,
+  styles.card4,
+  styles.card5,
+]
+
+/** Small document layers give each connected source depth without extra UI chrome. */
+function ConnectorCard({ source, index }: ConnectorCardProps) {
+  return (
+    <div className={cn('relative h-full min-w-0', CARD_STEPS[index])}>
+      <div className='-bottom-1.5 absolute inset-x-3 top-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface-3)] opacity-50' />
+      <div className='-bottom-[3px] absolute inset-x-1.5 top-1.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)]' />
+      <div className='relative flex h-full flex-col justify-between rounded-[10px] border border-[var(--border)] bg-[var(--white)] p-[3cqw] shadow-xs dark:bg-[var(--surface-4)]'>
+        <div className='flex shrink-0 items-center justify-between'>
+          <source.icon className='size-[clamp(18px,6cqw,24px)] shrink-0' />
+          <span className='flex items-center gap-1 text-[11px] text-[var(--text-muted)] leading-4'>
+            {source.syncing ? (
+              <>
+                <span className='size-1 animate-pulse rounded-full bg-[var(--text-icon)] motion-reduce:animate-none' />
+                Syncing
+              </>
+            ) : (
+              <Check className='size-3 text-[var(--text-icon)]' />
+            )}
+          </span>
+        </div>
+        <div className='min-w-0'>
+          <p className='truncate text-[13px] text-[var(--text-primary)] leading-[18px]'>
+            {source.name}
+          </p>
+          <p className='truncate text-[12px] text-[var(--text-muted)] leading-4'>
+            {source.documents}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Six lightly stacked source cards fill the portrait stage. */
 export function ConnectorSyncGraphic() {
   return (
-    <FeatureGraphicShell>
+    <FeatureGraphicShell variant='portrait'>
       <div
         aria-hidden='true'
-        className='absolute inset-0 flex items-center justify-center pr-8 max-lg:pr-6'
+        data-feature-graphic='connectors'
+        className='absolute inset-0 flex justify-center p-5 [container-type:inline-size]'
       >
-        <div className='w-full max-w-[312px] sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
-          <div className='mb-4 flex items-center justify-between'>
+        <div className='flex h-full w-full flex-col'>
+          <div className='mb-5 flex items-center justify-between'>
             <span className='text-[var(--text-primary)] text-base'>Connectors</span>
-            <ChipTag variant='mono' className='bg-[var(--surface-6)]'>
-              Auto-sync
-            </ChipTag>
+            <ChipTag variant='mono'>Auto-sync</ChipTag>
           </div>
-
-          <div className='flex flex-col gap-2'>
-            {CONNECTOR_ROWS.map((row, index) => (
-              <div
-                key={row.name}
-                className={cn(
-                  'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs',
-                  ROW_STEP_CLASSES[index]
-                )}
-              >
-                <span
-                  className={cn(
-                    'flex size-6 shrink-0 items-center justify-center rounded-md border border-[var(--border-1)]',
-                    row.syncing && styles.iconPulse
-                  )}
-                >
-                  <row.icon className='size-[14px]' />
-                </span>
-                <span className='min-w-0 flex-1'>
-                  <span className='block truncate text-[var(--text-primary)] text-small'>
-                    {row.name}
-                  </span>
-                  <span className='block truncate text-[var(--text-muted)] text-caption'>
-                    {row.documents}
-                  </span>
-                </span>
-                <span className='flex shrink-0 items-center gap-1.5 text-[var(--text-muted)] text-caption'>
-                  {row.syncing && (
-                    <span className='size-1.5 animate-pulse rounded-full bg-[var(--text-secondary)] motion-reduce:animate-none' />
-                  )}
-                  {row.status}
-                </span>
-              </div>
+          <div className='grid min-h-0 flex-1 grid-cols-2 grid-rows-3 gap-x-3 gap-y-4 pb-1.5'>
+            {CONNECTOR_SOURCES.map((source, index) => (
+              <ConnectorCard key={source.name} source={source} index={index} />
             ))}
           </div>
         </div>

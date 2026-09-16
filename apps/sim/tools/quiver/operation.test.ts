@@ -2,17 +2,38 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { quiverImageToSvgTool } from '@/tools/quiver/image_to_svg'
-import { quiverTextToSvgTool } from '@/tools/quiver/text_to_svg'
+import { quiverImageToSvgTool, quiverImageToSvgV2Tool } from '@/tools/quiver/image_to_svg'
+import { quiverTextToSvgTool, quiverTextToSvgV2Tool } from '@/tools/quiver/text_to_svg'
 
 describe('Quiver operation declarations', () => {
-  it.each([quiverTextToSvgTool, quiverImageToSvgTool])(
-    '$id has typed operation input without HTTP metadata',
-    (tool) => {
-      expect(tool.operation.input).toBeTypeOf('function')
-      expect('request' in tool).toBe(false)
-    }
-  )
+  it.each([
+    quiverTextToSvgTool,
+    quiverImageToSvgTool,
+    quiverTextToSvgV2Tool,
+    quiverImageToSvgV2Tool,
+  ])('$id has typed operation input without HTTP metadata', (tool) => {
+    expect(tool.operation.input).toBeTypeOf('function')
+    expect('request' in tool).toBe(false)
+  })
+
+  it.each([
+    [quiverTextToSvgTool, quiverTextToSvgV2Tool],
+    [quiverImageToSvgTool, quiverImageToSvgV2Tool],
+  ])('versions the file response without changing provider inputs', (legacy, current) => {
+    expect(current.id).toBe(`${legacy.id}_v2`)
+    expect(current.version).toBe('2.0.0')
+    expect(current.operation).toBe(legacy.operation)
+    expect(current.params).toBe(legacy.params)
+    expect(legacy.outputs?.file).toBeUndefined()
+    expect(legacy.outputs?.output.properties?.file.type).toBe('file')
+    expect(Object.keys(current.outputs!).sort()).toEqual(['files', 'id', 'usage'])
+    expect(current.outputs?.files.type).toBe('file[]')
+    expect(current.outputs?.id.nullable).toBe(true)
+    expect(current.outputs?.usage.nullable).toBe(true)
+    expect(current.outputs).not.toHaveProperty('svgContent')
+    expect(legacy.outputs?.output.properties?.svgContent.type).toBe('string')
+    expect(current.outputs?.output).toBeUndefined()
+  })
 
   it('preserves text projection and private reference paths', () => {
     const modelInput = quiverTextToSvgTool.operation.modelInput

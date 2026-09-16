@@ -29,6 +29,7 @@ const CREDENTIAL_GROUP_PROVIDER_ADAPTERS: Record<
   asana: createStandardOAuthCredentialGroupProviderAdapter('asana'),
   attio: createStandardOAuthCredentialGroupProviderAdapter('attio'),
   bitbucket: createStandardOAuthCredentialGroupProviderAdapter('bitbucket'),
+  'github-repositories': createStandardOAuthCredentialGroupProviderAdapter('github-repositories'),
   box: createStandardOAuthCredentialGroupProviderAdapter('box'),
   calcom: createStandardOAuthCredentialGroupProviderAdapter('calcom'),
   clickup: createStandardOAuthCredentialGroupProviderAdapter('clickup'),

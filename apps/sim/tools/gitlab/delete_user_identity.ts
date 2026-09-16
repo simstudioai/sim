@@ -10,6 +10,7 @@ export const gitlabDeleteUserIdentityTool: ToolConfig<
   GitLabDeleteUserIdentityResponse
 > = {
   id: 'gitlab_delete_user_identity',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Delete User Identity',
   description:
     "Delete a user's authentication identity (e.g. SAML or LDAP). Requires an administrator token with admin_mode on the instance.",

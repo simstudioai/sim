@@ -1,5 +1,4 @@
 import type { Extensions } from '@tiptap/core'
-import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { Awareness } from 'y-protocols/awareness'
@@ -13,10 +12,14 @@ import {
   DEFAULT_CARET_COLOR,
   renderCaret,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/caret-presence'
+import { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
 import { LinkEmbed } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/embed/link-embed'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { RichMarkdownFind } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find'
-import { ResizableImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
+import {
+  ResizableImage,
+  ResizableInlineImage,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
 import { ImageUploadPlaceholders } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
 import { RichMarkdownKeymap } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/keymap'
 import { MarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
@@ -70,6 +73,7 @@ export function createMarkdownEditorExtensions({
       {
         codeBlock: CodeBlockWithLanguage,
         image: ResizableImage,
+        inlineImage: ResizableInlineImage,
         mention: MentionChip,
         rawHtmlBlock: RawHtmlBlockWithView,
         footnoteDef: FootnoteDefWithView,
@@ -78,7 +82,7 @@ export function createMarkdownEditorExtensions({
     ),
     ...(collaboration
       ? [
-          Collaboration.configure({ document: collaboration.doc }),
+          FileCollaboration.configure({ document: collaboration.doc }),
           // CollaborationCaret reads only `provider.awareness` (created synchronously,
           // relayed by the socket provider once connected). `render` tags each caret
           // with the peer's client id and shows its name label; the selection tint is

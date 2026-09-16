@@ -65,8 +65,7 @@ interface ContextMenuProps {
   disableInsert?: boolean
   /**
    * Duplicate is a one-shot insert carrying the copied row's data, so it needs
-   * only the insert lock — unlike the blank-row inserts above it, which also
-   * need the update lock to be fillable.
+   * only the insert lock.
    */
   disableDuplicate?: boolean
   disableDelete?: boolean

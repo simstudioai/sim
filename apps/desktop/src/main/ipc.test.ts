@@ -299,7 +299,6 @@ describe('registerIpcHandlers', () => {
       scopeEvents: {
         activateBrowser: vi.fn(),
         activateTerminal: vi.fn(),
-        registerBrowserSitePermissionPromptSupport: vi.fn(),
         sendBrowser: vi.fn(),
         sendTerminal: vi.fn(),
       },
@@ -468,20 +467,20 @@ describe('registerIpcHandlers', () => {
     deps.accountDataAvailable = () => false
     const { invoke } = collectHandlers()
     const localFilesystemHandle = vi.spyOn(deps.localFilesystem, 'handle')
-    const terminalStart = vi.spyOn(deps.terminal, 'start')
+    const terminalRestore = vi.spyOn(deps.terminal, 'restoreScope')
 
     await expect(
       invoke.get('desktop:local-filesystem')?.(appEvent, { operation: 'list_mounts' })
     ).resolves.toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
     await expect(invoke.get('browser-credentials:list')?.(appEvent)).resolves.toEqual([])
-    await expect(invoke.get('terminal:start')?.(appEvent, {}, 'chat-a')).resolves.toMatchObject({
-      ok: false,
-      code: 'ACCESS_DENIED',
+    await expect(invoke.get('terminal:restore-scope')?.(appEvent, 'chat-a')).resolves.toEqual({
+      tabs: [],
+      activeTerminalId: null,
     })
 
     expect(localFilesystemHandle).not.toHaveBeenCalled()
     expect(listCredentials).not.toHaveBeenCalled()
-    expect(terminalStart).not.toHaveBeenCalled()
+    expect(terminalRestore).not.toHaveBeenCalled()
   })
 
   it('requires an active user gesture for granting or revoking folder access', async () => {
@@ -666,13 +665,15 @@ describe('registerIpcHandlers', () => {
     expect(deps.settings.chooseBrowserDownloadDirectory).toHaveBeenCalledTimes(1)
   })
 
-  it('reports native fullscreen state only to the app origin', async () => {
+  it('reports native fullscreen state only to the app origin and bundled pages', async () => {
     const { invoke } = collectHandlers()
     const getWindowState = invoke.get('desktop:window-state:get')
 
     expect(await getWindowState?.(evilEvent)).toEqual({ isFullScreen: false })
     expect(await getWindowState?.(appEvent)).toEqual({ isFullScreen: true })
     expect(deps.getWindowState).toHaveBeenCalledWith(appSender)
+    expect(await getWindowState?.(localPageEvent)).toEqual({ isFullScreen: true })
+    expect(deps.getWindowState).toHaveBeenCalledWith(localPageSender)
   })
 
   it('restricts shell-control channels to bundled local pages', () => {
@@ -1047,56 +1048,19 @@ describe('registerIpcHandlers', () => {
     panelAction.mockRestore()
   })
 
-  it('requires trusted input for site grants and user-origin navigation', async () => {
+  it('requires trusted input for user navigation', async () => {
     const { invoke, on } = collectHandlers()
     const panelAction = vi.spyOn(browserDriver, 'handlePanelAction').mockResolvedValue()
     const handler = on.get('browser-agent:panel-action')
+    const action = { action: 'navigate', url: 'https://docs.example/page' }
 
-    await invoke.get('browser-agent:activate-scope')?.(inactiveAppEvent, 'chat-sites')
-    handler?.(
-      inactiveAppEvent,
-      { action: 'respond-site-permission', requestId: 'request-1', allowed: true },
-      'chat-sites'
-    )
-    handler?.(
-      inactiveAppEvent,
-      { action: 'respond-site-permission', requestId: 'request-1', allowed: false },
-      'chat-sites'
-    )
-    handler?.(
-      inactiveAppEvent,
-      { action: 'navigate', url: 'https://docs.example/private' },
-      'chat-sites'
-    )
+    await invoke.get('browser-agent:activate-scope')?.(inactiveAppEvent, 'chat-navigation')
+    handler?.(inactiveAppEvent, action, 'chat-navigation')
+    expect(panelAction).not.toHaveBeenCalled()
 
-    expect(panelAction).toHaveBeenCalledOnce()
-    expect(panelAction).toHaveBeenCalledWith('chat-sites', {
-      action: 'respond-site-permission',
-      requestId: 'request-1',
-      allowed: false,
-    })
-
-    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-sites')
-    handler?.(
-      activeAppEvent,
-      { action: 'respond-site-permission', requestId: 'request-2', allowed: true },
-      'chat-sites'
-    )
-    handler?.(
-      activeAppEvent,
-      { action: 'navigate', url: 'https://docs.example/private' },
-      'chat-sites'
-    )
-
-    expect(panelAction).toHaveBeenNthCalledWith(2, 'chat-sites', {
-      action: 'respond-site-permission',
-      requestId: 'request-2',
-      allowed: true,
-    })
-    expect(panelAction).toHaveBeenNthCalledWith(3, 'chat-sites', {
-      action: 'navigate',
-      url: 'https://docs.example/private',
-    })
+    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-navigation')
+    handler?.(activeAppEvent, action, 'chat-navigation')
+    expect(panelAction).toHaveBeenCalledExactlyOnceWith('chat-navigation', action)
     panelAction.mockRestore()
   })
 
@@ -1123,20 +1087,6 @@ describe('registerIpcHandlers', () => {
     panelAction.mockRestore()
   })
 
-  it('accepts site permission prompt support only from the app renderer', () => {
-    const { on } = collectHandlers()
-    const register = on.get('browser-agent:register-site-permission-prompt-support')
-
-    register?.(evilEvent)
-    expect(deps.scopeEvents.registerBrowserSitePermissionPromptSupport).not.toHaveBeenCalled()
-
-    register?.(appEvent)
-    expect(deps.scopeEvents.registerBrowserSitePermissionPromptSupport).toHaveBeenCalledOnce()
-    expect(deps.scopeEvents.registerBrowserSitePermissionPromptSupport).toHaveBeenCalledWith(
-      appSender
-    )
-  })
-
   it('ignores browser-agent panel actions from outside the app origin', () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-agent:panel-action')
@@ -1144,25 +1094,6 @@ describe('registerIpcHandlers', () => {
     expect(() => handler?.(evilEvent, { action: 'reload' })).not.toThrow()
     expect(() => handler?.(appEvent, 'not-an-object')).not.toThrow()
     expect(() => handler?.(appEvent, { action: 'reload' })).not.toThrow()
-  })
-
-  it('restricts browser-tab pinning to typed app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:set-tab-pinned')
-
-    expect(() => handler?.(evilEvent, '1', true)).not.toThrow()
-    expect(() => handler?.(appEvent, 1, true)).not.toThrow()
-    expect(() => handler?.(appEvent, '1', 'yes')).not.toThrow()
-    expect(() => handler?.(appEvent, '1', true)).not.toThrow()
-  })
-
-  it('restricts browser-tab context menus to typed app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:show-tab-context-menu')
-
-    expect(() => handler?.(evilEvent, '1')).not.toThrow()
-    expect(() => handler?.(appEvent, 1)).not.toThrow()
-    expect(() => handler?.(appEvent, '1')).not.toThrow()
   })
 
   it('restricts browser-tab reordering to typed app-origin messages', () => {
@@ -1337,7 +1268,6 @@ describe('registerIpcHandlers', () => {
           title: 'Restored',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
       activeTabId: '1',
@@ -1369,7 +1299,6 @@ describe('registerIpcHandlers', () => {
           title: '',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
       activeTabId: '2',
@@ -1397,11 +1326,10 @@ describe('registerIpcHandlers', () => {
 
   it('atomically creates and navigates a canonical user URL only from trusted input', async () => {
     const tabsState = { scopeId: 'chat-links', tabs: [], activeTabId: '2' }
-    const tabContents = { loadURL: vi.fn(async () => {}) }
+    const tabContents = { loadURL: vi.fn(async () => {}), isDestroyed: () => false }
     const add = vi.spyOn(browserSession, 'addTab').mockReturnValue({
       view: { webContents: tabContents },
     } as never)
-    const grant = vi.spyOn(browserSession, 'grantSiteOriginForUserNavigation').mockReturnValue(true)
     const peek = vi.spyOn(browserSession, 'peekTabsState').mockReturnValue(tabsState)
     const { invoke } = collectHandlers()
 
@@ -1415,7 +1343,6 @@ describe('registerIpcHandlers', () => {
     ).resolves.toEqual(tabsState)
 
     expect(add).toHaveBeenCalledOnce()
-    expect(grant).toHaveBeenCalledWith(tabContents, CANONICAL_BROWSER_URL)
     expect(tabContents.loadURL).toHaveBeenCalledWith(CANONICAL_BROWSER_URL)
 
     for (const url of INVALID_BROWSER_URLS) {
@@ -1436,7 +1363,6 @@ describe('registerIpcHandlers', () => {
     expect(add).toHaveBeenCalledOnce()
 
     add.mockRestore()
-    grant.mockRestore()
     peek.mockRestore()
   })
 

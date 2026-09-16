@@ -197,6 +197,7 @@ export const fileParserTool: InternalToolConfig<FileParserInput, FileParserOutpu
   },
 
   operation: {
+    secretProvenance: { response: { incomplete: 'reject' } },
     input: (params: ToolBodyParams) => {
       logger.info('Request parameters received by tool body:', params)
 
@@ -384,6 +385,7 @@ export const fileFetchTool: InternalToolConfig<FileFetchInput, FileParserV3Outpu
     },
   },
   operation: {
+    secretProvenance: fileParserTool.operation.secretProvenance,
     input: ({ fileUrl, ...params }) =>
       fileParserTool.operation.input({
         ...params,

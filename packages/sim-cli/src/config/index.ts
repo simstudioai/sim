@@ -1,4 +1,4 @@
-export { configDir, configPath, credentialsPath } from './paths'
+export { configDir, configPath, credentialsPath, telemetryStatePath } from './paths'
 export {
   DEFAULT_ENDPOINT,
   DEFAULT_PROFILE,

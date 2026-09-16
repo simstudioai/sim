@@ -2,22 +2,40 @@
  * @vitest-environment node
  */
 
+import { member } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),
+  resolveOrganization: vi.fn(),
+  requireOrganizationSearch: vi.fn(),
   resolvePermission: vi.fn(),
   getKnowledgeBase: vi.fn(),
+  getKnowledgeBases: vi.fn(),
   resolveBilling: vi.fn(),
   checkUsage: vi.fn(),
   checkActorUsage: vi.fn(),
   generateEmbedding: vi.fn(),
   executeSearch: vi.fn(),
+  retrieval: vi.fn(),
   getDocumentMetadata: vi.fn(),
   getTagDefinitions: vi.fn(),
+  getTagDefinitionsBatch: vi.fn(),
   recordEmbeddingUsage: vi.fn(),
   importProvenance: vi.fn(),
   rerank: vi.fn(),
+  searched: vi.fn(),
+  recordActivity: vi.fn(),
+}))
+
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: { knowledgeBaseSearched: mocks.searched },
+}))
+
+vi.mock('@/lib/knowledge/search/activity', () => ({
+  recordOrganizationSearchActivity: mocks.recordActivity,
 }))
 
 vi.mock('@/lib/knowledge/reranker', () => ({
@@ -37,12 +55,14 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mocks.resolveBilling,
   resolveSystemBillingAttribution: mocks.resolveBilling,
+  resolveOrganizationBillingAttribution: mocks.resolveBilling,
   checkAttributedUsageLimits: mocks.checkUsage,
 }))
 
 /** Retrieval defaults are the flag's concern; here the flag is off so the search stays as configured. */
 vi.mock('@/lib/knowledge/access/availability', () => ({
   isKnowledgeMemberAccessAvailable: async () => false,
+  requireOrganizationSearchAvailable: mocks.requireOrganizationSearch,
 }))
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
@@ -51,10 +71,16 @@ vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
+  resolveKnowledgeOrganizationContext: mocks.resolveOrganization,
+}))
+
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfig: async () => null,
+  getUserPermissionConfigForOrganization: async () => null,
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseById: mocks.getKnowledgeBase,
+  getActiveKnowledgeBaseReferences: mocks.getKnowledgeBases,
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
@@ -64,12 +90,15 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
 
 vi.mock('@/lib/knowledge/search/queries', () => ({
   generateSearchEmbedding: mocks.generateEmbedding,
-  executeKnowledgeSearch: mocks.executeSearch,
+  retrieveKnowledgeSearch: async (...args: unknown[]) => ({
+    rows: await mocks.executeSearch(...args),
+    retrieval: mocks.retrieval(),
+  }),
   getDocumentMetadataByIds: mocks.getDocumentMetadata,
 }))
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitions: mocks.getTagDefinitions,
+  getDocumentTagDefinitionsByKnowledgeBaseIds: mocks.getTagDefinitionsBatch,
 }))
 
 vi.mock('@/lib/knowledge/tags/utils', () => ({
@@ -101,10 +130,25 @@ const knowledgeBase = {
 
 describe('knowledge search application use case', () => {
   beforeEach(() => {
+    mocks.retrieval.mockReturnValue({ status: 'complete', timedOutLegs: [] })
     vi.clearAllMocks()
+    mocks.rerank.mockReset()
+    resetDbChainMock()
+    mocks.requireOrganizationSearch.mockResolvedValue(undefined)
+    mocks.resolveOrganization.mockResolvedValue({
+      organizationId: 'org-canonical',
+      workspaceId: undefined,
+    })
     mocks.resolveWorkspace.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
+    mocks.getKnowledgeBases.mockImplementation((ids: string[]) =>
+      Promise.all(ids.map((id) => mocks.getKnowledgeBase(id)))
+    )
+    mocks.getTagDefinitionsBatch.mockImplementation(
+      async (ids: string[]) =>
+        new Map(await Promise.all(ids.map(async (id) => [id, await mocks.getTagDefinitions(id)])))
+    )
     mocks.resolveBilling.mockResolvedValue({
       actorUserId: 'user-1',
       workspaceId: 'workspace-1',
@@ -147,6 +191,170 @@ describe('knowledge search application use case', () => {
     mocks.importProvenance.mockResolvedValue({ imported: true, documentMetadata: {} })
   })
 
+  it('drops passages whose access was revoked before the final document metadata read', async () => {
+    mocks.getDocumentMetadata.mockResolvedValue({})
+    const result = await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        workspaceId: 'workspace-1',
+        knowledgeBaseIds: ['knowledge-1'],
+        query: 'orion',
+        topK: 20,
+      },
+    })
+    expect(result.results).toEqual([])
+    expect(result.totalResults).toBe(0)
+  })
+
+  it.each([false, true])(
+    'requires explicit partial-result support for empty incomplete searches (allowPartialResults=%s)',
+    async (allowPartialResults) => {
+      mocks.retrieval.mockReturnValue({ status: 'partial', timedOutLegs: ['vector', 'keyword'] })
+      mocks.executeSearch.mockResolvedValue([])
+      const result = searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          query: 'canaries',
+          topK: 20,
+          allowPartialResults,
+        },
+      })
+
+      if (!allowPartialResults) {
+        await expect(result).rejects.toThrow('retrieval deadline')
+        return
+      }
+      await expect(result).resolves.toMatchObject({
+        results: [],
+        totalResults: 0,
+        retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
+      })
+    }
+  )
+
+  it.each([
+    { surface: 'dashboard' as const, vectorBudgetMs: 3000 },
+    { surface: 'copilot' as const, vectorBudgetMs: undefined },
+    { surface: 'workflow' as const, vectorBudgetMs: undefined },
+  ])('forwards only the configured vector budget for $surface', async (options) => {
+    await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseIds: ['knowledge-1'],
+        query: 'release',
+        topK: 10,
+        ...options,
+      },
+    })
+    expect(mocks.executeSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ vectorBudgetMs: options.vectorBudgetMs })
+    )
+  })
+
+  describe.each(['workspace', 'organization'] as const)('%s ranking policy', (scope) => {
+    beforeEach(() => {
+      if (scope === 'organization') {
+        mocks.getKnowledgeBase.mockResolvedValue({
+          ...knowledgeBase,
+          workspaceId: null,
+          organizationId: 'org-canonical',
+          isSearchIndex: true,
+        })
+        queueTableRows(member, [{ role: 'member' }])
+      }
+    })
+
+    it('meters only successful organization calls under the acting person', async () => {
+      await searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10, surface: 'mcp' },
+      })
+      if (scope === 'organization') {
+        expect(mocks.recordActivity).toHaveBeenCalledExactlyOnceWith({
+          organizationId: 'org-canonical',
+          userId: 'user-1',
+          surface: 'mcp',
+          results: expect.any(Array),
+        })
+      } else {
+        expect(mocks.recordActivity).not.toHaveBeenCalled()
+      }
+    })
+
+    const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+    const input = { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10 }
+
+    it.each([undefined, false])(
+      'preserves retrieval without reranking when enabled is %s',
+      async (rerankerEnabled) => {
+        const result = await searchKnowledge.execute({
+          principal,
+          input: {
+            ...input,
+            ...(rerankerEnabled === undefined ? {} : { rerankerEnabled }),
+          },
+        })
+
+        expect(mocks.executeSearch).toHaveBeenCalledWith(expect.objectContaining({ topK: 10 }))
+        expect(mocks.rerank).not.toHaveBeenCalled()
+        expect(mocks.importProvenance).not.toHaveBeenCalled()
+        expect(result.rerankerStatus).toBe('not_requested')
+        expect(result.cost?.rerankerSearchUnits).toBeUndefined()
+        expect(result.results[0]).toMatchObject({ embeddingId: 'embedding-1', content: 'answer' })
+      }
+    )
+
+    it('preserves the existing explicit reranking option', async () => {
+      mocks.rerank.mockResolvedValueOnce({
+        results: [{ item: { id: 'embedding-1' }, relevanceScore: 0.9 }],
+        isBYOK: false,
+      })
+
+      const result = await searchKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-pro',
+          rerankerInputCount: 20,
+        },
+      })
+
+      expect(mocks.executeSearch).toHaveBeenCalledWith(expect.objectContaining({ topK: 20 }))
+      expect(mocks.rerank).toHaveBeenCalledWith(
+        'answer',
+        [{ id: 'embedding-1', text: 'answer' }],
+        expect.objectContaining({ model: 'rerank-v4.0-pro', topN: 10 })
+      )
+      expect(result.rerankerStatus).toBe('applied')
+    })
+  })
+
+  it('gates organization search using the persisted owner even when the request omits it', async () => {
+    mocks.getKnowledgeBase.mockResolvedValue({
+      ...knowledgeBase,
+      workspaceId: null,
+      organizationId: 'org-canonical',
+    })
+    queueTableRows(member, [{ role: 'member' }])
+    mocks.requireOrganizationSearch.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Search is not enabled for this organization')
+    )
+    await expect(
+      searchKnowledge.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
+      })
+    ).rejects.toThrow('Search is not enabled for this organization')
+    expect(mocks.recordActivity).not.toHaveBeenCalled()
+    expect(mocks.requireOrganizationSearch).toHaveBeenCalledExactlyOnceWith('org-canonical')
+    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(mocks.generateEmbedding).not.toHaveBeenCalled()
+    expect(mocks.executeSearch).not.toHaveBeenCalled()
+  })
+
   it('authorizes every canonical knowledge base before billing and search', async () => {
     const result = await searchKnowledge.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
@@ -178,6 +386,15 @@ describe('knowledge search application use case', () => {
       similarity: 0.8,
     })
     expect(result.knowledgeBases).toEqual([{ id: 'knowledge-1', name: 'Docs' }])
+    expect(mocks.searched).toHaveBeenCalledWith(
+      expect.objectContaining({
+        knowledgeBaseIds: ['knowledge-1'],
+        documentIds: ['document-1'],
+        resultsCount: 1,
+        actorUserId: 'user-1',
+        principalKind: 'session',
+      })
+    )
   })
 
   it('rejects a cross-workspace knowledge base before authorization or spend', async () => {
@@ -203,50 +420,196 @@ describe('knowledge search application use case', () => {
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 
-  it('lets the owner search a legacy personal knowledge base with account billing', async () => {
-    mocks.getKnowledgeBase.mockResolvedValueOnce({
-      ...knowledgeBase,
-      workspaceId: null,
-    })
-    mocks.generateEmbedding.mockResolvedValueOnce({ embedding: [0.1], isBYOK: true })
-
-    const result = await searchKnowledge.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+  it('attributes workspace-key searches to the key scope without identifying the payer as the reader', async () => {
+    await searchKnowledge.execute({
+      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
       input: {
+        workspaceId: 'workspace-1',
         knowledgeBaseIds: ['knowledge-1'],
         query: 'answer',
         topK: 5,
       },
     })
-
-    expect(result.workspaceId).toBeUndefined()
-    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.resolveBilling).not.toHaveBeenCalled()
-    expect(mocks.checkActorUsage).toHaveBeenCalledWith('user-1')
-    expect(mocks.executeSearch).toHaveBeenCalled()
+    expect(mocks.searched).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principalKind: 'workspace_api_key',
+        accessScopeKind: 'workspace',
+        actorUserId: undefined,
+        documentIds: ['document-1'],
+      })
+    )
   })
 
-  it('conceals a legacy personal knowledge base from a non-owner', async () => {
-    mocks.getKnowledgeBase.mockResolvedValueOnce({
-      ...knowledgeBase,
-      workspaceId: null,
-    })
-
+  it('refuses an already-cancelled search before starting billable provider work', async () => {
     await expect(
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'other-user', sessionId: 'session-2' },
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
         input: {
+          workspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1'],
           query: 'answer',
           topK: 5,
+          signal: AbortSignal.abort(new Error('Cancelled fixture search')),
         },
       })
-    ).rejects.toMatchObject({ code: 'not_found' })
-
-    expect(mocks.checkActorUsage).not.toHaveBeenCalled()
+    ).rejects.toThrow('Cancelled fixture search')
+    expect(mocks.generateEmbedding).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
+
+  it('forwards cancellation to providers and does not disguise a cancelled rerank as a fallback', async () => {
+    const controller = new AbortController()
+    mocks.rerank.mockImplementationOnce(async (_query, _items, options) => {
+      expect(options.signal).toBe(controller.signal)
+      controller.abort(new Error('Cancelled fixture rerank'))
+      throw controller.signal.reason
+    })
+    await expect(
+      searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          query: 'answer',
+          topK: 5,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-fast',
+          signal: controller.signal,
+        },
+      })
+    ).rejects.toThrow('Cancelled fixture rerank')
+    expect(mocks.generateEmbedding).toHaveBeenCalledWith(
+      'answer',
+      { model: knowledgeBase.embeddingModel, dimensions: knowledgeBase.embeddingDimension },
+      'workspace-1',
+      controller.signal
+    )
+    expect(mocks.searched).not.toHaveBeenCalled()
+  })
+
+  it('does not begin retrieval when cancellation races with a completed embedding', async () => {
+    const controller = new AbortController()
+    mocks.generateEmbedding.mockImplementationOnce(async () => {
+      controller.abort(new Error('Search superseded during embedding'))
+      return { embedding: [0.1], isBYOK: true }
+    })
+    await expect(
+      searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          query: 'answer',
+          topK: 5,
+          signal: controller.signal,
+        },
+      })
+    ).rejects.toThrow('Search superseded during embedding')
+    expect(mocks.executeSearch).not.toHaveBeenCalled()
+    expect(mocks.getDocumentMetadata).not.toHaveBeenCalled()
+  })
+
+  it('does not start reranking or metadata reads after retrieval is cancelled', async () => {
+    const controller = new AbortController()
+    mocks.executeSearch.mockImplementationOnce(async () => {
+      controller.abort(new Error('Search superseded during retrieval'))
+      return []
+    })
+    await expect(
+      searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          query: 'answer',
+          topK: 5,
+          signal: controller.signal,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-fast',
+        },
+      })
+    ).rejects.toThrow('Search superseded during retrieval')
+    expect(mocks.rerank).not.toHaveBeenCalled()
+    expect(mocks.getDocumentMetadata).not.toHaveBeenCalled()
+    expect(mocks.searched).not.toHaveBeenCalled()
+  })
+
+  it('records all searched bases and deduplicated returned documents for personal keys', async () => {
+    mocks.getKnowledgeBase.mockImplementation(async (id: string) => ({ ...knowledgeBase, id }))
+    mocks.executeSearch.mockResolvedValue([
+      {
+        id: 'chunk-1',
+        documentId: 'document-1',
+        knowledgeBaseId: 'knowledge-1',
+        content: 'first',
+        chunkIndex: 0,
+        distance: 0.1,
+      },
+      {
+        id: 'chunk-2',
+        documentId: 'document-1',
+        knowledgeBaseId: 'knowledge-1',
+        content: 'second',
+        chunkIndex: 1,
+        distance: 0.2,
+      },
+      {
+        id: 'chunk-3',
+        documentId: 'document-2',
+        knowledgeBaseId: 'knowledge-2',
+        content: 'third',
+        chunkIndex: 0,
+        distance: 0.3,
+      },
+    ])
+    mocks.getDocumentMetadata.mockResolvedValue({
+      'document-1': { filename: 'thread', connectorType: 'slack' },
+      'document-2': { filename: 'page', connectorType: 'gitlab' },
+    })
+    await searchKnowledge.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: {
+        workspaceId: 'workspace-1',
+        knowledgeBaseIds: ['knowledge-1', 'knowledge-2'],
+        query: 'answer',
+        topK: 5,
+        surface: 'mcp',
+      },
+    })
+    expect(mocks.searched).toHaveBeenCalledWith(
+      expect.objectContaining({
+        knowledgeBaseIds: ['knowledge-1', 'knowledge-2'],
+        documentIds: ['document-1', 'document-2'],
+        connectorTypes: ['slack', 'gitlab'],
+        resultsCount: 3,
+        actorUserId: 'user-1',
+        principalKind: 'personal_api_key',
+        surface: 'mcp',
+      })
+    )
+  })
+
+  it.each(['user-1', 'other-user'])(
+    'conceals an unscoped knowledge base before billing or search for %s',
+    async (userId) => {
+      mocks.getKnowledgeBase.mockResolvedValueOnce({
+        ...knowledgeBase,
+        workspaceId: null,
+        organizationId: null,
+      })
+
+      await expect(
+        searchKnowledge.execute({
+          principal: { kind: 'session', userId, sessionId: 'session-1' },
+          input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+
+      expect(mocks.resolveBilling).not.toHaveBeenCalled()
+      expect(mocks.checkActorUsage).not.toHaveBeenCalled()
+      expect(mocks.executeSearch).not.toHaveBeenCalled()
+    }
+  )
 
   it('enforces semantic knowledge-base and result bounds for trusted callers', async () => {
     await expect(
@@ -275,6 +638,118 @@ describe('knowledge search application use case', () => {
 
     expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
     expect(mocks.getKnowledgeBase).not.toHaveBeenCalled()
+    expect(mocks.getKnowledgeBases).not.toHaveBeenCalled()
+    expect(mocks.getTagDefinitionsBatch).not.toHaveBeenCalled()
+  })
+
+  it('loads references and tags once for twenty bases while preserving requested order', async () => {
+    const ids = Array.from({ length: 20 }, (_, index) => `knowledge-${20 - index}`)
+    mocks.getKnowledgeBases.mockResolvedValue(ids.map((id) => ({ ...knowledgeBase, id })))
+    mocks.getTagDefinitionsBatch.mockResolvedValue(new Map(ids.map((id) => [id, []])))
+
+    const result = await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { knowledgeBaseIds: ids, query: 'answer', topK: 5 },
+    })
+
+    expect(mocks.getKnowledgeBases).toHaveBeenCalledExactlyOnceWith(ids)
+    expect(mocks.getTagDefinitionsBatch).toHaveBeenCalledExactlyOnceWith(ids)
+    expect(result.knowledgeBaseIds).toEqual(ids)
+    expect(result.knowledgeBaseId).toBe(ids[0])
+    expect(result.knowledgeBases.map((base) => base.id)).toEqual(ids)
+    expect(mocks.executeSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledgeBaseIds: ids })
+    )
+  })
+
+  it('preserves duplicate requested bases in retrieval and the response', async () => {
+    const ids = ['knowledge-2', 'knowledge-1', 'knowledge-2']
+    mocks.getKnowledgeBases.mockResolvedValue(ids.map((id) => ({ ...knowledgeBase, id })))
+
+    const result = await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { knowledgeBaseIds: ids, query: 'answer', topK: 5 },
+    })
+
+    expect(result.knowledgeBaseIds).toEqual(ids)
+    expect(mocks.executeSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledgeBaseIds: ids })
+    )
+  })
+
+  it('preserves missing-id order and duplicates in the concealed error before authorization or billing', async () => {
+    mocks.getKnowledgeBases.mockResolvedValue([null, knowledgeBase, null, null])
+
+    await expect(
+      searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseIds: ['missing-2', 'knowledge-1', 'missing-1', 'missing-2'],
+          query: 'answer',
+          topK: 5,
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'not_found',
+      message: 'Knowledge bases not found or access denied: missing-2, missing-1, missing-2',
+    })
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(mocks.executeSearch).not.toHaveBeenCalled()
+  })
+
+  it('rejects a batch spanning different canonical workspaces before billing', async () => {
+    mocks.getKnowledgeBases.mockResolvedValue([
+      knowledgeBase,
+      { ...knowledgeBase, id: 'knowledge-2', workspaceId: 'workspace-2' },
+    ])
+
+    await expect(
+      searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { knowledgeBaseIds: ['knowledge-1', 'knowledge-2'], query: 'answer', topK: 5 },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Selected knowledge bases must belong to the same workspace',
+    })
+    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(mocks.executeSearch).not.toHaveBeenCalled()
+  })
+
+  it('reuses the tag filter batch when naming result metadata', async () => {
+    const ids = ['knowledge-1', 'knowledge-2']
+    mocks.getKnowledgeBases.mockResolvedValue(ids.map((id) => ({ ...knowledgeBase, id })))
+    mocks.getTagDefinitionsBatch.mockResolvedValue(
+      new Map(
+        ids.map((id) => [
+          id,
+          [{ knowledgeBaseId: id, tagSlot: 'tag1', displayName: 'team', fieldType: 'text' }],
+        ])
+      )
+    )
+    mocks.executeSearch.mockResolvedValue([
+      {
+        id: 'chunk-1',
+        documentId: 'document-1',
+        knowledgeBaseId: ids[0],
+        content: 'answer',
+        tag1: 'docs',
+      },
+    ])
+
+    const result = await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseIds: ids,
+        topK: 5,
+        tagFilters: [{ tagName: 'team', operator: 'eq', value: 'docs' }],
+      },
+    })
+
+    expect(mocks.getTagDefinitionsBatch).toHaveBeenCalledExactlyOnceWith(ids)
+    expect(result.results[0].metadata).toEqual({ team: 'docs' })
+    expect(mocks.generateEmbedding).not.toHaveBeenCalled()
   })
 
   it('rejects multi-knowledge-base tag filters without embedding spend', async () => {
@@ -347,7 +822,12 @@ describe('knowledge search application use case', () => {
       },
     })
 
-    expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(['document-1'], expect.anything())
+    expect(mocks.getDocumentMetadata).toHaveBeenCalledWith(
+      ['document-1'],
+      expect.anything(),
+      expect.objectContaining({ getForDocuments: expect.any(Function) }),
+      undefined
+    )
     expect(result.results[0]).toMatchObject({
       documentName: 'guide.pdf',
       sourceUrl: 'https://example.com/guide',

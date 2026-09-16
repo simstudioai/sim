@@ -3,7 +3,6 @@ title: Workflows
 description: Create, edit, run, debug, deploy, and organize workflows from Chat.
 ---
 
-import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -70,7 +69,7 @@ Sim can deploy a workflow as any of the three deployment types:
 
 | Deployment type | What it creates |
 |----------------|----------------|
-| **API** | A REST endpoint at `https://sim.ai/api/workflows/{id}/execute` |
+| **API** | A REST endpoint at `https://sim.ai/api/v2/workflows/{id}/execute` |
 | **Chat** | A hosted conversational interface with a shareable URL |
 | **MCP tool** | An MCP server that exposes the workflow as a tool |
 
@@ -112,7 +111,5 @@ Variables set this way are available via `<variable.VARIABLE_NAME>` syntax insid
 
 <FAQ items={[
   { question: "Can Sim edit a workflow while it's deployed?", answer: "Yes. Editing a workflow does not affect the live deployment. The deployed version is a snapshot — you need to ask Sim to redeploy to push changes to production." },
-  { question: "Can I run a workflow with specific inputs from Chat?", answer: "Yes. Describe the inputs in your message and Sim passes them to the workflow's start block." },
-  { question: "How does Sim know what my workflow does?", answer: "When you reference a workflow, Sim loads its full structure — every block, connection, and configuration — before acting on it." },
-  { question: "What happens to a workflow's deployment when I delete it?", answer: "The workflow and all its deployments are permanently removed. Any API endpoints, chat URLs, or MCP tools that pointed to that workflow will stop working." },
+  { question: "What happens to a workflow's deployment when I delete it?", answer: "Deleting a workflow removes it from the active workspace and disables its deployments. Any API endpoints, chat URLs, or MCP tools that pointed to that workflow will stop working." },
 ]} />

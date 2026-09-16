@@ -1,4 +1,5 @@
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { InternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ToolResponse } from '@/tools/types'
@@ -17,8 +18,11 @@ export interface InternalToolOperationContext {
   executionId?: string
   userId?: string
   executorDelegationOrigin?: ExecutorDelegationOrigin
+  /** Trusted source block for saved MCP operation restrictions. */
+  mcpBlockId?: string
   copilotToolExecution?: boolean
   copilotInteractionMode?: 'interactive' | 'headless'
+  requestMode?: string
   chatId?: string
   toolCallId?: string
   billingAttribution?: BillingAttributionSnapshot
@@ -39,4 +43,8 @@ export interface InternalToolOperationCall {
   signal?: AbortSignal
 }
 
-export type InternalToolOperationHandler = (request: InternalToolOperationCall) => Promise<Response>
+export type InternalToolOperationResult = Response | InternalToolFileResult
+
+export type InternalToolOperationHandler<Result = Response> = (
+  request: InternalToolOperationCall
+) => Promise<Result>

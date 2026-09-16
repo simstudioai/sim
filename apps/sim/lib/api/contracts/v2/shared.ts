@@ -486,8 +486,7 @@ export const v2SearchSchema = z
  * folder filter in the family. Mutations keep their 404 — creating into or
  * moving to a folder that does not exist has no empty-set reading.
  */
-export const V2_FOLDER_FILTER_MISS =
-  'A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.'
+export const V2_FOLDER_FILTER_MISS = 'Unknown folder paths contribute no matches.'
 
 export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS).describe('Sort direction.')
 

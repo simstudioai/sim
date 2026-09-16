@@ -493,6 +493,40 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.model).toBe('ollama/my-private-model')
   })
 
+  it.each([
+    'azure/MyDeployment',
+    'AZURE/MyDeployment',
+    'azure-anthropic/MyDeployment',
+    'bedrock/custom-inference-profile',
+    'vertex/publishers/google/models/custom-gemini',
+    'GROQ/Org/CustomModel',
+    'CEREBRAS/CustomModel',
+    'NVIDIA/CustomModel',
+  ])('accepts a custom cloud model ID: %s', (model) => {
+    for (const blockType of ['agent', 'router_v2']) {
+      const result = validateInputsForBlock(blockType, { model: `  ${model}  ` }, 'block-1')
+      expect(result.errors).toEqual([])
+      expect(result.validInputs.model).toBe(model)
+    }
+  })
+
+  it.each([
+    'azure/',
+    'azure-anthropic/',
+    'bedrock/',
+    'vertex/',
+    'groq/',
+    'cerebras/',
+    'nvidia/',
+    'ollama/',
+    'ollama-cloud/',
+    'unknown/model',
+  ])('rejects incomplete or unsupported cloud namespaces: %s', (model) => {
+    const result = validateInputsForBlock('agent', { model }, 'agent-1')
+    expect(result.validInputs.model).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('Unknown model id')
+  })
+
   it('validates the model field on router_v2 blocks too', () => {
     const valid = validateInputsForBlock('router_v2', { model: 'claude-sonnet-4-6' }, 'router-1')
     expect(valid.errors).toHaveLength(0)
@@ -1289,6 +1323,24 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     )
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it.each(['mcp-server-advanced'])('rejects invalid operation policy on %s attachments', (type) => {
+    const result = validateInputsForBlock(
+      'agent',
+      {
+        tools: [
+          {
+            type,
+            params: { serverId: 'srv_1', toolName: 'read' },
+            operationPolicy: '<upstream.policy>',
+          },
+        ],
+      },
+      'agent-1'
+    )
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('invalid MCP operations access policy')
   })
 
   it('accepts an integration tool whose type is a known block', () => {

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   assertToolFileAccess: vi.fn(),
@@ -68,6 +68,7 @@ import { executeDataverseUploadFile } from '@/lib/internal/microsoft-dataverse/o
 import { executePipedriveGetFiles } from '@/lib/internal/pipedrive/operations'
 import type { ServiceNowOperationError } from '@/lib/internal/servicenow/errors'
 import { executeServiceNowUploadAttachment } from '@/lib/internal/servicenow/operations'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const FILE = {
@@ -248,6 +249,25 @@ describe('file and message operation security', () => {
       MAX_BUFFERED_TRANSFER_BYTES,
       MAX_BUFFERED_TRANSFER_BYTES - 3,
     ])
-    expect(result.output.downloadedFiles).toHaveLength(2)
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      { name: 'one.txt', mimeType: 'text/plain', buffer: Buffer.from('abc') },
+      { name: 'two.txt', mimeType: 'text/plain', buffer: Buffer.from('defg') },
+    ])
+    const storedFiles = [
+      { ...FILE, name: 'one.txt', mimeType: 'text/plain' },
+      {
+        ...FILE,
+        id: 'file-2',
+        key: 'execution/file-2',
+        name: 'two.txt',
+        size: 4,
+        mimeType: 'text/plain',
+      },
+    ]
+    expect(result.present(storedFiles)).toMatchObject({
+      success: true,
+      output: { downloadedFiles: storedFiles, has_more: true, next_start: 2 },
+    })
   })
 })

@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import {
+  Download,
   Duplicate,
   FolderInput,
   Pencil,
@@ -31,6 +32,7 @@ interface KnowledgeBaseContextMenuProps {
   onOpenInNewTab?: () => void
   onViewTags?: () => void
   onCopyId?: () => void
+  onExport?: () => void
   onTogglePin?: () => void
   /** Pin state of the right-clicked base, driving the Pin/Unpin label. */
   pinned?: boolean
@@ -50,7 +52,6 @@ interface KnowledgeBaseContextMenuProps {
 
 /**
  * Context menu component for knowledge base cards.
- * Displays open in new tab, view tags, edit, and delete options.
  */
 export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   isOpen,
@@ -59,6 +60,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   onOpenInNewTab,
   onViewTags,
   onCopyId,
+  onExport,
   onTogglePin,
   pinned = false,
   onEdit,
@@ -76,7 +78,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   const isMultiSelect = selectedCount > 1
   const hasNavigationSection = !isMultiSelect && showOpenInNewTab && !!onOpenInNewTab
   const hasInfoSection =
-    !isMultiSelect && ((showViewTags && !!onViewTags) || !!onCopyId || !!onTogglePin)
+    !isMultiSelect && ((showViewTags && !!onViewTags) || !!onCopyId || !!onExport || !!onTogglePin)
   const hasMoveSection = !disableEdit && !!onMove && !!moveOptions && moveOptions.length > 0
   const hasEditSection = (!isMultiSelect && showEdit && !!onEdit) || hasMoveSection
   const hasDestructiveSection = showDelete && !!onDelete
@@ -120,6 +122,12 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
           <DropdownMenuItem onSelect={onCopyId}>
             <Duplicate />
             Copy ID
+          </DropdownMenuItem>
+        )}
+        {!isMultiSelect && onExport && (
+          <DropdownMenuItem onSelect={onExport}>
+            <Download />
+            Export
           </DropdownMenuItem>
         )}
         {!isMultiSelect && onTogglePin && (

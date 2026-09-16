@@ -2,6 +2,9 @@
  * Loader icon animation
  * Continuous spinning animation for loading states
  * Uses GPU acceleration for smooth performance
+ * The period is read from `--loader-duration` so a consumer can set it from a
+ * utility class (`[--loader-duration:650ms]`); the module's own `animation`
+ * shorthand is unlayered and would otherwise beat any Tailwind override.
  */
 
 @keyframes spin {
@@ -14,7 +17,7 @@
 }
 
 .animated-loader-svg {
-  animation: spin 1s linear infinite;
+  animation: spin var(--loader-duration, 1s) linear infinite;
   transform-origin: center center;
   will-change: transform;
 }

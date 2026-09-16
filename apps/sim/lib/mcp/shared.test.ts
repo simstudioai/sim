@@ -46,13 +46,13 @@ describe('assertValidMcpServerToolBindings', () => {
     ).not.toThrow()
   })
 
-  it('ignores server-wide bindings with blank server IDs', () => {
+  it('rejects active server-wide bindings with blank server IDs', () => {
     expect(() =>
       assertValidMcpServerToolBindings([
         { type: 'mcp-server-advanced', params: { serverId: '' } },
         { type: 'mcp-server-advanced', params: { serverId: '   ' } },
       ])
-    ).not.toThrow()
+    ).toThrow('requires params.serverId')
   })
 
   it('fails fast on a malformed active server-wide binding', () => {

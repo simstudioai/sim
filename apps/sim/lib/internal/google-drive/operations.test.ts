@@ -49,6 +49,17 @@ const context = {
   userId: 'user-1',
 }
 
+const storedFile = {
+  id: 'stored-file',
+  name: 'stored.bin',
+  size: 5,
+  type: 'application/octet-stream',
+  mimeType: 'application/octet-stream',
+  url: '/api/files/stored',
+  key: 'execution/workspace/workflow/run/stored.bin',
+  context: 'execution',
+} as const
+
 describe('Google Drive operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -82,11 +93,12 @@ describe('Google Drive operations', () => {
       maxResponseBytes: MAX_FILE_SIZE,
       signal: context.signal,
     })
-    expect(result.output.file).toEqual({
-      name: 'report.pdf',
-      mimeType: 'application/pdf',
-      data: 'AAAAAA==',
-      size: 4,
+    expect(result.files).toEqual([
+      { name: 'report.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(4) },
+    ])
+    expect(result.present([storedFile])).toMatchObject({
+      success: true,
+      output: { file: storedFile },
     })
   })
 
@@ -112,7 +124,9 @@ describe('Google Drive operations', () => {
       label: 'revisionsUrl',
       signal: context.signal,
     })
-    expect(result.output.metadata.revisions).toEqual([{ id: 'rev-1' }])
+    expect(result.present([storedFile])).toMatchObject({
+      output: { metadata: { revisions: [{ id: 'rev-1' }] } },
+    })
   })
 
   it('preserves the export byte limit and exact error', async () => {

@@ -7,6 +7,7 @@ export const gitlabCancelPipelineTool: ToolConfig<
   GitLabCancelPipelineResponse
 > = {
   id: 'gitlab_cancel_pipeline',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Cancel Pipeline',
   description: 'Cancel a running GitLab pipeline',
   version: '1.0.0',

@@ -169,6 +169,7 @@ export class GenericBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     nodeMetadata?: BlockNodeMetadata
   ): Promise<any> {
+    ctx.mcpBlockId = block.id
     const isMcp = block.config.tool ? isMcpTool(block.config.tool) : false
     let tool = null
 

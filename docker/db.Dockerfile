@@ -11,6 +11,7 @@ WORKDIR /app
 
 # Copy only package files needed for migrations (these change less frequently)
 COPY package.json bun.lock turbo.json ./
+COPY patches ./patches
 RUN mkdir -p packages/db packages/logger packages/tsconfig packages/utils
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/logger/package.json ./packages/logger/package.json

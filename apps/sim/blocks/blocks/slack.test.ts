@@ -190,12 +190,12 @@ describe('Slack block release', () => {
     expect(selectTool(repurposedValues)).toBe('slack_set_suggested_prompts_v2')
   })
 
-  it('maps bounded cursor pagination for list channels', () => {
+  it('maps a single page and cursor for list channels', () => {
     const values = { operation: 'list_channels' }
     expect(SlackV2Block.outputs.hasMore.description).toBe(
       'Whether more thread messages or provider pages remain beyond the fetched window'
     )
-    expect(isSlackV2SubBlockVisible('channelMaxPages', values)).toBe(true)
+    expect(SlackV2Block.subBlocks.some((subBlock) => subBlock.id === 'channelMaxPages')).toBe(false)
     expect(isSlackV2SubBlockVisible('paginationCursor', values)).toBe(true)
     expect(
       mapSlackV2Params({
@@ -206,15 +206,12 @@ describe('Slack block release', () => {
       })
     ).toMatchObject({
       limit: 50,
-      maxPages: 4,
       cursor: 'cursor-1',
     })
     expect(() => mapSlackV2Params({ ...values, channelLimit: '201' })).toThrow(
       'Conversations per page must be an integer between 1 and 200'
     )
-    expect(() => mapSlackV2Params({ ...values, channelMaxPages: '201' })).toThrow(
-      'Max pages must be an integer between 1 and 200'
-    )
+    expect(mapSlackV2Params({ ...values, channelMaxPages: '200' })).not.toHaveProperty('maxPages')
     expect(mapSlackV2Params({ ...values, channelLimit: null, channelMaxPages: ' ' })).toMatchObject(
       { limit: 100 }
     )

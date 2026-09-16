@@ -117,6 +117,7 @@ export async function getBlobServiceClient(): Promise<BlobServiceClientType> {
  * @param size File size in bytes (required if configOrSize is BlobConfig, optional otherwise)
  * @param preserveKey Preserve the fileName as the storage key without adding timestamp prefix (default: false)
  * @param metadata Optional metadata to store with the file
+ * @param createOnly Reject an existing key instead of replacing its object
  * @returns Object with file information
  */
 export async function uploadToBlob(
@@ -126,8 +127,11 @@ export async function uploadToBlob(
   configOrSize?: BlobConfig | number,
   size?: number,
   preserveKey?: boolean,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  createOnly = false,
+  signal?: AbortSignal
 ): Promise<FileInfo> {
+  signal?.throwIfAborted()
   let config: BlobConfig
   let fileSize: number
   let shouldPreserveKey: boolean
@@ -163,12 +167,16 @@ export async function uploadToBlob(
     Object.assign(blobMetadata, sanitizeStorageMetadata(metadata, 8000))
   }
 
+  signal?.throwIfAborted()
   await blockBlobClient.upload(file, fileSize, {
+    ...(signal ? { abortSignal: signal } : {}),
     blobHTTPHeaders: {
       blobContentType: contentType,
     },
     metadata: blobMetadata,
+    ...(createOnly ? { conditions: { ifNoneMatch: '*' } } : {}),
   })
+  signal?.throwIfAborted()
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
@@ -549,9 +557,18 @@ export async function deleteFromBlob(key: string): Promise<void>
  * @param key Blob name
  * @param customConfig Custom Blob configuration
  */
-export async function deleteFromBlob(key: string, customConfig: BlobConfig): Promise<void>
+export async function deleteFromBlob(
+  key: string,
+  customConfig: BlobConfig | undefined,
+  signal?: AbortSignal
+): Promise<void>
 
-export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Promise<void> {
+export async function deleteFromBlob(
+  key: string,
+  customConfig?: BlobConfig,
+  signal?: AbortSignal
+): Promise<void> {
+  signal?.throwIfAborted()
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
   let containerName: string
@@ -580,7 +597,9 @@ export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Pr
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  await blockBlobClient.deleteIfExists()
+  signal?.throwIfAborted()
+  await blockBlobClient.deleteIfExists(...(signal ? [{ abortSignal: signal }] : []))
+  signal?.throwIfAborted()
 }
 
 /**

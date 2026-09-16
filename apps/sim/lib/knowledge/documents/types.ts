@@ -95,6 +95,17 @@ export const DOCUMENT_PROCESSING_STATUSES = [
 
 export type DocumentProcessingStatus = (typeof DOCUMENT_PROCESSING_STATUSES)[number]
 
+/** An intentional source omission, separate from the backward-compatible processing state. */
+export type DocumentProcessingOutcome = 'skipped' | null
+
+/** Displays an intentional source outcome while accepting responses from older servers. */
+export function getDocumentIndexingStatus(document: {
+  processingStatus: string
+  processingOutcome?: DocumentProcessingOutcome
+}): string {
+  return document.processingOutcome ?? document.processingStatus
+}
+
 /**
  * Narrows a stored `processing_status` onto the union.
  *

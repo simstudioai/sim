@@ -1,170 +1,66 @@
 import {
-  PlatformHeroVisual,
   SolutionsPage,
-  type SolutionsPageConfig,
-} from '@/app/(landing)/components'
-import {
-  AuditTrailGraphic,
-  BuildMethodsGraphic,
-  DeployGraphic,
-  RunMonitoringGraphic,
-} from '@/app/(landing)/enterprise/components/feature-graphics'
-import { KnowledgeAnswerGraphic } from '@/app/(landing)/solutions/components/feature-graphics'
-import {
-  AgentCodeGraphic,
-  WorkflowCanvasGraphic,
-} from '@/app/(landing)/workflows/components/feature-graphics'
-import { WorkflowsEditorLoop } from '@/app/(landing)/workflows/components/workflows-editor-loop'
+  type SolutionsProductPageConfig,
+} from '@/app/(landing)/components/solutions-page'
+import { ProductHeroPreview } from '@/app/(landing)/components/solutions-page/components/solutions-product-page/components/product-hero-preview'
+import { WorkflowBuilderPreview } from '@/app/(landing)/workflows/components/workflow-builder-preview'
+import { WorkflowDeploymentPreview } from '@/app/(landing)/workflows/components/workflow-deployment-preview'
+import { WorkflowSchedulePreview } from '@/app/(landing)/workflows/components/workflow-schedule-preview'
 
-/**
- * Workflows platform page - a consumer of {@link SolutionsPage} rendered
- * with the enterprise page's feature-tile treatment.
- *
- * The whole page is one typed {@link SolutionsPageConfig} rendered inside
- * the shared route-group layout chrome: identity (for structured data), a
- * hero, and card rows of 3-4 cards. Every visual slot carries a feature
- * graphic in the enterprise design language - the build-methods loop and
- * deploy window reused for the stories they already tell, the monitoring
- * panel, chat answer, and audit ledger retold for scheduled runs, Slack
- * bots, and run tracing (as a 2×2 grid, so each vignette keeps its full
- * treatment), plus two workflows-specific vignettes: the mini builder
- * canvas and its code-side twin.
- *
- * The JSON-LD emitted by {@link SolutionsPage} is structurally identical
- * to the platform page's (`WebPage` + `BreadcrumbList` +
- * `WebApplication`), so the switch to feature tiles is SEO-neutral.
- */
-/** Shared meta + JSON-LD description for the Workflows page (one string, zero drift). */
+/** Shared description for page metadata and structured data. */
 export const WORKFLOWS_PAGE_DESCRIPTION =
-  "Sim's AI workflow builder connects blocks, every major LLM, and 1,000+ integrations into agents. Build Slack bots and data pipelines visually or in code."
+  'Build AI workflows in Sim with visual blocks, models, and integrations. Run on a schedule or event, then deploy as an API, chat, or MCP tool.'
 
-const WORKFLOWS_CONFIG: SolutionsPageConfig = {
+const WORKFLOWS_CONFIG: SolutionsProductPageConfig = {
   module: 'Workflows',
   path: '/workflows',
   seoDescription: WORKFLOWS_PAGE_DESCRIPTION,
   hero: {
     eyebrow: 'Workflows',
-    heading: 'Build AI agent workflows visually in Sim.',
-    description:
-      'Workflows is the visual AI workflow builder in Sim, the open-source AI workspace. Connect blocks, every major LLM, and 1,000+ integrations into Slack bots, compliance agents, and data pipelines.',
+    heading: 'Build AI workflows you can follow.',
+    description: 'Connect models, tools, and data. Build, test, and deploy AI workflows in Sim.',
     summary:
-      'Workflows is the visual AI workflow builder in Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. Teams wire blocks, every major LLM, and 1,000+ integrations into agent logic, then deploy and trace every run without leaving Sim.',
-    visual: (
-      <PlatformHeroVisual>
-        <WorkflowsEditorLoop />
-      </PlatformHeroVisual>
-    ),
+      'Sim Workflows is the visual builder in the open-source AI workspace. Teams connect models, integrations, code, and workspace data into reusable AI workflows. Start runs manually, on a schedule, or from an event, then deploy a version as an API, a chat, or an MCP tool.',
+    visual: <ProductHeroPreview product='workflows' />,
   },
-  rows: [
+  codeExample: {
+    title: 'Deploy and run from your terminal.',
+    description:
+      'Use the Sim CLI to deploy a workflow you’ve built, run it, and follow its progress from your terminal.',
+    filename: 'workflows.sh',
+    commands: [
+      'sim workflows list',
+      'sim workflows deploy \\',
+      '  "$WORKFLOW_ID"',
+      'sim workflows run \\',
+      '  "$WORKFLOW_ID" --follow',
+    ],
+  },
+  features: [
     {
       id: 'build',
-      title: 'Build AI agents the way that fits.',
-      subtitle:
-        'Sim lets teams build agents visually, in natural language, or with code, wiring up any model and 1,000+ integrations in one workspace.',
-      cta: { label: 'Explore the workflow builder', href: '/signup' },
-      cards: [
-        {
-          title: 'Drag and connect',
-          description:
-            'Wire blocks, models, and integrations on the visual builder. Sim turns the graph into agent logic you can run.',
-          visual: <WorkflowCanvasGraphic />,
-        },
-        {
-          title: 'Describe it in words',
-          description:
-            'Tell Sim what the agent should do in plain language, and the workspace assembles the workflow for you.',
-          visual: <BuildMethodsGraphic />,
-        },
-        {
-          title: 'Drop into code',
-          description:
-            'Reach for code blocks when you need exact control. Sim runs your logic alongside every other block.',
-          featureTileTone: 'dark',
-          featureTileDescriptionTone: 'soft',
-          visual: <AgentCodeGraphic />,
-        },
-      ],
+      label: 'Visual builder',
+      title: 'Build visually. Run with confidence.',
+      description: 'Connect models, tools, and logic in a canvas you can inspect and test.',
+      visual: <WorkflowBuilderPreview />,
+      visualSize: 'compact',
+      cta: { label: 'Explore the builder', href: 'https://docs.sim.ai/workflows' },
+    },
+    {
+      id: 'triggers',
+      label: 'Triggers',
+      title: 'Start with an event.',
+      description: 'Run on a schedule, from a webhook, or when connected tools have new work.',
+      visual: <WorkflowSchedulePreview />,
+      cta: { label: 'Explore triggers', href: 'https://docs.sim.ai/workflows/triggers/schedule' },
     },
     {
       id: 'deploy',
-      title: 'Deploy and run without leaving Sim.',
-      subtitle:
-        'Ship agents to production as APIs, Slack bots, or scheduled jobs, and trace every run block by block, all in one workspace.',
-      cta: { label: 'Learn about deployment', href: '/signup' },
-      columns: 2,
-      cards: [
-        {
-          title: 'Ship as an API',
-          description:
-            'Sim exposes every workflow as an endpoint, so any system can call your agent with one request.',
-          featureTileTone: 'dark',
-          featureTileDescriptionTone: 'soft',
-          visual: (
-            <DeployGraphic
-              url='sim.ai/api/agents/support'
-              statusLabel='Endpoint live in production'
-            />
-          ),
-        },
-        {
-          title: 'Run on a schedule',
-          description:
-            'Set agents to run on a cadence. Sim handles the triggers so the work happens on its own.',
-          visual: <RunMonitoringGraphic />,
-        },
-        {
-          title: 'Connect to Slack',
-          description:
-            'Turn a workflow into a Slack bot your team talks to. Sim wires the integration end to end.',
-          visual: (
-            <KnowledgeAnswerGraphic
-              question='@sim how do refunds work for annual plans?'
-              answer='Annual plans are refunded pro-rata. The refund workflow checks the policy, computes the credit, and files it in Zendesk automatically.'
-              sourceLabel='Support playbook'
-              sourceDetail='Answered in #support'
-            />
-          ),
-        },
-        {
-          title: 'Trace every run',
-          description:
-            'Sim logs each run block by block, so teams see exactly what an agent did and why.',
-          visual: (
-            <AuditTrailGraphic
-              entries={[
-                {
-                  action: 'Run completed',
-                  actor: 'Support agent',
-                  resource: '24 tickets resolved',
-                  time: 'Now',
-                  avatar: '/landing/team-avatar-1.jpg',
-                },
-                {
-                  action: 'Reply sent',
-                  actor: 'Support agent',
-                  resource: '#support',
-                  time: '2 min ago',
-                  avatar: '/landing/team-avatar-2.jpg',
-                },
-                {
-                  action: 'Tool called',
-                  actor: 'Support agent',
-                  resource: 'Zendesk API',
-                  time: '2 min ago',
-                  avatar: '/landing/team-avatar-3.jpg',
-                },
-                {
-                  action: 'Run started',
-                  actor: 'Schedule trigger',
-                  resource: 'Daily at 9:00',
-                  time: '3 min ago',
-                  avatar: '/landing/team-avatar-1.jpg',
-                },
-              ]}
-            />
-          ),
-        },
-      ],
+      label: 'Deployment',
+      title: 'From canvas to live workflow.',
+      description: 'Publish as an API, chat, or MCP tool, with versions you can return to.',
+      visual: <WorkflowDeploymentPreview />,
+      cta: { label: 'Explore deployment', href: 'https://docs.sim.ai/workflows/deployment' },
     },
   ],
 }

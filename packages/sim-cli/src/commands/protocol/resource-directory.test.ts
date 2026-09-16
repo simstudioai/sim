@@ -216,12 +216,7 @@ describe('resource directory', () => {
     expect(entries.find((entry) => entry.kind === 'table')?.ref).toBe('tbl_1')
   })
 
-  /**
-   * `files list` announces "showing the first N" off the surviving cursor and
-   * `ls` printed the same capped answer with nothing on stderr, so one command
-   * presented an incomplete listing as complete and its neighbour did not.
-   */
-  it('says the combined listing was capped, as the contract-driven list does', async () => {
+  it('honors the combined listing limit without a pagination notice', async () => {
     mockRequest.mockImplementation(
       async (path: string, options: { query: { cursor?: string } }) => {
         if (path === '/api/v2/files/folders') return { data: [] }
@@ -242,13 +237,17 @@ describe('resource directory', () => {
       written.push(String(chunk))
       return true
     })
-    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const logged: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
 
     await program().parseAsync(['node', 'sim', 'files', 'ls', '--limit', '5'])
-    expect(written.join('')).toContain('showing the first 5')
+    expect(JSON.parse(logged.join('\n'))).toHaveLength(5)
+    expect(written.join('')).toBe('')
 
     written.length = 0
-    await program().parseAsync(['node', 'sim', 'files', 'ls', '--limit', '0'])
+    logged.length = 0
+    await program().parseAsync(['node', 'sim', 'files', 'ls'])
+    expect(JSON.parse(logged.join('\n'))).toHaveLength(300)
     expect(written.join('')).not.toContain('showing the first')
   })
 

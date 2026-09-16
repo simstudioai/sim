@@ -115,7 +115,7 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
 const mountedRoots: Root[] = []
 let queryClient: QueryClient
 
-function renderUseChat(): {
+function renderUseChat(owner: string | { organizationId: string } = 'ws-1'): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
 } {
@@ -127,7 +127,7 @@ function renderUseChat(): {
   let result: ReturnType<typeof useChat> | undefined
 
   function Probe() {
-    result = useChat('ws-1', undefined)
+    result = useChat(owner, undefined)
     return null
   }
 
@@ -301,6 +301,55 @@ async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void>
 }
 
 describe('useChat remount send recovery', () => {
+  it('sends and recovers an image-only organization turn', async () => {
+    navigationMocks.usePathname.mockReturnValue('/o/org-1/home')
+    const { getResult, unmount } = renderUseChat({ organizationId: 'org-1' })
+    const attachments = [
+      {
+        id: 'image-a',
+        key: 'image-key',
+        filename: 'screenshot.png',
+        media_type: 'image/png',
+        size: 5,
+      },
+    ]
+    await act(async () => {
+      void getResult().sendMessage('', attachments)
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).toMatchObject({
+      organizationId: 'org-1',
+      mode: 'assistant',
+      message: '',
+      fileAttachments: attachments,
+    })
+    expect(state.postBodies[0]).not.toHaveProperty('workspaceId')
+    unmount()
+    await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-1' })).toMatchObject({
+      message: '',
+      fileAttachments: attachments,
+    })
+  })
+
+  it('sends and recovers an organization turn without adding workspace scope', async () => {
+    navigationMocks.usePathname.mockReturnValue('/o/org-1/home')
+    const { getResult, unmount } = renderUseChat({ organizationId: 'org-1' })
+    await act(async () => {
+      void getResult().sendMessage('Find the policy')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).toMatchObject({ organizationId: 'org-1', mode: 'assistant' })
+    expect(state.postBodies[0]).not.toHaveProperty('workspaceId')
+    unmount()
+    await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+    expect(MothershipHandoffStorage.consume('org-1')).toBeNull()
+    expect(MothershipHandoffStorage.consume({ organizationId: 'org-1' })).toMatchObject({
+      message: 'Find the policy',
+      resumeUserMessageId: state.postBodies[0].userMessageId,
+    })
+  })
+
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchStub)
     navigationMocks.usePathname.mockReturnValue('/workspace/ws-1/home')
@@ -320,6 +369,41 @@ describe('useChat remount send recovery', () => {
     vi.unstubAllGlobals()
     vi.clearAllMocks()
   })
+
+  it.each([
+    { options: undefined, expectedSource: 'drive' },
+    { options: { assistantSearch: { source: 'slack' } }, expectedSource: 'slack' },
+  ])(
+    'preserves queued assistant mode when edited with $options',
+    async ({ options, expectedSource }) => {
+      useMothershipQueueStore.setState({
+        queues: {
+          'chat-a': [
+            {
+              id: 'queued-question',
+              content: 'Find the policy',
+              requestMode: 'assistant',
+              assistantSearch: { source: 'drive' },
+            },
+          ],
+        },
+        editing: { 'chat-a': 'queued-question' },
+      })
+      const { getResult } = renderUseChatInChat('chat-a')
+
+      await act(async () => {
+        await getResult().sendMessage('Find the updated policy', undefined, undefined, options)
+      })
+      await waitFor(() => state.postBodies.length === 1)
+
+      expect(state.postBodies[0]).toMatchObject({
+        message: 'Find the updated policy',
+        mode: 'assistant',
+        assistantSearch: { source: expectedSource },
+      })
+      expect(useMothershipQueueStore.getState().editing['chat-a']).toBeUndefined()
+    }
+  )
 
   it('keeps a cross-route handoff recoverable across a StrictMode double-mount', async () => {
     MothershipHandoffStorage.store({ message: 'investigate this failed run' }, 'ws-1')

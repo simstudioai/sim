@@ -1,4 +1,5 @@
 ---
+description: TypeScript conventions and type safety
 paths:
   - "apps/sim/**/*.ts"
   - "apps/sim/**/*.tsx"

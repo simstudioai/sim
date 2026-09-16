@@ -41,24 +41,24 @@ export async function buildLargestFittingPdfChunk(
 ): Promise<PdfOcrChunk> {
   let lowEndPage = startPage
   let highEndPage = Math.min(startPage + policy.maxPages - 1, totalPages - 1)
-  let bestEndPage: number | null = null
+  const desired = await buildPdfChunk(sourcePdf, startPage, highEndPage)
+  if (desired.buffer.length <= policy.maxBytes) return desired
+  highEndPage--
+  let bestChunk: PdfOcrChunk | null = null
 
   while (lowEndPage <= highEndPage) {
     const candidateEndPage = Math.floor((lowEndPage + highEndPage) / 2)
     const candidate = await buildPdfChunk(sourcePdf, startPage, candidateEndPage)
 
     if (candidate.buffer.length <= policy.maxBytes) {
-      bestEndPage = candidateEndPage
+      bestChunk = candidate
       lowEndPage = candidateEndPage + 1
     } else {
       highEndPage = candidateEndPage - 1
     }
   }
 
-  if (bestEndPage !== null) {
-    const chunk = await buildPdfChunk(sourcePdf, startPage, bestEndPage)
-    if (chunk.buffer.length <= policy.maxBytes) return chunk
-  }
+  if (bestChunk) return bestChunk
 
   throw new PermanentDocumentProcessingError(
     'document_complexity_limit',

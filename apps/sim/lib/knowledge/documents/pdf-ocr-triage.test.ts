@@ -17,6 +17,16 @@ const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl, mockExecuteMistra
     mockExecuteMistralParse: vi.fn(),
   }))
 
+vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
+  PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
+  ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  ProviderAdmissionTimeoutError: class ProviderAdmissionTimeoutError extends Error {},
+  ProviderAdmissionStorageError: class ProviderAdmissionStorageError extends Error {},
+  isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
+  recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
+  waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
 vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/core/utils/urls')>()),
@@ -33,12 +43,18 @@ vi.mock('@/lib/internal/mistral/operations', () => ({
 }))
 
 import { env } from '@/lib/core/config/env'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { FileParserError } from '@/lib/file-parsers/errors'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import {
+  OcrRequestRejectedError,
+  PermanentDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { OCR_IMAGE_MIME_TYPES } from '@/lib/knowledge/documents/ocr-request-policy'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 
-/** External, so the OCR path uses the URL directly instead of re-uploading it. */
+/** The source URL is downloaded under the caller's access before inline OCR admission. */
 const PDF_URL = 'https://example.com/Contract.pdf'
 const typeset = 'The Supplier shall provide the Services described herein. '.repeat(60)
 
@@ -54,12 +70,13 @@ function ocrPages(count: number, markdown = 'Recognised page') {
   return Array.from({ length: count }, () => ({ markdown }))
 }
 
-function parse() {
+function parse(signal?: AbortSignal) {
   return runWithKnowledgeModelInputProvenance(
     undefined,
     () =>
       processDocument(PDF_URL, 'Contract.pdf', 'application/pdf', 1024, 200, 1, {
         userId: 'user-1',
+        signal,
       }),
     { opaqueInputSafe: true }
   )
@@ -86,6 +103,193 @@ describe('PDF OCR triage', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('reads a private source once and sends bounded inline PDFs without cloud staging', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: { pageCount: 1001 } })
+    mockDownload.mockResolvedValue(await pdfOfPages(1001))
+    const counts: number[] = []
+    mockExecuteMistralParse.mockImplementation(async (input) => {
+      expect(input.filePath).toBeUndefined()
+      expect(input.file.type).toBe('application/pdf')
+      const bytes = Buffer.from(input.file.base64, 'base64')
+      expect(bytes.length).toBeLessThanOrEqual(50_000_000)
+      const { PDFDocument } = await import('pdf-lib')
+      const pdf = await PDFDocument.load(bytes)
+      counts.push(pdf.getPageCount())
+      return {
+        success: true,
+        output: {
+          pages: ocrPages(pdf.getPageCount()),
+          usage_info: { pages_processed: pdf.getPageCount() },
+        },
+      }
+    })
+    const result = await parse()
+    expect(mockDownload).toHaveBeenCalledTimes(1)
+    expect(counts).toEqual([...Array.from({ length: 33 }, () => 30), 11])
+    expect(counts.reduce((total, pages) => total + pages, 0)).toBe(1001)
+    expect(mockExecuteMistralParse.mock.calls.map((call) => call[1].expectedPages)).toEqual(counts)
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
+    expect(result.metadata.cloudUrl).toBeUndefined()
+  })
+
+  it('accepts a bounded inline PDF without attempting a network source download', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: { pageCount: 1 } })
+    const bytes = await pdfOfPages(1)
+    mockExecuteMistralParse.mockResolvedValue({
+      success: true,
+      output: {
+        pages: ocrPages(1),
+        usage_info: { pages_processed: 1 },
+      },
+    })
+    const result = await runWithKnowledgeModelInputProvenance(
+      undefined,
+      () =>
+        processDocument(
+          `data:application/pdf;base64,${bytes.toString('base64')}`,
+          'inline.pdf',
+          'application/pdf',
+          1024,
+          0,
+          1,
+          { userId: 'user-1' }
+        ),
+      { opaqueInputSafe: true }
+    )
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
+    expect(mockDownload).not.toHaveBeenCalled()
+    expect(mockExecuteMistralParse).toHaveBeenCalledOnce()
+  })
+
+  it.each([...OCR_IMAGE_MIME_TYPES])(
+    'uses image OCR for %s instead of a text parser',
+    async (mimeType) => {
+      mockExecuteMistralParse.mockResolvedValue({
+        success: true,
+        output: {
+          pages: ocrPages(1, 'Recovered image text'),
+          usage_info: { pages_processed: 1 },
+        },
+      })
+      const result = await runWithKnowledgeModelInputProvenance(
+        undefined,
+        () =>
+          processDocument(
+            `data:${mimeType};base64,${mimeType === 'image/gif' ? 'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==' : 'aW1hZ2U='}`,
+            'image-fixture',
+            mimeType,
+            1024,
+            0,
+            1,
+            { userId: 'user-1' }
+          ),
+        { opaqueInputSafe: true }
+      )
+      expect(result.metadata.processingMethod).toBe('mistral-ocr')
+      expect(result.chunks[0].text).toBe('Recovered image text')
+      expect(mockParseBuffer).not.toHaveBeenCalled()
+      expect(mockExecuteMistralParse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          file: expect.objectContaining({
+            type: mimeType,
+            base64:
+              mimeType === 'image/gif'
+                ? 'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
+                : 'aW1hZ2U=',
+          }),
+        }),
+        expect.anything()
+      )
+    }
+  )
+
+  it('uses the Azure image_url envelope for an image source', async () => {
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-document-ai-2512',
+    })
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        pages: ocrPages(1, 'Recovered Azure image text'),
+        usage_info: { pages_processed: 1 },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const result = await runWithKnowledgeModelInputProvenance(
+      undefined,
+      () =>
+        processDocument('data:image/png;base64,aW1hZ2U=', 'image.png', 'image/png', 1024, 0, 1, {
+          userId: 'user-1',
+        }),
+      { opaqueInputSafe: true }
+    )
+    expect(result.chunks[0].text).toBe('Recovered Azure image text')
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).document).toEqual({
+      type: 'image_url',
+      image_url: 'data:image/png;base64,aW1hZ2U=',
+    })
+  })
+
+  it('does not mistake cancellation of the text-layer read for a reason to run OCR', async () => {
+    const controller = new AbortController()
+    mockDownload.mockImplementationOnce(async () => {
+      controller.abort(new Error('document cancelled'))
+      throw controller.signal.reason
+    })
+    await expect(parse(controller.signal)).rejects.toThrow('document cancelled')
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+    expect(mockDownload).toHaveBeenCalledWith(
+      PDF_URL,
+      expect.objectContaining({ signal: controller.signal })
+    )
+  })
+
+  it('defers a Mistral throttle without spending the worker budget on another paid call', async () => {
+    mockDownload.mockResolvedValue(await pdfOfPages(1))
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    mockExecuteMistralParse.mockRejectedValue(
+      new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 60_000 })
+    )
+
+    await expect(parse()).rejects.toMatchObject({
+      name: 'ProviderCapacityDeferredError',
+      reason: 'rate_limit',
+      retryAfterMs: 60_000,
+    })
+    expect(mockExecuteMistralParse).toHaveBeenCalledOnce()
+  })
+
+  it('honors Azure Retry-After rather than retrying inside the provider window', async () => {
+    mockDownload.mockResolvedValue(await pdfOfPages(1))
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-ocr',
+    })
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response('slow down', { status: 429, headers: { 'retry-after': '60' } })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ pages: ocrPages(1), usage_info: { pages_processed: 1 } }))
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = parse()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect((await pending).metadata.processingMethod).toBe('mistral-ocr')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('uses the embedded text layer and never calls OCR', async () => {
@@ -98,6 +302,71 @@ describe('PDF OCR triage', () => {
     expect(result.metadata.processingMethod).toBe('file-parser')
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it('requests complete native text and forwards cancellation to the parser', async () => {
+    const controller = new AbortController()
+    mockParseBuffer.mockResolvedValue({ content: typeset, metadata: { pageCount: 1 } })
+
+    await parse(controller.signal)
+
+    expect(mockParseBuffer).toHaveBeenCalledWith(expect.any(Buffer), 'pdf', {
+      signal: controller.signal,
+      pdfTextMode: 'complete',
+    })
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+  })
+
+  it('does not send native extraction safety failures to OCR', async () => {
+    mockParseBuffer.mockRejectedValue(
+      new FileParserError('complexity_limit', 'PDF page exceeds the safe expansion limit.')
+    )
+
+    await expect(parse()).rejects.toMatchObject({
+      name: 'PermanentDocumentProcessingError',
+      code: 'document_complexity_limit',
+      cause: expect.any(FileParserError),
+    })
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+  })
+
+  it('refuses unexpected truncated native results without a paid OCR fallback', async () => {
+    mockParseBuffer.mockResolvedValue({
+      content: typeset,
+      metadata: { pageCount: 1339, truncated: true },
+    })
+
+    await expect(parse()).rejects.toMatchObject({
+      name: 'PermanentDocumentProcessingError',
+      code: 'document_complexity_limit',
+    })
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+  })
+
+  it.each([PDF_URL, 'data:application/pdf;base64,JVBERi0xLjc='])(
+    'requests complete PDF extraction without OCR configured for %s',
+    async (fileUrl) => {
+      Object.assign(env, { OCR_PROVIDER: 'local' })
+      mockParseBuffer.mockResolvedValue({ content: typeset, metadata: { pageCount: 1 } })
+      const controller = new AbortController()
+
+      const result = await processDocument(
+        fileUrl,
+        'Contract.pdf',
+        'application/pdf',
+        1024,
+        200,
+        1,
+        { userId: 'user-1', signal: controller.signal }
+      )
+
+      expect(result.metadata.processingMethod).toBe('file-parser')
+      expect(mockParseBuffer).toHaveBeenCalledWith(expect.any(Buffer), 'pdf', {
+        signal: controller.signal,
+        pdfTextMode: 'complete',
+      })
+      expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+    }
+  )
 
   /**
    * The density check reads its page count from the same parse as the text. A long
@@ -166,7 +435,7 @@ describe('PDF OCR triage', () => {
     expect(result.metadata.processingMethod).toBe('mistral-ocr')
   })
 
-  /** An encrypted or malformed PDF has no readable layer, which is a case for OCR. */
+  /** A parser failure without proof of password protection may still be recoverable by OCR. */
   it('falls through to OCR when the text layer cannot be parsed at all', async () => {
     mockParseBuffer.mockRejectedValue(new Error('Invalid PDF structure.'))
     const fetchMock = vi.fn().mockResolvedValue(
@@ -183,6 +452,52 @@ describe('PDF OCR triage', () => {
     const result = await parse()
 
     expect(result.metadata.processingMethod).toBe('mistral-ocr')
+  })
+
+  /**
+   * The parser re-routes by sniffed bytes, so an HTML error page saved as `.pdf`
+   * comes back as decoded text that would pass the text-layer check. It is not a
+   * PDF and OCR would fail on it terminally, so it must be rejected up front.
+   */
+  it('rejects a non-PDF file named .pdf instead of indexing its text or sending it to OCR', async () => {
+    mockParseBuffer.mockResolvedValue({
+      content: 'Access denied. Your request was blocked by the firewall. '.repeat(40),
+      metadata: { detectedType: 'html', warning: 'parsed as .html instead of .pdf' },
+    })
+
+    await expect(parse()).rejects.toMatchObject({ code: 'invalid_file' })
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+  })
+
+  it('rejects password-protected PDFs before provider admission', async () => {
+    mockParseBuffer.mockRejectedValue(
+      Object.assign(new Error('Password needed'), { name: 'PasswordException' })
+    )
+    await expect(parse()).rejects.toMatchObject({ code: 'encrypted_file' })
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+  })
+
+  it.each([400, 415, 422])(
+    'pauses a provider HTTP %i without misclassifying it as corrupt input',
+    async (status) => {
+      mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+      mockExecuteMistralParse.mockRejectedValue(
+        new MistralOperationError(
+          status,
+          { message: 'Sensitive source text' },
+          undefined,
+          'provider'
+        )
+      )
+      await expect(parse()).rejects.toBeInstanceOf(OcrRequestRejectedError)
+      expect(mockExecuteMistralParse).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('keeps an internal request-building failure distinct from provider rejection', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    mockExecuteMistralParse.mockRejectedValue(new MistralOperationError(400, {}))
+    await expect(parse()).rejects.toMatchObject({ name: 'APIError', status: 400 })
   })
 
   it('does not index a Mistral no-pages response as raw provider JSON', async () => {
@@ -272,7 +587,7 @@ describe('Azure OCR chunking', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
   /**
-   * Splitting loads the document, which an encrypted or malformed PDF refuses.
+   * Splitting loads the document, which a malformed PDF may refuse.
    * Those are precisely the files the triage sends here — no readable text layer —
    * so a failed split must not decide whether they reach OCR at all.
    */
@@ -284,7 +599,7 @@ describe('Azure OCR chunking', () => {
       OCR_AZURE_MODEL_NAME: 'mistral-ocr',
     })
     mockParseBuffer.mockRejectedValue(new Error('Invalid PDF structure.'))
-    mockDownload.mockResolvedValue(Buffer.from('not something pdf-lib can load'))
+    mockDownload.mockResolvedValue(Buffer.from('%PDF-1.7\nnot something pdf-lib can load'))
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -333,7 +648,7 @@ describe('Azure OCR chunking', () => {
 
     expect(error).toBeInstanceOf(Error)
     expect(error).not.toBeInstanceOf(PermanentDocumentProcessingError)
-    expect(error).toMatchObject({ message: expect.stringMatching(/completed 0 of 1 chunks/) })
+    expect(error).toMatchObject({ message: expect.stringMatching(/incomplete page result/) })
   })
 
   /**

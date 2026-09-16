@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
-import { readCollapsedCookie, useSidebarStore } from './store'
+import { getMaxSidebarWidth, readCollapsedCookie, useSidebarStore } from './store'
 
 function setCookie(value: string) {
   document.cookie = `sidebar_collapsed=${value}; path=/`
@@ -54,6 +54,15 @@ describe('sidebar width CSS variables', () => {
     expect(widthVars()).toEqual({ width: '300px', expanded: '300px' })
   })
 
+  it('allows narrowing below the default down to the minimum', () => {
+    useSidebarStore.getState().setSidebarWidth(SIDEBAR_WIDTH.MIN)
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_WIDTH.MIN)
+    expect(SIDEBAR_WIDTH.MIN).toBeLessThan(SIDEBAR_WIDTH.DEFAULT)
+
+    useSidebarStore.getState().setSidebarWidth(SIDEBAR_WIDTH.MIN - 1)
+    expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_WIDTH.MIN)
+  })
+
   it('keeps the expanded variable at the restore width while collapsed', () => {
     useSidebarStore.getState().setSidebarWidth(300)
     useSidebarStore.getState().toggleCollapsed()
@@ -92,5 +101,34 @@ describe('sidebar width CSS variables', () => {
     useSidebarStore.getState().syncWidth()
 
     expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
+  })
+
+  it('clamps the default fallback to a viewport maximum below the default', () => {
+    const innerWidth = window.innerWidth
+    window.innerWidth = 800
+    try {
+      useSidebarStore.setState({ isCollapsed: false, sidebarWidth: Number.NaN })
+
+      useSidebarStore.getState().syncWidth()
+
+      expect(widthVars().expanded).toBe(`${getMaxSidebarWidth(800)}px`)
+      expect(getMaxSidebarWidth(800)).toBeLessThan(SIDEBAR_WIDTH.DEFAULT)
+    } finally {
+      window.innerWidth = innerWidth
+    }
+  })
+})
+
+describe('getMaxSidebarWidth', () => {
+  it('scales with the viewport below the cap', () => {
+    expect(getMaxSidebarWidth(1000)).toBe(1000 * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+  })
+
+  it('caps a wide viewport at the absolute maximum', () => {
+    expect(getMaxSidebarWidth(4000)).toBe(SIDEBAR_WIDTH.MAX)
+  })
+
+  it('never drops below the minimum on a narrow viewport', () => {
+    expect(getMaxSidebarWidth(400)).toBe(SIDEBAR_WIDTH.MIN)
   })
 })

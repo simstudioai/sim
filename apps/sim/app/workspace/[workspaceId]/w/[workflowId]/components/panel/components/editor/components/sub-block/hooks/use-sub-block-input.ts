@@ -39,6 +39,11 @@ export interface UseSubBlockInputOptions {
   /** Optional preview value for read-only preview displays. */
   previewValue?: string | null
   /**
+   * Whether the env-var and tag reference pickers may open. Defaults to `true`; pass `false` for
+   * fields whose value can never hold a reference.
+   */
+  allowReferences?: boolean
+  /**
    * Optional callback to force/show the env var dropdown (e.g., API key fields).
    * Return { show: true, searchTerm?: string } to override defaults.
    * Called on 'change' (typing), 'focus', and 'deleteAll' (full selection delete/backspace).
@@ -160,6 +165,7 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
     isStreaming = false,
     onStreamingEnd,
     previewValue,
+    allowReferences = true,
     shouldForceEnvDropdown,
     shouldForceTagDropdown,
   } = options
@@ -558,8 +564,8 @@ export function useSubBlockInput(options: UseSubBlockInputOptions): UseSubBlockI
     valueString,
     isDisabled,
     cursorPosition,
-    showEnvVars,
-    showTags,
+    showEnvVars: allowReferences && showEnvVars,
+    showTags: allowReferences && showTags,
     searchTerm,
     activeSourceBlockId,
     handlers: {

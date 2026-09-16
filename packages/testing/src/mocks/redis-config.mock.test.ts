@@ -19,6 +19,7 @@ describe('redis-config mock', () => {
     expect(redisConfigMock.getRedisConnectionDefaults('redis://localhost:6379')).toEqual({
       keepAlive: 1000,
       connectTimeout: 10000,
+      disconnectTimeout: 2000,
       enableOfflineQueue: true,
     })
   })

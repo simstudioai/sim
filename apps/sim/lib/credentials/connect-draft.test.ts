@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { pendingCredentialDraft } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -148,5 +149,40 @@ describe('createConnectDraft', () => {
         },
       })
     ).rejects.toThrow('OAuth client configuration is not supported for provider google-email')
+  })
+})
+
+describe('organization OAuth draft isolation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGenerateId.mockReturnValue('new-draft-id')
+  })
+  it('writes an organization owner and rotates only that organization provider slot', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'new-draft-id', expiresAt: new Date() }])
+    await createConnectDraft({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      providerId: 'google-email',
+      displayName: 'Org Gmail',
+    })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', workspaceId: null })
+    )
+    const conflict = dbChainMockFns.onConflictDoUpdate.mock.calls[0][0]
+    expect(conflict.target).toContain(pendingCredentialDraft.organizationId)
+    expect(conflict.target).not.toContain(pendingCredentialDraft.workspaceId)
+  })
+  it('rejects an ambiguous owner before any write', async () => {
+    await expect(
+      createConnectDraft({
+        organizationId: 'org-1',
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        providerId: 'google-email',
+        displayName: 'Ambiguous',
+      })
+    ).rejects.toThrow()
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
   })
 })

@@ -10,13 +10,7 @@ export const size = COVER_OG_SIZE
 const integrations = integrationsJson.integrations as readonly Integration[]
 const bySlug = new Map(integrations.map((i) => [i.slug, i]))
 
-/**
- * The sibling page.tsx sets `dynamicParams = false`, a segment-level
- * restriction that also blocks this metadata route from rendering any
- * param combination it wasn't statically generated for - but Next does not
- * share generateStaticParams between a page and its sibling metadata
- * routes, so without this export every integration's OG image 404s.
- */
+/** Pre-render catalog images separately from their sibling pages. */
 export async function generateStaticParams() {
   return integrations.map((integration) => ({ slug: integration.slug }))
 }

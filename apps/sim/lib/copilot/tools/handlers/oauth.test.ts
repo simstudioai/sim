@@ -112,4 +112,63 @@ describe('executeOAuthGetAuthLink', () => {
     expect(result.success).toBe(true)
     expect(mocks.execute).toHaveBeenCalledOnce()
   })
+
+  it('requires personal credentials from trusted mode, ignoring model-supplied policy', async () => {
+    const assistant = { ...context, requestMode: 'assistant' }
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'gmail', personalOnly: false },
+      assistant
+    )
+    expect(result.success).toBe(true)
+    expect(mocks.execute).toHaveBeenCalledWith(assistant, useCases.prepare, {
+      workspaceId: 'workspace-1',
+      providerName: 'gmail',
+      credentialId: undefined,
+      personalOnly: true,
+    })
+  })
+
+  it.each([
+    { kind: 'personal_token', providerId: 'gitlab', serviceName: 'GitLab' },
+    { kind: 'managed_oauth', providerId: 'slack', serviceName: 'Slack' },
+    { kind: 'oauth', providerId: 'confluence', serviceName: 'Confluence' },
+  ])('offers a provider-only personal connection card for $serviceName', async (provider) => {
+    mocks.execute.mockResolvedValue(provider)
+    const result = await executeOAuthGetAuthLink(
+      { providerName: provider.providerId },
+      { ...context, requestMode: 'assistant' }
+    )
+    expect(result.success).toBe(true)
+    expect(result.output).not.toHaveProperty('oauth_url')
+    expect(result.output).toMatchObject({
+      providerId: provider.providerId,
+      instructions: expect.stringContaining(
+        `<credential>{"type":"link","provider":"${provider.providerId}"}</credential>`
+      ),
+    })
+  })
+
+  it('does not offer a service-account card or fallback link in Assistant', async () => {
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'slack custom bot' },
+      { ...context, requestMode: 'assistant' }
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('your own connected accounts')
+    expect(result.output).not.toHaveProperty('oauth_url')
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('does not attach a reconnect URL after rejecting another person’s credential', async () => {
+    mocks.execute.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Assistant can only reconnect your own account.')
+    )
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'gmail', credentialId: 'other-account' },
+      { ...context, requestMode: 'assistant' }
+    )
+    expect(result.success).toBe(false)
+    expect(result.output).not.toHaveProperty('oauth_url')
+    expect(result.error).toContain('own account')
+  })
 })

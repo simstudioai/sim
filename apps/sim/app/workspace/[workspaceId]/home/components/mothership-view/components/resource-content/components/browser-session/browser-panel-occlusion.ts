@@ -32,7 +32,6 @@ export type BrowserPanelOverlay =
   | 'downloads'
   | 'resources'
   | 'suggestions'
-  | 'tab'
   | 'toolbar'
 
 export interface BrowserPanelOverlayController {

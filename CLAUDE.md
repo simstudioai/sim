@@ -18,7 +18,7 @@ You are a professional software engineer. All code must follow best practices: a
   - `omit(obj, keys)` / `filterUndefined(obj)` from `@sim/utils/object` — object trimming; never `Object.fromEntries(Object.entries(...).filter(...))`
   - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
-- **Deployment flags in the browser**: client code inside a workspace reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never `isHosted`/`isBillingEnabled`/... from `env-flags`. The constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit; the reader is seeded from the server-resolved workspace host context instead. Server code keeps reading `env-flags`
+- **Deployment flags in the browser**: client code inside a workspace, organization, or standalone settings surface reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never `isHosted`/`isBillingEnabled`/... from `env-flags`. The constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit; the reader is seeded from the server-resolved workspace host context, organization layout, or standalone settings layout instead. Server code keeps reading `env-flags`
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 - **Type-checking**: Run `bun run type-check` (per workspace) or `bunx turbo run type-check` (all of them). Do not remove the `@typescript/native` alias from the root `devDependencies` — nothing imports it, but it is what makes a bare `tsc` resolve to the native TypeScript 7 compiler instead of the ~10x slower JavaScript TypeScript 6 one that `@typescript/typescript6` pulls in transitively. `bun run check:native-typecheck` enforces this
 
@@ -429,7 +429,7 @@ Principles when building or migrating shared UI:
 
 ## Testing
 
-Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.cursor/rules/sim-testing.mdc` for full details.
+Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.claude/rules/sim-testing.md` for full details.
 
 ### Global Mocks (vitest.setup.ts)
 

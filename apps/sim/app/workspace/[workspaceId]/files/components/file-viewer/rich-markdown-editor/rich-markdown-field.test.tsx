@@ -25,10 +25,6 @@ vi.mock(
     LinkHoverCard: () => null,
   })
 )
-vi.mock(
-  '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/image-menu',
-  () => ({ ImageBubbleMenu: () => null })
-)
 
 let root: Root
 let container: HTMLDivElement
@@ -45,7 +41,35 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-describe('shared field paste admission with real extensions', () => {
+describe('shared field with real extensions', () => {
+  it.each(['', '## '])(
+    'selects a %s image with a resize handle but no image menu',
+    async (prefix) => {
+      const onChange = vi.fn()
+      await act(async () =>
+        root.render(
+          <RichMarkdownField
+            value={`${prefix}[![Logo](/image.png)](https://example.com)\n\nBody`}
+            onChange={onChange}
+          />
+        )
+      )
+      const element = container.querySelector<HTMLElement & { editor: Editor }>('.tiptap')!
+      const editor = element.editor
+      const before = editor.getJSON()
+      let imagePosition = -1
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'image' || node.type.name === 'inlineImage') imagePosition = pos
+      })
+      expect(imagePosition).toBeGreaterThan(-1)
+      await act(async () => editor.commands.setNodeSelection(imagePosition))
+      expect(container.querySelector('[aria-label="Image editing"]')).toBeNull()
+      expect(container.querySelector('[aria-label="Resize image"]')).not.toBeNull()
+      expect(editor.getJSON()).toEqual(before)
+      expect(onChange).not.toHaveBeenCalled()
+    }
+  )
+
   it.each([false, true])('counts preserved frontmatter (near limit=%s)', async (nearLimit) => {
     const frontmatter = `---\ndescription: ${'f'.repeat(nearLimit ? 900 : 10)}\n---\n\n`
     const body = 'x'.repeat(PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS - 1000)

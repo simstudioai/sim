@@ -69,7 +69,11 @@ function ModelLabel({ model }: ModelLabelProps) {
 
   return (
     <div className='flex w-[90px] shrink-0 items-center justify-end gap-1.5 sm:w-[140px] lg:w-[180px]'>
-      {Icon && <Icon className='size-3.5 shrink-0' />}
+      {Icon && (
+        <span aria-hidden='true' className='shrink-0'>
+          <Icon className='size-3.5' />
+        </span>
+      )}
       <span className='truncate text-[13px] text-[var(--text-primary)] leading-none tracking-[-0.01em]'>
         {model.displayName}
       </span>

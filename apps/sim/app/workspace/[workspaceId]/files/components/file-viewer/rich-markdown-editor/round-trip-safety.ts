@@ -3,7 +3,10 @@ import { decodeHtmlEntities } from '@tiptap/core'
 import { Lexer, Marked, type Token, Tokenizer } from 'marked'
 import { extractImgSrcs } from '@/lib/uploads/utils/embedded-image-ref'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { serializeMarkdownDocument } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import {
+  hasUnusedMarkdownReference,
+  serializeMarkdownDocument,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
 /**
  * Constructs the editor drops or mangles in a way that survives a second serialization
@@ -91,13 +94,13 @@ function imageSources(token: Token): string[] {
  * adjacent equal link marks can merge losslessly. Task references are conservatively source-only:
  * their parser resolves definitions before a task but loses definitions appearing after it, so
  * rearranging otherwise valid Markdown can silently remove a destination.
- * Count HTML image sources too, allowing lossless HTML-to-Markdown conversion while catching images
- * dropped from inline-only table cells. Frontmatter is stored separately, not interpreted as Markdown.
+ * Table images remain source-only until their parsing and editing paths preserve them consistently.
+ * Frontmatter is stored separately, not interpreted as Markdown.
  */
 function inspectMarkdownFidelity(content: string) {
   const targets = new Map<string, number>()
   let hasTaskReference = false
-  let hasTableHtmlImage = false
+  let hasUnsupportedImageContext = false
   let hasQuotedImageMetadata = false
   let preservedQuotes = 0
   const body = splitFrontmatter(content).body
@@ -116,7 +119,8 @@ function inspectMarkdownFidelity(content: string) {
       preservedQuotes += token.raw.match(/&quot;/g)?.length ?? 0
     if (token.type === 'table') {
       fidelityLexer.walkTokens([token], (child) => {
-        if (child.type === 'html' && /^<img(?=[\s/>])/i.test(child.raw)) hasTableHtmlImage = true
+        if (child.type === 'image' || (child.type === 'html' && /^<img(?=[\s/>])/i.test(child.raw)))
+          hasUnsupportedImageContext = true
       })
     }
     for (const src of imageSources(token)) add('image', src)
@@ -139,46 +143,7 @@ function inspectMarkdownFidelity(content: string) {
   })
   const hasUnsafeQuotes =
     hasQuotedImageMetadata || (body.match(/&quot;/g)?.length ?? 0) > preservedQuotes
-  return { targets, hasTaskReference, hasTableHtmlImage, hasUnsafeQuotes }
-}
-
-/**
- * A link/image reference definition line: `[label]: destination "optional title"` (up to 3 leading
- * spaces). The `(?!\^)` excludes GFM footnote definitions (`[^id]: …`) — those are preserved verbatim
- * by the footnote node and round-trip regardless of whether their reference is present, so they must
- * not be treated as droppable orphan definitions.
- */
-const REFERENCE_DEFINITION = /^ {0,3}\[(?!\^)([^\]]+)]:[ \t]+\S[^\n]*$/gm
-
-/** CommonMark reference labels match case-insensitively with internal whitespace collapsed. */
-function normalizeReferenceLabel(label: string): string {
-  return label.trim().replace(/\s+/g, ' ').toLowerCase()
-}
-
-/**
- * True when `content` defines a link/image reference that nothing uses. A *used* reference inlines
- * losslessly on serialize (`[x][id]` + `[id]: url` → `[x](url)`), but an *unused* definition is dropped
- * entirely — a silent deletion the idempotency probe can't see (the drop happens on the first pass,
- * which is then stable). We open such a file read-only rather than lose the definition on first edit.
- * Conservative: a label counts as used if it appears bracketed anywhere in the body, so the rare
- * inline-text collision errs toward editable, never toward a false read-only.
- */
-function hasOrphanReferenceDefinition(content: string): boolean {
-  const labels = new Set<string>()
-  for (const match of content.matchAll(REFERENCE_DEFINITION)) {
-    labels.add(normalizeReferenceLabel(match[1]))
-  }
-  if (labels.size === 0) return false
-  const body = content
-    .replace(REFERENCE_DEFINITION, '')
-    .replace(/\s+/g, ' ')
-    .replace(/\[\s+/g, '[')
-    .replace(/\s+\]/g, ']')
-    .toLowerCase()
-  for (const label of labels) {
-    if (!body.includes(`[${label}]`)) return true
-  }
-  return false
+  return { targets, hasTaskReference, hasUnsupportedImageContext, hasUnsafeQuotes }
 }
 
 /**
@@ -197,10 +162,11 @@ export function isRoundTripSafe(content: string): boolean {
   const stripped = stripCode(content)
   if (STABLE_LOSS_PATTERNS.some((pattern) => pattern.test(stripped.replaceAll('&quot;', ''))))
     return false
-  if (hasOrphanReferenceDefinition(stripped)) return false
   try {
+    if (hasUnusedMarkdownReference(content)) return false
     const source = inspectMarkdownFidelity(content)
-    if (source.hasTaskReference || source.hasTableHtmlImage || source.hasUnsafeQuotes) return false
+    if (source.hasTaskReference || source.hasUnsupportedImageContext || source.hasUnsafeQuotes)
+      return false
     const once = serializeMarkdownDocument(content)
     const preservedImages = inspectHtmlImages(stripCode(once)).unsupported
     for (const [tag, count] of inspectHtmlImages(stripped).unsupported) {

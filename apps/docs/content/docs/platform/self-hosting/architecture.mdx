@@ -52,11 +52,11 @@ This holds essentially all durable state: workflows, runs, logs, users, organiza
 
 ### redis
 
-Backs pub/sub, the Socket.IO adapter, the idempotency store, execution progress markers, distributed execution limits, and the CLI-auth approval store. The idempotency store and execution progress markers fall back to Postgres or in-process state. The CLI-auth approval store does not — CLI authentication requires Redis at any replica count. Pub/sub falls back to a **process-local** emitter, which is fine on one replica and drops every cross-pod event on more than one. See [Redis](/platform/self-hosting/redis).
+Backs pub/sub, the Socket.IO adapter, the idempotency store, execution progress markers, distributed execution limits, and the CLI-auth approval store. The idempotency store and execution progress markers fall back to Postgres or in-process state. The pairing-code approval store has no fallback, so API-key login through pairing requires Redis. OAuth login uses a separate path. Pub/sub falls back to a **process-local** emitter, which is fine on one replica and drops every cross-pod event on more than one. See [Redis](/platform/self-hosting/redis).
 
 ### cron
 
-Twenty-two scheduled jobs that call internal endpoints — schedule execution, polling triggers, webhook-subscription renewal, connector syncs, outbox processing, data drains, workspace file-search dispatch, table row TTL cleanup, inbox-entitlement reconciliation, and sandbox-image cleanup. Kubernetes runs them as CronJobs; Docker Compose runs them from a single supercronic service. Same paths, same schedules. See [Background Jobs](/platform/self-hosting/background-jobs).
+Scheduled jobs call internal endpoints — schedule execution, polling triggers, webhook-subscription renewal, connector syncs, outbox processing, data drains, workspace file-search dispatch, table row TTL cleanup, inbox-entitlement reconciliation, and sandbox-image cleanup. Kubernetes runs them as CronJobs; Docker Compose runs them from a single supercronic service. Same paths, same schedules. See [Background Jobs](/platform/self-hosting/background-jobs).
 
 ## Where state lives
 

@@ -11,6 +11,7 @@ export const slackGetUserTool: ToolConfig<SlackGetUserParams, SlackGetUserRespon
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['users:read'],
   },
 
   params: {

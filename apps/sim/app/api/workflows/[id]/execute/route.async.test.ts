@@ -468,7 +468,6 @@ describe('workflow execute async route', () => {
 
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('req-12345678')
     workflowsUtilsMockFns.mockWorkflowHasResponseBlock.mockReturnValue(false)
-    hybridAuthMockFns.mockHasExternalApiCredentials.mockReturnValue(true)
     mockGetWorkspaceBillingSettings.mockResolvedValue({
       billedAccountUserId: 'owner-1',
       allowPersonalApiKeys: true,

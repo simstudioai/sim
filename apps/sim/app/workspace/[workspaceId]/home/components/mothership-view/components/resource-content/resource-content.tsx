@@ -25,7 +25,7 @@ import {
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { prefersInPlaceNavigation } from '@/lib/desktop'
-import { triggerFileDownload } from '@/lib/uploads/client/download'
+import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {
   FileViewer,
@@ -98,6 +98,7 @@ interface ResourceContentProps {
   workspaceId: string
   desktopScopeId: string
   resource: MothershipResource
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
@@ -170,6 +171,7 @@ export const ResourceContent = memo(function ResourceContent({
   workspaceId,
   desktopScopeId,
   resource,
+  downloadSourceRef,
   previewMode,
   previewSession,
   isAgentResponding,
@@ -285,6 +287,7 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           filePath={resource.path}
+          downloadSourceRef={downloadSourceRef}
           previewMode={previewMode}
           streamingContent={
             previewSession?.fileId === resource.id ? textStreamingContent : undefined
@@ -331,9 +334,12 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'browser':
+      // One panel serves every browser tab of the chat: the desktop app
+      // composites whichever page is selected, so switching tabs must not
+      // remount it.
       return (
         <BrowserSession
-          key={resource.id}
+          key={desktopScopeId}
           scopeId={desktopScopeId}
           visible={visible}
           onOverlayControllerChange={onBrowserOverlayControllerChange}
@@ -341,7 +347,9 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'terminal':
-      return <TerminalSession key={resource.id} scopeId={desktopScopeId} visible={visible} />
+      // One panel serves every terminal tab of the chat, keeping each shell's
+      // emulator alive across tab switches.
+      return <TerminalSession key={desktopScopeId} scopeId={desktopScopeId} visible={visible} />
 
     default:
       return null
@@ -351,9 +359,14 @@ export const ResourceContent = memo(function ResourceContent({
 interface ResourceActionsProps {
   workspaceId: string
   resource: MothershipResource
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
 }
 
-export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
+export function ResourceActions({
+  workspaceId,
+  resource,
+  downloadSourceRef,
+}: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
@@ -363,6 +376,7 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
           workspaceId={workspaceId}
           fileId={resource.id}
           filePath={resource.path}
+          downloadSourceRef={downloadSourceRef}
         />
       )
     case 'knowledgebase':
@@ -586,9 +600,15 @@ interface EmbeddedFileActionsProps {
   workspaceId: string
   fileId: string
   filePath?: string
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
 }
 
-function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
+function EmbeddedFileActions({
+  workspaceId,
+  fileId,
+  filePath,
+  downloadSourceRef,
+}: EmbeddedFileActionsProps) {
   const router = useRouter()
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const file = useMemo(
@@ -605,7 +625,7 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActi
   const handleDownload = async () => {
     if (!file) return
     try {
-      await triggerFileDownload(file)
+      await triggerFileDownload(file, downloadSourceRef?.current)
     } catch (err) {
       fileLogger.error('Failed to download file:', err)
     }
@@ -691,6 +711,7 @@ interface EmbeddedFileProps {
   workspaceId: string
   fileId: string
   filePath?: string
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   previewMode?: PreviewMode
   streamingContent?: string
   isAgentEditing?: boolean
@@ -704,6 +725,7 @@ function EmbeddedFile({
   workspaceId,
   fileId,
   filePath,
+  downloadSourceRef,
   previewMode,
   streamingContent,
   isAgentEditing,
@@ -746,6 +768,7 @@ function EmbeddedFile({
       <FileViewer
         key={file.id}
         file={file}
+        downloadSourceRef={downloadSourceRef}
         workspaceId={workspaceId}
         canEdit={canEdit}
         previewMode={previewMode}

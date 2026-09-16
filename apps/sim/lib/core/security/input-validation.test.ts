@@ -1402,6 +1402,8 @@ describe('validateGoogleCloudLocation', () => {
       'africa-south1',
       'me-central2',
       'global',
+      'us',
+      'eu',
     ])('should accept %s', (location) => {
       const result = validateGoogleCloudLocation(location)
       expect(result.isValid).toBe(true)

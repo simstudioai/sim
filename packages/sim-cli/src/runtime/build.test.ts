@@ -1324,6 +1324,94 @@ describe('contract-selected list rendering', () => {
 })
 
 describe('pagination slot', () => {
+  it.each([
+    { argv: ['files', 'list'], cursors: ['c1', 'c1'] },
+    { argv: ['files', 'list'], cursors: ['c1', 'c2', 'c1'] },
+    { argv: ['tables', 'rows', 'query', 'tbl_1', '--limit', '0'], cursors: ['c1', 'c1'] },
+    { argv: ['logs', 'list', '--cursor', 'c1'], cursors: ['c1'] },
+    { argv: ['tables', 'rows', 'query', 'tbl_1', '--cursor', 'c1'], cursors: ['c1'] },
+  ])(
+    'rejects cursor cycles in $argv without printing partial results',
+    async ({ argv, cursors }) => {
+      mockRequest.mockReset()
+      mockRequest.mockRejectedValue(new Error('Pagination did not stop at the cycle'))
+      for (const nextCursor of cursors) {
+        mockRequest.mockResolvedValueOnce({ data: [{ id: 'r1' }], nextCursor })
+      }
+      const printed = vi.spyOn(console, 'log').mockImplementation(() => {})
+      printed.mockClear()
+
+      await expect(program().parseAsync(['node', 'sim', ...argv])).rejects.toThrow(
+        'repeated pagination cursor'
+      )
+      expect(mockRequest).toHaveBeenCalledTimes(cursors.length)
+      expect(printed).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['files', 'list'],
+    ['tables', 'list'],
+    ['workflows', 'list'],
+    ['knowledge', 'list'],
+    ['tools', 'list'],
+  ])('fetches the complete %s %s inventory by default', async (...argv) => {
+    mockRequest.mockReset()
+    const first = Array.from({ length: 100 }, (_, index) => ({ id: `r${index}` }))
+    const second = Array.from({ length: 50 }, (_, index) => ({ id: `r${100 + index}` }))
+    mockRequest
+      .mockResolvedValueOnce({ data: first, nextCursor: 'c1' })
+      .mockResolvedValueOnce({ data: second, nextCursor: null })
+    const printed: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => printed.push(line))
+
+    await program().parseAsync(['node', 'sim', ...argv])
+
+    expect(mockRequest).toHaveBeenCalledTimes(2)
+    expect(mockRequest.mock.calls[1][1].query).toMatchObject({ cursor: 'c1', limit: 100 })
+    expect(JSON.parse(printed.join('\n'))).toEqual({
+      data: [...first, ...second],
+      nextCursor: null,
+    })
+  })
+
+  it.each([
+    ['tables', 'rows', 'list', 'tbl_1'],
+    ['tables', 'rows', 'query', 'tbl_1'],
+    ['logs', 'list'],
+    ['knowledge', 'documents', 'list', 'kb_1'],
+    ['knowledge', 'chunks', 'list', 'kb_1', 'doc_1'],
+    ['knowledge', 'connectors', 'documents', 'list', 'kb_1', 'connector_1'],
+    ['workflows', 'runs', 'list', '--workflow', 'wf_1'],
+    ['workflows', 'versions', 'list', 'wf_1'],
+    ['billing', 'logs'],
+    ['audit-logs', 'list', '--organization', 'org_1'],
+  ])('caps large dataset command %j at 100 items by default', async (...argv) => {
+    mockRequest.mockReset()
+    const rows = Array.from({ length: 100 }, (_, index) => ({ id: `r${index}` }))
+    mockRequest
+      .mockResolvedValueOnce({ data: rows, nextCursor: 'c1' })
+      .mockRejectedValue(new Error('The default limit must stop before another page'))
+    const printed: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => printed.push(line))
+
+    await program().parseAsync(['node', 'sim', ...argv])
+
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(printed.join('\n'))).toEqual({ data: rows, nextCursor: 'c1' })
+
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValueOnce({ data: [{ id: 'r100' }], nextCursor: null })
+    printed.length = 0
+
+    await program().parseAsync(['node', 'sim', ...argv, '--cursor', 'c1'])
+
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+    const options = mockRequest.mock.calls[0][1]
+    expect({ ...options.query, ...options.body }).toMatchObject({ cursor: 'c1', limit: 100 })
+    expect(JSON.parse(printed.join('\n'))).toEqual({ data: [{ id: 'r100' }], nextCursor: null })
+  })
+
   it('pages a body-cursor operation and renders its rows', async () => {
     // `queryRows` is a POST whose cursor is in the body, not the query. Reading
     // only the query made it take the single-request path and print nothing.
@@ -1343,7 +1431,7 @@ describe('pagination slot', () => {
     expect(mockRequest.mock.calls[1][1].body).toMatchObject({ cursor: 'c1' })
     expect(mockRequest.mock.calls[1][1].query).not.toHaveProperty('cursor')
     // And the rows actually render rather than printing an empty record.
-    expect(JSON.parse(lines[0])).toEqual([{ id: 'r1' }, { id: 'r2' }])
+    expect(JSON.parse(lines[0])).toEqual({ data: [{ id: 'r1' }, { id: 'r2' }], nextCursor: null })
   })
 
   it('keeps a query-cursor operation on the query slot', async () => {
@@ -1401,10 +1489,14 @@ describe('pagination slot', () => {
 
   it('reads a limit the way the caller wrote it', async () => {
     mockRequest.mockReset()
-    mockRequest.mockResolvedValue({
-      data: Array.from({ length: 20 }, (_row, index) => ({ id: `f_${index}` })),
-      nextCursor: null,
-    })
+    mockRequest.mockImplementation(
+      async (_path: string, options: { query: { limit: number } }) => ({
+        data: Array.from({ length: Math.min(20, options.query.limit) }, (_row, index) => ({
+          id: `f_${index}`,
+        })),
+        nextCursor: options.query.limit < 20 ? 'c1' : null,
+      })
+    )
     const printed: string[] = []
     vi.spyOn(console, 'log').mockImplementation((line: string) => {
       printed.push(line)
@@ -1412,12 +1504,14 @@ describe('pagination slot', () => {
 
     // `parseInt(…, 10)` stopped at the `x` and read 0, which meant everything.
     await program().parseAsync(['node', 'sim', 'files', 'list', '--limit', '0x10'])
-    expect(JSON.parse(printed[0])).toHaveLength(16)
+    expect(JSON.parse(printed[0]).data).toHaveLength(16)
+    expect(JSON.parse(printed[0]).nextCursor).toBe('c1')
 
     printed.length = 0
     // And stopped at the `e`, reading a single row where 1000 was asked for.
     await program().parseAsync(['node', 'sim', 'files', 'list', '--limit', '1e3'])
-    expect(JSON.parse(printed[0])).toHaveLength(20)
+    expect(JSON.parse(printed[0]).data).toHaveLength(20)
+    expect(JSON.parse(printed[0]).nextCursor).toBeNull()
   })
 
   it('uses a valid per-page size for unlimited and large totals', async () => {
@@ -1430,6 +1524,110 @@ describe('pagination slot', () => {
 
       expect(mockRequest.mock.calls[0][1].query.limit).toBe(100)
     }
+  })
+
+  it.each([
+    { slot: 'query' as const, argv: ['logs', 'list'] },
+    { slot: 'body' as const, argv: ['tables', 'rows', 'query', 'tbl_1'] },
+  ])('returns an accurate cursor after a partial final $slot page', async ({ slot, argv }) => {
+    mockRequest.mockReset()
+    mockRequest.mockImplementation(
+      async (
+        _path: string,
+        options: {
+          query: { limit: number; cursor?: string }
+          body?: { limit: number; cursor?: string }
+        }
+      ) => {
+        const page = options[slot]
+        if (!page) throw new Error(`Missing ${slot} pagination`)
+        const offset = Number(page.cursor ?? 0)
+        const count = Math.min(page.limit, 400 - offset)
+        return {
+          data: Array.from({ length: count }, (_, index) => ({ id: `r${offset + index}` })),
+          nextCursor: offset + count < 400 ? String(offset + count) : null,
+        }
+      }
+    )
+    const printed: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => printed.push(line))
+
+    await program().parseAsync(['node', 'sim', ...argv, '--limit', '250'])
+
+    expect(mockRequest.mock.calls.map(([, options]) => options[slot].limit)).toEqual([100, 100, 50])
+    const result = JSON.parse(printed.join('\n'))
+    expect(result.data).toHaveLength(250)
+    expect(result.data[249]).toEqual({ id: 'r249' })
+    expect(result.nextCursor).toBe('250')
+
+    printed.length = 0
+    await program().parseAsync(['node', 'sim', ...argv, '--limit', '0'])
+
+    const complete = JSON.parse(printed.join('\n'))
+    expect(complete.data).toHaveLength(400)
+    expect(complete.nextCursor).toBeNull()
+
+    printed.length = 0
+    const resumeCall = mockRequest.mock.calls.length
+    await program().parseAsync(['node', 'sim', ...argv, '--cursor', result.nextCursor])
+
+    expect(mockRequest.mock.calls[resumeCall][1][slot]).toMatchObject({ cursor: '250', limit: 100 })
+    const resumed = JSON.parse(printed.join('\n'))
+    expect(resumed.data).toHaveLength(100)
+    expect(resumed.data[0]).toEqual({ id: 'r250' })
+    expect(resumed.data[99]).toEqual({ id: 'r349' })
+    expect(resumed.nextCursor).toBe('350')
+
+    printed.length = 0
+    await program().parseAsync([
+      'node',
+      'sim',
+      ...argv,
+      '--cursor',
+      resumed.nextCursor,
+      '--limit',
+      '0',
+    ])
+
+    const remaining = JSON.parse(printed.join('\n'))
+    expect(remaining.data).toHaveLength(50)
+    expect(remaining.data[0]).toEqual({ id: 'r350' })
+    expect(remaining.nextCursor).toBeNull()
+  })
+
+  it.each([
+    ['logs', 'list'],
+    ['tables', 'rows', 'query', 'tbl_1'],
+  ])('rejects blank cursors before requesting %j', async (...argv) => {
+    for (const cursor of ['', ' ', '\t']) {
+      mockRequest.mockReset()
+
+      await expect(
+        program().parseAsync(['node', 'sim', ...argv, '--cursor', cursor])
+      ).rejects.toThrow('--cursor')
+      expect(mockRequest).not.toHaveBeenCalled()
+    }
+  })
+
+  it('does not expose manual cursors on resource inventories', async () => {
+    mockRequest.mockReset()
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'files', 'list', '--cursor', 'c1'])
+    ).rejects.toThrow("unknown option '--cursor'")
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized page instead of emitting a cursor that skips rows', async () => {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: [{ id: 'a' }, { id: 'b' }], nextCursor: 'c2' })
+    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+    stdout.mockClear()
+
+    await expect(
+      program().parseAsync(['node', 'sim', 'files', 'list', '--limit', '1'])
+    ).rejects.toThrow('nextCursor would skip unreturned items')
+    expect(stdout).not.toHaveBeenCalled()
   })
 })
 
@@ -2228,7 +2426,7 @@ describe('the billing ledger a key can see', () => {
 describe('a list that is not the whole answer', () => {
   /** Captures stderr for one invocation, in one output format. */
   async function noteFor(
-    format: 'table' | 'text' | 'json',
+    format: 'table' | 'text' | 'json' | 'yaml',
     argv: string[],
     response: unknown
   ): Promise<string> {
@@ -2249,19 +2447,14 @@ describe('a list that is not the whole answer', () => {
     return errors.join('')
   }
 
-  /**
-   * `sim tools list` answered 100 rows of 4708 with exit 0 and an empty
-   * stderr, in every format — a clipped inventory that read as the inventory.
-   */
-  it('says so, once, on stderr, in every format', async () => {
-    for (const format of ['table', 'text', 'json'] as const) {
+  it('does not announce remaining pages in any format', async () => {
+    for (const format of ['table', 'text', 'json', 'yaml'] as const) {
       const note = await noteFor(format, ['tools', 'list', '--limit', '2'], {
         data: [{ id: 'a' }, { id: 'b' }],
         nextCursor: 'c1',
       })
 
-      expect(note).toContain('more results exist')
-      expect(note).toContain('--limit 0')
+      expect(note).toBe('')
     }
   })
 
@@ -2276,8 +2469,8 @@ describe('a list that is not the whole answer', () => {
 
   /**
    * The server clips an inventory itself and says so on the envelope, which the
-   * CLI dropped: `--output json` prints `data` alone, so a reconciling caller
-   * could not tell a clipped list from a complete one.
+   * CLI reports separately from data and nextCursor so a reconciling caller
+   * can distinguish a clipped inventory from a complete one.
    */
   it('carries a truncation the server stated on the envelope', async () => {
     const paged = await noteFor('json', ['workflow-mcp-servers', 'list'], {
@@ -2329,7 +2522,7 @@ describe('a list that is not the whole answer', () => {
     expect(errors.join('')).toContain('tool names truncated')
   })
 
-  it('leaves the rows on stdout exactly as they were', async () => {
+  it('includes the remaining cursor alongside the rows', async () => {
     const lines: string[] = []
     mockRequest.mockReset()
     mockRequest.mockResolvedValue({ data: [{ id: 'a' }, { id: 'b' }], nextCursor: 'c1' })
@@ -2340,6 +2533,9 @@ describe('a list that is not the whole answer', () => {
 
     await program().parseAsync(['node', 'sim', 'tools', 'list', '--limit', '2'])
 
-    expect(JSON.parse(lines.join('\n'))).toEqual([{ id: 'a' }, { id: 'b' }])
+    expect(JSON.parse(lines.join('\n'))).toEqual({
+      data: [{ id: 'a' }, { id: 'b' }],
+      nextCursor: 'c1',
+    })
   })
 })

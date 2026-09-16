@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   activateScope,
+  activateStoreScope,
   applyCommandEvent,
   clearScrollback,
   discardScope,
@@ -11,15 +12,19 @@ const {
   markScopeSuspended,
   migrateStoreScope,
   nativeMigrateScope,
+  nativeOpenTerminal,
   nativeReorderTerminal,
+  nativeStart,
   onCommand,
   onData,
   onDefaultZoomChanged,
   onShortcutCommand,
   onTabs,
   onScopeSuspended,
+  restoreScope,
   setTabs,
   nativeSuspendScope,
+  nativeSwitchTerminal,
   write,
 } = vi.hoisted(() => ({
   activateScope: vi.fn(async (scopeId: string) => ({
@@ -27,6 +32,7 @@ const {
     tabs: [],
     activeTerminalId: null,
   })),
+  activateStoreScope: vi.fn(),
   applyCommandEvent: vi.fn(),
   clearScrollback: vi.fn(async () => true),
   discardScope: vi.fn(),
@@ -39,45 +45,58 @@ const {
   markScopeSuspended: vi.fn(),
   migrateStoreScope: vi.fn(),
   nativeMigrateScope: vi.fn(),
+  nativeOpenTerminal: vi.fn(async (_cwd: string | undefined, scopeId: string) => ({
+    scopeId,
+    tabs: [],
+    activeTerminalId: null,
+  })),
   nativeReorderTerminal: vi.fn(),
+  nativeStart: vi.fn(),
   onCommand: vi.fn(),
   onData: vi.fn(() => vi.fn()),
   onDefaultZoomChanged: vi.fn(() => vi.fn()),
   onShortcutCommand: vi.fn(() => vi.fn()),
   onTabs: vi.fn(),
   onScopeSuspended: vi.fn(),
+  restoreScope: vi.fn(async (scopeId: string) => ({
+    scopeId,
+    tabs: [],
+    activeTerminalId: null,
+  })),
   setTabs: vi.fn(),
   nativeSuspendScope: vi.fn(async () => true),
+  nativeSwitchTerminal: vi.fn(async () => {}),
   write: vi.fn(),
 }))
 
+const bridgeTerminal = vi.hoisted(() => ({}) as Record<string, unknown>)
+Object.assign(bridgeTerminal, {
+  activateScope,
+  closeTerminal: vi.fn(),
+  clearScrollback,
+  dispose: vi.fn(),
+  disposeScope,
+  executeTool: vi.fn(),
+  getScrollback: vi.fn(),
+  getTabs,
+  migrateScope: nativeMigrateScope,
+  onCommand,
+  onData,
+  onDefaultZoomChanged,
+  onShortcutCommand,
+  onTabs,
+  onScopeSuspended,
+  openTerminal: nativeOpenTerminal,
+  reorderTerminal: nativeReorderTerminal,
+  resize: vi.fn(),
+  restoreScope,
+  switchTerminal: nativeSwitchTerminal,
+  suspendScope: nativeSuspendScope,
+  write,
+})
+
 vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () => ({
-    terminal: {
-      activateScope,
-      closeTerminal: vi.fn(),
-      clearScrollback,
-      dispose: vi.fn(),
-      disposeScope,
-      executeTool: vi.fn(),
-      getScrollback: vi.fn(),
-      getTabs,
-      migrateScope: nativeMigrateScope,
-      onCommand,
-      onData,
-      onDefaultZoomChanged,
-      onShortcutCommand,
-      onTabs,
-      onScopeSuspended,
-      openTerminal: vi.fn(),
-      reorderTerminal: nativeReorderTerminal,
-      resize: vi.fn(),
-      start: vi.fn(),
-      switchTerminal: vi.fn(),
-      suspendScope: nativeSuspendScope,
-      write,
-    },
-  }),
+  getDesktopBridge: () => ({ terminal: bridgeTerminal }),
   isTerminalEnabled: () => true,
 }))
 
@@ -85,6 +104,8 @@ vi.mock('@/stores/copilot-terminal/store', () => ({
   useCopilotTerminalStore: {
     getState: () => ({
       activeScopeId: null,
+      sessions: {},
+      activateScope: activateStoreScope,
       applyCommandEvent,
       discardScope,
       migrateScope: migrateStoreScope,
@@ -95,6 +116,7 @@ vi.mock('@/stores/copilot-terminal/store', () => ({
 }))
 
 import {
+  activateTerminalScope,
   clearTerminalScrollback,
   discardTerminalScope,
   initTerminalTransport,
@@ -102,8 +124,10 @@ import {
   onTerminalData,
   onTerminalDefaultZoomChanged,
   onTerminalShortcutCommand,
+  openTerminal,
   reorderTerminal,
   suspendTerminalScope,
+  switchTerminal,
   writeToTerminal,
 } from '@/lib/terminal/transport'
 
@@ -124,7 +148,99 @@ describe('terminal transport chat scopes', () => {
     migrateStoreScope.mockClear()
     nativeMigrateScope.mockReset()
     nativeReorderTerminal.mockReset()
+    activateScope.mockClear()
+    restoreScope.mockClear()
+    nativeSwitchTerminal.mockClear()
+    nativeOpenTerminal.mockClear()
+    nativeStart.mockClear()
     write.mockClear()
+  })
+
+  it('restores a chat with no live shells when its scope is activated', async () => {
+    restoreScope.mockResolvedValueOnce({
+      scopeId: 'chat-restore',
+      tabs: [
+        {
+          terminalId: 'restored-1',
+          title: 'sim',
+          cwd: '/code/sim',
+          running: null,
+          interactive: false,
+          active: true,
+        },
+      ],
+      activeTerminalId: 'restored-1',
+    })
+
+    await activateTerminalScope('chat-restore')
+
+    expect(restoreScope).toHaveBeenCalledWith('chat-restore')
+    expect(setTabs).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scopeId: 'chat-restore', activeTerminalId: 'restored-1' })
+    )
+  })
+
+  it('does not restore when the chat already has live shells', async () => {
+    activateScope.mockResolvedValueOnce({
+      scopeId: 'chat-live',
+      tabs: [
+        {
+          terminalId: 'live-1',
+          title: 'sim',
+          cwd: '/code/sim',
+          running: null,
+          interactive: false,
+          active: true,
+        },
+      ],
+      activeTerminalId: 'live-1',
+    })
+
+    await activateTerminalScope('chat-live')
+
+    expect(restoreScope).not.toHaveBeenCalled()
+  })
+
+  it('skips the restore when the user moved to another chat during activation', async () => {
+    let finishActivation: (tabs: ScopedTerminalTabsState) => void = () => {}
+    activateScope.mockImplementationOnce(
+      () => new Promise<ScopedTerminalTabsState>((resolve) => (finishActivation = resolve))
+    )
+
+    const first = activateTerminalScope('chat-first')
+    await activateTerminalScope('chat-second')
+    finishActivation({ scopeId: 'chat-first', tabs: [], activeTerminalId: null })
+    await first
+
+    expect(restoreScope).toHaveBeenCalledExactlyOnceWith('chat-second')
+  })
+
+  it('opens a fresh shell through openTerminal on shells that restore on activation', async () => {
+    await openTerminal(undefined, 'chat-b')
+
+    expect(nativeOpenTerminal).toHaveBeenCalledWith(undefined, 'chat-b')
+    expect(nativeStart).not.toHaveBeenCalled()
+  })
+
+  it('adopts a chat through start on shells that cannot restore on activation', async () => {
+    const { restoreScope: modern } = bridgeTerminal
+    bridgeTerminal.restoreScope = undefined
+    bridgeTerminal.start = nativeStart
+    try {
+      await openTerminal(undefined, 'chat-b')
+    } finally {
+      bridgeTerminal.restoreScope = modern
+      bridgeTerminal.start = undefined
+    }
+
+    expect(nativeStart).toHaveBeenCalledWith({ cols: 80, rows: 24 }, 'chat-b')
+    expect(nativeOpenTerminal).not.toHaveBeenCalled()
+  })
+
+  it('forwards a terminal switch with its claim option', async () => {
+    await switchTerminal('terminal-b', 'chat-b', { claim: false })
+
+    expect(nativeSwitchTerminal).toHaveBeenCalledWith('terminal-b', 'chat-b', { claim: false })
   })
 
   it('routes pushed tab and command state to the scope carried by each event', () => {

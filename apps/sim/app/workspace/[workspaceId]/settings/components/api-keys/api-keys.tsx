@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipConfirmModal, Label, Switch, Tooltip, toast } from '@sim/emcn'
+import { Chip, ChipConfirmModal, Label, Switch, Tooltip, toast } from '@sim/emcn'
 import { CircleInfo, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -371,13 +371,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                   <Label htmlFor='allow-personal-api-keys'>Allow personal API keys</Label>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <button
-                        type='button'
-                        aria-label='About personal API keys'
-                        className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
-                      >
-                        <CircleInfo className='size-[12px]' />
-                      </button>
+                      <Chip leftIcon={CircleInfo} aria-label='About personal API keys' />
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top' className='max-w-xs text-small'>
                       Allow collaborators to authenticate with their own keys. Hosted usage is

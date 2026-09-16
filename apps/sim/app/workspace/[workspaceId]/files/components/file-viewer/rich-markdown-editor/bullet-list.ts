@@ -10,4 +10,14 @@ export const JoiningBulletList = BulletList.extend({
   addInputRules() {
     return joinListInputRules(this.parent?.() ?? [], this.type)
   },
+  renderMarkdown(node, helpers, context) {
+    const firstParagraph = node.content?.[0]?.content?.[0]
+    const startsEmpty = firstParagraph?.type === 'paragraph' && !firstParagraph.content?.length
+    const nested = context.parentType === 'listItem' || context.parentType === 'taskItem'
+    const followsText =
+      context.previousNode?.type === 'paragraph' && Boolean(context.previousNode.content?.length)
+    const rendered = helpers.renderChildren(node.content ?? [], '\n')
+    /** Separate an opening empty bullet from its parent's text so it cannot become a Setext heading. */
+    return nested && startsEmpty && followsText ? `\n${rendered}` : rendered
+  },
 })

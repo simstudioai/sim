@@ -90,10 +90,16 @@ async function resolveBillingReadScope(
         throw new PersonalApiKeysDisabledError()
       }
       /**
-       * permission-group-enforced: cli.use — a CLI token reads the account's
+       * permission-group-enforced: cli.use, oauth_apps.use — an OAuth token reads the account's
        * plan, balance and usage here without naming a workspace, so the
        * workspace-scoped check in the funnel never sees it.
        */
+      if (
+        principal.kind === 'oauth_access_token' &&
+        (await isCapabilityWithheldForUser(principal.userId, 'oauth_apps.use'))
+      ) {
+        refuseCapability('oauth_apps.use')
+      }
       if (
         principal.kind === 'oauth_access_token' &&
         principal.clientId === SIM_CLI_CLIENT_ID &&

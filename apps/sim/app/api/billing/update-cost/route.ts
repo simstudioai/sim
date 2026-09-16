@@ -14,7 +14,7 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
   type CopilotBillingProtocol,
   requireAccountBillingDecisionHeader,
-  requireBillingAttributionHeader,
+  requireBillingCallbackAttribution,
   resolveLegacyV0BillingAttribution,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
@@ -156,8 +156,17 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     if (!parsed.success) return parsed.response
 
-    const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey, workspaceId } =
-      parsed.data.body
+    const {
+      userId,
+      cost,
+      model,
+      inputTokens,
+      outputTokens,
+      source,
+      idempotencyKey,
+      workspaceId,
+      organizationId,
+    } = parsed.data.body
     const requestedProtocol = parsed.data.headers?.[COPILOT_BILLING_PROTOCOL_HEADER]
     const billingRequestId = parsed.data.headers?.[BILLING_REQUEST_ID_HEADER]
     const suppliedAttributionHeader = parsed.data.headers?.[BILLING_ATTRIBUTION_HEADER]
@@ -178,9 +187,14 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       (isModernProtocol &&
         (!billingRequestId || !idempotencyKey || billingRequestId !== idempotencyKey)) ||
       (protocol === COPILOT_BILLING_PROTOCOL.legacy && billingRequestId) ||
-      (isExplicitLegacyProtocol && (!workspaceId || !suppliedAttributionHeader)) ||
+      (isExplicitLegacyProtocol && !suppliedAttributionHeader) ||
       (isMarkerlessLegacy &&
-        Boolean(billingRequestId || suppliedAttributionHeader || suppliedAccountDecisionHeader)) ||
+        Boolean(
+          organizationId ||
+            billingRequestId ||
+            suppliedAttributionHeader ||
+            suppliedAccountDecisionHeader
+        )) ||
       (isAttributedProtocol && !suppliedAttributionHeader) ||
       (isDirectProtocol && !suppliedAccountDecisionHeader) ||
       (isDirectProtocol && Boolean(suppliedAttributionHeader)) ||
@@ -212,12 +226,10 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     let suppliedAccountDecision: AccountBillingDecision | undefined
     try {
       if (suppliedAttributionHeader) {
-        if (!workspaceId) {
-          return invalidBillingProtocolResponse(requestId, span)
-        }
-        suppliedBillingAttribution = requireBillingAttributionHeader(req.headers, {
+        suppliedBillingAttribution = requireBillingCallbackAttribution(req.headers, {
           actorUserId: userId,
           workspaceId,
+          ...(organizationId ? { organizationId } : {}),
         })
       }
       if (suppliedAccountDecisionHeader) {
@@ -256,7 +268,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
         mismatchedFields.push('actor')
       }
       if (
-        (isAttributedProtocol && billingAttribution.workspaceId !== workspaceId) ||
+        (isAttributedProtocol && billingAttribution.workspaceId !== (workspaceId ?? null)) ||
         (!isAttributedProtocol && workspaceId && billingAttribution.workspaceId !== workspaceId)
       ) {
         mismatchedFields.push('workspace')
@@ -269,7 +281,9 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       }
     }
 
-    const resolvedWorkspaceId = isDirectProtocol ? undefined : billingAttribution?.workspaceId
+    const resolvedWorkspaceId = isDirectProtocol
+      ? undefined
+      : (billingAttribution?.workspaceId ?? undefined)
     const billingContext = billingAttribution
       ? toBillingContext(billingAttribution)
       : accountDecision
@@ -298,6 +312,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
      * Every accepted callback has a stable key, so the maximum cumulative cost
      * converges on one ledger event without underbilling or double-billing.
      */
+    const usageStartedAt = Date.now()
     const result = await recordCumulativeUsage({
       userId,
       workspaceId: resolvedWorkspaceId,
@@ -316,6 +331,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       billedDelta: result.delta,
       newTotal: result.total,
       billed: result.billed,
+      durationMs: Date.now() - usageStartedAt,
     })
 
     // Reconcile the payer's ledger-backed threshold after every cumulative

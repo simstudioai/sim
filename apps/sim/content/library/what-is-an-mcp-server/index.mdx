@@ -49,7 +49,7 @@ The Model Context Protocol, or MCP, is an open standard that defines how AI appl
 
 MCP gives AI applications a consistent interface for discovering and using capabilities, while each MCP server handles the service-specific integration. A compatible MCP server can therefore work with different AI applications without requiring a separate interface for each one.
 
-The [official Model Context Protocol specification](https://modelcontextprotocol.io/specification/latest) defines an architecture in which a client connects a host to a server. For each server connection, the AI host creates a client that exchanges structured messages with the MCP server. MCP standardizes that exchange, but the host application still controls which server capabilities it exposes to the model. 
+The [official Model Context Protocol specification](https://modelcontextprotocol.io/specification/latest) defines an architecture in which a client connects a host to a server. For each server connection, the AI host creates a client that exchanges structured messages with the MCP server. MCP standardizes that exchange, but the host application still controls which server capabilities it exposes to the model.
 
 MCP does not replace the APIs or databases behind an integration. An MCP implementation translates those existing capabilities into a common interface that an AI application can inspect and use. You can expose an existing service through one MCP implementation instead of building a separate integration for every compatible AI application.
 

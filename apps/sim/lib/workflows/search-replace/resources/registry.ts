@@ -39,6 +39,7 @@ interface ResourceCodecReplaceResult {
 }
 
 interface WorkflowSearchResourceCodec {
+  remap?(value: unknown, resolve: (sourceId: string) => string): unknown
   parse(params: ResourceCodecParseParams): StructuredResourceReference[]
   contains(value: unknown, rawValue: string): boolean
   replace(
@@ -196,6 +197,24 @@ function parseFileReplacement(replacement: string): ResourceCodecReplaceResult {
 }
 
 const scalarResourceCodec: WorkflowSearchResourceCodec = {
+  remap(value, resolve) {
+    const map = (item: unknown): unknown => {
+      if (Array.isArray(item)) {
+        const next = item.map(map)
+        return next.some((value, index) => value !== item[index]) ? next : item
+      }
+      if (typeof item !== 'string') return item
+      return item
+        .split(',')
+        .map((part) => {
+          const id = part.trim()
+          const target = id ? resolve(id) : id
+          return target === id ? part : target
+        })
+        .join(',')
+    }
+    return map(value)
+  },
   parse({ value, kind, subBlockConfig, selectorContext }) {
     const values = splitCommaResourceValue(value)
     return values.map((rawValue, index) => ({

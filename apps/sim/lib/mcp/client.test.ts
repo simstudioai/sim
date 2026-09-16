@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockLogger, mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
   mockLogger: {
@@ -22,6 +22,7 @@ vi.mock('@sim/logger', () => ({
 
 vi.mock('@/lib/mcp/pinned-fetch', () => ({
   createGuardedMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
+  createPinnedPrivateMcpFetch: vi.fn(() => ({ fetch: vi.fn(), close: mockPinnedClose })),
 }))
 
 /**
@@ -72,6 +73,7 @@ vi.mock('@/lib/core/execution-limits', () => ({
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { McpClient } from '@/lib/mcp/client'
+import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
   McpOauthAuthorizationRequiredError,
@@ -96,6 +98,10 @@ describe('McpClient notification handler', () => {
     // clearAllMocks resets call history but not implementations; re-establish the
     // default so a per-test override can't bleed into later tests.
     vi.mocked(getMaxExecutionTimeout).mockReturnValue(30_000)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('preserves authorization-required errors raised by a locked credential reload', async () => {
@@ -197,6 +203,7 @@ describe('McpClient notification handler', () => {
   })
 
   it('clamps a configured tools/list timeout to the absolute discovery ceiling', async () => {
+    vi.useFakeTimers()
     vi.mocked(getMaxExecutionTimeout).mockReturnValue(120_000)
     const client = new McpClient({
       config: { ...createConfig(), timeout: 300_000 },
@@ -208,7 +215,7 @@ describe('McpClient notification handler', () => {
 
     expect(mockSdkListTools).toHaveBeenCalledWith(
       undefined,
-      expect.objectContaining({ timeout: 60_000, maxTotalTimeout: expect.any(Number) })
+      expect.objectContaining({ timeout: 60_000, maxTotalTimeout: 60_000 })
     )
   })
 
@@ -370,6 +377,38 @@ describe('McpClient notification handler', () => {
     await expect(client.connect()).rejects.toThrow('Upstream rejected')
 
     expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(secret)
+  })
+
+  it('keeps the transport on the SSRF guard when no validated address is supplied', () => {
+    new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+    })
+
+    const guarded = vi.mocked(createGuardedMcpFetch).mock.results.at(-1)?.value
+    expect(createGuardedMcpFetch).toHaveBeenCalledWith('https://test.example.com/mcp')
+    expect(createPinnedPrivateMcpFetch).not.toHaveBeenCalled()
+    expect(vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]?.fetch).toBe(
+      guarded.fetch
+    )
+  })
+
+  it('pins the transport to a validated private address', () => {
+    new McpClient({
+      config: createConfig(),
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      resolvedIP: '10.0.0.5',
+    })
+
+    const pinned = vi.mocked(createPinnedPrivateMcpFetch).mock.results.at(-1)?.value
+    expect(createPinnedPrivateMcpFetch).toHaveBeenCalledWith(
+      '10.0.0.5',
+      'https://test.example.com/mcp'
+    )
+    expect(createGuardedMcpFetch).not.toHaveBeenCalled()
+    expect(vi.mocked(StreamableHTTPClientTransport).mock.calls.at(-1)?.[1]?.fetch).toBe(
+      pinned.fetch
+    )
   })
 
   it('closes the pinned transport Agent when connect fails', async () => {

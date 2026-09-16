@@ -1,0 +1,92 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:05.460
+Most of what your workflows produce is
+structured data. Statuses, scores, results
+
+00:00:05.460 --> 00:00:10.240
+you want to keep and act on later. That's
+what tables are for. They're like a
+
+00:00:10.240 --> 00:00:14.720
+database built right into your workspace
+with rows and columns your workflows can
+
+00:00:14.720 --> 00:00:20.080
+read from and write back to, run after
+run. Anything you want to track, process
+
+00:00:20.080 --> 00:00:25.380
+in batches, or build on over time should
+live in a table. Let me show you how they
+
+00:00:25.380 --> 00:00:30.300
+work. Every business runs on small facts
+like this one, a company name someone
+
+00:00:30.300 --> 00:00:31.300
+wrote down.
+
+00:00:32.140 --> 00:00:37.480
+In a table, that fact lives inside a row,
+one record that keeps everything about
+
+00:00:37.480 --> 00:00:39.000
+this lead in one place.
+
+00:00:40.220 --> 00:00:45.140
+Each column gives its values, a type,
+text, numbers, dates, so every record
+
+00:00:45.140 --> 00:00:46.800
+keeps the same reliable shape.
+
+00:00:49.240 --> 00:00:54.400
+Zoom out, and this is a table, typed
+columns over rows, where each row is one
+
+00:00:54.400 --> 00:00:55.400
+real record.
+
+00:00:57.220 --> 00:01:01.320
+New leads keep arriving, and each one
+lands as another clean row.
+
+00:01:04.180 --> 00:01:09.140
+And the shape can grow. A new column
+starts from a type, text, number, boolean,
+
+00:01:09.340 --> 00:01:14.840
+date, or JSON, and a column can even be
+filled by a workflow. Pick boolean, and a
+
+00:01:14.840 --> 00:01:18.520
+qualified column lands with a real
+checkbox on every record, matching the
+
+00:01:18.520 --> 00:01:19.520
+status beside it.
+
+00:01:21.460 --> 00:01:26.340
+The table stays current as work happens.
+The moment a deal moves, its status moves
+
+00:01:26.340 --> 00:01:27.340
+with it.
+
+00:01:28.460 --> 00:01:32.900
+And the same shape works for anything you
+track, support tickets, orders, any
+
+00:01:32.900 --> 00:01:34.680
+structured record your team keeps.
+
+00:01:37.460 --> 00:01:41.960
+A table is a home for your records,
+alongside the workflows that will put them
+
+00:01:41.960 --> 00:01:42.960
+to work.

@@ -10,6 +10,7 @@ import {
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { internalPersonalCredentialConnectionErrorPolicy } from '@/lib/credentials/api/route-policies'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
@@ -73,6 +74,7 @@ function concealKnowledgeBase(base: InternalErrorPolicy): InternalErrorPolicy {
 export const internalKnowledgeErrorPolicies = {
   list: internalKnowledgeErrorPolicy('Failed to fetch knowledge bases'),
   read: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to fetch knowledge base')),
+  export: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to export knowledge base')),
   create: internalKnowledgeErrorPolicy('Failed to create knowledge base'),
   update: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to update knowledge base')),
   delete: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to delete knowledge base')),
@@ -110,6 +112,7 @@ export const internalKnowledgeErrorPolicies = {
     internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
   ),
   connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  connectAccount: concealKnowledgeBase(internalPersonalCredentialConnectionErrorPolicy),
   uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 
@@ -117,6 +120,9 @@ const v2KnowledgeUsageErrorPolicy = {
   render(error) {
     if (error instanceof KnowledgeUsageLimitExceededError) {
       return v2Error('USAGE_LIMIT_EXCEEDED', error.message)
+    }
+    if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
+      return v2Error('CONFLICT', error.message)
     }
     return v2OrchestrationErrorPolicy.render(error)
   },

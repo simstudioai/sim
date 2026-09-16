@@ -21,18 +21,17 @@ import { usePathname, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type WorkspaceSearchFilters,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/knowledge/search'
+import {
   addMothershipChatResourceContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
-import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
-import {
-  cancelActiveBrowserTools,
-  initBrowserAgentTransport,
-  openUrlInNewBrowserTab,
-} from '@/lib/browser-agent/transport'
+import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -69,13 +68,11 @@ import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { canDisplayResource } from '@/lib/copilot/resources/availability'
 import { ResourcePersistenceQueue } from '@/lib/copilot/resources/client-persistence-queue'
 import {
-  BROWSER_SESSION_RESOURCE_ID,
   isAddressableResource,
   isEphemeralResource,
   type MothershipResourceUpdate,
   mergeChatResource,
   sanitizeChatResources,
-  TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/copilot/tools/client/browser-tool-execution'
 import {
@@ -120,6 +117,8 @@ import {
   dispatchStreamEvent,
   finalizeResidualToolCalls,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
+import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
+import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import {
   fetchMothershipChatHistory,
   type MothershipChatHistory,
@@ -165,8 +164,9 @@ export interface SendMessageOptions {
    * attempts instead of opening a second chat.
    */
   resumeUserMessageId?: string
-  /** Asked for beyond the default agent turn; `ask` answers from the attached knowledge alone. */
+  /** Assistant searches the workspace and acts through the caller's connected accounts. */
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 /**
@@ -191,6 +191,7 @@ interface StartSendMessageOptions {
    */
   resumeUserMessageId?: string
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
@@ -200,6 +201,7 @@ interface WithdrawnSend {
   contexts?: ChatContext[]
   userMessageId: string
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
 }
 
 export interface UseChatReturn {
@@ -304,13 +306,15 @@ interface DetachedChatResolution {
 interface QueuedSendHandoffState {
   id: string
   chatId?: string
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   supersededStreamId: string | null
   userMessageId: string
   message: string
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
   requestedAt: number
   resolveAttempts?: number
 }
@@ -523,7 +527,8 @@ function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       typeof parsed.supersededStreamId === 'string' ? parsed.supersededStreamId : null
     if (
       typeof parsed?.id !== 'string' ||
-      typeof parsed.workspaceId !== 'string' ||
+      (typeof parsed.workspaceId !== 'string' && typeof parsed.organizationId !== 'string') ||
+      (typeof parsed.workspaceId === 'string' && typeof parsed.organizationId === 'string') ||
       typeof parsed.userMessageId !== 'string' ||
       typeof parsed.message !== 'string' ||
       typeof parsed.requestedAt !== 'number' ||
@@ -539,10 +544,14 @@ function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       return null
     }
 
+    const assistantSearch = workspaceSearchFiltersSchema.safeParse(parsed.assistantSearch ?? {})
+    if (!assistantSearch.success) return null
+
     return {
       id: parsed.id,
       ...(chatId ? { chatId } : {}),
       workspaceId: parsed.workspaceId,
+      organizationId: parsed.organizationId,
       supersededStreamId,
       userMessageId: parsed.userMessageId,
       message: parsed.message,
@@ -552,6 +561,8 @@ function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       ...(Array.isArray(parsed.contexts)
         ? { contexts: parsed.contexts.filter(isChatContext) }
         : {}),
+      ...(parsed.requestMode === 'assistant' ? { requestMode: 'assistant' } : {}),
+      ...(parsed.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
       requestedAt: parsed.requestedAt,
       ...(typeof parsed.resolveAttempts === 'number' &&
       Number.isFinite(parsed.resolveAttempts) &&
@@ -816,6 +827,9 @@ function toRawPersistedContentBlockBody(block: ContentBlock): Record<string, unk
           id: block.toolCall.id,
           name: block.toolCall.name,
           state: block.toolCall.status,
+          ...(block.toolCall.activityDescription
+            ? { activityDescription: block.toolCall.activityDescription }
+            : {}),
           ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
           ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
           ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
@@ -1137,28 +1151,38 @@ export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]
 }
 
 /**
- * Which live panel the transcript is mid-action on, or null for neither.
- *
- * Used on reconnect to restore that panel, the way workflow-run recovery
- * restores workflows. A completed browser or terminal call is suppressed on
- * replay, so it never re-opens its own panel — without this, returning to a
- * chat mid-turn lands on whichever resource happened to be persisted last
- * while the agent is driving a different one. When calls against both are in
- * flight the later one wins, being the one the user was watching.
+ * Runs a browser tool on the desktop client. The agent's tab reaches the
+ * resource strip through the desktop tab list, so nothing is opened here.
+ * Replay/exactly-once guarding lives in executeBrowserToolOnClient
+ * (sessionStorage-backed, so reloads cannot re-run an action).
  */
-export function panelForExecutingClientTool(
-  messages: ChatMessage[]
-): 'browser' | 'terminal' | null {
-  let panel: 'browser' | 'terminal' | null = null
-  for (const message of messages) {
-    for (const block of message.contentBlocks ?? []) {
-      const call = block.toolCall
-      if (call === undefined || call.status !== 'executing') continue
-      if (isBrowserToolName(call.name)) panel = 'browser'
-      else if (isTerminalToolName(call.name)) panel = 'terminal'
-    }
-  }
-  return panel
+function startClientBrowserTool(
+  toolCallId: string,
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+  scopeId: string,
+  eventTs?: string,
+  signal?: AbortSignal
+): void {
+  if (!isCurrentBrowserToolName(toolName)) return
+  executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
+}
+
+/**
+ * Runs a terminal tool on the desktop client. The agent's shell reaches the
+ * resource strip through the desktop tab list, so nothing is opened here.
+ * Replay/exactly-once guarding lives in executeTerminalToolOnClient
+ * (sessionStorage-backed, so reloads cannot re-run a command).
+ */
+function startClientTerminalTool(
+  toolCallId: string,
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+  scopeId: string,
+  eventTs?: string
+): void {
+  if (!isTerminalToolName(toolName)) return
+  executeTerminalToolOnClient(toolCallId, toolArgs, scopeId, eventTs)
 }
 
 function buildRecoverySubjectKey(
@@ -1287,6 +1311,12 @@ export interface UseChatOptions {
    * selection intentionally stays out of the URL.
    */
   activeResourceState?: [string | null, Dispatch<SetStateAction<string | null>>]
+  /**
+   * Whether this surface projects the desktop app's browser and terminal tabs
+   * into its resources. Only then does the shown resource depend on which tab
+   * the desktop app displays.
+   */
+  projectsDesktopTabs?: boolean
   /** Fired when the server's `traceparent` response header arrives, before any stream content. */
   onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
 }
@@ -1316,6 +1346,7 @@ export function getMothershipUseChatOptions(
   return {
     apiPath: MOTHERSHIP_CHAT_API_PATH,
     stopPath: '/api/mothership/chat/stop',
+    projectsDesktopTabs: true,
     ...options,
   }
 }
@@ -1334,10 +1365,13 @@ export function getWorkflowCopilotUseChatOptions(
 }
 
 export function useChat(
-  workspaceId: string,
+  owner: string | { organizationId: string },
   initialChatId?: string,
   options?: UseChatOptions
 ): UseChatReturn {
+  const workspaceId = typeof owner === 'string' ? owner : undefined
+  const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
+  const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -1424,17 +1458,38 @@ export function useChat(
   const pendingResourceReordersRef = useRef(new Map<string, MothershipResource[]>())
   const pendingResourceReorderFlushesRef = useRef(new Map<string, Promise<void>>())
 
-  // Derive the effective active resource ID for rendering without writing a
-  // passive fallback back into the user's URL selection.
-  const effectiveActiveResourceId = useMemo(() => {
-    if (resources.length === 0) return null
-    if (activeResourceId && resources.some((r) => r.id === activeResourceId))
-      return activeResourceId
-    return resources[resources.length - 1].id
-  }, [resources, activeResourceId])
+  // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`
+  // migrates this bucket onto the real chatId on first send. Rotated on
+  // home reset so a new pending chat starts with an empty bucket.
+  const pendingChatKeyRef = useRef<string>(`${PENDING_CHAT_KEY_PREFIX}${generateShortId()}`)
+  const pendingDesktopScopeIdRef = useRef(
+    desktopChatScopeId(scopeKey, undefined, pendingChatKeyRef.current)
+  )
+  const initialDesktopScopeId = desktopChatScopeId(
+    scopeKey,
+    initialChatId,
+    pendingChatKeyRef.current
+  )
+  const desktopScopeIdRef = useRef(initialDesktopScopeId)
+  const [desktopScopeId, setDesktopScopeId] = useState(initialDesktopScopeId)
+  const nativeActiveTabIds = useNativeActiveTabIds(
+    options?.projectsDesktopTabs ? desktopScopeId : null
+  )
+
+  const nativeActiveTabIdsRef = useRef(nativeActiveTabIds)
+  nativeActiveTabIdsRef.current = nativeActiveTabIds
+
+  // Derived for rendering rather than written back, so nothing the user did not
+  // choose ever lands in their selection.
+  const effectiveActiveResourceId = useMemo(
+    () => resolveEffectiveResourceId(resources, activeResourceId, nativeActiveTabIds),
+    [resources, activeResourceId, nativeActiveTabIds]
+  )
 
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
+  const selectedResourceIdRef = useRef(activeResourceId)
+  selectedResourceIdRef.current = activeResourceId
   const {
     previewSession,
     previewSessionRef,
@@ -1478,10 +1533,6 @@ export function useChat(
     [queryClient]
   )
 
-  // Sentinel used while no `chatId` is resolved; `adoptResolvedChatId`
-  // migrates this bucket onto the real chatId on first send. Rotated on
-  // home reset so a new pending chat starts with an empty bucket.
-  const pendingChatKeyRef = useRef<string>(`${PENDING_CHAT_KEY_PREFIX}${generateShortId()}`)
   const [chatKey, setChatKey] = useState<string>(initialChatId ?? pendingChatKeyRef.current)
   const chatKeyRef = useRef<string>(chatKey)
   chatKeyRef.current = chatKey
@@ -1543,16 +1594,6 @@ export function useChat(
   const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
-  const pendingDesktopScopeIdRef = useRef(
-    desktopChatScopeId(workspaceId, undefined, pendingChatKeyRef.current)
-  )
-  const initialDesktopScopeId = desktopChatScopeId(
-    workspaceId,
-    initialChatId,
-    pendingChatKeyRef.current
-  )
-  const desktopScopeIdRef = useRef(initialDesktopScopeId)
-  const [desktopScopeId, setDesktopScopeId] = useState(initialDesktopScopeId)
   /** Panel/chat selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
@@ -1686,11 +1727,7 @@ export function useChat(
     chatKeyRef.current = pendingChatKeyRef.current
     setChatKey(pendingChatKeyRef.current)
     clearQueueDispatchState()
-    const pendingDesktopScopeId = desktopChatScopeId(
-      workspaceId,
-      undefined,
-      pendingChatKeyRef.current
-    )
+    const pendingDesktopScopeId = desktopChatScopeId(scopeKey, undefined, pendingChatKeyRef.current)
     pendingDesktopScopeIdRef.current = pendingDesktopScopeId
     desktopScopeIdRef.current = pendingDesktopScopeId
     setDesktopScopeId(pendingDesktopScopeId)
@@ -1703,6 +1740,8 @@ export function useChat(
     resetEphemeralPreviewState,
     setTransportIdle,
     workspaceId,
+    organizationId,
+    scopeKey,
   ])
 
   const flushPendingResourceReorder = useCallback(
@@ -1783,7 +1822,7 @@ export function useChat(
           ? activeTurn.pendingChatKey
           : pendingChatKeyRef.current
       chatIdRef.current = chatId
-      const resolvedDesktopScopeId = desktopChatScopeId(workspaceId, chatId)
+      const resolvedDesktopScopeId = desktopChatScopeId(scopeKey, chatId)
       const activeActivityTracker = resourceActivityTrackerRef.current
       if (activeActivityTracker?.generation === streamGenRef.current) {
         if (wasPending) {
@@ -1839,14 +1878,22 @@ export function useChat(
         !workflowIdRef.current &&
         typeof window !== 'undefined'
       ) {
-        window.history.replaceState(null, '', chatUrl(workspaceId, chatId))
+        window.history.replaceState(
+          null,
+          '',
+          chatUrl(organizationId ? { organizationId } : workspaceId!, chatId)
+        )
       }
       if (options?.invalidateList) {
-        queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+        queryClient.invalidateQueries<readonly unknown[]>({
+          queryKey: organizationId
+            ? mothershipChatKeys.organizationList(organizationId)
+            : mothershipChatKeys.list(workspaceId),
+        })
       }
       flushPendingResources(chatId, pendingChatKey)
     },
-    [flushPendingResources, queryClient, workspaceId]
+    [flushPendingResources, queryClient, workspaceId, organizationId, scopeKey]
   )
 
   const { data: chatHistory, isPending: isChatHistoryPending } =
@@ -1962,6 +2009,7 @@ export function useChat(
    */
   const reconcileHydratedWorkflowResources = useCallback(
     async (chatId: string, workflowResources: MothershipResource[]) => {
+      if (!workspaceId) return
       let existing: WorkflowMetadata[]
       try {
         existing = await getQueryClient().fetchQuery(getWorkflowListQueryOptions(workspaceId))
@@ -1980,7 +2028,7 @@ export function useChat(
         removeResource('workflow', resource.id)
       }
     },
-    [workspaceId, removeResource]
+    [workspaceId, organizationId, scopeKey, removeResource]
   )
 
   const reorderResources = useCallback(
@@ -2000,6 +2048,7 @@ export function useChat(
 
   const ensureWorkflowToolResource = useCallback(
     (toolArgs: Record<string, unknown>): string | undefined => {
+      if (!workspaceId) return undefined
       const targetWorkflowId =
         typeof toolArgs.workflowId === 'string'
           ? toolArgs.workflowId
@@ -2019,7 +2068,7 @@ export function useChat(
 
       return targetWorkflowId
     },
-    [addResource, workspaceId]
+    [addResource, workspaceId, organizationId, scopeKey]
   )
 
   const startClientWorkflowTool = useCallback(
@@ -2043,7 +2092,7 @@ export function useChat(
 
   const startClientLocalFilesystemTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
-      if (!isUserLocalVfsToolCall(toolName, toolArgs)) {
+      if (!workspaceId || !isUserLocalVfsToolCall(toolName, toolArgs)) {
         return
       }
       if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
@@ -2094,19 +2143,8 @@ export function useChat(
         }
       )
     },
-    [workspaceId]
+    [workspaceId, organizationId, scopeKey]
   )
-
-  const openBrowserResource = useCallback(() => {
-    // Browser work surfaces like any other agent activity: the panel follows
-    // the agent to the browser whether or not the session was already open.
-    addResource({
-      type: 'browser',
-      id: BROWSER_SESSION_RESOURCE_ID,
-      title: 'Browser',
-    })
-    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID, { activate: true })
-  }, [addResource])
 
   const getResourceActivityTracker = useCallback(
     (generation: number, targetChatId?: string) => {
@@ -2125,7 +2163,7 @@ export function useChat(
         }
       }
       if (targetChatId) {
-        const targetScopeId = desktopChatScopeId(workspaceId, targetChatId)
+        const targetScopeId = desktopChatScopeId(scopeKey, targetChatId)
         if (
           tracker.generation === streamGenRef.current &&
           resourceActivityTrackerRef.current === tracker
@@ -2138,7 +2176,7 @@ export function useChat(
       }
       return tracker
     },
-    [workspaceId]
+    [workspaceId, organizationId, scopeKey]
   )
 
   const clearResourceActivity = useCallback(
@@ -2150,7 +2188,7 @@ export function useChat(
       if (isCurrentBoundary) {
         captureResourceActivityScope(tracker, desktopScopeIdRef.current)
         if (chatIdRef.current) {
-          captureResourceActivityScope(tracker, desktopChatScopeId(workspaceId, chatIdRef.current))
+          captureResourceActivityScope(tracker, desktopChatScopeId(scopeKey, chatIdRef.current))
         }
       }
       const currentTracker = resourceActivityTrackerRef.current
@@ -2167,69 +2205,8 @@ export function useChat(
         resourceActivityTrackerRef.current = null
       }
     },
-    [workspaceId]
+    [workspaceId, organizationId, scopeKey]
   )
-
-  const startClientBrowserTool = useCallback(
-    (
-      toolCallId: string,
-      toolName: string,
-      toolArgs: Record<string, unknown>,
-      scopeId: string,
-      eventTs?: string,
-      signal?: AbortSignal
-    ) => {
-      if (!isCurrentBrowserToolName(toolName)) {
-        return
-      }
-      openBrowserResource()
-      // Replay/exactly-once guarding lives in executeBrowserToolOnClient
-      // (sessionStorage-backed, so reloads cannot re-run an action).
-      executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
-    },
-    [openBrowserResource]
-  )
-
-  const openTerminalResource = useCallback(() => {
-    addResource({
-      type: 'terminal',
-      id: TERMINAL_SESSION_RESOURCE_ID,
-      title: 'Terminal',
-    })
-    onResourceEventRef.current?.(TERMINAL_SESSION_RESOURCE_ID)
-  }, [addResource])
-
-  const startClientTerminalTool = useCallback(
-    (
-      toolCallId: string,
-      toolName: string,
-      toolArgs: Record<string, unknown>,
-      scopeId: string,
-      eventTs?: string
-    ) => {
-      if (!isTerminalToolName(toolName)) {
-        return
-      }
-      openTerminalResource()
-      // Replay/exactly-once guarding lives in executeTerminalToolOnClient
-      // (sessionStorage-backed, so reloads cannot re-run a command).
-      executeTerminalToolOnClient(toolCallId, toolArgs, scopeId, eventTs)
-    },
-    [openTerminalResource]
-  )
-
-  // Chat links clicked in the desktop app open in the embedded browser panel
-  // (message components dispatch the request; this hook owns the resource).
-  useEffect(() => {
-    return onOpenInBrowserPanel((url) => {
-      openBrowserResource()
-      void openUrlInNewBrowserTab(url, desktopScopeIdRef.current).catch((error) => {
-        logger.warn('Failed to open chat link in a new browser tab', {
-          error: getErrorMessage(error),
-        })
-      })
-    })
-  }, [openBrowserResource])
 
   const recoverPendingClientWorkflowTools = useCallback(
     async (nextMessages: ChatMessage[]) => {
@@ -2330,7 +2307,11 @@ export function useChat(
             queryClient.invalidateQueries({
               queryKey: mothershipChatKeys.detail(resolvedChatId),
             })
-            queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+            queryClient.invalidateQueries<readonly unknown[]>({
+              queryKey: organizationId
+                ? mothershipChatKeys.organizationList(organizationId)
+                : mothershipChatKeys.list(workspaceId),
+            })
           })()
             .catch((error) => {
               if (detachedResolutionController.signal.aborted) return
@@ -2391,7 +2372,7 @@ export function useChat(
     }
     clearQueueDispatchState()
     const nextDesktopScopeId = desktopChatScopeId(
-      workspaceId,
+      scopeKey,
       initialChatId,
       pendingChatKeyRef.current
     )
@@ -2413,13 +2394,16 @@ export function useChat(
     cancelActiveStreamRecovery,
     cancelActiveStreamReader,
     workspaceId,
+    organizationId,
+    scopeKey,
   ])
 
   useEffect(() => {
+    if (organizationId) return
     initBrowserAgentTransport()
     initTerminalTransport()
     void activateDesktopChatScopes(desktopScopeIdRef.current).catch(() => {})
-  }, [])
+  }, [organizationId])
 
   useEffect(() => {
     if (workflowIdRef.current) return
@@ -2446,7 +2430,7 @@ export function useChat(
       !sendingRef.current &&
       (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
     ) {
-      const hydratedScopeId = desktopChatScopeId(workspaceId, chatHistory.id)
+      const hydratedScopeId = desktopChatScopeId(scopeKey, chatHistory.id)
       clearResourceActivityScope(hydratedScopeId)
       void cancelActiveBrowserTools([hydratedScopeId])
     }
@@ -2470,9 +2454,8 @@ export function useChat(
 
     flushPendingResources(chatHistory.id)
 
-    // Older clients persisted each live browser page as a top-level resource
-    // during new-chat creation. Collapse those legacy rows into the one
-    // restorable Browser panel so page titles never appear beside Browser.
+    // Browser and terminal rows stored by older clients are dropped: the
+    // desktop app's live tab lists are what put those tabs in the strip now.
     const persistedResources = sanitizeChatResources(
       chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     )
@@ -2510,15 +2493,27 @@ export function useChat(
       )
 
     if (mergedResources.length > 0) {
+      // An explicit selection wins. Otherwise pin the last resource the server
+      // holds, not the last on screen: local-only browser tabs can land before
+      // the history does, and which side arrives first must not decide which
+      // tab the chat opens on. When the server holds nothing it writes no
+      // fallback at all: the selection stays empty so the shown resource can be
+      // resolved against the tab the desktop app remembers.
+      const selectedResourceId = selectedResourceIdRef.current
       const hydratedActiveResourceId =
-        activeResourceIdRef.current &&
-        mergedResources.some((resource) => resource.id === activeResourceIdRef.current)
-          ? activeResourceIdRef.current
-          : mergedResources[mergedResources.length - 1].id
+        selectedResourceId && mergedResources.some((resource) => resource.id === selectedResourceId)
+          ? selectedResourceId
+          : (restorableResources[restorableResources.length - 1]?.id ?? null)
       // Replacing the array with an identical one still re-renders the tab
       // strip and panel — skip the no-op so open panels don't flash.
       if (!resourcesUnchanged) {
-        activeResourceIdRef.current = hydratedActiveResourceId
+        // The ref is set eagerly so a request sent in this commit still
+        // attaches a resource, through the same rule the render path uses.
+        activeResourceIdRef.current = resolveEffectiveResourceId(
+          mergedResources,
+          hydratedActiveResourceId,
+          nativeActiveTabIdsRef.current
+        )
         setResources(mergedResources)
         setActiveResourceId(hydratedActiveResourceId)
       }
@@ -2534,16 +2529,6 @@ export function useChat(
       activeResourceIdRef.current = null
       setResources([])
       setActiveResourceId(null)
-    }
-
-    // Live-panel counterpart of the workflow-run recovery above: returning to
-    // a chat whose turn is mid browser-action or mid-command re-focuses that
-    // tab and re-expands a collapsed panel. Runs after the resource hydration
-    // so it wins over the "last resource" active fallback.
-    if (shouldReconnectActiveStream) {
-      const panel = panelForExecutingClientTool(mappedMessages)
-      if (panel === 'browser') openBrowserResource()
-      else if (panel === 'terminal') openTerminalResource()
     }
 
     const snapshotPreviewSessions = Array.isArray(chatHistory.streamSnapshot?.previewSessions)
@@ -2611,8 +2596,6 @@ export function useChat(
     cancelActiveStreamReader,
     cancelActiveStreamRecovery,
     flushPendingResources,
-    openBrowserResource,
-    openTerminalResource,
     reconcileHydratedWorkflowResources,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
@@ -2641,7 +2624,6 @@ export function useChat(
       )
       const activityScopeId = () => activityTracker.currentScopeId
       const startBrowserAgentRunForStream = (runId: string) => {
-        openBrowserResource()
         const scopeId = activityScopeId()
         setTrackedBrowserRun(activityTracker, scopeId, runId, true)
       }
@@ -2671,6 +2653,7 @@ export function useChat(
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
         workspaceId,
+        organizationId,
         queryClient,
         assistantId,
         expectedGen,
@@ -2810,11 +2793,9 @@ export function useChat(
       removeResource,
       startClientWorkflowTool,
       startClientLocalFilesystemTool,
-      startClientBrowserTool,
       startClientTerminalTool,
       getResourceActivityTracker,
       clearResourceActivity,
-      openBrowserResource,
       adoptResolvedChatId,
       upsertChatHistory,
       onPreviewPhase,
@@ -3623,6 +3604,9 @@ export function useChat(
               name: block.toolCall.name,
               state: isCancelled ? MothershipStreamV1ToolOutcome.cancelled : block.toolCall.status,
               params: block.toolCall.params,
+              ...(block.toolCall.activityDescription
+                ? { activityDescription: block.toolCall.activityDescription }
+                : {}),
               result: block.toolCall.result,
               ...(display ? { display } : {}),
               calledBy: block.toolCall.calledBy,
@@ -3688,9 +3672,13 @@ export function useChat(
           queryKey: mothershipChatKeys.detail(activeChatId),
         })
       }
-      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
+      queryClient.invalidateQueries<readonly unknown[]>({
+        queryKey: organizationId
+          ? mothershipChatKeys.organizationList(organizationId)
+          : mothershipChatKeys.list(workspaceId),
+      })
     },
-    [workspaceId, queryClient]
+    [workspaceId, organizationId, scopeKey, queryClient]
   )
 
   const messagesRef = useRef(messages)
@@ -3729,7 +3717,8 @@ export function useChat(
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
       resumeUserMessageId?: string,
-      requestMode?: ChatRequestMode
+      requestMode?: ChatRequestMode,
+      assistantSearch?: WorkspaceSearchFilters
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3751,6 +3740,7 @@ export function useChat(
         contexts,
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
         ...(requestMode ? { requestMode } : {}),
+        ...(assistantSearch ? { assistantSearch } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3805,7 +3795,9 @@ export function useChat(
         void getDesktopBridge()?.settings?.notify({
           title: 'Task complete',
           body: 'Sim finished responding.',
-          route: `/workspace/${workspaceId}/chat/${completedChatId}`,
+          route: organizationId
+            ? `/o/${organizationId}/chat/${completedChatId}`
+            : `/workspace/${workspaceId}/chat/${completedChatId}`,
         })
       }
       reconcileTerminalPreviewSessions()
@@ -3844,7 +3836,7 @@ export function useChat(
       contexts?: ChatContext[],
       options?: StartSendMessageOptions
     ): Promise<StartSendMessageResult> => {
-      if (!message.trim() || !workspaceId) return false
+      if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return false
       const { onOptimisticSendApplied, queuedSendHandoff } = options ?? {}
       const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
       const pendingStopStreamId = pendingStop
@@ -3887,12 +3879,14 @@ export function useChat(
           id: queuedSendHandoff.id,
           ...(chatId ? { chatId } : {}),
           workspaceId,
+          organizationId,
           supersededStreamId: queuedSendHandoff.supersededStreamId,
           userMessageId,
           message,
           ...(fileAttachments ? { fileAttachments } : {}),
           ...(contexts ? { contexts } : {}),
           ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
+          ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
           requestedAt: Date.now(),
         })
       }
@@ -3939,6 +3933,7 @@ export function useChat(
       const cachedUserMsg: PersistedMessage = {
         id: userMessageId,
         role: 'user' as const,
+        requestMode: options?.requestMode ?? 'agent',
         content: message,
         timestamp: new Date().toISOString(),
         ...(storedAttachments && { fileAttachments: storedAttachments }),
@@ -3957,6 +3952,7 @@ export function useChat(
       const optimisticUserMessage: ChatMessage = {
         id: userMessageId,
         role: 'user',
+        requestMode: options?.requestMode ?? 'agent',
         content: message,
         attachments: userAttachments,
         ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
@@ -3964,6 +3960,7 @@ export function useChat(
       const optimisticAssistantMessage: ChatMessage = {
         id: assistantId,
         role: 'assistant',
+        requestMode: options?.requestMode ?? 'agent',
         content: '',
         contentBlocks: [],
       }
@@ -4100,27 +4097,39 @@ export function useChat(
         abortControllerRef.current = abortController
         sendAbortSignal = abortController.signal
 
-        const resourceAttachments = buildResourceAttachments(
-          resourcesRef.current,
-          activeResourceIdRef.current,
-          desktopScopeIdRef.current
-        )
-        const desktopChatCapabilities = await getDesktopChatCapabilities(desktopScopeIdRef.current)
+        const resourceAttachments =
+          options?.requestMode === 'assistant'
+            ? undefined
+            : buildResourceAttachments(
+                resourcesRef.current,
+                activeResourceIdRef.current,
+                desktopScopeIdRef.current
+              )
+        const desktopChatCapabilities = organizationId
+          ? {}
+          : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message,
-            workspaceId,
+            ...(organizationId ? { organizationId } : { workspaceId }),
             userMessageId,
             createNewChat: !requestChatId,
             ...(requestChatId ? { chatId: requestChatId } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
-            ...(options?.requestMode ? { mode: options.requestMode } : {}),
-            ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
+            ...(organizationId
+              ? { mode: 'assistant' }
+              : options?.requestMode
+                ? { mode: options.requestMode }
+                : {}),
+            ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
+            ...(options?.requestMode !== 'assistant' && workflowIdRef.current
+              ? { workflowId: workflowIdRef.current }
+              : {}),
             // Desktop-only capabilities (local filesystem tools, browser
             // subagent) — the server gates the features on these flags.
             ...desktopChatCapabilities,
@@ -4297,6 +4306,8 @@ export function useChat(
     },
     [
       workspaceId,
+      organizationId,
+      scopeKey,
       queryClient,
       upsertChatHistory,
       processSSEStream,
@@ -4325,7 +4336,8 @@ export function useChat(
           send.contexts,
           send.fileAttachments,
           send.userMessageId,
-          send.requestMode
+          send.requestMode,
+          send.assistantSearch
         )
       ) {
         return
@@ -4337,11 +4349,12 @@ export function useChat(
           ...(send.fileAttachments?.length ? { fileAttachments: send.fileAttachments } : {}),
           resumeUserMessageId: send.userMessageId,
           ...(send.requestMode ? { requestMode: send.requestMode } : {}),
+          ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
         },
-        workspaceId
+        organizationId ? { organizationId } : workspaceId!
       )
     },
-    [workspaceId]
+    [workspaceId, organizationId]
   )
 
   const sendMessage = useCallback(
@@ -4351,7 +4364,7 @@ export function useChat(
       contexts?: ChatContext[],
       options?: SendMessageOptions
     ) => {
-      if (!message.trim() || !workspaceId) return
+      if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return
 
       const queueStore = useMothershipQueueStore.getState()
       const activeChatKey = chatKeyRef.current
@@ -4360,13 +4373,14 @@ export function useChat(
       // Edit-in-place: replace at the original index. If the slot was already
       // dispatched mid-edit (UI-guard race), fall through to a tail-append.
       if (editingId) {
-        const existing = queueStore.queues[activeChatKey] ?? []
-        if (existing.some((m) => m.id === editingId)) {
+        const existing = queueStore.queues[activeChatKey]?.find((m) => m.id === editingId)
+        if (existing) {
           queueStore.replaceAt(activeChatKey, editingId, {
             content: message,
             fileAttachments,
             contexts,
-            requestMode: options?.requestMode,
+            requestMode: options?.requestMode ?? existing.requestMode,
+            assistantSearch: options?.assistantSearch ?? existing.assistantSearch,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
@@ -4399,7 +4413,8 @@ export function useChat(
             fileAttachments,
             contexts,
             options?.resumeUserMessageId,
-            options?.requestMode
+            options?.requestMode,
+            options?.assistantSearch
           )
         )
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
@@ -4422,6 +4437,7 @@ export function useChat(
         contexts,
         userMessageId: result.userMessageId,
         ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
+        ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
       }
       if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
@@ -4436,7 +4452,8 @@ export function useChat(
             fileAttachments,
             contexts,
             result.userMessageId,
-            options?.requestMode
+            options?.requestMode,
+            options?.assistantSearch
           )
         )
     },
@@ -4457,11 +4474,16 @@ export function useChat(
     }
   }, [])
   useEffect(() => {
-    if (!workspaceId || sendingRef.current || pendingStopPromiseRef.current) return
+    if (!scopeKey || sendingRef.current || pendingStopPromiseRef.current) return
 
     let cancelled = false
     const handoff = readQueuedSendHandoffState()
-    if (!handoff || handoff.workspaceId !== workspaceId) return
+    if (
+      !handoff ||
+      handoff.workspaceId !== workspaceId ||
+      handoff.organizationId !== organizationId
+    )
+      return
     if (recoveringQueuedSendHandoffRef.current?.id === handoff.id) return
     const claimRetryDelayMs = queuedSendHandoffClaimRetryDelay(handoff.id)
     if (claimRetryDelayMs !== null) {
@@ -4498,6 +4520,7 @@ export function useChat(
         !currentHandoff ||
         currentHandoff.id !== handoff.id ||
         currentHandoff.workspaceId !== workspaceId ||
+        currentHandoff.organizationId !== organizationId ||
         currentHandoff.userMessageId !== handoff.userMessageId ||
         currentHandoff.supersededStreamId !== handoff.supersededStreamId ||
         currentHandoff.chatId ||
@@ -4578,13 +4601,25 @@ export function useChat(
       }
       clearQueuedSendHandoffClaim(handoff.id, claimOwnerId)
     }
-  }, [workspaceId, queuedHandoffRecoveryEpoch, adoptResolvedChatId, resolveChatIdForStream])
+  }, [
+    workspaceId,
+    organizationId,
+    scopeKey,
+    queuedHandoffRecoveryEpoch,
+    adoptResolvedChatId,
+    resolveChatIdForStream,
+  ])
   useEffect(() => {
-    if (!workspaceId || !chatHistory || sendingRef.current || pendingStopPromiseRef.current) return
+    if (!scopeKey || !chatHistory || sendingRef.current || pendingStopPromiseRef.current) return
 
     const handoff = readQueuedSendHandoffState()
     if (!handoff) return
-    if (handoff.workspaceId !== workspaceId || handoff.chatId !== chatHistory.id) return
+    if (
+      handoff.workspaceId !== workspaceId ||
+      handoff.organizationId !== organizationId ||
+      handoff.chatId !== chatHistory.id
+    )
+      return
     if (recoveringQueuedSendHandoffRef.current?.id === handoff.id) return
     if (readQueuedSendHandoffClaim() === handoff.id) return
 
@@ -4612,6 +4647,7 @@ export function useChat(
     void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
       pendingStop: null,
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
+      ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -4627,7 +4663,14 @@ export function useChat(
       }
       clearQueuedSendHandoffClaim(handoff.id, claimOwnerId)
     })
-  }, [workspaceId, chatHistory, queuedHandoffRecoveryEpoch, startSendMessage])
+  }, [
+    workspaceId,
+    organizationId,
+    scopeKey,
+    chatHistory,
+    queuedHandoffRecoveryEpoch,
+    startSendMessage,
+  ])
   const cancelActiveWorkflowExecutions = useCallback(() => {
     const execState = useExecutionStore.getState()
     const consoleStore = useTerminalConsoleStore.getState()
@@ -4744,7 +4787,7 @@ export function useChat(
       if (chatIdRef.current) {
         captureResourceActivityScope(
           stopActivityTracker,
-          desktopChatScopeId(workspaceId, chatIdRef.current)
+          desktopChatScopeId(scopeKey, chatIdRef.current)
         )
       }
       clearResourceActivity(stopActivityTracker, true)
@@ -5035,6 +5078,7 @@ export function useChat(
             fileAttachments: dispatched.fileAttachments,
             contexts: dispatched.contexts,
             ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
+            ...(dispatched.assistantSearch ? { assistantSearch: dispatched.assistantSearch } : {}),
             userMessageId: withdrawnUserMessageId,
           })
           return
@@ -5074,6 +5118,7 @@ export function useChat(
               ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
               : {}),
             ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
+            ...(liveMsg.assistantSearch ? { assistantSearch: liveMsg.assistantSearch } : {}),
           }
         )
 
@@ -5165,7 +5210,7 @@ export function useChat(
 
       const queuedSendHandoff =
         msg.queuedSendHandoff ??
-        ((sendingRef.current || pendingStopPromiseRef.current) && workspaceId
+        ((sendingRef.current || pendingStopPromiseRef.current) && scopeKey
           ? (() => {
               const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
               const cachedActiveStreamId = handoffChatId
@@ -5197,7 +5242,7 @@ export function useChat(
         queuedSendHandoff,
       })
     },
-    [dispatchQueuedMessage, queryClient, stopGeneration, workspaceId]
+    [dispatchQueuedMessage, queryClient, stopGeneration, workspaceId, organizationId, scopeKey]
   )
 
   const sendNow = useCallback(
@@ -5238,14 +5283,22 @@ export function useChat(
   const chatHistoryReady = chatHistory !== undefined
   const remoteActiveStreamId = chatHistory?.activeStreamId ?? null
   useEffect(() => {
-    if (!workspaceId) return
+    if (!scopeKey) return
     if (messageQueue.length === 0) return
     if (sendingRef.current || pendingStopPromiseRef.current) return
     if (queueDispatchTaskRef.current) return
     if (resolvedChatId && !chatHistoryReady) return
     if (remoteActiveStreamId) return
     void enqueueQueueDispatchRef.current({ type: 'send_head' })
-  }, [workspaceId, messageQueue.length, resolvedChatId, chatHistoryReady, remoteActiveStreamId])
+  }, [
+    workspaceId,
+    organizationId,
+    scopeKey,
+    messageQueue.length,
+    resolvedChatId,
+    chatHistoryReady,
+    remoteActiveStreamId,
+  ])
 
   useEffect(() => {
     return () => {

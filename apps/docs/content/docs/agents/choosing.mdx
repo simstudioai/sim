@@ -4,7 +4,6 @@ description: Pick between a deterministic block, an agent tool, a custom tool, a
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { WorkflowPreview, LEAD_SCORER_WORKFLOW } from '@/components/workflow-preview'
 
 When you build an agent, several features overlap: a deterministic block and an agent tool can run the same integration, and a custom tool, an MCP tool, and a workflow-as-tool can all give an agent the same action. This page lays out the differences so you pick the right one. They vary along three lines: whether the action is **deterministic** (always runs) or **model-decided** (an agent chooses), whether it lives in one workflow or is **reusable** across your workspace, and whether it comes from Sim or an **external** provider.
@@ -19,7 +18,7 @@ The running example is a workflow that scores inbound sales leads. It reads a ne
 
 A **block** is a single step that runs at a fixed point on the path, with no model deciding whether to. It always runs when the workflow reaches it. Use one when the action must happen every time: an API call, a data transform, a branch.
 
-In the lead scorer, a [Google Sheets](/integrations) block always appends the scored lead to a tracking sheet, and a [Function](/workflows/blocks/function) block always reshapes the enrichment response into the fields the next step expects. There is no judgment call. The work is guaranteed.
+In the lead scorer, a [Google Sheets](/integrations) block always appends the scored lead to a tracking sheet, and a [Function](/workflows/blocks/function) block always reshapes the enrichment response into the fields the next step expects. The block runs at that point in the graph; an execution error can still stop it.
 
 <WorkflowPreview workflow={LEAD_SCORER_WORKFLOW} height={170} highlightBlock="log" />
 
@@ -41,7 +40,7 @@ A block and an agent tool can be the same underlying integration. The difference
 
 ## Custom tool
 
-A **custom tool** is a tool you define once with an object schema and a snippet of JavaScript or Python, then reuse across your workspace. It needs no external account. Use one when you have logic that several agents or workflows would otherwise duplicate.
+A **custom tool** is a tool you define once with an object schema and a JavaScript function body, then reuse across your workspace. It needs no external account. Use one when you have logic that several agents or workflows would otherwise duplicate.
 
 In the lead scorer, a `normalizeCompanyDomain` custom tool cleans a raw website into a canonical domain. The same tool serves the lead scorer, a deduplication workflow, and a reporting agent. Define it in the workspace, then pick it from any Agent block's tool list.
 
@@ -69,7 +68,7 @@ A **skill** is reusable instructions, a written playbook an agent can follow. Ea
 
 In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqualifiers. The agent sees the skill's name and description on every run, and when a lead is ambiguous it loads the full rubric and applies it. The distinction is simple: a tool is an action the agent takes, and a skill is guidance the agent reads. Manage skills in your [workspace](/agents/skills).
 
-| | Who decides it runs | Where it lives | How you author it |
+| Feature | Who decides it runs | Where it lives | How you author it |
 | --- | --- | --- | --- |
 | **Block** | The path | The workflow | Drag in and configure |
 | **Agent tool** | The agent | On the Agent block | Pick from the integrations |
@@ -77,16 +76,3 @@ In the lead scorer, a `lead-scoring-rubric` skill spells out the bands and disqu
 | **MCP server** | The agent | An external server | Connect it |
 | **Workflow-as-tool** | The agent | Its own workflow | Build it, then pick it in the tool list |
 | **Skill** | The agent | The workspace | Write the instructions |
-
-## Putting it together
-
-The lead scorer uses six kinds at once: blocks for the steps that must always run, agent tools for the calls the model should weigh, a custom tool for shared logic, an MCP server for the CRM, a deep-enrichment workflow the agent calls when a lead needs it, and a skill for the scoring rules. In general, start with a block, then move to an agent tool when a model should decide. Reach for the rest only when you need reuse, an external toolset, a sub-workflow, or written guidance.
-
-## Next
-
-<Cards>
-  <Card title="Building agents" href="/agents" description="The features that let an agent act, follow instructions, and use your data." />
-  <Card title="Agent block reference" href="/workflows/blocks/agent" description="Every model, setting, and output field." />
-  <Card title="Using MCP tools" href="/agents/mcp" description="Connect an external MCP server to your agents." />
-  <Card title="Skills" href="/agents/skills" description="Write reusable instructions agents can load." />
-</Cards>

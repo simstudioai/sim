@@ -4,6 +4,7 @@ import { NodeSelection, PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
+import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 import { BUBBLE_MENU_CLASS } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/bubble-menu-chrome'
 import {
   ToolbarButton,
@@ -23,7 +24,7 @@ const shouldShowTableMenu = ({ editor }: { editor: Editor }) => {
   return (
     editor.isEditable &&
     editor.isActive('table') &&
-    !(selection instanceof NodeSelection && selection.node.type.name === 'image')
+    !(selection instanceof NodeSelection && isImageNode(selection.node))
   )
 }
 

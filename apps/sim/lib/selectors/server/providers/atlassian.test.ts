@@ -56,6 +56,50 @@ describe('Atlassian server selector authentication', () => {
     expect(mockFetchProviderJsonWithStatus).not.toHaveBeenCalled()
   })
 
+  it.each(['Jira', 'Confluence'] as const)(
+    'rejects a sole other OAuth site for an explicitly configured %s domain',
+    async (product) => {
+      mockFetchProviderJsonWithStatus.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: [{ id: 'other-cloud', url: 'https://other.atlassian.net' }],
+      })
+
+      await expect(
+        resolveSelectorAtlassianCloudId({
+          accessToken: 'server-only-token',
+          domain: 'acme.atlassian.net',
+          product,
+        })
+      ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
+    }
+  )
+
+  it.each([
+    { name: 'one site', resources: [{ id: 'cloud-1', url: 'https://acme.atlassian.net' }] },
+    {
+      name: 'multiple sites',
+      resources: [
+        { id: 'other-cloud', url: 'https://other.atlassian.net' },
+        { id: 'cloud-1', url: 'https://acme.atlassian.net' },
+      ],
+    },
+  ])('selects the normalized configured OAuth site from $name', async ({ resources }) => {
+    mockFetchProviderJsonWithStatus.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: resources,
+    })
+
+    await expect(
+      resolveSelectorAtlassianCloudId({
+        accessToken: 'server-only-token',
+        domain: ' https://ACME.atlassian.net/ ',
+        product: 'Jira',
+      })
+    ).resolves.toBe('cloud-1')
+  })
+
   it('passes only transient statuses into the bounded retry path', async () => {
     mockRetryWithExponentialBackoff.mockImplementation(
       async (operation: () => Promise<unknown>) => {

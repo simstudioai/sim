@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { bitbucketConnectorMeta } from '@/connectors/bitbucket/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -81,7 +83,6 @@ const BINARY_SNIFF_BYTES = 8000
  */
 const MAX_TREE_DEPTH = 5
 const BINARY_SKIP_REASON = 'Binary file was not indexed'
-const NON_UTF8_SKIP_REASON = 'Non-UTF-8 file was not indexed'
 /**
  * Bitbucket answers a raw read of an LFS-managed file with a 301 to Atlassian's
  * media services platform. The connector deliberately surfaces the file as
@@ -1240,13 +1241,7 @@ export const bitbucketConnector: ConnectorConfig = {
         return markSkipped(stub, BINARY_SKIP_REASON)
       }
 
-      let text: string
-      try {
-        text = new TextDecoder('utf-8', { fatal: true }).decode(buffer)
-      } catch {
-        logger.info('Skipping non-UTF-8 Bitbucket file', { path })
-        return markSkipped(stub, NON_UTF8_SKIP_REASON)
-      }
+      const text = decodeTextBuffer(buffer).text
 
       const body = composeBody(stub.title, text)
       if (!body.trim()) return null

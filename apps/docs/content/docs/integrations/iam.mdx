@@ -11,18 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS Identity and Access Management (IAM)](https://aws.amazon.com/iam/) is a web service that helps you securely control access to AWS resources. IAM lets you manage permissions that control which AWS resources users, groups, and roles can access.
-
-With AWS IAM, you can:
-
-- **Manage users**: Create and manage IAM users, assign them individual security credentials, and grant them permissions to access AWS services and resources
-- **Create roles**: Define IAM roles with specific permissions that can be assumed by users, services, or applications for temporary access
-- **Attach policies**: Assign managed policies to users and roles to define what actions they can perform on which resources
-- **Organize with groups**: Create IAM groups to manage permissions for collections of users, simplifying access management at scale
-- **Control access keys**: Generate, list, deactivate, and delete programmatic access key pairs for API and CLI access to AWS services
-- **Simulate policies**: Test whether a principal is allowed to perform specific actions against specific resources, before granting or revoking anything
-
-In Sim, the AWS IAM integration allows your workflows to automate identity management tasks such as provisioning new users, assigning roles and permissions, managing group memberships, and rotating access keys. This is particularly useful for onboarding automation, security compliance workflows, access reviews, and incident response — enabling your agents to manage AWS access control programmatically.
+[AWS Identity and Access Management (IAM)](https://aws.amazon.com/iam/) controls access to AWS resources. Use this integration to manage users, roles, policies, groups, and access keys, or simulate a principal’s permissions before changing them.
 
 Policy simulation deserves a note, because AWS's model is easy to misread. `Simulate Principal Policy` returns one result per action regardless of how many resource ARNs you pass. The top-level decision is the **aggregate** across every resource — most restrictive wins — and the top-level resource name is an ARN *template* for the resource type, not one of your ARNs. Per-resource answers live in `resourceSpecificResults`, and when you supply concrete ARNs, missing context keys are reported there too rather than at the top level. Read `resourceSpecificResults` whenever you simulate against more than one resource: the aggregate alone will tell you a principal is denied when it is in fact allowed on some of them.
 

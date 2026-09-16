@@ -14,7 +14,7 @@ import {
   listForkCopyableSourceResources,
   listForkResourceCandidates,
   loadForkCopyableResourceLabels,
-} from '@/ee/workspace-forking/lib/mapping/resources'
+} from '@/lib/workflows/references/resources'
 
 const executor = dbChainMock.db as unknown as DbOrTx
 

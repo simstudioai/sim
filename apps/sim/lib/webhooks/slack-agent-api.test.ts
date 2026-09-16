@@ -85,6 +85,28 @@ describe('Slack agent API transport', () => {
     })
   })
 
+  it('finishes task updates in the same stop request as the final blocks', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true })))
+    vi.stubGlobal('fetch', fetchMock)
+    const chunks = [
+      {
+        type: 'task_update' as const,
+        id: 'task-1',
+        title: 'Searching documents…',
+        status: 'error' as const,
+      },
+    ]
+    const blocks = [{ type: 'section', text: { type: 'plain_text', text: 'Please try again.' } }]
+    await stopSlackAgentStream('xoxb-test', 'D1', '101.2', 'active', undefined, blocks, chunks)
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      channel: 'D1',
+      ts: '101.2',
+      session_status: 'active',
+      blocks,
+      chunks,
+    })
+  })
+
   it('sets the human initiator when creating a processing session', async () => {
     const fetchMock = vi
       .fn()

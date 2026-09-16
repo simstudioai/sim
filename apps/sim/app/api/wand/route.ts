@@ -130,7 +130,7 @@ async function updateUserStatsForWand(
 
     await recordUsage({
       userId: billingAttribution.actorUserId,
-      workspaceId: billingAttribution.workspaceId,
+      workspaceId: billingAttribution.workspaceId ?? undefined,
       ...toBillingContext(billingAttribution),
       entries: [
         {

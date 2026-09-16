@@ -4,10 +4,10 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { and, eq, sql } from 'drizzle-orm'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   bindDurableSecretProvenanceToValue,
   durableSecretProvenanceFromRegistry,
-  filterDurableSecretProvenanceBySourceValues,
   importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
@@ -15,14 +15,17 @@ import {
   isDurableSecretProvenanceEnforced,
   reportUnrecordedDurableProvenance,
 } from '@/lib/execution/durable-secret-provenance-enforcement'
+import { mergeFileKeys } from '@/lib/execution/payloads/access-keys'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
+import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import {
+  createMemorySecretProvenanceSelector,
   readBoundMemorySecretProvenance,
   replaceMemorySecretProvenanceInTx,
 } from '@/lib/memory/secret-provenance'
 import { getAccurateTokenCount } from '@/lib/tokenization/accurate'
 import { MEMORY } from '@/executor/constants'
-import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
+import type { AgentInputs, FileNameProjection, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
 import {
   projectResolvedSecretModelContent,
@@ -37,7 +40,11 @@ const logger = createLogger('Memory')
 const MEMORY_CONTENT_REFUSAL = 'Memory content could not be safely projected'
 
 export class Memory {
-  async fetchMemoryMessages(ctx: ExecutionContext, inputs: AgentInputs): Promise<Message[]> {
+  async fetchMemoryMessages(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    projectedNameByFile?: WeakMap<object, FileNameProjection>
+  ): Promise<Message[]> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return []
     }
@@ -75,10 +82,70 @@ export class Memory {
         messages = stored.messages
     }
 
-    const selectedProvenance = filterDurableSecretProvenanceBySourceValues(
+    /** Bound historical downloads independently of text-token windows and per-file byte caps. */
+    const fileCount = messages.reduce((count, message) => count + (message.files?.length ?? 0), 0)
+    if (fileCount > MEMORY.MAX_REPLAY_FILE_REFERENCES) {
+      throw new Error(
+        `Conversation memory exceeds ${MEMORY.MAX_REPLAY_FILE_REFERENCES} file attachments. Use a smaller memory window.`
+      )
+    }
+
+    const selection = await createMemorySecretProvenanceSelector(
       stored.provenance,
-      messages
+      stored.messages,
+      workspaceId
     )
+    let includeRecovered = false
+    if (selection.recoveredEntryCount > 0 && ctx.resolvedSecretTraceRegistry) {
+      const scope = ctx.resolvedSecretTraceRegistry.exportProvenance().scope
+      const staged = new ResolvedSecretTraceRegistry([], scope, { staged: true })
+      staged.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+      includeRecovered =
+        (await importDurableSecretProvenance(
+          staged,
+          selection.select(messages, true),
+          messages,
+          'memory'
+        )) && staged.getModelEgressSnapshot().complete
+      if (includeRecovered) {
+        for (const message of messages) {
+          const stagedMessage = new ResolvedSecretTraceRegistry([], scope, { staged: true })
+          if (
+            !(await importDurableSecretProvenance(
+              stagedMessage,
+              selection.select([message], true),
+              message,
+              'memory'
+            )) ||
+            !stagedMessage.getModelEgressSnapshot().complete
+          ) {
+            includeRecovered = false
+            break
+          }
+        }
+      }
+      if (includeRecovered) {
+        /** Recheck and merge synchronously after the preflight's awaits, including sibling work. */
+        const current = new ResolvedSecretTraceRegistry([], scope, { staged: true })
+        current.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
+        current.mergeToolCallRegistry(staged)
+        includeRecovered = current.getModelEgressSnapshot().complete
+        if (includeRecovered) ctx.resolvedSecretTraceRegistry.mergeToolCallRegistry(staged)
+      }
+    }
+    if (selection.recoveredEntryCount > 0 && !includeRecovered) {
+      logger.error('Historical memory secret provenance recovery was skipped', {
+        surface: 'memory',
+        cause: ctx.resolvedSecretTraceRegistry
+          ? 'legacy-recovery-capacity-exceeded'
+          : 'legacy-recovery-context-unavailable',
+        entryCount: selection.recoveredEntryCount,
+        workspaceId,
+      })
+    }
+    const selectProvenance = (values: readonly unknown[]) =>
+      selection.select(values, includeRecovered)
+    const selectedProvenance = selectProvenance(messages)
     /**
      * Unrecorded provenance is checked through the same policy the shared import uses, so stored
      * memory written by a run that could not vouch does not permanently refuse every later turn.
@@ -113,11 +180,9 @@ export class Memory {
       })
     }
 
-    return Promise.all(
+    const projectedMessages = await Promise.all(
       messages.map(async (message) => {
-        const messageProvenance = filterDurableSecretProvenanceBySourceValues(selectedProvenance, [
-          message,
-        ])
+        const messageProvenance = selectProvenance([message])
         const modelRegistry = new ResolvedSecretTraceRegistry(
           [],
           ctx.resolvedSecretTraceRegistry?.exportProvenance().scope
@@ -137,9 +202,15 @@ export class Memory {
             inputPath: 'messages',
           })
         }
-        return this.projectMessageForModel(modelRegistry, message)
+        return this.projectMessageForModel(modelRegistry, message, projectedNameByFile)
       })
     )
+    /** Saved references admit only these files; materialization still enforces their scope. */
+    mergeFileKeys(
+      ctx,
+      projectedMessages.flatMap((message) => message.files?.map((file) => file.key) ?? [])
+    )
+    return projectedMessages
   }
 
   private captureMessagesProvenance(
@@ -168,7 +239,7 @@ export class Memory {
     const workspaceId = this.requireWorkspaceId(ctx)
     this.validateConversationId(inputs.conversationId)
 
-    message = await this.maskContentForStorage(ctx, message)
+    message = this.sanitizeMessageForStorage(await this.maskContentForStorage(ctx, message))
 
     this.validateContent(message.content)
 
@@ -217,7 +288,9 @@ export class Memory {
     }
 
     messagesToStore = await Promise.all(
-      messagesToStore.map((message) => this.maskContentForStorage(ctx, message))
+      messagesToStore.map(async (message) =>
+        this.sanitizeMessageForStorage(await this.maskContentForStorage(ctx, message))
+      )
     )
 
     const provenance = ctx.resolvedSecretTraceRegistry
@@ -252,7 +325,25 @@ export class Memory {
     }
   }
 
-  private projectMessageForModel(registry: ResolvedSecretTraceRegistry, message: Message): Message {
+  private projectMessageForModel(
+    registry: ResolvedSecretTraceRegistry,
+    message: Message,
+    projectedNameByFile?: WeakMap<object, FileNameProjection>
+  ): Message {
+    for (const file of message.files ?? []) {
+      const projection = projectResolvedSecretModelContent(file.name, registry)
+      if (!projection.safe || typeof projection.value !== 'string') {
+        refuseResolvedSecretProjection({
+          site: 'memory.fileNameProjection',
+          message: MEMORY_CONTENT_REFUSAL,
+          registry,
+          inputPath: 'files.name',
+        })
+      }
+      if (projection.value !== file.name) {
+        projectedNameByFile?.set(file, { name: projection.value })
+      }
+    }
     const functionArguments = this.readFunctionCallArguments(
       message.function_call,
       registry,
@@ -398,9 +489,24 @@ export class Memory {
     return messages.slice(-limit)
   }
 
+  /** Storage keys survive turns; inline bytes, signed URLs, and provider handles do not. */
   private sanitizeMessageForStorage(message: Message): Message {
     const { files: _files, ...messageWithoutFiles } = message
-    return messageWithoutFiles
+    const files = Array.isArray(message.files)
+      ? message.files
+          .filter(isUserFileWithMetadata)
+          .filter((file) => file.key)
+          .map((file) => ({
+            id: file.id,
+            name: file.name,
+            key: file.key,
+            url: '',
+            size: file.size,
+            type: file.type,
+            ...(typeof file.context === 'string' ? { context: file.context } : {}),
+          }))
+      : []
+    return files.length > 0 ? { ...messageWithoutFiles, files } : messageWithoutFiles
   }
 
   private applyTokenWindow(messages: Message[], maxTokens: number, model?: string): Message[] {
@@ -503,6 +609,7 @@ export class Memory {
     const sanitizedMessages = messages.map((message) => this.sanitizeMessageForStorage(message))
 
     await db.transaction(async (tx) => {
+      await lockMemoryConversationInTx(tx, workspaceId, key)
       const id = generateId()
       const [inserted] = await tx
         .insert(memory)
@@ -534,6 +641,7 @@ export class Memory {
     const sanitizedMessage = this.sanitizeMessageForStorage(message)
 
     await db.transaction(async (tx) => {
+      await lockMemoryConversationInTx(tx, workspaceId, key)
       const [existing] = await tx
         .select({
           id: memory.id,
@@ -586,11 +694,17 @@ export class Memory {
         })
         .where(eq(memory.id, existing.id))
       if (messageProvenance) {
+        const nextProvenance = mergeDurableSecretProvenance(previousProvenance, messageProvenance)
         await replaceMemorySecretProvenanceInTx(
           tx,
           existing.id,
           nextData,
-          mergeDurableSecretProvenance(previousProvenance, messageProvenance)
+          nextProvenance,
+          previousProvenance.status === 'unknown'
+            ? 'inherited-provenance-unknown'
+            : messageProvenance.status === 'exact' && nextProvenance.status === 'unknown'
+              ? 'merge-provenance-limit'
+              : undefined
         )
       }
     })

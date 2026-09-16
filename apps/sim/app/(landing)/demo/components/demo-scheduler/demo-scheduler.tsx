@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Cal, { getCalApi } from '@calcom/embed-react'
+import { useTheme } from 'next-themes'
 import { trackGoogleAdsConversion, trackGoogleEvent } from '@/lib/analytics/google'
 import { X_DEMO_BOOKED_EVENT_ID } from '@/lib/consent/scripts'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
@@ -84,13 +85,15 @@ export function preloadCalEmbed(): void {
  * {@link DemoLead}. Rendered inside the card chrome owned by {@link DemoBooking}
  * and lazy-loaded, so the embed script never touches the initial landing bundle.
  *
- * The embed is pinned to the page's light theme and Sim's brand color, and the
+ * The embed follows the page's theme and carries Sim's brand color, and the
  * captured name/email/notes prefill the booking so the visitor never retypes. It
  * fills the panel (`flex-1`), which the parent sizes to the form's height, so the
  * card stays the same height across the form→calendar transition.
  */
 export function DemoScheduler({ lead }: DemoSchedulerProps) {
   const { marketing, measurement } = useTrackingConsent()
+  const { resolvedTheme } = useTheme()
+  const calTheme = resolvedTheme === 'dark' ? 'dark' : 'light'
 
   useEffect(() => {
     let cancelled = false
@@ -113,6 +116,7 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
         if (cancelled) return
         cal('ui', {
           hideEventTypeDetails: true,
+          theme: calTheme,
           styles: { branding: { brandColor: CAL_BRAND_COLOR } },
         })
         if (measurement || marketing) {
@@ -127,14 +131,14 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
         .then((cal) => cal('off', { action: 'bookingSuccessfulV2', callback: trackDemoBooked }))
         .catch(() => {})
     }
-  }, [marketing, measurement])
+  }, [calTheme, marketing, measurement])
 
   return (
     <div className='flex h-full min-w-0 flex-col p-6 max-sm:p-5'>
       <h2 className='text-[var(--text-primary)] text-xl leading-[1.2]'>
         Pick a time{lead.name ? `, ${lead.name}` : ''}
       </h2>
-      <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
+      <p className='mt-1.5 text-[var(--text-secondary)] text-sm'>
         Choose a slot that works for your team and we'll send a calendar invite.
       </p>
       <div className='mt-5 min-h-0 flex-1'>
@@ -148,8 +152,8 @@ export function DemoScheduler({ lead }: DemoSchedulerProps) {
             name: lead.name,
             email: lead.email,
             notes: lead.notes,
-            theme: 'light',
-            'ui.color-scheme': 'light',
+            theme: calTheme,
+            'ui.color-scheme': calTheme,
             layout: 'month_view',
             useSlotsViewOnSmallScreen: 'true',
           }}

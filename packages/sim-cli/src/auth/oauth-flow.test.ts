@@ -143,7 +143,11 @@ describe('token endpoint', () => {
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe(`${ENDPOINT}/api/auth/oauth2/token`)
-    expect(init.headers).toMatchObject({ 'content-type': 'application/x-www-form-urlencoded' })
+    expect(init.headers).toMatchObject({
+      'content-type': 'application/x-www-form-urlencoded',
+      'user-agent': expect.stringMatching(/^sim-cli\//),
+      'x-sim-client-info': expect.stringMatching(/^cli\//),
+    })
     expect(init.redirect).toBe('manual')
     expect(Object.fromEntries(new URLSearchParams(String(init.body)))).toEqual({
       grant_type: 'authorization_code',
@@ -300,7 +304,7 @@ describe('loginWithBrowser', () => {
     expect(response.headers['cache-control']).toBe('no-store')
   })
 
-  it('gives up after the timeout with the browserless fallback named', async () => {
+  it('gives up after the timeout with an explicit API-key login alternative', async () => {
     vi.stubGlobal('fetch', vi.fn())
     await expect(
       loginWithBrowser(ENDPOINT, {
@@ -308,7 +312,7 @@ describe('loginWithBrowser', () => {
         onAuthorizeUrl: () => {},
         timeoutMs: 20,
       })
-    ).rejects.toThrow('--browserless')
+    ).rejects.toThrow('--method api-key')
   })
 })
 

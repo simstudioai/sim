@@ -174,6 +174,7 @@ async function scanAndCancelTriggerRuns(options: CancellationScanOptions): Promi
  * Maps trigger.dev task IDs to our JobType
  */
 const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
+  'slack-search': 'slack-search',
   'workflow-execution': 'workflow-execution',
   'schedule-execution': 'schedule-execution',
   'webhook-execution': 'webhook-execution',
@@ -185,6 +186,7 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'cleanup-table-row-ttl': 'cleanup-table-row-ttl',
   'cleanup-tasks': 'cleanup-tasks',
   'run-data-drain': 'run-data-drain',
+  'knowledge-connector-directory-sync': 'knowledge-connector-directory-sync',
 }
 
 /**

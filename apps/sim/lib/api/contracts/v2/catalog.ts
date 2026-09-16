@@ -204,7 +204,7 @@ export type V2BlockField = z.output<typeof v2BlockFieldSchema>
 const catalogBlockSourceSchema = z
   .enum(['builtin', 'custom'])
   .describe(
-    'Where the block comes from: `builtin` is the shipped registry, `custom` is a workflow this workspace deployed as a block.'
+    'Block source: `builtin` for built-in blocks, or `custom` for workflows this workspace deployed as blocks.'
   )
 
 /** Summary view of a block. */
@@ -421,7 +421,7 @@ export const v2ExecuteToolBodySchema = z
       )
       .default({})
       .describe(
-        'Arguments for the tool, keyed by the parameter ids the tool catalog publishes for it. A parameter whose visibility is `user-only` also accepts an environment-variable reference written as the whole value, `{{VAR_NAME}}`, resolved server-side against the workspace environment; any other value is sent verbatim.'
+        'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves a workspace environment variable. Other values pass through unchanged.'
       ),
     credentialId: catalogIdSchema
       .optional()
@@ -726,7 +726,7 @@ export const v2ListBlocksQuerySchema = catalogWorkspaceQuerySchema
     source: z
       .enum(['builtin', 'custom'])
       .optional()
-      .describe('Restrict to shipped blocks or to this workspace’s deployed custom blocks.'),
+      .describe("Restrict to built-in blocks or this workspace's deployed custom blocks."),
     ...v2SortFields(v2BlockSortFields, { sortBy: 'id', sortOrder: 'asc' }),
     ...v2PaginationFields({ description: 'Maximum blocks to return per page.' }),
   })

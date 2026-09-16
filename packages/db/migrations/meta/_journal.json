@@ -2262,6 +2262,202 @@
       "when": 1788820403571,
       "tag": "0323_oauth_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1788826234724,
+      "tag": "0324_scim_provisioning",
+      "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1788832902289,
+      "tag": "0325_scim_manual_workspace_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 326,
+      "version": "7",
+      "when": 1788853965912,
+      "tag": "0326_enterprise_organization_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 327,
+      "version": "7",
+      "when": 1788853965913,
+      "tag": "0327_organization_search_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 328,
+      "version": "7",
+      "when": 1788853965914,
+      "tag": "0328_organization_connected_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 329,
+      "version": "7",
+      "when": 1788902854629,
+      "tag": "0329_oauth_search_resources",
+      "breakpoints": true
+    },
+    {
+      "idx": 330,
+      "version": "7",
+      "when": 1788908598091,
+      "tag": "0330_provider_capacity_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 331,
+      "version": "7",
+      "when": 1788912482786,
+      "tag": "0331_knowledge_base_required_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 332,
+      "version": "7",
+      "when": 1788920388685,
+      "tag": "0332_slack_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 333,
+      "version": "7",
+      "when": 1788973930563,
+      "tag": "0333_outbox_ready_type_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 334,
+      "version": "7",
+      "when": 1788977497552,
+      "tag": "0334_sso_provider_org_domain_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 335,
+      "version": "7",
+      "when": 1788978439734,
+      "tag": "0335_embedding_width_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 336,
+      "version": "7",
+      "when": 1788980365048,
+      "tag": "0336_knowledge_processing_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 337,
+      "version": "7",
+      "when": 1788986020651,
+      "tag": "0337_colossal_the_renegades",
+      "breakpoints": true
+    },
+    {
+      "idx": 338,
+      "version": "7",
+      "when": 1789076658450,
+      "tag": "0338_organization_search_activity",
+      "breakpoints": true
+    },
+    {
+      "idx": 339,
+      "version": "7",
+      "when": 1789084655493,
+      "tag": "0339_connector_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 340,
+      "version": "7",
+      "when": 1789150173739,
+      "tag": "0340_slack_shared_app_env",
+      "breakpoints": true
+    },
+    {
+      "idx": 341,
+      "version": "7",
+      "when": 1789154850550,
+      "tag": "0341_organization_logo_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 342,
+      "version": "7",
+      "when": 1789171419865,
+      "tag": "0342_clean_weapon_omega",
+      "breakpoints": true
+    },
+    {
+      "idx": 343,
+      "version": "7",
+      "when": 1789410616549,
+      "tag": "0343_stored_embedding_candidates",
+      "breakpoints": true
+    },
+    {
+      "idx": 344,
+      "version": "7",
+      "when": 1789423183443,
+      "tag": "0344_audit_log_surface",
+      "breakpoints": true
+    },
+    {
+      "idx": 345,
+      "version": "7",
+      "when": 1789427851762,
+      "tag": "0345_document_connector_processing_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 346,
+      "version": "7",
+      "when": 1789430644029,
+      "tag": "0346_half_precision_search_candidates",
+      "breakpoints": true
+    },
+    {
+      "idx": 347,
+      "version": "7",
+      "when": 1789436120319,
+      "tag": "0347_sso_domain_primary_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 348,
+      "version": "7",
+      "when": 1789514921671,
+      "tag": "0348_drop_retired_usage_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 349,
+      "version": "7",
+      "when": 1789518532535,
+      "tag": "0349_permission_access_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1789579589946,
+      "tag": "0350_organization_require_sso",
+      "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1789583796385,
+      "tag": "0351_copilot_run_activity_index",
+      "breakpoints": true
     }
   ]
 }

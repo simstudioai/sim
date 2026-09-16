@@ -5,21 +5,9 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent, modeState } = vi.hoisted(() => ({
+const { mockCaptureEvent } = vi.hoisted(() => ({
   mockCaptureEvent: vi.fn(),
-  modeState: { initial: 'build', set: (_next: string) => {} },
 }))
-
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-mothership-mode', async () => {
-  const { useState } = await import('react')
-  return {
-    useMothershipMode: () => {
-      const [mode, setMode] = useState(modeState.initial)
-      modeState.set = setMode
-      return [mode, setMode]
-    },
-  }
-})
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'workspace-1' }),
@@ -40,45 +28,8 @@ vi.mock('@/hooks/queries/tables', () => ({
 vi.mock('@/hooks/queries/kb/knowledge', () => ({
   useKnowledgeBasesQuery: () => ({ data: [] }),
 }))
-vi.mock('@/app/workspace/[workspaceId]/home/components/search-sources', () => ({
-  SearchSources: () => <div data-testid='search-sources' />,
-}))
-vi.mock('@/hooks/use-permission-config', () => ({
-  usePermissionConfig: () => ({
-    integrationAvailability: new Map([['notion', { state: 'unavailable', oauthAvailable: false }]]),
-  }),
-}))
-
-/** The Build-mode pool is built from the block catalog at module load; an empty catalog keeps it to the table starters. */
+/** The suggestion pool is built from the block catalog at module load; an empty catalog keeps it to the table starters. */
 vi.mock('@/blocks/registry', () => ({ getAllBlockMeta: () => ({}), getAllBlocks: () => [] }))
-
-vi.mock('@/lib/sim-search/connectors', () => {
-  const icon = () => null
-  const connector = (type: string, name: string, providerId: string) => ({
-    type,
-    meta: { id: type, name, description: `Sync ${name}`, icon },
-    providerId,
-    providerIds: [providerId],
-    requiredScopes: ['read'],
-    serviceName: name,
-    serviceIcon: icon,
-    blockType: type,
-  })
-  return {
-    isSearchConnectorAvailable: (
-      candidate: { blockType: string },
-      availability: ReadonlyMap<string, { oauthAvailable: boolean }>
-    ) => availability.get(candidate.blockType)?.oauthAvailable ?? true,
-    SEARCH_CONNECTORS: [
-      connector('airtable', 'Airtable', 'airtable'),
-      connector('confluence', 'Confluence', 'confluence'),
-      connector('jira', 'Jira', 'jira'),
-      connector('jsm', 'Jira Service Management', 'jira'),
-      connector('notion', 'Notion', 'notion'),
-      connector('slack', 'Slack', 'slack'),
-    ],
-  }
-})
 
 vi.mock('@/app/workspace/[workspaceId]/components/connect-oauth-modal', () => ({
   ConnectOAuthModal: ({ open, providerId }: { open: boolean; providerId: string }) =>
@@ -112,7 +63,6 @@ function rows(): HTMLButtonElement[] {
 beforeEach(() => {
   onSelectPrompt.mockClear()
   mockCaptureEvent.mockClear()
-  modeState.initial = 'build'
 })
 
 afterEach(() => {
@@ -123,30 +73,18 @@ afterEach(() => {
 })
 
 describe('SuggestedActions', () => {
-  it('shows the Build starters by default', () => {
+  it('shows suggested actions', () => {
     mount()
 
     expect(heading()).toBe('Suggested actions')
     expect(rows().map((row) => row.textContent)).toContain('Integrate with Slack')
   })
 
-  it('shows every source in Search mode instead of the sampled suggestions', () => {
+  it('keeps suggestion actions interactive', () => {
     mount()
-
-    act(() => modeState.set('search'))
-
-    expect(heading()).toBe('Sources')
-    expect(document.querySelector('[data-testid="search-sources"]')).not.toBeNull()
-    expect(rows()).toHaveLength(0)
-  })
-
-  it('shows the sources in Assistant mode, which answers from them', () => {
-    mount()
-
-    act(() => modeState.set('assistant'))
-
-    expect(heading()).toBe('Sources')
-    expect(document.querySelector('[data-testid="search-sources"]')).not.toBeNull()
-    expect(rows()).toHaveLength(0)
+    const action = rows().find((row) => row.textContent === 'Create a CRM with sample data')
+    expect(action).toBeDefined()
+    act(() => action?.click())
+    expect(onSelectPrompt).toHaveBeenCalledWith('Create a CRM with sample data.')
   })
 })

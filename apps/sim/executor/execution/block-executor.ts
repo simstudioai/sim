@@ -1,7 +1,8 @@
 import { createLogger, type Logger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -98,6 +99,10 @@ function addTrustedExecutionCosts(
   }
 }
 
+/** Replaces a database query failure's message, which carries SQL text and bound parameters. */
+const INTERNAL_DATABASE_ERROR_MESSAGE =
+  'An internal error occurred while executing the block. Please try again.'
+
 export class BlockExecutor {
   private execLogger: Logger
 
@@ -135,9 +140,13 @@ export class BlockExecutor {
       []
     )
     const inputDisplayRegistry = blockResolvedSecretTraceRegistry
-    const blockCtx = blockResolvedSecretTraceRegistry
-      ? { ...ctx, resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
-      : ctx
+    const blockCtx: ExecutionContext = {
+      ...ctx,
+      mcpBlockId: block.id,
+      ...(blockResolvedSecretTraceRegistry
+        ? { resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
+        : {}),
+    }
     let registryCommitted = false
     const commitBlockRegistry = () => {
       const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
@@ -359,6 +368,9 @@ export class BlockExecutor {
             workspaceId: blockCtx.workspaceId,
             workflowId: blockCtx.workflowId,
             executionId: blockCtx.executionId,
+            largeValueExecutionIds: blockCtx.largeValueExecutionIds,
+            largeValueKeys: blockCtx.largeValueKeys,
+            allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
             userId: blockCtx.userId,
           },
         })
@@ -619,7 +631,8 @@ export class BlockExecutor {
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
-    const errorMessage = normalizeError(error)
+    const isDatabaseError = error instanceof DrizzleQueryError
+    const errorMessage = isDatabaseError ? INTERNAL_DATABASE_ERROR_MESSAGE : normalizeError(error)
     const hasLogInputs =
       inputsForLog && typeof inputsForLog === 'object' && Object.keys(inputsForLog).length > 0
     const input = hasLogInputs
@@ -758,10 +771,12 @@ export class BlockExecutor {
     ) {
       diagnosticRegistry.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
     }
-    const errorDiagnostic = projectResolvedSecretDiagnosticError(
-      error,
-      diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
-    )
+    const errorDiagnostic = isDatabaseError
+      ? { cause: describeError(error) }
+      : projectResolvedSecretDiagnosticError(
+          error,
+          diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
+        )
 
     this.execLogger.error(
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
@@ -812,7 +827,11 @@ export class BlockExecutor {
       return errorOutput
     }
 
-    const errorToThrow = error instanceof Error ? error : new Error(errorMessage)
+    const errorToThrow = isDatabaseError
+      ? new Error(errorMessage, { cause: error })
+      : error instanceof Error
+        ? error
+        : new Error(errorMessage)
 
     throw buildBlockExecutionError({
       block,

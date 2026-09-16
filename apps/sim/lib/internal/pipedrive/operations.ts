@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { downloadPipedriveFile, listPipedriveFiles } from '@/lib/internal/pipedrive/client'
 import type { PipedriveGetFilesInput } from '@/lib/internal/pipedrive/schema'
+import {
+  createInternalToolFilesResult,
+  type InternalToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 
@@ -17,12 +21,7 @@ export async function executePipedriveGetFiles(
 ) {
   context.signal?.throwIfAborted()
   const page = await listPipedriveFiles(input, context.signal)
-  const downloadedFiles: Array<{
-    data: string
-    mimeType: string
-    name: string
-    size: number
-  }> = []
+  const downloadedFiles: InternalToolFile[] = []
   let downloadedBytes = 0
 
   if (input.downloadFiles) {
@@ -43,8 +42,7 @@ export async function executePipedriveGetFiles(
         downloadedFiles.push({
           name,
           mimeType: downloaded.contentType || getMimeTypeFromExtension(extension),
-          data: downloaded.buffer.toString('base64'),
-          size: downloaded.buffer.length,
+          buffer: downloaded.buffer,
         })
       } catch (error) {
         context.signal?.throwIfAborted()
@@ -56,15 +54,16 @@ export async function executePipedriveGetFiles(
     }
   }
   context.signal?.throwIfAborted()
-  return {
+  const output = {
+    files: page.files,
+    total_items: page.files.length,
+    has_more: page.hasMore,
+    next_start: page.nextStart,
     success: true,
-    output: {
-      files: page.files,
-      downloadedFiles: downloadedFiles.length > 0 ? downloadedFiles : undefined,
-      total_items: page.files.length,
-      has_more: page.hasMore,
-      next_start: page.nextStart,
-      success: true,
-    },
   }
+  if (downloadedFiles.length === 0) return { success: true, output }
+  return createInternalToolFilesResult(downloadedFiles, (files) => ({
+    success: true,
+    output: { ...output, downloadedFiles: files },
+  }))
 }

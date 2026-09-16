@@ -181,7 +181,7 @@ export const vllmProvider: ProviderConfig = {
       : undefined
 
     const payload: any = {
-      model: request.model.replace(/^vllm\//, ''),
+      model: request.model.replace(/^vllm\//i, ''),
       messages: formattedMessages,
     }
 

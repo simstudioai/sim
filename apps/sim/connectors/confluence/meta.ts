@@ -2,6 +2,8 @@ import { ConfluenceIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const confluenceConnectorMeta: ConnectorMeta = {
+  search: true,
+  searchDocsUrl: 'https://docs.sim.ai/search/confluence',
   id: 'confluence',
   name: 'Confluence',
   description: 'Sync pages from a Confluence space',
@@ -11,6 +13,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
   auth: {
     mode: 'oauth',
     provider: 'confluence',
+    adminCredentialType: 'service_account',
     requiredScopes: [
       'read:confluence-content.all',
       'read:page:confluence',
@@ -19,6 +22,21 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       'read:label:confluence',
       'search:confluence',
       'offline_access',
+    ],
+    /** Mirroring also reads ancestor restrictions, space roles, and user/group identities. */
+    serviceAccountScopes: [
+      'read:confluence-content.all',
+      'read:page:confluence',
+      'read:blogpost:confluence',
+      'read:space:confluence',
+      'read:label:confluence',
+      'search:confluence',
+      'read:confluence-space.summary',
+      'read:content.metadata:confluence',
+      'read:space.permission:confluence',
+      'read:confluence-user',
+      'read:user:confluence',
+      'read:group:confluence',
     ],
   },
 
@@ -34,10 +52,19 @@ export const confluenceConnectorMeta: ConnectorMeta = {
   /** CQL search under a member's token returns only content that member may view. */
   permissionScopedListing: { capFieldIds: ['maxPages'] },
 
+  /**
+   * Space permissions and page restrictions are both readable, so one crawl
+   * under an administrative credential can mirror them. Unlike Drive they come
+   * back per page rather than with the listing, which is what
+   * `getDocumentAcls` exists for.
+   */
+  mirrorsSourceAcls: true,
+  requiresMemberIdentity: true,
+
   configFields: [
     {
       id: 'domain',
-      title: 'Confluence Domain',
+      title: 'Confluence site',
       type: 'short-input',
       placeholder: 'yoursite.atlassian.net',
       required: true,
@@ -50,6 +77,8 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       canonicalParamId: 'spaceKey',
       mode: 'basic',
       multi: true,
+      allowSelectAll: true,
+      preserveValueOnModeChange: true,
       dependsOn: ['domain'],
       placeholder: 'Select one or more spaces',
       required: true,
@@ -66,7 +95,9 @@ export const confluenceConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'contentType',
+      setupGroup: 'options',
       title: 'Content Type',
+      placeholder: 'Pages only',
       type: 'dropdown',
       required: false,
       options: [
@@ -77,6 +108,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'labelFilter',
+      setupGroup: 'options',
       title: 'Filter by Label',
       type: 'short-input',
       required: false,
@@ -84,6 +116,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
     },
     {
       id: 'maxPages',
+      setupGroup: 'options',
       title: 'Max Pages',
       type: 'short-input',
       required: false,

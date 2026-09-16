@@ -71,6 +71,6 @@ export {
   isFilePreviewSession,
 } from './file-preview-session-contract'
 export { checkForReplayGap, type ReplayGapResult } from './recovery'
-export { encodeSSEComment, encodeSSEEnvelope, SSE_RESPONSE_HEADERS } from './sse'
+export { encodeSSEEnvelope, SSE_RESPONSE_HEADERS } from './sse'
 export type { StreamBatchEvent } from './types'
 export { StreamWriter, type StreamWriterOptions } from './writer'

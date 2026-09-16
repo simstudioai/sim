@@ -6,11 +6,30 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
+import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  collectReferencedDocumentIds,
+  collectReferencedFileFolderPaths,
+} from '@/lib/workflows/references/reference-scan'
+import type { ForkRemapKind } from '@/lib/workflows/references/remap-references'
+import {
+  findWorkspaceOperationReceipt,
+  insertWorkspaceOperationReceipt,
+  lockWorkspaceOperationRequest,
+  type WorkspaceOperationReport,
+} from '@/lib/workspaces/operations/receipts'
 import type { WorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { WorkspaceCreationPolicy } from '@/lib/workspaces/policy'
 import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
+import { enqueueDurableForkContent } from '@/ee/workspace-forking/application/content-outbox'
+import {
+  assertForkPreviewFresh,
+  assertForkSourceVersions,
+  type ForkMutationAdmission,
+  lockForkRevision,
+} from '@/ee/workspace-forking/application/revision'
 import {
   finishBackgroundWork,
   startBackgroundWork,
@@ -53,11 +72,6 @@ import {
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import { deriveForkBlockId } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { createForkBootstrapTransform } from '@/ee/workspace-forking/lib/remap/fork-bootstrap'
-import {
-  collectReferencedDocumentIds,
-  collectReferencedFileFolderPaths,
-} from '@/ee/workspace-forking/lib/remap/reference-scan'
-import type { ForkRemapKind } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 const logger = createLogger('WorkspaceForkCreate')
 
@@ -85,6 +99,7 @@ const EMPTY_SELECTION: ForkResourceSelection = {
 }
 
 export interface CreateForkParams {
+  admission?: ForkMutationAdmission
   source: WorkspaceWithOwner
   policy: WorkspaceCreationPolicy
   userId: string
@@ -96,6 +111,8 @@ export interface CreateForkParams {
 }
 
 export interface CreateForkResult {
+  operation?: WorkspaceOperationReport
+  replayed?: boolean
   /** Full child workspace row so callers can merge it into the workspace-list cache. */
   workspace: Workspace
   workflowsCopied: number
@@ -123,6 +140,17 @@ const FORK_KIND_TO_RESOURCE_TYPE: Partial<Record<ForkRemapKind, ForkResourceType
  */
 export async function createFork(params: CreateForkParams): Promise<CreateForkResult> {
   const { source, policy, userId, requestId = 'unknown' } = params
+  const admission = params.admission
+  if (admission) {
+    const receipt = await findWorkspaceOperationReceipt(
+      db,
+      admission.workspaceId,
+      admission.requestId,
+      admission.requestHash
+    )
+    if (receipt?.forkResult) return { ...receipt.forkResult, operation: receipt, replayed: true }
+    await assertForkPreviewFresh(db, { sourceWorkspaceId: source.id }, admission)
+  }
   const selection = params.selection ?? EMPTY_SELECTION
   const childName = params.name?.trim() || `${source.name} (fork)`
   const childWorkspaceId = generateId()
@@ -142,7 +170,9 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
   // Read the source's deployed workflows + states BEFORE the transaction so these
   // global-pool reads don't check out a second pooled connection from inside the
   // fork tx (which can deadlock the pool at saturation).
-  const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(source.id)
+  const { deployedWorkflows, sourceStates, sourceVersionIds } = await loadSourceDeployedStates(
+    source.id
+  )
 
   // Documents the copied workflows reference (document-selector values + nested documentId
   // tool params). Those whose parent KB is being copied get a placeholder + id map inside the
@@ -169,8 +199,21 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     mcpServers: [],
     workflowMcpServers: [],
   }
-  const { result, blobTasks, contentPlan, contentRefMaps } = await db.transaction(async (tx) => {
+  const transaction = await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
+    if (admission) {
+      await lockWorkspaceOperationRequest(tx, admission.workspaceId, admission.requestId)
+      const receipt = await findWorkspaceOperationReceipt(
+        tx,
+        admission.workspaceId,
+        admission.requestId,
+        admission.requestHash
+      )
+      if (receipt?.forkResult) return { replay: receipt }
+      await lockForkRevision(tx, { sourceWorkspaceId: source.id })
+      await assertForkPreviewFresh(tx, { sourceWorkspaceId: source.id }, admission)
+      await assertForkSourceVersions(tx, source.id, sourceVersionIds)
+    }
     /**
      * The lock alone is not enough: `policy.organizationId` was captured by
      * `assertCanFork` BEFORE this transaction, so a re-home that commits in
@@ -508,25 +551,69 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       skills: resourceResult.idMap.get('skill'),
     })
 
-    return {
-      result: {
-        workspace: {
-          id: childWorkspaceId,
-          name: childName,
-          ownerId: userId,
-          organizationId: policy.organizationId,
-          workspaceMode: policy.workspaceMode,
-          billedAccountUserId: policy.billedAccountUserId,
-          allowPersonalApiKeys: source.allowPersonalApiKeys,
-          forkedFromWorkspaceId: source.id,
-        },
-        workflowsCopied,
+    const result: CreateForkResult = {
+      workspace: {
+        id: childWorkspaceId,
+        name: childName,
+        ownerId: userId,
+        organizationId: policy.organizationId,
+        workspaceMode: policy.workspaceMode,
+        billedAccountUserId: policy.billedAccountUserId,
+        allowPersonalApiKeys: source.allowPersonalApiKeys,
+        forkedFromWorkspaceId: source.id,
       },
+      workflowsCopied,
+    }
+    if (admission) {
+      const hasContent = hasForkContentToCopy(resourceResult.contentPlan, fileResult.blobTasks)
+      const report: WorkspaceOperationReport = {
+        operationId: generateId(),
+        workspaceId: admission.workspaceId,
+        requestId: admission.requestId,
+        kind: 'workspace_fork',
+        applied: true,
+        status: hasContent ? 'processing' : 'completed',
+        resourceIds: [childWorkspaceId, ...workflowIdMap.values()],
+        issues: [],
+        forkResult: { ...result },
+        ...(hasContent ? { copyProgress: { status: 'pending', copied: 0, failed: 0 } } : {}),
+      }
+      if (hasContent) {
+        report.backgroundWorkId = await startBackgroundWork(tx, {
+          workspaceId: admission.workspaceId,
+          kind: 'fork_content_copy',
+          supersede: false,
+          message: `Copying resources to "${childName}"`,
+          metadata: { childWorkspaceId, workflowsCopied },
+        })
+        report.contentOutboxEventId = await enqueueDurableForkContent(tx, report, {
+          contentPlan: resourceResult.contentPlan,
+          blobTasks: fileResult.blobTasks,
+          contentRefMaps,
+          statusId: report.backgroundWorkId,
+          requestId: admission.requestId,
+        })
+      }
+      await enqueueOutboxEvent(tx, 'workspace.operation.observe', {
+        workspaceId: report.workspaceId,
+        operationId: report.operationId,
+      })
+      await insertWorkspaceOperationReceipt(tx, admission.requestHash, report)
+      result.operation = report
+    }
+    return {
+      result,
       blobTasks: fileResult.blobTasks,
       contentPlan: resourceResult.contentPlan,
       contentRefMaps,
     }
   })
+  if ('replay' in transaction && transaction.replay?.forkResult)
+    return { ...transaction.replay.forkResult, operation: transaction.replay, replayed: true }
+  if (!('result' in transaction) || !transaction.result)
+    throw new ForkError('Fork receipt is incomplete', 500)
+  const { result, blobTasks, contentPlan, contentRefMaps } = transaction
+  if (result.operation) return result
 
   // Bulk content (table rows, KB documents + embeddings) and file blobs are copied
   // AFTER the fork commits, in the background, so the fork request returns as soon

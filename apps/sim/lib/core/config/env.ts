@@ -107,6 +107,10 @@ export const env = createEnv({
   skipValidation: true,
 
   server: {
+    OUTBOUND_ROUTING_SOURCE: z.enum(['env', 'appconfig']).optional(),
+    OUTBOUND_ROUTING_CONFIG: z.string().optional(),
+    OUTBOUND_GATEWAYS: z.string().optional(),
+    OUTBOUND_GATEWAY_CREDENTIALS: z.string().optional(),
     // Core Database & Authentication
     DATABASE_URL:                          z.string().url(),                       // Primary database connection string
     DATABASE_REPLICA_URL:                  z.string().url().optional(),            // Read-replica connection string; opt-in reads fall back to the primary when unset
@@ -457,6 +461,17 @@ export const env = createEnv({
     KB_CONFIG_MAX_TIMEOUT:                 z.number().optional().default(10000),   // Max timeout in ms
     KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Concurrent document-processing task runs (Trigger.dev queue depth)
     KB_CONFIG_EMBEDDING_CONCURRENCY:       z.number().optional().default(8),       // Concurrent embedding API requests within one embed call
+    /** Deployment operating budgets shared by every caller using the same provider credential. */
+    KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: z.number().positive().optional().default(600),
+    KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE:   z.number().positive().optional().default(600000),
+    KB_CONFIG_OCR_REQUESTS_PER_MINUTE:       z.number().positive().optional().default(60),
+    /** Mistral operating budgets, shared across indexing workers and interactive OCR. */
+    KB_CONFIG_MISTRAL_OCR_PAGES_PER_MINUTE:  z.number().positive().optional().default(1000),
+    KB_CONFIG_MISTRAL_OCR_PAGES_PER_REQUEST: z.number().int().positive().max(1000).optional().default(30),
+    KB_CONFIG_MISTRAL_OCR_MAX_CONCURRENT:    z.number().int().positive().max(64).optional().default(2),
+    /** JSON map from API-key SHA-256 fingerprints to organization IDs; keys in one org share capacity. */
+    MISTRAL_OCR_QUOTA_GROUPS:               z.string().optional(),
+    KB_CONFIG_RERANK_REQUESTS_PER_MINUTE:    z.number().positive().optional().default(60),
     KB_CONFIG_DOCUMENT_CONCURRENCY:        z.number().optional().default(4),       // Concurrent documents in the in-process (non-Trigger) path
     KB_CONFIG_BATCH_SIZE:                  z.number().optional().default(2000),    // Chunks to process per embedding batch
     KB_CONFIG_DOCUMENT_BATCH_SIZE:         z.number().optional().default(10),      // Documents per batch in the in-process (non-Trigger) path
@@ -479,6 +494,11 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET:                  z.string().optional(),                  // Google OAuth client secret
     GITHUB_CLIENT_ID:                      z.string().optional(),                  // GitHub OAuth client ID for GitHub integration
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
+    GITHUB_APP_CLIENT_ID: z.string().optional(),
+    GITHUB_APP_CLIENT_SECRET: z.string().optional(),
+    GITHUB_APP_ID: z.string().optional(),
+    GITHUB_APP_PRIVATE_KEY: z.string().optional(),
+    GITHUB_APP_SLUG: z.string().optional(),
     DISABLE_GOOGLE_AUTH:                   z.boolean().optional(),                 // Disable Google OAuth login even when credentials are configured
     DISABLE_GITHUB_AUTH:                   z.boolean().optional(),                 // Disable GitHub OAuth login even when credentials are configured
     DISABLE_MICROSOFT_AUTH:               z.boolean().optional(),                 // Disable Microsoft OAuth login even when credentials are configured
@@ -531,6 +551,11 @@ export const env = createEnv({
     DROPBOX_CLIENT_ID:                     z.string().optional(),                  // Dropbox OAuth client ID
     DROPBOX_CLIENT_SECRET:                 z.string().optional(),                  // Dropbox OAuth client secret
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
+    SLACK_SEARCH_APP_ID:                   z.string().optional(),
+    SLACK_SEARCH_CLIENT_ID:                z.string().optional(),
+    SLACK_SEARCH_CLIENT_SECRET:            z.string().optional(),
+    SLACK_SEARCH_SIGNING_SECRET:           z.string().optional(),
+    SLACK_SEARCH_SHARED_APP:               z.boolean().optional(),
     SLACK_CLIENT_SECRET:                   z.string().optional(),                  // Slack OAuth client secret
     SLACK_SIGNING_SECRET:                  z.string().optional(),                  // Official Sim Slack app signing secret (verifies inbound events for the native OAuth trigger)
     SLACK_EXTENDED_SCOPES:                 z.boolean().optional(),                 // Request app_mentions:read, assistant:write, im:history — only where the Slack app is approved for them
@@ -598,6 +623,7 @@ export const env = createEnv({
     FORKING_ENABLED:                      z.boolean().optional(),                 // Enable workspace forking on self-hosted (bypasses hosted requirements)
     TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
     TABLE_ROW_TTL:                        z.boolean().optional(),
+    PERMISSION_ACCESS_REQUESTS_ENABLED:  z.boolean().optional(),
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
     KNOWLEDGE_MEMBER_ACCESS:              z.boolean().optional(),                 // Enable per-member knowledge connectors and hybrid-by-default retrieval globally
 
@@ -621,11 +647,10 @@ export const env = createEnv({
     /** Comma-separated proxy IPs/CIDRs skipped while resolving the forwarded client chain. */
     AUTH_TRUSTED_PROXIES:                  z.string().optional(),
 
-    /** Fallback for the global oauth-provider feature flag when AppConfig has no document. */
-    OAUTH_PROVIDER_ENABLED:                z.boolean().optional(),
 
     // SSO Configuration (for script-based registration)
     SSO_ENABLED:                           z.boolean().optional(),                 // Enable SSO functionality
+    SCIM_ENABLED:                          z.boolean().optional(),                 // Enable SCIM directory provisioning
     USAGE_MONITORING_ENABLED:              z.boolean().optional(),                 // Enable organization usage monitoring on self-hosted (bypasses hosted requirements)
     SSO_PROVIDER_TYPE:                     z.enum(['oidc', 'saml']).optional(),    // [REQUIRED] SSO provider type
     SSO_PROVIDER_ID:                       z.string().optional(),                  // [REQUIRED] SSO provider ID
@@ -706,6 +731,7 @@ export const env = createEnv({
     // Feature Flags
     NEXT_PUBLIC_ENTERPRISE_ENABLED:        z.boolean().optional(),                   // Client twin of ENTERPRISE_ENABLED — set both together
     NEXT_PUBLIC_SSO_ENABLED:               z.boolean().optional(),                   // Enable SSO login UI components
+    NEXT_PUBLIC_SCIM_ENABLED:              z.boolean().optional(),                   // Enable SCIM settings UI
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED:    z.boolean().optional(),                   // Enable access control (permission groups) on self-hosted
     NEXT_PUBLIC_SLACK_EXTENDED_SCOPES:     z.boolean().optional(),                   // Client twin of SLACK_EXTENDED_SCOPES — set both together
     NEXT_PUBLIC_WHITELABELING_ENABLED:     z.boolean().optional(),                   // Enable whitelabeling on self-hosted (bypasses hosted requirements)
@@ -751,6 +777,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR: process.env.NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR,
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR,
     NEXT_PUBLIC_SSO_ENABLED: process.env.NEXT_PUBLIC_SSO_ENABLED,
+    NEXT_PUBLIC_SCIM_ENABLED: process.env.NEXT_PUBLIC_SCIM_ENABLED,
     NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: process.env.NEXT_PUBLIC_ACCESS_CONTROL_ENABLED,
     NEXT_PUBLIC_SLACK_EXTENDED_SCOPES: process.env.NEXT_PUBLIC_SLACK_EXTENDED_SCOPES,
     NEXT_PUBLIC_WHITELABELING_ENABLED: process.env.NEXT_PUBLIC_WHITELABELING_ENABLED,

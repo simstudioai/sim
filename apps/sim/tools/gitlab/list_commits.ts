@@ -5,6 +5,7 @@ import type { ToolConfig } from '@/tools/types'
 export const gitlabListCommitsTool: ToolConfig<GitLabListCommitsParams, GitLabListCommitsResponse> =
   {
     id: 'gitlab_list_commits',
+    personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
     name: 'GitLab List Commits',
     description: 'List commits in a GitLab project repository',
     version: '1.0.0',

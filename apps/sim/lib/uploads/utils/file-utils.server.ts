@@ -36,7 +36,7 @@ import {
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
-import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
+import { renderSimPageDocumentWithContributors } from '@/lib/workspace-files/page-document.server'
 import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
@@ -461,16 +461,20 @@ export async function downloadServableFileFromStorage(
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
       const workspaceId = userFile.key
-        ? (parseWorkspaceFileKey(userFile.key) ?? undefined)
+        ? (parseWorkspaceFileKey(userFile.key) ??
+          extractWorkspaceIdFromExecutionKey(userFile.key) ??
+          undefined)
         : undefined
-      const rendered = Buffer.from(
-        await renderSimPageDocumentWithAssets(text, { workspaceId }),
-        'utf8'
-      )
+      const page = await renderSimPageDocumentWithContributors(text, { workspaceId })
+      const rendered = Buffer.from(page.html, 'utf8')
       // Rendering inlines referenced assets, so a source well under the ceiling can
       // resolve to a document well over it.
       assertKnownSizeWithinLimit(rendered.length, options.maxBytes, 'servable page render')
-      return { buffer: rendered, contentType: 'text/html' }
+      return {
+        buffer: rendered,
+        contentType: 'text/html',
+        contributingFiles: page.contributingFiles,
+      }
     }
   }
 

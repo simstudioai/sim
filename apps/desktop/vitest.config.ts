@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    setupFiles: ['src/test/setup.ts'],
     include: ['src/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
     pool: 'threads',

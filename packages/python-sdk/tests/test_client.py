@@ -2,9 +2,11 @@
 Tests for the Sim Python SDK
 """
 
+import platform
+
 import pytest
 from unittest.mock import Mock, patch
-from simstudio import SimStudioClient, SimStudioError, WorkflowExecutionResult, WorkflowStatus
+from simstudio import SimStudioClient, SimStudioError, WorkflowExecutionResult, WorkflowStatus, __version__
 
 
 def v2_execution_response(output=None, status="completed", error=None):
@@ -765,3 +767,12 @@ def test_execute_workflow_with_dict_input_uses_v2_input_field(mock_post):
     request_body = call_args[1]["json"]
 
     assert request_body["input"] == {"ticker": "NVDA", "quantity": 100}
+
+
+def test_identifies_the_sdk_on_every_request():
+    client = SimStudioClient(api_key="test-key")
+    python_version = platform.python_version()
+
+    assert client._session.headers["X-Sim-Client-Info"] == f"sdk-python/{__version__}; python/{python_version}"
+    assert client._session.headers["User-Agent"] == f"simstudio-python-sdk/{__version__} python/{python_version}"
+    assert client._session.headers["X-API-Key"] == "test-key"

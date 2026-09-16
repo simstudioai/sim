@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/credential-groups/application/context', () => ({
   requireCredentialGroupsAvailable: mocks.requireAvailable,
-  resolveCredentialGroupContext: mocks.resolveGroup,
+  resolveWorkspaceAccountsContext: mocks.resolveGroup,
 }))
 
 vi.mock('@/lib/credential-groups/enrollments', () => ({
@@ -59,7 +59,6 @@ function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
     audience: 'sim:credential-groups',
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialGroupId: 'group-1' },
     delegationContext: {
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
@@ -104,7 +103,7 @@ function slackPrincipal(): WorkflowExecutionDelegatedPrincipal {
 function invite(principal: WorkflowExecutionDelegatedPrincipal) {
   return sendCredentialGroupInvite.execute({
     principal,
-    input: { credentialGroupId: 'group-1', email: 'person@example.com' },
+    input: { workspaceId: 'workspace-1', email: 'person@example.com' },
   })
 }
 

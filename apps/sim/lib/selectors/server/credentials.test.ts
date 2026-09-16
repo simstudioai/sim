@@ -8,17 +8,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   authorizeCredentialUse: vi.fn(),
+  authorizeOrganizationCredentialUse: vi.fn(),
+  resolveOrganizationCredentialTokenBundle: vi.fn(),
   credentialProviderMatchesService: vi.fn(),
   getServiceConfig: vi.fn(),
   resolveCredentialTokenBundle: vi.fn(),
+  authorizePersonalSearch: vi.fn(),
+  resolveManagedOAuthToken: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mocks.authorizeCredentialUse,
 }))
 
+vi.mock('@/lib/credentials/application/organization-credentials', () => ({
+  authorizeOrganizationCredentialUse: mocks.authorizeOrganizationCredentialUse,
+  resolveOrganizationCredentialTokenBundle: mocks.resolveOrganizationCredentialTokenBundle,
+}))
+
 vi.mock('@/lib/oauth/credential-service', () => ({
   resolveCredentialTokenBundle: mocks.resolveCredentialTokenBundle,
+}))
+
+vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
+  authorizePersonalSearchSetupCredential: mocks.authorizePersonalSearch,
+}))
+vi.mock('@/lib/credentials/managed-oauth', () => ({
+  resolveManagedOAuthToken: mocks.resolveManagedOAuthToken,
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
@@ -57,6 +73,153 @@ describe('authorizeSelectorCredential', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mocks.getServiceConfig.mockReturnValue({ id: 'gmail' })
+  })
+
+  it('authorizes organization browsing as the acting principal before checking its provider', async () => {
+    mocks.authorizeOrganizationCredentialUse.mockResolvedValue({
+      credential: { id: 'managed-1', providerId: 'google-email', type: 'managed_oauth' },
+    })
+    mocks.credentialProviderMatchesService.mockReturnValue(true)
+    const selected = await authorizeSelectorCredential({
+      principal,
+      context: { oauthCredential: 'managed-1' },
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      organizationId: 'org-1',
+      policy,
+      protectedValues: createSelectorProtectedValues(),
+      references: new Map(),
+    })
+    expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledWith({
+      principal,
+      organizationId: 'org-1',
+      credentialId: 'managed-1',
+      requestId: 'selector-execution',
+      purpose: 'browsing',
+    })
+    expect(selected).toMatchObject({
+      suppliedId: 'managed-1',
+      providerId: 'google-email',
+      organization: { principal, organizationId: 'org-1' },
+    })
+    expect(mocks.authorizeCredentialUse).not.toHaveBeenCalled()
+    const protectedValues = createSelectorProtectedValues()
+    mocks.resolveOrganizationCredentialTokenBundle.mockResolvedValue({
+      accessToken: 'private-managed-token',
+    })
+    await expect(
+      resolveSelectorOAuthAccessToken({
+        credential: selected,
+        serviceId: 'gmail',
+        scopes: ['gmail.modify'],
+        protectedValues,
+      })
+    ).resolves.toBe('private-managed-token')
+    expect(mocks.resolveOrganizationCredentialTokenBundle).toHaveBeenCalledWith({
+      principal,
+      organizationId: 'org-1',
+      credentialId: 'managed-1',
+      requestId: 'selector-execution',
+      purpose: 'browsing',
+      expectedProviderId: 'google-email',
+      requiredScopes: ['gmail.modify'],
+      impersonateEmail: undefined,
+    })
+  })
+
+  it('browses with only the member’s own prepared account and refreshes it without the admin credential path', async () => {
+    mocks.authorizePersonalSearch.mockResolvedValue({ id: 'managed-1', providerId: 'jira' })
+    mocks.resolveManagedOAuthToken.mockResolvedValue({ accessToken: 'private-token' })
+    const selected = await authorizeSelectorCredential({
+      principal,
+      context: { oauthCredential: 'managed-1' },
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      organizationId: 'org-1',
+      personalSearchSetup: 'jira',
+      policy: { kind: 'stored', field: 'oauthCredential', serviceIds: ['jira'] },
+      protectedValues: createSelectorProtectedValues(),
+      references: new Map(),
+    })
+    const protectedValues = createSelectorProtectedValues()
+    const recordCredentialUse = vi.fn()
+    await expect(
+      resolveSelectorOAuthAccessToken({
+        credential: selected,
+        serviceId: 'jira',
+        scopes: ['read:jira-work'],
+        protectedValues,
+        recordCredentialUse,
+      })
+    ).resolves.toBe('private-token')
+    expect(mocks.authorizePersonalSearch).toHaveBeenCalledTimes(2)
+    expect(mocks.resolveManagedOAuthToken).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      credentialId: 'managed-1',
+      expectedProviderId: 'jira',
+      requiredScopes: ['read:jira-work'],
+    })
+    expect(protectedValues.contains('private-token')).toBe(true)
+    expect(recordCredentialUse).toHaveBeenCalledWith('jira')
+    expect(mocks.authorizeOrganizationCredentialUse).not.toHaveBeenCalled()
+    expect(mocks.resolveOrganizationCredentialTokenBundle).not.toHaveBeenCalled()
+  })
+
+  it('rejects a revoked prepared credential before refreshing its token', async () => {
+    mocks.authorizePersonalSearch.mockRejectedValue(new Error('Credential revoked'))
+    await expect(
+      resolveSelectorOAuthAccessToken({
+        credential: {
+          suppliedId: 'managed-1',
+          providerId: 'jira',
+          personalSearchSetup: { principal, organizationId: 'org-1', connectorType: 'jira' },
+        },
+        serviceId: 'jira',
+        protectedValues: createSelectorProtectedValues(),
+      })
+    ).rejects.toThrow('Credential revoked')
+    expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
+  })
+
+  it('refuses using a prepared Jira credential for another provider or impersonation', async () => {
+    const selected = {
+      suppliedId: 'managed-1',
+      providerId: 'jira',
+      personalSearchSetup: { principal, organizationId: 'org-1', connectorType: 'jira' as const },
+    }
+    await expect(
+      resolveSelectorOAuthAccessToken({
+        credential: selected,
+        serviceId: 'confluence',
+        protectedValues: createSelectorProtectedValues(),
+      })
+    ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    await expect(
+      resolveSelectorOAuthAccessToken({
+        credential: selected,
+        serviceId: 'jira',
+        impersonateEmail: 'other@example.com',
+        protectedValues: createSelectorProtectedValues(),
+      })
+    ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    expect(mocks.resolveManagedOAuthToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects an organization connection for the wrong selector provider', async () => {
+    mocks.authorizeOrganizationCredentialUse.mockResolvedValue({
+      credential: { id: 'managed-1', providerId: 'jira', type: 'managed_oauth' },
+    })
+    mocks.credentialProviderMatchesService.mockReturnValue(false)
+    await expect(
+      authorizeSelectorCredential({
+        principal,
+        context: { oauthCredential: 'managed-1' },
+        scope: { kind: 'organization', organizationId: 'org-1' },
+        organizationId: 'org-1',
+        policy,
+        protectedValues: createSelectorProtectedValues(),
+        references: new Map(),
+      })
+    ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
+    expect(mocks.resolveOrganizationCredentialTokenBundle).not.toHaveBeenCalled()
   })
 
   it('conceals a credential authorized in a different workspace', async () => {

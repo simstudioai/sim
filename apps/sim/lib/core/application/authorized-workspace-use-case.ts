@@ -1,7 +1,7 @@
 import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
 import type { Principal, PrincipalAuditAttribution } from '@sim/auth/principal'
 import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
-import type { OperationUseCase } from '@/lib/core/application/operation'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeWorkspaceOperation,
   requireAllowedWorkspacePrincipal,
@@ -12,10 +12,13 @@ import type {
   PrincipalForOperation,
   WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import type { ResourcePolicyBinding } from '@/lib/resource-policies/registry'
 
 export interface WorkspaceUseCaseAuditEntry {
+  /** Canonical affected workspace; null keeps an organization event outside the authorization workspace. */
+  workspaceId?: string | null
   action: AuditActionType
   resourceType: AuditResourceTypeValue
   resourceId?: string
@@ -92,17 +95,18 @@ function isAuthorizationOptionsResolver<
   return typeof options === 'function'
 }
 
-export function recordProjectedUseCaseAuditEntries<O extends WorkspaceOperation>(
-  operation: O,
+export function recordProjectedUseCaseAuditEntries(
+  operation: ApplicationOperation,
   workspaceId: string | null | undefined,
-  principal: PrincipalForOperation<O>,
+  principal: Principal,
   request: OrchestrationRequestContext | undefined,
-  entries: readonly WorkspaceUseCaseAuditEntry[]
+  entries: readonly WorkspaceUseCaseAuditEntry[],
+  organizationId?: string
 ): void {
   const attribution: PrincipalAuditAttribution = resolvePrincipalAuditAttribution(principal)
   for (const entry of entries) {
     recordAudit({
-      workspaceId,
+      workspaceId: entry.workspaceId === undefined ? workspaceId : entry.workspaceId,
       actorId: attribution.actorId,
       actorName: attribution.actorName,
       action: entry.action,
@@ -112,6 +116,7 @@ export function recordProjectedUseCaseAuditEntries<O extends WorkspaceOperation>
       description: entry.description,
       metadata: {
         ...entry.metadata,
+        ...(organizationId ? { organizationId } : {}),
         operation: operation.id,
         actor: attribution.actor,
       },
@@ -120,12 +125,20 @@ export function recordProjectedUseCaseAuditEntries<O extends WorkspaceOperation>
   }
 }
 
+/**
+ * A use case that always answers `authorize`, so a caller that must run the
+ * funnel without executing — a `HEAD` on a route declaring `headSafe: false`,
+ * or a wrapping domain builder — can rely on it without a runtime guard.
+ */
+export type AuthorizingUseCase<O extends ApplicationOperation, I, R> = OperationUseCase<O, I, R> &
+  Required<Pick<OperationUseCase<O, I, R>, 'authorize'>>
+
 export function defineAuthorizedWorkspaceUseCase<
   const O extends WorkspaceOperation,
   I,
   C extends WorkspaceAuthorizationContext,
   R,
->(definition: AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>): OperationUseCase<O, I, R> {
+>(definition: AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>): AuthorizingUseCase<O, I, R> {
   const resourceAuthorization = (() => {
     const { authorizeResource, operation } = definition
     const resourcePolicy = ('resourcePolicy' in operation ? operation.resourcePolicy : undefined) as
@@ -193,23 +206,25 @@ export function defineAuthorizedWorkspaceUseCase<
     async execute(args) {
       const executionContext = await authorizePhase(args)
       const { principal, context, request } = executionContext
-      const result = await definition.execute(executionContext)
-      const resultContext = { ...executionContext, result }
-      const projectedAudit = definition.projectAudit?.(resultContext)
-      if (projectedAudit !== undefined) {
-        const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
-        if (auditEntries.length > 0) {
-          recordProjectedUseCaseAuditEntries(
-            definition.operation,
-            context.workspaceId,
-            principal,
-            request,
-            auditEntries
-          )
+      return runWithOutboundOrganization(context.workspaceOrganizationId, async () => {
+        const result = await definition.execute(executionContext)
+        const resultContext = { ...executionContext, result }
+        const projectedAudit = definition.projectAudit?.(resultContext)
+        if (projectedAudit !== undefined) {
+          const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
+          if (auditEntries.length > 0) {
+            recordProjectedUseCaseAuditEntries(
+              definition.operation,
+              context.workspaceId,
+              principal,
+              request,
+              auditEntries
+            )
+          }
         }
-      }
-      await definition.afterSuccess?.(resultContext)
-      return result
+        await definition.afterSuccess?.(resultContext)
+        return result
+      })
     },
   }
 }

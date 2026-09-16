@@ -3,8 +3,8 @@
 import { useMemo, useState } from 'react'
 import {
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   Code,
   Combobox,
   Label,
@@ -460,13 +460,13 @@ console.log(limits);`
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Language</Label>
         </div>
-        <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
+        <ChipButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
           {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
-            <ButtonGroupItem key={lang} value={lang}>
+            <ChipButtonGroupItem key={lang} value={lang}>
               {LANGUAGE_LABELS[lang]}
-            </ButtonGroupItem>
+            </ChipButtonGroupItem>
           ))}
-        </ButtonGroup>
+        </ChipButtonGroup>
       </div>
 
       <div>

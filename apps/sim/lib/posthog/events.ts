@@ -265,7 +265,8 @@ export interface PostHogEventMap {
 
   knowledge_base_connector_added: {
     knowledge_base_id: string
-    workspace_id: string
+    workspace_id?: string
+    organization_id?: string
     connector_type: string
     sync_interval_minutes: number
   }
@@ -279,7 +280,8 @@ export interface PostHogEventMap {
 
   knowledge_base_connector_synced: {
     knowledge_base_id: string
-    workspace_id: string
+    workspace_id?: string
+    organization_id?: string
     connector_type: string
   }
 
@@ -340,6 +342,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id: string
   }
@@ -351,6 +354,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id: string
   }
@@ -362,6 +366,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     role: 'admin' | 'member'
     workspace_id: string
   }
@@ -373,6 +378,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     workspace_id: string
   }
 
@@ -614,19 +620,13 @@ export interface PostHogEventMap {
     action_id?: string
   }
 
-  /** The chat composer's mode switcher picked a different mode. */
-  chat_mode_changed: {
-    workspace_id: string
-    mode: 'build' | 'search' | 'assistant'
-  }
-
   /**
    * A home-page suggested action was clicked. `action_id` is the candidate id
-   * (e.g. `gmail-0`); `connector` rows are the Search-mode "Connect X" rows.
+   * (e.g. `integrate-gmail`).
    */
   suggested_action_clicked: {
     workspace_id: string
-    kind: 'prompt' | 'integration' | 'connector'
+    kind: 'prompt' | 'integration'
     action_id: string
     label: string
     position: number
@@ -726,6 +726,12 @@ export interface PostHogEventMap {
     is_self_removal: boolean
   }
 
+  /** A member the organization's identity provider created rather than a person. */
+  scim_user_provisioned: {
+    organization_id: string
+    created_account: boolean
+  }
+
   org_member_role_changed: {
     organization_id: string
     new_role: string
@@ -806,6 +812,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id?: string
   }

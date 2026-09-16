@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { DEFAULT_MAX_ERROR_BODY_BYTES, PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { OutlookClient } from '@/lib/internal/outlook/client'
 import { OutlookOperationError } from '@/lib/internal/outlook/errors'
 
@@ -84,6 +84,94 @@ describe('OutlookClient', () => {
         observedBytes: 10 * 1024 * 1024 + 1,
       })
     )
+  })
+
+  it('reads raw attachments larger than 10 MiB with OAuth and cancellation', async () => {
+    const bytes = Buffer.alloc(12 * 1024 * 1024, 4)
+    fetchMock.mockResolvedValue(
+      new Response(bytes, { headers: { 'content-type': 'application/pdf' } })
+    )
+    const controller = new AbortController()
+
+    const result = await new OutlookClient('access-token').buffer(
+      '/me/messages/message-1/attachments/file-1/$value',
+      100 * 1024 * 1024,
+      'Failed to download attachment',
+      controller.signal
+    )
+
+    expect(result.buffer.equals(bytes)).toBe(true)
+    expect(result.contentType).toBe('application/pdf')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://graph.microsoft.com/v1.0/me/messages/message-1/attachments/file-1/$value',
+      {
+        method: 'GET',
+        headers: { Authorization: 'Bearer access-token' },
+        signal: controller.signal,
+      }
+    )
+  })
+
+  it('accepts a zero-byte attachment body', async () => {
+    fetchMock.mockResolvedValue(new Response(new Uint8Array(0)))
+
+    const result = await new OutlookClient('access-token').buffer(
+      '/attachment/$value',
+      1024,
+      'Failed'
+    )
+
+    expect(result.buffer.byteLength).toBe(0)
+  })
+
+  it.each(['declared', 'actual'])('enforces the %s raw-body limit', async (sizeSource) => {
+    fetchMock.mockResolvedValue(
+      new Response(new Uint8Array(1025), {
+        headers: { 'content-length': sizeSource === 'declared' ? '1025' : '1' },
+      })
+    )
+
+    await expect(
+      new OutlookClient('access-token').buffer('/attachment/$value', 1024, 'Failed')
+    ).rejects.toBeInstanceOf(PayloadSizeLimitError)
+  })
+
+  it('preserves raw-download Graph error messages and status', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({ error: { message: 'Access denied' } }, { status: 403 })
+    )
+
+    await expect(
+      new OutlookClient('access-token').buffer('/attachment/$value', 1024, 'Failed to download')
+    ).rejects.toEqual(new OutlookOperationError('Access denied', 403))
+  })
+
+  it('bounds raw-download error bodies while preserving provider status', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('bad gateway', {
+        status: 502,
+        headers: { 'content-length': String(DEFAULT_MAX_ERROR_BODY_BYTES + 1) },
+      })
+    )
+
+    await expect(
+      new OutlookClient('access-token').buffer('/attachment/$value', 1024, 'Failed to download')
+    ).rejects.toEqual(new OutlookOperationError('Failed to download', 502))
+  })
+
+  it('rejects cancelled raw downloads before fetch', async () => {
+    const controller = new AbortController()
+    controller.abort(new DOMException('cancelled', 'AbortError'))
+
+    await expect(
+      new OutlookClient('access-token').buffer(
+        '/attachment/$value',
+        1024,
+        'Failed',
+        controller.signal
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('stops before provider work when already cancelled', async () => {

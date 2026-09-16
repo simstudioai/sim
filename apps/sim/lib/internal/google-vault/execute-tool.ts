@@ -3,7 +3,11 @@ import { z } from 'zod'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { GoogleVaultOperationError } from '@/lib/internal/google-vault/errors'
 import { downloadGoogleVaultExportFile } from '@/lib/internal/google-vault/operations'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 const inputSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
@@ -13,7 +17,9 @@ const inputSchema = z.object({
   fileName: z.string().optional(),
 })
 
-export const executeGoogleVaultTool: InternalToolOperationHandler = async (request) => {
+export const executeGoogleVaultTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   if (request.toolId !== 'google_vault_download_export_file') {
     return Response.json(
@@ -26,9 +32,8 @@ export const executeGoogleVaultTool: InternalToolOperationHandler = async (reque
     return Response.json({ success: false, error: 'Invalid request data' }, { status: 400 })
   }
   try {
-    return Response.json(
-      await downloadGoogleVaultExportFile(parsed.data, { signal: request.signal })
-    )
+    const result = await downloadGoogleVaultExportFile(parsed.data, { signal: request.signal })
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     const status = isPayloadSizeLimitError(error)

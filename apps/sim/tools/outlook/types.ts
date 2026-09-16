@@ -207,7 +207,7 @@ export interface OutlookMessagesResponse {
 // Outlook attachment interface (for tool responses)
 export interface OutlookAttachment {
   name: string
-  data: string
+  data: Buffer | string
   contentType: string
   size: number
 }
@@ -476,7 +476,7 @@ export interface OutlookGetAttachmentResponse extends ToolResponse {
   output: {
     message: string
     results: CleanedOutlookAttachmentMetadata
-    attachments: OutlookAttachment[]
+    attachments: UserFile[]
   }
 }
 

@@ -15,7 +15,7 @@ An embedding turns a piece of text into a list of numbers that captures its mean
 
 The Embeddings block generates those numbers using OpenAI, Google Gemini, Cohere, Mistral, OpenRouter, or a model on your own Ollama server. Pick a provider, pick one of its models, pass in text, and get a vector back — one vector per input, in the order you supplied them. You can embed a single string or a list of strings in one call.
 
-Models differ in what they are good at and what they cost. `text-embedding-3-small` is the cost-efficient general choice, `gemini-embedding-001` gives the highest retrieval quality, `embed-v4.0` handles multilingual content, and `codestral-embed` is tuned for source code. Some models also let you trade vector size against quality, and some accept a task type so the vector is conditioned for how it will be used — the block only offers those controls for the models that actually support them.
+Choose a provider and a supported model for your workload. Some models let you configure vector size or task type; the block shows these controls only when the selected model supports them.
 
 Two things worth knowing before you build on it. Vectors are only comparable when they come from the same model at the same size, so changing either means re-embedding everything you intend to compare. And input longer than the model's limit is shortened to fit rather than rejected, with a warning in the run, so chunk long documents yourself when the tail matters.
 

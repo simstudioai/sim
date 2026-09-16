@@ -1,10 +1,9 @@
 /**
  * Tests for getUserUsageLimit.
  *
- * Org-scoped members carry a null `currentUsageLimit` by design, so a user
- * whose subscription stops being org-scoped without a resync is left null.
- * The limit read must self-heal that state to the plan/free base plus prepaid
- * balance instead of failing closed and blocking every execution.
+ * Legacy membership syncs may leave a null personal usage limit. The limit
+ * read must recover the plan/free base plus prepaid balance, and subsequent
+ * subscription syncs must preserve independent personal and organization pools.
  *
  * @vitest-environment node
  */
@@ -25,12 +24,14 @@ afterAll(() => {
 const {
   mockGetFreeTierLimit,
   mockGetHighestPrioritySubscription,
+  mockGetHighestPriorityPersonalSubscription,
   mockGetPerUserMinimumLimit,
   mockHasPaidSubscriptionStatus,
   mockIsOrgScopedSubscription,
 } = vi.hoisted(() => ({
   mockGetFreeTierLimit: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
+  mockGetHighestPriorityPersonalSubscription: vi.fn(),
   mockGetPerUserMinimumLimit: vi.fn(),
   mockHasPaidSubscriptionStatus: vi.fn(),
   mockIsOrgScopedSubscription: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 
 vi.mock('@/lib/billing/core/plan', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
+  getHighestPriorityPersonalSubscription: mockGetHighestPriorityPersonalSubscription,
 }))
 
 vi.mock('@/lib/billing/core/access', () => ({
@@ -205,10 +207,49 @@ describe('syncUsageLimitsFromSubscription', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockIsOrgScopedSubscription.mockReturnValue(false)
+    mockHasPaidSubscriptionStatus.mockImplementation((status: string) => status === 'active')
+  })
+
+  it.each([
+    { plan: 'pro', minimum: 40 },
+    { plan: 'enterprise', minimum: 0 },
+  ])(
+    'preserves a personal $plan cap when the user also belongs to an enterprise organization',
+    async ({ plan, minimum }) => {
+      const personalSubscription = { plan, referenceId: 'user-1', status: 'active' }
+      mockGetHighestPriorityPersonalSubscription.mockResolvedValue(personalSubscription)
+      mockGetHighestPrioritySubscription.mockResolvedValue({
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        status: 'active',
+      })
+      mockIsOrgScopedSubscription.mockReturnValue(true)
+      mockGetPerUserMinimumLimit.mockReturnValue(minimum)
+      dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '80', creditBalance: '1' }])
+
+      await syncUsageLimitsFromSubscription('user-1')
+
+      expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenCalledExactlyOnceWith('user-1', {
+        onError: 'throw',
+      })
+      expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+      expect(mockGetPerUserMinimumLimit).toHaveBeenCalledWith(personalSubscription)
+      const update = dbChainMockFns.set.mock.calls[0]?.[0]
+      expect(update?.currentUsageLimit).not.toBeNull()
+      expect(JSON.stringify(update?.currentUsageLimit)).toContain('greatest')
+    }
+  )
+
+  it('does not reset a personal cap when its subscription lookup fails', async () => {
+    mockGetHighestPriorityPersonalSubscription.mockRejectedValueOnce(new Error('db unavailable'))
+    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '80' }])
+
+    await expect(syncUsageLimitsFromSubscription('user-1')).rejects.toThrow('db unavailable')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('raises a paid personal limit to plan base plus the exact prepaid balance', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(PRO_SUBSCRIPTION)
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(PRO_SUBSCRIPTION)
     mockGetPerUserMinimumLimit.mockReturnValue(40)
     dbChainMockFns.limit.mockResolvedValueOnce([
       { currentUsageLimit: '40', creditBalance: '0.005' },
@@ -224,7 +265,7 @@ describe('syncUsageLimitsFromSubscription', () => {
   })
 
   it('restores free-tier base plus prepaid after a downgrade or org departure', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(null)
     mockGetPerUserMinimumLimit.mockReturnValue(10)
     dbChainMockFns.limit.mockResolvedValueOnce([
       { currentUsageLimit: null, creditBalance: '0.006' },
@@ -240,7 +281,7 @@ describe('syncUsageLimitsFromSubscription', () => {
   })
 
   it('does not retain a higher paid custom cap after downgrade to free', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(null)
     mockGetPerUserMinimumLimit.mockReturnValue(10)
     dbChainMockFns.limit.mockResolvedValueOnce([
       { currentUsageLimit: '100', creditBalance: '0.006' },
@@ -256,7 +297,7 @@ describe('syncUsageLimitsFromSubscription', () => {
   })
 
   it('preserves a higher custom personal limit', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(PRO_SUBSCRIPTION)
+    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(PRO_SUBSCRIPTION)
     mockGetPerUserMinimumLimit.mockReturnValue(40)
     dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '50', creditBalance: '1' }])
 

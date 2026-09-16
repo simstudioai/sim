@@ -7,7 +7,7 @@ import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from '@xyflow/react'
@@ -19,14 +19,19 @@ import {
   getTimeoutErrorMessage,
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
+import { isOutboundRoutingEnabled } from '@/lib/core/network/config.server'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
+import { connectExecutionSignalHub } from '@/lib/execution/execution-signal'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { waitForChildRuns } from '@/lib/workflows/custom-blocks/child-execution'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { resolveStartBlockRunIdentity } from '@/lib/workflows/executor/start-run-identity'
@@ -95,7 +100,7 @@ function describeErrorCause(error: unknown): Record<string, unknown> | undefined
     if (!driver) return undefined
     return filterUndefined({
       name: driver.name,
-      message: driver.message,
+      message: redactBoundParameters(driver.message),
       code: driver.code,
       severity: driver.severity,
       detail: driver.detail,
@@ -376,13 +381,32 @@ async function finalizeExecutionError(params: {
  * the background job — puts `custom_block_*` types in scope for serialization,
  * execution, and any nested child-workflow serialization (ALS propagates to the
  * whole async subtree).
+ *
+ * Also begins the execution-signal subscriber's connection first: every
+ * execution subscribes to cancellation signals once its engine starts, so
+ * starting that handshake here — the one path all of them share — lets it
+ * overlap the reads and preprocessing ahead of the subscribe instead of being
+ * paid inside its readiness budget. Connecting on intent rather than at worker
+ * start keeps the tasks that never execute a workflow, most of the fleet by
+ * volume, from opening a connection they would never use.
  */
 export async function executeWorkflowCore(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
+  connectExecutionSignalHub()
   const workspaceId = options.snapshot.metadata.workspaceId
-  const rows = workspaceId ? await getCustomBlockRowsForWorkspace(workspaceId) : []
-  return withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
+  const rows = workspaceId
+    ? await withDatabaseReadRetry(() => getCustomBlockRowsForWorkspace(workspaceId), {
+        label: 'getCustomBlockRowsForWorkspace',
+      })
+    : []
+  const execute = () => withCustomBlockOverlay(rows, () => executeWorkflowCoreImpl(options))
+  if (!isOutboundRoutingEnabled()) return execute()
+  const context = await resolveActiveWorkflowApplicationContext({
+    workflowId: options.snapshot.metadata.workflowId,
+    assertedWorkspaceId: workspaceId,
+  })
+  return runWithOutboundOrganization(context.workspaceOrganizationId, execute)
 }
 
 async function executeWorkflowCoreImpl(
@@ -560,8 +584,11 @@ async function executeWorkflowCoreImpl(
     }
 
     const [workflowState, env] = await Promise.all([
-      loadWorkflowState(),
-      getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, providedWorkspaceId),
+      withDatabaseReadRetry(loadWorkflowState, { label: 'loadWorkflowState' }),
+      withDatabaseReadRetry(
+        () => getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, providedWorkspaceId),
+        { label: 'getExecutionEnvironment' }
+      ),
     ])
 
     const { blocks, loops, parallels } = workflowState
@@ -847,12 +874,16 @@ async function executeWorkflowCoreImpl(
     // stage (below) and the block-outputs stage (threaded into the executor).
     // Stored rules are the source of truth; absence yields the disabled default
     // with one indexed lookup and no masking cost for non-PII organizations.
-    const [row] = await db
-      .select({ orgSettings: organization.dataRetentionSettings })
-      .from(workspace)
-      .leftJoin(organization, eq(organization.id, workspace.organizationId))
-      .where(eq(workspace.id, providedWorkspaceId))
-      .limit(1)
+    const [row] = await withDatabaseReadRetry(
+      () =>
+        db
+          .select({ orgSettings: organization.dataRetentionSettings })
+          .from(workspace)
+          .leftJoin(organization, eq(organization.id, workspace.organizationId))
+          .where(eq(workspace.id, providedWorkspaceId))
+          .limit(1),
+      { label: 'resolvePiiRedactionPolicy' }
+    )
     const piiRedaction: EffectivePiiRedaction = resolveEffectivePiiRedaction({
       orgSettings: row?.orgSettings,
       workspaceId: providedWorkspaceId,
@@ -876,6 +907,9 @@ async function executeWorkflowCoreImpl(
           workspaceId: providedWorkspaceId,
           workflowId,
           executionId,
+          largeValueExecutionIds,
+          largeValueKeys,
+          allowLargeValueWorkflowScope,
           userId: userId ?? undefined,
         },
       })
@@ -906,6 +940,9 @@ async function executeWorkflowCoreImpl(
           workspaceId: providedWorkspaceId,
           workflowId,
           executionId,
+          largeValueExecutionIds,
+          largeValueKeys,
+          allowLargeValueWorkflowScope,
           userId: userId ?? undefined,
         },
       }
@@ -933,7 +970,10 @@ async function executeWorkflowCoreImpl(
         (block) => block.id === resolvedTriggerBlockId
       )
       if (entryBlock && isRunMetadataEnabled(entryBlock)) {
-        const runIdentity = await resolveStartBlockRunIdentity(metadata.principal)
+        const runIdentity = await withDatabaseReadRetry(
+          () => resolveStartBlockRunIdentity(metadata.principal),
+          { label: 'resolveStartBlockRunIdentity' }
+        )
         startRunMetadata = {
           ...runIdentity,
           workspaceId: providedWorkspaceId,

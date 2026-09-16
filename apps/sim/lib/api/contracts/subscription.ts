@@ -21,24 +21,29 @@ const booleanQueryParamSchema = z
   .optional()
   .default(false)
 
-export const billingUpdateCostBodySchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
-  cost: z.number().min(0, 'Cost must be a non-negative number'),
-  model: z.string().min(1, 'Model is required'),
-  inputTokens: z.number().min(0).default(0),
-  outputTokens: z.number().min(0).default(0),
-  source: z.enum(INTERNAL_CHAT_BILLING_SOURCES).default('copilot'),
-  idempotencyKey: z.string().min(1, 'Idempotency key is required'),
-  /**
-   * Originating workspace, used for org-workspace cost attribution on hosted
-   * Sim. The value remains optional because self-hosted/headless callers may
-   * supply an ID from another deployment or omit it. Modern protocols bind a
-   * locally known workspace to their immutable envelope. Markerless local
-   * self-hosted callbacks re-resolve current workspace payer state; unknown
-   * workspaces remain account-only.
-   */
-  workspaceId: z.string().min(1).optional(),
-})
+export const billingUpdateCostBodySchema = z
+  .object({
+    userId: z.string().min(1, 'User ID is required'),
+    cost: z.number().min(0, 'Cost must be a non-negative number'),
+    model: z.string().min(1, 'Model is required'),
+    inputTokens: z.number().min(0).default(0),
+    outputTokens: z.number().min(0).default(0),
+    source: z.enum(INTERNAL_CHAT_BILLING_SOURCES).default('copilot'),
+    idempotencyKey: z.string().min(1, 'Idempotency key is required'),
+    /**
+     * Originating workspace, used for org-workspace cost attribution on hosted
+     * Sim. The value remains optional because self-hosted/headless callers may
+     * supply an ID from another deployment or omit it. Modern protocols bind a
+     * locally known workspace to their immutable envelope. Markerless local
+     * self-hosted callbacks re-resolve current workspace payer state; unknown
+     * workspaces remain account-only.
+     */
+    workspaceId: z.string().min(1).optional(),
+    organizationId: z.string().min(1).max(200).optional(),
+  })
+  .refine((body) => !(body.workspaceId && body.organizationId), {
+    message: 'workspaceId and organizationId are mutually exclusive',
+  })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 
 export const billingUpdateCostHeadersSchema = z.object({

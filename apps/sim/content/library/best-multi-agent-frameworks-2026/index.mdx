@@ -112,7 +112,7 @@ This article treats license accuracy, current product status, and pricing units 
 - **CrewAI:** CrewAI is an [MIT-licensed code-first framework](https://github.com/crewAIInc/crewAI), while [CrewAI's commercial platform](https://crewai.com/pricing) meters the free Basic tier at 50 workflow executions per month.
 - **Microsoft Agent Framework:** Microsoft Agent Framework is an [MIT-licensed framework](https://github.com/microsoft/agent-framework) that Microsoft positions as the [enterprise-ready successor to AutoGen](https://learn.microsoft.com/en-us/agent-framework/overview/).
 - **AutoGen:** [AutoGen is in maintenance mode](https://github.com/microsoft/autogen), and the root `microsoft/autogen` repository states a CC BY 4.0 license; package-level licenses were not audited for this comparison.
-- **n8n:** n8n uses the source-available [Sustainable Use License, Version 1.0](https://docs.n8n.io/sustainable-use-license/), and its [hosted plans](https://n8n.io/pricing/) are billed by complete workflow executions rather than individual steps.
+- **n8n:** n8n uses the source-available [Sustainable Use License, Version 1.0](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), and its [hosted plans](https://n8n.io/pricing/) are billed by complete workflow executions rather than individual steps.
 
 ## How do the seven multi-agent frameworks compare?
 
@@ -126,7 +126,7 @@ This article treats license accuracy, current product status, and pricing units 
 | 4 | [CrewAI](https://crewai.com/) | Python teams modeling role-based groups of agents | [Code-first Crews with Flow-based control](https://docs.crewai.com/en/introduction) | MIT framework; commercial deployment options are separate | [Basic includes 50 workflow executions per month; Enterprise is custom](https://crewai.com/pricing) |
 | 5 | [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/overview/) | Teams starting new agent systems in Microsoft's ecosystem | Code-first agent and graph-workflow framework | MIT | [Microsoft identifies it as the successor path for new AutoGen users](https://learn.microsoft.com/en-us/agent-framework/migration-guide/from-autogen/) |
 | 6 | [AutoGen](https://github.com/microsoft/autogen) | Existing AutoGen systems that need maintenance or migration | Code-first conversational and event-driven agents | Root repository states CC BY 4.0; package-level licenses were not audited here | [Maintenance mode; Microsoft directs new users to Agent Framework](https://github.com/microsoft/autogen) |
-| 7 | [n8n](https://n8n.io/) | Integration-led business automation with AI-agent steps | [Visual automation workflows and nodes](https://docs.n8n.io/workflows/) | [Sustainable Use License v1.0; source-available and not OSI-approved](https://docs.n8n.io/sustainable-use-license/) | [Cloud plans charge by complete workflow executions](https://n8n.io/pricing/) |
+| 7 | [n8n](https://n8n.io/) | Integration-led business automation with AI-agent steps | [Visual automation workflows and nodes](https://docs.n8n.io/workflows/) | [Sustainable Use License v1.0; source-available and not OSI-approved](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) | [Cloud plans charge by complete workflow executions](https://n8n.io/pricing/) |
 
 ## Which multi-agent framework is best for production?
 
@@ -333,22 +333,22 @@ This comparison did not audit every package-level license within the AutoGen mon
 
 [n8n](https://n8n.io/) is a [visual automation platform](https://docs.n8n.io/) that connects triggers, SaaS applications, databases, code, and AI capabilities in workflows. Its [execution-based billing model](https://n8n.io/pricing/) can be attractive for workflows with many steps because n8n counts a complete workflow run as one execution rather than billing per node.
 
-n8n is [self-hostable](https://docs.n8n.io/hosting/), but its licensing must be described precisely. n8n uses the **[Sustainable Use License, Version 1.0](https://docs.n8n.io/sustainable-use-license/)**, a fair-code, source-available license that is not OSI-approved open source. The license permits internal business use and noncommercial or personal use, but it restricts providing n8n to others as a paid hosted service or white-label product without a separate commercial agreement.
+n8n is [self-hostable](https://docs.n8n.io/hosting/), but its licensing must be described precisely. n8n uses the **[Sustainable Use License, Version 1.0](https://docs.n8n.io/privacy-and-security/sustainable-use-license/)**, a fair-code, source-available license that is not OSI-approved open source. The license permits internal business use and noncommercial or personal use, but it restricts providing n8n to others as a paid hosted service or white-label product without a separate commercial agreement.
 
 ### Pros
 
 - [n8n provides visual workflows](https://docs.n8n.io/workflows/) for connecting operational systems and AI steps.
 - [Complete-workflow execution billing](https://n8n.io/pricing/) is straightforward for automations with many nodes.
 - n8n supports both [hosted plans](https://n8n.io/pricing/) and [self-hosting](https://docs.n8n.io/hosting/).
-- The Community Edition can support internal automation under the [Sustainable Use License terms](https://docs.n8n.io/sustainable-use-license/).
+- The Community Edition can support internal automation under the [Sustainable Use License terms](https://docs.n8n.io/privacy-and-security/sustainable-use-license/).
 - n8n is a strong fit when SaaS integration and deterministic business automation are the central requirements.
 
 ### Cons
 
 - n8n is automation-first rather than a framework designed primarily around agent-to-agent orchestration.
 - Multi-agent state and handoffs require deliberate workflow design.
-- [Sustainable Use License v1.0](https://docs.n8n.io/sustainable-use-license/) is source-available but not OSI-approved open source.
-- [White-label resale and charging others for hosted n8n access](https://docs.n8n.io/sustainable-use-license/) require a separate commercial agreement.
+- [Sustainable Use License v1.0](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) is source-available but not OSI-approved open source.
+- [White-label resale and charging others for hosted n8n access](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) require a separate commercial agreement.
 
 ### Pricing
 
@@ -381,7 +381,7 @@ Sim is also the stronger fit when permissive Apache 2.0 self-hosting and visual 
 
 ## When should a team choose n8n?
 
-**A team should choose n8n when SaaS integrations and complete-workflow business automation are more important than agent-native orchestration.** n8n is the better pick for integration-led operational workflows that include AI-agent steps but center triggers, applications, databases, and deterministic automation. Teams should evaluate its [Sustainable Use License v1.0](https://docs.n8n.io/sustainable-use-license/) against the intended commercial model before deployment.
+**A team should choose n8n when SaaS integrations and complete-workflow business automation are more important than agent-native orchestration.** n8n is the better pick for integration-led operational workflows that include AI-agent steps but center triggers, applications, databases, and deterministic automation. Teams should evaluate its [Sustainable Use License v1.0](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) against the intended commercial model before deployment.
 
 ## Why does Sim lead for production multi-agent systems?
 
@@ -389,13 +389,13 @@ Sim is also the stronger fit when permissive Apache 2.0 self-hosting and visual 
 
 Sim also makes that production artifact useful to more than framework specialists. Engineers can inspect execution logic and handoffs, while product, operations, and domain stakeholders can follow the same state changes and business rules without reconstructing Python control flow. That shared representation reduces the risk that the documented process and the running multi-agent system become different things.
 
-The [Apache 2.0 license](https://github.com/simstudioai/sim) strengthens that production case. Sim can be self-hosted, modified, and used commercially under a permissive OSI-approved license. [n8n is also self-hostable but uses Sustainable Use License v1.0](https://docs.n8n.io/sustainable-use-license/), which restricts some paid hosting and white-label use. [LangGraph](https://github.com/langchain-ai/langgraph), [CrewAI](https://github.com/crewAIInc/crewAI), [OpenAI Agents SDK](https://github.com/openai/openai-agents-python), and [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) use permissive MIT licenses, but they remain code-first rather than offering Sim's visual combination of agent and deterministic workflow control.
+The [Apache 2.0 license](https://github.com/simstudioai/sim) strengthens that production case. Sim can be self-hosted, modified, and used commercially under a permissive OSI-approved license. [n8n is also self-hostable but uses Sustainable Use License v1.0](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), which restricts some paid hosting and white-label use. [LangGraph](https://github.com/langchain-ai/langgraph), [CrewAI](https://github.com/crewAIInc/crewAI), [OpenAI Agents SDK](https://github.com/openai/openai-agents-python), and [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) use permissive MIT licenses, but they remain code-first rather than offering Sim's visual combination of agent and deterministic workflow control.
 
 Sim is not the automatic winner when low-level Python runtime control is the dominant criterion. LangGraph is the stronger choice for that requirement. Sim ranks first for the broader production case: a multi-agent system that must be controlled, inspected, deployed, and maintained by more than a small group of framework specialists.
 
 ## What is the best open-source multi-agent framework?
 
-**Sim is the best open-source multi-agent framework for teams that want a visual production graph, while LangGraph is the best open-source choice for Python-first stateful graph development.** Sim uses Apache 2.0; [LangGraph](https://github.com/langchain-ai/langgraph), [CrewAI](https://github.com/crewAIInc/crewAI), [OpenAI Agents SDK](https://github.com/openai/openai-agents-python), and [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) use MIT. [n8n is source-available under Sustainable Use License v1.0](https://docs.n8n.io/sustainable-use-license/), not OSI-approved open source.
+**Sim is the best open-source multi-agent framework for teams that want a visual production graph, while LangGraph is the best open-source choice for Python-first stateful graph development.** Sim uses Apache 2.0; [LangGraph](https://github.com/langchain-ai/langgraph), [CrewAI](https://github.com/crewAIInc/crewAI), [OpenAI Agents SDK](https://github.com/openai/openai-agents-python), and [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) use MIT. [n8n is source-available under Sustainable Use License v1.0](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), not OSI-approved open source.
 
 ## Related comparisons
 

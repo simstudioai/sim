@@ -78,6 +78,7 @@ export function getS3Client(): S3Client {
  * @param size File size in bytes (required if configOrSize is S3Config, optional otherwise)
  * @param skipTimestampPrefix Skip adding timestamp prefix to filename (default: false)
  * @param metadata Optional metadata to store with the file
+ * @param createOnly Reject an existing key instead of replacing its object
  * @returns Object with file information
  */
 export async function uploadToS3(
@@ -87,8 +88,11 @@ export async function uploadToS3(
   configOrSize?: S3Config | number,
   size?: number,
   skipTimestampPrefix?: boolean,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  createOnly = false,
+  signal?: AbortSignal
 ): Promise<FileInfo> {
+  signal?.throwIfAborted()
   let config: S3Config
   let fileSize: number
   let shouldSkipTimestamp: boolean
@@ -124,8 +128,11 @@ export async function uploadToS3(
       Body: file,
       ContentType: contentType,
       Metadata: s3Metadata,
-    })
+      ...(createOnly ? { IfNoneMatch: '*' } : {}),
+    }),
+    ...(signal ? [{ abortSignal: signal }] : [])
   )
+  signal?.throwIfAborted()
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
@@ -341,17 +348,28 @@ export async function deleteFromS3(key: string): Promise<void>
  * @param key S3 object key
  * @param customConfig Custom S3 configuration
  */
-export async function deleteFromS3(key: string, customConfig: S3Config): Promise<void>
+export async function deleteFromS3(
+  key: string,
+  customConfig: S3Config | undefined,
+  signal?: AbortSignal
+): Promise<void>
 
-export async function deleteFromS3(key: string, customConfig?: S3Config): Promise<void> {
+export async function deleteFromS3(
+  key: string,
+  customConfig?: S3Config,
+  signal?: AbortSignal
+): Promise<void> {
+  signal?.throwIfAborted()
   const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
 
   await getS3Client().send(
     new DeleteObjectCommand({
       Bucket: config.bucket,
       Key: key,
-    })
+    }),
+    ...(signal ? [{ abortSignal: signal }] : [])
   )
+  signal?.throwIfAborted()
 }
 
 /** S3 `DeleteObjects` hard cap. */

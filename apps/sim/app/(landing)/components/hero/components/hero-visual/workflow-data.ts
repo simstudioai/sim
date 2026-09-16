@@ -1,5 +1,10 @@
 import type { ComponentType, SVGProps } from 'react'
-import { AgentIcon, AnthropicIcon, GithubIcon, JiraIcon } from '@/components/icons'
+import type {
+  BLOCK_DIMENSIONS,
+  CONNECTION_KNOB_PEAK_PX,
+  HANDLE_POSITIONS,
+} from '@sim/workflow-renderer'
+import { AgentIcon, GithubIcon, JiraIcon } from '@/components/icons'
 import { CsvIcon, DocxIcon, MarkdownIcon, PdfIcon } from '@/components/icons/document-icons'
 
 /**
@@ -23,10 +28,22 @@ export interface BlockRow {
   valueIcon?: IconComponent
 }
 
+/** A production-style natural-language summary shown below a block header. */
+export interface BlockSentence {
+  segments: ReadonlyArray<string | { subBlockId: string; noun?: string }>
+  values: Readonly<Record<string, string>>
+}
+
 /** A workflow block in design space. */
 export interface BlockDef {
   id: string
   name: string
+  /** Production block type used by the shared workflow card renderer. */
+  type?: string
+  /** Production type label shown in the card's header tag. */
+  typeLabel?: string
+  /** Uses the provider's brand treatment instead of a core workflow accent. */
+  isIntegration?: boolean
   icon: IconComponent
   /** Icon-tile fill - a brand-faithful color or a platform token (`var(--…)`). */
   bgColor: string
@@ -36,6 +53,8 @@ export interface BlockDef {
   isTrigger?: boolean
   /** Terminal blocks end the flow, so they render no outgoing (right) handle. */
   isTerminal?: boolean
+  /** Natural-language canvas summary used by current production block cards. */
+  sentence?: BlockSentence
   rows: BlockRow[]
   /** Top-left corner in design space. */
   x: number
@@ -46,6 +65,59 @@ export interface BlockDef {
 export const BLOCK_WIDTH = 250
 
 /**
+ * Compile-time pins onto the shared renderer's card dimensions. This module is
+ * pure data that server modules also import, so it carries no runtime renderer
+ * import; the numbers are spelled out here and their types force them to
+ * track `BLOCK_DIMENSIONS`, `HANDLE_POSITIONS`, and `CONNECTION_KNOB_PEAK_PX`.
+ */
+const HEADER_HEIGHT: (typeof BLOCK_DIMENSIONS)['HEADER_HEIGHT'] = 40
+const CONTENT_PADDING: (typeof BLOCK_DIMENSIONS)['WORKFLOW_CONTENT_PADDING'] = 16
+const ROW_HEIGHT: (typeof BLOCK_DIMENSIONS)['WORKFLOW_ROW_HEIGHT'] = 20
+const CONTENT_GAP: (typeof BLOCK_DIMENSIONS)['WORKFLOW_CONTENT_GAP'] = 8
+const ERROR_ROW_HEIGHT: (typeof BLOCK_DIMENSIONS)['WORKFLOW_ERROR_ROW_HEIGHT'] = 24
+const SENTENCE_LINE_HEIGHT: (typeof BLOCK_DIMENSIONS)['WORKFLOW_SENTENCE_LINE_HEIGHT'] = 24
+const HEADER_ONLY_HEIGHT: (typeof BLOCK_DIMENSIONS)['MIN_PAINTED_HEIGHT'] = 48
+const CONDITION_START_Y: (typeof HANDLE_POSITIONS)['CONDITION_START_Y'] = 58
+const CONDITION_ROW_HEIGHT: (typeof HANDLE_POSITIONS)['CONDITION_ROW_HEIGHT'] = 28
+/** Tip of a connection knob, outside the card edge - where an edge starts and ends. */
+export const HANDLE_KNOB_PEAK: typeof CONNECTION_KNOB_PEAK_PX = 7
+
+/**
+ * Exact read-only production card height: the header, a padded content stack
+ * of summary rows or one sentence line, the gaps between them, and the disabled
+ * error row every non-trigger block carries. A header-only card paints at the
+ * border's minimum.
+ */
+export function blockHeight(block: BlockDef): number {
+  const showErrorRow = !block.isTrigger
+  const contentRows = block.sentence ? 1 : block.rows.length
+  const contentItems = contentRows + (showErrorRow ? 1 : 0)
+  if (contentItems === 0) return HEADER_ONLY_HEIGHT
+
+  const summaryHeight = block.sentence ? SENTENCE_LINE_HEIGHT : contentRows * ROW_HEIGHT
+  const contentHeight = summaryHeight + (showErrorRow ? ERROR_ROW_HEIGHT : 0)
+  return (
+    HEADER_HEIGHT + CONTENT_PADDING + contentHeight + Math.max(0, contentItems - 1) * CONTENT_GAP
+  )
+}
+
+/**
+ * Production left-input / right-output anchors: the knob tips at the card's
+ * vertical centre, or on a condition block's branch rows for its outputs.
+ */
+export function horizontalHandleAnchors(block: BlockDef, branchIndex?: number) {
+  const sourceY =
+    block.type === 'condition' && branchIndex !== undefined
+      ? block.y + CONDITION_START_Y + branchIndex * CONDITION_ROW_HEIGHT
+      : block.y + blockHeight(block) / 2
+
+  return {
+    out: { x: block.x + BLOCK_WIDTH + HANDLE_KNOB_PEAK, y: sourceY },
+    in: { x: block.x - HANDLE_KNOB_PEAK, y: block.y + blockHeight(block) / 2 },
+  }
+}
+
+/**
  * Camera zoom while the workflow stage is focused on the first block. Chosen so
  * the focused first block lands at the same on-screen width as the chat card
  * (`BLOCK_WIDTH * SCALE ≈ 460`), so the chat card morphs straight into it with
@@ -53,57 +125,88 @@ export const BLOCK_WIDTH = 250
  */
 export const WORKFLOW_FOCUS_SCALE = 1.25
 
-/** Handle vertical offset from a block's top edge (matches the real WorkflowBlock). */
-export const HANDLE_Y_OFFSET = 20
-
 /**
- * Design-space bounding box the stage scales to fit the panel. Sized to exactly
- * bound the blocks below (GitHub/Jira at y=0, Agent's foot at ~y=203), so the
- * stage's flex-centering centers the workflow with no stray margin.
- */
-export const CANVAS = { width: 850, height: 206 } as const
-
-/**
- * GitHub → Agent → Jira. A gentle staircase: GitHub and Jira ride high, the
- * Agent dips between them, so the two edges read as a clean down-then-up flow.
- * The shape is left-right symmetric (Agent centered at x=425) and its bounding
- * box matches {@link CANVAS}, keeping it centered in the panel.
+ * GitHub → Agent → Jira, the workflow Sim builds from the demo prompt. A gentle
+ * staircase: GitHub and Jira ride high, the Agent dips between them, so the
+ * two edges read as a clean down-then-up flow. Every block carries the fields
+ * the production card renders - its type tag, the provider treatment, and the
+ * card's natural-language sentence - so the demo draws the real card. The
+ * GitHub block has no trigger picker, so its trigger sentence is the resolver's
+ * literal form (`Run on <trigger name>`); the Agent and Jira sentences follow
+ * their blocks' own `sentences` config with the configured values as chips.
  */
 export const BLOCKS: BlockDef[] = [
   {
     id: 'github',
-    name: 'GitHub',
+    name: 'PR opened',
+    type: 'github',
+    typeLabel: 'GitHub',
+    isIntegration: true,
     icon: GithubIcon,
     bgColor: '#181C1E',
     isTrigger: true,
-    rows: [{ title: 'Trigger', value: 'PR opened' }],
+    sentence: {
+      segments: ['Run on GitHub PR Opened'],
+      values: {},
+    },
+    rows: [],
     x: 0,
     y: 0,
   },
   {
     id: 'agent',
-    name: 'Agent',
+    name: 'Review PR',
+    type: 'agent',
+    typeLabel: 'Agent',
     icon: AgentIcon,
-    bgColor: 'var(--brand-accent)',
-    rows: [
-      { title: 'Model', value: 'Claude', valueIcon: AnthropicIcon },
-      { title: 'Task', value: 'Review PR' },
-    ],
+    bgColor: 'var(--text-primary)',
+    sentence: {
+      segments: ['Prompt', { subBlockId: 'model', noun: 'a model' }],
+      values: { model: 'claude-sonnet-5' },
+    },
+    rows: [],
     x: 300,
     y: 96,
   },
   {
     id: 'jira',
-    name: 'Jira',
+    name: 'Create issue',
+    type: 'jira',
+    typeLabel: 'Jira',
+    isIntegration: true,
     icon: JiraIcon,
     bgColor: '#FFFFFF',
     tileBorder: true,
     isTerminal: true,
-    rows: [{ title: 'Action', value: 'Create issue' }],
+    sentence: {
+      segments: [
+        'Create',
+        { subBlockId: 'issueType', noun: 'an issue' },
+        'in',
+        { subBlockId: 'project', noun: 'a project' },
+      ],
+      values: { issueType: 'Task', project: 'ENG' },
+    },
+    rows: [],
     x: 600,
     y: 0,
   },
 ]
+
+/**
+ * Design-space bounding box of {@link BLOCKS}, derived from the cards' real
+ * heights so the overview camera centres the workflow with no stray margin.
+ */
+export const CANVAS = {
+  width: Math.max(...BLOCKS.map((block) => block.x + BLOCK_WIDTH)),
+  height: Math.max(...BLOCKS.map((block) => block.y + blockHeight(block))),
+} as const
+
+/**
+ * Corner radius of a production edge (`WorkflowEdgeView` passes 8 to React
+ * Flow's smooth-step path), in design px.
+ */
+const EDGE_CORNER_RADIUS = 8
 
 /** An ordered source → target connection between two blocks. */
 export interface EdgeDef {
@@ -115,10 +218,17 @@ export interface EdgeDef {
 /**
  * Rounded orthogonal ("smoothstep") path from a source's right handle to a
  * target's left handle, stepping at the horizontal midpoint with `r`-radius
- * corners. Source/target points are taken at `block.x±width` and
- * `block.y + HANDLE_Y_OFFSET`, matching where the handles render.
+ * corners - the same route React Flow draws between two production cards.
+ * Endpoints come from {@link horizontalHandleAnchors}: the knob tips at each
+ * card's vertical centre.
  */
-export function smoothStep(sx: number, sy: number, tx: number, ty: number, r = 8): string {
+export function smoothStep(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  r = EDGE_CORNER_RADIUS
+): string {
   const midX = (sx + tx) / 2
   const dir = ty >= sy ? 1 : -1
   return [
@@ -135,12 +245,9 @@ function handlePoints(sourceId: string, targetId: string) {
   const source = BLOCKS.find((b) => b.id === sourceId)
   const target = BLOCKS.find((b) => b.id === targetId)
   if (!source || !target) throw new Error(`Unknown block in edge ${sourceId}→${targetId}`)
-  return {
-    sx: source.x + BLOCK_WIDTH,
-    sy: source.y + HANDLE_Y_OFFSET,
-    tx: target.x,
-    ty: target.y + HANDLE_Y_OFFSET,
-  }
+  const out = horizontalHandleAnchors(source).out
+  const inbound = horizontalHandleAnchors(target).in
+  return { sx: out.x, sy: out.y, tx: inbound.x, ty: inbound.y }
 }
 
 export const EDGES: EdgeDef[] = (
@@ -163,8 +270,8 @@ export const EDGES: EdgeDef[] = (
  * Scene origin is the GitHub block's CENTER (which sits at the panel center).
  */
 const GH_CENTER_X = BLOCK_WIDTH / 2
-/** GitHub block half-height in design space (its content is ~77px tall). */
-const GH_CENTER_Y = 38.5
+/** The GitHub card's half-height in design space, from its real card height. */
+const GH_CENTER_Y = blockHeight(BLOCKS[0]) / 2
 const toSceneX = (dx: number) => (dx - GH_CENTER_X) * WORKFLOW_FOCUS_SCALE
 const toSceneY = (dy: number) => (dy - GH_CENTER_Y) * WORKFLOW_FOCUS_SCALE
 
@@ -205,31 +312,68 @@ export const SCENE_EDGES: EdgeDef[] = (
   const { sx, sy, tx, ty } = handlePoints(from, to)
   return {
     id: `${from}-${to}`,
-    d: smoothStep(toSceneX(sx), toSceneY(sy), toSceneX(tx), toSceneY(ty), 14),
+    d: smoothStep(
+      toSceneX(sx),
+      toSceneY(sy),
+      toSceneX(tx),
+      toSceneY(ty),
+      EDGE_CORNER_RADIUS * WORKFLOW_FOCUS_SCALE
+    ),
   }
 })
 
 /**
  * Pull-out transform from FOCUS (block 1 centered, full size) to OVERVIEW (whole
  * workflow centered, fit to panel). `SCALE` brings the FOCUS-scale scene down to
- * the design overview (1.84 × 0.37 ≈ 0.68); the translate recenters the group -
- * it matches the design overview's GitHub offset, so the framing is identical to
- * the prior camera overview. Transform-origin is the panel center (block 1's
- * center), so FOCUS is the identity transform (no measurement needed).
+ * the design overview (1.84 × 0.37 ≈ 0.68). Transform-origin is the panel
+ * center (block 1's center), so FOCUS is the identity transform.
  */
 export const SCENE_OVERVIEW_SCALE = 0.68 / WORKFLOW_FOCUS_SCALE
-export const SCENE_OVERVIEW_TRANSLATE = { x: -204, y: -43 } as const
 
 /** Camera scale while tracing the workflow edge-by-edge before the full zoom-out. */
 export const SCENE_FOLLOW_SCALE = 0.86
 
+/** A point's scene-space position under the camera transform. */
+interface ScenePoint {
+  x: number
+  y: number
+}
+
+/** The camera translate that puts scene point `center` on the panel centre at `scale`. */
+function centeringTranslate(center: ScenePoint, scale: number): ScenePoint {
+  return { x: -center.x * scale, y: -center.y * scale }
+}
+
+/** A block's centre in scene space, from its real card height. */
+function sceneCenter(block: BlockDef): ScenePoint {
+  return {
+    x: toSceneX(block.x + BLOCK_WIDTH / 2),
+    y: toSceneY(block.y + blockHeight(block) / 2),
+  }
+}
+
 /**
- * Intermediate camera stops for the edge-follow pass. These keep the active
- * destination block centered enough to read while preserving a little context
- * around the incoming connection.
+ * The overview's translate recentres the whole workflow's bounding box, so the
+ * framing follows the cards' real heights.
  */
-export const SCENE_AGENT_FOCUS_TRANSLATE = { x: -323, y: -126 } as const
-export const SCENE_JIRA_FOCUS_TRANSLATE = { x: -645, y: 0 } as const
+export const SCENE_OVERVIEW_TRANSLATE = centeringTranslate(
+  { x: toSceneX(CANVAS.width / 2), y: toSceneY(CANVAS.height / 2) },
+  SCENE_OVERVIEW_SCALE
+)
+
+/**
+ * Intermediate camera stops for the edge-follow pass: each centres the block
+ * the connection just reached, at follow scale, so the destination reads
+ * while a little of the incoming connection stays in view.
+ */
+export const SCENE_AGENT_FOCUS_TRANSLATE = centeringTranslate(
+  sceneCenter(BLOCKS[1]),
+  SCENE_FOLLOW_SCALE
+)
+export const SCENE_JIRA_FOCUS_TRANSLATE = centeringTranslate(
+  sceneCenter(BLOCKS[2]),
+  SCENE_FOLLOW_SCALE
+)
 
 /**
  * The typed prompt, encoded as ordered atoms the typewriter reveals one at a

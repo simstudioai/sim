@@ -65,6 +65,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'INTEGRATION_NOT_ALLOWED',
   /** The OAuth access token was not granted the scope this operation needs. */
   'INSUFFICIENT_SCOPE',
+  /** The organization's identity provider owns this membership, so Sim will not change it. */
+  'SCIM_MANAGED_MEMBERSHIP',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]

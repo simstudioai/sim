@@ -9,17 +9,14 @@ import {
   isPrivateSecretProvenanceBundleV1,
   type PrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
-import {
-  PROVENANCE_MAX_ENTRIES,
-  PROVENANCE_MAX_SERIALIZED_BYTES,
-} from '@/lib/execution/provenance-limits'
+import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
+import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
 import {
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
   type ResolvedSecretTraceScopeV1,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
-const MAX_DURABLE_HASH_NODES = 50_000
 const MAX_DURABLE_HASH_DEPTH = 100
 const MAX_DURABLE_HASH_BYTES = 16 * 1024 * 1024
 
@@ -40,13 +37,15 @@ function compareStrings(left: string, right: string): number {
 export function normalizeDurableSecretProvenanceEntries(
   value: unknown
 ): DurableSecretProvenanceEntry[] | undefined {
-  if (!Array.isArray(value) || value.length > PROVENANCE_MAX_ENTRIES) {
-    return undefined
-  }
+  return Array.isArray(value) ? normalizeDurableSecretProvenanceBindings(value) : undefined
+}
 
+function normalizeDurableSecretProvenanceBindings(
+  candidates: Iterable<unknown>
+): DurableSecretProvenanceEntry[] | undefined {
   const entries = new Map<string, DurableSecretProvenanceEntry>()
-  let bytes = 0
-  for (const candidate of value) {
+  const budget = new SecretProvenanceBudget()
+  for (const candidate of candidates) {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined
     const record = candidate as Record<string, unknown>
     if (
@@ -73,14 +72,18 @@ export function normalizeDurableSecretProvenanceEntries(
         ? { sourceValueHash: record.sourceValueHash }
         : {}),
     }
-    const key = `${entry.sourceUserId ?? ''}\u0000${entry.sourceWorkspaceId ?? ''}\u0000${entry.sourceValueHash ?? ''}\u0000${entry.name ?? ''}\u0000${entry.encryptedValue}`
+    let minimumBytes = 0
+    for (const field of Object.values(entry)) {
+      minimumBytes += Buffer.byteLength(field, 'utf8')
+      if (minimumBytes > PROVENANCE_MAX_SERIALIZED_BYTES) return undefined
+    }
+    const key = JSON.stringify(entry)
     if (entries.has(key)) continue
-    bytes += Buffer.byteLength(key, 'utf8')
-    if (bytes > PROVENANCE_MAX_SERIALIZED_BYTES) return undefined
+    if (!budget.add(entry.encryptedValue, Buffer.byteLength(key, 'utf8'))) return undefined
     entries.set(key, entry)
   }
 
-  const normalized = [...entries.values()].sort(
+  return [...entries.values()].sort(
     (left, right) =>
       compareStrings(left.sourceUserId ?? '', right.sourceUserId ?? '') ||
       compareStrings(left.sourceWorkspaceId ?? '', right.sourceWorkspaceId ?? '') ||
@@ -88,10 +91,6 @@ export function normalizeDurableSecretProvenanceEntries(
       compareStrings(left.name ?? '', right.name ?? '') ||
       compareStrings(left.encryptedValue, right.encryptedValue)
   )
-  if (Buffer.byteLength(JSON.stringify(normalized), 'utf8') > PROVENANCE_MAX_SERIALIZED_BYTES) {
-    return undefined
-  }
-  return normalized
 }
 
 /** Converts a complete transport envelope into its scope-preserving durable representation. */
@@ -165,8 +164,12 @@ export function mergeDurableSecretProvenance(
   ...values: readonly DurableSecretProvenance[]
 ): DurableSecretProvenance {
   if (values.some((value) => value.status === 'unknown')) return { status: 'unknown' }
-  const normalized = normalizeDurableSecretProvenanceEntries(
-    values.flatMap((value) => (value.status === 'exact' ? value.entries : []))
+  const normalized = normalizeDurableSecretProvenanceBindings(
+    (function* () {
+      for (const value of values) {
+        if (value.status === 'exact') yield* value.entries
+      }
+    })()
   )
   return normalized ? { status: 'exact', entries: normalized } : { status: 'unknown' }
 }
@@ -244,32 +247,40 @@ export async function importDurableSecretProvenance(
     return false
   }
 
-  const grouped = new Map<string, DurableSecretProvenanceEntry[]>()
+  const grouped = new Map<
+    string,
+    {
+      scope?: ResolvedSecretTraceScopeV1
+      entries: Map<string, ResolvedSecretTraceProvenanceV1['entries'][number]>
+    }
+  >()
   for (const entry of entries) {
-    const key = `${entry.sourceUserId ?? ''}\u0000${entry.sourceWorkspaceId ?? ''}`
-    const group = grouped.get(key) ?? []
-    group.push(entry)
-    grouped.set(key, group)
+    const scope = entry.sourceUserId
+      ? {
+          userId: entry.sourceUserId,
+          ...(entry.sourceWorkspaceId ? { workspaceId: entry.sourceWorkspaceId } : {}),
+        }
+      : undefined
+    const key = JSON.stringify(scope ?? null)
+    let group = grouped.get(key)
+    if (!group) {
+      group = { scope, entries: new Map() }
+      grouped.set(key, group)
+    }
+    const transportEntry = {
+      encryptedValue: entry.encryptedValue,
+      ...(entry.name ? { name: entry.name } : {}),
+    }
+    group.entries.set(JSON.stringify(transportEntry), transportEntry)
   }
 
   let complete = true
   for (const group of grouped.values()) {
-    const first = group[0]
     const envelope: ResolvedSecretTraceProvenanceV1 = {
       version: 1,
       complete: true,
-      entries: group.map((entry) => ({
-        encryptedValue: entry.encryptedValue,
-        ...(entry.name ? { name: entry.name } : {}),
-      })),
-      ...(first.sourceUserId
-        ? {
-            scope: {
-              userId: first.sourceUserId,
-              ...(first.sourceWorkspaceId ? { workspaceId: first.sourceWorkspaceId } : {}),
-            },
-          }
-        : {}),
+      entries: [...group.entries.values()],
+      ...(group.scope ? { scope: group.scope } : {}),
     }
     const imported =
       value === undefined
@@ -309,7 +320,6 @@ export async function createDurableSecretProvenanceRegistry(
 export function hashDurableSecretProvenanceValue(value: unknown): string | undefined {
   const hash = createHash('sha256')
   const ancestors = new WeakSet<object>()
-  let nodes = 0
   let bytes = 0
 
   const append = (chunk: string): boolean => {
@@ -320,8 +330,7 @@ export function hashDurableSecretProvenanceValue(value: unknown): string | undef
   }
 
   const visit = (candidate: unknown, depth: number): boolean => {
-    nodes++
-    if (nodes > MAX_DURABLE_HASH_NODES || depth > MAX_DURABLE_HASH_DEPTH) return false
+    if (depth > MAX_DURABLE_HASH_DEPTH) return false
     if (candidate === null) return append('null')
     if (typeof candidate === 'string') return append(JSON.stringify(candidate))
     if (typeof candidate === 'boolean') return append(candidate ? 'true' : 'false')

@@ -6,7 +6,7 @@ description: Upload, download, share, and manage files in Dropbox
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="dropbox"
+  type="dropbox_v2"
   color="#0061FF"
 />
 
@@ -66,7 +66,7 @@ Upload a file to Dropbox
 
 ### Dropbox Download File
 
-Download a file from Dropbox with metadata and content
+Download a file from Dropbox with metadata
 
 #### Input
 
@@ -81,7 +81,6 @@ Download a file from Dropbox with metadata and content
 | `file` | file | Downloaded file stored in execution files |
 | `metadata` | json | The file metadata |
 | `temporaryLink` | string | Temporary link to download the file \(valid for ~4 hours\) |
-| `content` | string | Base64 encoded file content \(if fetched\) |
 
 ### Dropbox List Folder
 

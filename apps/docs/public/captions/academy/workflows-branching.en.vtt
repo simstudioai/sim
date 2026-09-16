@@ -1,0 +1,81 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:04.520
+Branching is how a workflow can split into
+different paths based on the result of a
+
+00:00:04.520 --> 00:00:09.460
+step. Say one step checks an incoming
+offer. If it's over a certain amount, the
+
+00:00:09.460 --> 00:00:14.540
+workflow routes it for review, and if not,
+it just continues on. In Sim, that split
+
+00:00:14.540 --> 00:00:20.080
+can come from a simple rule you set,
+written code, or be handed off to an agent
+
+00:00:20.080 --> 00:00:22.800
+to decide. Let me show you how it works.
+
+00:00:24.340 --> 00:00:28.720
+A workflow doesn't have to be a straight
+line. It can fork. The fork is one block,
+
+00:00:28.880 --> 00:00:34.120
+and every branch row on it is its own
+output port. A condition block picks the
+
+00:00:34.120 --> 00:00:38.580
+branch with a rule. The priority field
+resolves to high, the check passes
+
+00:00:38.580 --> 00:00:43.600
+instantly with no model involved, and the
+workflow takes the top lane. The bottom
+
+00:00:43.600 --> 00:00:49.100
+lane never runs. Branches are checked from
+top to bottom, and the first one that's
+
+00:00:49.100 --> 00:00:53.540
+true wins. This ticket matches nothing
+above it, so the else branch fires
+
+00:00:53.540 --> 00:00:57.740
+instead. When the rule is too hard to
+write, when the decision depends on
+
+00:00:57.740 --> 00:01:02.340
+meaning, you swap in a router. It takes a
+context to read, a model to read it, and a
+
+00:01:02.340 --> 00:01:03.340
+set of named routes.
+
+00:01:04.940 --> 00:01:09.500
+Now a model makes the choice. The router
+reads the ticket, thinks for a moment, and
+
+00:01:09.500 --> 00:01:12.980
+that pause is a real model call, then it
+picks the support route.
+
+00:01:16.580 --> 00:01:21.360
+The run's log shows five blocks, but only
+three rows ran. The branch that wasn't
+
+00:01:21.360 --> 00:01:27.180
+taken, never executed at all. It left no
+log entry and no output. It's still one
+
+00:01:27.180 --> 00:01:30.960
+workflow. Reach for a rule when you can
+write one, and reach for a model when you
+
+00:01:30.960 --> 00:01:31.960
+can't.

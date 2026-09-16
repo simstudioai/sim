@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -67,9 +67,15 @@ describe('server window', () => {
   let deps: ServerWindowDeps
 
   beforeEach(() => {
+    vi.useFakeTimers()
     deps = makeDeps()
     MockBrowserWindow.instances = []
     vi.mocked(dialog.showMessageBox).mockClear()
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
   })
 
   // The page ships inside app.asar. Loaded over `file:` it never rendered in a
@@ -95,6 +101,24 @@ describe('server window', () => {
     handler('before-input-event')(event, { type: 'keyDown', key: 'Escape' })
     expect(win.destroy).toHaveBeenCalledTimes(1)
     expect(event.preventDefault).toHaveBeenCalledTimes(1)
+  })
+
+  it('only shows the picker once its renderer has supplied a content size', () => {
+    const { win } = openPicker(deps)
+    expect(win.show).not.toHaveBeenCalled()
+    win.webContents.mainFrame.url = 'sim-shell://pages/server.html'
+    const resize = win.webContents.ipc.on.mock.calls.find(([name]) => name === 'shell:resize')?.[1]
+    resize?.({ sender: win.webContents, senderFrame: win.webContents.mainFrame }, 320)
+    expect(win.show).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(10_000)
+    expect(dialog.showMessageBox).not.toHaveBeenCalled()
+  })
+
+  it('recovers if the HTML loads but the renderer never becomes ready', () => {
+    const { win } = openPicker(deps)
+    vi.advanceTimersByTime(10_000)
+    expect(win.destroy).toHaveBeenCalledOnce()
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
   })
 
   it('never leaves a blank sheet when the page fails to load', () => {

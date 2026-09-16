@@ -9,6 +9,8 @@ import {
   getIntegrationAvailability,
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
+import { getGitHubInstallationConfiguration } from '@/lib/oauth/github-installation'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import type { OAuthServiceMetadata } from '@/lib/oauth/types'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
 import { getBlock } from '@/blocks/registry'
@@ -16,7 +18,7 @@ import { isHiddenUnder } from '@/blocks/visibility/context'
 
 export interface IntegrationCredentialIdentity {
   providerId: string
-  type?: 'oauth' | 'service_account' | 'managed_oauth'
+  type?: 'oauth' | 'service_account' | 'managed_oauth' | 'personal_token'
 }
 
 interface IntegrationCredentialVisibilityOptions {
@@ -33,9 +35,9 @@ export interface IntegrationCredentialVisibility {
 /**
  * Builds the server-side projection shared by Copilot credential discovery and
  * the workspace VFS. Unknown provider ids are not integration credentials and
- * remain visible; mapped OAuth and service-account ids must have at least one
- * owning integration that is allowed, deployment-ready, and visible to the
- * current block-visibility projection.
+ * remain visible; mapped credentials require an allowed, visible integration.
+ * Ordinary OAuth also requires the deployment's OAuth client. Managed grants
+ * use their enrollment's authorization app, validated by the grant resolver.
  */
 export function createIntegrationCredentialVisibility({
   allowedIntegrationTypes,
@@ -103,10 +105,26 @@ export function createIntegrationCredentialVisibility({
     )
   }
 
+  const isManagedOAuthServiceVisible = (service: OAuthServiceMetadata): boolean => {
+    if (service.authType !== 'oauth' || !isServiceAllowed(service)) return false
+    return (
+      getIntegrationTypesForOAuthServiceId(service.serviceId).length === 0 ||
+      visibleAvailability(service).length > 0
+    )
+  }
+
   const isServiceAccountVisible = (
     providerId: string,
     owners: readonly OAuthServiceMetadata[]
   ): boolean => {
+    if (providerId === GITHUB_INSTALLATION_PROVIDER_ID) {
+      return (
+        getGitHubInstallationConfiguration().configured &&
+        owners.some(
+          (service) => isServiceAllowed(service) && visibleAvailability(service).length > 0
+        )
+      )
+    }
     const gatingBlockType = getServiceAccountGatingBlockType(providerId)
     if (gatingBlockType) {
       const gatingBlock = getBlock(gatingBlockType)
@@ -136,6 +154,22 @@ export function createIntegrationCredentialVisibility({
   }
 
   const isCredentialVisible = ({ providerId, type }: IntegrationCredentialIdentity): boolean => {
+    if (type === 'managed_oauth') {
+      return oauthOwnersByProviderId.get(providerId)?.some(isManagedOAuthServiceVisible) ?? false
+    }
+    if (type === 'personal_token') {
+      if (
+        providerId !== 'gitlab' ||
+        (allowedIntegrationTypes && !allowedIntegrationTypes.has('gitlab'))
+      )
+        return false
+      const block = getBlock('gitlab')
+      const availability = availabilityByType.get('gitlab')
+      if (!block || block.hideFromToolbar || isHiddenUnder(blockVisibility, block) || !availability)
+        return false
+      const state = resolveIntegrationAvailabilityStateForVisibility(availability, blockVisibility)
+      return state === 'ready' || state === 'limited'
+    }
     if (type !== 'service_account') {
       const owners = oauthOwnersByProviderId.get(providerId)
       if (owners) return owners.some(isOAuthServiceVisible)

@@ -387,7 +387,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
     <motion.div
       ref={ref}
       initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }}
-      animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }}
+      animate={{ opacity: 1, scale: 1 }}
       exit={reduceMotion ? undefined : { opacity: 0, scale: 0.98 }}
       transition={TAB_TRANSITION}
       className={cn(

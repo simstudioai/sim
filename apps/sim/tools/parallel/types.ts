@@ -1,8 +1,8 @@
 import type { ToolResponse } from '@/tools/types'
 
 export interface ParallelSearchParams {
-  objective: string
-  search_queries?: string[] | string
+  search_queries: string[] | string
+  objective?: string
   mode?: string
   max_results?: number
   max_chars_per_result?: number
@@ -28,7 +28,6 @@ interface ParallelSearchResponse extends ToolResponse {
 export interface ParallelExtractParams {
   urls: string
   objective?: string
-  excerpts?: boolean
   full_content?: boolean
   apiKey: string
 }
@@ -41,15 +40,24 @@ interface ParallelExtractResult {
   full_content?: string | null
 }
 
+interface ParallelExtractError {
+  url: string | null
+  error_type: string | null
+  http_status_code: number | null
+  content: string | null
+}
+
 interface ParallelExtractResponse extends ToolResponse {
   output: {
     extract_id: string | null
     results: ParallelExtractResult[]
+    errors: ParallelExtractError[]
   }
 }
 
 export interface ParallelDeepResearchParams {
   input: string
+  output_format?: string
   processor?: string
   include_domains?: string
   exclude_domains?: string
@@ -61,10 +69,10 @@ interface ParallelDeepResearchBasis {
   reasoning: string
   citations: {
     url: string
-    title: string
-    excerpts: string[]
+    title: string | null
+    excerpts: string[] | null
   }[]
-  confidence: string
+  confidence: string | null
 }
 
 interface ParallelDeepResearchResponse extends ToolResponse {
@@ -72,7 +80,7 @@ interface ParallelDeepResearchResponse extends ToolResponse {
     status: string
     run_id: string
     message: string
-    content: Record<string, unknown>
+    content: string | Record<string, unknown>
     basis: ParallelDeepResearchBasis[]
   }
 }

@@ -10,7 +10,7 @@ import type { SyncResult } from '@/connectors/types'
 
 const logger = createLogger('TriggerKnowledgeConnectorSync')
 
-export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed'
+export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed' | 'deferred'
 
 /**
  * Separates source-sync failures from expected queue/lock no-ops. Intentional
@@ -20,7 +20,10 @@ export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'fa
 export function classifyConnectorSyncResult(result: SyncResult): ConnectorSyncTaskOutcome {
   if (result.skipReason) return 'skipped'
   if (result.error) return 'failed'
-  if (result.docsFailed > 0 || result.processingDispatch.failed > 0) return 'partial'
+  if (result.deferred && result.docsFailed === 0 && result.processingDispatch.failed === 0)
+    return 'deferred'
+  if (result.listingIncomplete || result.docsFailed > 0 || result.processingDispatch.failed > 0)
+    return 'partial'
   return 'completed'
 }
 
@@ -60,6 +63,7 @@ export async function executeConnectorSyncJob(payload: unknown) {
     logger.info(`[${requestId}] Connector sync completed`, {
       connectorId,
       outcome: classifyConnectorSyncResult(result),
+      deferred: result.deferred,
       added: result.docsAdded,
       updated: result.docsUpdated,
       deleted: result.docsDeleted,
@@ -72,7 +76,7 @@ export async function executeConnectorSyncJob(payload: unknown) {
     })
 
     const outcome = classifyConnectorSyncResult(result)
-    if (outcome === 'failed' || outcome === 'partial') {
+    if (outcome === 'failed' || result.docsFailed > 0 || result.processingDispatch.failed > 0) {
       /**
        * `executeSync` has already persisted its terminal state. Source failures
        * preserve the previous incremental watermark so the next connector pass
@@ -80,7 +84,9 @@ export async function executeConnectorSyncJob(payload: unknown) {
        * sweep. Retrying this whole task immediately would duplicate a large
        * fan-out, so fail visibly without retrying the completed transaction.
        */
-      throw new AbortTaskRunError(formatConnectorSyncFailure(connectorId, result, outcome))
+      throw new AbortTaskRunError(
+        formatConnectorSyncFailure(connectorId, result, outcome === 'failed' ? 'failed' : 'partial')
+      )
     }
 
     return {

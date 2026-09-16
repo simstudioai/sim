@@ -16,13 +16,15 @@ import {
  * authorizes in its own middleware — for every operation alike, ahead of and
  * independently of whatever module capability the operation names.
  *
+ * `oauth_apps.use` applies the same rule to OAuth credentials.
+ *
  * Excluded from {@link OperationDeclarableCapability} because an operation that
  * named it would be wrong either way: withheld, it would double-apply a refusal
  * the funnel has already made in the caller's own words; and a session caller
  * holding no API key at all would be refused an ordinary operation over a
  * setting about credentials they are not using.
  */
-export type PrincipalWideCapability = 'personal_api_key.use'
+export type PrincipalWideCapability = 'personal_api_key.use' | 'oauth_apps.use'
 
 /**
  * The capabilities an operation may name — every static rule except the
@@ -35,7 +37,10 @@ export type OperationDeclarableCapability = Exclude<
 >
 
 /** The runtime half of {@link PrincipalWideCapability}, for the builders' guard. */
-const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = ['personal_api_key.use']
+const PRINCIPAL_WIDE_CAPABILITIES: readonly PrincipalWideCapability[] = [
+  'personal_api_key.use',
+  'oauth_apps.use',
+]
 
 export interface ApplicationOperation<Id extends string = string> {
   readonly id: Id
@@ -76,7 +81,12 @@ export function assertOperationOAuthPolicy(
 ): void {
   const acceptsOAuth = operation.principalKinds.includes('oauth_access_token')
   if (acceptsOAuth) {
-    if (operation.oauthScope === 'api:read' || operation.oauthScope === 'api:write') return
+    if (
+      operation.oauthScope === 'api:read' ||
+      operation.oauthScope === 'api:write' ||
+      operation.oauthScope === 'search:read'
+    )
+      return
     throw new Error(`Operation ${operation.id} must declare its OAuth scope`)
   }
   if (operation.oauthScope !== undefined) {
@@ -88,8 +98,18 @@ export function assertOperationOAuthPolicy(
  * Every principal kind an operation can name. `credential_group_enrollment`
  * authenticates one enrollment flow, while `system` is an infrastructure-owned
  * workflow execution identity; neither performs a semantic resource operation.
+ *
+ * `scim_connection` is excluded for a different reason: it is an organization's
+ * identity provider, which provisions membership and never reads or writes a
+ * workspace resource. Leaving it out makes that a compile-time fact — a
+ * workspace operation cannot name it even by accident — and SCIM declares its
+ * own operation type in `ee/scim/lib/application/operations.ts`, the way
+ * organization BYOK does.
  */
-export type PrincipalKind = Exclude<Principal['kind'], 'credential_group_enrollment' | 'system'>
+export type PrincipalKind = Exclude<
+  Principal['kind'],
+  'credential_group_enrollment' | 'system' | 'scim_connection' | 'slack_installation' | 'slack_app'
+>
 
 /**
  * A principal kind a non-workspace operation may name. `delegated` is excluded
@@ -98,7 +118,10 @@ export type PrincipalKind = Exclude<Principal['kind'], 'credential_group_enrollm
  * that {@link defineWorkspaceOperation} exists to carry. An operation that needs
  * delegation is a workspace operation.
  */
-export type UndelegatedPrincipalKind = Exclude<PrincipalKind, 'delegated'>
+export type UndelegatedPrincipalKind = Exclude<
+  PrincipalKind,
+  'delegated' | 'organization_delegated'
+>
 
 /**
  * An operation with no workspace scope and therefore no role, whose whole

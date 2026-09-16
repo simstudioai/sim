@@ -61,6 +61,7 @@ export type MappableMappingKind = Exclude<ForkMappingEntry['kind'], 'knowledge-d
 
 /** Section label + display order per mapping kind (one mapping group per kind). */
 const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: number }> = {
+  sandbox: { label: 'Sandboxes', order: 12 },
   credential: { label: 'Credentials', order: 0 },
   'env-var': { label: 'Secrets', order: 1 },
   table: { label: 'Tables', order: 2 },

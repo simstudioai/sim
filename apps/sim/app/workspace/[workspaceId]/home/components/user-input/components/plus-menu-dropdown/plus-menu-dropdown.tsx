@@ -24,12 +24,15 @@ import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/componen
 import {
   buildMentionPreview,
   resourceMentionMatches,
-  withDesktopTabMentions,
+  withBrowserTabMentions,
+  withFolderMentions,
+  withTerminalTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
@@ -103,6 +106,7 @@ export const PlusMenuDropdown = React.memo(
       isHydrating,
     } = useAvailableResources(workspaceId, {
       enabled: open || !!warm,
+      includeFolderMentions: true,
     })
 
     const doOpen = useCallback(
@@ -120,16 +124,31 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
+    const settledCommands = useSettledTerminalCommands(terminalTabs)
     const visibleResources = useMemo(() => {
-      if (isMention) {
-        return withDesktopTabMentions(availableResources, browserTabs, terminalTabs)
-      }
-      return availableResources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
-    }, [availableResources, browserTabs, isMention, terminalTabs])
+      const resources = withTerminalTabMentions(
+        withBrowserTabMentions(
+          withFolderMentions(availableResources, structureFolders),
+          browserTabs
+        ),
+        terminalTabs,
+        settledCommands
+      )
+      if (isMention) return resources
+      return resources.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
+    }, [
+      availableResources,
+      structureFolders,
+      browserTabs,
+      isMention,
+      settledCommands,
+      terminalTabs,
+    ])
 
     const treeSections = useResourceTreeSections({
-      groups: visibleResources,
+      groups: availableResources,
       structureFolders,
+      selectFolders: true,
     })
 
     const filteredItems = useMemo(() => {

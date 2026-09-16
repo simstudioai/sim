@@ -19,7 +19,7 @@ import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 import { useAdminWorkspaces } from '@/hooks/queries/workspace'
@@ -99,6 +99,8 @@ interface InviteModalProps {
   inviteDisabledReason?: string | null
   /** False when the viewer lacks permission to invite. */
   canInvite?: boolean
+  /** Target-organization authority when this modal is rendered outside a workspace. */
+  isOrganizationAdmin?: boolean
 }
 
 /**
@@ -114,6 +116,7 @@ export function InviteModal({
   organizationId = null,
   inviteDisabledReason = null,
   canInvite = true,
+  isOrganizationAdmin,
 }: InviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>(
@@ -143,6 +146,7 @@ export function InviteModal({
   const { data: session } = useSession()
   const { billingEnabled } = useDeploymentShape()
   const isOrganizationInvite = Boolean(organizationId)
+  const organizationOnly = isOrganizationInvite && !workspaceId
 
   const sendInvitations = useSendWorkspaceInvitations()
   const isSubmitting = sendInvitations.isPending
@@ -154,7 +158,7 @@ export function InviteModal({
   const { data: adminWorkspaces } = useAdminWorkspaces(
     session?.user?.id,
     organizationId ?? undefined,
-    { enabled: open && isOrganizationInvite }
+    { enabled: open && isOrganizationInvite && !organizationOnly }
   )
 
   const workspaceOptions = useMemo<ChipDropdownOption[]>(() => {
@@ -171,7 +175,7 @@ export function InviteModal({
    * it is fetched solely when the viewer administers the organization the page
    * is actually hosted by.
    */
-  const hostContext = useWorkspaceHostContext()
+  const hostContext = useOptionalWorkspaceHostContext()
   /**
    * Organization Admin is an organization-level grant — it carries admin on every
    * workspace the org owns plus member and billing management — so it is only
@@ -180,15 +184,15 @@ export function InviteModal({
    */
   const canGrantOrganizationAdmin =
     isOrganizationInvite &&
-    hostContext.hostOrganizationId === organizationId &&
-    hostContext.viewer.isHostOrganizationAdmin
-  const membershipOptions = canGrantOrganizationAdmin
-    ? MEMBERSHIP_OPTIONS
-    : MEMBERSHIP_OPTIONS.filter((option) => option.value !== 'admin')
-  const canViewOrganizationBilling =
-    isOrganizationInvite &&
-    hostContext.hostOrganizationId === organizationId &&
-    hostContext.viewer.isHostOrganizationAdmin
+    (isOrganizationAdmin ??
+      (hostContext?.hostOrganizationId === organizationId &&
+        hostContext.viewer.isHostOrganizationAdmin))
+  const membershipOptions = MEMBERSHIP_OPTIONS.filter(
+    (option) =>
+      (option.value !== 'admin' || canGrantOrganizationAdmin) &&
+      (option.value !== 'external' || !organizationOnly)
+  )
+  const canViewOrganizationBilling = canGrantOrganizationAdmin
 
   const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '', {
     enabled: open && billingEnabled && canViewOrganizationBilling,
@@ -235,9 +239,9 @@ export function InviteModal({
     setErrorMessage(null)
   }, [])
 
-  const handleSend = useCallback(() => {
+  const handleSend = () => {
     setErrorMessage(null)
-    if (emails.length === 0 || selectedWorkspaceIds.length === 0) return
+    if (emails.length === 0 || (!organizationOnly && selectedWorkspaceIds.length === 0)) return
 
     sendInvitations.mutate(
       {
@@ -278,28 +282,21 @@ export function InviteModal({
         },
       }
     )
-  }, [
-    emails,
-    selectedWorkspaceIds,
-    access,
-    membership,
-    isOrganizationInvite,
-    organizationId,
-    onOpenChange,
-  ])
+  }
 
   const isSendDisabled =
     !canInvite ||
     Boolean(inviteDisabledReason) ||
     isSubmitting ||
     emails.length === 0 ||
-    selectedWorkspaceIds.length === 0
+    (!organizationOnly && selectedWorkspaceIds.length === 0) ||
+    (organizationOnly && !canGrantOrganizationAdmin)
 
   return (
     <ChipModal
       open={open}
       onOpenChange={onOpenChange}
-      srTitle={`Invite teammates to ${workspaceName || 'workspace'}`}
+      srTitle={`Invite teammates to ${organizationOnly ? 'organization' : workspaceName || 'workspace'}`}
     >
       <ChipModalHeader onClose={() => onOpenChange(false)}>Invite teammates</ChipModalHeader>
       <ChipModalBody>
@@ -317,34 +314,38 @@ export function InviteModal({
           }
           disabled={isSubmitting || !canInvite}
         />
-        <ChipModalField type='custom' title='Workspaces'>
-          <ChipDropdown
-            multiple
-            value={selectedWorkspaceIds}
-            onChange={setSelectedWorkspaceIds}
-            options={workspaceOptions}
-            allLabel='Select workspaces'
-            showAllOption={false}
-            searchable={isOrganizationInvite}
-            searchPlaceholder='Search workspaces...'
-            fullWidth
-            disabled={isSubmitting || !canInvite || workspaceOptions.length <= 1}
-          />
-        </ChipModalField>
-        <ChipModalField
-          type='dropdown'
-          title='Workspace access'
-          options={ACCESS_OPTIONS}
-          value={access}
-          placeholder='Select access'
-          align='start'
-          disabled={isSubmitting || !canInvite}
-          onChange={(next) => setAccess(next as PermissionType)}
-        />
+        {!organizationOnly && (
+          <>
+            <ChipModalField type='custom' title='Workspaces'>
+              <ChipDropdown
+                multiple
+                value={selectedWorkspaceIds}
+                onChange={setSelectedWorkspaceIds}
+                options={workspaceOptions}
+                allLabel='Select workspaces'
+                showAllOption={false}
+                searchable={isOrganizationInvite}
+                searchPlaceholder='Search workspaces...'
+                fullWidth
+                disabled={isSubmitting || !canInvite || workspaceOptions.length <= 1}
+              />
+            </ChipModalField>
+            <ChipModalField
+              type='dropdown'
+              title='Workspace access'
+              options={ACCESS_OPTIONS}
+              value={access}
+              placeholder='Select access'
+              align='start'
+              disabled={isSubmitting || !canInvite}
+              onChange={(next) => setAccess(next as PermissionType)}
+            />
+          </>
+        )}
         {isOrganizationInvite && (
           <ChipModalField
             type='dropdown'
-            title='Organization membership'
+            title={organizationOnly ? 'Role' : 'Organization membership'}
             options={membershipOptions}
             value={membership}
             placeholder='Select membership'

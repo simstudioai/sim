@@ -292,9 +292,9 @@ docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d --build
 
 **Rollback after a schema change** requires restoring the database to the pre-upgrade backup, because migrations are forward-only:
 
-1. Scale the app to zero.
+1. Stop traffic and all processes that can write to the database, including the app, realtime service, scheduled jobs, and any background workers.
 2. Restore the pre-upgrade database snapshot.
-3. Redeploy the previous image tag on all three images.
+3. Redeploy the previous image tag on the app, realtime, and migrations services, then resume the matching background workers and scheduler.
 4. Verify.
 
 This loses everything written since the snapshot. It is why the pre-upgrade backup and a staging rehearsal matter more here than in most systems.

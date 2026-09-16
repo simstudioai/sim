@@ -127,10 +127,11 @@ describe('platform feature scope', () => {
     ])
   })
 
-  it('reads exactly five keys from both a workspace group and the default group', () => {
+  it('reads exactly six keys from both a workspace group and the default group', () => {
     expect(keysWithScope('workspace-or-organization')).toEqual([
       'disableCliAccess',
       'disableInvitations',
+      'disableOAuthAppAccess',
       'disablePersonalApiKeys',
       'hideApiKeysTab',
       'hideIntegrationsTab',

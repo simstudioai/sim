@@ -12,11 +12,13 @@ const {
   mockGetOrgWhitelabelSettings,
   mockPrefetchWorkspaceHostContext,
   mockPrefetchWorkspaceSidebar,
+  mockPrefetchWorkspaceAccess,
 } = vi.hoisted(() => ({
   mockBrandingProvider: vi.fn(({ children }: { children: ReactNode }) => children),
   mockGetOrgWhitelabelSettings: vi.fn(),
   mockPrefetchWorkspaceHostContext: vi.fn(),
   mockPrefetchWorkspaceSidebar: vi.fn(),
+  mockPrefetchWorkspaceAccess: vi.fn(),
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -45,6 +47,10 @@ vi.mock('@/app/workspace/[workspaceId]/prefetch', () => ({
   prefetchWorkspaceSidebar: mockPrefetchWorkspaceSidebar,
 }))
 
+vi.mock('@/app/workspace/[workspaceId]/prefetch-access', () => ({
+  prefetchWorkspaceAccess: mockPrefetchWorkspaceAccess,
+}))
+
 vi.mock('@/ee/whitelabeling/org-branding', () => ({
   getOrgWhitelabelSettings: mockGetOrgWhitelabelSettings,
 }))
@@ -63,6 +69,10 @@ vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceChrome: ({ children }: { children: ReactNode }) => children,
+}))
+
+vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
+  Sidebar: () => null,
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/components/workspace-access-denied', () => ({
@@ -142,10 +152,11 @@ describe('WorkspaceLayout host context', () => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({
       user: { id: 'viewer-1' },
-      session: { activeOrganizationId: 'org-a' },
+      session: { id: 'session-1', activeOrganizationId: 'org-a' },
     })
     mockPrefetchWorkspaceHostContext.mockResolvedValue(HOST_CONTEXT)
     mockPrefetchWorkspaceSidebar.mockResolvedValue(undefined)
+    mockPrefetchWorkspaceAccess.mockResolvedValue(undefined)
     mockGetOrgWhitelabelSettings.mockResolvedValue({ brandName: 'Host B' })
   })
 
@@ -165,6 +176,11 @@ describe('WorkspaceLayout host context', () => {
       HOST_CONTEXT,
       'org-a'
     )
+    expect(mockPrefetchWorkspaceAccess).toHaveBeenCalledWith(expect.anything(), 'workspace-b', {
+      kind: 'session',
+      userId: 'viewer-1',
+      sessionId: 'session-1',
+    })
     expect(mockBrandingProvider).toHaveBeenCalledWith(
       expect.objectContaining({
         hostOrganizationId: 'org-b',
@@ -187,6 +203,7 @@ describe('WorkspaceLayout host context', () => {
     expect(html).toContain('Workspace access denied')
     expect(html).not.toContain('Secret workspace child')
     expect(mockPrefetchWorkspaceSidebar).not.toHaveBeenCalled()
+    expect(mockPrefetchWorkspaceAccess).not.toHaveBeenCalled()
     expect(mockGetOrgWhitelabelSettings).not.toHaveBeenCalled()
   })
 })

@@ -14,6 +14,11 @@ afterAll(() => {
   mockGetActiveWorkflow.mockReset()
 })
 
+const { mockAuthorizeOrganization } = vi.hoisted(() => ({ mockAuthorizeOrganization: vi.fn() }))
+vi.mock('@/lib/copilot/chat/organization-chats', () => ({
+  authorizeOrganizationChat: { execute: mockAuthorizeOrganization },
+}))
+
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   assertActiveWorkspaceAccess: vi.fn(),
   checkWorkspaceAccess: vi.fn(),
@@ -34,6 +39,7 @@ const chatRow = {
   userId: USER_ID,
   workflowId: null,
   workspaceId: null,
+  organizationId: null,
   type: 'copilot',
   title: 'Test',
   conversationId: null,
@@ -54,6 +60,11 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockAuthorizeOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      userId: USER_ID,
+      role: 'member',
+    })
   })
 
   it('getAccessibleCopilotChatWithMessages sources messages from copilot_messages in seq order', async () => {
@@ -246,5 +257,82 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     expect(Object.hasOwn(insertValues, 'messages')).toBe(false)
     // a brand-new chat must not trigger a messages read
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+  })
+})
+
+const orgPrincipal = { kind: 'session' as const, userId: USER_ID, sessionId: 'session-1' }
+
+describe('organization chat isolation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
+    mockAuthorizeOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      userId: USER_ID,
+      role: 'member',
+    })
+  })
+
+  it('allows an org member without a workspace to read their transcript', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { ...chatRow, organizationId: 'org-1', type: 'mothership' },
+    ])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([{ content: userMsg }])
+    const chat = await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID, {
+      principal: orgPrincipal,
+    })
+    expect(chat?.messages).toEqual([userMsg])
+    expect(mockAuthorizeOrganization).toHaveBeenCalledWith({
+      principal: orgPrincipal,
+      input: { organizationId: 'org-1' },
+    })
+  })
+
+  it('does not expose org content to a legacy caller without a principal', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, organizationId: 'org-1' }])
+    expect(await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID)).toBeNull()
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+  })
+
+  it('rejects a principal that does not represent the chat owner', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ ...chatRow, organizationId: 'org-1' }])
+    expect(
+      await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID, {
+        principal: { ...orgPrincipal, userId: 'other-user' },
+      })
+    ).toBeNull()
+    expect(mockAuthorizeOrganization).not.toHaveBeenCalled()
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+  })
+
+  it('refuses to resume an org chat through a different organization', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { ...chatRow, organizationId: 'org-2', type: 'mothership' },
+    ])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([])
+    const result = await resolveOrCreateChat({
+      chatId: CHAT_ID,
+      userId: USER_ID,
+      organizationId: 'org-1',
+      principal: orgPrincipal,
+      model: 'm',
+      type: 'mothership',
+    })
+    expect(result.chat).toBeNull()
+    expect(result.conversationHistory).toEqual([])
+  })
+
+  it('rejects mixed organization and workspace ownership before creating a chat', async () => {
+    await expect(
+      resolveOrCreateChat({
+        userId: USER_ID,
+        organizationId: 'org-1',
+        workspaceId: 'ws-1',
+        principal: orgPrincipal,
+        model: 'm',
+      })
+    ).rejects.toThrow('cannot have workspace')
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
   })
 })

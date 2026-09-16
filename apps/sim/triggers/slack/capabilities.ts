@@ -1,4 +1,5 @@
 import {
+  resolveSlackManagedUserScopes,
   SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
   SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
   SLACK_MANAGED_USER_SCOPES,
@@ -183,13 +184,16 @@ export const SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY = {
   defaultChecked: true,
 } as const
 
-export function getSlackManagedUserAuthorizationManifestConfig(baseUrl: string) {
+export function getSlackManagedUserAuthorizationManifestConfig(
+  baseUrl: string,
+  requiredScopes: readonly string[] = SLACK_MANAGED_USER_SCOPES
+) {
   return {
     redirectUrls: [
       `${baseUrl}${SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH}`,
       `${baseUrl}${SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH}`,
     ],
-    userScopes: SLACK_MANAGED_USER_SCOPES,
+    userScopes: resolveSlackManagedUserScopes(requiredScopes),
   }
 }
 

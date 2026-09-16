@@ -149,7 +149,7 @@ describe('McpService connection reuse wiring', () => {
       mcpService.executeManagedMcpTool({
         connectionId: 'disabled-grant',
         serverId: SERVER_ROW.id,
-        workspaceId: WORKSPACE_ID,
+        scope: { kind: 'workspace', workspaceId: WORKSPACE_ID },
         toolCall: { name: 'slow', arguments: {} },
         loadAuthProvider: vi.fn().mockRejectedValue(error),
       })
@@ -165,7 +165,7 @@ describe('McpService connection reuse wiring', () => {
     await mcpService.executeManagedMcpTool({
       connectionId: 'personal-grant',
       serverId: SERVER_ROW.id,
-      workspaceId: WORKSPACE_ID,
+      scope: { kind: 'workspace', workspaceId: WORKSPACE_ID },
       toolCall: { name: 'slow', arguments: {} },
       loadAuthProvider,
       signal,

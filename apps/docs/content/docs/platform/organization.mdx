@@ -5,9 +5,7 @@ description: Folders, colors, and naming conventions for keeping a growing works
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
 
-A **folder** is a container in the sidebar that groups workflows. It is the primary way you organize a [workspace](/platform/workspaces) once it holds more than a handful of workflows. Folders work like folders in a desktop file system: they nest, they collapse, and you arrange them by convention so the structure tells you where things live.
-
-A flat list of twenty workflows is hard to scan, but grouping the same twenty under three or four top-level folders gives you a map of where everything lives.
+Folders group workflows in the sidebar. Nest or reorder them to organize a [workspace](/platform/workspaces) by team, customer, or purpose.
 
 {/* VISUAL: before/after sidebar. Left: a flat list of ~20 workflows, no grouping. Right: the same workflows under 3-4 top-level color-coded folders ("Internal", "Customer-Facing", "Ops"), some expanded to show nested subfolders. */}
 
@@ -17,21 +15,19 @@ Here's an example: a folder named **Customer Deployments**, colored red, holding
 
 ### Name
 
-A **name** is the label you give a folder. It is plain text with no enforced format, so the convention is yours to set. Pick names that read as categories, not as one-off labels: `Internal`, `Customer-Facing`, `Ops`. Our example folder is named `Customer Deployments`. Naming is covered in [Conventions](#conventions) below.
+Choose category names such as `Internal`, `Customer-Facing`, or `Ops`. Use the same naming convention across your workspace.
 
 {/* VISUAL: a single sidebar folder row showing the expand chevron, color dot, and name "Customer Deployments". */}
 
 ### Color
 
-A **color** is a hex value assigned to a folder for visual grouping, shown as a dot next to the name. It defaults to gray (`#6B7280`) and you can change it from the folder's menu. Color is the fastest way to read the sidebar at a glance. Reserve one color per top-level category (red for production, gray for scratch work) so you can find the right branch before reading a single name. Our example is red (`#EF4444`).
+Folder colors appear as dots beside their names and default to gray (`#6B7280`). Change the color from the folder menu. Use color alongside clear names so the grouping is still understandable without color.
 
 {/* VISUAL: a short vertical stack of folders with distinct color dots: red "Production", gray "Internal", another color for "Customer-Facing", showing color as the grouping signal. */}
 
 ### Nesting
 
-A folder can sit inside another folder. The inner one is a **subfolder**, and the structure is a tree: a top-level folder has no parent, a subfolder points at the folder that contains it, and that chain can go as deep as you need. Our example, `Customer Deployments`, holds two subfolders and itself sits under a `Production` folder.
-
-Lead with shallow trees. Two or three levels (`Production` > `Customer A` > `Deployments`) stay readable. Go deeper than that and you end up scrolling the sidebar instead of scanning it.
+Nest folders when a category needs subgroups, for example `Production` → `Customer A` → `Deployments`. Keep the hierarchy shallow enough to scan.
 
 {/* VISUAL: a three-level nested tree: "Production" (red, top level) > "Customer A" (yellow) > "Deployments" (purple), each row indented one step, showing the parent-to-child chain. */}
 
@@ -60,7 +56,7 @@ Naming conventions make the structure legible to someone who did not build it. N
 
 ## One workspace or several
 
-Folders organize within a workspace. A separate workspace draws a hard boundary: resources never cross it, and access is granted per workspace. Reach for a new workspace when you need that boundary, not just tidier grouping.
+Folders organize workflows within a workspace. Use a separate workspace when the work needs its own members, settings, or resource ownership.
 
 - **Group in folders** when everything belongs to the same team and the same access rules, and you only want it easier to navigate.
 - **Split into workspaces** when a set of work needs its own members, its own integrations and secrets, or its own isolation. The classic case is one workspace per customer, where the workspace itself is the deliverable the customer owns.

@@ -21,6 +21,14 @@ import {
   parseTokenServiceAccountSecretBlob,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
+import {
+  parseGitHubInstallationBinding,
+  resolveGitHubInstallationAccessToken,
+} from '@/lib/oauth/github-installation'
+import {
+  GITHUB_INSTALLATION_PROVIDER_ID,
+  type GitHubInstallationRepositoryScope,
+} from '@/lib/oauth/github-installation-types'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -48,6 +56,10 @@ import {
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
+import {
+  loadSlackAppConfiguration,
+  slackBotCredentialVersion,
+} from '@/lib/slack-search/app-configuration'
 
 const logger = createLogger('OAuthCredentialService')
 
@@ -59,6 +71,8 @@ export interface CredentialTokenResolutionOptions {
    * mode so selector and ordinary calls share the same locks and dead flags.
    */
   privacyMode?: 'selector'
+  /** GitHub installation content tokens may only address one connector repository. */
+  githubRepositoryScope?: GitHubInstallationRepositoryScope
 }
 
 function privateCredentialIdentity(namespace: string, value: string): string {
@@ -96,6 +110,7 @@ interface AccountInsertData {
 export interface ResolvedCredential {
   accountId: string
   workspaceId?: string
+  organizationId?: string
   usedCredentialTable: boolean
   credentialType?: string
   credentialId?: string
@@ -117,6 +132,7 @@ export async function resolveOAuthAccountId(
       type: credential.type,
       accountId: credential.accountId,
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
       providerId: credential.providerId,
     })
     .from(credential)
@@ -129,7 +145,8 @@ export async function resolveOAuthAccountId(
         accountId: '',
         credentialId: credentialRow.id,
         credentialType: 'service_account',
-        workspaceId: credentialRow.workspaceId,
+        workspaceId: credentialRow.workspaceId ?? undefined,
+        organizationId: credentialRow.organizationId ?? undefined,
         providerId: credentialRow.providerId ?? undefined,
         usedCredentialTable: true,
       }
@@ -140,7 +157,8 @@ export async function resolveOAuthAccountId(
         accountId: '',
         credentialId: credentialRow.id,
         credentialType: 'managed_oauth',
-        workspaceId: credentialRow.workspaceId,
+        workspaceId: credentialRow.workspaceId ?? undefined,
+        organizationId: credentialRow.organizationId ?? undefined,
         providerId: credentialRow.providerId ?? undefined,
         usedCredentialTable: true,
       }
@@ -151,7 +169,8 @@ export async function resolveOAuthAccountId(
     }
     return {
       accountId: credentialRow.accountId,
-      workspaceId: credentialRow.workspaceId,
+      workspaceId: credentialRow.workspaceId ?? undefined,
+      organizationId: credentialRow.organizationId ?? undefined,
       usedCredentialTable: true,
     }
   }
@@ -186,14 +205,22 @@ export async function getServiceAccountToken(
 ): Promise<string> {
   const [credentialRow] = await db
     .select({
+      type: credential.type,
+      providerId: credential.providerId,
+      revokedAt: credential.revokedAt,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
     .limit(1)
 
-  if (!credentialRow?.encryptedServiceAccountKey) {
-    throw new Error('Service account key not found')
+  if (
+    credentialRow?.type !== 'service_account' ||
+    credentialRow.providerId !== GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID ||
+    credentialRow.revokedAt !== null ||
+    !credentialRow.encryptedServiceAccountKey
+  ) {
+    throw new Error('Google service account credential is unavailable')
   }
 
   const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
@@ -236,7 +263,7 @@ export async function getServiceAccountToken(
         }
       : {
           iss: keyData.client_email,
-          sub: impersonateEmail || '(none)',
+          hasSubject: Boolean(impersonateEmail),
           scopes: filteredScopes.join(' '),
           aud: tokenUri,
         }
@@ -292,6 +319,7 @@ export async function getServiceAccountToken(
 }
 
 export interface SlackBotCredentialSecrets {
+  credentialVersion: string
   /** Required only when the bot receives Slack events; action-only bots may omit it. */
   signingSecret?: string
   botToken: string
@@ -324,6 +352,7 @@ export async function getSlackBotCredential(
       providerId: credential.providerId,
       encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
       workspaceId: credential.workspaceId,
+      slackAppId: credential.slackAppId,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
@@ -343,10 +372,16 @@ export async function getSlackBotCredential(
   if (!blob.botToken) {
     return null
   }
+  const appConfiguration = row.slackAppId ? await loadSlackAppConfiguration(row.slackAppId) : null
+  if (row.slackAppId && !appConfiguration)
+    throw new Error('Slack credential references a missing app configuration')
+  const signingSecret = appConfiguration ? appConfiguration.signingSecret : blob.signingSecret
   return {
-    ...(typeof blob.signingSecret === 'string' && blob.signingSecret
-      ? { signingSecret: blob.signingSecret }
-      : {}),
+    credentialVersion: slackBotCredentialVersion(
+      row.encryptedServiceAccountKey,
+      appConfiguration?.app.revision
+    ),
+    ...(typeof signingSecret === 'string' && signingSecret ? { signingSecret } : {}),
     botToken: blob.botToken,
     ...(typeof blob.teamId === 'string' && blob.teamId ? { teamId: blob.teamId } : {}),
     ...(typeof blob.botUserId === 'string' && blob.botUserId ? { botUserId: blob.botUserId } : {}),
@@ -618,6 +653,7 @@ interface ServiceAccountTokenOptions {
   scopes?: string[]
   impersonateEmail?: string
   privacyMode?: 'selector'
+  githubRepositoryScope?: GitHubInstallationRepositoryScope
 }
 
 type ServiceAccountTokenResolver = (
@@ -631,6 +667,40 @@ type ServiceAccountTokenResolver = (
  * generically: the stored token IS the access token.
  */
 const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [GITHUB_INSTALLATION_PROVIDER_ID]: async (credentialId, { githubRepositoryScope }) => {
+    if (!githubRepositoryScope)
+      throw new Error('GitHub installation tokens require a source repository')
+    const [row] = await db
+      .select({
+        type: credential.type,
+        providerId: credential.providerId,
+        encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+        providerSubjectId: credential.providerSubjectId,
+        providerTenantId: credential.providerTenantId,
+        revokedAt: credential.revokedAt,
+      })
+      .from(credential)
+      .where(eq(credential.id, credentialId))
+      .limit(1)
+    if (
+      row?.type !== 'service_account' ||
+      row.providerId !== GITHUB_INSTALLATION_PROVIDER_ID ||
+      row.revokedAt ||
+      !row.encryptedServiceAccountKey ||
+      row.encryptedServiceAccountKey.length > 16_384
+    ) {
+      throw new Error('GitHub installation credential is unavailable')
+    }
+    const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
+    const binding = parseGitHubInstallationBinding(JSON.parse(decrypted))
+    if (
+      row.providerSubjectId !== binding.installationId ||
+      row.providerTenantId !== binding.accountId
+    ) {
+      throw new Error('GitHub installation credential identity does not match its binding')
+    }
+    return resolveGitHubInstallationAccessToken(binding, githubRepositoryScope)
+  },
   [ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
     const secret = await getAtlassianServiceAccountSecret(credentialId)
     return { accessToken: secret.apiToken, cloudId: secret.cloudId, domain: secret.domain }
@@ -1000,6 +1070,10 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
   // long-lived token nearing expiry (Meta cannot refresh after expiry).
   const now = new Date()
   const tokenExpiry = credential.accessTokenExpiresAt
+  if (!credential.refreshToken && tokenExpiry && tokenExpiry <= now) {
+    logger.warn('OAuth access token expired and cannot be refreshed; reconnect the account')
+    return null
+  }
   const accessTokenNeedsRefresh =
     !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
   const instagramNeedsProactiveRefresh =
@@ -1082,6 +1156,11 @@ export async function resolveCredentialTokenBundle(
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
   const now = new Date()
+
+  if (!credential.refreshToken && accessTokenExpiresAt && accessTokenExpiresAt <= now) {
+    logger.warn('OAuth access token expired and cannot be refreshed; reconnect the account')
+    return null
+  }
 
   // Check if access token needs refresh (missing or expired)
   const accessTokenNeedsRefresh =
@@ -1191,6 +1270,10 @@ export async function refreshTokenIfNeeded(
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
   const now = new Date()
+
+  if (!credential.refreshToken && accessTokenExpiresAt && accessTokenExpiresAt <= now) {
+    throw new Error('OAuth access token expired and cannot be refreshed; reconnect the account')
+  }
 
   // Check if access token needs refresh (missing or expired)
   const accessTokenNeedsRefresh =

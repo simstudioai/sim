@@ -21,6 +21,8 @@ starts published container images. Pass `--dir <path>` to choose another directo
 
 ### 1. Configure Environment
 
+For a new installation, create the configuration below. If you already ran the quick start, edit its generated `.env` and retain the existing secret values; do not overwrite them with new keys.
+
 ```bash
 cat > .env << EOF
 BETTER_AUTH_SECRET=$(openssl rand -hex 32)
@@ -100,7 +102,7 @@ For nginx, Traefik, or a cloud load balancer — and for the GKE websocket timeo
 
 ## Ollama
 
-`docker-compose.ollama.yml` is a **development** stack, not a drop-in swap for `docker-compose.prod.yml`. It builds `simstudio`, `realtime`, and `migrations` from the source checkout instead of pulling published images, and it ships neither a `redis` service nor a `cron` service. Without an external Redis, pub/sub falls back to a process-local emitter and CLI authentication stops working entirely, since its approval store has no fallback; the idempotency store and execution progress markers do fall back to Postgres. And with no cron service, every [background job](/platform/self-hosting/background-jobs) is missing. For production with local models, keep `docker-compose.prod.yml` and point `OLLAMA_URL` at an Ollama instance, as under [External Ollama](#external-ollama) below.
+`docker-compose.ollama.yml` is a **development** stack, not a drop-in swap for `docker-compose.prod.yml`. It builds `simstudio`, `realtime`, and `migrations` from the source checkout instead of pulling published images, and it ships neither a `redis` service nor a `cron` service. Without an external Redis, pub/sub falls back to a process-local emitter and API-key login through the CLI pairing-code flow fails, since that approval store has no fallback; the idempotency store and execution progress markers do fall back to Postgres. And with no cron service, every [background job](/platform/self-hosting/background-jobs) is missing. For production with local models, keep `docker-compose.prod.yml` and point `OLLAMA_URL` at an Ollama instance, as under [External Ollama](#external-ollama) below.
 
 Always pass a server profile alongside `setup`. With `--profile setup` on its own no Ollama server starts and `model-setup` waits forever.
 

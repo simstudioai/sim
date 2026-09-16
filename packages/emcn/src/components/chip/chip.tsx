@@ -38,7 +38,7 @@ import {
  * itself**; those triggers add the `--border-1` outline themselves via `TRIGGER_BORDER_CLASS`;
  * `primary` (inverse surface), `destructive` (error-token surface), `border-shadow` (raised card-like surface),
  * `border` (the `border-shadow` shadow ring on a transparent surface — an outline drawn purely via box-shadow,
- * no CSS border, no fill).
+ * no CSS border, no fill); outline (a true border with no shadow or hover fill).
  * `active` renders the default/filled chip in its selected state — `--surface-active`, held through hover.
  * `fullWidth` swaps `inline-flex` for block-level `flex`.
  * `shape` picks the corner radius: the implicit `default` is the `rounded-lg` pill; `round` is fully round
@@ -71,6 +71,8 @@ const chipVariants = cva(
         'border-shadow':
           'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
         border: `shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] ${chipHoverSurfaceClass} dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]`,
+        outline:
+          'border border-[var(--border)] bg-transparent hover-hover:border-[color-mix(in_srgb,var(--border)_80%,var(--text-secondary))]',
       },
       shape: { default: chipRadiusClass, round: 'rounded-full' },
       active: { true: '', false: '' },
@@ -92,7 +94,7 @@ type ChipIcon = ComponentType<{ className?: string }>
  * for chip fields/triggers, never `Chip` itself. For a selected/toggle chip use
  * the `active` prop, not a variant.
  */
-type ChipVariant = 'primary' | 'destructive' | 'border-shadow' | 'border'
+type ChipVariant = 'primary' | 'destructive' | 'border-shadow' | 'border' | 'outline'
 
 interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant'> {
   variant?: ChipVariant

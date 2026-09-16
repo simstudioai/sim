@@ -5,6 +5,7 @@ import { deflateSync } from 'zlib'
 import { describe, expect, it } from 'vitest'
 import { MAX_PDF_TEXT_CHARS, PdfParser } from '@/lib/file-parsers/pdf-parser'
 import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
+import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
  * Builds a single-page PDF that draws 64 characters per repeat from a
@@ -47,6 +48,30 @@ function buildTextFreePdf(pageCount: number): Buffer {
       `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageCount} >>`
     ),
     ...pageIds.map(() => Buffer.from('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>')),
+  ])
+}
+
+/** Shares a bounded dense text stream across pages to exercise aggregate extraction. */
+function buildLargeTypesetPdf(pageCount: number): Buffer {
+  const unit = `BT /F1 12 Tf 10 700 Td (${'A'.repeat(64)}) Tj ET\n`
+  const compressed = deflateSync(Buffer.from(unit.repeat(3000)))
+  const pageIds = Array.from({ length: pageCount }, (_, index) => index + 5)
+  return assemblePdf([
+    Buffer.from('<< /Type /Catalog /Pages 2 0 R >>'),
+    Buffer.from(
+      `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageCount} >>`
+    ),
+    Buffer.concat([
+      Buffer.from(`<< /Length ${compressed.length} /Filter /FlateDecode >>\nstream\n`),
+      compressed,
+      Buffer.from('\nendstream'),
+    ]),
+    Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'),
+    ...pageIds.map(() =>
+      Buffer.from(
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 3 0 R /Resources << /Font << /F1 4 0 R >> >> >>'
+      )
+    ),
   ])
 }
 
@@ -98,6 +123,19 @@ function assemblePdf(objects: Buffer[], trailerEntries = ''): Buffer {
   return Buffer.concat(chunks)
 }
 
+/** Repeats needed to exceed `MAX_PDF_TEXT_CHARS`; 64 characters per repeat. */
+const BOMB_REPEATS = 200_000
+
+/** Evaluating the bomb takes pdf.js about two minutes; both bomb tests share one parse. */
+const BOMB_TIMEOUT_MS = 300_000
+
+let bombParse: Promise<FileParseResult> | undefined
+
+function parseBomb(): Promise<FileParseResult> {
+  bombParse ??= new PdfParser().parseBuffer(buildTextBombPdf(BOMB_REPEATS))
+  return bombParse
+}
+
 describe('PdfParser', () => {
   it('preloads the server worker instead of relying on a runtime-relative worker path', async () => {
     const previousWorker: unknown = Reflect.get(globalThis, 'pdfjsWorker')
@@ -120,22 +158,46 @@ describe('PdfParser', () => {
     }
   })
 
-  it('bounds extracted text from a compression-bomb PDF instead of exhausting the heap', async () => {
-    const bomb = buildTextBombPdf(200_000)
-    expect(bomb.length).toBeLessThan(200 * 1024)
+  it(
+    'bounds extracted text from a compression-bomb PDF instead of exhausting the heap',
+    async () => {
+      const bomb = buildTextBombPdf(BOMB_REPEATS)
+      expect(bomb.length).toBeLessThan(200 * 1024)
 
-    const result = await new PdfParser().parseBuffer(bomb)
+      const result = await parseBomb()
 
-    expect(result.metadata?.truncated).toBe(true)
-    expect(result.metadata?.warning).toMatch(/parser limit/i)
-    expect(result.content.length).toBeLessThanOrEqual(MAX_PDF_TEXT_CHARS + 200)
-  }, 120_000)
+      expect(result.metadata?.truncated).toBe(true)
+      expect(result.metadata?.warning).toMatch(/parser limit/i)
+      expect(result.content.length).toBeLessThanOrEqual(MAX_PDF_TEXT_CHARS + 200)
+    },
+    BOMB_TIMEOUT_MS
+  )
 
-  it('marks truncated content inline so callers reading only content can see it', async () => {
-    const result = await new PdfParser().parseBuffer(buildTextBombPdf(200_000))
+  it(
+    'marks truncated content inline so callers reading only content can see it',
+    async () => {
+      const result = await parseBomb()
 
-    expect(result.content).toMatch(/\[\.\.\. PDF text truncated at parser limits.* \.\.\.\]/)
-  }, 120_000)
+      expect(result.content).toMatch(/\[\.\.\. PDF text truncated at parser limits.* \.\.\.\]/)
+    },
+    BOMB_TIMEOUT_MS
+  )
+
+  it('extracts a real multi-page PDF past the preview budget completely', async () => {
+    const result = await new PdfParser().parseBuffer(buildLargeTypesetPdf(60), {
+      pdfTextMode: 'complete',
+    })
+
+    expect(result.content.length).toBeGreaterThan(MAX_PDF_TEXT_CHARS)
+    expect(result.metadata).toMatchObject({ pageCount: 60, truncated: false })
+    expect(result.content).not.toContain('truncated')
+  }, 60_000)
+
+  it('rejects a real compressed page at its independent complete-extraction cap', async () => {
+    await expect(
+      new PdfParser().parseBuffer(buildTextBombPdf(6000), { pdfTextMode: 'complete' })
+    ).rejects.toMatchObject({ name: 'FileParserError', code: 'complexity_limit' })
+  }, 30_000)
 
   it('extracts a small PDF in full and does not flag it as truncated', async () => {
     const result = await new PdfParser().parseBuffer(buildTextBombPdf(3))
@@ -163,7 +225,8 @@ describe('PdfParser', () => {
 
   it('preserves the password-required error for encrypted PDFs', async () => {
     await expect(new PdfParser().parseBuffer(buildEncryptedPdf())).rejects.toMatchObject({
-      name: 'PasswordException',
+      name: 'FileParserError',
+      code: 'encrypted_file',
     })
   })
 })

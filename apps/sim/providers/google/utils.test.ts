@@ -280,6 +280,10 @@ describe('convertToGeminiFormat', () => {
 
       const result = convertToGeminiFormat(request)
 
+      expect(result.contents[1].parts?.[0].functionCall).toMatchObject({
+        id: 'call_123',
+        name: 'get_weather',
+      })
       const toolResponseContent = result.contents.find(
         (c) => c.parts?.[0] && 'functionResponse' in c.parts[0]
       )

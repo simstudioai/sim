@@ -10,6 +10,7 @@ export const gitlabCompareBranchesTool: ToolConfig<
   GitLabCompareBranchesResponse
 > = {
   id: 'gitlab_compare_branches',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Compare Branches',
   description: 'Compare two branches, tags, or commits in a GitLab project repository',
   version: '1.0.0',

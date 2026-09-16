@@ -18,6 +18,15 @@ import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
+  PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
+  ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  ProviderAdmissionTimeoutError: class ProviderAdmissionTimeoutError extends Error {},
+  isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
+  recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
+  waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
+}))
+
 /**
  * Spy on the real documents/utils namespace instead of vi.mock: the shared
  * `@/lib/knowledge/embeddings` module may be cached bound to the real module,
@@ -97,18 +106,23 @@ function makeResult(id: string, distance = 0.1): SearchResult {
   }
 }
 
-const TEST_EMBEDDING = [0.1, 0.2, 0.3, ...Array.from({ length: 1533 }, () => 0)]
+const TEST_EMBEDDING = [0.1, 0.2, 0.3, ...Array.from({ length: 1533 }, () => 0)].map(Math.fround)
 
 function mockNextEmbeddingResponse(): void {
-  vi.mocked(fetch).mockResolvedValueOnce(
-    new Response(
+  vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
+    const request = JSON.parse(String(init?.body))
+    const embedding =
+      request.encoding_format === 'base64'
+        ? Buffer.from(new Float32Array(TEST_EMBEDDING).buffer).toString('base64')
+        : TEST_EMBEDDING
+    return new Response(
       JSON.stringify({
-        data: [{ embedding: TEST_EMBEDDING, index: 0 }],
+        data: [{ embedding, index: 0 }],
         usage: { prompt_tokens: 1, total_tokens: 1 },
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
-  )
+  })
 }
 
 describe('Knowledge Search Utils', () => {
@@ -196,6 +210,28 @@ describe('Knowledge Search Utils', () => {
   })
 
   describe('handleTagAndVectorSearch', () => {
+    it('returns only bounded ranked rows without first materializing every matching tag ID', async () => {
+      resetDbChainMock()
+      queueTableRows(schemaMock.embedding, [makeResult('second', 0.2), makeResult('first', 0.1)])
+
+      const results = await handleTagAndVectorSearch({
+        knowledgeBaseIds: ['kb-1', 'kb-2'],
+        access: WORKSPACE_ACCESS_SCOPE,
+        topK: 2,
+        structuredFilters: [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' },
+        ],
+        queryVector: { vector: JSON.stringify(TEST_EMBEDDING), dimensions: 1536 },
+        distanceThreshold: 0.8,
+      })
+
+      expect(results.map((row) => row.id)).toEqual(['first', 'second'])
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
+      expect(dbChainMockFns.select.mock.calls[0][0]).toHaveProperty('distance')
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+    })
+
     it('should throw error when no filters provided', async () => {
       const params = {
         knowledgeBaseIds: ['kb-123'],
@@ -512,7 +548,8 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id)).toEqual(['vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
     })
 
     it('runs both legs and fuses them in hybrid mode', async () => {
@@ -536,7 +573,7 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id).sort()).toEqual(['keyword-hit', 'vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(4)
     })
 
     it('falls back to vector results when the keyword leg fails', async () => {
@@ -801,7 +838,7 @@ describe('Knowledge Search Utils', () => {
           body: JSON.stringify({
             input: ['test query'],
             model: 'text-embedding-3-small',
-            encoding_format: 'float',
+            encoding_format: 'base64',
             dimensions: 1536,
           }),
         })
@@ -831,7 +868,7 @@ describe('Knowledge Search Utils', () => {
           body: JSON.stringify({
             input: ['prefix {{TOKEN}} suffix'],
             model: 'text-embedding-3-small',
-            encoding_format: 'float',
+            encoding_format: 'base64',
             dimensions: 1536,
           }),
         })

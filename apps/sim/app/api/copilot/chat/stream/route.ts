@@ -1,4 +1,5 @@
 import { type Context, context as otelContext, type Span, trace } from '@opentelemetry/api'
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -6,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStreamContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -22,13 +24,13 @@ import { getCopilotTracer, markSpanForError } from '@/lib/copilot/request/otel'
 import {
   checkForReplayGap,
   createEvent,
-  encodeSSEComment,
   encodeSSEEnvelope,
   readEvents,
   readFilePreviewSessions,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/request/session'
 import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const maxDuration = 3600
@@ -115,8 +117,11 @@ function buildResumeTerminalEnvelopes(options: {
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const { userId: authenticatedUserId, isAuthenticated } =
-    await authenticateCopilotRequestSessionOnly()
+  const {
+    userId: authenticatedUserId,
+    isAuthenticated,
+    principal,
+  } = await authenticateCopilotRequestSessionOnly()
 
   if (!isAuthenticated || !authenticatedUserId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -169,6 +174,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         afterCursor,
         batchMode,
         authenticatedUserId,
+        principal,
         rootSpan,
         rootContext,
       })
@@ -186,6 +192,7 @@ async function handleResumeRequestBody({
   afterCursor,
   batchMode,
   authenticatedUserId,
+  principal,
   rootSpan,
   rootContext,
 }: {
@@ -194,6 +201,7 @@ async function handleResumeRequestBody({
   afterCursor: string
   batchMode: boolean
   authenticatedUserId: string
+  principal?: Principal
   rootSpan: Span
   rootContext: Context
 }) {
@@ -211,7 +219,11 @@ async function handleResumeRequestBody({
     hasRun: !!run,
     runStatus: run?.status,
   })
-  if (!run) {
+  if (
+    !run ||
+    (run.chatId &&
+      !(await getAccessibleCopilotChatAuth(run.chatId, authenticatedUserId, { principal })))
+  ) {
     rootSpan.setAttribute(TraceAttr.CopilotResumeOutcome, CopilotResumeOutcome.StreamNotFound)
     rootSpan.end()
     return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
@@ -323,6 +335,13 @@ async function handleResumeRequestBody({
     request.signal.addEventListener('abort', abortListener, { once: true })
 
     const flushEvents = async () => {
+      if (
+        run?.chatId &&
+        !(await getAccessibleCopilotChatAuth(run.chatId, authenticatedUserId, { principal }))
+      ) {
+        closeController()
+        return
+      }
       const events = await readEvents(streamId, cursor)
       if (events.length > 0) {
         logger.debug('[Resume] Flushing events', {

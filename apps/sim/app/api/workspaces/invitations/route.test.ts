@@ -119,7 +119,9 @@ describe('POST /api/workspaces/invitations/batch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    queueTableRows(schemaMock.user, [{ id: 'user-1', name: 'Owner User', email: 'owner@test.com' }])
     mockGetSession.mockResolvedValue({
+      session: { id: 'session-1' },
       user: { id: 'user-1', email: 'owner@test.com', name: 'Owner User' },
     })
     mockGetWorkspaceWithOwner.mockResolvedValue({
@@ -171,6 +173,29 @@ describe('POST /api/workspaces/invitations/batch', () => {
 
   afterAll(() => {
     resetDbChainMock()
+    queueTableRows(schemaMock.user, [{ id: 'user-1', name: 'Owner User', email: 'owner@test.com' }])
+  })
+
+  it('keeps unexpected database details out of per-email failures', async () => {
+    mockCreatePendingInvitation.mockRejectedValueOnce(
+      new Error('Failed query: select "id" from "user"; params: private-data')
+    )
+
+    const response = await POST(
+      createMockRequest('POST', {
+        workspaceIds: ['workspace-1'],
+        emails: ['new@example.com'],
+        permission: 'read',
+      })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.failed).toEqual([
+      { email: 'new@example.com', error: 'Failed to create invitation. Please try again.' },
+    ])
+    expect(mockSendInvitationEmail).not.toHaveBeenCalled()
   })
 
   it('blocks invites for personal workspaces with an upgrade prompt', async () => {

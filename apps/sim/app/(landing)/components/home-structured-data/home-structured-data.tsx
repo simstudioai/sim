@@ -22,14 +22,14 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
  * `WebPage.description` below, so the three surfaces never drift.
  */
 export const HOME_PAGE_DESCRIPTION =
-  'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents across 1,000+ integrations and every major LLM, visually or with code.'
+  'Sim is the open-source AI workspace where companies build, distribute, and govern AI agents. Hundreds of integrations, every major LLM, permission groups, spend limits, and self-hosting.'
 
 /**
  * The home page's canonical title - the single string shared by the
  * `<title>`, OG/Twitter titles (`page.tsx`), and the JSON-LD `WebPage.name`
  * below, so the title surfaces never drift.
  */
-export const HOME_PAGE_TITLE = 'The AI Workspace | Build, Deploy & Manage AI Agents | Sim'
+export const HOME_PAGE_TITLE = 'The AI Workspace | Build, Distribute & Govern AI Agents | Sim'
 
 const HOME_JSON_LD = {
   '@context': 'https://schema.org',
@@ -62,7 +62,7 @@ const HOME_JSON_LD = {
       url: SITE_URL,
       name: 'Sim, The AI Workspace',
       description:
-        'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work, visually, conversationally, or with code. Trusted by over 100,000 builders. SOC2 compliant.',
+        'Sim is the open-source AI workspace where companies build, distribute, and govern AI agents in one place. Teams build agents visually, conversationally, or with code across hundreds of integrations and every major LLM, while administrators control model access, integration access, spend limits, and deployment. Trusted by over 100,000 builders. SOC2 compliant and self-hostable.',
       applicationCategory: 'BusinessApplication',
       applicationSubCategory: 'AI Workspace',
       operatingSystem: 'Web',
@@ -109,7 +109,8 @@ const HOME_JSON_LD = {
         'AI workspace for teams',
         'Chat: build and manage agents in natural language',
         'Visual workflow builder',
-        '1,000+ integrations',
+        'CLI access for coding agents and terminal workflows',
+        'Hundreds of integrations',
         'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
         'Knowledge base creation',
         'Table creation',
@@ -118,6 +119,14 @@ const HOME_JSON_LD = {
         'Custom functions',
         'Scheduled workflows',
         'Event triggers',
+        'Permission groups for model, integration, and tool access',
+        'Organization and per-member spend limits',
+        'Usage analytics by workspace and member',
+        'Agent deployment as chat, API, or MCP with SSO, email, or password access',
+        'Single sign-on with domain verification',
+        'Audit records and run tracing',
+        'Configurable data retention',
+        'Self-hosting with Docker or Kubernetes',
       ],
       review: [
         {

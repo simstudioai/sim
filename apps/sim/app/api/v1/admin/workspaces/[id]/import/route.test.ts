@@ -43,6 +43,7 @@ vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
   runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
   getRequestContext: () => undefined,
+  setRequestAuth: vi.fn(),
 }))
 vi.mock('@/app/api/v1/admin/middleware', () => ({
   withAdminAuthParams: (handler: unknown) => handler,

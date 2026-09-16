@@ -10,6 +10,7 @@ export const gitlabRevokeInvitationTool: ToolConfig<
   GitLabRevokeInvitationResponse
 > = {
   id: 'gitlab_revoke_invitation',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Revoke Invitation',
   description: 'Revoke a pending email invitation to a GitLab project or group',
   version: '1.0.0',

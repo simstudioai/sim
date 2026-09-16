@@ -210,18 +210,15 @@ describe('processDocumentsWithQueue billing attribution', () => {
     expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
 
-  it('enqueues workspace-less knowledge bases with an explicit non-workspace payload', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ userId: 'legacy-owner', workspaceId: null }])
+  it('rejects a knowledge base without a workspace or organization owner', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { userId: 'legacy-owner', workspaceId: null, organizationId: null },
+    ])
 
-    await processDocumentsWithQueue([DOCUMENT], 'knowledge-base-1', {}, 'request-1', undefined)
-
-    const jobs = mockBatchTrigger.mock.calls[0][1]
-    expect(jobs[0].payload).toMatchObject({
-      billingScope: 'non-workspace',
-      actorUserId: 'legacy-owner',
-      workspaceId: null,
-    })
-    expect(jobs[0].payload).not.toHaveProperty('billingAttribution')
+    await expect(
+      processDocumentsWithQueue([DOCUMENT], 'knowledge-base-1', {}, 'request-1', undefined)
+    ).rejects.toThrow('Document processing requires a workspace or organization owner')
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
 })
 

@@ -155,6 +155,14 @@ describe('basetenProvider', () => {
     await expect(basetenProvider.executeRequest(baseRequest)).rejects.toBeInstanceOf(ProviderError)
   })
 
+  it('preserves custom model casing after an uppercase provider prefix', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+
+    await basetenProvider.executeRequest({ ...baseRequest, model: 'BASETEN/Org/Custom-Model' })
+
+    expect(callBody(0).model).toBe('Org/Custom-Model')
+  })
+
   it('streams directly when there are no tools', async () => {
     mockCreate.mockResolvedValueOnce({})
 

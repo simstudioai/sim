@@ -91,3 +91,18 @@ export function sortObjectKeysDeep(value: unknown): unknown {
   }
   return value
 }
+
+/** Reads a dot-and-bracket path such as `items[0].name`; missing segments return undefined. */
+export function getValueAtPath(source: unknown, path: string): unknown {
+  if (source === null || source === undefined || !path) return source
+  const segments = path
+    .replace(/\[(\w+)\]/g, '.$1')
+    .split('.')
+    .filter(Boolean)
+  let cursor: unknown = source
+  for (const segment of segments) {
+    if (cursor === null || typeof cursor !== 'object') return undefined
+    cursor = (cursor as Record<string, unknown>)[segment]
+  }
+  return cursor
+}

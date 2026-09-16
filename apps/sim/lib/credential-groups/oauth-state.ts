@@ -1,15 +1,21 @@
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
-import { generateId } from '@sim/utils/id'
+import { generateId, isValidUuid } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { assertCredentialGroupOAuthAttemptVersion } from '@/lib/credential-groups/oauth-attempt-version'
+import {
+  type CredentialGroupConnectionIntent,
+  credentialGroupConnectionIntentSchema,
+} from '@/lib/credential-groups/oauth-intent'
 import {
   type CredentialGroupProvider,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
 
 const OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const OAUTH_ATTEMPT_VERSION = 2 as const
+const OAUTH_ATTEMPT_VERSION = 5 as const
 const OAUTH_ATTEMPT_STATE_PREFIX = 'cg_'
 
 const CONSUME_SCRIPT = `
@@ -23,7 +29,11 @@ return value
 
 interface StoredCredentialGroupOAuthAttempt {
   version: typeof OAUTH_ATTEMPT_VERSION
+  userId: string
   provider: CredentialGroupProvider
+  workspaceId?: string
+  organizationId?: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   optionId: string
@@ -31,6 +41,10 @@ interface StoredCredentialGroupOAuthAttempt {
   scopeVersion: number
   requiredScopes: string[]
   redirectUri: string
+  completionRedirect?: boolean
+  connectionIntent?: CredentialGroupConnectionIntent
+  completionId?: string
+  returnTo?: 'search' | 'accounts' | 'github-installation'
   nonceHash: string
   encryptedCodeVerifier?: string
   encryptedInvitationToken: string
@@ -38,9 +52,13 @@ interface StoredCredentialGroupOAuthAttempt {
 }
 
 export interface CredentialGroupOAuthAttempt {
+  userId: string
   state: string
   provider: CredentialGroupProvider
   nonceHash: string
+  workspaceId?: string
+  organizationId?: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   optionId: string
@@ -48,13 +66,21 @@ export interface CredentialGroupOAuthAttempt {
   scopeVersion: number
   requiredScopes: string[]
   redirectUri: string
+  completionRedirect?: boolean
+  connectionIntent?: CredentialGroupConnectionIntent
+  completionId?: string
+  returnTo?: 'search' | 'accounts' | 'github-installation'
   codeVerifier?: string
   invitationToken: string
   createdAt: number
 }
 
 interface CreateCredentialGroupOAuthAttemptParams {
+  userId: string
   provider: CredentialGroupProvider
+  workspaceId?: string
+  organizationId?: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   optionId: string
@@ -62,6 +88,10 @@ interface CreateCredentialGroupOAuthAttemptParams {
   scopeVersion: number
   requiredScopes: string[]
   redirectUri: string
+  completionRedirect?: boolean
+  connectionIntent?: CredentialGroupConnectionIntent
+  completionId?: string
+  returnTo?: 'search' | 'accounts' | 'github-installation'
   codeVerifier?: string
   invitationToken: string
 }
@@ -83,8 +113,20 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
   const candidate = value as Record<string, unknown>
   return (
     candidate.version === OAUTH_ATTEMPT_VERSION &&
+    typeof candidate.userId === 'string' &&
+    candidate.userId.length > 0 &&
     typeof candidate.provider === 'string' &&
     isCredentialGroupProvider(candidate.provider) &&
+    ((typeof candidate.workspaceId === 'string' &&
+      candidate.workspaceId.length > 0 &&
+      candidate.organizationId === undefined) ||
+      (candidate.version === OAUTH_ATTEMPT_VERSION &&
+        candidate.workspaceId === undefined &&
+        typeof candidate.organizationId === 'string' &&
+        candidate.organizationId.length > 0)) &&
+    typeof candidate.email === 'string' &&
+    candidate.email.length >= 3 &&
+    candidate.email.length <= 320 &&
     typeof candidate.enrollmentId === 'string' &&
     typeof candidate.credentialGroupId === 'string' &&
     typeof candidate.optionId === 'string' &&
@@ -93,9 +135,23 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
     Number.isInteger(candidate.scopeVersion) &&
     candidate.scopeVersion > 0 &&
     Array.isArray(candidate.requiredScopes) &&
-    candidate.requiredScopes.length > 0 &&
     candidate.requiredScopes.every((scope) => typeof scope === 'string' && scope.length > 0) &&
     typeof candidate.redirectUri === 'string' &&
+    (candidate.completionRedirect === undefined ||
+      typeof candidate.completionRedirect === 'boolean') &&
+    (candidate.completionId === undefined ||
+      (candidate.completionRedirect === true &&
+        typeof candidate.completionId === 'string' &&
+        isValidUuid(candidate.completionId))) &&
+    (candidate.connectionIntent === undefined ||
+      credentialGroupConnectionIntentSchema.safeParse(candidate.connectionIntent).success) &&
+    (candidate.returnTo === undefined ||
+      candidate.returnTo === 'search' ||
+      candidate.returnTo === 'accounts' ||
+      (candidate.returnTo === 'github-installation' &&
+        candidate.provider === 'github-repositories' &&
+        typeof candidate.organizationId === 'string' &&
+        typeof candidate.completionId === 'string')) &&
     typeof candidate.nonceHash === 'string' &&
     (candidate.encryptedCodeVerifier === undefined ||
       typeof candidate.encryptedCodeVerifier === 'string') &&
@@ -108,6 +164,19 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
 export async function createCredentialGroupOAuthAttempt(
   params: CreateCredentialGroupOAuthAttemptParams
 ): Promise<{ state: string; nonce: string }> {
+  if (
+    params.completionId !== undefined &&
+    (!params.completionRedirect || !isValidUuid(params.completionId))
+  ) {
+    throw new Error('OAuth completion requires a valid correlation ID and completion redirect')
+  }
+  if (
+    params.returnTo === 'github-installation' &&
+    (params.provider !== 'github-repositories' || !params.organizationId || !params.completionId)
+  ) {
+    throw new Error('GitHub installation OAuth requires an organization-bound setup attempt')
+  }
+  if (params.connectionIntent) credentialGroupConnectionIntentSchema.parse(params.connectionIntent)
   const redis = requireRedis()
   const state = `${OAUTH_ATTEMPT_STATE_PREFIX}${generateId()}`
   const nonce = generateId()
@@ -117,7 +186,10 @@ export async function createCredentialGroupOAuthAttempt(
   ])
   const attempt: StoredCredentialGroupOAuthAttempt = {
     version: OAUTH_ATTEMPT_VERSION,
+    userId: params.userId,
     provider: params.provider,
+    ...resourceScopeFields(resourceScopeFromOwner(params)),
+    email: params.email,
     enrollmentId: params.enrollmentId,
     credentialGroupId: params.credentialGroupId,
     optionId: params.optionId,
@@ -125,6 +197,10 @@ export async function createCredentialGroupOAuthAttempt(
     scopeVersion: params.scopeVersion,
     requiredScopes: params.requiredScopes,
     redirectUri: params.redirectUri,
+    ...(params.completionRedirect ? { completionRedirect: true } : {}),
+    ...(params.connectionIntent ? { connectionIntent: params.connectionIntent } : {}),
+    ...(params.completionId ? { completionId: params.completionId } : {}),
+    ...(params.returnTo ? { returnTo: params.returnTo } : {}),
     nonceHash: sha256Hex(nonce),
     ...(encryptedCodeVerifier ? { encryptedCodeVerifier: encryptedCodeVerifier.encrypted } : {}),
     encryptedInvitationToken: encryptedInvitationToken.encrypted,
@@ -156,6 +232,7 @@ export async function consumeCredentialGroupOAuthAttempt(
   if (typeof raw !== 'string') throw new Error('Credential group OAuth state is malformed')
 
   const parsed: unknown = JSON.parse(raw)
+  assertCredentialGroupOAuthAttemptVersion(parsed, OAUTH_ATTEMPT_VERSION)
   if (!isStoredAttempt(parsed)) throw new Error('Credential group OAuth state is malformed')
   if (Date.now() - parsed.createdAt > OAUTH_ATTEMPT_TTL_MS) return null
 
@@ -165,8 +242,11 @@ export async function consumeCredentialGroupOAuthAttempt(
   ])
   return {
     state,
+    userId: parsed.userId,
     provider: parsed.provider,
     nonceHash: parsed.nonceHash,
+    ...resourceScopeFields(resourceScopeFromOwner(parsed)),
+    email: parsed.email,
     enrollmentId: parsed.enrollmentId,
     credentialGroupId: parsed.credentialGroupId,
     optionId: parsed.optionId,
@@ -174,6 +254,10 @@ export async function consumeCredentialGroupOAuthAttempt(
     scopeVersion: parsed.scopeVersion,
     requiredScopes: parsed.requiredScopes,
     redirectUri: parsed.redirectUri,
+    ...(parsed.completionRedirect ? { completionRedirect: true } : {}),
+    ...(parsed.connectionIntent ? { connectionIntent: parsed.connectionIntent } : {}),
+    ...(parsed.completionId ? { completionId: parsed.completionId } : {}),
+    ...(parsed.returnTo ? { returnTo: parsed.returnTo } : {}),
     ...(codeVerifier ? { codeVerifier: codeVerifier.decrypted } : {}),
     invitationToken: invitationToken.decrypted,
     createdAt: parsed.createdAt,

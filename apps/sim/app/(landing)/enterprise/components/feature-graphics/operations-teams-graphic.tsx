@@ -1,7 +1,10 @@
-import type { CSSProperties } from 'react'
 import { cn } from '@sim/emcn'
 import { ThinkingLoader } from '@/components/ui'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
+import {
+  INVERSE_LOADER_INK_CLASS,
+  INVERSE_LOADER_INK_STYLE,
+} from '@/app/(landing)/enterprise/components/feature-graphics/constants'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/operations-teams-graphic.module.css'
 
@@ -15,19 +18,6 @@ import styles from '@/app/(landing)/enterprise/components/feature-graphics/opera
  * the wires keep long vertical runs.
  */
 const CANVAS = { WIDTH: 280, HEIGHT: 248 } as const
-
-/**
- * The ThinkingLoader's light-grey material (its dark-surface theme from
- * `thinking-loader.module.css`), asserted inline exactly as the deploy
- * tile's Deploy button does — the always-light landing would otherwise
- * ink the loader dark, invisible on the dark tile ground showing through
- * the outlined router hub.
- */
-const ROUTER_LOADER_INK = {
-  '--tl-grad-inner': '#a7a7a7',
-  '--tl-grad-outer': '#d6d6d6',
-  '--tl-glow': 'rgba(255, 255, 255, 0.9)',
-} as CSSProperties
 
 interface Port {
   /** Tailwind classes positioning the size-2 port dot, centered on the port's canvas x/y. */
@@ -314,7 +304,11 @@ export function OperationsTeamsGraphic({
                 styles.routerBloom
               )}
             >
-              <ThinkingLoader size={36} style={ROUTER_LOADER_INK} />
+              <ThinkingLoader
+                size={36}
+                className={INVERSE_LOADER_INK_CLASS}
+                style={INVERSE_LOADER_INK_STYLE}
+              />
             </div>
           </div>
         </div>

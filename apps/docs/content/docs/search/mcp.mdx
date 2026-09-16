@@ -1,0 +1,52 @@
+---
+title: Search MCP
+description: Search your organization's sources from Claude, Codex, Cursor, and other MCP apps
+---
+
+Use Sim Search from another app to find and read your organization's indexed documents, or ask the Sim Assistant for cited answers. Your Sim permissions apply.
+
+## Connect an app
+
+1. Confirm you can find a document in the organization's **Search**. [Connect your source account](/search/connect-your-account) first if required.
+2. Open **Settings → Search MCP** in the organization view. Select your **App** and copy the displayed URL, command, or configuration.
+3. Follow the steps for your app below, sign in to Sim, and approve Search access. Each teammate signs in separately; no API key is needed for this flow.
+
+| App | Finish setup |
+| --- | --- |
+| **Claude** | Add the copied **Server URL** as a custom connector, then connect it. For Team or Enterprise, an owner first adds it under **Organization settings → Connectors**; members then connect individually. See [Claude's custom connector instructions](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp). |
+| **Codex** | Run the copied **Terminal command** and complete browser sign-in. If authentication is needed again, run `codex mcp login sim-search`. |
+| **Claude Code** | Run the copied **Terminal command**, then open `/mcp` in Claude Code and authenticate. See [Claude Code's MCP instructions](https://code.claude.com/docs/en/mcp). |
+| **Cursor** | Add the copied `sim-search` entry to `mcpServers` in `~/.cursor/mcp.json`, preserving your other entries. Enable the server in Cursor and sign in to Sim. See [Cursor's MCP instructions](https://cursor.com/docs/mcp). |
+| **Other** | Add the **Server URL** to a client that supports remote MCP with OAuth. Choose **Streamable HTTP** if asked. |
+
+For Claude's hosted custom connectors, your Sim deployment must be reachable from Claude's servers; a localhost URL will not work. See [Claude's network requirements](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
+
+## Use the tools
+
+Ask your app: “Use Sim Search to find our launch checklist, read the relevant document, and cite the source.” The app can use three tools:
+
+| Tool | Behavior |
+| --- | --- |
+| `search` | Finds matching passages. Filter by `source` (such as `jira`), `modifiedAfter` (an ISO timestamp), or `documentIds`. Use the returned `citationUrl` when citing a result. |
+| `read_document` | Reads an indexed document using either its returned `documentId` or original URL. Use `aroundChunkIndex` for context around a search hit, or `offset` to page through it. It does not fetch arbitrary web pages. |
+| `chat` | Asks the Sim Assistant a question using your accessible sources and returns an answer with citations. Each call creates a new private Sim conversation. It accepts the same filters as `search`. |
+
+The tools do not edit source content. Assistant policy and usage limits apply to `chat`.
+
+## Access and limits
+
+The connection applies to the organization whose URL you copied. Sim checks your current membership and source access on each request. Connecting MCP does not add sources, connect provider accounts, or grant additional document permissions. Source edits and permission changes follow the same sync behavior as regular Search.
+
+Search returns 10 passages by default, with `topK` up to 50. Document reads return 20 chunks by default, with `limit` up to 50. When `pagination.hasMore` is true, continue at `pagination.offset + pagination.limit`; use either `offset` or `aroundChunkIndex`, not both. Documents still indexing return metadata only.
+
+Queries allow up to 8,192 characters; `documentIds` accepts up to 20 IDs. Responses are limited to 1 MiB. Request fewer passages or smaller document pages if a result is too large. API rate limits also apply; follow the retry delay returned by the tool.
+
+## Reconnect or revoke access
+
+If sign-in expires or access is revoked, reconnect in your app. To withdraw its Sim authorization, open **Settings → General → Authorized apps**, find the app, and revoke it. This stops future requests; it does not remove content already returned to that app.
+
+If Search MCP is unavailable, ask an organization admin to check the organization's Search availability and MCP policy. If results are missing, check the same query in Sim Search, your provider connection, and source sync status first.
+
+## Workspace MCP is separate
+
+Organization Search MCP searches organization sources. [Workspace MCP tools](/agents/mcp) connect external servers to Sim agents; [MCP deployment](/workflows/deployment/mcp) exposes workflows as tools. Neither setup automatically adds workspace content to organization Search.

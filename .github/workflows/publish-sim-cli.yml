@@ -5,6 +5,11 @@ on:
     branches: [main, staging, dev]
     paths:
       - 'packages/sim-cli/**'
+      # The build bundles its workspace dependencies, so a change there
+      # changes what ships.
+      - 'packages/utils/**'
+      # A change to how the package is built or published has to republish it.
+      - '.github/workflows/publish-sim-cli.yml'
 
 permissions:
   contents: read
@@ -15,6 +20,13 @@ concurrency:
 
 jobs:
   publish-npm:
+    # Job-level, not on the build step: `bun publish` runs `prepublishOnly`,
+    # which rebuilds `dist` a second time, and that second build is the one
+    # that ships. A build without the token reports nothing. See
+    # docs/cli/usage-data.
+    env:
+      SIM_CLI_TELEMETRY_KEY: ${{ vars.SIM_CLI_TELEMETRY_KEY }}
+      SIM_CLI_TELEMETRY_HOST: ${{ vars.SIM_CLI_TELEMETRY_HOST }}
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:

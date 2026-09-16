@@ -39,12 +39,18 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # ct diffs the chart against the PR base to decide whether the version
+          # was bumped, so a shallow clone would leave it nothing to compare.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
           version: v3.16.4
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -64,8 +70,33 @@ jobs:
       - name: Image inventory is current
         run: bun run images:check
 
-      - name: Helm lint
-        run: helm lint helm/sim --values helm/sim/ci/default-values.yaml
+      # ct is the CNCF chart linter (ingress-nginx, prometheus-community and
+      # external-secrets all gate on it). Beyond `helm lint` it runs yamllint over
+      # Chart.yaml and every values file, validates Chart.yaml against a schema,
+      # and — the reason the hand-rolled version-bump job is gone — enforces that
+      # the chart version increases whenever chart content changes.
+      #
+      # `--chart-dirs helm --target-branch` is load-bearing. Passing `--charts`
+      # instead silently DISABLES the version-increment check ("Version increment
+      # checking disabled.") and still exits 0, which would leave a gate that
+      # never fails. On a push there is no base to diff, so `--charts` is correct
+      # there and the version check simply does not apply.
+      #
+      # Maintainer validation is off because it resolves `maintainers[].name`
+      # against real forge accounts, and ours is the display name "Sim Team".
+      # Turning it on means changing what Artifact Hub shows.
+      - name: Chart lint (ct)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          args=(--validate-maintainers=false)
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            args+=(--chart-dirs helm --target-branch "${BASE_REF}")
+          else
+            args+=(--charts helm/sim)
+          fi
+          ct lint "${args[@]}"
 
       - name: Helm unit tests
         run: |
@@ -122,39 +153,6 @@ jobs:
               --set externalDatabase.password=ci-dummy-password > /dev/null
           done
 
-  version-bump:
-    name: Chart version bumped
-    if: github.event_name == 'pull_request'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          # The version gate only reads history and fetches a public branch, so
-          # it never needs the token left behind in .git/config.
-          persist-credentials: false
-      - name: Require a Chart.yaml version bump when chart content changes
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          set -euo pipefail
-          base="origin/${BASE_REF}"
-          git fetch origin "${BASE_REF}"
-          merge_base=$(git merge-base "$base" HEAD)
-          changed=$(git diff --name-only "$merge_base" HEAD)
-          if echo "$changed" | grep -q '^helm/sim/'; then
-            base_version=$(git show "$merge_base:helm/sim/Chart.yaml" | awk '/^version:/ {print $2}')
-            head_version=$(awk '/^version:/ {print $2}' helm/sim/Chart.yaml)
-            echo "base=$base_version head=$head_version"
-            if [ "$base_version" = "$head_version" ]; then
-              echo "::error::helm/sim/** changed but Chart.yaml version did not (still $head_version). Bump it per SemVer."
-              exit 1
-            fi
-          else
-            echo "No chart changes; skipping."
-          fi
-
   install:
     name: Install on kind and run helm test
     needs: chart
@@ -180,7 +178,7 @@ jobs:
           helm install sim helm/sim \
             --namespace sim --create-namespace \
             --values helm/sim/ci/default-values.yaml \
-            --values helm/sim/ci/kind-values.yaml \
+            --values helm/sim/ci/kind-overlay.yaml \
             --wait --timeout 15m
 
       - name: Diagnostics on failure
@@ -195,6 +193,49 @@ jobs:
       - name: Run helm test
         run: helm test sim --namespace sim --timeout 5m
 
+  # Resolved once and shared, so the two publish paths cannot package the same
+  # immutable chart version with different appVersions -- they run in parallel,
+  # and a release becoming public between two independent API calls would be
+  # enough to make the OCI artifact and the HTTP repo install different Sims.
+  release-version:
+    name: Resolve the app release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read # Read the release list.
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      # On a release merge the tag does not exist yet -- this commit is what cuts
+      # it -- so the subject is the only source available, and the latest release
+      # is the source of truth for every other push.
+      #
+      # The subject pattern MUST stay identical to detect-version in ci.yml, which
+      # is what actually creates the tag and builds the images. If this one
+      # matched a subject that one rejects, the chart would publish naming a
+      # release that was never cut.
+      - name: Resolve the app release
+        id: resolve
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          subject=${HEAD_COMMIT_MESSAGE%%$'\n'*}
+          if [[ "$subject" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+): ]]; then
+            resolved="${BASH_REMATCH[1]}"
+            echo "Release commit; shipping the chart with ${resolved}."
+          else
+            resolved=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
+            echo "Not a release commit; shipping the chart with the latest release ${resolved}."
+          fi
+          if [ -z "$resolved" ]; then
+            echo "::error::Could not resolve an app release to ship this chart with."
+            exit 1
+          fi
+          echo "version=${resolved}" >> "$GITHUB_OUTPUT"
+
   # Publishes the chart to GHCR as an OCI artifact. Self-hosters cannot admit a
   # chart pulled from a git checkout — they need an immutable, versioned artifact
   # they can pin by digest and mirror into an internal registry — so shipping the
@@ -206,7 +247,7 @@ jobs:
   # A separate workflow would race those instead of waiting for them.
   publish:
     name: Publish chart to GHCR
-    needs: [chart, install]
+    needs: [chart, install, release-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
@@ -234,6 +275,19 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      # Derives appVersion rather than checking it, so the published chart cannot
+      # be pinned to an older Sim than the release it ships with. The committed
+      # value is kept current too, but nothing depends on a human remembering.
+      - name: Sync chart appVersion to the release
+        env:
+          APP_VERSION: ${{ needs.release-version.outputs.version }}
+        run: bun run scripts/sync-chart-appversion.ts --version "${APP_VERSION}"
+
       - name: Package chart
         id: package
         run: |
@@ -248,44 +302,6 @@ jobs:
             echo "path=dist/${name}-${version}.tgz"
             echo "repository=ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts/${name}"
           } >> "$GITHUB_OUTPUT"
-
-      # `appVersion` is what the image tags default to, so a stale one publishes
-      # a chart that silently installs an old Sim -- and because published chart
-      # versions are immutable, every stale value is frozen forever. It sat six
-      # releases behind before this check existed, bumped only by hand.
-      #
-      # BEHIND is the failure. AHEAD is normal and must not be blocked: a
-      # version tag is cut by the main-branch merge commit that releases it
-      # (detect-version in ci.yml), so appVersion legitimately names a release
-      # that does not exist yet while that release is still being built. Failing
-      # on any mismatch would race that workflow and block the very publish the
-      # bump was for. `helm/sim/ci/kind-values.yaml` documents the same
-      # circularity, and it is why appVersion went unbumped for so long.
-      #
-      # Compares against the latest GitHub release rather than a hardcoded value
-      # so the check cannot go stale itself. Prereleases and drafts are excluded:
-      # the `/releases/latest` endpoint already returns neither.
-      - name: appVersion does not lag the app release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          app_version=$(helm show chart helm/sim | awk '/^appVersion:/ {print $2}' | tr -d '"')
-          latest=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
-          if [ -z "$latest" ]; then
-            echo "::error::Could not resolve the latest release; refusing to publish unverified."
-            exit 1
-          fi
-          if [ "$app_version" = "$latest" ]; then
-            echo "appVersion ${app_version} matches the latest release."
-            exit 0
-          fi
-          oldest=$(printf '%s\n%s\n' "$app_version" "$latest" | sort -V | head -1)
-          if [ "$oldest" = "$app_version" ]; then
-            echo "::error::Chart.yaml appVersion is ${app_version} but the latest release is ${latest}. Bump appVersion (and the chart version) so the chart does not publish an install pinned to an older Sim."
-            exit 1
-          fi
-          echo "::notice::appVersion ${app_version} is ahead of the latest release ${latest}, which is expected while that release is still being cut."
 
       # Chart versions are immutable once published: whoever pinned a version
       # must keep resolving the same bytes forever. The PR gate above already
@@ -424,7 +440,7 @@ jobs:
   # the job holding the signing identity.
   publish-http:
     name: Publish chart to the Helm repo
-    needs: [chart, install]
+    needs: [chart, install, release-version]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'simstudioai/sim'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
@@ -453,6 +469,20 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "::warning::No gh-pages branch, so the HTTP chart repo was not updated. Create it and point GitHub Pages at it to activate this job. The OCI publish is unaffected."
           fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      # Derives appVersion rather than checking it, so the published chart cannot
+      # be pinned to an older Sim than the release it ships with. The committed
+      # value is kept current too, but nothing depends on a human remembering.
+      - name: Sync chart appVersion to the release
+        if: steps.pages.outputs.exists == 'true'
+        env:
+          APP_VERSION: ${{ needs.release-version.outputs.version }}
+        run: bun run scripts/sync-chart-appversion.ts --version "${APP_VERSION}"
 
       - name: Configure Git
         if: steps.pages.outputs.exists == 'true'

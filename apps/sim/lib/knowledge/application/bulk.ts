@@ -30,6 +30,7 @@ import {
   resolveActiveKnowledgeBaseInWorkspace,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
+import { authorizeSearchIndexDeletion } from '@/lib/knowledge/application/knowledge-base-access'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { deleteKnowledgeBase, updateKnowledgeBase } from '@/lib/knowledge/service'
 
@@ -345,8 +346,14 @@ export const bulkDeleteKnowledgeItems = defineAuthorizedKnowledgeUseCase({
           delegation: knowledgeDelegationPolicy,
         }),
       async (canonical) => {
+        const allowSearchIndexDelete = await authorizeSearchIndexDeletion(
+          principal,
+          canonical,
+          canonical.knowledgeBase
+        )
         await deleteKnowledgeBase(canonical.knowledgeBaseId, generateRequestId(), {
           assertedWorkspaceId: context.workspaceId,
+          allowSearchIndexDelete,
         })
         return canonical.knowledgeBase.name
       },

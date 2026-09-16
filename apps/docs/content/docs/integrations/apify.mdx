@@ -11,20 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Apify](https://apify.com/) is a powerful platform for building, deploying, and running web automation and web scraping actors at scale. Apify enables you to extract useful data from any website, automate workflows, and connect your data pipelines seamlessly.
-
-With Apify, you can:
-
-- **Run ready-made or custom actors**: Integrate public actors or develop your own, automating a wide range of web data extraction and browser tasks.
-- **Retrieve datasets**: Access and manage structured datasets collected by actors in real time.
-- **Scale web automation**: Leverage cloud infrastructure to run tasks reliably, asynchronously or synchronously, with robust error handling.
-
-In Sim, the Apify integration allows your agents to perform core Apify operations programmatically:
-
-- **Run Actor (Sync)**: Use `apify_run_actor_sync` to launch an Apify actor and wait for its completion, retrieving the results as soon as the run finishes.
-- **Run Actor (Async)**: Use `apify_run_actor_async` to start an actor in the background and periodically poll for results, suitable for longer or complex jobs.
-
-These operations equip your agents to automate, scrape, and orchestrate data collection or browser automation tasks directly inside workflows — all with flexible configuration and result handling, without the need for manual runs or external tools. Integrate Apify as a dynamic automation and data-extraction engine that programmatically powers your agents' web-scale workflows.
+[Apify](https://apify.com/) runs Actors for web scraping and browser automation. Run an Actor synchronously when you need its result in the same call, or start an asynchronous run and check its status before retrieving the dataset. You can also run saved Actor tasks and retrieve dataset items.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -46,7 +33,7 @@ Run an APIFY actor synchronously and get results (max 5 minutes)
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
 | `actorId` | string | Yes | Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
-| `input` | string | No | Actor input as JSON string. Example: \{"startUrls": \[\{"url": "https://example.com"\}\], "maxPages": 10\} |
+| `input` | string | No | Actor input as JSON string. Example: \{ "startUrls": \[ \{ "url": "https://example.com" \} \], "maxPages": 10 \} |
 | `memory` | number | No | Memory in megabytes allocated for the actor run \(128-32768\). Example: 1024 for 1GB, 2048 for 2GB |
 | `timeout` | number | No | Timeout in seconds for the actor run. Example: 300 for 5 minutes, 3600 for 1 hour |
 | `build` | string | No | Actor build to run. Examples: "latest", "beta", "1.2.3", "build-tag-name" |
@@ -70,7 +57,7 @@ Run an APIFY actor asynchronously with polling for long-running tasks
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
 | `actorId` | string | Yes | Actor ID or username/actor-name. Examples: "apify/web-scraper", "janedoe/my-actor", "moJRLRc85AitArpNN" |
-| `input` | string | No | Actor input as JSON string. Example: \{"startUrls": \[\{"url": "https://example.com"\}\], "maxPages": 10\} |
+| `input` | string | No | Actor input as JSON string. Example: \{ "startUrls": \[ \{ "url": "https://example.com" \} \], "maxPages": 10 \} |
 | `waitForFinish` | number | No | Initial wait time in seconds \(0-60\) before polling starts. Example: 30 |
 | `itemLimit` | number | No | Max dataset items to fetch \(1-250000\). Default: 100. Example: 500 |
 | `memory` | number | No | Memory in megabytes allocated for the actor run \(128-32768\). Example: 1024 for 1GB, 2048 for 2GB |
@@ -97,7 +84,7 @@ Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | APIFY API token from console.apify.com/account#/integrations |
 | `taskId` | string | Yes | Task ID or username/task-name. Examples: "janedoe/my-task", "moJRLRc85AitArpNN" |
-| `input` | string | No | JSON string that overrides the task's saved input. Example: \{"startUrls": \[\{"url": "https://example.com"\}\]\} |
+| `input` | string | No | JSON string that overrides the task's saved input. Example: \{ "startUrls": \[ \{ "url": "https://example.com" \} \] \} |
 | `itemLimit` | number | No | Max dataset items to return \(1-250000\). Example: 500 |
 | `memory` | number | No | Memory in megabytes allocated for the run \(128-32768\). Example: 1024 for 1GB |
 | `timeout` | number | No | Timeout in seconds for the run. Example: 300 for 5 minutes |

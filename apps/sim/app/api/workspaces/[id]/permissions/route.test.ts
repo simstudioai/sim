@@ -16,9 +16,18 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSyncWorkspaceEnvCredentials, mockGetEffectiveWorkspacePermission } = vi.hoisted(() => ({
+const {
+  mockSyncWorkspaceEnvCredentials,
+  mockGetEffectiveWorkspacePermission,
+  mockAssertMembershipNotScimManaged,
+} = vi.hoisted(() => ({
   mockSyncWorkspaceEnvCredentials: vi.fn(),
   mockGetEffectiveWorkspacePermission: vi.fn(),
+  mockAssertMembershipNotScimManaged: vi.fn(),
+}))
+
+vi.mock('@/ee/scim/lib/managed-membership', () => ({
+  assertMembershipNotScimManaged: mockAssertMembershipNotScimManaged,
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -37,6 +46,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
 }))
 
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { PATCH } from '@/app/api/workspaces/[id]/permissions/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -556,6 +566,37 @@ describe('workspace permissions route', () => {
       await expect(response.json()).resolves.toEqual({
         error: 'Organization admins are workspace admins and their role cannot be changed',
       })
+    })
+
+    it('refuses a role change for a member the directory manages', async () => {
+      queueOrgWorkspace([], [permissionRow(MEMBER_ID, 'read')])
+      mockAssertMembershipNotScimManaged.mockRejectedValueOnce(
+        new ForbiddenOperationError('SCIM_MANAGED_MEMBERSHIP', 'Managed by the directory')
+      )
+
+      const response = await PATCH(
+        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
+        routeContext
+      )
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toMatchObject({ error: 'Managed by the directory' })
+      expect(mockAssertMembershipNotScimManaged).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: ORG_ID, userId: MEMBER_ID })
+      )
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    })
+
+    it('does not consult the directory for a personal workspace', async () => {
+      queuePersonalWorkspace([permissionRow(ADMIN_ID, 'admin'), permissionRow(MEMBER_ID, 'read')])
+      dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-1' }])
+
+      await PATCH(
+        createMockRequest('PATCH', { updates: [{ userId: MEMBER_ID, permissions: 'write' }] }),
+        routeContext
+      )
+
+      expect(mockAssertMembershipNotScimManaged).not.toHaveBeenCalled()
     })
 
     it('refuses to change the role of an organization admin', async () => {

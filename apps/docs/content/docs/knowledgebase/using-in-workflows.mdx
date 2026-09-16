@@ -3,10 +3,9 @@ title: Using a knowledge base in a workflow
 description: How the Knowledge block searches a knowledge base and what it returns, so an agent can ground its answers in your documents.
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { WorkflowPreview, OutputBundle, SUPPORT_KB_WORKFLOW } from '@/components/workflow-preview'
 
-A **Knowledge block** searches a [knowledge base](/knowledgebase) and hands the matching passages to a later block, so an [Agent](/workflows/blocks/agent) can answer from your documents instead of the model's memory alone. It works like asking a librarian for the most relevant excerpts on a topic: you give it a question and get back a ranked, source-labeled list. This page covers searching, narrowing with tags, reranking, and reading the results.
+A **Knowledge block** searches a [knowledge base](/knowledgebase) and hands the matching passages to a later block, so an [Agent](/workflows/blocks/agent) can answer from your documents instead of the model's memory alone. This page covers searching, narrowing with tags, reranking, and reading the results.
 
 <WorkflowPreview workflow={SUPPORT_KB_WORKFLOW} height={180} />
 
@@ -25,7 +24,7 @@ You can also search by tags, instead of or alongside a query:
 | What you provide | What it does |
 | --- | --- |
 | Query only | Semantic search across every document in the base. The default. |
-| Tags only | Returns documents that match the tags, with no ranking by meaning. |
+| Tags only | Returns matching chunks up to Number of Results, without vector ranking. |
 | Query and tags | Tags narrow the document set first, then semantic search runs within it. The most precise. |
 
 ## Tag Filters
@@ -110,12 +109,3 @@ When the agent's answer is off, the cause is usually in retrieval, not the agent
 - **An exact code, ID, or name isn't found.** Switch Retrieval Mode to Hybrid so a keyword pass runs alongside the semantic one.
 
 See [debugging retrieval](/knowledgebase/debugging-retrieval) for the full diagnostic path, and [chunking strategies](/knowledgebase/chunking-strategies) for how chunk boundaries shape what a search can return.
-
-## Next
-
-<Cards>
-  <Card title="Knowledge bases overview" href="/knowledgebase" description="What a knowledge base is and how documents get indexed." />
-  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Define tags and use them to narrow a search." />
-  <Card title="Debugging retrieval" href="/knowledgebase/debugging-retrieval" description="Diagnose why a search returns the wrong chunks." />
-  <Card title="How blocks pass data" href="/workflows/data-flow" description="How one block reads another block's output." />
-</Cards>

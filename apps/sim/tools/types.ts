@@ -95,6 +95,10 @@ export type ParameterVisibility =
   | 'llm-only' // Only LLM provides (computed values)
   | 'hidden' // Not shown to user or LLM
 
+export interface ToolResponseContext {
+  signal?: AbortSignal
+}
+
 export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
@@ -122,6 +126,8 @@ export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
   provider: OAuthService // The service that needs to be authorized
   requiredScopes?: string[] // Specific scopes this tool needs (for granular scope validation)
+  /** False for provider operations that only accept app or bot identities. */
+  personalTokenSupported?: false
   /** Restricts execution to one stored credential kind after authorized token resolution. */
   credentialKind?: 'oauth' | 'service-account'
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
@@ -135,6 +141,13 @@ export interface OAuthConfig {
     | 'realmId'
     | 'quickBooksEnvironment'
   )[]
+}
+
+/** Maps a user-owned provider token and its bound host into an integration's existing parameters. */
+export interface PersonalTokenConfig {
+  provider: string
+  tokenParam: string
+  hostParam: string
 }
 
 export interface ToolRetryConfig {
@@ -191,6 +204,7 @@ export interface ToolConfig<P = any, R = any> {
 
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig
+  personalToken?: PersonalTokenConfig
 
   // Error extractor to use for this tool's error responses
   // If specified, only this extractor will be used (deterministic)
@@ -203,6 +217,8 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /** Raw binary downloads use the bounded file-transfer budget before file processing. */
+    responseType?: 'binary'
     /**
      * Allows the resolved request URL to target this Sim instance. Reserved for generic,
      * user-directed HTTP capabilities; integration tools must use an in-process operation.
@@ -279,7 +295,7 @@ export interface ToolConfig<P = any, R = any> {
   ) => Promise<R extends ToolResponse ? R : ToolResponse>
 
   // Response handling
-  transformResponse?: (response: Response, params?: P) => Promise<R>
+  transformResponse?: (response: Response, params?: P, context?: ToolResponseContext) => Promise<R>
 
   /**
    * Optional dynamic schema enrichment for specific params.

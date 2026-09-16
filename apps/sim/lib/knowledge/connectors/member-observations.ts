@@ -116,18 +116,24 @@ export async function recordMemberObservations(
 export async function removeUnseenMemberObservations(
   executor: DbOrTx,
   memberId: string,
-  runId: string
-): Promise<string[]> {
+  runId: string,
+  onRemoved: (documentIds: string[]) => Promise<void>
+): Promise<{ removed: number; finished: boolean }> {
+  const unseen = and(
+    eq(knowledgeDocumentObservation.memberId, memberId),
+    ne(knowledgeDocumentObservation.runId, runId)
+  )
+  const candidates = executor
+    .select({ documentId: knowledgeDocumentObservation.documentId })
+    .from(knowledgeDocumentObservation)
+    .where(unseen)
+    .limit(OBSERVATION_BATCH_SIZE)
   const removed = await executor
     .delete(knowledgeDocumentObservation)
-    .where(
-      and(
-        eq(knowledgeDocumentObservation.memberId, memberId),
-        ne(knowledgeDocumentObservation.runId, runId)
-      )
-    )
+    .where(and(unseen, inArray(knowledgeDocumentObservation.documentId, candidates)))
     .returning({ documentId: knowledgeDocumentObservation.documentId })
-  return removed.map((row) => row.documentId)
+  if (removed.length > 0) await onRemoved(removed.map((row) => row.documentId))
+  return { removed: removed.length, finished: removed.length < OBSERVATION_BATCH_SIZE }
 }
 
 /**
@@ -156,19 +162,6 @@ export async function removeMemberObservationsForDocuments(
     for (const row of rows) removed.push(row.documentId)
   }
   return removed
-}
-
-/** Every document the given members have observed, for rematerialisation after a membership change. */
-export async function listObservedDocumentIds(
-  executor: DbOrTx,
-  memberIds: readonly string[]
-): Promise<string[]> {
-  if (memberIds.length === 0) return []
-  const rows = await executor
-    .selectDistinct({ documentId: knowledgeDocumentObservation.documentId })
-    .from(knowledgeDocumentObservation)
-    .where(inArray(knowledgeDocumentObservation.memberId, memberIds))
-  return rows.map((row) => row.documentId)
 }
 
 /**
@@ -200,17 +193,18 @@ export async function rewriteConnectorAcls(
     lease?: SyncWriteLease
   } = {}
 ): Promise<boolean> {
-  const mismatch =
+  const aclMismatch =
     target.length === 0
       ? sql`cardinality(${document.acl}) > 0`
       : sql`${document.acl} <> ${textArrayLiteral(target)}`
+  const mismatch = sql`(${aclMismatch} OR ${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
   for (;;) {
     await options.beforeBatch?.()
     const rewritten = await db.transaction(async (tx) => {
       if (options.lease) await assertSyncLeaseHeldInTx(tx, connectorId, options.lease)
       return tx
         .update(document)
-        .set({ acl: [...target] })
+        .set({ acl: [...target], aclRequirements: [], aclVerifiedAt: null })
         .where(
           eq(
             document.id,
@@ -239,12 +233,12 @@ export async function materializeDocumentAcls(
     const batch = ids.slice(offset, offset + MATERIALIZE_BATCH_SIZE)
     const rows = await executor
       .update(document)
-      .set({ acl: observedAcl() })
+      .set({ acl: observedAcl(), aclRequirements: [], aclVerifiedAt: null })
       .where(
         and(
           inArray(document.id, batch),
           eq(document.connectorId, connectorId),
-          sql`${document.acl} IS DISTINCT FROM ${observedAcl()}`
+          sql`(${document.acl} IS DISTINCT FROM ${observedAcl()} OR ${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
         )
       )
       .returning({ id: document.id })
@@ -257,6 +251,7 @@ export interface MemberDocumentLifecycleResult {
   tombstoned: number
   resurrected: number
   purged: number
+  finished: boolean
 }
 
 /**
@@ -277,8 +272,7 @@ export async function applyMemberDocumentLifecycle(input: {
   lease: Pick<SyncRunLease, 'beatIfDue'>
   /** Runs the tombstone and resurrection writes only while the run still holds its lease. */
   withLease: <T>(fn: (tx: DbOrTx) => Promise<T>) => Promise<T>
-  /** External ids whose refresh did not land this run; withheld from resurrection. */
-  failedExternalIds: ReadonlySet<string>
+  deadlineAt: number
   /**
    * Whether absence of observers may hide or purge a document. False until at
    * least one member has completed a listing: before that, nothing has been
@@ -289,54 +283,41 @@ export async function applyMemberDocumentLifecycle(input: {
   const { connectorId, knowledgeBaseId, runId } = input
   const now = new Date()
 
-  const { tombstoned, resurrected } = await input.withLease(async (tx) => {
-    const tombstoned = !input.allowRemoval
-      ? []
-      : await tx
-          .update(document)
-          .set({ deletedAt: now })
-          .where(
-            and(
-              eq(document.connectorId, connectorId),
-              eq(document.userExcluded, false),
-              isNull(document.archivedAt),
-              isNull(document.deletedAt),
-              hasNoObservation()
-            )
-          )
-          .returning({ id: document.id })
-
-    const resurrectionCandidates = await tx
-      .select({ id: document.id, externalId: document.externalId })
-      .from(document)
-      .where(
-        and(
+  const result: MemberDocumentLifecycleResult = {
+    tombstoned: 0,
+    resurrected: 0,
+    purged: 0,
+    finished: false,
+  }
+  for (const phase of ['tombstoned', 'resurrected'] as const) {
+    if (phase === 'tombstoned' && !input.allowRemoval) continue
+    for (;;) {
+      if (Date.now() >= input.deadlineAt) return result
+      await input.lease.beatIfDue()
+      const changed = await input.withLease(async (tx) => {
+        const condition = and(
           eq(document.connectorId, connectorId),
+          eq(document.userExcluded, false),
           isNull(document.archivedAt),
-          isNotNull(document.deletedAt),
-          hasObservation()
+          phase === 'tombstoned'
+            ? and(isNull(document.deletedAt), hasNoObservation())
+            : and(isNotNull(document.deletedAt), isNotNull(document.contentHash), hasObservation())
         )
-      )
-    const resurrectIds = resurrectionCandidates
-      .filter((row) => !row.externalId || !input.failedExternalIds.has(row.externalId))
-      .map((row) => row.id)
-    const resurrected =
-      resurrectIds.length === 0
-        ? []
-        : await tx
-            .update(document)
-            .set({ deletedAt: null })
-            .where(
-              and(
-                inArray(document.id, resurrectIds),
-                eq(document.connectorId, connectorId),
-                isNull(document.archivedAt),
-                isNotNull(document.deletedAt)
-              )
-            )
-            .returning({ id: document.id })
-    return { tombstoned, resurrected }
-  })
+        const candidates = tx
+          .select({ id: document.id })
+          .from(document)
+          .where(condition)
+          .limit(MATERIALIZE_BATCH_SIZE)
+        return tx
+          .update(document)
+          .set({ deletedAt: phase === 'tombstoned' ? now : null })
+          .where(and(condition, inArray(document.id, candidates)))
+          .returning({ id: document.id })
+      })
+      result[phase] += changed.length
+      if (changed.length < MATERIALIZE_BATCH_SIZE) break
+    }
+  }
 
   const purgeCutoff = new Date(now.getTime() - MEMBER_TOMBSTONE_PURGE_DAYS * 24 * 60 * 60 * 1000)
   const purgeCandidates = input.allowRemoval
@@ -362,12 +343,12 @@ export async function applyMemberDocumentLifecycle(input: {
     syncLockToken: runId,
     lease: 'member',
   }
-  let purged = 0
   const purgeIds = purgeCandidates.map((row) => row.id)
   for (let offset = 0; offset < purgeIds.length; offset += PURGE_CHUNK_SIZE) {
+    if (Date.now() >= input.deadlineAt) return result
     await input.lease.beatIfDue()
     try {
-      purged += await hardDeleteDocuments(
+      result.purged += await hardDeleteDocuments(
         purgeIds.slice(offset, offset + PURGE_CHUNK_SIZE),
         runId,
         connectorId,
@@ -383,7 +364,8 @@ export async function applyMemberDocumentLifecycle(input: {
     }
   }
 
-  return { tombstoned: tombstoned.length, resurrected: resurrected.length, purged }
+  result.finished = purgeCandidates.length < MEMBER_PURGE_MAX_PER_RUN
+  return result
 }
 
 export interface StaleMemberSweepResult {
@@ -525,9 +507,19 @@ export async function sweepStaleMemberObservations(now: Date): Promise<StaleMemb
         .for('update')
       if (!stale) return null
 
+      const candidates = tx
+        .select({ documentId: knowledgeDocumentObservation.documentId })
+        .from(knowledgeDocumentObservation)
+        .where(eq(knowledgeDocumentObservation.memberId, member.id))
+        .limit(OBSERVATION_BATCH_SIZE)
       const removed = await tx
         .delete(knowledgeDocumentObservation)
-        .where(eq(knowledgeDocumentObservation.memberId, member.id))
+        .where(
+          and(
+            eq(knowledgeDocumentObservation.memberId, member.id),
+            inArray(knowledgeDocumentObservation.documentId, candidates)
+          )
+        )
         .returning({ documentId: knowledgeDocumentObservation.documentId })
       const documentIds = removed.map((row) => row.documentId)
       const rematerialized = await materializeDocumentAcls(member.connectorId, documentIds, tx)

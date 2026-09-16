@@ -1,7 +1,7 @@
 import { JupyterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 
 const PATH_OPERATIONS = [
   'jupyter_list_contents',
@@ -31,9 +31,11 @@ const KERNEL_ID_OPERATIONS = [
 /** Both members of the `file` canonical group — advanced mode fills only `fileRef`. */
 const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
 
-export const JupyterBlock: BlockConfig = {
+export const JupyterBlock = {
   type: 'jupyter',
-  name: 'Jupyter',
+  name: 'Jupyter (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'jupyter_v2' },
   description: 'Manage files, notebooks, kernels, and sessions on a Jupyter server',
   longDescription:
     'Integrate a self-hosted Jupyter server into the workflow. Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.',
@@ -391,6 +393,33 @@ export const JupyterBlock: BlockConfig = {
     kernel: 'json',
     kernelId: 'string',
     sessionId: 'string',
+  },
+} satisfies BlockConfig
+
+const selectJupyterV2Tool = createVersionedToolSelector({
+  baseToolSelector: JupyterBlock.tools.config.tool,
+  suffix: '_v2',
+  fallbackToolId: 'jupyter_get_content_v2',
+})
+
+export const JupyterV2Block: BlockConfig = {
+  ...JupyterBlock,
+  type: 'jupyter_v2',
+  name: 'Jupyter',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...JupyterBlock.tools,
+    access: JupyterBlock.tools.access.map((toolId) =>
+      toolId === 'jupyter_get_content' ? 'jupyter_get_content_v2' : toolId
+    ),
+    config: {
+      ...JupyterBlock.tools.config,
+      tool: (params) =>
+        params.operation === 'jupyter_get_content'
+          ? selectJupyterV2Tool(params)
+          : JupyterBlock.tools.config.tool(params),
+    },
   },
 }
 

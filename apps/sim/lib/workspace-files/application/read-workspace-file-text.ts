@@ -36,10 +36,9 @@ export interface ReadWorkspaceFileTextResult {
   /** True when a parser limit stopped extraction before the input was exhausted. */
   truncated: boolean
   /**
-   * True when no real extraction happened and `text` is best-effort scraped
-   * bytes or a placeholder rather than the document's content. Surfaced rather
-   * than converted into an error because the legacy `doc`/`ppt` parsers
-   * deliberately never throw, and that behavior is characterization-tested.
+   * True when no real extraction happened and `text` is a placeholder rather
+   * than the document's content — today only an all-blank workbook. Legacy
+   * formats raise typed parser errors instead of degrading.
    */
   degraded: boolean
   degradedReason: string | null

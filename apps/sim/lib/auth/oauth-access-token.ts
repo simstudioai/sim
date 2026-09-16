@@ -1,11 +1,15 @@
 import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { oauthAccessToken, oauthClient, user } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { eq } from 'drizzle-orm'
-import { isBanActive } from '@/lib/auth/ban'
-import { OAUTH_ACCESS_TOKEN_PREFIX } from '@/lib/auth/oauth-provider'
+import { isAccountBlocked } from '@/lib/auth/ban'
+import {
+  OAUTH_ACCESS_TOKEN_PREFIX,
+  OAUTH_API_READ_SCOPE,
+  oauthScopeSatisfies,
+} from '@/lib/auth/oauth-provider'
 
 const logger = createLogger('OAuthAccessToken')
 
@@ -34,6 +38,7 @@ export type InvalidOAuthAccessTokenReason =
   | 'client_disabled'
   | 'user_missing'
   | 'user_banned'
+  | 'wrong_resource'
 
 export class InvalidOAuthAccessTokenError extends Error {
   constructor(readonly reason: InvalidOAuthAccessTokenReason) {
@@ -65,6 +70,12 @@ function looksLikeOAuthAccessToken(token: string): boolean {
   return token.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)
 }
 
+export interface OAuthAccessTokenOptions {
+  resource?: string
+  /** Search MCP also accepts existing full-API grants; Search-only tokens still need an audience. */
+  allowUnboundApiTokens?: boolean
+}
+
 /**
  * Resolves an opaque OAuth access token to the principal it stands for.
  *
@@ -75,7 +86,10 @@ function looksLikeOAuthAccessToken(token: string): boolean {
  * disabled. Nothing about the token is cached; that is what makes revoking an
  * app in settings, or `sim logout`, take effect on the very next request.
  */
-export async function verifyOAuthAccessToken(token: string): Promise<OAuthAccessTokenPrincipal> {
+export async function verifyOAuthAccessToken(
+  token: string,
+  options: OAuthAccessTokenOptions = {}
+): Promise<OAuthAccessTokenPrincipal> {
   if (!looksLikeOAuthAccessToken(token)) throw new InvalidOAuthAccessTokenError('malformed')
   const raw = token.slice(OAUTH_ACCESS_TOKEN_PREFIX.length)
   if (!raw) throw new InvalidOAuthAccessTokenError('malformed')
@@ -86,10 +100,12 @@ export async function verifyOAuthAccessToken(token: string): Promise<OAuthAccess
       userId: oauthAccessToken.userId,
       clientId: oauthAccessToken.clientId,
       scopes: oauthAccessToken.scopes,
+      resource: oauthAccessToken.resource,
       expiresAt: oauthAccessToken.expiresAt,
       clientDisabled: oauthClient.disabled,
       userBanned: user.banned,
       userBanExpires: user.banExpires,
+      userSuspendedAt: user.suspendedAt,
       userExists: user.id,
     })
     .from(oauthAccessToken)
@@ -99,14 +115,29 @@ export async function verifyOAuthAccessToken(token: string): Promise<OAuthAccess
     .limit(1)
 
   if (!row) throw new InvalidOAuthAccessTokenError('unknown')
+  const acceptsUnboundApiToken =
+    options.allowUnboundApiTokens &&
+    options.resource &&
+    row.resource == null &&
+    oauthScopeSatisfies(row.scopes, OAUTH_API_READ_SCOPE)
+  if ((row.resource ?? null) !== (options.resource ?? null) && !acceptsUnboundApiToken) {
+    throw new InvalidOAuthAccessTokenError('wrong_resource')
+  }
   if (row.expiresAt <= new Date()) throw new InvalidOAuthAccessTokenError('expired')
   if (row.clientDisabled) throw new InvalidOAuthAccessTokenError('client_disabled')
   if (!row.userId || !row.userExists) throw new InvalidOAuthAccessTokenError('user_missing')
-  if (isBanActive({ banned: row.userBanned, banExpires: row.userBanExpires })) {
+  if (
+    isAccountBlocked({
+      banned: row.userBanned,
+      banExpires: row.userBanExpires,
+      suspendedAt: row.userSuspendedAt,
+    })
+  ) {
     throw new InvalidOAuthAccessTokenError('user_banned')
   }
 
   logger.debug('Authenticated OAuth access token', { tokenId: row.id, clientId: row.clientId })
+  setRequestAuth({ kind: 'oauth_access_token', clientId: row.clientId }, { preserveExisting: true })
   return {
     kind: 'oauth_access_token',
     userId: row.userId,

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   download: vi.fn(),
@@ -13,7 +14,7 @@ vi.mock('@/lib/internal/sharepoint/operations', () => ({
   executeSharePointUploadFile: mocks.upload,
 }))
 
-import { executeSharePointTool } from '@/lib/internal/sharepoint/execute-tool'
+import { executeSharePointTool as executeSharePointToolOperation } from '@/lib/internal/sharepoint/execute-tool'
 import { downloadFileTool } from '@/tools/sharepoint/download_file'
 import { uploadFileTool } from '@/tools/sharepoint/upload_file'
 
@@ -22,6 +23,14 @@ const context = {
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
   executionId: 'execution-1',
+}
+
+async function executeSharePointTool(
+  request: Parameters<typeof executeSharePointToolOperation>[0]
+): Promise<Response> {
+  const result = await executeSharePointToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
 }
 
 describe('executeSharePointTool', () => {
@@ -51,6 +60,23 @@ describe('executeSharePointTool', () => {
       expect.objectContaining(input),
       expect.objectContaining({ userId: 'user-1', requestId: 'request-1' })
     )
+  })
+
+  it('forwards file bytes without serializing the file result', async () => {
+    const fileResult = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ success: true, output: { file } })
+    )
+    mocks.download.mockResolvedValueOnce(fileResult)
+    expect(
+      await executeSharePointToolOperation({
+        toolId: 'sharepoint_download_file',
+        input: { accessToken: 'token', driveId: 'drive', itemId: 'item' },
+        headers: new Headers(),
+        context,
+        requestId: 'request-1',
+      })
+    ).toBe(fileResult)
   })
 
   it('requires trusted execution identity before parsing tool input', async () => {

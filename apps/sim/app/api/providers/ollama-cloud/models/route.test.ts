@@ -144,6 +144,29 @@ describe('GET /api/providers/ollama-cloud/models', () => {
     expect(fetchAuthHeader()).toBe('Bearer byok-ollama-key')
   })
 
+  it('discovers newly available models on subsequent requests without a static catalog update', async () => {
+    grantWorkspaceAccess()
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'byok-ollama-key' })
+    mockFetch
+      .mockResolvedValueOnce(okResponse({ models: [{ name: 'kimi-k3' }] }))
+      .mockResolvedValueOnce(
+        okResponse({
+          models: [{ name: 'kimi-k3' }, { name: 'deepseek-v4.1-flash' }, { name: 'glm-5.3' }],
+        })
+      )
+
+    const first = await GET(requestWithWorkspace('ws-1'))
+    expect(await first.json()).toEqual({ models: ['ollama-cloud/kimi-k3'] })
+    const refreshed = await GET(requestWithWorkspace('ws-1'))
+    expect(await refreshed.json()).toEqual({
+      models: ['ollama-cloud/kimi-k3', 'ollama-cloud/deepseek-v4.1-flash', 'ollama-cloud/glm-5.3'],
+    })
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      OLLAMA_CLOUD_TAGS_URL,
+      expect.objectContaining({ cache: 'no-store' })
+    )
+  })
+
   it('does not call getBYOKKey when there is a workspaceId but no session', async () => {
     mockGetSession.mockResolvedValue(null)
 

@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
-import { type UseQueryResult, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  queryOptions,
+  type UseQueryResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -32,6 +38,7 @@ import {
   type OrganizationBillingApiResponse,
 } from '@/lib/api/contracts/subscription'
 import { client } from '@/lib/auth/auth-client'
+import { isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
@@ -69,6 +76,22 @@ export { organizationKeys }
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
 
+/** Better Auth owns the authenticated membership-list endpoint. */
+export function useOrganizationList() {
+  return useQuery({
+    queryKey: organizationKeys.lists(),
+    queryFn: async ({ signal }) => {
+      const response = await client.organization.list({ fetchOptions: { signal } })
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to load organizations')
+      }
+      return response.data ?? []
+    },
+    enabled: isOrganizationsEnabled,
+    staleTime: ORGANIZATION_LIST_STALE_TIME,
+  })
+}
+
 async function fetchOrganizationRoster(
   orgId: string,
   signal?: AbortSignal
@@ -89,12 +112,18 @@ async function fetchOrganizationRoster(
   }
 }
 
+export function organizationRosterQueryOptions(orgId: string) {
+  return queryOptions({
+    queryKey: organizationKeys.roster(orgId),
+    queryFn: ({ signal }) => fetchOrganizationRoster(orgId, signal),
+    staleTime: ORGANIZATION_ROSTER_STALE_TIME,
+  })
+}
+
 export function useOrganizationRoster(orgId: string | undefined | null) {
   return useQuery({
-    queryKey: organizationKeys.roster(orgId ?? ''),
-    queryFn: ({ signal }) => fetchOrganizationRoster(orgId as string, signal),
+    ...organizationRosterQueryOptions(orgId ?? ''),
     enabled: !!orgId,
-    staleTime: ORGANIZATION_ROSTER_STALE_TIME,
   })
 }
 
@@ -143,18 +172,24 @@ async function fetchOrganization(orgId: string, signal?: AbortSignal) {
     query: { organizationId: orgId },
     fetchOptions: { signal },
   })
+  if (response.error) {
+    throw new Error(response.error.message || 'Failed to load organization')
+  }
   return response.data
 }
 
-/**
- * Hook to fetch a specific organization
- */
-export function useOrganization(orgId: string) {
-  return useQuery({
+export function organizationDetailQueryOptions(orgId: string) {
+  return queryOptions({
     queryKey: organizationKeys.detail(orgId),
     queryFn: ({ signal }) => fetchOrganization(orgId, signal),
-    enabled: !!orgId,
     staleTime: ORGANIZATION_DETAIL_STALE_TIME,
+  })
+}
+
+export function useOrganization(orgId: string) {
+  return useQuery({
+    ...organizationDetailQueryOptions(orgId),
+    enabled: !!orgId,
   })
 }
 
@@ -178,19 +213,22 @@ async function fetchOrganizationBilling(
   }
 }
 
-/**
- * Hook to fetch organization billing data
- */
+export function organizationBillingQueryOptions(orgId: string) {
+  return queryOptions({
+    queryKey: organizationKeys.billing(orgId),
+    queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
+    retry: false,
+    staleTime: ORGANIZATION_BILLING_STALE_TIME,
+  })
+}
+
 export function useOrganizationBilling(
   orgId: string,
   options?: { enabled?: boolean }
 ): OrganizationBillingQueryResult {
   return useQuery({
-    queryKey: organizationKeys.billing(orgId),
-    queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
+    ...organizationBillingQueryOptions(orgId),
     enabled: !!orgId && (options?.enabled ?? true),
-    retry: false,
-    staleTime: ORGANIZATION_BILLING_STALE_TIME,
   })
 }
 

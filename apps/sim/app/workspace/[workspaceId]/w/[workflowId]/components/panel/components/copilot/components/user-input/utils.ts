@@ -222,6 +222,10 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
       const ctx = context as FileContext
       return c.fileId === ctx.fileId
     }
+    case 'folder':
+      return context.kind === 'folder' && c.folderId === context.folderId
+    case 'filefolder':
+      return context.kind === 'filefolder' && c.fileFolderId === context.fileFolderId
     // Selection kinds scope to part of a resource, so equality is the selected
     // range — not the file/table — or re-selecting a different passage of an
     // already-referenced file would be swallowed as a duplicate.
@@ -325,9 +329,8 @@ export function isContextAlreadySelected(
  * collision would silently drop the second context. The ordinal keeps both
  * chips alive and stays readable in the input, unlike an opaque hash.
  *
- * Only meaningful for programmatically inserted contexts; menu-driven picks
- * name a distinct resource and dedupe correctly via
- * {@link isContextAlreadySelected}.
+ * Also used by folder menu picks, where separate resource families or parent
+ * folders may contain folders with the same name.
  */
 export function uniqueContextLabel(label: string, selectedContexts: ChatContext[]): string {
   const taken = new Set(selectedContexts.map((c) => c.label))

@@ -27,11 +27,13 @@ import {
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import {
+  areContextsEqual,
   escapeRegex,
   filterContextsPresentInMessage,
   prepareContextForInsert,
   restoreSkillTriggerText,
   SKILL_CHIP_TRIGGER,
+  uniqueContextLabel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { type McpServer, useMcpToolServers } from '@/hooks/queries/mcp'
 import { type SkillDefinition, useSkills } from '@/hooks/queries/skills'
@@ -110,6 +112,8 @@ export interface PromptEditorKeyPolicy {
 }
 
 export interface UsePromptEditorProps {
+  /** Whether this surface accepts workspace context, skills and attachments. */
+  contextsEnabled?: boolean
   /** Workspace whose resources, integrations, and skills the editor mentions. */
   workspaceId: string
   /** Initial text. Chipified (`@`-mentions / `/`-skills converted) on mount. */
@@ -158,12 +162,15 @@ export type PromptEditorInstance = ReturnType<typeof usePromptEditor>
  * ```
  */
 export function usePromptEditor({
+  contextsEnabled = true,
   workspaceId,
   initialValue = '',
   initialContexts,
   onContextAdd,
   onPasteFiles,
 }: UsePromptEditorProps) {
+  const contextsEnabledRef = useRef(contextsEnabled)
+  contextsEnabledRef.current = contextsEnabled
   const { data: skills = [] } = useSkills(workspaceId)
   const { data: allMcpServers = [] } = useMcpToolServers(workspaceId)
   const mcpServers = useMemo(
@@ -205,7 +212,10 @@ export function usePromptEditor({
   const dismissedMentionStartRef = useRef<number | null>(null)
   const dismissedSlashStartRef = useRef<number | null>(null)
 
-  const contextManagement = useContextManagement({ message: value, initialContexts })
+  const contextManagement = useContextManagement({
+    message: value,
+    initialContexts: contextsEnabled ? initialContexts : undefined,
+  })
   const contextManagementRef = useRef(contextManagement)
   contextManagementRef.current = contextManagement
 
@@ -215,6 +225,7 @@ export function usePromptEditor({
   onPasteFilesRef.current = onPasteFiles
 
   const addContextNotified = useCallback((context: ChatContext) => {
+    if (!contextsEnabledRef.current) return
     contextManagementRef.current.addContext(context)
     onContextAddRef.current?.(context)
   }, [])
@@ -252,7 +263,10 @@ export function usePromptEditor({
    * fully converted text and registers both context kinds.
    */
   const applyAutoMentions = useCallback(
-    (text: string) => skillAutoMention.applyToText(integrationAutoMention.applyToText(text)),
+    (text: string) =>
+      contextsEnabledRef.current
+        ? skillAutoMention.applyToText(integrationAutoMention.applyToText(text))
+        : text,
     [skillAutoMention.applyToText, integrationAutoMention.applyToText]
   )
   const applyAutoMentionsRef = useRef(applyAutoMentions)
@@ -317,10 +331,12 @@ export function usePromptEditor({
   /** Contexts whose tokens still exist in the latest synchronous editor value. */
   const getActiveContexts = useCallback(
     () =>
-      filterContextsPresentInMessage(
-        contextManagementRef.current.selectedContexts,
-        valueRef.current
-      ),
+      contextsEnabledRef.current
+        ? filterContextsPresentInMessage(
+            contextManagementRef.current.selectedContexts,
+            valueRef.current
+          )
+        : [],
     []
   )
 
@@ -409,7 +425,14 @@ export function usePromptEditor({
   }, [textareaRef])
 
   const insertResource = useCallback(
-    (resource: MothershipResource) => {
+    (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
+      const candidate = mapResourceToContext(resource)
+      const context =
+        candidate.kind === 'folder' || candidate.kind === 'filefolder'
+          ? (selected.find(
+              (current) => current.kind === candidate.kind && areContextsEqual(current, candidate)
+            ) ?? { ...candidate, label: uniqueContextLabel(candidate.label, selected) })
+          : candidate
       const textarea = textareaRef.current
       if (textarea) {
         const currentValue = valueRef.current
@@ -424,12 +447,12 @@ export function usePromptEditor({
           after = currentValue.slice(range.end)
           const needsSpaceBefore =
             range.start > 0 && !/\s/.test(currentValue.charAt(range.start - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${context.label} `
           newPos = before.length + insertText.length
         } else {
           const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
           const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
-          insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
+          insertText = `${needsSpaceBefore ? ' ' : ''}@${context.label} `
           before = currentValue.slice(0, insertAt)
           after = currentValue.slice(insertAt)
           newPos = before.length + insertText.length
@@ -445,8 +468,8 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      const context = mapResourceToContext(resource)
       addContextNotified(context)
+      return context
     },
     [textareaRef, addContextNotified]
   )
@@ -457,8 +480,10 @@ export function usePromptEditor({
    */
   const insertResources = useCallback(
     (resources: MothershipResource[]) => {
+      let selected = contextManagementRef.current.selectedContexts
       for (const resource of resources) {
-        insertResource(resource)
+        const context = insertResource(resource, selected)
+        selected = [...selected, context]
       }
       atInsertPosRef.current = null
     },
@@ -611,6 +636,7 @@ export function usePromptEditor({
 
   const syncMentionState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
+      if (!contextsEnabledRef.current) return
       const active = getActiveMentionAtRef.current(caret, text)
       // Any word-boundary character inside the query — whitespace, sentence
       // punctuation, or brackets — dismisses the menu. The mention token
@@ -650,6 +676,7 @@ export function usePromptEditor({
 
   const syncSlashState = useCallback(
     (textarea: HTMLTextAreaElement, text: string, caret: number) => {
+      if (!contextsEnabledRef.current) return
       const active = getActiveSlashAtRef.current(caret, text)
       // Any word-boundary character inside the query dismisses the menu. The
       // boundary set intentionally excludes `/` so the slash itself doesn't
@@ -718,7 +745,7 @@ export function usePromptEditor({
    * viewport position — the toolbar `+` button flow.
    */
   const openResourceMenu = useCallback((anchor: { left: number; top: number }) => {
-    plusMenuRef.current?.open(anchor)
+    if (contextsEnabledRef.current) plusMenuRef.current?.open(anchor)
   }, [])
 
   const handleInputChange = useCallback(
@@ -727,7 +754,7 @@ export function usePromptEditor({
       const nextValue = e.target.value
 
       let finalValue = nextValue
-      if (nextValue.length === previousValue.length + 1) {
+      if (contextsEnabledRef.current && nextValue.length === previousValue.length + 1) {
         // Single-char keystroke — synchronous, boundary-triggered.
         finalValue = integrationAutoMention.processChange({
           textarea: e.target,

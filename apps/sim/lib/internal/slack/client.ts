@@ -8,6 +8,7 @@ export interface SlackApiResult {
   data: SlackJsonObject
   status: number
   statusText: string
+  grantedScopes?: string[]
 }
 
 export interface SlackApiRequest {
@@ -18,6 +19,20 @@ export interface SlackApiRequest {
   query?: Record<string, string | number | undefined>
   signal?: AbortSignal
   tolerateInvalidErrorJson?: boolean
+}
+
+export interface SlackMessage {
+  channel: string
+  text: string
+  thread_ts?: string
+  blocks?: unknown[]
+  unfurl_links?: boolean
+  unfurl_media?: boolean
+}
+
+/** Shared provider primitive for workflow tools and application-owned Slack responses. */
+export function postSlackMessage(accessToken: string, message: SlackMessage, signal?: AbortSignal) {
+  return requestSlackApi({ accessToken, method: 'chat.postMessage', body: { ...message }, signal })
 }
 
 function isSlackJsonObject(value: unknown): value is SlackJsonObject {
@@ -89,7 +104,20 @@ export async function requestSlackApi({
   }
   signal?.throwIfAborted()
   if (!isSlackJsonObject(parsed)) throw new Error('Slack API returned an invalid response')
-  return { data: parsed, status: response.status, statusText: response.statusText }
+  const scopeHeader = response.headers.get('x-oauth-scopes')
+  return {
+    data: parsed,
+    status: response.status,
+    statusText: response.statusText,
+    ...(scopeHeader !== null
+      ? {
+          grantedScopes: scopeHeader
+            .split(',')
+            .map((scope) => scope.trim())
+            .filter(Boolean),
+        }
+      : {}),
+  }
 }
 
 /** Opens a Slack direct-message conversation while retaining the legacy thrown-error behavior. */

@@ -44,7 +44,8 @@ export const FILE_DOC_EVENTS = {
 /** Schema assumed for peers from before schema negotiation was added. */
 export const FILE_DOC_LEGACY_SCHEMA_VERSION = 1
 
-export const FILE_DOC_SCHEMA_VERSION = 1
+/** Version 2 adds inline images; version-1 peers would remove them during hydration. */
+export const FILE_DOC_SCHEMA_VERSION = 2
 
 /**
  * The tag carried in the first varUint of a {@link FILE_DOC_EVENTS.MESSAGE}

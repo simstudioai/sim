@@ -154,7 +154,8 @@ describe('ordered-list Markdown boundaries', () => {
     const original = editor.getJSON()
     let imageSource: string | undefined
     editor.state.doc.descendants((node) => {
-      if (node.type.name === 'image') imageSource = node.attrs.src
+      if (node.type.name === 'image' || node.type.name === 'inlineImage')
+        imageSource = node.attrs.src
     })
     expect(imageSource).toBe('https://example.com/photo.png')
     expect(editor.getMarkdown()).toContain('\\[ref\\] and `[ref]`')

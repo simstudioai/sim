@@ -294,7 +294,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               (Analytics and Ads),{' '}
               <ProseLink href='https://legal.hubspot.com/privacy-policy'>HubSpot</ProseLink>,{' '}
               <ProseLink href='https://x.com/en/privacy'>X (Twitter)</ProseLink>,{' '}
-              <ProseLink href='https://ahrefs.com/privacy'>Ahrefs</ProseLink>,{' '}
+              <ProseLink href='https://ahrefs.com/legal/privacy-policy'>Ahrefs</ProseLink>,{' '}
               <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>, and{' '}
               <ProseLink href='https://www.cloudflare.com/privacypolicy/'>Cloudflare</ProseLink>.
             </>

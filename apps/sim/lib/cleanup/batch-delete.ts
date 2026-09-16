@@ -26,7 +26,19 @@ export const DEFAULT_WORKSPACE_CHUNK_SIZE = 50
 /** Bounds FK cascade trigger queue (per-statement in-memory) and bind-parameter count. */
 export const DEFAULT_DELETE_CHUNK_SIZE = 1000
 
+export interface RowBudget {
+  remaining: number
+}
+
+/** Charge selected roots before side effects, including rows that fail or are restored. */
+export function consumeRowBudget(budget: RowBudget | undefined, count: number): void {
+  if (!budget) return
+  if (count > budget.remaining) throw new Error('Cleanup selection exceeded its row budget')
+  budget.remaining -= count
+}
+
 export interface SelectByIdChunksOptions {
+  budget?: RowBudget
   /** Cap on rows returned across all chunks. Defaults to a full per-table cleanup budget. */
   overallLimit?: number
   chunkSize?: number
@@ -48,6 +60,7 @@ export async function selectRowsByIdChunks<T>(
   {
     overallLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
     chunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
+    budget,
   }: SelectByIdChunksOptions = {}
 ): Promise<T[]> {
   if (ids.length === 0) return []
@@ -55,8 +68,10 @@ export async function selectRowsByIdChunks<T>(
   const rows: T[] = []
   for (const chunkIds of chunkArray(ids, chunkSize)) {
     if (rows.length >= overallLimit) break
-    const remaining = overallLimit - rows.length
+    const remaining = Math.min(overallLimit - rows.length, budget?.remaining ?? overallLimit)
+    if (remaining === 0) break
     const chunkRows = await query(chunkIds, remaining)
+    consumeRowBudget(budget, chunkRows.length)
     rows.push(...chunkRows)
   }
   return rows
@@ -69,6 +84,7 @@ export interface TableCleanupResult {
 }
 
 export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
+  budget?: RowBudget
   tableDef: PgTable
   workspaceIds: string[]
   tableName: string
@@ -112,9 +128,28 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
  * Workspace IDs are chunked before the SELECT — see
  * `DEFAULT_WORKSPACE_CHUNK_SIZE` for why.
  */
-export async function chunkedBatchDelete<TRow extends { id: string }>({
+export async function chunkedBatchDelete<TRow extends { id: string }>(
+  options: ChunkedBatchDeleteOptions<TRow>
+): Promise<TableCleanupResult> {
+  const { workspaceIds, workspaceChunkSize, ...rest } = options
+  return chunkedBatchDeleteByScope({
+    ...rest,
+    scopeIds: workspaceIds,
+    scopeChunkSize: workspaceChunkSize,
+  })
+}
+
+export interface ScopedChunkedBatchDeleteOptions<TRow extends { id: string }>
+  extends Omit<ChunkedBatchDeleteOptions<TRow>, 'workspaceIds' | 'workspaceChunkSize'> {
+  scopeIds: string[]
+  scopeChunkSize?: number
+}
+
+/** Shares bounded deletion and side effects across explicit workspace and organization owners. */
+export async function chunkedBatchDeleteByScope<TRow extends { id: string }>({
   tableDef,
-  workspaceIds,
+  budget,
+  scopeIds,
   tableName,
   selectChunk,
   onBatch,
@@ -122,22 +157,22 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
   batchSize = DEFAULT_BATCH_SIZE,
   maxBatches = DEFAULT_MAX_BATCHES_PER_TABLE,
   totalRowLimit = DEFAULT_BATCH_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
-  workspaceChunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
+  scopeChunkSize = DEFAULT_WORKSPACE_CHUNK_SIZE,
   dbClient = db,
-}: ChunkedBatchDeleteOptions<TRow>): Promise<TableCleanupResult> {
+}: ScopedChunkedBatchDeleteOptions<TRow>): Promise<TableCleanupResult> {
   const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
 
-  if (workspaceIds.length === 0) {
-    logger.info(`[${tableName}] Skipped — no workspaces in scope`)
+  if (scopeIds.length === 0) {
+    logger.info(`[${tableName}] Skipped — no resource owners in scope`)
     return result
   }
 
-  const chunks = chunkArray(workspaceIds, workspaceChunkSize)
+  const chunks = chunkArray(scopeIds, scopeChunkSize)
   let stoppedEarly = false
   let attempted = 0
 
   for (const [chunkIdx, chunkIds] of chunks.entries()) {
-    if (attempted >= totalRowLimit) {
+    if (attempted >= totalRowLimit || budget?.remaining === 0) {
       stoppedEarly = true
       break
     }
@@ -149,7 +184,11 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
       let rows: TRow[] = []
       try {
         const remainingLimit = totalRowLimit - attempted
-        const effectiveBatchSize = Math.min(batchSize, remainingLimit)
+        const effectiveBatchSize = Math.min(
+          batchSize,
+          remainingLimit,
+          budget?.remaining ?? batchSize
+        )
         if (effectiveBatchSize <= 0) {
           hasMore = false
           break
@@ -162,6 +201,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
           break
         }
 
+        consumeRowBudget(budget, rows.length)
         attempted += rows.length
         if (onBatch) await onBatch(rows)
 
@@ -176,6 +216,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
         hasMore = rows.length === effectiveBatchSize && attempted < totalRowLimit
         batchesProcessed++
       } catch (error) {
+        if (budget) throw error
         // Count rows we tried to delete; SELECT-stage errors leave rows=[].
         result.failed += rows.length
         logger.error(
@@ -195,6 +236,7 @@ export async function chunkedBatchDelete<TRow extends { id: string }>({
 }
 
 export interface BatchDeleteOptions {
+  budget?: RowBudget
   tableDef: PgTable
   workspaceIdCol: PgColumn
   timestampCol: PgColumn

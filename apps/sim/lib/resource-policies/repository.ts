@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import { resourcePolicy } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import type { DbOrTx } from '@/lib/db/types'
 import type {
   ResourcePolicyCodec,
@@ -14,7 +16,8 @@ export interface StoredResourcePolicy<
   Document extends ResourcePolicyDocument<ResourceType>,
 > {
   id: string
-  workspaceId: string
+  workspaceId: string | null
+  organizationId: string | null
   revision: number
   document: Document
   createdAt: Date
@@ -67,7 +70,7 @@ async function loadResourcePolicyWithExecutor<
     .from(resourcePolicy)
     .where(
       and(
-        eq(resourcePolicy.workspaceId, input.workspaceId),
+        resourceScopeCondition(resourcePolicy, resourceScopeFromOwner(input)),
         eq(resourcePolicy.resourceType, input.resourceType),
         eq(resourcePolicy.resourceId, input.resourceId)
       )
@@ -79,6 +82,7 @@ async function loadResourcePolicyWithExecutor<
   return {
     id: row.id,
     workspaceId: row.workspaceId,
+    organizationId: row.organizationId,
     revision: row.revision,
     document: input.codec.parse(row.document, {
       type: input.resourceType,
@@ -142,6 +146,7 @@ export async function writeResourcePolicy<
     return {
       id: updated.id,
       workspaceId: updated.workspaceId,
+      organizationId: updated.organizationId,
       revision: updated.revision,
       document,
       createdAt: updated.createdAt,
@@ -157,7 +162,7 @@ export async function deleteResourcePolicyForResource<
     .delete(resourcePolicy)
     .where(
       and(
-        eq(resourcePolicy.workspaceId, input.workspaceId),
+        resourceScopeCondition(resourcePolicy, resourceScopeFromOwner(input)),
         eq(resourcePolicy.resourceType, input.resourceType),
         eq(resourcePolicy.resourceId, input.resourceId)
       )

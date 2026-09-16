@@ -1,8 +1,10 @@
 /**
  * @vitest-environment node
  */
+
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   downloadOneDriveFile: vi.fn(),
@@ -17,10 +19,15 @@ vi.mock('@/lib/internal/onedrive/operations', () => ({
 import { executeOneDriveTool } from '@/lib/internal/onedrive/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
+const fileResult = createInternalToolFileResult(
+  { buffer: Buffer.from('file'), name: 'file.pdf', mimeType: 'application/pdf' },
+  (file) => ({ success: true, output: { file } })
+)
+
 describe('executeOneDriveTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.downloadOneDriveFile.mockResolvedValue({ success: true, output: {} })
+    mocks.downloadOneDriveFile.mockResolvedValue(fileResult)
     mocks.uploadOneDriveFile.mockResolvedValue({ success: true, output: {} })
   })
 
@@ -35,7 +42,7 @@ describe('executeOneDriveTool', () => {
       signal: controller.signal,
     }
 
-    expect((await executeOneDriveTool(request)).status).toBe(200)
+    expect(await executeOneDriveTool(request)).toBe(fileResult)
     expect(mocks.downloadOneDriveFile).toHaveBeenCalledWith(
       { accessToken: 'token', fileId: 'file-1', fileName: undefined },
       { signal: controller.signal }

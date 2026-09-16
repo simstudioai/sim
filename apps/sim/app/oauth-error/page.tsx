@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
+import { SSO_REQUIRED_ERROR_CODE, SSO_REQUIRED_MESSAGE } from '@/lib/auth/constants'
+import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 
 export const metadata: Metadata = {
   title: 'Sign-in couldn’t be completed',
@@ -40,6 +41,11 @@ const FRIENDLY: Record<string, string> = {
    */
   account_not_linked:
     'An account already exists for this email address. Sign in using the method you originally signed up with.',
+  /**
+   * The person's organization requires single sign-on, so a social sign-in is
+   * refused. Retrying the same provider can never succeed — name the way in.
+   */
+  [SSO_REQUIRED_ERROR_CODE]: SSO_REQUIRED_MESSAGE,
   /** The provider returned no email claim, so there is nothing to sign in as. */
   email_not_found:
     'Your identity provider didn’t share an email address with us, so we couldn’t complete sign-in. Please contact your administrator.',
@@ -55,15 +61,9 @@ export default async function OAuthErrorPage({ searchParams }: OAuthErrorPagePro
   const code = typeof params.error === 'string' ? params.error : undefined
 
   return (
-    <main className='desktop-title-bar-page flex items-center justify-center px-6'>
-      <DesktopTitleBarLane />
-      <div className='max-w-sm text-center'>
-        <h1 className='text-foreground text-lg'>Couldn’t complete that</h1>
-        <p className='mt-2 text-muted-foreground text-sm'>{messageForError(code)}</p>
-        <p className='mt-4 text-muted-foreground text-sm'>
-          You can close this tab and try again from Sim.
-        </p>
-      </div>
-    </main>
+    <DesktopHandoffShell
+      title='Sign-in couldn’t be completed'
+      description={`${messageForError(code)} You can close this tab and return to Sim.`}
+    />
   )
 }

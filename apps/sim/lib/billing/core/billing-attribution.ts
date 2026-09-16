@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { workspace } from '@sim/db/schema'
+import { member, workspace } from '@sim/db/schema'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import {
   checkBillingBlocked,
   checkBillingEntityBlocked,
@@ -32,6 +32,7 @@ import {
   type CopilotBillingProtocol,
 } from '@/lib/copilot/generated/billing-protocol-v1'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 
 export {
   BILLING_ACCOUNT_DECISION_HEADER,
@@ -73,7 +74,7 @@ export interface BillingPeriodSnapshot {
  */
 export interface BillingAttributionSnapshot {
   readonly actorUserId: string
-  readonly workspaceId: string
+  readonly workspaceId: string | null
   readonly organizationId: string | null
   readonly billedAccountUserId: string
   readonly billingEntity: Readonly<BillingEntity>
@@ -206,13 +207,17 @@ export function assertBillingAttributionSnapshot(value: unknown): BillingAttribu
   const raw = value
   if (
     !isNonEmptyString(raw.actorUserId) ||
-    !isNonEmptyString(raw.workspaceId) ||
+    (raw.workspaceId !== null && !isNonEmptyString(raw.workspaceId)) ||
     !isNonEmptyString(raw.billedAccountUserId)
   ) {
     throw new Error('Billing attribution snapshot is missing actor, workspace, or billed account')
   }
   if (raw.organizationId !== null && !isNonEmptyString(raw.organizationId)) {
     throw new Error('Billing attribution organization must be a non-empty string or null')
+  }
+
+  if (raw.workspaceId === null && !isNonEmptyString(raw.organizationId)) {
+    throw new Error('Organization billing requires an organization owner')
   }
 
   if (!isRecordLike(raw.billingEntity)) {
@@ -404,10 +409,8 @@ export function requireBillingRequestIdHeader(headers: Pick<Headers, 'get'>): st
   return billingRequestId
 }
 
-function parseBillingAttributionHeader(
-  headers: Pick<Headers, 'get'>,
-  expected: Pick<ResolveBillingAttributionParams, 'workspaceId'> &
-    Partial<Pick<ResolveBillingAttributionParams, 'actorUserId'>>
+function readBillingAttributionHeader(
+  headers: Pick<Headers, 'get'>
 ): BillingAttributionSnapshot | undefined {
   const encoded = headers.get(BILLING_ATTRIBUTION_HEADER)
   if (!encoded) return undefined
@@ -422,12 +425,40 @@ function parseBillingAttributionHeader(
     throw new Error('Billing attribution header is malformed')
   }
 
-  const attribution = assertBillingAttributionSnapshot(parsed)
-  if (
-    (expected.actorUserId !== undefined && attribution.actorUserId !== expected.actorUserId) ||
-    attribution.workspaceId !== expected.workspaceId
-  ) {
+  return assertBillingAttributionSnapshot(parsed)
+}
+
+function parseBillingAttributionHeader(
+  headers: Pick<Headers, 'get'>,
+  expected: ResourceOwner & { actorUserId?: string }
+): BillingAttributionSnapshot | undefined {
+  const attribution = readBillingAttributionHeader(headers)
+  if (!attribution) return undefined
+  if (expected.actorUserId !== undefined && attribution.actorUserId !== expected.actorUserId) {
     throw new Error('Billing attribution header does not match the authenticated request scope')
+  }
+  try {
+    assertBillingAttributionOwner(attribution, expected)
+  } catch {
+    throw new Error('Billing attribution header does not match the authenticated request scope')
+  }
+  return attribution
+}
+
+/** Settles exactly the admitted scope, including organization charges replayed from Go's ledger. */
+export function requireBillingCallbackAttribution(
+  headers: Pick<Headers, 'get'>,
+  expected: { actorUserId: string; workspaceId?: string; organizationId?: string }
+): BillingAttributionSnapshot {
+  const attribution = readBillingAttributionHeader(headers)
+  if (
+    !attribution ||
+    attribution.actorUserId !== expected.actorUserId ||
+    attribution.workspaceId !== (expected.workspaceId ?? null) ||
+    (expected.organizationId !== undefined &&
+      attribution.organizationId !== expected.organizationId)
+  ) {
+    throw new Error('Billing attribution header does not match the admitted callback scope')
   }
   return attribution
 }
@@ -439,7 +470,7 @@ function parseBillingAttributionHeader(
  */
 export function requireBillingAttributionHeader(
   headers: Pick<Headers, 'get'>,
-  expected: ResolveBillingAttributionParams
+  expected: ResourceOwner & { actorUserId: string }
 ): BillingAttributionSnapshot {
   const attribution = parseBillingAttributionHeader(headers, expected)
   if (!attribution) {
@@ -659,7 +690,7 @@ export async function resolveWorkspaceBillingPayer(
 
 function buildBillingAttributionSnapshot(params: {
   actorUserId: string
-  workspaceId: string
+  workspaceId: string | null
   billedAccountUserId: string
   organizationId: string | null
   payerSubscription: ResolvedPayerSubscription
@@ -707,6 +738,58 @@ export async function resolveBillingAttribution({
     workspaceId,
     ...payer,
   })
+}
+
+/** The organization payer is independent of the person making the request. */
+export async function resolveOrganizationBillingPayer(organizationId: string) {
+  const [owner] = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+    .limit(1)
+  if (!owner) throw new Error('Organization billing owner is unavailable')
+  const payerSubscription = await getOrganizationSubscription(organizationId, { onError: 'throw' })
+  if (payerSubscription && payerSubscription.referenceId !== organizationId)
+    throw new Error('Organization subscription belongs to a different payer')
+  return { organizationId, billedAccountUserId: owner.userId, payerSubscription }
+}
+
+/** Captures the routed organization's payer without consulting the actor's personal plan. */
+export async function resolveOrganizationBillingAttribution(input: {
+  actorUserId: string
+  organizationId: string
+}): Promise<BillingAttributionSnapshot> {
+  const payer = await resolveOrganizationBillingPayer(input.organizationId)
+  return buildBillingAttributionSnapshot({
+    actorUserId: input.actorUserId,
+    workspaceId: null,
+    ...payer,
+  })
+}
+
+/** Background indexing records the current payer as its system attribution, never as document authority. */
+export async function resolveSystemOrganizationBillingAttribution(
+  organizationId: string
+): Promise<BillingAttributionSnapshot> {
+  const payer = await resolveOrganizationBillingPayer(organizationId)
+  return buildBillingAttributionSnapshot({
+    actorUserId: payer.billedAccountUserId,
+    workspaceId: null,
+    ...payer,
+  })
+}
+
+/** A workspace's billing organization is its payer, not a second resource owner. */
+export function assertBillingAttributionOwner(
+  attribution: BillingAttributionSnapshot,
+  owner: ResourceOwner
+): void {
+  const scope = resourceScopeFromOwner(owner)
+  const matches =
+    scope.kind === 'workspace'
+      ? attribution.workspaceId === scope.workspaceId
+      : attribution.workspaceId === null && attribution.organizationId === scope.organizationId
+  if (!matches) throw new Error('Billing attribution does not match resource owner')
 }
 
 /**

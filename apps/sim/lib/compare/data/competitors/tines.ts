@@ -245,7 +245,7 @@ export const tinesProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/docs/records-cases/cases/',
+            url: 'https://www.tines.com/stories/docs/cases/',
             label: 'Cases | Docs | Tines',
             asOf: '2026-07-02',
           },
@@ -280,7 +280,7 @@ export const tinesProfile: CompetitorProfile = {
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.tines.com/docs/records-cases/records/',
+            url: 'https://www.tines.com/stories/docs/records/',
             label: 'Records | Docs | Tines',
             asOf: '2026-07-02',
           },

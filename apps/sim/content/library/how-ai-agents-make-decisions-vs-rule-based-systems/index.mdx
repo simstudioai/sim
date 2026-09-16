@@ -1,0 +1,95 @@
+---
+slug: how-ai-agents-make-decisions-vs-rule-based-systems
+title: 'How AI Agents Make Decisions (vs. Rule-Based Systems)'
+description: 'How AI agents decide what to do next through reasoning loops, tool calling, and guardrails, and how this differs from rule-based automation and RPA.'
+date: 2026-09-08
+updated: 2026-09-08
+authors:
+  - andrew
+readingTime: 7
+tags: [AI Agents, RPA, Workflow Automation, Sim]
+ogImage: /library/how-ai-agents-make-decisions-vs-rule-based-systems/cover.jpg
+canonical: https://www.sim.ai/library/how-ai-agents-make-decisions-vs-rule-based-systems
+draft: false
+faq:
+  - q: "Can AI agents be made deterministic?"
+    a: "AI agents can operate within deterministic constraints, but an LLM may still produce variable outputs. Sim Guardrails and Evaluator blocks can enforce fixed boundaries and acceptance criteria around those outputs. Sim Guardrails and Evaluator blocks make agent behavior more predictable without requiring you to predefine every decision path."
+  - q: "Do agents replace RPA entirely or complement it?"
+    a: "Agents generally complement RPA by handling decisions that fixed rules cannot express reliably. In Sim, an agent can interpret ambiguous information and route the task while rule-based steps handle stable operations. The combined workflow keeps predictable steps deterministic and applies agent judgment only where inputs vary."
+  - q: "What happens when an agent's tool call fails?"
+    a: "A workflow should treat a failed tool call as an observable result and follow a defined retry, fallback, or escalation path. Sim run logs record each block's execution for later review. You can diagnose the failure without relying on the model's final response alone."
+  - q: "How is human-in-the-loop different from a simple approval step in RPA?"
+    a: "Human-in-the-loop review pauses an agent after it has assembled context and proposed an action. Sim can wait indefinitely, notify a reviewer through supported channels, and resume through the portal or an authenticated REST API. The reviewer evaluates the context, evidence, and proposed action for that specific case rather than approving a fixed procedural checkpoint."
+---
+
+## TL;DR
+
+- AI agents choose each next step by evaluating current information and stored memory, then selecting from the software tools they are allowed to use. Rule-based automation, including robotic process automation (RPA), follows predefined if-then conditions.
+- Agents use a perceive, reason, act, observe, and repeat loop. Each action produces new information that can change the next decision.
+- RPA works well for stable, repetitive tasks with predictable inputs. Unexpected formats or conditions can halt the workflow because no matching rule exists.
+- Agents handle ambiguous or changing inputs more readily, but their choices can vary because language models select probable actions rather than fixed paths.
+- Guardrails enforce hard limits, while human-in-the-loop approval pauses sensitive actions for review. High-stakes workflows often combine these controls with agent reasoning.
+
+## Two ways a system decides what to do next
+
+Rule-based automation decides by matching an input against conditions that a person defined in advance. An RPA workflow might read an invoice and continue only when a field labeled "Total" contains a valid number. If a supplier replaces that label with "Amount due," the workflow may reject the invoice, choose the wrong branch, or send it to an exception queue unless someone added a rule for that variation. UiPath's [RPA workflow documentation](https://docs.uipath.com/autopilot/other/latest/user-guide/build-rpa-workflows) similarly characterizes RPA as repetitive, rule-based work best suited to well-defined, deterministic tasks.
+
+An AI agent generates its next step by interpreting the available evidence. Faced with "Amount due," an agent can consider the label, nearby values, and its instructions to infer that the field represents the invoice total. The agent might extract the value, call a validation tool, or request human review when the evidence remains unclear. Its choice is probabilistic, so the same evidence does not guarantee an identical decision on every run.
+
+An agent bases each decision on its current context and the tools it is allowed to use. The context can include the request, supporting documents, instructions, and relevant memory from earlier interactions. With that information, the agent can handle cases that nobody encoded as explicit branches, while fixed rules enforce limits on the actions it may take. For a broader comparison of the two approaches, see [AI agents vs. RPA](https://www.sim.ai/library/ai-agents-vs-rpa).
+
+## Inside the agent's reasoning loop
+
+An AI agent chooses each next step through a repeated perceive, reason, act, observe cycle. The agent continues the cycle until it completes the task, reaches a stopping condition, or requests human input.
+
+During perception, the agent assembles the information available for the current decision. Inputs can include the user's request, system instructions, workflow state, retrieved documents, earlier tool results, and memory from prior interactions. For an invoice task, the agent might receive the invoice text, the vendor record, and a purchasing policy.
+
+During reasoning, the language model evaluates the current information against the task and its constraints. It considers which available tool could advance the task, whether stored memory applies, and whether missing information requires another action. If the invoice contains an unfamiliar field, the agent can infer its likely purpose, search supporting records, or ask for clarification rather than requiring a predefined branch for that field.
+
+During action, the agent commits to a specific next step. It might call an accounting API, retrieve a purchase order, draft a response, or route the invoice for review. The tool call usually includes structured arguments generated from the current context, such as a vendor ID and invoice number.
+
+During observation, the agent receives the action's result and adds it to the working context. A successful API response may confirm that the purchase order matches. An error may show that the vendor ID is invalid or that access is unavailable. The agent then reasons over the updated state and chooses another action.
+
+The repeated reasoning and observation cycle allows an agent to respond when a tool result differs from the expected outcome. If a lookup fails, the agent can try another identifier, use a different tool, or request help. A fixed RPA script can recover only when you have already defined a branch for that failure. Without such a branch, an unexpected input can stop the workflow or send it to an exception queue. The [AI agent orchestration guide](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) explains how runtimes coordinate these steps across longer workflows.
+
+## Tool calling as the agent's decision surface
+
+Tool calling, also called function calling, gives an agent a defined set of executable actions. Each tool includes a description and an input schema. The model compares those definitions with the current context, then selects a tool and supplies its required arguments. Anthropic documents this same [tool-use contract](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/how-tool-use-works): the application defines available operations and their input and output shapes, while the model determines when and how to call them.
+
+During the act step, the model emits a structured tool request rather than directly executing code. The agent runtime validates the request, calls the relevant API, and returns the response to the model as a new observation. The model can then continue, choose another tool, ask for missing information, or finish the task.
+
+An RPA script usually calls tools in a sequence fixed by its designer. An agent chooses among available tools based on the state of the task. For example, an invoice workflow might normally create a payment record. If the invoice lacks a vendor ID, the agent could call a vendor lookup tool first rather than sending an invalid request or stopping at an unhandled branch.
+
+Tool selection remains probabilistic, so execution controls still matter. You can limit which tools the model can access and validate every argument before execution. The runtime should also enforce permissions independently of the model, especially for actions such as issuing refunds or changing account data.
+
+## Where guardrails and human approval belong
+
+Guardrails let an agent interpret variable inputs while restricting which proposed actions can proceed. The agent can interpret unusual inputs and choose a response, while fixed checks can reject actions that violate spending limits, access policies, or data-handling rules. Unlike RPA, those checks do not prescribe every decision path.
+
+Sim separates these controls into Guardrails, Evaluator, and Human in the Loop blocks. A Guardrails block validates content with configured JSON, regex, hallucination, or personally identifiable information checks. For example, a workflow could use deterministic conditions to block payments above a set amount, while Guardrails prevents protected data from reaching the next action.
+
+An Evaluator block acts as a scoring step when a binary rule cannot capture the requirement. You can assess an output against defined criteria, then use the resulting scores to route weak outputs for revision or review. The agent retains discretion within the acceptable range, but the surrounding workflow prevents low-quality decisions from reaching the next action.
+
+Human in the Loop adds explicit approval for decisions with financial, legal, or operational consequences. Sim's block pauses a workflow indefinitely by default while it waits for a response. Sim can send requests through Slack, Gmail, Microsoft Teams, SMS, or webhooks. Reviewers can approve through the Sim portal or a REST API. The guide to [human-in-the-loop AI agents](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents) covers these review paths and the block's default pause behavior.
+
+Run logs provide accountability after the workflow finishes. Sim records execution block by block, so you can inspect the agent's proposed action, the checks applied, the reviewer's response, and the path the workflow followed. The run log helps you investigate failures and adjust approval thresholds without replacing the agent's decision logic with a fixed RPA script. Learn how this fits into [AI agent observability](https://www.sim.ai/library/ai-agent-observability).
+
+## Agentic AI vs. RPA at a glance
+
+Input variability and decision ambiguity create the clearest differences between agentic AI and RPA.
+
+| Criterion | Agentic AI | RPA |
+| --- | --- | --- |
+| Flexibility | Agents adapt decisions to changing context, unstructured inputs, and available tools. | RPA follows predefined steps and conditions for expected inputs. |
+| Maintenance burden | Agents require prompt, tool, policy, and performance reviews as tasks evolve. | RPA requires branch and workflow updates whenever inputs or business rules change. |
+| Typical failure mode | An agent may misinterpret context, choose the wrong action, or produce inconsistent results. | An RPA script may stop, skip data, or take the wrong branch when an input deviates from its expected format. |
+| Best-fit use case | Agents suit ambiguous tasks that require judgment, such as investigating exceptions or routing varied requests. | RPA suits stable, repetitive tasks with structured data and predictable steps. |
+| Oversight mechanism | Agents can use policy checks, evaluation gates, human approval, and run logs. | RPA relies on fixed validation rules, exception queues, access controls, and predefined approval steps. |
+
+## Choosing between agentic AI and RPA
+
+Choose RPA when inputs follow a stable format and the correct response can be expressed as fixed rules. High-volume tasks such as copying validated invoice fields between systems benefit from predictable execution. When formats or expected exceptions change, you must update the RPA rules to preserve predictable execution.
+
+Choose an AI agent when decisions depend on unstructured information, incomplete instructions, or changing context. For example, an agent can interpret an unusual invoice, compare it with prior records, and choose an appropriate next step. For actions with financial, legal, or operational consequences, use guardrails to enforce permissions and approval requirements outside the model.
+
+Use a hybrid approach when a workflow needs flexible judgment within fixed boundaries. An agent can interpret the input, while deterministic rules control permissions, spending limits, and required approvals. In Sim, you can use agentic decision-making for variable work and apply rule-based controls to sensitive actions. The practical guide to [creating an AI agent](https://www.sim.ai/library/how-to-create-an-ai-agent) shows how to turn that design into a workflow.

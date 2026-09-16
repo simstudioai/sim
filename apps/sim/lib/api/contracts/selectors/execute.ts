@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
-import { MAX_ID_LENGTH, workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  MAX_ID_LENGTH,
+  organizationIdSchema,
+  workflowIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import { type SelectorKey, selectorManifest } from '@/lib/selectors/manifest'
 import { selectorContextKeys } from '@/lib/selectors/types'
@@ -14,6 +19,7 @@ export const selectorKeySchema = z.custom<SelectorKey>(
 )
 
 export const selectorScopeSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('organization'), organizationId: organizationIdSchema }).strict(),
   z
     .object({
       kind: z.literal('workflow'),
@@ -101,14 +107,24 @@ export const selectorOptionSchema = z
     id: z
       .string()
       .min(1)
-      .max(16 * 1024),
+      .max(16 * 1024)
+      .describe('Provider resource identifier.'),
     label: z
       .string()
       .min(1)
-      .max(16 * 1024),
-    meta: z.record(z.string().min(1).max(128), safeOptionMetaValueSchema).optional(),
+      .max(16 * 1024)
+      .describe('Human-readable provider resource name.'),
+    meta: z
+      .record(z.string().min(1).max(128), safeOptionMetaValueSchema)
+      .optional()
+      .describe('Safe scalar metadata for presenting or configuring this choice.'),
   })
   .strict()
+  .meta({
+    id: 'SelectorOption',
+    title: 'SelectorOption',
+    description: 'The SelectorOption result.',
+  })
 
 export const executeSelectorResponseSchema = z.discriminatedUnion('kind', [
   z

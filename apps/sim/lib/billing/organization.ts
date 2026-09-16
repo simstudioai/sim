@@ -488,8 +488,8 @@ export async function ensureOrganizationForTeamSubscriptionTx(
 }
 
 /**
- * Sync usage limits for subscription members
- * Updates usage limits for all users associated with the subscription
+ * Syncs the billing pool directly referenced by the subscription.
+ * Organization membership does not select or reset a personal billing pool.
  */
 export async function syncSubscriptionUsageLimits(subscription: SubscriptionData) {
   try {
@@ -514,7 +514,6 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
         )
       }
 
-      // Individual user subscription - sync their usage limits
       await syncUsageLimitsFromSubscription(subscription.referenceId)
 
       logger.info('Synced usage limits for individual user subscription', {
@@ -523,11 +522,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
         plan: subscription.plan,
       })
     } else {
-      // Organization subscription - set org usage limit and sync member limits
-      // Set orgUsageLimit for any paid non-enterprise plan attached to
-      // the org. Enterprise is set via webhook with custom pricing.
-      // Min = (basePrice × seats) + prepaid balance. Prepaid credits are
-      // additive headroom and must not be absorbed by a later seat increase.
+      /** Enterprise has custom pricing; other paid pools retain prepaid headroom when seats increase. */
       if (isPaid(subscription.plan) && !isEnterprise(subscription.plan)) {
         const { basePrice } = getPlanPricing(subscription.plan)
         const seats = subscription.seats || 1
@@ -553,40 +548,6 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
           seats,
           basePrice,
         })
-      }
-
-      // Sync usage limits for all members
-      const members = await db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(eq(member.organizationId, organizationId))
-
-      if (members.length > 0) {
-        for (const m of members) {
-          try {
-            await syncUsageLimitsFromSubscription(m.userId)
-          } catch (memberError) {
-            logger.error('Failed to sync usage limits for organization member', {
-              userId: m.userId,
-              organizationId,
-              subscriptionId: subscription.id,
-              error: memberError,
-            })
-          }
-        }
-
-        logger.info('Synced usage limits for organization members', {
-          organizationId,
-          memberCount: members.length,
-          subscriptionId: subscription.id,
-          plan: subscription.plan,
-        })
-
-        /**
-         * Storage is workspace-routed, not membership-routed. Workspace payer
-         * changes transfer the workspace's own durable byte ledger atomically;
-         * subscription sync must not move an account-wide user counter.
-         */
       }
     }
   } catch (error) {

@@ -25,11 +25,11 @@ With the Lambda integration, you can:
 - **Audit access**: Read a function's resource-based policy, add and remove permission statements for AWS services or accounts, and list function URL configurations to find publicly reachable endpoints
 - **Work with layers and tags**: List layers and their versions, fetch a layer version's download location, and list, add, or remove function tags
 
-### Credentials and permissions
+## Credentials and permissions
 
 The block authenticates with an AWS access key ID and secret access key scoped to a region. Grant the IAM principal only the Lambda actions the operations you use require — for example `lambda:InvokeFunction` for invocation, `lambda:GetFunction` and `lambda:ListFunctions` for read-only inventory, or `lambda:UpdateFunctionCode` and `lambda:PublishVersion` for deployments.
 
-### Deployment packages
+## Deployment packages
 
 Function code is supplied from Amazon S3 (bucket, key, and optional object version) or from a container image URI in Amazon ECR. Uploading a .zip archive inline is not supported — publish the archive to S3 first, in the same region as the function, then point **Create Function** or **Update Function Code** at it.
 

@@ -37,6 +37,7 @@ import {
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
+  isGemini3Model,
   isProviderBlacklisted,
   MODELS_TEMP_RANGE_0_1,
   MODELS_TEMP_RANGE_0_2,
@@ -57,6 +58,7 @@ import {
   transformBlockTool,
   updateOllamaProviderModels,
 } from '@/providers/utils'
+import { useProvidersStore } from '@/stores/providers/store'
 
 const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
@@ -162,6 +164,25 @@ describe('getApiKey', () => {
     const key2 = getApiKey('ollama', 'codellama', 'user-key')
     expect(key2).toBe('empty')
   })
+
+  it.each(['ollama', 'vllm', 'litellm'] as const)(
+    'uses the routed cloud provider credentials despite a name collision in %s discovery',
+    (localProvider) => {
+      const originalProviders = useProvidersStore.getState().providers
+      useProvidersStore.setState({
+        providers: {
+          ...originalProviders,
+          [localProvider]: { ...originalProviders[localProvider], models: ['azure/MyDeployment'] },
+        },
+      })
+      try {
+        expect(getApiKey('azure-openai', 'azure/MyDeployment', 'azure-key')).toBe('azure-key')
+        expect(() => getApiKey('azure-openai', 'azure/MyDeployment')).toThrow('API key is required')
+      } finally {
+        useProvidersStore.setState({ providers: originalProviders })
+      }
+    }
+  )
 
   it('should return empty or user-provided key for vllm provider without requiring API key', () => {
     setEnvFlags({ isHosted: false })
@@ -546,10 +567,11 @@ describe('Model Capabilities', () => {
         (m) =>
           m.includes('gpt-5') &&
           !m.includes('chat-latest') &&
-          !m.includes('gpt-5.5-pro') &&
-          !m.includes('gpt-5.4-pro') &&
-          !m.includes('gpt-5.2-pro') &&
-          !m.includes('gpt-5-pro')
+          m !== 'gpt-5.5-pro' &&
+          m !== 'gpt-5.4-pro' &&
+          m !== 'gpt-5.3-codex' &&
+          m !== 'gpt-5.2-pro' &&
+          m !== 'gpt-5-pro'
       )
       const gpt5ModelsWithVerbosity = MODELS_WITH_VERBOSITY.filter(
         (m) => m.includes('gpt-5') && !m.includes('chat-latest')
@@ -561,6 +583,9 @@ describe('Model Capabilities', () => {
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.4-pro')
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.4-pro')
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.3-codex')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.3-codex')
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.2-pro')
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.2-pro')
@@ -827,6 +852,27 @@ describe('Cost Calculation', () => {
       expect(shortContext).toMatchObject({ input: 0.544, output: 1.2, total: 1.744 })
       expect(longContext).toMatchObject({ input: 1.088004, output: 1.8, total: 2.888004 })
     })
+
+    it.each([
+      ['gemini-3.1-pro-preview', 2, 0.2, 12, 4, 0.4, 18],
+      ['gemini-2.5-pro', 1.25, 0.125, 10, 2.5, 0.25, 15],
+      ['grok-4.6', 2, 0.5, 6, 4, 1, 12],
+    ])(
+      'applies %s long-context rates only above 200k prompt tokens, including cached input',
+      (model, input, cached, output, longInput, longCached, longOutput) => {
+        const shortContext = calculateCost(model, 200_000, 100_000)
+        const longContext = calculateCost(model, 200_001, 100_000)
+        const shortCached = calculateCost(model, 200_000, 100_000, true)
+        const longCachedCost = calculateCost(model, 200_001, 100_000, true)
+
+        expect(shortContext.input).toBeCloseTo(input * 0.2, 10)
+        expect(shortContext.output).toBeCloseTo(output * 0.1, 10)
+        expect(longContext.input).toBeCloseTo((longInput * 200_001) / 1e6, 10)
+        expect(longContext.output).toBeCloseTo(longOutput * 0.1, 10)
+        expect(shortCached.input).toBeCloseTo(cached * 0.2, 10)
+        expect(longCachedCost.input).toBeCloseTo((longCached * 200_001) / 1e6, 10)
+      }
+    )
 
     it('should return default pricing for unknown models', () => {
       const result = calculateCost('unknown-model', 1000, 500, false)
@@ -2105,6 +2151,18 @@ describe('describeModelLevel', () => {
 })
 
 describe('findProviderFromModel', () => {
+  it.each([
+    ['azure/MyDeployment', 'azure-openai'],
+    ['AZURE/MyDeployment', 'azure-openai'],
+    ['azure-anthropic/MyDeployment', 'azure-anthropic'],
+    ['bedrock/custom-inference-profile', 'bedrock'],
+    ['vertex/publishers/google/models/custom-gemini', 'vertex'],
+  ])('uses the declared provider namespace for %s', (model, provider) => {
+    expect(findProviderFromModel(model)).toBe(provider)
+    expect(getProviderFromModel(model)).toBe(provider)
+    expect(shouldBillModelUsage(model)).toBe(false)
+  })
+
   it('resolves a chat model to its declaring provider', () => {
     expect(findProviderFromModel('claude-sonnet-5')).toBe('anthropic')
     expect(findProviderFromModel('gpt-5.2')).toBe('openai')
@@ -2125,6 +2183,26 @@ describe('findProviderFromModel', () => {
 
   it('still lets getProviderFromModel fall back to ollama for those ids', () => {
     expect(getProviderFromModel('whisper-1')).toBe('ollama')
+  })
+})
+
+describe('isGemini3Model', () => {
+  it.each([
+    'gemini-3.8-flash',
+    'VERTEX/gemini-3.8-flash',
+    'vertex/google/gemini-3.8-flash',
+    'vertex/publishers/google/models/gemini-3.8-flash',
+    'vertex/projects/test-project/locations/global/publishers/google/models/gemini-3.8-flash',
+  ])('recognizes the Gemini family in %s', (model) => {
+    expect(isGemini3Model(model)).toBe(true)
+  })
+
+  it.each([
+    'vertex/gemini-2.5-pro',
+    'vertex/custom-gemini-3-deployment',
+    'vertex/publishers/another-provider/models/gemini-3.8-flash',
+  ])('does not infer Gemini 3 behavior from %s', (model) => {
+    expect(isGemini3Model(model)).toBe(false)
   })
 })
 

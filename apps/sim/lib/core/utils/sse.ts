@@ -20,6 +20,11 @@ export function encodeSSE(data: any): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
 }
 
+/** Encodes an SSE comment, which clients ignore while intermediaries observe response activity. */
+export function encodeSSEComment(comment: string): Uint8Array {
+  return new TextEncoder().encode(`: ${comment}\n\n`)
+}
+
 /**
  * The sentinel value servers emit to signal end-of-stream. Lines carrying this
  * payload are skipped before reaching the consumer's `onEvent` callback.

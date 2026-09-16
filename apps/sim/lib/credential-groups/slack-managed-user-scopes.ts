@@ -28,6 +28,34 @@ export const SLACK_MANAGED_USER_SCOPES = [
   'users:read.email',
 ] as const
 
+export const SLACK_CHANNEL_READ_SCOPES = [
+  'channels:history',
+  'channels:read',
+  'groups:history',
+  'groups:read',
+] as const
+
+export const SLACK_DM_READ_SCOPES = ['im:history', 'im:read', 'mpim:history', 'mpim:read'] as const
+
+/** The shared organization app grants member access for channel and DM indexing. */
+export const SLACK_SEARCH_USER_SCOPES = [
+  ...SLACK_CHANNEL_READ_SCOPES,
+  ...SLACK_DM_READ_SCOPES,
+  'users:read',
+  'users:read.email',
+] as const
+
+/** Existing workflow options retain their scope policy; every user grant must attest identity. */
+export function resolveSlackManagedUserScopes(requiredScopes?: readonly string[]): string[] {
+  return [
+    ...new Set([
+      ...(requiredScopes?.length ? requiredScopes : SLACK_MANAGED_USER_SCOPES),
+      'users:read',
+      'users:read.email',
+    ]),
+  ]
+}
+
 export const SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH =
   '/api/credential-groups/slack-managed-users/callback'
 

@@ -107,7 +107,7 @@ export function ItPlatformTeamsGraphic({
             </span>
           </div>
 
-          <div className='flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs'>
+          <div className='flex items-center gap-3 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]'>
             <span className='min-w-0 flex-1'>
               <span className='block truncate text-[var(--text-primary)] text-small'>
                 {cardTitle}

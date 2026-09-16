@@ -1,3 +1,4 @@
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { z } from 'zod'
 import {
   folderIdSchema,
@@ -98,6 +99,28 @@ export const createWorkspaceFileBodySchema = z
 export type CreateWorkspaceFileBody = z.input<typeof createWorkspaceFileBodySchema>
 
 export type UpdateWorkspaceFileContentBody = z.input<typeof updateWorkspaceFileContentBodySchema>
+
+export const exportWorkspaceFileSnapshotBodySchema = z.object({
+  content: z
+    .string()
+    .max(PASTE_LIMITS.RICH_MARKDOWN_BYTES, 'Markdown snapshot is too large')
+    .refine(
+      (content) =>
+        utf8ByteLength(content, PASTE_LIMITS.RICH_MARKDOWN_BYTES) <=
+        PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+      'Markdown snapshot is too large'
+    ),
+})
+
+export type ExportWorkspaceFileSnapshotBody = z.input<typeof exportWorkspaceFileSnapshotBodySchema>
+
+export const exportWorkspaceFileSnapshotContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/[fileId]/export',
+  params: workspaceFileParamsSchema,
+  body: exportWorkspaceFileSnapshotBodySchema,
+  response: { mode: 'binary' },
+})
 
 /** No real image approaches this; the bound rejects absurd or hostile values on the backfill path. */
 const IMAGE_DIMENSION_MAX = 100_000

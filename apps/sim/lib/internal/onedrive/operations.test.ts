@@ -1,7 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  isInternalToolFileResult,
+  type StoredToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   assertToolFileAccess: vi.fn(),
@@ -63,12 +68,40 @@ describe('downloadOneDriveFile', () => {
     expect(mocks.secureFetchWithPinnedIP.mock.calls[1][2]).toEqual(
       expect.objectContaining({ signal: controller.signal })
     )
-    expect(result.output.file).toEqual({
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      {
+        name: 'report.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from([1, 2, 3]),
+      },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
       name: 'report.pdf',
+      type: 'application/pdf',
       mimeType: 'application/pdf',
-      data: 'AQID',
       size: 3,
-    })
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
+  })
+
+  it('preserves downloads above the JSON response limit as bytes', async () => {
+    const buffer = Buffer.alloc(11 * 1024 * 1024, 1)
+    mocks.secureFetchWithPinnedIP.mockReset()
+    mocks.secureFetchWithPinnedIP
+      .mockResolvedValueOnce(
+        Response.json({ name: 'large.xlsx', file: { mimeType: 'application/vnd.ms-excel' } })
+      )
+      .mockResolvedValueOnce(new Response(buffer))
+
+    const result = await downloadOneDriveFile({ accessToken: 'token', fileId: 'large-file' }, {})
+
+    expect(result.files[0]?.buffer.equals(buffer)).toBe(true)
+    expect(result.files[0]).not.toHaveProperty('data')
   })
 
   it('uploads plain content without an HTTP route hop and preserves text-file behavior', async () => {

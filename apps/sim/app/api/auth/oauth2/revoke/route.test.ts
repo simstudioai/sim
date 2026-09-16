@@ -1,18 +1,15 @@
 /**
  * @vitest-environment node
  */
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  oauthEnabled: vi.fn(),
   rateLimit: vi.fn(async () => null),
   revoke: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/oauth-provider-feature', () => ({
-  isOAuthProviderEnabled: mocks.oauthEnabled,
-}))
 vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mocks.rateLimit }))
 vi.mock('@/lib/auth/oauth-token-family', () => ({ revokeOAuthToken: mocks.revoke }))
 
@@ -26,10 +23,12 @@ function revokeRequest(body: string) {
   })
 }
 
+afterAll(resetEnvFlagsMock)
+
 describe('OAuth revocation route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.oauthEnabled.mockResolvedValue(true)
+    setEnvFlags({ isAuthDisabled: false })
     mocks.revoke.mockResolvedValue({ success: true, value: undefined })
   })
 
@@ -45,22 +44,13 @@ describe('OAuth revocation route', () => {
     })
   })
 
-  it('applies the runtime flag before revocation admission or protected work', async () => {
-    const request = () => revokeRequest('client_id=sim-cli&token=sim_ort_current')
-    expect((await POST(request())).status).toBe(200)
-    mocks.revoke.mockClear()
-    mocks.rateLimit.mockClear()
-
-    mocks.oauthEnabled.mockResolvedValue(false)
-    const disabled = await POST(request())
-    expect(disabled.status).toBe(404)
-    expect(disabled.headers.get('cache-control')).toBe('no-store')
+  it('requires authentication before revocation admission or protected work', async () => {
+    setEnvFlags({ isAuthDisabled: true })
+    const response = await POST(revokeRequest('client_id=sim-cli&token=sim_ort_current'))
+    expect(response.status).toBe(404)
+    expect(response.headers.get('cache-control')).toBe('no-store')
     expect(mocks.revoke).not.toHaveBeenCalled()
     expect(mocks.rateLimit).not.toHaveBeenCalled()
-
-    mocks.oauthEnabled.mockResolvedValue(true)
-    expect((await POST(request())).status).toBe(200)
-    expect(mocks.revoke).toHaveBeenCalledOnce()
   })
 
   it('returns a Basic challenge for Basic client-authentication failure', async () => {

@@ -47,7 +47,6 @@ interface BrowserSessionState {
     runIds: readonly string[],
     options?: { hardResetScopeIds?: readonly string[] }
   ) => void
-  reorderTab: (scopeId: string, tabId: string, targetIndex: number) => void
   setSessionAlive: (alive: boolean, scopeId: string) => void
 }
 
@@ -141,7 +140,6 @@ function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
     a.title === b.title &&
     a.loading === b.loading &&
     a.active === b.active &&
-    a.pinned === b.pinned &&
     pageIssueEqual(a.issue, b.issue)
   )
 }
@@ -429,22 +427,6 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
           )
           return changed ? { sessions } : {}
         }),
-      reorderTab: (scopeId, tabId, targetIndex) =>
-        set((state) =>
-          withSession(state, scopeId, (current) => {
-            const currentIndex = current.tabs.findIndex((tab) => tab.tabId === tabId)
-            if (currentIndex < 0 || !Number.isFinite(targetIndex)) return current
-            const nextIndex = Math.max(
-              0,
-              Math.min(current.tabs.length - 1, Math.trunc(targetIndex))
-            )
-            if (currentIndex === nextIndex) return current
-            const tabs = [...current.tabs]
-            const [tab] = tabs.splice(currentIndex, 1)
-            tabs.splice(nextIndex, 0, tab)
-            return { ...current, tabs }
-          })
-        ),
       setSessionAlive: (alive, scopeId) =>
         set((state) => {
           return withSession(state, scopeId, (current) => {

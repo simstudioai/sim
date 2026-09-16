@@ -67,6 +67,8 @@ describe('knowledge connector member sync worker', () => {
 
   it('classifies outcomes from the run counters', () => {
     expect(classifyMemberSyncResult(RESULT)).toBe('completed')
+    expect(classifyMemberSyncResult({ ...RESULT, membersIncomplete: 1 })).toBe('partial')
+    expect(classifyMemberSyncResult({ ...RESULT, membersRemaining: true })).toBe('partial')
     expect(classifyMemberSyncResult({ ...RESULT, membersFailed: 1 })).toBe('partial')
     expect(classifyMemberSyncResult({ ...RESULT, docsFailed: 1 })).toBe('partial')
     expect(classifyMemberSyncResult({ ...RESULT, error: 'boom' })).toBe('failed')

@@ -2,7 +2,7 @@ import { workspaceForkDependentValue } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import type { ForkReferenceResolver } from '@/ee/workspace-forking/lib/remap/remap-references'
+import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
 
 /** One stored dependent-field value for an edge. */
 export interface ForkDependentValue {

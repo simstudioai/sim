@@ -4,6 +4,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { RequestTraceV1Span } from '@/lib/copilot/generated/request-trace-v1'
+import type { ProviderToolCallIdentity } from '@/lib/copilot/request/go/tool-call-identity'
 import type { StreamEvent } from '@/lib/copilot/request/session'
 import type { TraceCollector } from '@/lib/copilot/request/trace'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
@@ -28,6 +29,8 @@ export interface ToolCallState {
   /** Bounded registry ID of the agent that invoked this tool. */
   agentId?: string
   displayTitle?: string
+  /** Model-authored activity text, separate from executable tool arguments. */
+  activityDescription?: string
   /** Model-authored activity text for a gateway-resolved integration call. */
   integrationDescription?: string
   /** Accumulated partial JSON of the arguments while the model streams them. */
@@ -133,6 +136,12 @@ export interface StreamingContext {
   executionId?: string
   runId?: string
   messageId: string
+  /**
+   * Shared by all live resume legs. Reconnects replay events without resuming Go; any future
+   * durable lifecycle takeover must persist and restore this map alongside its checkpoints.
+   * Absent on legacy contexts, whose tool IDs retain their original meaning.
+   */
+  providerToolCallIdentity?: ProviderToolCallIdentity
   accumulatedContent: string
   finalAssistantContent: string
   sawMainToolCall: boolean
@@ -208,7 +217,7 @@ interface OrchestratorRequest {
   workflowId: string
   userId: string
   chatId?: string
-  mode?: 'agent' | 'ask' | 'plan'
+  mode?: 'agent' | 'assistant' | 'plan'
   model?: string
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: FileAttachment[]

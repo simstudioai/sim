@@ -8,6 +8,7 @@ import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
+  insertImmutableFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
   insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
   deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
 }))

@@ -5,6 +5,15 @@ export interface OcrRequestPolicy {
   readonly concurrency: number
 }
 
+/** Raster formats accepted by the Mistral image OCR transport. */
+export const OCR_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+])
+
 /** Mistral's hosted OCR request limits for uploaded documents. */
 export const MISTRAL_OCR_REQUEST_POLICY = {
   maxBytes: 50_000_000,

@@ -1,10 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import {
-  fetchWithRetry,
-  readBoundedHttpErrorBody,
-  VALIDATE_RETRY_OPTIONS,
-} from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { readBoundedHttpErrorBody, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { onedriveConnectorMeta } from '@/connectors/onedrive/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {

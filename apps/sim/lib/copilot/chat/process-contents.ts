@@ -6,20 +6,20 @@ import {
 } from '@sim/platform-authz/workflow'
 import { eq } from 'drizzle-orm'
 import { createCopilotChatKnowledgePrincipal } from '@/lib/copilot/application/execute-knowledge-use-case'
+import { createCopilotChatPrincipal } from '@/lib/copilot/auth/application-delegation'
 import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { createCopilotChatTablePrincipal } from '@/lib/copilot/auth/table-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
+import { createChatFolderResolver } from '@/lib/copilot/chat/folder-context'
 import {
+  MAX_TABLE_SELECTION_COLUMNS,
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
+  MAX_TABLE_SELECTION_ROWS,
   safeBrowserSelectionUrl,
   truncateSelectionText,
 } from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
-  BROWSER_SESSION_RESOURCE_ID,
-  TERMINAL_SESSION_RESOURCE_ID,
-} from '@/lib/copilot/resources/types'
-import {
-  buildVfsFolderPathMap,
   canonicalBlockVfsPath,
   canonicalKnowledgeBaseVfsDir,
   canonicalTableVfsPath,
@@ -30,6 +30,8 @@ import {
 } from '@/lib/copilot/vfs/path-utils'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { parseFolderPath } from '@/lib/folders/paths'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import {
@@ -47,15 +49,16 @@ import {
   intersectIntegrationAllowlists,
   resolveAccessControlBlockType,
 } from '@/lib/permission-groups/integration-allowlist'
+import { skillDelegationPolicy } from '@/lib/skills/application/authorization'
+import { getSkillUseCase } from '@/lib/skills/application/use-cases'
+import { queryTableRows } from '@/lib/table/application/rows'
+import { readTableUseCase } from '@/lib/table/application/tables'
 import { getColumnId } from '@/lib/table/column-keys'
-import { getRowsByIds } from '@/lib/table/rows/service'
-import { getTableById } from '@/lib/table/service'
 import type { ColumnDefinition } from '@/lib/table/types'
-import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { getSkillById } from '@/lib/workflows/skills/operations'
-import { listFolders } from '@/lib/workflows/utils'
+import { workflowDelegationPolicy } from '@/lib/workflows/application/authorization'
+import { readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import { getBlockRegistry } from '@/blocks/registry'
 import { escapeRegExp } from '@/executor/constants'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -89,13 +92,14 @@ interface AgentContext {
    * Canonical, URL-encoded VFS path for the tagged resource (e.g.
    * `agent/skills/My%20Skill.json`). Tagged resources are sent as path
    * pointers so the model reads them on demand via VFS tools instead of the
-   * full body bloating the request. Skills are the exception: they carry both
-   * `path` and the full `content` so the skill is autoloaded.
+   * full body bloating the request. Selections retain their bounded excerpt;
+   * skills retain their instructions for autoloading.
    */
   path?: string
 }
 
 const logger = createLogger('ProcessContents')
+const CONTEXT_RESOLUTION_CONCURRENCY = 4
 
 function formatBrowserSelection(selection: BrowserTextSelection): string {
   const url = selection.url ? safeBrowserSelectionUrl(selection.url) : undefined
@@ -137,13 +141,18 @@ export async function processContextsServer(
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
-  const tasks = contexts.map(async (ctx) => {
+  const folderResolver = currentWorkspaceId
+    ? createChatFolderResolver(userId, currentWorkspaceId, chatId)
+    : undefined
+  const resolveContext = async (ctx: ChatContext) => {
     try {
       if (ctx.kind === 'skill' && ctx.skillId && currentWorkspaceId) {
         return await processSkillFromDb(
           ctx.skillId,
           currentWorkspaceId,
-          ctx.label ? `@${ctx.label}` : '@'
+          ctx.label ? `@${ctx.label}` : '@',
+          userId,
+          chatId
         )
       }
       if (ctx.kind === 'mcp' && ctx.serverId && currentWorkspaceId) {
@@ -191,9 +200,12 @@ export async function processContextsServer(
           chatId
         )
       }
-      if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
+      if (
+        (ctx.kind === 'integration' && ctx.blockType) ||
+        (ctx.kind === 'blocks' && ctx.blockIds?.length > 0)
+      ) {
         return await processBlockMetadata(
-          ctx.blockIds[0],
+          ctx.kind === 'integration' ? ctx.blockType : ctx.blockIds[0],
           ctx.label ? `@${ctx.label}` : '@',
           userId,
           currentWorkspaceId
@@ -211,14 +223,6 @@ export async function processContextsServer(
       // additionally carries the quoted snapshot they chose, while the pointer
       // lets the agent inspect or act on the current page/shell when needed.
       if (ctx.kind === 'browser_tab' && ctx.tabId) {
-        if (ctx.tabId === BROWSER_SESSION_RESOURCE_ID) {
-          return {
-            type: 'browser_tab',
-            tag: ctx.label ? `@${ctx.label}` : '@Browser',
-            content:
-              'The user tagged the Browser resource as a whole, not a specific tab. Inspect the live tabs with browser_list_tabs and choose the relevant one from their request. If no browser tab is open yet, open or navigate one as needed.',
-          }
-        }
         const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). Act on THIS tab — switch to it with browser_switch_tab and read it with browser_snapshot rather than assuming which tab they meant.`
         return {
           type: 'browser_tab',
@@ -229,14 +233,6 @@ export async function processContextsServer(
         }
       }
       if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
-        if (ctx.terminalId === TERMINAL_SESSION_RESOURCE_ID) {
-          return {
-            type: 'terminal_tab',
-            tag: ctx.label ? `@${ctx.label}` : '@Terminal',
-            content:
-              'The user tagged the Terminal resource as a whole, not a specific shell. Inspect the live terminals with the terminal list operation and choose the relevant one from their request. If no terminal is open yet, create one as needed.',
-          }
-        }
         const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). Act on THIS terminal — pass that terminalId to the terminal tool, and read its screen before assuming what is in it.`
         return {
           type: 'terminal_tab',
@@ -252,11 +248,12 @@ export async function processContextsServer(
           userId,
           ctx.blockId,
           ctx.label,
-          currentWorkspaceId
+          currentWorkspaceId,
+          chatId
         )
       }
       if (ctx.kind === 'table' && ctx.tableId && currentWorkspaceId) {
-        const result = await resolveTableResource(ctx.tableId, currentWorkspaceId)
+        const result = await resolveTableResource(ctx.tableId, currentWorkspaceId, userId, chatId)
         if (!result) return null
         return {
           type: 'table',
@@ -299,27 +296,21 @@ export async function processContextsServer(
           currentWorkspaceId,
           ctx.rowIds,
           ctx.columnIds,
-          ctx.label
+          ctx.label,
+          userId,
+          chatId
         )
       }
-      if (ctx.kind === 'folder' && 'folderId' in ctx && ctx.folderId && currentWorkspaceId) {
-        const result = await resolveFolderResource(ctx.folderId, currentWorkspaceId)
-        if (!result) return null
+      if ((ctx.kind === 'folder' || ctx.kind === 'filefolder') && folderResolver) {
+        const folderId = ctx.kind === 'folder' ? ctx.folderId : ctx.fileFolderId
+        const path = await folderResolver.folderPointer(folderId, ctx.kind === 'filefolder')
         return {
-          type: 'folder',
+          type: ctx.kind,
           tag: ctx.label ? `@${ctx.label}` : '@',
-          content: result.content,
-          path: result.path,
-        }
-      }
-      if (ctx.kind === 'filefolder' && ctx.fileFolderId && currentWorkspaceId) {
-        const result = await resolveFileFolderResource(ctx.fileFolderId, currentWorkspaceId)
-        if (!result) return null
-        return {
-          type: 'filefolder',
-          tag: ctx.label ? `@${ctx.label}` : '@',
-          content: result.content,
-          path: result.path,
+          content: path
+            ? ''
+            : 'The attached folder could not be resolved in this workspace. Do not guess its contents or substitute a similarly named folder.',
+          ...(path ? { path } : {}),
         }
       }
       if (ctx.kind === 'docs') {
@@ -361,8 +352,8 @@ export async function processContextsServer(
       logger.error('Failed processing context (server)', { ctx, error })
       return null
     }
-  })
-  const results = await Promise.all(tasks)
+  }
+  const results = await mapWithConcurrency(contexts, CONTEXT_RESOLUTION_CONCURRENCY, resolveContext)
   const filtered = results.filter(
     (r): r is AgentContext =>
       !!r &&
@@ -427,11 +418,18 @@ function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | un
 async function processSkillFromDb(
   skillId: string,
   workspaceId: string,
-  tag: string
+  tag: string,
+  userId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
   try {
-    const s = await getSkillById({ skillId, workspaceId })
-    if (!s) return null
+    const { skill: s } = await getSkillUseCase.execute({
+      principal: createCopilotChatPrincipal(
+        { userId, workspaceId, chatId },
+        skillDelegationPolicy.audience
+      ),
+      input: { skillId, workspaceId },
+    })
     // Skills are autoloaded: carry the full SKILL.md body so the Go side can
     // inject it into the dynamic system message for the turn. The path lets the
     // model re-read the canonical VFS file if it needs to.
@@ -499,71 +497,28 @@ async function processPastChatFromDb(
   }
 }
 
-/**
- * Resolve a workflow folder id to its canonical, per-segment-encoded VFS folder
- * path. Returns null for root-level workflows or when the folder can't be
- * resolved. Uses the shared {@link buildVfsFolderPathMap} so the pointer path
- * matches what the workspace VFS serves.
- */
-async function resolveWorkflowFolderPath(
-  workspaceId: string | null | undefined,
-  folderId: string | null | undefined
-): Promise<string | null> {
-  if (!folderId || !workspaceId) return null
-  try {
-    const folders = await listFolders(workspaceId)
-    return buildVfsFolderPathMap(folders).get(folderId) ?? null
-  } catch (error) {
-    logger.warn('Failed to resolve workflow folder path', { workspaceId, folderId, error })
-    return null
-  }
-}
-
 async function processWorkflowFromDb(
   workflowId: string,
   userId: string | undefined,
   tag: string,
   kind: 'workflow' | 'current_workflow' = 'workflow',
   currentWorkspaceId?: string,
-  _chatId?: string
+  chatId?: string
 ): Promise<AgentContext | null> {
-  try {
-    let workflowRecord: Awaited<ReturnType<typeof getActiveWorkflowRecord>> = null
-
-    if (userId) {
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'read',
-      })
-      if (!authorization.allowed) {
-        return null
-      }
-      if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
-        return null
-      }
-      workflowRecord = authorization.workflow ?? null
-    }
-
-    if (!workflowRecord) {
-      workflowRecord = await getActiveWorkflowRecord(workflowId)
-    }
-    if (!workflowRecord) return null
-
-    // Emit a VFS-path pointer instead of the full (potentially huge) workflow
-    // state/meta. `current_workflow` points at the live state; a plain
-    // `workflow` mention points at the lighter metadata file.
-    const folderPath = await resolveWorkflowFolderPath(
-      workflowRecord.workspaceId ?? currentWorkspaceId,
-      workflowRecord.folderId
-    )
-    const dir = canonicalWorkflowVfsDir({ name: workflowRecord.name, folderPath })
-    const path = kind === 'current_workflow' ? `${dir}/state.json` : `${dir}/meta.json`
-    return { type: kind, tag, content: '', path }
-  } catch (error) {
-    logger.error('Error processing workflow context', { workflowId, error })
-    return null
-  }
+  if (!userId || !currentWorkspaceId) return null
+  const { workflow, folderPath } = await readWorkflowMetadata.execute({
+    principal: createCopilotChatPrincipal(
+      { userId, workspaceId: currentWorkspaceId, chatId },
+      workflowDelegationPolicy.audience
+    ),
+    input: { workflowId, assertedWorkspaceId: currentWorkspaceId },
+  })
+  const dir = canonicalWorkflowVfsDir({
+    name: workflow.name,
+    folderPath: encodeVfsPathSegments(parseFolderPath(folderPath)),
+  })
+  const path = kind === 'current_workflow' ? `${dir}/state.json` : `${dir}/meta.json`
+  return { type: kind, tag, content: '', path }
 }
 
 async function processKnowledgeFromDb(
@@ -580,7 +535,7 @@ async function processKnowledgeFromDb(
       workspaceId: currentWorkspaceId,
       chatId,
     })
-    const { knowledgeBase: kb } = await readKnowledgeBase.execute({
+    const { knowledgeBase: kb, folderPath } = await readKnowledgeBase.execute({
       principal,
       input: {
         knowledgeBaseId,
@@ -592,7 +547,7 @@ async function processKnowledgeFromDb(
       type: 'knowledge',
       tag,
       content: '',
-      path: `${canonicalKnowledgeBaseVfsDir(kb.name)}/meta.json`,
+      path: `${canonicalKnowledgeBaseVfsDir(kb.name, encodeVfsPathSegments(parseFolderPath(folderPath)))}/meta.json`,
     }
   } catch (error) {
     logger.error('Error processing knowledge context (db)', { knowledgeBaseId, error })
@@ -628,9 +583,8 @@ async function processBlockMetadata(
       return null
     }
 
-    const { getBlockRegistry } = await import('@/blocks/registry')
     const blockRegistry = getBlockRegistry()
-    if (!(blockRegistry as any)[blockId]) {
+    if (!blockRegistry[blockId]) {
       return null
     }
 
@@ -647,48 +601,19 @@ async function processWorkflowBlockFromDb(
   userId: string | undefined,
   blockId: string,
   label?: string,
-  currentWorkspaceId?: string
+  currentWorkspaceId?: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  try {
-    let workflowRecord: Awaited<ReturnType<typeof getActiveWorkflowRecord>> = null
-    if (userId) {
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'read',
-      })
-      if (!authorization.allowed) {
-        return null
-      }
-      if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
-        return null
-      }
-      workflowRecord = authorization.workflow ?? null
-    }
-
-    if (!workflowRecord) {
-      workflowRecord = await getActiveWorkflowRecord(workflowId)
-    }
-    if (!workflowRecord) return null
-
-    const folderPath = await resolveWorkflowFolderPath(
-      workflowRecord.workspaceId ?? currentWorkspaceId,
-      workflowRecord.folderId
-    )
-    const dir = canonicalWorkflowVfsDir({ name: workflowRecord.name, folderPath })
-    const tag = label ? `@${label} in Workflow` : `@${blockId} in Workflow`
-    // Point at the workflow state; the block id tells the model which node to
-    // look up inside state.json without inlining the full block definition.
-    return {
-      type: 'workflow_block',
-      tag,
-      content: `Block id: ${blockId}`,
-      path: `${dir}/state.json`,
-    }
-  } catch (error) {
-    logger.error('Error processing workflow_block context', { workflowId, blockId, error })
-    return null
-  }
+  const tag = label ? `@${label} in Workflow` : `@${blockId} in Workflow`
+  const context = await processWorkflowFromDb(
+    workflowId,
+    userId,
+    tag,
+    'current_workflow',
+    currentWorkspaceId,
+    chatId
+  )
+  return context ? { ...context, type: 'workflow_block', content: `Block id: ${blockId}` } : null
 }
 
 /**
@@ -821,12 +746,9 @@ async function processExecutionLogFromDb(
   }
 }
 
-// Active resource context resolution (direct DB lookups, workspace-scoped)
-
 /**
- * Resolves the content of the currently active resource tab via direct DB
- * queries. Each resource type has a dedicated handler that fetches only the
- * single resource needed — avoiding the full VFS materialisation overhead.
+ * Uses the same authorized resource readers as explicit mentions to resolve
+ * the active tab, without materializing the full workspace VFS.
  */
 export async function resolveActiveResourceContext(
   resourceType: string,
@@ -870,17 +792,28 @@ export async function resolveActiveResourceContext(
           path: ctx.path,
         }
       }
+      case 'integration': {
+        const context = await processBlockMetadata(
+          resourceId,
+          '@active_resource',
+          userId,
+          workspaceId
+        )
+        return context ? { ...context, type: 'active_resource' } : null
+      }
       case 'table': {
-        return await resolveTableResource(resourceId, workspaceId)
+        return await resolveTableResource(resourceId, workspaceId, userId, chatId)
       }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId, userId, chatId)
       }
-      case 'folder': {
-        return await resolveFolderResource(resourceId, workspaceId)
-      }
+      case 'folder':
       case 'filefolder': {
-        return await resolveFileFolderResource(resourceId, workspaceId)
+        const path = await createChatFolderResolver(userId, workspaceId, chatId).folderPointer(
+          resourceId,
+          resourceType === 'filefolder'
+        )
+        return path ? { type: resourceType, tag: '@active_resource', content: '', path } : null
       }
       default:
         return null
@@ -892,16 +825,19 @@ export async function resolveActiveResourceContext(
 }
 async function resolveTableResource(
   tableId: string,
-  workspaceId: string
+  workspaceId: string,
+  userId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  const table = await getTableById(tableId)
-  if (!table) return null
-  if (table.workspaceId !== workspaceId) return null
+  const { table, folderPath } = await readTableUseCase.execute({
+    principal: createCopilotChatTablePrincipal({ userId, workspaceId, chatId }, tableId),
+    input: { tableId, workspaceId },
+  })
   return {
     type: 'active_resource',
     tag: '@active_resource',
     content: '',
-    path: canonicalTableVfsPath(table.name),
+    path: canonicalTableVfsPath(table.name, encodeVfsPathSegments(parseFolderPath(folderPath))),
   }
 }
 
@@ -1008,13 +944,21 @@ async function resolveTableSelectionResource(
   workspaceId: string,
   rowIds: string[],
   columnIds: string[] | undefined,
-  label: string
+  label: string,
+  userId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  const table = await getTableById(tableId)
-  if (!table || table.workspaceId !== workspaceId) return null
-
-  const rows = await getRowsByIds(tableId, rowIds, workspaceId)
-  if (rows.length === 0) return null
+  if (
+    rowIds.length > MAX_TABLE_SELECTION_ROWS ||
+    (columnIds?.length ?? 0) > MAX_TABLE_SELECTION_COLUMNS
+  ) {
+    throw new Error('Table selection exceeds the row or column limit')
+  }
+  const principal = createCopilotChatTablePrincipal({ userId, workspaceId, chatId }, tableId)
+  const { table, folderPath } = await readTableUseCase.execute({
+    principal,
+    input: { tableId, workspaceId },
+  })
 
   const allColumns: ColumnDefinition[] = table.schema?.columns ?? []
   // A cell range (`columnIds` present) narrows to those columns; whole-row
@@ -1027,6 +971,27 @@ async function resolveTableSelectionResource(
     ? allColumns.filter((col) => columnIds?.includes(getColumnId(col)))
     : allColumns
   if (columns.length === 0) return null
+
+  const uniqueRowIds = [...new Set(rowIds)]
+  const result = await queryTableRows.execute({
+    principal,
+    input: {
+      tableId,
+      assertedWorkspaceId: workspaceId,
+      predicate: { all: [{ field: 'id', op: 'in', value: uniqueRowIds }] },
+      legacyKeying: 'ids',
+      columns: columns.map(getColumnId),
+      limit: uniqueRowIds.length,
+      includeTotal: true,
+    },
+  })
+  const rowsById = new Map(result.rows.map((row) => [row.id, row]))
+  const rows = uniqueRowIds.flatMap((id) => {
+    const row = rowsById.get(id)
+    return row ? [row] : []
+  })
+  if (rows.length === 0) return null
+  const selectedRowCount = result.totalCount ?? rows.length
 
   const header = `| ${columns.map((c) => c.name).join(' | ')} |`
   const divider = `| ${columns.map(() => '---').join(' | ')} |`
@@ -1042,7 +1007,7 @@ async function resolveTableSelectionResource(
   const sizeClause = (shownCount: number, omittedCount: number) => {
     const shown = `${shownCount} ${shownCount === 1 ? 'row' : 'rows'}`
     return omittedCount > 0
-      ? `${shown} of ${rows.length}, ${omittedCount} omitted for length`
+      ? `${shown} of ${selectedRowCount}, ${omittedCount} omitted for length`
       : shown
   }
 
@@ -1054,55 +1019,24 @@ async function resolveTableSelectionResource(
   // and forces the plural. A few characters of unused slack beats overshooting.
   const lines: string[] = []
   let remaining =
-    MAX_TABLE_SELECTION_CONTENT_LENGTH - describe(sizeClause(rows.length, rows.length)).length
+    MAX_TABLE_SELECTION_CONTENT_LENGTH -
+    describe(sizeClause(selectedRowCount, selectedRowCount)).length
   for (const row of rows) {
     const line = `| ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
-    // The first row always goes in, so a single oversized row still yields a
-    // table rather than an empty one.
-    if (lines.length > 0 && line.length + 1 > remaining) break
+    if (line.length + 1 > remaining) break
     lines.push(line)
     remaining -= line.length + 1
   }
 
-  const content = `${describe(sizeClause(lines.length, rows.length - lines.length))}${lines.join('\n')}`
+  const rendered = `${describe(sizeClause(lines.length, selectedRowCount - lines.length))}${lines.join('\n')}`
+  const content =
+    rendered.length <= MAX_TABLE_SELECTION_CONTENT_LENGTH
+      ? rendered
+      : `Selected ${scope} from table "${table.name}" (${selectedRowCount} rows, ${columns.length} columns). The column headings exceed the selection content limit; no cell values were inlined.`
   return {
     type: 'table_selection',
     tag: label ? `@${label}` : '@',
     content,
-    path: canonicalTableVfsPath(table.name),
-  }
-}
-
-async function resolveFileFolderResource(
-  folderId: string,
-  workspaceId: string
-): Promise<AgentContext | null> {
-  try {
-    const rawPath = await getWorkspaceFileFolderPath(workspaceId, folderId)
-    if (!rawPath) return null
-    const encoded = encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(rawPath))
-    return {
-      type: 'active_resource',
-      tag: '@active_resource',
-      content: '',
-      path: `files/${encoded}`,
-    }
-  } catch (error) {
-    logger.error('Failed to resolve file folder resource', { folderId, error })
-    return null
-  }
-}
-
-async function resolveFolderResource(
-  folderId: string,
-  workspaceId: string
-): Promise<AgentContext | null> {
-  const folderPath = await resolveWorkflowFolderPath(workspaceId, folderId)
-  if (!folderPath) return null
-  return {
-    type: 'active_resource',
-    tag: '@active_resource',
-    content: '',
-    path: `workflows/${folderPath}`,
+    path: canonicalTableVfsPath(table.name, encodeVfsPathSegments(parseFolderPath(folderPath))),
   }
 }

@@ -1,10 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { setRequestAuth } from '@sim/logger'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth/oauth-provider', () => ({ OAUTH_ACCESS_TOKEN_PREFIX: 'sim_oat_' }))
 vi.mock('@sim/security/hash', () => ({ sha256Hex: (value: string) => `hash:${value}` }))
 
 import {
@@ -19,10 +19,12 @@ function row(overrides: Record<string, unknown> = {}) {
     userId: 'user-1',
     clientId: 'sim-cli',
     scopes: ['offline_access', 'api:read'],
+    resource: null,
     expiresAt: new Date(Date.now() + 60_000),
     clientDisabled: false,
     userBanned: false,
     userBanExpires: null,
+    userSuspendedAt: null,
     userExists: 'user-1',
     ...overrides,
   }
@@ -84,12 +86,17 @@ describe('verifyOAuthAccessToken', () => {
     })
     expect(dbChainMockFns.where).toHaveBeenCalledOnce()
     expect(JSON.stringify(dbChainMockFns.where.mock.calls[0])).toContain('hash:secret')
+    expect(vi.mocked(setRequestAuth)).toHaveBeenCalledWith(
+      { kind: 'oauth_access_token', clientId: 'sim-cli' },
+      { preserveExisting: true }
+    )
   })
 
   it('refuses a credential that is not one of ours without a database read', async () => {
     expect(await reason('sim_abc')).toBe('malformed')
     expect(await reason('sim_oat_')).toBe('malformed')
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
+    expect(vi.mocked(setRequestAuth)).not.toHaveBeenCalled()
   })
 
   it('refuses an unknown, expired, disabled-client, orphaned, or banned token', async () => {
@@ -107,6 +114,9 @@ describe('verifyOAuthAccessToken', () => {
     queueTableRows(schemaMock.oauthAccessToken, [row({ userBanned: true })])
     expect(await reason('sim_oat_x')).toBe('user_banned')
 
+    queueTableRows(schemaMock.oauthAccessToken, [row({ userSuspendedAt: new Date() })])
+    expect(await reason('sim_oat_x')).toBe('user_banned')
+
     queueTableRows(schemaMock.oauthAccessToken, [
       row({ userBanned: true, userBanExpires: new Date(Date.now() - 1) }),
     ])
@@ -118,5 +128,66 @@ describe('verifyOAuthAccessToken', () => {
     dbChainMockFns.limit.mockRejectedValueOnce(failure)
 
     await expect(verifyOAuthAccessToken('sim_oat_x')).rejects.toBe(failure)
+  })
+
+  it('accepts resource tokens only at the exact authenticated resource', async () => {
+    const resource = 'https://sim.example/api/mcp/search/organizations/one'
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    await expect(verifyOAuthAccessToken('sim_oat_search', { resource })).resolves.toMatchObject({
+      userId: 'user-1',
+      scopes: ['search:read'],
+    })
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource })])
+    expect(await reason('sim_oat_search')).toBe('wrong_resource')
+
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource })])
+    await expect(
+      verifyOAuthAccessToken('sim_oat_search', { resource: `${resource}-other` })
+    ).rejects.toMatchObject({ reason: 'wrong_resource' })
+
+    queueTableRows(schemaMock.oauthAccessToken, [row()])
+    await expect(verifyOAuthAccessToken('sim_oat_api', { resource })).rejects.toMatchObject({
+      reason: 'wrong_resource',
+    })
+  })
+
+  it.each(['api:read', 'api:write'])(
+    'preserves %s tokens only when the resource explicitly accepts API grants',
+    async (scope) => {
+      const resource = 'https://sim.example/api/mcp/search/organizations/one'
+      queueTableRows(schemaMock.oauthAccessToken, [row({ scopes: [scope] })])
+      await expect(
+        verifyOAuthAccessToken('sim_oat_api', { resource, allowUnboundApiTokens: true })
+      ).resolves.toMatchObject({ userId: 'user-1', scopes: [scope] })
+    }
+  )
+
+  it('does not accept old workspace Search tokens at organization Search or the general API', async () => {
+    const resource = 'https://sim.example/api/mcp/search/workspace-one'
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    await expect(
+      verifyOAuthAccessToken('sim_oat_old_workspace', {
+        resource: 'https://sim.example/api/mcp/search/organizations/one',
+        allowUnboundApiTokens: true,
+      })
+    ).rejects.toMatchObject({ reason: 'wrong_resource' })
+    queueTableRows(schemaMock.oauthAccessToken, [row({ resource, scopes: ['search:read'] })])
+    expect(await reason('sim_oat_old_workspace')).toBe('wrong_resource')
+  })
+
+  it('never relaxes audience checks for Search-only or differently bound grants', async () => {
+    const resource = 'https://sim.example/api/mcp/search/organizations/one'
+    for (const token of [
+      row({ scopes: ['search:read'] }),
+      row({ scopes: ['offline_access'] }),
+      row({ resource: `${resource}-other`, scopes: ['api:read'] }),
+      row({ resource: `${resource}-other`, scopes: ['search:read'] }),
+    ]) {
+      queueTableRows(schemaMock.oauthAccessToken, [token])
+      await expect(
+        verifyOAuthAccessToken('sim_oat_other', { resource, allowUnboundApiTokens: true })
+      ).rejects.toMatchObject({ reason: 'wrong_resource' })
+    }
   })
 })

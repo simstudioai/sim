@@ -1,31 +1,18 @@
 import type { ReactNode } from 'react'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getGitHubStars } from '@/lib/github/stars'
+import { Cta } from '@/app/(landing)/components/cta/cta'
 import { Footer } from '@/app/(landing)/components/footer/footer'
 import { Navbar } from '@/app/(landing)/components/navbar/navbar'
 import { SiteStructuredData } from '@/app/(landing)/components/site-structured-data'
 
 /**
- * The shared chrome every landing-family page wears - the home page, every
- * platform page (Workflows, Tables, Files, …), and every solutions page (IT,
- * Engineering, …). It is the single source of truth for the page frame, so each
- * page is just `<LandingShell>{content}</LandingShell>` and can never drift.
- *
- * It owns:
- * - The `light` wrapper, which pins every `var(--*)` design token to its
- *   light-mode value regardless of the visitor's theme - the landing family is
- *   always light, and uses the platform's own light-mode tokens (from
- *   `globals.css`) with no separate palette.
- * - The page's scroll port (`h-screen` + `overflow-y-auto` +
- *   `overscroll-y-none`): the document body no longer overflows, so the viewport
- *   can't rubber-band, and the container's own overscroll bounce is disabled -
- *   without this the sticky navbar gets dragged past the top/bottom edges.
- * - The skip link (targets `#main-content`), the {@link Navbar} (GitHub stars
- *   fetched here at build/revalidate time - never client-fetched), and the
- *   {@link Footer}.
- *
- * The page supplies only the `<main id='main-content'>` content between the
- * navbar and footer. Async Server Component; pages render it with zero props.
+ * Persistent marketing chrome, mounted once by the landing route-group layout.
+ * Every page supplies its main content; this shell owns the themed scroll port,
+ * navigation, painted pre-footer CTA, footer, and site-wide structured data.
+ * Positioning the scroll port contains absolute artwork within its overflow,
+ * preventing an outer document scroll from carrying the sticky header away.
+ * The closing group keeps the same responsive separation on every route.
  */
 
 interface LandingShellProps {
@@ -37,7 +24,7 @@ export async function LandingShell({ children }: LandingShellProps) {
   const stars = await getGitHubStars()
 
   return (
-    <div className='light h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div className='relative h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)] [--text-muted:var(--text-secondary)]'>
       <SiteStructuredData />
       <a
         href='#main-content'
@@ -47,7 +34,10 @@ export async function LandingShell({ children }: LandingShellProps) {
       </a>
       <Navbar stars={stars} />
       {children}
-      <Footer showConsentPreferences={isHosted} />
+      <div className='pt-36 max-sm:pt-20 max-lg:pt-24'>
+        <Cta />
+        <Footer showConsentPreferences={isHosted} />
+      </div>
     </div>
   )
 }

@@ -27,11 +27,16 @@ export async function encryptSecret(secret: string): Promise<{ encrypted: string
  * Decrypts a secret previously produced by {@link encryptSecret}. Logs and
  * rethrows on malformed input or tampered ciphertext.
  */
-export async function decryptSecret(encryptedValue: string): Promise<{ decrypted: string }> {
+export async function decryptSecret(
+  encryptedValue: string,
+  options: { logFailure?: boolean } = {}
+): Promise<{ decrypted: string }> {
   try {
     return await decrypt(encryptedValue, getEncryptionKey())
   } catch (error) {
-    logger.error('Decryption error:', { error: toError(error).message })
+    if (options.logFailure !== false) {
+      logger.error('Decryption error:', { error: toError(error).message })
+    }
     throw error
   }
 }

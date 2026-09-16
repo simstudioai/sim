@@ -286,21 +286,21 @@ The service bundles ~2.2 GB of spaCy models, so first start takes around three m
 
 ## Pre-launch checklist
 
-- [ ] All five secrets generated fresh, stored in a secret manager, and **`ENCRYPTION_KEY` backed up separately**
-- [ ] `BETTER_AUTH_SECRET` identical on app and realtime
-- [ ] Images pinned to an explicit tag or digest on app, realtime, and migrations
-- [ ] TLS terminating at the ingress; HTTP redirected or disabled
-- [ ] `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` set to the real public origin
-- [ ] `AUTH_TRUSTED_PROXIES` set if behind a load balancer
-- [ ] Signup restricted (`DISABLE_REGISTRATION` or `ALLOWED_LOGIN_DOMAINS`)
-- [ ] `DISABLE_AUTH` **not** set
-- [ ] NetworkPolicy enabled and `ingressFrom` scoped to the ingress controller
-- [ ] Namespace labelled `pod-security.kubernetes.io/enforce=restricted`
-- [ ] Object storage buckets private, with CORS limited to your Sim origin
-- [ ] Database reachable only from the deployment — on Compose, the `db` service's host `ports:` mapping removed or bound to `127.0.0.1` — with a generated `POSTGRES_PASSWORD`
-- [ ] TLS enforced (`sslMode: require`) on an externally managed database, or on the bundled one once you have configured it for TLS — the shipped Compose database does not enable it
-- [ ] Backups configured **and a restore rehearsed**
-- [ ] Sandbox strategy decided for user code
+- All five secrets generated fresh, stored in a secret manager, and **`ENCRYPTION_KEY` backed up separately**
+- `BETTER_AUTH_SECRET` identical on app and realtime
+- Images pinned to an explicit tag or digest on app, realtime, and migrations
+- TLS terminating at the ingress; HTTP redirected or disabled
+- `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` set to the real public origin
+- `AUTH_TRUSTED_PROXIES` set if behind a load balancer
+- Signup restricted (`DISABLE_REGISTRATION` or `ALLOWED_LOGIN_DOMAINS`)
+- `DISABLE_AUTH` **not** set
+- NetworkPolicy enabled and `ingressFrom` scoped to the ingress controller
+- Namespace labelled `pod-security.kubernetes.io/enforce=restricted`
+- Object storage buckets private, with CORS limited to your Sim origin
+- Database reachable only from the deployment — on Compose, the `db` service's host `ports:` mapping removed or bound to `127.0.0.1` — with a generated `POSTGRES_PASSWORD`
+- TLS enforced (`sslMode: require`) on an externally managed database, or on the bundled one once you have configured it for TLS — the shipped Compose database does not enable it
+- Backups configured **and a restore rehearsed**
+- Sandbox strategy decided for user code
 
 <FAQ items={[
   { question: "Can I rotate ENCRYPTION_KEY?", answer: "Not without re-encrypting everything it protects. Changing it makes workspace environment variables, stored provider API keys, MCP OAuth credentials, and deployment secrets permanently unreadable. Treat it as a permanent, backed-up value rather than a rotating secret."},

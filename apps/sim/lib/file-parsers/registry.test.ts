@@ -36,7 +36,6 @@ const ALL_SUPPORTED_TYPES: SupportedFileType[] = [
   'html',
   'htm',
   'pptx',
-  'ppt',
   'pptm',
   'potx',
   'odt',
@@ -81,9 +80,11 @@ describe('file parser registry', () => {
   /**
    * Formats with no bundled extractor must not claim support. `rtf` especially:
    * `DocParser`'s plaintext branch would pass its control words through as prose.
+   * Legacy `ppt` was registered once and only ever produced scraped placeholder
+   * prose, so it is refused up front with the unsupported-type message instead.
    */
   it('does not claim formats with no extractor', () => {
-    for (const extension of ['rtf', 'msg', 'eml', 'pages', 'key', 'one', 'vsdx', 'png']) {
+    for (const extension of ['rtf', 'msg', 'eml', 'pages', 'key', 'one', 'vsdx', 'png', 'ppt']) {
       expect(isSupportedFileType(extension), `unexpectedly claims .${extension}`).toBe(false)
     }
   })

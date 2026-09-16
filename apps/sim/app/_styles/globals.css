@@ -392,7 +392,7 @@
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
   --sidebar-collapsed-width: 48px; /* icon rail on web; desktop overrides to 0 before first paint */
-  --sidebar-expanded-width: 238px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
+  --sidebar-expanded-width: 256px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
   --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
   --workspace-content-title-bar-inset: 0px; /* lane the content pane must leave clear; only non-zero when the pane, not the sidebar, sits under it */
   --desktop-title-bar-inset-x: 0px; /* clearance past the traffic lights; desktop overrides */
@@ -403,17 +403,12 @@
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
   /**
-   * The padding `.workspace-content-shell` insets the panel and terminal from
-   * the viewport by (CONTENT_WINDOW_GAP).
-   *
-   * Published here because surfaces portalled to `<body>` — the toast stack —
-   * position against those elements from the viewport, so they must add back
-   * whatever separates the element from the viewport edge. Reading it rather
-   * than hardcoding 8px is what keeps the toast and the canvas controls on the
-   * same clearance when the shell drops its padding; the controls are laid out
-   * inside the shell and so need no correction.
+   * Distance between `.workspace-content-shell` and the viewport edge
+   * (CONTENT_WINDOW_GAP). The shell sits flush, so this is zero; it stays
+   * published because surfaces portalled to `<body>` — the toast stack — and
+   * the panel and terminal geometry all read it rather than assuming a value.
    */
-  --workspace-content-gap: 8px;
+  --workspace-content-gap: 0px;
   --output-panel-width: 560px; /* OUTPUT_PANEL_WIDTH.DEFAULT */
   /**
    * Neutral border and divider thickness. Standard-density displays cannot draw
@@ -562,14 +557,6 @@ html[data-sim-desktop-title-bar="inset"]
   --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
 }
 
-/* The one case the shell drops its padding entirely (see `workspace-chrome.tsx`:
-   `isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'`). Declared on the
-   root so the portalled toast stack — which cannot inherit from the shell — sees
-   it too, and keeps the same clearance the in-shell canvas controls keep. */
-html[data-sim-desktop-title-bar="inset"]:has(.workspace-content-shell[data-sidebar-collapsed]) {
-  --workspace-content-gap: 0px;
-}
-
 .workspace-root code,
 .workspace-root kbd,
 .workspace-root samp,
@@ -580,7 +567,6 @@ html[data-sim-desktop-title-bar="inset"]:has(.workspace-content-shell[data-sideb
 
 .sidebar-container {
   width: var(--sidebar-width);
-  transition: width 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 /**
@@ -607,12 +593,6 @@ html[data-sim-desktop-title-bar="inset"]:has(.workspace-content-shell[data-sideb
   --sidebar-width: var(--sidebar-expanded-width);
 }
 
-/* The card appears at full width, so the aside's own width transition would animate
-   0 -> expanded inside it. */
-.sidebar-shell-outer[data-peek] .sidebar-container {
-  transition: none;
-}
-
 /* The card is a flex column sized to its content, so the shell must be allowed to
    shrink for the sidebar's own scroll region to bound itself once the card hits its
    max height. Docked, this element is not a flex item and the rule is inert. */
@@ -623,7 +603,6 @@ html[data-sim-desktop-title-bar="inset"]:has(.workspace-content-shell[data-sideb
 
 .sidebar-container span,
 .sidebar-container .text-small {
-  transition: opacity 120ms ease;
   white-space: nowrap;
 }
 
@@ -632,49 +611,8 @@ html[data-sim-desktop-title-bar="inset"]:has(.workspace-content-shell[data-sideb
   opacity: 0;
 }
 
-.sidebar-container .sidebar-collapse-hide {
-  transition: opacity 60ms ease;
-}
-
 .sidebar-container[data-collapsed] .sidebar-collapse-hide {
   opacity: 0;
-}
-
-@keyframes sidebar-collapse-guard {
-  from {
-    pointer-events: none;
-  }
-  to {
-    pointer-events: auto;
-  }
-}
-
-.sidebar-container[data-collapsed] {
-  animation: sidebar-collapse-guard 250ms step-end;
-}
-
-.sidebar-container.is-resizing {
-  transition: none;
-}
-
-/* Suppress width/transform transitions on the chrome wrappers during a
-   drag-resize so the outer overflow-hidden clip doesn't lag behind the inner
-   sidebar content, which is already at the correct width instantly. */
-html.sidebar-resizing .sidebar-shell-outer,
-html.sidebar-resizing .sidebar-shell-inner {
-  transition: none !important;
-}
-
-/* Suppress sidebar transitions during the initial hydration window. The
-   pre-paint script sets the correct --sidebar-width, but store rehydration
-   re-applies it a tick later; without this guard that re-apply animates the
-   rail, reading as a collapse -> expand flash on a fresh page load. Removed
-   after the first paint (see workspace-chrome.tsx) so user-driven toggles and
-   the fullscreen slide still animate. */
-html.sidebar-booting .sidebar-container,
-html.sidebar-booting .sidebar-shell-outer,
-html.sidebar-booting .sidebar-shell-inner {
-  transition: none !important;
 }
 
 .panel-container {
@@ -787,6 +725,9 @@ html.sidebar-booting .sidebar-shell-inner {
     --brand-secondary: #33b4ff;
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
+    /* Progress and completion — the checked step, the done state. Deeper and
+       quieter than --selection, which stays the interactive highlight. */
+    --brand-blue: #3b6fe0;
     --selection: #1a5cf6;
     --selection-muted: #1a5cf647;
     --warning: #ea580c;
@@ -948,6 +889,8 @@ html.sidebar-booting .sidebar-shell-inner {
     --brand-secondary: #33b4ff;
     --brand-accent: #33c482;
     --brand-accent-hover: #2dac72;
+    /* Lifted for contrast on dark surfaces, the same step --selection takes. */
+    --brand-blue: #5b8def;
     --selection: #4b83f7;
     --selection-muted: #4b83f759;
     --warning: #ff6600;

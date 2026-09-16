@@ -229,7 +229,11 @@ async function executeCopilotRun(params: {
   }
 }): Promise<ExecutionResult> {
   if (
+    params.principal.kind === 'organization_delegated' ||
+    params.principal.kind === 'slack_app' ||
+    params.principal.kind === 'slack_installation' ||
     params.principal.kind === 'credential_group_enrollment' ||
+    params.principal.kind === 'scim_connection' ||
     (params.principal.kind === 'delegated' && params.principal.serviceId === 'executor')
   ) {
     throw new Error('The principal cannot start a Copilot workflow execution')

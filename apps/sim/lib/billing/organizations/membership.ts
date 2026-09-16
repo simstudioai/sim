@@ -10,6 +10,7 @@ import {
   account,
   credential,
   invitation,
+  knowledgeBase,
   member,
   organization,
   permissionGroupMember,
@@ -18,13 +19,17 @@ import {
   user,
   userStats,
   workspace,
+  workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
-import { invalidateMembershipCache } from '@/lib/auth/security-policy'
+import {
+  invalidateMembershipCache,
+  invalidateSecurityPolicyVersionCache,
+} from '@/lib/auth/security-policy'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
@@ -47,11 +52,16 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import {
+  revokePersonalApiKeysTx,
+  revokeUserSessionsTx,
+} from '@/lib/organizations/members/revocation'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
   WorkspaceBillingAccountRemovalError,
 } from '@/lib/workspaces/utils'
+import { endDirectoryMembershipTx } from '@/ee/scim/lib/identity/end-directory-membership'
 
 export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
@@ -463,6 +473,15 @@ export interface RemoveMemberParams {
   /** Skip departed usage capture and Pro restoration (default: false) */
   skipBillingLogic?: boolean
   /**
+   * Also delete the member's personal API keys. Off by default: personal keys
+   * are the person's own and outlive one organization. Directory
+   * deprovisioning turns it on, because there the person is leaving Sim as far
+   * as the organization is concerned.
+   */
+  revokePersonalApiKeys?: boolean
+  /** The caller's own session token, kept alive when a member removes themselves. */
+  spareSessionToken?: string
+  /**
    * Only remove the member when they hold no remaining permission on any of the
    * org's workspaces, evaluated atomically under the membership lock. Used by
    * the workspace-removal path so a concurrent invite acceptance can't be raced
@@ -506,7 +525,7 @@ export type MembershipAdditionFailureCode =
   | 'already-in-other-organization'
   | 'no-seats-available'
 
-async function reassignOwnedOrganizationWorkspacesTx({
+async function reassignOwnedOrganizationResourcesTx({
   tx,
   userId,
   organizationId,
@@ -517,8 +536,6 @@ async function reassignOwnedOrganizationWorkspacesTx({
   organizationId: string
   workspaceIds: string[]
 }) {
-  if (workspaceIds.length === 0) return 0
-
   const [ownerMembership] = await tx
     .select({ userId: member.userId })
     .from(member)
@@ -527,6 +544,30 @@ async function reassignOwnedOrganizationWorkspacesTx({
 
   const ownerId = ownerMembership?.userId
   if (!ownerId || ownerId === userId) return 0
+
+  /** Creator attribution must survive account deletion without changing document ACLs. */
+  await tx
+    .update(knowledgeBase)
+    .set({ userId: ownerId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(knowledgeBase.organizationId, organizationId),
+        isNull(knowledgeBase.workspaceId),
+        eq(knowledgeBase.userId, userId)
+      )
+    )
+  await tx
+    .update(workspaceFiles)
+    .set({ userId: ownerId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(workspaceFiles.organizationId, organizationId),
+        isNull(workspaceFiles.workspaceId),
+        eq(workspaceFiles.userId, userId)
+      )
+    )
+
+  if (workspaceIds.length === 0) return 0
 
   const reassignedWorkspaces = await tx
     .update(workspace)
@@ -978,7 +1019,7 @@ async function getOrganizationTransferCredentialDependenciesTx(
       id: credential.id,
       displayName: credential.displayName,
       type: credential.type,
-      workspaceId: credential.workspaceId,
+      workspaceId: workspace.id,
     })
     .from(credential)
     .innerJoin(workspace, eq(workspace.id, credential.workspaceId))
@@ -986,6 +1027,7 @@ async function getOrganizationTransferCredentialDependenciesTx(
     .where(
       and(
         eq(workspace.organizationId, organizationId),
+        isNull(credential.organizationId),
         or(
           and(eq(credential.type, 'oauth'), eq(account.userId, userId)),
           and(eq(credential.type, 'env_personal'), eq(credential.envOwnerUserId, userId))
@@ -1136,13 +1178,13 @@ export async function transferUserBetweenOrganizations(
 
         let workspaceAccessRevoked = 0
         let credentialMembershipsRevoked = 0
+        await reassignOwnedOrganizationResourcesTx({
+          tx,
+          userId: params.userId,
+          organizationId: params.sourceOrganizationId,
+          workspaceIds,
+        })
         if (workspaceIds.length > 0) {
-          await reassignOwnedOrganizationWorkspacesTx({
-            tx,
-            userId: params.userId,
-            organizationId: params.sourceOrganizationId,
-            workspaceIds,
-          })
           const workflowOwnershipReassignment =
             await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
               tx,
@@ -1235,6 +1277,8 @@ export async function removeUserFromOrganization(
     memberId,
     skipBillingLogic = false,
     requireNoOrgWorkspaceAccess = false,
+    revokePersonalApiKeys = false,
+    spareSessionToken,
   } = params
 
   const billingActions = {
@@ -1330,6 +1374,27 @@ export async function removeUserFromOrganization(
             )
           )
 
+        await reassignOwnedOrganizationResourcesTx({
+          tx,
+          userId,
+          organizationId,
+          workspaceIds,
+        })
+        /**
+         * Leaving ends live access at once: sessions go with the membership
+         * rather than lingering until a cookie cache lapses, and any directory
+         * row that described this membership is replaced by its tombstone in the
+         * same commit, so the directory and the organization can never disagree
+         * about who is a member.
+         */
+        await revokeUserSessionsTx(tx, {
+          userId,
+          organizationId,
+          ...(spareSessionToken ? { spareSessionToken } : {}),
+        })
+        if (revokePersonalApiKeys) await revokePersonalApiKeysTx(tx, { userId })
+        await endDirectoryMembershipTx(tx, { userId, organizationId })
+
         if (workspaceIds.length === 0) {
           return {
             skipped: false as const,
@@ -1341,13 +1406,6 @@ export async function removeUserFromOrganization(
             pendingInvitationsCancelled: cancelledInvitations.length,
           }
         }
-
-        await reassignOwnedOrganizationWorkspacesTx({
-          tx,
-          userId,
-          organizationId,
-          workspaceIds,
-        })
 
         const workflowOwnershipReassignment =
           await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
@@ -1403,6 +1461,7 @@ export async function removeUserFromOrganization(
     // The departed member's cookie-version/hook-clamp fallbacks must stop
     // resolving to this org immediately, not after the membership-cache TTL.
     invalidateMembershipCache(userId)
+    invalidateSecurityPolicyVersionCache(organizationId)
 
     logger.info('Removed member from organization', {
       organizationId,
@@ -1541,6 +1600,13 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
           )
           .returning({ id: permissionGroupMember.id })
 
+        await reassignOwnedOrganizationResourcesTx({
+          tx,
+          userId,
+          organizationId,
+          workspaceIds,
+        })
+
         if (workspaceIds.length === 0) {
           return {
             workspaceAccessRevoked: 0,
@@ -1549,13 +1615,6 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
             pendingInvitationsCancelled: cancelledInvitations.length,
           }
         }
-
-        await reassignOwnedOrganizationWorkspacesTx({
-          tx,
-          userId,
-          organizationId,
-          workspaceIds,
-        })
 
         const workflowOwnershipReassignment =
           await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({

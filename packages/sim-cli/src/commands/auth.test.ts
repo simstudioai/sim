@@ -1375,12 +1375,78 @@ describe('login command — OAuth', () => {
     await expect(login('--callback-port', '70000')).rejects.toThrow('Invalid --callback-port')
   })
 
-  it('falls back to the pairing code under --browserless', async () => {
+  it('creates an API key without OAuth discovery when that method is selected', async () => {
     setInteractive(false)
-    await login('--browserless')
+    await login('--method', 'api-key')
 
     expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+    expect(mocks.discoverOAuthProvider).not.toHaveBeenCalled()
     expect(mocks.pollForKey).toHaveBeenCalledOnce()
+    expect(mocks.writeCredentialsProfile).toHaveBeenCalledWith('default', {
+      kind: 'api_key',
+      apiKey: 'sim-key',
+    })
+  })
+
+  it.each([false, true])('honors explicit OAuth with remote detection %s', async (remote) => {
+    setInteractive(false)
+    mocks.isLikelyRemoteSession.mockReturnValue(remote)
+
+    await login('--method', 'oauth')
+
+    expect(mocks.loginWithBrowser).toHaveBeenCalledOnce()
+    expect(mocks.pollForKey).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])(
+    'refuses unavailable explicit OAuth with remote detection %s without minting a key',
+    async (remote) => {
+      setInteractive(false)
+      mocks.isLikelyRemoteSession.mockReturnValue(remote)
+      mocks.discoverOAuthProvider.mockResolvedValue('unavailable')
+
+      await expect(login('--method', 'oauth')).rejects.toThrow('does not offer OAuth sign-in')
+
+      expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+      expect(mocks.createAuthRequest).not.toHaveBeenCalled()
+      expect(mocks.pollForKey).not.toHaveBeenCalled()
+      expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { args: ['--read-only'], message: 'API-key login cannot issue a read-only login' },
+    {
+      args: ['--callback-port', '8976'],
+      message: 'API-key login has no local callback',
+    },
+  ])('rejects OAuth-only options for API-key login: $args', async ({ args, message }) => {
+    setInteractive(false)
+
+    await expect(login('--method', 'api-key', ...args)).rejects.toThrow(message)
+
+    expect(mocks.discoverOAuthProvider).not.toHaveBeenCalled()
+    expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+    expect(mocks.pollForKey).not.toHaveBeenCalled()
+    expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { args: ['--method', 'password'], code: 'commander.invalidArgument' },
+    { args: ['--method'], code: 'commander.optionMissingArgument' },
+    { args: ['--browserless'], code: 'commander.unknownOption' },
+    { args: ['--scope', 'copilot'], code: 'commander.unknownOption' },
+    { args: ['--scope', 'platform'], code: 'commander.unknownOption' },
+  ])('rejects invalid login options before authentication: $args', async ({ args, code }) => {
+    const command = loginCommand()
+      .exitOverride()
+      .configureOutput({ writeErr: () => {} })
+
+    await expect(command.parseAsync(args, { from: 'user' })).rejects.toMatchObject({ code })
+
+    expect(mocks.profileFrom).not.toHaveBeenCalled()
+    expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+    expect(mocks.pollForKey).not.toHaveBeenCalled()
   })
 
   it('falls back to the pairing code in a remote session', async () => {
@@ -1392,27 +1458,36 @@ describe('login command — OAuth', () => {
     expect(mocks.pollForKey).toHaveBeenCalledOnce()
   })
 
-  it('uses the pairing code for a copilot-scope key, which only the handoff mints', async () => {
-    setInteractive(false)
-    mocks.pollForKey.mockResolvedValue({
-      apiKey: 'sim-key',
-      scope: 'copilot',
-      workspaceBound: false,
-      workspaceId: undefined,
-    })
-    await login('--scope', 'copilot')
+  it.each([{ args: [] }, { args: ['--method', 'api-key'] }])(
+    'refuses to store a copilot key returned by the server with method args $args',
+    async ({ args }) => {
+      setInteractive(false)
+      mocks.discoverOAuthProvider.mockResolvedValue('unavailable')
+      mocks.pollForKey.mockResolvedValue({
+        apiKey: 'sim-key',
+        scope: 'copilot',
+        workspaceBound: false,
+        workspaceId: undefined,
+      })
+      await expect(login(...args)).rejects.toThrow('the CLI requires a platform API key')
 
-    expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
-    expect(mocks.discoverOAuthProvider).not.toHaveBeenCalled()
-  })
+      expect(mocks.loginWithBrowser).not.toHaveBeenCalled()
+      expect(mocks.pollForKey).toHaveBeenCalledOnce()
+      expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
+      expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+    }
+  )
 
-  it('refuses an unreachable endpoint rather than guessing it lacks the provider', async () => {
-    setInteractive(false)
-    mocks.discoverOAuthProvider.mockResolvedValue('unreachable')
+  it.each([{ args: [] }, { args: ['--method', 'oauth'] }])(
+    'refuses an unreachable endpoint with method args $args without minting a key',
+    async ({ args }) => {
+      setInteractive(false)
+      mocks.discoverOAuthProvider.mockResolvedValue('unreachable')
 
-    await expect(login()).rejects.toThrow('Could not reach https://sim.ai')
-    expect(mocks.pollForKey).not.toHaveBeenCalled()
-  })
+      await expect(login(...args)).rejects.toThrow('Could not reach https://sim.ai')
+      expect(mocks.pollForKey).not.toHaveBeenCalled()
+    }
+  )
 
   it('requires logout before replacing a stored OAuth login', async () => {
     setInteractive(false)

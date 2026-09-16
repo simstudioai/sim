@@ -53,7 +53,6 @@ const workspaceItems: WorkspaceItem[] = [
     id: 'workspace-beta',
     name: 'Beta Workspace',
     href: '/workspace/workspace-beta/w',
-    color: '#123456',
   },
 ]
 
@@ -127,11 +126,10 @@ describe('SearchEntryGroup', () => {
     })
 
     const logo = container.querySelector<HTMLImageElement>('img[data-slot="workspace-icon"]')
-    const fallback = container.querySelector('span[data-slot="workspace-icon"]')
+    const fallback = container.querySelector('div[data-slot="workspace-icon"]')
     expect(logo?.src).toBe('https://cdn.example.com/acme.png')
     expect(logo?.alt).toBe('')
     expect(fallback?.textContent).toBe('B')
-    expect(fallback?.querySelector('rect')?.getAttribute('fill')).toBe('#123456')
   })
 
   it('renders workspace icons in the default workspace section', () => {
@@ -151,6 +149,6 @@ describe('SearchEntryGroup', () => {
     })
 
     expect(container.querySelector('img[data-slot="workspace-icon"]')).not.toBeNull()
-    expect(container.querySelector('span[data-slot="workspace-icon"]')?.textContent).toBe('B')
+    expect(container.querySelector('div[data-slot="workspace-icon"]')?.textContent).toBe('B')
   })
 })

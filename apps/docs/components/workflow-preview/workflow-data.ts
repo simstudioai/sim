@@ -1,5 +1,6 @@
 import {
   BLOCK_Z_BASE,
+  type CanvasSentenceSegment,
   CONTAINER_CHILD_Z_BASE,
   getEdgeZIndex,
   getEdgeZIndexForTarget,
@@ -33,6 +34,11 @@ export interface PreviewBlock {
   type: string
   bgColor: string
   rows: Array<{ title: string; value: string }>
+  /** Resolved example copy; value slots refer to the titles in `rows`. */
+  sentence?: readonly CanvasSentenceSegment[]
+  typeLabel?: string
+  isIntegration?: boolean
+  triggerMode?: boolean
   /**
    * Branch rows, each with its own right-edge source handle whose id is the
    * branch id. Author ids in the app's own handle scheme so edges match the
@@ -75,6 +81,10 @@ const EDGE_STYLE = { stroke: 'var(--workflow-edge)', strokeWidth: 2 } as const
 const EDGE_STYLE_HIGHLIGHT = { stroke: 'var(--brand-secondary)', strokeWidth: 2.5 } as const
 /** Edges leaving a block's error port render red, matching the editor. */
 const EDGE_STYLE_ERROR = { stroke: 'var(--text-error)', strokeWidth: 2 } as const
+
+/** De-emphasizes diagram context without reducing the contrast of its text. */
+export const DIMMED_PREVIEW_CLASS =
+  '[&_[data-workflow-block-border]]:opacity-35 [&_[data-workflow-type-accent]]:grayscale [&_[data-subflow-type-tag]]:grayscale'
 
 /** Optional emphasis: light one block or one edge and dim everything else. */
 export interface HighlightOptions {
@@ -119,6 +129,9 @@ export function toReactFlowElements(
   const blockIndexMap = new Map(workflow.blocks.map((b, i) => [b.id, i]))
 
   const blocksById = new Map(workflow.blocks.map((b) => [b.id, b]))
+  const errorSources = new Set(
+    workflow.edges.filter((edge) => edge.sourceHandle === 'error').map((edge) => edge.source)
+  )
 
   const nodes: PreviewNode[] = workflow.blocks.map((block, index) => {
     const isContainer = Boolean(block.size)
@@ -156,7 +169,7 @@ export function toReactFlowElements(
         index,
         animate,
         isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
-        isDimmed: hasHighlight && highlightBlock !== block.id,
+        isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
       }
       return {
         ...commonNode,
@@ -170,6 +183,11 @@ export function toReactFlowElements(
       blockType: block.type,
       bgColor: block.bgColor,
       rows: block.rows,
+      sentence: block.sentence,
+      typeLabel: block.typeLabel,
+      isIntegration: block.isIntegration,
+      triggerMode: block.triggerMode,
+      hasErrorConnection: errorSources.has(block.id),
       branches: block.branches,
       tools: block.tools,
       hideTargetHandle: block.hideTargetHandle,
@@ -178,7 +196,7 @@ export function toReactFlowElements(
       index,
       animate,
       isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
-      isDimmed: hasHighlight && highlightBlock !== block.id,
+      isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
     }
     return {
       ...commonNode,

@@ -1,4 +1,5 @@
 ---
+description: Shareable client view-state lives in the URL via nuqs
 paths:
   - "apps/sim/app/**/*.tsx"
   - "apps/sim/app/**/*.ts"

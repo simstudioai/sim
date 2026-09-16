@@ -30,7 +30,10 @@ export const GET = defineInternalJsonRoute({
   rateLimit,
   errorPolicy: internalCredentialDetailErrorPolicy,
   parseOptions: credentialValidationParseOptions,
-  mapInput: ({ params }) => ({ credentialId: params.id }),
+  mapInput: ({ params, query }) => ({
+    credentialId: params.id,
+    ...(query.workspaceId ? { assertedWorkspaceId: query.workspaceId } : {}),
+  }),
   useCase: getWorkspaceCredentialUseCase,
   present: ({ credential, access }) => ({
     credential: toWorkspaceCredential(credential, access),
@@ -44,7 +47,11 @@ export const PUT = defineInternalJsonRoute({
   rateLimit,
   errorPolicy: internalCredentialErrorPolicy,
   parseOptions: credentialValidationParseOptions,
-  mapInput: ({ params, body }) => ({ credentialId: params.id, ...body }),
+  mapInput: ({ params, body, query }) => ({
+    credentialId: params.id,
+    ...body,
+    ...(query.workspaceId ? { assertedWorkspaceId: query.workspaceId } : {}),
+  }),
   useCase: updateWorkspaceCredentialUseCase,
   present: ({ credential, access }) => ({
     credential: toWorkspaceCredential(credential, access),
@@ -58,7 +65,10 @@ export const DELETE = defineInternalJsonRoute({
   rateLimit,
   errorPolicy: internalCredentialErrorPolicy,
   parseOptions: credentialValidationParseOptions,
-  mapInput: ({ params }) => ({ credentialId: params.id }),
+  mapInput: ({ params, query }) => ({
+    credentialId: params.id,
+    ...(query.workspaceId ? { workspaceId: query.workspaceId } : {}),
+  }),
   useCase: deleteCredentialUseCase,
   present: () => ({ success: true as const }),
 })

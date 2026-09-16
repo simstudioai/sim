@@ -264,6 +264,38 @@ stale/missing sidecars, and scope isolation.
 
 ## Critical Rules for Outputs
 
+### File Downloads and Generated Files
+
+Internal operations return `createInternalToolFileResult` / `createInternalToolFilesResult` from
+`lib/internal/tool-operations/file-result.ts` with bounded Buffers and a callback that places the
+stored descriptors in the response. Their handlers preserve this result through dispatch, using
+`InternalToolOperationHandler<InternalToolOperationResult>`. Do not serialize file bytes as base64
+JSON: the executor's 10 MiB response cap runs before ordinary file postprocessing or large-value
+externalization. The shared executor stores files using trusted run or Copilot ownership.
+
+External endpoints that return raw binary files explicitly declare `request.responseType: 'binary'`
+and return `output.file` with `{ name, mimeType, data: buffer, size }` from `transformResponse`.
+The executor applies the bounded file-transfer budget and persists the descriptor. This opt-in is
+for raw binary responses, not provider JSON containing base64 or tools that fetch attachments later.
+Keep provider-specific limits and bounded reads; a file declaration is not permission to enlarge
+arbitrary JSON responses.
+
+Attachment readers that download files inside `transformResponse` need their own bounded reads:
+the first response cap does not cover subsequent fetches. Accept `ToolResponseContext` as the third
+transform argument, forward its `signal`, and share one `AttachmentDownloadBudget` across sequential
+downloads. Prefer raw provider endpoints over base64 metadata. Return the same file object in the
+declared `file` / `file[]` output and nested message associations; `FileToolProcessor` stores it once
+and replaces every alias with the same `UserFile` in both workflow and Copilot execution.
+
+Preserve stored `UserFile` fields (`id`, `key`, `url`, `context`, `type`, `name`, `size`) in transforms;
+rebuilding the old `{ name, mimeType, data, size }` shape discards the reference. File outputs do not
+need duplicate inline text/base64 aliases; the file system handles content materialization. When
+an existing tool explicitly exposes content aliases in its contract, preserve its legacy version and
+use the existing block/tool version pattern for a file-only output. Test a file over 10 MiB through
+executor admission, single persistence, trusted ownership, and the unchanged JSON cap. Avoid adding
+top-level filename, size, MIME type, URL, or success fields that merely repeat the canonical file or
+tool result; keep additional provider fields only when they convey distinct information.
+
 ### Output Types
 - `'string'`, `'number'`, `'boolean'` - Primitives
 - `'json'` - Complex objects (use this, NOT 'object')

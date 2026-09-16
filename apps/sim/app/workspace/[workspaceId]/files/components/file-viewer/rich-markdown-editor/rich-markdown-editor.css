@@ -48,7 +48,7 @@
 
 .rich-markdown-nodes .ProseMirror-selectednode img {
   outline: 2px solid var(--brand-secondary);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 /* The inline mention chip isn't a block leaf, so it skips the heavy outline ring above and just uses

@@ -157,6 +157,28 @@ export const organizationSessionPolicyResponseSchema = z.object({
   data: organizationSessionPolicyDataSchema,
 })
 
+export const updateOrganizationSsoPolicyBodySchema = z.object({
+  requireSso: z.boolean(),
+})
+
+export type UpdateOrganizationSsoPolicyBody = z.input<typeof updateOrganizationSsoPolicyBodySchema>
+
+const organizationSsoPolicyDataSchema = z.object({
+  /** The stored setting. */
+  requireSso: z.boolean(),
+  /** Whether an identity provider could satisfy the requirement today. */
+  hasVerifiedProvider: z.boolean(),
+  /** Whether sign-in actually enforces it — false once the organization cannot satisfy it. */
+  isEnforced: z.boolean(),
+})
+
+export type OrganizationSsoPolicy = z.output<typeof organizationSsoPolicyDataSchema>
+
+export const organizationSsoPolicyResponseSchema = z.object({
+  success: z.boolean(),
+  data: organizationSsoPolicyDataSchema,
+})
+
 export const MAX_ORGANIZATION_DOMAINS = 25
 
 export const organizationDomainParamsSchema = z.object({
@@ -275,6 +297,8 @@ export const rosterMemberSchema = z.object({
   name: z.string(),
   email: z.string(),
   image: z.string().nullable(),
+  /** Set while a directory deactivation blocks the member's sign-in; access is otherwise intact. */
+  suspendedAt: z.string().nullable(),
   workspaces: z.array(rosterWorkspaceAccessSchema),
 })
 
@@ -553,6 +577,27 @@ export const updateOrganizationSessionPolicyContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: organizationSessionPolicyResponseSchema,
+  },
+})
+
+export const getOrganizationSsoPolicyContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/sso-policy',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationSsoPolicyResponseSchema,
+  },
+})
+
+export const updateOrganizationSsoPolicyContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/sso-policy',
+  params: organizationParamsSchema,
+  body: updateOrganizationSsoPolicyBodySchema,
+  response: {
+    mode: 'json',
+    schema: organizationSsoPolicyResponseSchema,
   },
 })
 

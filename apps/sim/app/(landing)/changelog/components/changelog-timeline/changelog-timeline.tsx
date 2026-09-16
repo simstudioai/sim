@@ -91,14 +91,14 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
         const headingId = `release-${entry.tag}-heading`
         return (
           <section key={entry.tag} aria-labelledby={headingId} className='flex flex-col'>
-            <div className='flex items-center justify-between gap-4'>
+            <div className='flex flex-wrap items-center justify-between gap-4'>
               <div className='flex items-center gap-2'>
                 <h2 id={headingId} className='text-[18px] text-[var(--text-primary)] leading-[1.3]'>
                   {entry.tag}
                 </h2>
                 {entry.contributors.length > 0 ? (
-                  <div className='flex'>
-                    {entry.contributors.slice(0, 5).map((contributor, index) => (
+                  <div className='flex gap-1'>
+                    {entry.contributors.slice(0, 5).map((contributor) => (
                       <a
                         key={contributor}
                         href={`https://github.com/${contributor}`}
@@ -106,7 +106,7 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
                         rel='noopener noreferrer'
                         aria-label={`View @${contributor} on GitHub`}
                         title={`@${contributor}`}
-                        className={index === 0 ? 'block' : '-ms-2 block'}
+                        className='block size-6 shrink-0'
                       >
                         <Avatar className='size-6 ring-2 ring-[var(--bg)]'>
                           <AvatarImage
@@ -119,14 +119,14 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
                       </a>
                     ))}
                     {entry.contributors.length > 5 ? (
-                      <div className='-ms-2 relative flex size-6 items-center justify-center rounded-full bg-[var(--surface-2)] text-[10px] text-[var(--text-body)] ring-2 ring-[var(--bg)] hover:z-10'>
+                      <div className='relative flex size-6 items-center justify-center rounded-full bg-[var(--surface-2)] text-[10px] text-[var(--text-body)] ring-2 ring-[var(--bg)]'>
                         +{entry.contributors.length - 5}
                       </div>
                     ) : null}
                   </div>
                 ) : null}
               </div>
-              <span className='text-[12px] text-[var(--text-muted)]'>
+              <span className='text-[12px] text-[var(--text-secondary)]'>
                 {formatDate(new Date(entry.date))}
               </span>
             </div>

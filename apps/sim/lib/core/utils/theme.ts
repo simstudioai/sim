@@ -5,6 +5,8 @@
 /**
  * Updates the theme in next-themes by dispatching a storage event.
  * This works by updating localStorage and notifying next-themes of the change.
+ * The active provider owns document classes, including forced themes and the
+ * landing surface's independent preference.
  * @param theme - The desired theme ('system', 'light', or 'dark')
  */
 export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
@@ -24,17 +26,4 @@ export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
       })
     )
   }
-
-  const root = document.documentElement
-  const appliedTheme =
-    theme === 'system'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
-      : theme
-  const oppositeTheme = appliedTheme === 'dark' ? 'light' : 'dark'
-  if (root.classList.contains(appliedTheme) && !root.classList.contains(oppositeTheme)) return
-
-  root.classList.remove('light', 'dark')
-  root.classList.add(appliedTheme)
 }

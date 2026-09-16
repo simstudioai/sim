@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTrustedCopilotPrincipal } from '@/lib/copilot/auth/application-delegation'
 
 const mocks = vi.hoisted(() => ({
   resolveWorkspace: vi.fn(),
@@ -117,6 +118,41 @@ describe('knowledge folder application use cases', () => {
     )
     expect(result.folders[0]).toMatchObject({ id: 'folder-1', path: '/Docs' })
   })
+
+  it('allows a current workspace reader to resolve folders through Copilot', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    const result = await listKnowledgeFolders.execute({
+      principal: createTrustedCopilotPrincipal(
+        { userId: 'user-1', workspaceId: 'workspace-1', delegationId: 'chat-1' },
+        { audience: 'sim:knowledge', ttlMs: 60_000 }
+      ),
+      input: { workspaceId: 'workspace-1' },
+    })
+    expect(result.folders).toEqual([{ ...folder, path: '/Docs' }])
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it.each(['revoked', 'other-workspace'])(
+    'rejects %s Copilot access before listing folders',
+    async (reason) => {
+      if (reason === 'revoked') mocks.resolvePermission.mockResolvedValue(null)
+      await expect(
+        listKnowledgeFolders.execute({
+          principal: createTrustedCopilotPrincipal(
+            {
+              userId: 'user-1',
+              workspaceId: reason === 'other-workspace' ? 'workspace-2' : 'workspace-1',
+              delegationId: 'chat-1',
+            },
+            { audience: 'sim:knowledge', ttlMs: 60_000 }
+          ),
+          input: { workspaceId: 'workspace-1' },
+        })
+      ).rejects.toThrow()
+      expect(mocks.loadIndex).not.toHaveBeenCalled()
+      expect(mocks.listRows).not.toHaveBeenCalled()
+    }
+  )
 
   /**
    * `parentPath` is a filter, so a path naming no active folder narrows the

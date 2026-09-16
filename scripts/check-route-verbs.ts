@@ -62,6 +62,7 @@ const BUILDERS = [
   'defineV2BodyLifecycleRoute',
   'defineInternalJsonRoute',
   'defineInternalBinaryRoute',
+  'defineScimRoute',
 ] as const
 
 const BUILDER_ALT = BUILDERS.join('|')

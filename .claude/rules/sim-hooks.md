@@ -1,4 +1,5 @@
 ---
+description: Custom hook patterns and best practices
 paths:
   - "apps/sim/**/use-*.ts"
   - "apps/sim/**/hooks/**/*.ts"

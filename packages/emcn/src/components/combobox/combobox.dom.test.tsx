@@ -76,6 +76,28 @@ afterEach(() => {
 })
 
 describe('Combobox onOpenChange', () => {
+  it.each([false, true])(
+    'puts the field name and validation ARIA on the interactive control (editable=%s)',
+    (editable) => {
+      render(
+        <Combobox
+          options={OPTIONS}
+          editable={editable}
+          aria-label='Projects'
+          aria-describedby='projects-hint'
+          aria-required
+          aria-invalid
+        />
+      )
+      const control = trigger()
+      expect(control.getAttribute('aria-label')).toBe('Projects')
+      expect(control.getAttribute('aria-describedby')).toBe('projects-hint')
+      expect(control.getAttribute('aria-required')).toBe('true')
+      expect(control.getAttribute('aria-invalid')).toBe('true')
+      expect(control.closest('[aria-label="Projects"]')).toBe(control)
+    }
+  )
+
   it('renders the dropdown inside the component subtree when portals are disabled', () => {
     render(<Combobox options={OPTIONS} disablePortal />)
 
@@ -262,12 +284,16 @@ describe('Combobox pagination', () => {
     expect(document.body.textContent).not.toContain('Search all options')
   })
 
-  it('explains when provider results remain beyond the safety limit', () => {
-    render(<Combobox options={OPTIONS} truncated />)
+  it('explains truncated results without assuming a provider limit', () => {
+    render(<Combobox options={OPTIONS} truncated searchable />)
 
     click(trigger())
 
-    expect(document.body.textContent).toContain('Showing the first 10,000 options')
+    expect(document.body.textContent).toContain('Showing partial results')
+
+    type(trigger('input[placeholder="Search..."]') as HTMLInputElement, 'missing')
+
+    expect(document.body.textContent).toContain('No matches in partial results')
   })
 })
 

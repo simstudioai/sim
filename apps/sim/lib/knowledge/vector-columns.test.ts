@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { KB_EMBEDDING_STORAGE_DIMENSIONS } from '@/lib/embeddings/catalog'
 import {
+  embeddingCandidateDistance,
   embeddingDistance,
   embeddingVectorColumn,
   embeddingVectorValues,
@@ -17,6 +18,27 @@ describe('embeddingVectorColumn', () => {
 
   it('keeps 1536 on the original bare `embedding` column, where existing rows live', () => {
     expect(embeddingVectorColumn(1536)).toBe('embedding.embedding')
+  })
+})
+
+describe('embeddingCandidateDistance', () => {
+  it('preserves dimensions for models without prefix-shortening support', () => {
+    for (const width of KB_EMBEDDING_STORAGE_DIMENSIONS) {
+      const rendered = embeddingCandidateDistance(width, '[1,2]', 'text-embedding-ada-002').toSQL()
+      expect(rendered.sql).toContain('<=>')
+      expect(rendered.sql).not.toContain('subvector')
+      expect(rendered.params[0]).toBe(`embeddingSearch.vector${width === 1536 ? '' : width}`)
+    }
+  })
+  it('shortens compatible models only when the original is wider than 512', () => {
+    for (const model of ['text-embedding-3-small', 'text-embedding-3-large']) {
+      const wide = embeddingCandidateDistance(1536, '[1,2]', model).toSQL()
+      expect(JSON.stringify(wide)).toContain('subvector')
+      expect(wide.params[0]).toBe('embeddingSearch.vector512')
+      const narrow = embeddingCandidateDistance(384, '[1,2]', model).toSQL()
+      expect(narrow.sql).not.toContain('subvector')
+      expect(narrow.params[0]).toBe('embeddingSearch.vector384')
+    }
   })
 })
 

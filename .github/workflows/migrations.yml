@@ -25,7 +25,8 @@ jobs:
   migrate:
     name: Apply Database Migrations
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 45
+    # Bulk projection loads and concurrent index builds can outlast ordinary schema changes.
+    timeout-minutes: 300
 
     steps:
       - name: Checkout code
@@ -70,6 +71,8 @@ jobs:
 
           if [ "${ENVIRONMENT}" = "dev" ]; then
             echo "Dev environment — pushing schema directly (db:push)"
+            # Dev deliberately forces direct schema reconciliation; staging and
+            # production use guarded versioned migrations in the other branch.
             # drizzle-kit push needs a TTY to resolve ambiguous renames (--force only
             # covers data-loss). In CI it throws "Interactive prompts require a TTY
             # terminal" but still exits 0, so the job goes green without applying the
@@ -80,7 +83,6 @@ jobs:
               echo "ERROR: db:push needs an interactive rename decision; land it as a versioned migration instead of relying on push." >&2
               exit 1
             fi
-            bun run ./scripts/apply-dev-workspace-file-size-cutover.ts
           else
             echo "Applying versioned migrations (db:migrate)"
             bun run ./scripts/migrate.ts

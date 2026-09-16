@@ -3,14 +3,13 @@ title: Python
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-The official Python SDK for Sim allows you to execute workflows programmatically from your Python applications using the official Python SDK.
+Use the Python SDK to execute workflows from Python applications.
 
 <Callout type="info">
-  The Python SDK supports Python 3.8+ with async execution support, automatic rate limiting with exponential backoff, and usage tracking.
+  The Python SDK supports Python 3.8+ with async execution support, retry helpers with exponential backoff, and usage tracking.
 </Callout>
 
 ## Installation
@@ -529,6 +528,10 @@ def execute_async():
                 print("Workflow completed!")
                 print(f"Output: {status['output']}")
                 print(f"Duration: {status['durationMs']}")
+            elif status["status"] == "paused":
+                print("Workflow is paused and waiting for input or resumption.")
+            elif status["status"] == "cancelled":
+                print("Workflow was cancelled.")
             else:
                 print(f"Workflow failed: {status['error']}")
 
@@ -728,7 +731,7 @@ Configure the client using environment variables:
 
     # Development configuration
     client = SimStudioClient(
-        api_key=os.getenv("SIM_API_KEY")
+        api_key=os.getenv("SIM_API_KEY"),
         base_url=os.getenv("SIM_BASE_URL", "https://sim.ai")
     )
     ```
@@ -753,23 +756,7 @@ Configure the client using environment variables:
 
 ## Getting Your API Key
 
-<Steps>
-  <Step title="Log in to Sim">
-    Navigate to [Sim](https://sim.ai) and log in to your account.
-  </Step>
-  <Step title="Open your workflow">
-    Navigate to the workflow you want to execute programmatically.
-  </Step>
-  <Step title="Deploy your workflow">
-    Click on "Deploy" to deploy your workflow if it hasn't been deployed yet.
-  </Step>
-  <Step title="Create or select an API key">
-    During the deployment process, select or create an API key.
-  </Step>
-  <Step title="Copy the API key">
-    Copy the API key to use in your Python application.
-  </Step>
-</Steps>
+Create a key in **Account settings → Sim API keys**, or use a workspace key if your administrator requires one. See [Authentication](/api-reference/authentication) for key types and permissions. Deploy the workflow before calling it through the SDK. Keep the key in a server-side environment variable.
 
 ## Requirements
 
@@ -779,14 +766,3 @@ Configure the client using environment variables:
 ## License
 
 Apache-2.0
-
-import { FAQ } from '@/components/ui/faq'
-
-<FAQ items={[
-  { question: "Do I need to deploy a workflow before I can execute it via the SDK?", answer: "Yes. Workflows must be deployed before they can be executed through the SDK. You can use the validate_workflow() method to check whether a workflow is deployed and ready. If it returns False, deploy the workflow from the Sim UI first and create or select an API key during deployment." },
-  { question: "What is the difference between sync and async execution?", answer: "Sync execution (the default) blocks until the workflow completes and returns the full result. Async execution (async_execution=True) returns immediately with a run ID and status URL that you can poll using get_workflow_run(). Use async mode for long-running workflows to avoid request timeouts. Run statuses include queued, pending, running, paused, completed, failed, and cancelled." },
-  { question: "How does the SDK handle rate limiting?", answer: "The SDK provides built-in rate limiting support through the execute_with_retry() method. It uses exponential backoff (1s, 2s, 4s, 8s...) with 25% jitter to avoid thundering herd problems. If the API returns a retry-after header, that value is used instead. You can configure max_retries, initial_delay, max_delay, and backoff_multiplier. Use get_rate_limit_info() to check your current rate limit status." },
-  { question: "Can I use the Python SDK as a context manager?", answer: "Yes. The SimStudioClient supports Python's context manager protocol. Use it with the 'with' statement to automatically close the underlying HTTP session when you are done, which is especially useful for scripts that create and discard client instances." },
-  { question: "How do I handle different types of errors from the SDK?", answer: "The SDK raises SimStudioError with a code property for API-specific errors. Common error codes are UNAUTHORIZED (invalid API key), TIMEOUT (request timed out), RATE_LIMIT_EXCEEDED (too many requests), USAGE_LIMIT_EXCEEDED (billing limit reached), and EXECUTION_ERROR (workflow failed). Use the error code to implement targeted error handling and recovery logic." },
-  { question: "How do I monitor my API usage and remaining quota?", answer: "Use the get_usage_limits() method to check your current usage. It returns sync and async rate limit details (limit, remaining, reset time, whether you are currently limited), plus your current period cost, usage limit, and plan tier. This lets you monitor consumption and alert before hitting limits." },
-]} />

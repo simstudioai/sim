@@ -27,7 +27,7 @@
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, dbReplica } from '@sim/db'
-import { member, organization, organizationColumns, user } from '@sim/db/schema'
+import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { slugify } from '@sim/utils/string'
 import { count, eq } from 'drizzle-orm'
@@ -155,7 +155,7 @@ export const POST = withRouteHandler(
       })
 
       const [createdOrg] = await db
-        .select(organizationColumns)
+        .select()
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)

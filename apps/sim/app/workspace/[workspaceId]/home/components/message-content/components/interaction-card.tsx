@@ -90,6 +90,8 @@ export const InteractionCardInputRow = forwardRef<HTMLInputElement, InteractionC
 InteractionCardInputRow.displayName = 'InteractionCardInputRow'
 
 interface InteractionCardActionRowProps {
+  divided?: boolean
+  trailing?: ReactNode
   label: string
   leading?: ReactNode
   disabled?: boolean
@@ -100,6 +102,8 @@ interface InteractionCardActionRowProps {
 export function InteractionCardActionRow({
   label,
   leading,
+  divided = true,
+  trailing,
   disabled = false,
   onClick,
 }: InteractionCardActionRowProps) {
@@ -110,7 +114,8 @@ export function InteractionCardActionRow({
       onClick={onClick}
       className={cn(
         INTERACTION_CARD_ROW_CLASSES,
-        'border-t',
+        'w-full',
+        divided && 'border-t',
         disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]'
       )}
     >
@@ -123,7 +128,7 @@ export function InteractionCardActionRow({
       >
         {label}
       </span>
-      <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      {trailing ?? <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
     </button>
   )
 }

@@ -2,11 +2,13 @@ import { FileState, GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { assertUserFileContentAccess } from '@/lib/execution/payloads/materialization.server'
+import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
 import { StorageService } from '@/lib/uploads'
 import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
-import type { UserFile } from '@/executor/types'
+import type { ExecutionContext, UserFile } from '@/executor/types'
 import {
   formatAttachmentSizes,
   getProviderAttachmentMaxBytes,
@@ -72,7 +74,8 @@ export function canUseProviderLargeFilePath(providerId: ProviderId | string): bo
  */
 export async function attachLargeFileRemoteUrls(
   request: ProviderRequest,
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  executionContext?: ExecutionContext
 ): Promise<void> {
   for (const file of iterateRequestFiles(request.messages)) {
     file.providerFileId = undefined
@@ -102,16 +105,21 @@ export async function attachLargeFileRemoteUrls(
       continue
     }
 
-    if (!request.userId) {
-      throw new Error(
-        `File "${file.name}" requires an authenticated user for provider "${providerId}"`
-      )
-    }
-
-    const context = resolveTrustedFileContext(file.key, file.context)
-    const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context, false)
-    if (!hasAccess) {
-      throw new Error(`File "${file.name}" is not accessible for provider "${providerId}"`)
+    let context: ReturnType<typeof resolveTrustedFileContext>
+    if (executionContext) {
+      context = resolveTrustedFileContext(file.key, file.context)
+      await assertFileAccessForUpload(file, request.userId, executionContext)
+    } else {
+      if (!request.userId) {
+        throw new Error(
+          `File "${file.name}" requires an authenticated user for provider "${providerId}"`
+        )
+      }
+      context = resolveTrustedFileContext(file.key, file.context)
+      const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context, false)
+      if (!hasAccess) {
+        throw new Error(`File "${file.name}" is not accessible for provider "${providerId}"`)
+      }
     }
 
     file.remoteUrl = await StorageService.generatePresignedDownloadUrl(
@@ -130,7 +138,8 @@ export async function attachLargeFileRemoteUrls(
  */
 export async function uploadLargeFilesToProvider(
   request: ProviderRequest,
-  providerId: ProviderId | string
+  providerId: ProviderId | string,
+  executionContext?: ExecutionContext
 ): Promise<void> {
   if (getProviderFileStrategy(providerId) !== 'files-api') return
 
@@ -142,7 +151,7 @@ export async function uploadLargeFilesToProvider(
 
   for (const group of groups) {
     const [representative] = group
-    await assertFileAccessForUpload(representative, request.userId)
+    await assertFileAccessForUpload(representative, request.userId, executionContext)
     if (providerId === 'openai') {
       await uploadOpenAIFile(representative, request.apiKey, maxBytes, request.abortSignal)
     } else if (ai) {
@@ -162,10 +171,18 @@ export async function uploadLargeFilesToProvider(
  */
 async function assertFileAccessForUpload(
   file: UserFile,
-  userId: string | undefined
+  userId: string | undefined,
+  executionContext?: ExecutionContext
 ): Promise<void> {
   if (!file.key) {
     throw new Error(`File "${file.name}" has no storage key`)
+  }
+  if (executionContext) {
+    await assertUserFileContentAccess(
+      file,
+      await resolveExecutorFileMaterializationContext(executionContext, file)
+    )
+    return
   }
   if (!userId) {
     throw new Error(`File "${file.name}" requires an authenticated user to upload`)

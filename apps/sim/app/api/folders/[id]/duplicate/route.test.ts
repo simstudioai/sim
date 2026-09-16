@@ -51,6 +51,7 @@ vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
   runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
   getRequestContext: () => undefined,
+  setRequestAuth: vi.fn(),
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/folders/orchestration', () => ({ nextFolderSortOrder: mockNextFolderSortOrder }))

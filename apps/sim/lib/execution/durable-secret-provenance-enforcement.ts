@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('DurableSecretProvenanceEnforcement')
+const persistenceLogger = createLogger('DurableSecretProvenancePersistence')
 
 /**
  * Durable stores that can hand a run a value whose secret provenance was never recorded.
@@ -164,6 +165,69 @@ export function reportUnrecordedDurableProvenance(report: UnrecordedDurableProve
       cause: report.cause,
       ...(report.affectedCount !== undefined ? { affectedCount: report.affectedCount } : {}),
     },
+  })
+}
+
+export type DurableSecretProvenanceWriteCause =
+  | 'source-provenance-unknown'
+  | 'invalid-provenance-entries'
+  | 'source-hash-unavailable'
+  | 'workspace-file-write-unknown'
+  | 'workspace-file-write-unrecorded'
+
+export interface DurableSecretProvenanceWriteReport {
+  surface: DurableSecretProvenanceSurface
+  status: 'unknown' | 'unrecorded'
+  cause: DurableSecretProvenanceWriteCause
+  recordCount?: number
+  workspaceId?: string
+  resourceId?: string
+}
+
+export type DurableSecretProvenanceRefusalCause =
+  | 'knowledge-document-source-unavailable'
+  | 'knowledge-result-provenance-unavailable'
+  | 'knowledge-chunk-source-unavailable'
+  | 'knowledge-workspace-file-source-unavailable'
+  | 'workspace-file-provenance-unavailable'
+  | 'workspace-file-opaque-secret-content'
+  | 'workspace-file-registry-unavailable'
+  | 'workspace-file-unrecorded-enforced'
+
+export interface DurableSecretProvenanceRefusalReport {
+  surface: DurableSecretProvenanceSurface
+  cause: DurableSecretProvenanceRefusalCause
+  workspaceId?: string
+  resourceId?: string
+}
+
+/**
+ * Reports a non-exact sidecar write without claiming its enclosing transaction committed.
+ * Kept separate from permissive-read telemetry so writer defects and affected reads can be counted
+ * independently. Callers report only tracked writes; ordinary legacy records are not a fault.
+ */
+export function reportDurableSecretProvenanceWrite(
+  report: DurableSecretProvenanceWriteReport
+): void {
+  persistenceLogger.error('Writing non-exact durable secret provenance', {
+    surface: report.surface,
+    status: report.status,
+    cause: report.cause,
+    ...(report.recordCount !== undefined ? { recordCount: report.recordCount } : {}),
+    ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
+    ...(report.resourceId ? { resourceId: report.resourceId } : {}),
+  })
+}
+
+/** Reports an existing refusal decision without changing the surface's compatibility policy. */
+export function reportDurableSecretProvenanceRefusal(
+  report: DurableSecretProvenanceRefusalReport
+): void {
+  persistenceLogger.error('Refusing unavailable durable secret provenance', {
+    surface: report.surface,
+    cause: report.cause,
+    ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
+    ...(report.resourceId ? { resourceId: report.resourceId } : {}),
   })
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   FileParserError,
+  getFileParserErrorCode,
   isEncryptedOfficeParserError,
   toFileParserError,
 } from '@/lib/file-parsers/errors'
@@ -55,5 +56,16 @@ describe('file parser errors', () => {
     'Encrypted workbook is not supported',
   ])('recognizes the SheetJS encrypted-workbook error: %s', (message) => {
     expect(isEncryptedOfficeParserError(new Error(message))).toBe(true)
+  })
+
+  it('maps the archive guard classes onto parser codes without wrapping them', () => {
+    expect(getFileParserErrorCode(new ArchiveIntegrityError('Archive entries overlap'))).toBe(
+      'invalid_format'
+    )
+    expect(getFileParserErrorCode(new ZipBombError('Archive too large'))).toBe('complexity_limit')
+    expect(getFileParserErrorCode(new FileParserError('encrypted_file', 'locked'))).toBe(
+      'encrypted_file'
+    )
+    expect(getFileParserErrorCode(new Error('untyped'))).toBeUndefined()
   })
 })

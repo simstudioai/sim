@@ -37,6 +37,7 @@ export const TERMINAL_JOB_STATUSES: readonly JobStatus[] = [
 ]
 
 export type JobType =
+  | 'slack-search'
   | 'workflow-execution'
   | 'schedule-execution'
   | 'webhook-execution'
@@ -48,6 +49,7 @@ export type JobType =
   | 'cleanup-table-row-ttl'
   | 'cleanup-tasks'
   | 'run-data-drain'
+  | 'knowledge-connector-directory-sync'
 
 export type AsyncExecutionCorrelationSource =
   | 'workflow'

@@ -14,10 +14,13 @@ import {
   getDocumentByUploadId,
   markDocumentAsFailedTimeout,
   type ProcessingOptions,
-  processDocumentAsync,
   retryDocumentProcessing,
   updateDocument,
 } from '@/lib/knowledge/documents/service'
+import type {
+  DocumentProcessingOutcome,
+  DocumentProcessingStatus,
+} from '@/lib/knowledge/documents/types'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -66,7 +69,7 @@ export type CreatedKnowledgeDocument = Omit<
   'processingStatus'
 > & {
   /** New documents are pending; idempotent completion may return a later persisted state. */
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStatus: DocumentProcessingStatus
 }
 
 export interface PerformUploadKnowledgeDocumentParams extends KnowledgeOperationContext {
@@ -248,26 +251,13 @@ export async function performUploadKnowledgeDocument(
     mimeType: document.mimeType,
   }
 
-  if (startProcessing === 'queue') {
+  if (startProcessing === 'queue' || startProcessing === 'async') {
     void dispatchDocumentProcessing({
       documents: [documentData],
       knowledgeBaseId: knowledgeBase.id,
       processingOptions: processingOptions ?? {},
       requestId,
       billingAttribution,
-    })
-  } else if (startProcessing === 'async') {
-    processDocumentAsync(
-      knowledgeBase.id,
-      created.id,
-      document,
-      processingOptions ?? {},
-      billingAttribution
-    ).catch((error: unknown) => {
-      logger.error(`[${requestId}] Background document processing failed`, {
-        documentId: created.id,
-        error: toError(error).message,
-      })
     })
   }
 
@@ -560,6 +550,9 @@ export interface PerformRetryKnowledgeDocumentParams {
     fileSize: number
     mimeType: string
     processingStatus: string
+    processingOutcome?: DocumentProcessingOutcome
+    connectorId?: string | null
+    contentHash?: string | null
   }
   billingAttribution?: BillingAttributionSnapshot
   requestId?: string
@@ -571,6 +564,20 @@ export async function performRetryKnowledgeDocumentProcessing(
 ): Promise<PerformKnowledgeDocumentProcessingResult> {
   const { knowledgeBaseId, document, billingAttribution } = params
   const requestId = params.requestId ?? generateRequestId()
+
+  if (document.processingOutcome === 'skipped') {
+    return fail(
+      'This source file was intentionally skipped. Sync the connector after changing the source.',
+      'validation'
+    )
+  }
+
+  if (document.connectorId && document.contentHash === null) {
+    return fail(
+      'Source content could not be downloaded. Sync the connector to retry.',
+      'validation'
+    )
+  }
 
   /**
    * `pending` is admitted alongside `failed`, and the decision is left to the
@@ -608,7 +615,7 @@ export async function performRetryKnowledgeDocumentProcessing(
     // got off the ground leaves a dead document, and reporting that as success
     // paints the UI green over it.
     if (!result.success) {
-      return fail(result.message, 'internal')
+      return fail(result.message, result.status === 'skipped' ? 'validation' : 'internal')
     }
     return { success: true, status: result.status, message: result.message }
   } catch (error) {

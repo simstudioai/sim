@@ -3,6 +3,7 @@
  */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   deleteMicrosoftTeamsChatMessage: vi.fn(),
@@ -16,8 +17,16 @@ vi.mock('@/lib/internal/microsoft-teams/operations', () => ({
   writeMicrosoftTeamsChatMessage: mocks.writeMicrosoftTeamsChatMessage,
 }))
 
-import { executeMicrosoftTeamsTool } from '@/lib/internal/microsoft-teams/execute-tool'
+import { executeMicrosoftTeamsTool as executeMicrosoftTeamsToolOperation } from '@/lib/internal/microsoft-teams/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+
+async function executeMicrosoftTeamsTool(
+  request: Parameters<typeof executeMicrosoftTeamsToolOperation>[0]
+): Promise<Response> {
+  const result = await executeMicrosoftTeamsToolOperation(request)
+  if (!(result instanceof Response)) throw new Error('Expected a JSON response')
+  return result
+}
 
 describe('executeMicrosoftTeamsTool', () => {
   beforeEach(() => {
@@ -25,6 +34,23 @@ describe('executeMicrosoftTeamsTool', () => {
     mocks.deleteMicrosoftTeamsChatMessage.mockResolvedValue({ success: true, output: {} })
     mocks.writeMicrosoftTeamsChannelMessage.mockResolvedValue({ success: true, output: {} })
     mocks.writeMicrosoftTeamsChatMessage.mockResolvedValue({ success: true, output: {} })
+  })
+
+  it('forwards file bytes without serializing the file result', async () => {
+    const fileResult = createInternalToolFileResult(
+      { buffer: Buffer.from('file'), name: 'file.txt', mimeType: 'text/plain' },
+      (file) => ({ success: true, output: { file } })
+    )
+    mocks.writeMicrosoftTeamsChatMessage.mockResolvedValueOnce(fileResult)
+    expect(
+      await executeMicrosoftTeamsToolOperation({
+        toolId: 'microsoft_teams_write_chat',
+        input: { accessToken: 'token', chatId: 'chat-1', content: 'hello', files: null },
+        headers: new Headers(),
+        context: createExecutionContext(),
+        requestId: 'request-1',
+      })
+    ).toBe(fileResult)
   })
 
   it('dispatches typed input with cancellation', async () => {

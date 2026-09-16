@@ -62,7 +62,6 @@ const SELF_HOSTED_WORKSPACE_SECTIONS = WORKSPACE_SETTINGS_ITEMS.map(({ id }) => 
 )
 
 const ALL_ENTITLEMENTS = {
-  credentialGroups: true,
   customBlocks: true,
   forks: true,
   inbox: true,
@@ -106,11 +105,10 @@ describe('settings navigation boundaries', () => {
       'organization',
       'usage',
       'secrets',
-      'credential-groups',
+      'connected-accounts',
       'custom-tools',
       'mcp',
       'apikeys',
-      'authorized-apps',
       'workflow-mcp-servers',
       'byok',
       'sandboxes',
@@ -118,7 +116,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'self-host',
       'sso',
-      'sessions',
+      'security',
       'data-retention',
       'data-drains',
       'whitelabeling',
@@ -130,7 +128,6 @@ describe('settings navigation boundaries', () => {
       'general',
       'billing',
       'api-keys',
-      'authorized-apps',
       'admin',
       'mothership',
     ])
@@ -140,7 +137,6 @@ describe('settings navigation boundaries', () => {
       'secrets',
       'byok',
       'sandboxes',
-      'credential-groups',
       'custom-tools',
       'mcp',
       'workflow-mcp-servers',
@@ -237,10 +233,11 @@ describe('settings navigation boundaries', () => {
       hasEnterprisePlan: true,
       hosted: false,
       selfHosted: {
+        'connected-accounts': true,
         'access-control': false,
         'audit-logs': false,
         sso: true,
-        sessions: true,
+        security: true,
         'data-retention': false,
         'data-drains': false,
         usage: true,
@@ -300,10 +297,11 @@ describe('settings navigation boundaries', () => {
       'access-control',
       'audit-logs',
       'billing',
+      'connected-accounts',
       'data-drains',
       'data-retention',
       'organization',
-      'sessions',
+      'security',
       'sso',
       'usage',
       'whitelabeling',
@@ -317,10 +315,11 @@ describe('settings navigation boundaries', () => {
     expect(UNIFIED_TO_ORGANIZATION_SECTION).toEqual({
       organization: 'members',
       billing: 'billing',
+      'connected-accounts': 'connected-accounts',
       'access-control': 'access-control',
       'audit-logs': 'audit-logs',
       sso: 'sso',
-      sessions: 'sessions',
+      security: 'security',
       'data-retention': 'data-retention',
       'data-drains': 'data-drains',
       whitelabeling: 'whitelabeling',
@@ -337,7 +336,6 @@ describe('settings navigation boundaries', () => {
       secrets: 'secrets',
       byok: 'byok',
       sandboxes: 'sandboxes',
-      'credential-groups': 'credential-groups',
       'custom-tools': 'custom-tools',
       mcp: 'mcp',
       'workflow-mcp-servers': 'workflow-mcp-servers',
@@ -472,6 +470,24 @@ describe('settings navigation boundaries', () => {
     ).toBe('manage')
   })
 
+  it('allows members to recover their own organization chats without changing workspace settings ownership', () => {
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'recently-deleted',
+        isTargetOrganizationMember: true,
+        isTargetOrganizationAdmin: false,
+      })
+    ).toBe('view')
+    expect(
+      resolveOrganizationSectionAccess({
+        section: 'recently-deleted',
+        isTargetOrganizationMember: false,
+        isTargetOrganizationAdmin: false,
+      })
+    ).toBe('unavailable')
+    expect(ORGANIZATION_PLANE_UNIFIED_SECTIONS.has('recently-deleted')).toBe(false)
+  })
+
   it('gates organization control-plane sections by the target organization plan', () => {
     const hostedFree = {
       billingEnabled: true,
@@ -480,6 +496,7 @@ describe('settings navigation boundaries', () => {
       selfHosted: {},
     }
     expect(isOrganizationSettingsSectionAvailable('members', hostedFree)).toBe(true)
+    expect(isOrganizationSettingsSectionAvailable('recently-deleted', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('billing', hostedFree)).toBe(true)
     expect(isOrganizationSettingsSectionAvailable('sso', hostedFree)).toBe(false)
     expect(
@@ -562,7 +579,6 @@ describe('settings navigation boundaries', () => {
 
     expect(items.map(({ id }) => id)).toEqual([
       'teammates',
-      'credential-groups',
       'workflow-mcp-servers',
       'recently-deleted',
       'forks',

@@ -135,13 +135,9 @@ function findVisibleDefaultPolicy(content: HTMLElement): string | null {
  * falls back to the safe dismiss action; a `none` policy focuses the dialog
  * itself so no button is accidentally armed.
  */
-function focusChipModalDefaultAction(event: Event): void {
-  const content = event.currentTarget as HTMLElement | null
+export function focusChipModalContent(content: HTMLElement | null): void {
   if (!content) return
-  if (focusFirstTextInputIn(content)) {
-    event.preventDefault()
-    return
-  }
+  if (focusFirstTextInputIn(content)) return
 
   const policy = findVisibleDefaultPolicy(content)
   const target =
@@ -151,9 +147,13 @@ function focusChipModalDefaultAction(event: Event): void {
         findFocusableAction(content, CHIP_MODAL_DISMISS_ACTION_SELECTOR) ??
         content)
 
-  event.preventDefault()
   target.focus()
   if (document.activeElement !== target) content.focus()
+}
+
+function focusChipModalDefaultAction(event: Event): void {
+  event.preventDefault()
+  focusChipModalContent(event.currentTarget as HTMLElement | null)
 }
 
 /**
@@ -220,6 +220,49 @@ export interface ChipModalProps {
 }
 
 /**
+ * Shared modal chrome and Enter-key policy. Native windows can host this
+ * surface directly when the operating system owns the dialog lifecycle.
+ * Web dialogs use it through {@link ChipModal}.
+ */
+export const ChipModalSurface = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, children, onKeyDown, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] text-small dark:bg-[var(--surface-5)]',
+      className
+    )}
+    onKeyDown={(event) => {
+      onKeyDown?.(event)
+      handleChipModalEnter(event)
+    }}
+    {...props}
+  >
+    <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
+      {children}
+    </div>
+  </div>
+))
+
+ChipModalSurface.displayName = 'ChipModalSurface'
+
+export interface ChipModalDescriptionProps {
+  id?: string
+  children?: React.ReactNode
+}
+
+/** Canonical message copy shared by web confirmations and native dialog hosts. */
+export function ChipModalDescription({ id, children }: ChipModalDescriptionProps) {
+  return (
+    <p id={id} className='whitespace-pre-wrap break-words px-2 text-[var(--text-primary)] text-sm'>
+      {children}
+    </p>
+  )
+}
+
+/**
  * Root component. Wraps the Radix dialog and renders the panel chrome.
  * Subcomponents (`ChipModalHeader`, `ChipModalBody`, `ChipModalField`,
  * `ChipModalFooter`) are composed as children. The `size` is forwarded to the
@@ -245,19 +288,9 @@ function ChipModal({
         size={size}
         dismissDisabled={dismissDisabled}
         onOpenAutoFocus={focusChipModalDefaultAction}
-        onKeyDown={handleChipModalEnter}
         aria-describedby={ariaDescribedBy}
       >
-        <div
-          className={cn(
-            'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] dark:bg-[var(--surface-5)]',
-            className
-          )}
-        >
-          <div className='flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
-            {children}
-          </div>
-        </div>
+        <ChipModalSurface className={className}>{children}</ChipModalSurface>
       </ModalContent>
     </Modal>
   )
@@ -387,7 +420,7 @@ function ChipModalTabs({
       onChange={onChange}
       aria-label={ariaLabel}
       options={tabs.map((tab) => ({ value: tab.value, label: tab.label, icon: tab.icon }))}
-      className={className}
+      className={cn('shrink-0', className)}
     />
   )
 }
@@ -409,6 +442,7 @@ const ChipModalBody = React.forwardRef<HTMLDivElement, ChipModalBodyProps>(
   ({ className, fullBleed = false, ...props }, ref) => (
     <div
       ref={ref}
+      data-chip-modal-body=''
       className={cn(
         'flex min-h-0 flex-1 flex-col',
         fullBleed ? 'overflow-hidden' : 'gap-4 overflow-y-auto overflow-x-hidden px-2 pt-4 pb-4.5',
@@ -492,6 +526,8 @@ export type ChipModalDropdownOption = ChipDropdownOption
 interface ChipModalFieldBaseProps {
   /** Field title rendered above the control. Replaces the legacy `label` slot. */
   title: React.ReactNode
+  /** Optional field actions beside the title, outside its label. */
+  titleActions?: React.ReactNode
   /**
    * Renders a `*` marker after the title and sets `aria-required` on the
    * underlying control.
@@ -743,13 +779,24 @@ function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
   const errorId = `${id}-error`
   const hintId = `${id}-hint`
-  const { title, required, error, hint, flush = false, className } = props
+  const { title, titleActions, required, error, hint, flush = false, className } = props
   const associatesLabel =
     props.type === 'input' ||
     props.type === 'email' ||
     props.type === 'textarea' ||
     props.type === 'copy' ||
+    props.type === 'file' ||
     props.type === 'emails'
+  const label = (
+    <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
+      {title}
+      {required && (
+        <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
+          *
+        </span>
+      )}
+    </Label>
+  )
 
   return (
     <div
@@ -758,14 +805,14 @@ function ChipModalField(props: ChipModalFieldProps) {
         props.type === 'custom' && props.submitOnEnter === false ? '' : undefined
       }
     >
-      <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
-        {title}
-        {required && (
-          <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
-            *
-          </span>
-        )}
-      </Label>
+      {titleActions ? (
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          {label}
+          {titleActions}
+        </div>
+      ) : (
+        label
+      )}
       {renderChipModalControl(props, id, errorId, hintId)}
       {error && props.type !== 'emails' ? (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
@@ -1059,6 +1106,7 @@ function ChipModalEmailsControl({
  * input is reset after each pick so selecting the same file again still fires.
  */
 function ChipModalFileControl({
+  title,
   onChange,
   accept,
   multiple = false,
@@ -1114,13 +1162,14 @@ function ChipModalFileControl({
         if (isInteractive) emitFiles(event.dataTransfer.files)
       }}
       className={cn(
-        'flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--border-1)] border-dashed bg-[var(--surface-5)] px-2 py-2.5 text-center outline-hidden transition-colors hover-hover:border-[var(--surface-7)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]',
+        'flex w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--border-1)] border-dashed bg-[var(--surface-5)] px-2 py-2.5 text-center outline-hidden transition-colors hover-hover:border-[var(--surface-7)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]',
         isDragging && 'border-[var(--surface-7)]'
       )}
     >
       <input
         ref={inputRef}
         type='file'
+        aria-label={typeof title === 'string' ? title : undefined}
         accept={accept}
         multiple={multiple}
         disabled={!isInteractive}
@@ -1131,9 +1180,11 @@ function ChipModalFileControl({
         }}
       />
       {loading ? <Loader animate className='size-[14px] text-[var(--text-tertiary)]' /> : null}
-      <span className='text-[var(--text-primary)] text-caption'>
-        {isDragging ? 'Drop files here' : label}
-      </span>
+      <OverflowText
+        label={isDragging ? 'Drop files here' : label}
+        focusTarget='nearest-interactive'
+        className='max-w-full text-[var(--text-primary)] text-caption'
+      />
       {description ? (
         <span className='text-[var(--text-tertiary)] text-xs'>{description}</span>
       ) : null}
@@ -1195,6 +1246,8 @@ export type ChipModalFooterSlotAction = ChipModalFooterAction | ChipModalFooterC
 export type ChipModalFooterDefaultAction = 'primary' | 'dismiss' | 'none'
 
 interface ChipModalFooterCommonProps {
+  /** Label for the dismiss action, such as Cancel, Later, or Stay. */
+  cancelLabel?: React.ReactNode
   /**
    * Disables the Cancel button. Set this while a primary/secondary action is
    * in flight (e.g. an async delete or save) so the user cannot dismiss the
@@ -1328,12 +1381,9 @@ function renderFooterSlotAction(action: ChipModalFooterSlotAction): React.ReactN
  * {@link ChipModalFooterAction} and rendered as {@link Chip}s, so no footer
  * can drift from the canonical layout; the secondary entries additionally
  * accept a chip-chrome control via {@link ChipModalFooterCustomAction}.
- *
- * For "are you sure?" confirmations, reach for {@link ChipConfirmModal} instead
- * — a confirmation's dismiss button is a named decision ("Keep editing"), not
- * the structural Cancel this footer guarantees.
  */
 function ChipModalFooter({
+  cancelLabel = 'Cancel',
   onCancel,
   cancelDisabled,
   hideCancel = false,
@@ -1383,7 +1433,7 @@ function ChipModalFooter({
           data-chip-modal-dismiss-action=''
           data-chip-modal-default-action={defaultAction === 'dismiss' ? '' : undefined}
         >
-          Cancel
+          {cancelLabel}
         </Chip>
       )}
       {primaryAdjacentAction ? renderFooterSlotAction(primaryAdjacentAction) : null}
@@ -1560,8 +1610,7 @@ export interface ChipConfirmModalProps {
   defaultAction?: ChipConfirmDefaultAction
   /**
    * Label for the dismiss button. In a confirmation the dismiss button is a
-   * named decision, so this is honest API (unlike a form footer's structural
-   * Cancel). Defaults to `'Cancel'`; pass `'Keep editing'` for unsaved-changes.
+   * named decision. Defaults to `'Cancel'`; pass `'Keep editing'` for unsaved-changes.
    * @default 'Cancel'
    */
   dismissLabel?: string
@@ -1697,9 +1746,9 @@ function ChipConfirmModal({
       </ChipModalHeader>
       <ChipModalBody>
         {hasText ? (
-          <p id={descriptionId} className='break-words px-2 text-[var(--text-primary)] text-sm'>
+          <ChipModalDescription id={descriptionId}>
             {renderChipConfirmText(text)}
-          </p>
+          </ChipModalDescription>
         ) : null}
         {children}
       </ChipModalBody>

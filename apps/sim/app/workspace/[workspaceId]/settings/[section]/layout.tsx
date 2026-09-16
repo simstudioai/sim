@@ -6,14 +6,15 @@ import {
 import { resolveSettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 /**
- * Sections that were promoted out of settings into their own workspace routes. Kept as
- * segment-level rewrites so old links and bookmarks still land somewhere sensible.
+ * Legacy settings sections kept as redirects so old links and bookmarks still work.
  */
 const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => string>> = {
   integrations: (workspaceId) => `/workspace/${workspaceId}/integrations`,
   skills: (workspaceId) => `/workspace/${workspaceId}/skills`,
   /** Cookie preferences moved into General. */
   privacy: (workspaceId) => `/workspace/${workspaceId}/settings/general?view=privacy`,
+  'authorized-apps': (workspaceId) =>
+    `/workspace/${workspaceId}/settings/general?view=authorized-apps`,
 }
 
 /**

@@ -3,7 +3,7 @@ import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import {
   type KeysetKey,
   keysetColumns,
@@ -27,6 +27,7 @@ import type {
 } from '@/lib/knowledge/chunks/types'
 import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
+import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
 import { replaceKnowledgeEmbeddingSecretProvenanceInTx } from '@/lib/knowledge/secret-provenance'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
@@ -98,7 +99,13 @@ export async function queryChunks(
    * scope; the join repeats the check at the row so a revocation between the
    * two reads still hides the content.
    */
-  const conditions = [eq(embedding.documentId, documentId), knowledgeAccessCondition(access)]
+  const conditions = [
+    eq(embedding.documentId, documentId),
+    knowledgeAccessCondition(access),
+    ...workspaceSearchFilterConditions(filters.documentFilters),
+  ]
+
+  if (filters.requireEnabledDocument) conditions.push(eq(document.enabled, true))
 
   if (enabled === 'true') {
     conditions.push(eq(embedding.enabled, true))
@@ -116,7 +123,13 @@ export async function queryChunks(
    * keyset resume narrows the *page*, and folding it into the count would turn
    * a total into a remainder that shrinks with every page.
    */
-  const pageConditions = [...conditions, resumeKeyset(keys, cursorKeys, sortOrder)]
+  const pageConditions = [
+    ...conditions,
+    resumeKeyset(keys, cursorKeys, sortOrder),
+    filters.startChunkIndex === undefined
+      ? undefined
+      : gte(embedding.chunkIndex, filters.startChunkIndex),
+  ]
 
   const rows = await db
     .select({

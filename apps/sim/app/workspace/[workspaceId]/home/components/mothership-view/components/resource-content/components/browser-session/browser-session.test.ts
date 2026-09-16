@@ -13,12 +13,10 @@ import {
   claimPermissionResponse,
   clearOmniboxSelection,
   exceededOmniboxDragThreshold,
-  hasConfirmedBrowserTabCreation,
   initialUrlSuggestionIndex,
   resolveUrlBarInput,
   selectFocusedOmniboxOnNextFrame,
   shouldOpenUrlSuggestions,
-  shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
   shouldShowBrowserPermissionRequest,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
@@ -424,21 +422,7 @@ describe('initialUrlSuggestionIndex', () => {
   })
 })
 
-describe('hasConfirmedBrowserTabCreation', () => {
-  it('requires both a larger strip and a distinct active tab', () => {
-    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-2', 2)).toBe(true)
-    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-1', 2)).toBe(false)
-    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-2', 1)).toBe(false)
-    expect(hasConfirmedBrowserTabCreation('tab-1', 1, null, 2)).toBe(false)
-  })
-})
-
 describe('suspended browser resource lifecycle', () => {
-  it('does not remove a resource when administrative suspension clears its tabs', () => {
-    expect(shouldRemoveBrowserResource(false, true, true)).toBe(false)
-    expect(shouldRemoveBrowserResource(false, true, false)).toBe(true)
-  })
-
   it('reports native bounds only while visible and unsuspended', () => {
     expect(shouldReportBrowserBounds(true, false)).toBe(true)
     expect(shouldReportBrowserBounds(true, true)).toBe(false)

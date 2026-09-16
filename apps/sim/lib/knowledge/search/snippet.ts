@@ -1,6 +1,6 @@
 /** Characters of a document shown under a search result. */
 export const SNIPPET_LENGTH = 280
-/** Characters kept before the first match, so the hit sits in context rather than at the edge. */
+/** Characters kept before the selected match, so the hit sits in context rather than at the edge. */
 const LEAD_LENGTH = 90
 /** Query terms shorter than this are too common to anchor a snippet on. */
 const MIN_TERM_LENGTH = 3
@@ -97,19 +97,61 @@ function alignToCodePoint(text: string, index: number): number {
   return unit >= 0xdc00 && unit <= 0xdfff ? index - 1 : index
 }
 
+export interface PassageExcerpt {
+  content: string
+  /** Positions are UTF-16 code units in the input chunk. */
+  startOffset: number
+  endOffset: number
+  totalCharacters: number
+}
+
+/** A bounded, verbatim window; offsets make omitted text explicitly recoverable. */
+export function passageWindow(
+  content: string,
+  startOffset: number,
+  maxCharacters: number
+): PassageExcerpt {
+  const start = alignToCodePoint(content, Math.min(startOffset, content.length))
+  const end = alignToCodePoint(content, Math.min(start + maxCharacters, content.length))
+  return {
+    content: content.slice(start, end),
+    startOffset: start,
+    endOffset: end,
+    totalCharacters: content.length,
+  }
+}
+
+/** Search evidence preserves source formatting and anchors on the same matches as Search's UI. */
+export function matchPassage(
+  content: string,
+  query: string,
+  maxCharacters: number
+): PassageExcerpt {
+  if (content.length <= maxCharacters) return passageWindow(content, 0, maxCharacters)
+  const anchor = findTermMatches(content, queryTerms(query)).reduce<TermMatch | undefined>(
+    (best, match) => (!best || match.length > best.length ? match : best),
+    undefined
+  )
+  const start = anchor ? Math.max(0, anchor.index - Math.floor(maxCharacters / 3)) : 0
+  return passageWindow(content, start, maxCharacters)
+}
+
 /**
- * The passage of a document a search result shows: a window around the first
- * query term found, the way a search page shows why a document matched, and
- * the document's opening when no term appears in this chunk. Whitespace is
- * collapsed and the window is cut on word boundaries with ellipses where the
- * text continues.
+ * The passage of a document a search result shows: a window around the longest
+ * matching query term, keeping the earliest occurrence on ties. This favors a
+ * specific term in the body over a shorter title match. When no term matches,
+ * the document's opening is shown. Whitespace is collapsed and the window is
+ * cut on word boundaries with ellipses where the text continues.
  */
 export function matchSnippet(content: string, query?: string): string {
   const flat = stripLeadingHeaders(content).replace(/\s+/g, ' ').trim()
   if (flat.length <= SNIPPET_LENGTH) return flat
 
-  const first = findTermMatches(flat, queryTerms(query))[0]
-  let start = first ? Math.max(0, first.index - LEAD_LENGTH) : 0
+  const anchor = findTermMatches(flat, queryTerms(query)).reduce<TermMatch | undefined>(
+    (best, match) => (!best || match.length > best.length ? match : best),
+    undefined
+  )
+  let start = anchor ? Math.max(0, anchor.index - LEAD_LENGTH) : 0
   if (start > 0) {
     const boundary = flat.indexOf(' ', start)
     if (boundary !== -1 && boundary - start < LEAD_LENGTH) start = boundary + 1

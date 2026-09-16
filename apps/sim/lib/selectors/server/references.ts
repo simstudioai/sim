@@ -28,7 +28,7 @@ export async function resolveSelectorReferences(input: {
   context: SelectorContext
   request: SelectorRequest
   requesterUserId: string
-  workspaceId: string
+  workspaceId?: string
   protectedValues: SelectorProtectedValues
 }): Promise<ResolvedSelectorInputs> {
   const contextEntries = Object.entries(input.context).filter(
@@ -51,6 +51,8 @@ export async function resolveSelectorReferences(input: {
     const context = Object.fromEntries(contextEntries) as SelectorContext
     return { context, request: input.request, references: new Map() }
   }
+
+  if (!input.workspaceId) throw new SelectorContextUnavailableError()
 
   const sensitiveFields = new Set<string>(manifest.context.sensitive ?? [])
 

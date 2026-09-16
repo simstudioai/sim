@@ -27,14 +27,14 @@ export interface DataRowProps {
   /** Current workspace id — forwarded to cells so in-workspace resource URLs
    *  render as tagged-resource chips. */
   workspaceId: string
-  /** Effective viewer timezone used to render TTL instants. */
-  timeZone: string
-  /** Whether Date and Expiration values can be formatted and edited safely. */
+  /** Whether Date values can be formatted and edited safely. */
   timezoneStatus: TimezoneState['status']
   rowIndex: number
   isFirstRow: boolean
   editingColumnName: string | null
   initialCharacter: string | null
+  /** Opens cell editors read-only, e.g. on an update-locked table. */
+  editorsReadOnly: boolean
   pendingCellValue: Record<string, unknown> | null
   normalizedSelection: NormalizedSelection | null
   onClick: (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => void
@@ -119,11 +119,11 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.row !== next.row ||
     prev.columns !== next.columns ||
     prev.workspaceId !== next.workspaceId ||
-    prev.timeZone !== next.timeZone ||
     prev.timezoneStatus !== next.timezoneStatus ||
     prev.rowIndex !== next.rowIndex ||
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
+    prev.editorsReadOnly !== next.editorsReadOnly ||
     prev.pendingCellValue !== next.pendingCellValue ||
     prev.onClick !== next.onClick ||
     prev.onDoubleClick !== next.onDoubleClick ||
@@ -168,12 +168,12 @@ export const DataRow = React.memo(function DataRow({
   row,
   columns,
   workspaceId,
-  timeZone,
   timezoneStatus,
   rowIndex,
   isFirstRow,
   editingColumnName,
   initialCharacter,
+  editorsReadOnly,
   pendingCellValue,
   normalizedSelection,
   isRowChecked,
@@ -405,7 +405,6 @@ export const DataRow = React.memo(function DataRow({
             <div className={CELL_CONTENT}>
               <CellContent
                 workspaceId={workspaceId}
-                timeZone={timeZone}
                 timezoneStatus={timezoneStatus}
                 value={
                   pendingCellValue && column.key in pendingCellValue
@@ -422,6 +421,7 @@ export const DataRow = React.memo(function DataRow({
                 column={column}
                 isEditing={isEditing}
                 initialCharacter={isEditing ? initialCharacter : undefined}
+                readOnly={editorsReadOnly}
                 onSave={(value, reason) => onSave(row.id, column.key, value, reason)}
                 onCancel={onCancel}
                 waitingOnLabels={

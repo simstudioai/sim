@@ -9,7 +9,8 @@ import { VideoChapters } from '@/components/ui/video-chapters'
 import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Agents" title="Agents" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/agents-intro.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Agents" title="Agents" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/agents-intro.mp4"
+  captionsSrc="/captions/academy/agents-intro.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -51,9 +52,7 @@ In Sim, you build AI agents as **workflows that use the Agent block**. There's n
 
 ## An agent is a workflow
 
-This is the one idea to hold onto: **an AI agent is a workflow**, one built around the Agent block. Everything you learned about [workflows](/academy/workflows/intro) applies. You don't leave the model; you add reasoning to it.
-
-Here's the shape of it: a workflow built around an Agent block where it thinks:
+The trigger, connections, and outputs work as described in [Workflows](/academy/workflows/intro). In this example, the Agent block classifies the incoming message:
 
 <WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
 
@@ -74,11 +73,9 @@ Two parameters extend the Agent block, and both fit the chat-box picture:
 
 The clearest way to see an agent isn't to build one from nothing, it's to take a **deterministic workflow and let an agent into it**. Replace a fixed rule with an agent that *decides* the path (routing), or *augment* a step with real reasoning, or both. Same workflow, now with judgment in it.
 
-## Composing intelligence
+## Combining Agent blocks
 
-Your ability to compose workflows that make **multiple agent calls** is central to designing intelligent processes. And every agentic workflow you build becomes a building block: your workspace's library of agents composes into larger AI systems.
-
-Start with one Agent block; the platform scales as your ambition does. The most sophisticated systems are just more of these, composed, more agent blocks swapping in, more reasoning, more reach, all from the same model you learned here.
+Use separate Agent blocks when steps need different instructions, tools, or models. For example, one block can classify a request and another can draft a reply. Use a [subworkflow](/academy/workflows/subworkflows) when several workflows need the same sequence.
 
 <FAQ items={[
   { question: "Do I need to code to build an AI agent in Sim?", answer: "No. Agents are built on Sim's visual workflow canvas: drag an Agent block into a workflow, write its instructions in plain language, and connect the blocks it should work with." },

@@ -205,19 +205,6 @@ export function getWallClockParts(instant: Date, timeZone?: string): WallClockPa
   }
 }
 
-/** Formats an instant as an RFC 3339 wall time in an IANA timezone. */
-export function formatInstantInTimeZone(
-  instant: Date,
-  timeZone: string,
-  options?: ZonedWallClockOptions
-): string {
-  const wall = getWallClockParts(instant, timeZone)
-  const wholeSecondInstant = new Date(Math.floor(instant.getTime() / 1000) * 1000)
-  const exactOffsetMinutes = offsetMsFromWallClock(wholeSecondInstant, wall) / 60_000
-  const offsetMinutes = roundOffsetMinutes(exactOffsetMinutes, options)
-  return `${formatIsoYear(wall.year)}-${pad(wall.month)}-${pad(wall.day)}T${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}${formatUtcOffsetSuffix(offsetMinutes)}`
-}
-
 /**
  * An instant's wall-clock time in `timeZone` as a naive `yyyy-MM-ddTHH:mm`
  * string. Lets callers reason about a user's local date/time without UTC — e.g.
@@ -261,14 +248,6 @@ interface ZonedWallClockResolution {
 export interface ZonedWallClockOptions {
   /** Which real instant to use when the wall clock occurs twice during a DST fall-back. */
   ambiguousTime?: 'earlier' | 'later'
-  /** How to serialize rare historical offsets containing seconds into RFC 3339 minutes. */
-  offsetMinuteRounding?: 'nearest' | 'floor'
-}
-
-function roundOffsetMinutes(exactOffsetMinutes: number, options?: ZonedWallClockOptions): number {
-  return options?.offsetMinuteRounding === 'floor'
-    ? Math.floor(exactOffsetMinutes)
-    : Math.round(exactOffsetMinutes)
 }
 
 function resolveZonedWallClock(
@@ -333,6 +312,6 @@ export function zonedWallClockWithOffset(
   options?: ZonedWallClockOptions
 ): string {
   const resolution = resolveZonedWallClock(wallClock, timeZone, options)
-  const offsetMinutes = roundOffsetMinutes(resolution.offsetMinutes, options)
+  const offsetMinutes = Math.round(resolution.offsetMinutes)
   return `${wallClock}${formatUtcOffsetSuffix(offsetMinutes)}`
 }

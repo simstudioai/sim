@@ -12,6 +12,7 @@ import {
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import {
@@ -50,13 +51,17 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
 }))
 
 import type { DbOrTx } from '@/lib/db/types'
+import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
 import {
   copyForkResourceContainers,
   copyForkResourceContent,
   type ForkContentPlan,
   planForkMappedKbDocumentCopies,
 } from '@/ee/workspace-forking/lib/copy/copy-resources'
-import type { ForkReferenceResolver } from '@/ee/workspace-forking/lib/remap/remap-references'
+import {
+  ForkCopyContinuation,
+  type ForkCopyProgress,
+} from '@/ee/workspace-forking/lib/copy/progress'
 
 function basePlan(overrides: Partial<ForkContentPlan> = {}): ForkContentPlan {
   return {
@@ -994,6 +999,169 @@ describe('copyForkResourceContent', () => {
     ).rejects.toThrow(
       'Copied knowledge base child-kb failed and its storage rollback also failed: rollback failed'
     )
+  })
+
+  it('drains in-flight document copies before yielding a knowledge base continuation', async () => {
+    const secondSource = { ...sourceDoc, id: 'doc-2', storageKey: 'kb/second-source' }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc, secondSource])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([secondSource])
+      .mockResolvedValueOnce([])
+    let releaseCopy = () => {}
+    let reportInterrupted = () => {}
+    const copying = new Promise<void>((resolve) => {
+      releaseCopy = resolve
+    })
+    const interrupted = new Promise<void>((resolve) => {
+      reportInterrupted = resolve
+    })
+    const continuation = new ForkCopyContinuation('resume the next attempt')
+    storageServiceMockFns.mockDownloadFile.mockImplementation(async ({ key }: { key: string }) => {
+      if (key === 'kb/second-source') {
+        reportInterrupted()
+        throw continuation
+      }
+      await copying
+      return Buffer.from('blob-bytes')
+    })
+    let settled = false
+    const outcome = copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+    }).then(
+      (result) => {
+        settled = true
+        return result
+      },
+      (error: unknown) => {
+        settled = true
+        return error
+      }
+    )
+    await interrupted
+    await sleep(1)
+    try {
+      expect(settled).toBe(false)
+      expect(mockDecrementStorageUsageInTx).not.toHaveBeenCalled()
+    } finally {
+      releaseCopy()
+    }
+    expect(await outcome).toBe(continuation)
+    expect(mockIncrementStorageUsageInTx).toHaveBeenCalledTimes(1)
+    expect(mockDecrementStorageUsageInTx).not.toHaveBeenCalled()
+  })
+
+  it('refuses to resume retained embeddings after the source is reprocessed', async () => {
+    const source = { ...sourceDoc, processingQueueToken: 'generation-1' }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([source])
+      .mockResolvedValueOnce([source])
+      .mockResolvedValueOnce([
+        {
+          id: 'embedding-1',
+          documentId: 'doc-1',
+          content: 'old content',
+          secretProvenanceVersion: null,
+        },
+      ])
+    const progress: ForkCopyProgress = { completed: [], tables: {}, embeddings: {} }
+    const control = {
+      progress,
+      checkpoint: vi.fn(async () => {
+        if (progress.embeddings['child-doc-1']?.afterId) {
+          throw new ForkCopyContinuation('continue after first page')
+        }
+      }),
+    }
+    await expect(
+      copyForkResourceContent({ contentPlan: mappedDocumentPlan(), control })
+    ).rejects.toBeInstanceOf(ForkCopyContinuation)
+    expect(progress.embeddings['child-doc-1']).toMatchObject({
+      afterId: 'embedding-1',
+      knowledgeBaseId: 'existing-target-kb',
+      sourceRevision: expect.any(String),
+    })
+    const prior = structuredClone(progress)
+    const copiedWrites = dbChainMockFns.values.mock.calls.length
+    queueMappedDocumentCopy({ ...source, processingQueueToken: 'generation-2' })
+    const result = await copyForkResourceContent({ contentPlan: mappedDocumentPlan(), control })
+    expect(result).toEqual({
+      copied: 0,
+      failed: 1,
+      failures: [{ kind: 'knowledge-document', childId: 'child-doc-1' }],
+    })
+    expect(progress).toEqual(prior)
+    expect(dbChainMockFns.values.mock.calls).toHaveLength(copiedWrites)
+    expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains source-bound document cursors when another document rolls the knowledge base back', async () => {
+    const secondSource = { ...sourceDoc, id: 'doc-2', storageKey: 'kb/second-source' }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([sourceDoc, secondSource])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([sourceDoc])
+      .mockResolvedValueOnce([secondSource])
+      .mockResolvedValueOnce([])
+    storageServiceMockFns.mockDownloadFile.mockImplementation(async ({ key }: { key: string }) => {
+      if (key === 'kb/second-source') throw new Error('source blob unavailable')
+      return Buffer.from('blob-bytes')
+    })
+    const progress: ForkCopyProgress = { completed: [], tables: {}, embeddings: {} }
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+      control: { progress, checkpoint: vi.fn(async () => {}) },
+    })
+    expect(result.failed).toBe(1)
+    expect(mockIncrementStorageUsageInTx).toHaveBeenCalledTimes(1)
+    expect(mockDecrementStorageUsageInTx).toHaveBeenCalledTimes(1)
+    expect(progress.completed).toEqual([])
+    expect(Object.values(progress.embeddings)).toEqual([
+      { afterId: null, knowledgeBaseId: 'child-kb', sourceRevision: expect.any(String) },
+      { afterId: null, knowledgeBaseId: 'child-kb', sourceRevision: expect.any(String) },
+    ])
+  })
+
+  it('stops after a lease expires during download before creating target storage', async () => {
+    queueMappedDocumentCopy()
+    const controller = new AbortController()
+    storageServiceMockFns.mockDownloadFile.mockImplementationOnce(async () => {
+      controller.abort(new Error('lease expired during download'))
+      return Buffer.from('blob-bytes')
+    })
+    await expect(
+      copyForkResourceContent({
+        contentPlan: mappedDocumentPlan(),
+        control: { signal: controller.signal },
+      })
+    ).rejects.toThrow('lease expired during download')
+    expect(mockRecordKnowledgeBaseFileOwnership).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
+  })
+
+  it('does not activate a document after its lease expires while waiting for the knowledge base lock', async () => {
+    queueMappedDocumentCopy()
+    const controller = new AbortController()
+    dbChainMockFns.for.mockImplementationOnce(async () => {
+      controller.abort(new Error('lease expired while waiting for lock'))
+      return [{ workspaceId: 'child-ws' }]
+    })
+    await expect(
+      copyForkResourceContent({
+        contentPlan: mappedDocumentPlan(),
+        control: { signal: controller.signal },
+      })
+    ).rejects.toThrow('lease expired while waiting for lock')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
   })
 
   it('U-docs: fills a document copied into an existing target KB (blob re-key + placeholder update)', async () => {

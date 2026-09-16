@@ -1,3 +1,4 @@
+import integrationNavigation from 'docs/content/integration-navigation.json'
 import type { NextConfig } from 'next'
 
 /** The shape Next expects back from `next.config.ts`'s `redirects()`. */
@@ -19,11 +20,17 @@ type DocsRedirect = Awaited<ReturnType<NonNullable<NextConfig['redirects']>>>[nu
  * modules would make match order an emergent property of two files.
  */
 export const DOCS_REDIRECTS: DocsRedirect[] = [
+  ...Object.entries(integrationNavigation.redirects).map(([from, to]) => ({
+    source: `/integrations/${from}`,
+    destination: `/integrations/${to}`,
+    permanent: true,
+  })),
   {
     source: '/',
     destination: '/introduction',
     permanent: true,
   },
+  { source: '/api-reference', destination: '/api-reference/getting-started', permanent: true },
   // building-agents/agents merged into the building-agents overview
   { source: '/building-agents/agents', destination: '/agents', permanent: true },
   // form deployment removed

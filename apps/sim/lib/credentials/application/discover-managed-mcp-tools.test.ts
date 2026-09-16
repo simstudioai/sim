@@ -2,9 +2,11 @@
  * @vitest-environment node
  */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  loadWorkflow: vi.fn(),
   discoverTools: vi.fn(),
   loadAuthProvider: vi.fn(),
   loadContext: vi.fn(),
@@ -12,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   requireCredentialAccess: vi.fn(),
   resolvePermission: vi.fn(),
   saveToolSnapshot: vi.fn(),
+}))
+
+vi.mock('@sim/workflow-persistence', () => ({
+  loadWorkflowFromNormalizedTablesRaw: mocks.loadWorkflow,
 }))
 
 vi.mock('@/lib/credentials/managed-mcp', () => ({
@@ -66,7 +72,7 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
   audience: 'sim:managed-mcp-credentials',
   issuedAt: new Date(Date.now() - 1_000),
   expiresAt: new Date(Date.now() + 60_000),
-  resourceScope: { credentialId: context.credentialId },
+  resourceScope: { credentialId: context.credentialId, mcpBlockId: 'block-1' },
   delegationContext: {
     kind: 'workflow_execution',
     workflowId: 'workflow-1',
@@ -78,12 +84,32 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
 describe('discoverManagedMcpToolsUseCase', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    const savedWorkflow = {
+      workspaceId: 'workspace-1',
+      blocks: {
+        'block-1': {
+          type: 'mcp',
+          enabled: true,
+          subBlocks: {
+            server: { value: context.credentialId },
+            tool: { value: 'search_transcripts' },
+          },
+        },
+      },
+    }
+    mocks.loadWorkflow.mockResolvedValue(savedWorkflow)
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
     mocks.loadContext.mockResolvedValue(context)
     mocks.loadRuntime.mockResolvedValue({
       credentialId: context.credentialId,
       mcpServerId: context.mcpServerId,
       mcpServerName: context.mcpServerName,
       workspaceId: context.workspaceId,
+      scope: { kind: 'organization', organizationId: 'org-1' },
+      oauthConfigVersion: 2,
+      grantedAt: new Date('2026-09-01'),
       tokenVersion: 'encrypted-token-version-1',
       tokens: { access_token: 'access-token' },
       tools: [],
@@ -120,7 +146,7 @@ describe('discoverManagedMcpToolsUseCase', () => {
     expect(mocks.loadRuntime).toHaveBeenCalledWith(context.credentialId, context.workspaceId)
     expect(mocks.discoverTools).toHaveBeenCalledWith(
       context.mcpServerId,
-      context.workspaceId,
+      { kind: 'organization', organizationId: 'org-1' },
       { credentialId: context.credentialId, loadProvider: expect.any(Function) },
       signal,
       { requireComplete: true }
@@ -129,15 +155,21 @@ describe('discoverManagedMcpToolsUseCase', () => {
       expect.objectContaining({
         name: 'search_transcripts',
         serverId: context.credentialId,
+        canonicalServerId: context.mcpServerId,
         serverName: context.mcpServerName,
       }),
     ])
-    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(context.credentialId, [
-      {
-        name: 'search_transcripts',
-        description: 'Search transcripts',
-        inputSchema: { type: 'object', properties: {} },
-      },
-    ])
+    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(
+      context.credentialId,
+      [
+        {
+          name: 'search_transcripts',
+          description: 'Search transcripts',
+          inputSchema: { type: 'object', properties: {} },
+        },
+      ],
+      2,
+      new Date('2026-09-01')
+    )
   })
 })

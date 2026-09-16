@@ -16,6 +16,8 @@ interface VideoPlaceholderProps {
    * set, the play button loads the video; otherwise the card is "coming soon".
    */
   src?: string
+  /** Same-origin WebVTT captions, generated from the lesson narration. */
+  captionsSrc?: string
   className?: string
 }
 
@@ -48,6 +50,7 @@ export function VideoPlaceholder({
   eyebrow,
   label = 'Coming soon',
   src,
+  captionsSrc,
   className,
 }: VideoPlaceholderProps) {
   const hasVideo = Boolean(src)
@@ -83,6 +86,10 @@ export function VideoPlaceholder({
     }
   }, [src])
 
+  useEffect(() => {
+    if (playing) videoRef.current?.focus()
+  }, [playing])
+
   if (playing && src) {
     return (
       <div
@@ -91,12 +98,12 @@ export function VideoPlaceholder({
           className
         )}
       >
-        {/* biome-ignore lint/a11y/useMediaCaption: lesson videos have no caption track yet */}
         <video
           ref={videoRef}
           src={resolveVideoSrc(src)}
           title={title ?? 'Lesson video'}
           controls
+          tabIndex={0}
           autoPlay
           playsInline
           onLoadedMetadata={() => {
@@ -107,7 +114,15 @@ export function VideoPlaceholder({
             }
           }}
           className='h-full w-full border-0'
-        />
+        >
+          <track
+            kind='captions'
+            src={captionsSrc}
+            srcLang='en'
+            label='English (auto-generated)'
+            default
+          />
+        </video>
       </div>
     )
   }

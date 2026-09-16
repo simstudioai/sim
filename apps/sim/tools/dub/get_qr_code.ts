@@ -1,7 +1,42 @@
-import type { DubGetQrCodeParams, DubGetQrCodeResponse } from '@/tools/dub/types'
-import type { ToolConfig } from '@/tools/types'
+import { omit } from '@sim/utils/object'
+import type {
+  DubGetQrCodeParams,
+  DubGetQrCodeResponse,
+  DubGetQrCodeV2Response,
+} from '@/tools/dub/types'
+import type { ToolConfig, ToolFileData } from '@/tools/types'
 
-export const getQrCodeTool: ToolConfig<DubGetQrCodeParams, DubGetQrCodeResponse> = {
+async function transformDownloadResponse(response: Response) {
+  if (!response.ok) {
+    const errorText = await response.text()
+    let message = errorText || `Failed to generate QR code: ${response.status}`
+    try {
+      const parsed = JSON.parse(errorText)
+      message = parsed.error?.message || parsed.error || message
+    } catch {
+      /** Non-JSON error body; use the raw text. */
+    }
+    throw new Error(message)
+  }
+
+  const arrayBuffer = await response.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  const mimeType = response.headers.get('content-type') || 'image/png'
+
+  return {
+    success: true,
+    output: {
+      file: {
+        name: 'qrcode.png',
+        mimeType,
+        data: buffer,
+        size: buffer.length,
+      },
+    },
+  }
+}
+
+export const getQrCodeTool = {
   id: 'dub_get_qr_code',
   name: 'Dub Get QR Code',
   description:
@@ -85,33 +120,16 @@ export const getQrCodeTool: ToolConfig<DubGetQrCodeParams, DubGetQrCodeResponse>
     }),
   },
 
-  transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const errorText = await response.text()
-      let message = errorText || `Failed to generate QR code: ${response.status}`
-      try {
-        const parsed = JSON.parse(errorText)
-        message = parsed.error?.message || parsed.error || message
-      } catch {
-        // Non-JSON error body; use the raw text
-      }
-      throw new Error(message)
-    }
-
-    const arrayBuffer = await response.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-    const mimeType = response.headers.get('content-type') || 'image/png'
-
+  transformResponse: async (response) => {
+    const result = await transformDownloadResponse(response)
+    const file = result.output.file
+    const content = file.data.toString('base64')
     return {
-      success: true,
+      ...result,
       output: {
-        file: {
-          name: 'qrcode.png',
-          mimeType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
-        },
-        content: buffer.toString('base64'),
+        ...result.output,
+        file: { ...file, data: content },
+        content,
       },
     }
   },
@@ -126,4 +144,16 @@ export const getQrCodeTool: ToolConfig<DubGetQrCodeParams, DubGetQrCodeResponse>
       description: 'Base64-encoded PNG image data',
     },
   },
+} satisfies ToolConfig<DubGetQrCodeParams, DubGetQrCodeResponse>
+
+export const getQrCodeV2Tool: ToolConfig<
+  DubGetQrCodeParams,
+  DubGetQrCodeV2Response<ToolFileData>
+> = {
+  ...getQrCodeTool,
+  id: 'dub_get_qr_code_v2',
+  version: '2.0.0',
+  request: { ...getQrCodeTool.request, responseType: 'binary' },
+  transformResponse: transformDownloadResponse,
+  outputs: omit(getQrCodeTool.outputs, ['content']),
 }

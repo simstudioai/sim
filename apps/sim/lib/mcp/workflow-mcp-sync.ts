@@ -645,28 +645,28 @@ export async function removeMcpToolsForWorkflow(
  * Publish pubsub events for each unique server affected by a tool change.
  * Resolves workspace IDs from the server table so callers don't need to pass them.
  */
+/** Publishes affected servers synchronously so durable callers can observe failures. */
+export async function publishMcpToolServerChanges(serverIds: string[]): Promise<void> {
+  if (!mcpPubSub || !serverIds.length) return
+  const servers = await db
+    .select({ id: workflowMcpServer.id, workspaceId: workflowMcpServer.workspaceId })
+    .from(workflowMcpServer)
+    .where(
+      and(
+        inArray(workflowMcpServer.id, [...new Set(serverIds)]),
+        isNull(workflowMcpServer.deletedAt)
+      )
+    )
+  for (const server of servers) {
+    await mcpPubSub.publishWorkflowToolsChanged({
+      serverId: server.id,
+      workspaceId: server.workspaceId,
+    })
+  }
+}
+
 export function notifyMcpToolServers(tools: Array<{ serverId: string }>): void {
-  if (!mcpPubSub) return
-
-  const uniqueServerIds = [...new Set(tools.map((t) => t.serverId))]
-
-  void (async () => {
-    try {
-      const servers = await db
-        .select({ id: workflowMcpServer.id, workspaceId: workflowMcpServer.workspaceId })
-        .from(workflowMcpServer)
-        .where(
-          and(inArray(workflowMcpServer.id, uniqueServerIds), isNull(workflowMcpServer.deletedAt))
-        )
-
-      for (const server of servers) {
-        mcpPubSub.publishWorkflowToolsChanged({
-          serverId: server.id,
-          workspaceId: server.workspaceId,
-        })
-      }
-    } catch (error) {
-      logger.error('Error notifying affected servers:', error)
-    }
-  })()
+  void publishMcpToolServerChanges(tools.map((tool) => tool.serverId)).catch((error) => {
+    logger.error('Error notifying affected servers:', error)
+  })
 }

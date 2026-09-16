@@ -25,6 +25,7 @@ import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attr
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import type { ForbiddenDetailCode } from '@/lib/core/application'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -43,7 +44,9 @@ import { executeWorkflowOperation } from '@/lib/workflows/application/execute-wo
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   type ExecuteWorkflowServiceFailure,
+  type ExecuteWorkflowServicePendingRun,
   type ExecuteWorkflowServiceResult,
+  type ExecuteWorkflowServiceRun,
   executeWorkflowService,
 } from '@/lib/workflows/executor/execute-service'
 import {
@@ -59,6 +62,10 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('V2WorkflowExecuteAPI')
+
+const WORKFLOW_RESULT_STREAM_CONTENT_TYPE = 'application/x-ndjson'
+const WORKFLOW_RESULT_HEARTBEAT_INTERVAL_MS = 15_000
+const ndjsonEncoder = new TextEncoder()
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -103,6 +110,124 @@ function serviceFailureResponse(failure: ExecuteWorkflowServiceFailure) {
   })
 }
 
+function wantsResultStream(req: NextRequest): boolean {
+  return acceptsMediaType(req.headers.get('accept'), WORKFLOW_RESULT_STREAM_CONTENT_TYPE)
+}
+
+function encodeNdjson(value: unknown): Uint8Array {
+  return ndjsonEncoder.encode(`${JSON.stringify(value)}\n`)
+}
+
+function presentRun(result: ExecuteWorkflowServiceRun) {
+  return {
+    runId: result.executionId,
+    workflowId: result.workflowId,
+    status: result.status,
+    output: result.output ?? null,
+    error: result.error,
+    startedAt: result.startedAt,
+    endedAt: result.endedAt,
+    durationMs: result.durationMs,
+  }
+}
+
+/**
+ * Presents an ordinary synchronous run as heartbeat-delimited NDJSON. The
+ * execution promise is the same one used by the JSON path; only its response
+ * framing changes, so manual draft selection and cancellation keep their
+ * existing semantics.
+ */
+function streamPendingRun(
+  pendingRun: ExecuteWorkflowServicePendingRun,
+  requestId: string,
+  onSettled: () => void
+): Response {
+  let cancelled = false
+  let heartbeatId: ReturnType<typeof setInterval> | undefined
+  const stopHeartbeat = () => {
+    if (heartbeatId) {
+      clearInterval(heartbeatId)
+      heartbeatId = undefined
+    }
+  }
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const cancel = () => {
+        if (cancelled) return
+        cancelled = true
+        stopHeartbeat()
+        pendingRun.cancel()
+      }
+      const send = (event: unknown): boolean => {
+        if (cancelled) return false
+        try {
+          controller.enqueue(encodeNdjson(event))
+          return true
+        } catch {
+          cancel()
+          return false
+        }
+      }
+
+      if (send({ type: 'heartbeat', timestamp: new Date().toISOString() })) {
+        heartbeatId = setInterval(() => {
+          send({ type: 'heartbeat', timestamp: new Date().toISOString() })
+        }, WORKFLOW_RESULT_HEARTBEAT_INTERVAL_MS)
+      }
+
+      void pendingRun.pending
+        .then((result) => {
+          if (!result.ok) {
+            send({
+              type: 'error',
+              error: result.failure.message,
+              code: result.failure.code,
+              status: result.failure.statusCode,
+            })
+            return
+          }
+          if (result.aborted === 'client') {
+            send({
+              type: 'error',
+              error: 'Client cancelled request',
+              code: 'CLIENT_CLOSED_REQUEST',
+              status: 499,
+            })
+            return
+          }
+          send({ type: 'final', data: presentRun(result) })
+        })
+        .catch((error) => {
+          logger.error(`[${requestId}] v2 execute result stream failed`, {
+            error: getErrorMessage(error, 'Unknown error'),
+          })
+          send({ type: 'error', error: 'Internal server error', status: 500 })
+        })
+        .finally(() => {
+          stopHeartbeat()
+          onSettled()
+          if (!cancelled) controller.close()
+        })
+    },
+    cancel() {
+      cancelled = true
+      stopHeartbeat()
+      pendingRun.cancel()
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': `${WORKFLOW_RESULT_STREAM_CONTENT_TYPE}; charset=utf-8`,
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+      Vary: 'Accept',
+      [V2_WORKFLOW_RUN_ID_HEADER]: pendingRun.executionId,
+    },
+  })
+}
+
 /**
  * Path parameters read straight from the Next context, typed from the contract
  * rather than restated inline.
@@ -129,7 +254,9 @@ type V2ExecuteWorkflowRouteContext = {
  * - `async: true` (body flag — v2 has no mode headers) → 202
  *   `{ data: { runId, statusUrl } }`; poll the v2 runs resource.
  * - `stream: true` → SSE passthrough (no `{data}` envelope on event frames).
- * - Sync → 200 run resource with the status enum and structured error;
+ * - Sync → 200 run resource with the status enum and structured error. A caller
+ *   that accepts `application/x-ndjson` receives heartbeat frames followed by
+ *   the same resource in a `final` frame;
  *   an in-band run failure is `status: 'failed'`, never an HTTP error. A
  *   Response block's declared payload stays inside `output` — v2 never lets a
  *   workflow author control response status or headers on this origin.
@@ -216,6 +343,7 @@ export const POST = withRouteHandler(
       })
     }
 
+    let ticketTransferred = false
     try {
       const parsed = await parseRequest(v2ExecuteWorkflowContract, req, context, {
         ...V2_PARSE_DEFAULTS,
@@ -298,6 +426,8 @@ export const POST = withRouteHandler(
         )
       }
 
+      const resultStream = !body.async && !body.stream && wantsResultStream(req)
+
       /** Caller-supplied run IDs are a keyed-caller feature; anonymous callers must not probe the claim table. */
       let requestedExecutionId: string | undefined
       const runIdHeader = parsed.data.headers['x-run-id']
@@ -326,7 +456,7 @@ export const POST = withRouteHandler(
             input: {
               ...commonInput,
               input: body.input,
-              mode: body.stream ? 'stream' : 'sync',
+              mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
               blockId: manualRun.entry.blockId,
               sourceRunId: manualRun.entry.sourceRunId,
             },
@@ -338,7 +468,7 @@ export const POST = withRouteHandler(
             input: {
               ...commonInput,
               input: body.input,
-              mode: body.stream ? 'stream' : 'sync',
+              mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
               triggerBlockId: manualRun.entry?.blockId,
               useMockPayload: manualRun.entry?.useMockPayload === true,
             },
@@ -351,7 +481,13 @@ export const POST = withRouteHandler(
               ...commonInput,
               input: body.input ?? {},
               requestedTimeoutSeconds: body.executionTimeoutSeconds,
-              mode: body.async ? 'async' : body.stream ? 'stream' : 'sync',
+              mode: body.async
+                ? 'async'
+                : body.stream
+                  ? 'stream'
+                  : resultStream
+                    ? 'sync-result-stream'
+                    : 'sync',
             },
             request: req,
           })
@@ -400,7 +536,7 @@ export const POST = withRouteHandler(
           selectedOutputs: body.selectedOutputs,
           rateLimitCounter: 'sync',
           abortSignal: req.signal,
-          mode: body.stream ? 'stream' : 'sync',
+          mode: body.stream ? 'stream' : resultStream ? 'sync-result-stream' : 'sync',
           requestHeaders: req.headers,
           includeThinking: body.includeThinking,
           includeToolCalls: body.includeToolCalls,
@@ -412,9 +548,20 @@ export const POST = withRouteHandler(
         return serviceFailureResponse(result.failure)
       }
 
+      if ('pending' in result) {
+        const response = streamPendingRun(result, requestId, ticket.release)
+        ticketTransferred = true
+        return response
+      }
+
       if ('stream' in result) {
-        // SSE: pass the stream through byte-for-byte with its own headers.
-        return result.stream
+        const headers = new Headers(result.stream.headers)
+        headers.set(V2_WORKFLOW_RUN_ID_HEADER, result.executionId)
+        return new Response(result.stream.body, {
+          status: result.stream.status,
+          statusText: result.stream.statusText,
+          headers,
+        })
       }
 
       if ('queued' in result) {
@@ -433,19 +580,9 @@ export const POST = withRouteHandler(
         })
       }
 
-      return v2Data(
-        {
-          runId: result.executionId,
-          workflowId: result.workflowId,
-          status: result.status,
-          output: result.output ?? null,
-          error: result.error,
-          startedAt: result.startedAt,
-          endedAt: result.endedAt,
-          durationMs: result.durationMs,
-        },
-        { headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId } }
-      )
+      return v2Data(presentRun(result), {
+        headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId },
+      })
     } catch (error) {
       const classified = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
       if (classified) return classified
@@ -455,7 +592,7 @@ export const POST = withRouteHandler(
       })
       return v2Error('INTERNAL_ERROR', 'Internal server error')
     } finally {
-      ticket.release()
+      if (!ticketTransferred) ticket.release()
     }
   },
   {

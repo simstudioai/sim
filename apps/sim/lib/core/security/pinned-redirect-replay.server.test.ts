@@ -376,6 +376,8 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
     expect(hops).toHaveLength(1)
     expect(hops[0].method).toBe('POST')
     expect(hops[0].body).toBe('{"payload":"keep"}')
+    expect(hops[0].headers['content-length']).toBe(String(Buffer.byteLength(hops[0].body)))
+    expect(hops[0].headers['transfer-encoding']).toBeUndefined()
     expect(hops[0].headers.authorization).toBeUndefined()
     expect(hops[0].headers['content-type']).toBe('application/json')
     expect(hops[0].headers['x-trace']).toBe('keep-me')
@@ -445,6 +447,8 @@ describe('secureFetchWithPinnedIP redirect replay', () => {
     expect(hops).toHaveLength(1)
     expect(hops[0].method).toBe('POST')
     expect(hops[0].body).toBe('{"keep":"me"}')
+    expect(hops[0].headers['content-length']).toBe(String(Buffer.byteLength(hops[0].body)))
+    expect(hops[0].headers['transfer-encoding']).toBeUndefined()
     expect(hops[0].headers.authorization).toBe('Bearer same-origin-ok')
   })
 

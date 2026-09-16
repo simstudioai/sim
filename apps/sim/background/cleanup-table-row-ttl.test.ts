@@ -3,6 +3,7 @@
  */
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
+import postgres from 'postgres'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@sim/db/schema')
@@ -16,6 +17,8 @@ const {
   mockTask,
   mockWithLockedTable,
   mockFireTableTrigger,
+  mockLoggerError,
+  mockLoggerInfo,
 } = vi.hoisted(() => ({
   mockDeleteExecute: vi.fn(),
   mockListExecute: vi.fn(),
@@ -24,10 +27,15 @@ const {
   mockTask: vi.fn((config: unknown) => config),
   mockWithLockedTable: vi.fn(),
   mockFireTableTrigger: vi.fn(),
+  mockLoggerError: vi.fn(),
+  mockLoggerInfo: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
   dbFor: vi.fn(() => ({ execute: mockListExecute })),
+}))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ info: mockLoggerInfo, warn: vi.fn(), error: mockLoggerError }),
 }))
 
 vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
@@ -85,6 +93,101 @@ describe('table row TTL cleanup', () => {
     )
   })
 
+  it.skipIf(!process.env.TABLE_TTL_TEST_DATABASE_URL)(
+    'deletes only expired UTC cells in PostgreSQL with a non-UTC session',
+    async () => {
+      const client = postgres(process.env.TABLE_TTL_TEST_DATABASE_URL!, { max: 1 })
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-07T12:00:00.500Z'))
+      try {
+        await client`SET TIME ZONE 'America/Los_Angeles'`
+        await client`CREATE TEMP TABLE user_table_definitions (id text, workspace_id text, schema jsonb, archived_at timestamp, delete_locked boolean)`
+        await client`CREATE TEMP TABLE user_table_rows (id text, table_id text, workspace_id text, data jsonb, created_at timestamp DEFAULT now())`
+        await client`INSERT INTO user_table_definitions VALUES (${table.id}, ${table.workspaceId}, ${client.json(table.schema)}, NULL, false)`
+        const values = {
+          expired: '2026-09-07T11:59:59Z',
+          equal: '2026-09-07T12:00:00Z',
+          future: '2026-09-07T12:00:01Z',
+          blank: null,
+          epoch: 1_700_000_000,
+          invalid: 'not-a-date',
+          invalid_day: '2026-02-30T12:00:00Z',
+          invalid_month: '2026-13-01T12:00:00Z',
+          invalid_year: '0000-01-01T00:00:00Z',
+          invalid_leap_day: '2025-02-29T12:00:00Z',
+          invalid_century_leap_day: '1900-02-29T12:00:00Z',
+          invalid_month_end: '2026-04-31T12:00:00Z',
+          invalid_hour: '2026-09-06T24:00:00Z',
+          invalid_minute: '2026-09-06T12:60:00Z',
+          invalid_second: '2026-09-06T12:00:60Z',
+          leap_day: '2024-02-29T12:00:00Z',
+          century_leap_day: '2000-02-29T12:00:00Z',
+          first_year: '0001-01-01T00:00:00Z',
+          last_year: '9999-12-31T23:59:59Z',
+          offset: '2026-09-06T12:00:00+00:00',
+          fraction: '2026-09-06T12:00:00.000Z',
+          negative_offset: '2026-09-07T04:59:59-07:00',
+          positive_offset: '2026-09-07T18:00:00+06:00',
+          future_offset: '2026-09-07T12:00:00-07:00',
+          equal_fraction: '2026-09-07T12:00:00.500000Z',
+          future_microsecond: '2026-09-07T12:00:00.500001Z',
+          minute_precision: '2026-09-07T12:00Z',
+          invalid_offset_day: '2026-02-30T12:00:00-07:00',
+          invalid_offset: '2026-09-07T12:00:00+16:00',
+          invalid_fraction: '2026-09-07T12:00:00.0000001Z',
+          rounding_future: '2026-09-07T12:00:00.5000001Z',
+          no_offset: '2020-01-01T00:00:00',
+          day_only: '2020-01-01',
+          relative_now: 'now',
+          relative_today: 'today',
+          relative_yesterday: 'yesterday',
+          epoch_alias: 'epoch',
+          past_infinity: '-infinity',
+          compact_offset: '2020-01-01T00:00:00+0000',
+          named_zone: '2020-01-01 00:00:00 America/Los_Angeles',
+          trailing_newline: '2020-01-01T00:00:00Z\n',
+        }
+        for (const [id, value] of Object.entries(values)) {
+          await client`INSERT INTO user_table_rows (id, table_id, workspace_id, data) VALUES (${id}, ${table.id}, ${table.workspaceId}, ${client.json({ 'col-ttl': value })})`
+        }
+        const execute = (statement: SQL) => {
+          const query = dialect.sqlToQuery(statement)
+          return client.unsafe(query.sql, query.params as (string | number)[])
+        }
+        mockListExecute.mockImplementation(execute)
+        mockDeleteExecute.mockImplementation(execute)
+        expect(await runCleanupTableRowTtl()).toEqual({
+          batches: 2,
+          deleted: 11,
+          limitReached: false,
+        })
+        const remaining = await client<{ id: string }[]>`SELECT id FROM user_table_rows ORDER BY id`
+        expect(remaining.map(({ id }) => id)).toEqual(
+          Object.keys(values)
+            .filter(
+              (id) =>
+                ![
+                  'expired',
+                  'equal',
+                  'leap_day',
+                  'century_leap_day',
+                  'first_year',
+                  'offset',
+                  'fraction',
+                  'negative_offset',
+                  'positive_offset',
+                  'equal_fraction',
+                  'minute_precision',
+                ].includes(id)
+            )
+            .sort()
+        )
+      } finally {
+        nowSpy.mockRestore()
+        await client.end()
+      }
+    }
+  )
+
   it('deletes expired rows in locked, created-at keyset batches and signals the table', async () => {
     mockDeleteExecute
       .mockResolvedValueOnce([
@@ -123,9 +226,9 @@ describe('table row TTL cleanup', () => {
     )
   })
 
-  it('compares TTL values with whole Date.now epoch seconds', async () => {
+  it('compares TTL timestamps with the current UTC instant', async () => {
     const nowEpochMilliseconds = 1_700_000_000_999
-    const nowEpochSeconds = 1_700_000_000
+    const nowUtc = '2023-11-14T22:13:20.999Z'
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(nowEpochMilliseconds)
     mockDeleteExecute.mockResolvedValue([])
 
@@ -135,12 +238,8 @@ describe('table row TTL cleanup', () => {
       nowSpy.mockRestore()
     }
 
-    expect(dialect.sqlToQuery(mockListExecute.mock.calls[0][0] as SQL).params).toContain(
-      nowEpochSeconds
-    )
-    expect(dialect.sqlToQuery(mockDeleteExecute.mock.calls[0][0] as SQL).params).toContain(
-      nowEpochSeconds
-    )
+    expect(dialect.sqlToQuery(mockListExecute.mock.calls[0][0] as SQL).params).toContain(nowUtc)
+    expect(dialect.sqlToQuery(mockDeleteExecute.mock.calls[0][0] as SQL).params).toContain(nowUtc)
   })
 
   it('checks the oldest expired rows first without using creation time as an expiry rule', async () => {
@@ -153,7 +252,7 @@ describe('table row TTL cleanup', () => {
       .sql.replace(/\s+/g, ' ')
       .replace(/\$\d+/g, '?')
       .trim()
-    expect(query).toContain('AND (table_row.data->>?)::numeric <= ?')
+    expect(query).toContain('THEN (table_row.data->>?)::timestamptz END <= ?::timestamptz')
     expect(query).toContain('ORDER BY table_row.created_at, table_row.id')
     expect(query).toContain('octet_length(table_row.data::text) AS snapshot_bytes')
     expect(query).toContain('cumulative_snapshot_bytes <= ?')
@@ -165,12 +264,23 @@ describe('table row TTL cleanup', () => {
     expect(query).not.toContain('table_row.created_by')
   })
 
-  it('rejects a batch without a creation-time cursor', async () => {
+  it('skips a table whose batch has no creation-time cursor without signaling deletion', async () => {
     mockDeleteExecute.mockResolvedValue([{ id: 'row-1', data: { value: 1 } }])
 
-    await expect(runCleanupTableRowTtl()).rejects.toThrow(
-      'Table row TTL cleanup did not return a creation-time cursor'
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 1,
+      deleted: 0,
+      limitReached: false,
+    })
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Table row TTL cleanup failed; skipping table for this run',
+      expect.objectContaining({
+        tableId: table.id,
+        error: new Error('Table row TTL cleanup did not return a creation-time cursor'),
+      })
     )
+    expect(mockFireTableTrigger).not.toHaveBeenCalled()
+    expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
   })
 
   it('does no work when already aborted', async () => {
@@ -265,23 +375,123 @@ describe('table row TTL cleanup', () => {
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
   })
 
-  it('signals tables changed before a later table cleanup failure propagates', async () => {
-    const secondTable = {
-      ...table,
-      id: 'table-2',
-    }
+  it('skips a failed table, finishes healthy tables, and retries the failed table next run', async () => {
+    const secondTable = { ...table, id: 'table-2' }
     mockListExecute.mockResolvedValue([
       { id: table.id, workspaceId: table.workspaceId },
       { id: secondTable.id, workspaceId: secondTable.workspaceId },
     ])
+    mockDeleteExecute.mockResolvedValueOnce(returnedRows(1)).mockResolvedValue([])
     mockWithLockedTable.mockImplementation(async (tableId, mutate) => {
-      if (tableId === secondTable.id) throw new Error('second table cleanup failed')
-      return mutate(table, { execute: vi.fn().mockResolvedValue(returnedRows(1)) })
+      if (tableId === table.id) throw new Error('first table cleanup failed')
+      return mutate(secondTable, { execute: mockDeleteExecute })
     })
 
-    await expect(runCleanupTableRowTtl()).rejects.toThrow('second table cleanup failed')
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 3,
+      deleted: 1,
+      limitReached: false,
+    })
+    expect(mockWithLockedTable.mock.calls.map(([id]) => id)).toEqual([
+      table.id,
+      secondTable.id,
+      secondTable.id,
+    ])
     expect(mockSignalTableRowsChanged).toHaveBeenCalledTimes(1)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Table row TTL cleanup failed; skipping table for this run',
+      {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        deleted: 0,
+        error: new Error('first table cleanup failed'),
+      }
+    )
+    expect(mockLoggerInfo).toHaveBeenCalledWith('Table row TTL cleanup completed', {
+      batches: 3,
+      deleted: 1,
+      failedTables: 1,
+      limitReached: false,
+    })
+
+    mockListExecute.mockResolvedValue([{ id: table.id, workspaceId: table.workspaceId }])
+    mockWithLockedTable.mockImplementation(async (_tableId, mutate) =>
+      mutate(table, { execute: mockDeleteExecute })
+    )
+    mockDeleteExecute.mockClear().mockResolvedValueOnce(returnedRows(1))
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 2,
+      deleted: 1,
+      limitReached: false,
+    })
+    const retryQuery = dialect.sqlToQuery(mockDeleteExecute.mock.calls[0][0] as SQL)
+    expect(retryQuery.sql).not.toContain('(table_row.created_at, table_row.id) >')
     expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
+  })
+
+  it('keeps and signals prior commits when a later batch fails while other tables finish', async () => {
+    const secondTable = { ...table, id: 'table-2' }
+    const firstExecute = vi
+      .fn()
+      .mockResolvedValueOnce(returnedRows(1))
+      .mockRejectedValue(new Error('later batch failed'))
+    const secondExecute = vi.fn().mockResolvedValueOnce(returnedRows(1)).mockResolvedValue([])
+    mockListExecute.mockResolvedValue([
+      { id: table.id, workspaceId: table.workspaceId },
+      { id: secondTable.id, workspaceId: secondTable.workspaceId },
+    ])
+    mockWithLockedTable.mockImplementation(async (tableId, mutate) =>
+      tableId === table.id
+        ? mutate(table, { execute: firstExecute })
+        : mutate(secondTable, { execute: secondExecute })
+    )
+
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 4,
+      deleted: 2,
+      limitReached: false,
+    })
+    expect(mockWithLockedTable.mock.calls.map(([id]) => id)).toEqual([
+      table.id,
+      secondTable.id,
+      table.id,
+      secondTable.id,
+    ])
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledTimes(2)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(table.id)
+    expect(mockSignalTableRowsChanged).toHaveBeenCalledWith(secondTable.id)
+    expect(mockFireTableTrigger).toHaveBeenCalledTimes(2)
+  })
+
+  it('counts a failed attempt toward the run limit without repeatedly retrying that table', async () => {
+    const secondTable = { ...table, id: 'table-2' }
+    mockListExecute.mockResolvedValue([
+      { id: table.id, workspaceId: table.workspaceId },
+      { id: secondTable.id, workspaceId: secondTable.workspaceId },
+    ])
+    mockDeleteExecute.mockResolvedValue(returnedRows(500))
+    mockWithLockedTable.mockImplementation(async (tableId, mutate) => {
+      if (tableId === table.id) throw new Error('persistent table failure')
+      return mutate(secondTable, { execute: mockDeleteExecute })
+    })
+
+    await expect(runCleanupTableRowTtl()).resolves.toEqual({
+      batches: 100,
+      deleted: 49_500,
+      limitReached: true,
+    })
+    expect(mockWithLockedTable).toHaveBeenCalledTimes(100)
+    expect(mockWithLockedTable.mock.calls.filter(([id]) => id === table.id)).toHaveLength(1)
+    expect(mockDeleteExecute).toHaveBeenCalledTimes(99)
+  })
+
+  it('still rejects when table discovery fails before any table can be processed', async () => {
+    mockListExecute.mockRejectedValue(new Error('database unavailable'))
+
+    await expect(runCleanupTableRowTtl()).rejects.toThrow('database unavailable')
+    expect(mockWithLockedTable).not.toHaveBeenCalled()
+    expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
   })
 
   it('registers one serialized Trigger.dev task', () => {

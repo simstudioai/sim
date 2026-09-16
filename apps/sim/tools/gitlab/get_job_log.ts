@@ -12,6 +12,7 @@ const MAX_LOG_CHARS = 200_000
 
 export const gitlabGetJobLogTool: ToolConfig<GitLabGetJobLogParams, GitLabGetJobLogResponse> = {
   id: 'gitlab_get_job_log',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Get Job Log',
   description: 'Get the log (trace) of a GitLab job',
   version: '1.0.0',

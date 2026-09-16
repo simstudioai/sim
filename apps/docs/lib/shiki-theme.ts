@@ -6,8 +6,8 @@ import type { ThemeRegistrationRaw } from 'shiki'
  * The platform highlights code with PrismJS through `@sim/emcn`'s `Code` component, whose
  * token colors live in `packages/emcn/src/components/code/code.css`. Docs highlight with
  * Shiki, which is TextMate-scoped rather than Prism-tokenized, so parity has to be
- * expressed as a scope-to-color mapping rather than a shared stylesheet. Every color below
- * is copied from `code.css` — when that file changes, change these to match.
+ * expressed as a scope-to-color mapping rather than a shared stylesheet. The palette follows
+ * `code.css`, with darker light-mode hues where needed for readable contrast on the code surface.
  *
  * The mapping was derived by highlighting the same snippets through both engines and
  * comparing output. Two places where the grammars genuinely disagree, and the choice made:
@@ -27,21 +27,21 @@ import type { ThemeRegistrationRaw } from 'shiki'
  * are mapped to the variable color.
  */
 
-/** Light-mode token colors, from the `.code-editor-theme` rules in emcn's `code.css`. */
+/** Light-mode platform hues adjusted to meet WCAG AA text contrast on the code surface. */
 const LIGHT = {
   /** `--text-primary` — the platform's base code foreground. */
   foreground: '#1a1a1a',
   /** `--surface-5` — the fill `chipFieldSurfaceClass` puts under a code surface. */
   background: '#f3f3f3',
-  comment: '#16a34a',
+  comment: '#15803d',
   punctuation: '#383838',
-  variable: '#0891b2',
-  constant: '#16a34a',
+  variable: '#0e7490',
+  constant: '#15803d',
   string: '#b45309',
   keyword: '#2f55ff',
-  function: '#ca8a04',
-  regex: '#e11d48',
-  deleted: '#dc2626',
+  function: '#854d0e',
+  regex: '#be123c',
+  deleted: '#b91c1c',
 } as const
 
 /** Dark-mode token colors, from the `.dark .code-editor-theme` rules in emcn's `code.css`. */

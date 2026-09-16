@@ -1,4 +1,5 @@
 ---
+description: SEO and GEO guidelines for the landing page
 paths:
   - "apps/sim/app/(landing)/**/*.tsx"
   - "apps/sim/content/**/*.mdx"

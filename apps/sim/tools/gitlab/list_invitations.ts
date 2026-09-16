@@ -10,6 +10,7 @@ export const gitlabListInvitationsTool: ToolConfig<
   GitLabListInvitationsResponse
 > = {
   id: 'gitlab_list_invitations',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab List Invitations',
   description: 'List pending email invitations for a GitLab project or group',
   version: '1.0.0',

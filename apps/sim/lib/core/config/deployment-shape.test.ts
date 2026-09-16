@@ -36,6 +36,7 @@ describe('resolveDeploymentShape', () => {
         dataRetention: false,
         inbox: true,
         sandboxes: true,
+        scim: false,
         sessionPolicies: true,
         sso: true,
         usageMonitoring: false,

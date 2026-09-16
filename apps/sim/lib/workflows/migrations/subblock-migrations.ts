@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
+import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
 import {
   buildCanonicalIndex,
@@ -111,8 +112,23 @@ function isFieldProjection(value: unknown): boolean {
  * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
+  /** MCP normalization selects the active replacement before this rename pass. */
+  mcp: [
+    { from: 'server', to: 'serverSelector' },
+    { from: 'tool', to: 'toolSelector' },
+    { from: 'connection', to: '_removed_connection' },
+    { from: 'operationPolicy', to: '_removed_operationPolicy' },
+  ],
+  /** List Channels now returns one page and a cursor; automatic page limits are retired. */
+  slack: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
+  slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],
   knowledge: [{ from: 'knowledgeBaseId', to: 'knowledgeBaseSelector' }],
+  /** Connected accounts resolve from the workspace; group selectors have no replacement. */
+  credential_group: [
+    { from: 'credentialGroup', to: '_removed_credentialGroup' },
+    { from: 'manualCredentialGroup', to: '_removed_manualCredentialGroup' },
+  ],
   algolia: [
     { from: 'listPage', to: 'page' },
     { from: 'listHitsPerPage', to: 'hitsPerPage' },
@@ -307,6 +323,8 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
    * time. Dropped rather than renamed — there is no field for the value to move to.
    */
   vanta: [{ from: 'uploadMimeType', to: '_removed_uploadMimeType' }],
+  /** Parallel's V1 Extract always returns excerpts; the opt-out toggle has no replacement. */
+  parallel_ai: [{ from: 'excerpts', to: '_removed_excerpts' }],
   /**
    * Three unrelated QuickBooks changes land here.
    *
@@ -547,15 +565,18 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       continue
     }
 
+    const normalized = migrateMcpOperationControls(block)
     const migrations = SUBBLOCK_ID_MIGRATIONS[block.type]
     const renamed = migrations
-      ? migrateBlockSubblockIds(block.type, block.subBlocks, migrations)
-      : { subBlocks: block.subBlocks, migrated: false }
+      ? migrateBlockSubblockIds(block.type, normalized.subBlocks, migrations)
+      : { subBlocks: normalized.subBlocks, migrated: false }
     const purged = dropParkedSubblocks(renamed.subBlocks)
     const changedSubBlocks = renamed.migrated || purged.dropped
-    const renamedBlock = changedSubBlocks ? { ...block, subBlocks: purged.subBlocks } : block
+    const renamedBlock = changedSubBlocks
+      ? { ...normalized, subBlocks: purged.subBlocks }
+      : normalized
     const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
-    const blockMigrated = changedSubBlocks || sanitized.changed
+    const blockMigrated = changedSubBlocks || sanitized.changed || normalized !== block
 
     if (blockMigrated) {
       if (purged.dropped) {

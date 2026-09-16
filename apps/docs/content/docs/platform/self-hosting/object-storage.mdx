@@ -191,7 +191,7 @@ Add the storage variables to the `.env` file used by `docker-compose.prod.yml`, 
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Because files now live in S3, nothing depends on the container's `/app/apps/sim/uploads` directory any more.
+New uploads now use S3. Preserve any existing local files until you have migrated them; changing the storage configuration does not copy their bytes.
 
   </Tab>
   <Tab value="Kubernetes (Helm)">
@@ -242,8 +242,7 @@ AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 Direct browser uploads require a Blob service CORS rule on the storage account. Allow your exact
 Sim origin, `GET` and `PUT`, the `Content-Type` header, and the `x-ms-*` prefix used by signed blob
 and metadata headers. Small-file uploads also send `If-None-Match`; the signature itself is
-create-only, so a signed URL cannot overwrite an existing final object. Multipart uploads also read
-`ETag` from the browser response:
+create-only, so a signed URL cannot overwrite an existing final object. Multipart completion verifies uploaded parts on the server:
 
 ```bash
 az storage cors add \
@@ -326,7 +325,7 @@ done
 ```
 
 <Callout type="info">
-  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes.
+  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. The example exposes `ETag`, although the current upload-session client does not need it: multipart completion reads provider-authoritative part state on the server. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes.
 </Callout>
 
 </Step>

@@ -2,11 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { DeployedWorkflowSummary } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import type { ForkReference } from '@/lib/workflows/references/remap-references'
 import type {
   ForkCopyableLabel,
   ForkCopyableSourceResource,
-} from '@/ee/workspace-forking/lib/mapping/resources'
+} from '@/lib/workflows/references/resources'
+import type { DeployedWorkflowSummary } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import {
   assembleForkCopyableUnmapped,
   buildForkPromotePlanItems,
@@ -15,7 +16,6 @@ import {
   collectForkCopyableIdsByKind,
   collectForkUnreferencedCopyables,
 } from '@/ee/workspace-forking/lib/promote/promote-plan'
-import type { ForkReference } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 const ref = (kind: ForkReference['kind'], sourceId: string): ForkReference => ({
   kind,

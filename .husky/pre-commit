@@ -1,9 +1,9 @@
 bunx lint-staged
 
-# Regenerate skill projections when a canonical .agents/skills source is staged,
-# so .claude/skills never drifts from it. Cursor reads .agents/skills directly.
-# CI's check:skills is the backstop.
-if git diff --cached --name-only | grep -q '^\.agents/skills/.*/SKILL\.md$'; then
+# Regenerate projections when a canonical source is staged, so .claude/skills
+# never drifts from .agents/skills and .cursor/rules never drifts from
+# .claude/rules. CI's check:skills is the backstop.
+if git diff --cached --name-only | grep -qE '^\.agents/skills/.*/SKILL\.md$|^\.claude/rules/.*\.md$'; then
   bun run skills:sync
-  git add .claude/skills
+  git add .claude/skills .cursor/rules
 fi

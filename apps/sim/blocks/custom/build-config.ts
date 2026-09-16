@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { WorkflowInputField } from '@/lib/workflows/input-format'
 import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 import {
@@ -39,6 +40,53 @@ export interface CustomBlockOutput {
   name: string
   /** Expose the source's answer text while this invocation is running. */
   streaming?: boolean
+}
+
+interface StreamSourceBlock {
+  type: string
+  subBlocks?: Record<string, unknown>
+}
+
+/** Public streams currently expose only unstructured Agent/Pi answer text. */
+export function isCustomBlockStreamSource(
+  block: StreamSourceBlock | undefined,
+  path: string
+): boolean {
+  if (!block || !['agent', 'pi'].includes(block.type) || path !== 'content') return false
+  const subBlock = block.subBlocks?.responseFormat
+  const responseFormat = isRecordLike(subBlock) ? subBlock.value : subBlock
+  return responseFormat == null || responseFormat === ''
+}
+
+/** Validate against the deployment being published or executed, never the caller's graph. */
+export function assertCustomBlockStreamingOutputs(
+  outputs: readonly CustomBlockOutput[],
+  blocks: Readonly<Record<string, StreamSourceBlock>>
+): void {
+  const sources = new Set<string>()
+  for (const output of outputs) {
+    if (!output.streaming) continue
+    if (outputs.filter((candidate) => candidate.name === output.name).length !== 1) {
+      throw new Error('Each streaming output must have a unique public name')
+    }
+    if (
+      !output.name ||
+      output.name.includes('.') ||
+      output.name.includes('/') ||
+      output.name.trim() !== output.name
+    ) {
+      throw new Error('A streaming output name must be a single output field')
+    }
+    if (!isCustomBlockStreamSource(blocks[output.blockId], output.path)) {
+      throw new Error(
+        `Streaming output "${output.name}" must reference an Agent or Pi content output without a response format`
+      )
+    }
+    if (sources.has(output.blockId)) {
+      throw new Error('Each streaming source can be exposed only once')
+    }
+    sources.add(output.blockId)
+  }
 }
 
 /**

@@ -16,6 +16,10 @@ vi.mock('@/lib/uploads/client/session-upload', () => ({
   uploadInternalFileSession: mockUploadInternalFileSession,
 }))
 
+import {
+  ASSISTANT_IMAGE_MAX_BYTES,
+  ASSISTANT_IMAGE_MAX_COUNT,
+} from '@/lib/uploads/shared/assistant-images'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
@@ -24,13 +28,15 @@ interface HookHarness {
   unmount: () => void
 }
 
-function renderFileAttachmentsHook(): HookHarness {
+function renderFileAttachmentsHook(
+  owner: { workspaceId: string } | { organizationId: string } = { workspaceId: 'workspace-1' }
+): HookHarness {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const root: Root = createRoot(document.createElement('div'))
   let latest: ReturnType<typeof useFileAttachments>
 
   function Probe() {
-    latest = useFileAttachments({ userId: 'user-1', workspaceId: 'workspace-1' })
+    latest = useFileAttachments({ userId: 'user-1', ...owner })
     return null
   }
 
@@ -113,6 +119,47 @@ describe('useFileAttachments admission', () => {
       expect.objectContaining({ name: file.name, uploading: false }),
     ])
 
+    unmount()
+  })
+
+  it.each(['unsupported', 'oversized', 'too many'] as const)(
+    'rejects %s organization images before allocating previews or sessions',
+    async (kind) => {
+      const { result, unmount } = renderFileAttachmentsHook({ organizationId: 'organization-1' })
+      const files =
+        kind === 'unsupported'
+          ? [new File(['pdf'], 'document.pdf', { type: 'application/pdf' })]
+          : kind === 'oversized'
+            ? [sizedFile('large.png', ASSISTANT_IMAGE_MAX_BYTES + 1)]
+            : Array.from({ length: ASSISTANT_IMAGE_MAX_COUNT + 1 }, (_, index) =>
+                sizedFile(`image-${index}.png`, 10)
+              )
+      await act(async () => result().processFiles(asFileList(files)))
+      expect(mockToastError).toHaveBeenCalledOnce()
+      expect(createObjectUrl).not.toHaveBeenCalled()
+      expect(mockUploadInternalFileSession).not.toHaveBeenCalled()
+      expect(result().attachedFiles).toEqual([])
+      unmount()
+    }
+  )
+
+  it('uses organization scope for images and removes a failed upload', async () => {
+    mockUploadInternalFileSession.mockRejectedValueOnce(new Error('Upload failed'))
+    const { result, unmount } = renderFileAttachmentsHook({ organizationId: 'organization-1' })
+    const file = sizedFile('screenshot.png', 10)
+    await act(async () => result().processFiles(asFileList([file])))
+    expect(mockUploadInternalFileSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: 'mothership_attachment',
+        organizationId: 'organization-1',
+        file,
+      })
+    )
+    expect(mockUploadInternalFileSession.mock.calls[0][0]).not.toHaveProperty('workspaceId')
+    expect(result().attachedFiles).toEqual([])
+    expect(mockToastError).toHaveBeenCalledWith('Couldn\'t upload "screenshot.png"', {
+      description: 'Upload failed',
+    })
     unmount()
   })
 })

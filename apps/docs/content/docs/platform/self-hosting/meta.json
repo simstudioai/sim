@@ -1,7 +1,6 @@
 {
   "title": "Self-Hosting",
   "pages": [
-    "index",
     "architecture",
     "---Install---",
     "reference-architectures",

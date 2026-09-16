@@ -48,9 +48,10 @@ Three features do not need a flag at all: **custom branding**, **session policie
 | Organizations | `ORGANIZATIONS_ENABLED` | `NEXT_PUBLIC_ORGANIZATIONS_ENABLED` |
 | Permission groups | `ACCESS_CONTROL_ENABLED` | `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` |
 | SAML and OIDC sign-in | `SSO_ENABLED` | `NEXT_PUBLIC_SSO_ENABLED` |
+| Directory provisioning (SCIM) | `SCIM_ENABLED` | `NEXT_PUBLIC_SCIM_ENABLED` |
 | Custom branding — on by default | `WHITELABELING_ENABLED` | `NEXT_PUBLIC_WHITELABELING_ENABLED` |
 | Audit logs | `AUDIT_LOGS_ENABLED` | `NEXT_PUBLIC_AUDIT_LOGS_ENABLED` |
-| Usage tracking | `USAGE_MONITORING_ENABLED` | `NEXT_PUBLIC_USAGE_MONITORING_ENABLED` |
+| Insights | `USAGE_MONITORING_ENABLED` | `NEXT_PUBLIC_USAGE_MONITORING_ENABLED` |
 | Custom blocks | `CUSTOM_BLOCKS_ENABLED` | `NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED` |
 | Session policies — on by default | `SESSION_POLICIES_ENABLED` | `NEXT_PUBLIC_SESSION_POLICIES_ENABLED` |
 | Data retention deletion | `DATA_RETENTION_ENABLED` | `NEXT_PUBLIC_DATA_RETENTION_ENABLED` |
@@ -90,7 +91,7 @@ Persist that value as `CRON_SECRET` on the app **and** on whatever calls these e
 <Callout type="warn">
   Both shipped deployments schedule the data-drain dispatcher and OAuth token cleanup, but **not** the three configurable data-retention endpoints. Setting `DATA_RETENTION_ENABLED=true` alone deletes no retained product data — those windows are evaluated only when one of the three endpoints is called. Add them to `cronjobs.jobs` yourself, or drive them from an external scheduler.
 
-  OAuth token cleanup continues when the global `oauth-provider` feature flag is off, so rows created while the provider was enabled do not become permanent. See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim) for AppConfig and fallback configuration.
+  OAuth token cleanup runs independently of sign-in activity, removing expired and revoked credentials. See [Sign in with Sim](/platform/self-hosting/authentication#sign-in-with-sim) for provider configuration.
 </Callout>
 
 ```bash

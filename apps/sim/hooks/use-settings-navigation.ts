@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
@@ -37,7 +38,7 @@ export function resolveSettingsHref({
   hostContext,
   viewerUserId,
 }: ResolveSettingsHrefParams): string {
-  if (!workspaceId) return '/workspace'
+  if (!workspaceId) return APP_ENTRY_PATH
   const section = options?.section || 'general'
   if (
     section === 'billing' &&

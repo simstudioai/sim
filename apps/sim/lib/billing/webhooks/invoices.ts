@@ -22,6 +22,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getHelpEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('StripeInvoiceWebhooks')
@@ -187,13 +188,13 @@ async function createBillingPortalUrl(stripeCustomerId: string): Promise<string>
     const baseUrl = getBaseUrl()
     const portal = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
-      return_url: `${baseUrl}/workspace?billing=updated`,
+      return_url: `${baseUrl}${APP_ENTRY_PATH}?billing=updated`,
     })
     return portal.url
   } catch (error) {
     logger.error('Failed to create billing portal URL', { error, stripeCustomerId })
     // Fallback to generic billing page
-    return `${getBaseUrl()}/workspace?tab=subscription`
+    return `${getBaseUrl()}${APP_ENTRY_PATH}?tab=subscription`
   }
 }
 

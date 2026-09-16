@@ -49,6 +49,7 @@ import {
   type WorkspaceAuthorizationContext,
 } from '@/lib/core/application'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
@@ -128,7 +129,7 @@ function isAbortError(error: unknown): boolean {
 function wantsStreamedChatResponse(req: NextRequest): boolean {
   return (
     req.headers.get(CHAT_STREAM_HEADER) === CHAT_STREAM_VALUE ||
-    req.headers.get('accept')?.includes(CHAT_STREAM_CONTENT_TYPE) === true
+    acceptsMediaType(req.headers.get('accept'), CHAT_STREAM_CONTENT_TYPE)
   )
 }
 
@@ -334,7 +335,7 @@ export const POST = withRouteHandler(
       const [workspaceContext, integrationTools, entitlements, billingAttribution] =
         await Promise.all([
           generateWorkspaceContext(workspaceId, userId, { workspaceAccess, secretMountPolicy }),
-          buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+          buildIntegrationToolSchemas(userId, undefined, workspaceId),
           computeWorkspaceEntitlements(workspaceId, userId),
           // Hosted execution refuses to run without an attribution snapshot;
           // the executor path receives it as a header, this path resolves it

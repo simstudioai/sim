@@ -10,7 +10,7 @@ import {
 } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performCreateKnowledgeBase } from '@/lib/knowledge/orchestration'
-import { listWorkspaceAndLegacyKnowledgeBases } from '@/lib/knowledge/service'
+import { getWorkspaceKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
@@ -50,7 +50,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     /** Read only after `validateWorkspaceAccess` authorized this caller; same list the
      *  internal surface serves, from the same place. */
-    const knowledgeBases = await listWorkspaceAndLegacyKnowledgeBases(userId, workspaceId)
+    const { data: knowledgeBases } = await getWorkspaceKnowledgeBases(workspaceId)
 
     return NextResponse.json({
       success: true,

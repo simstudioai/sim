@@ -46,7 +46,7 @@ Teams seeking an open, self-hostable option can [start building with Sim](https:
 - **Best visual scenario builder:** [Make](https://www.make.com/en)
 - **Best for self-hosted deterministic automation:** [n8n](https://docs.n8n.io/hosting/)
 - **Best managed no-code AI integration platform:** [Gumloop](https://docs.gumloop.com)
-- **Best for enterprise governance:** [Workato](https://docs.workato.com/user-accounts-and-teams/workspace-roles.html)
+- **Best for enterprise governance:** [Workato](https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html)
 
 For a broader view of the category, see our guides to the [best AI automation tools](https://www.sim.ai/library/best-ai-automation-tools-2026) and [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
 
@@ -100,7 +100,7 @@ The [Apache 2.0 licensed core](https://github.com/simstudioai/sim) gives buyers 
 
 - Sim's catalog remains smaller than the broader catalogs of established automation vendors.
 - Buyers seeking simple, prebuilt app-to-app recipes may prefer a conventional no-code automation product.
-- [Workato documents an established enterprise integration and governance stack](https://docs.workato.com/user-accounts-and-teams/workspace-roles.html).
+- [Workato documents an established enterprise integration and governance stack](https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html).
 
 ### Pricing
 
@@ -121,13 +121,13 @@ The [Airtable connector](https://zapier.com/apps/airtable/integrations) supports
 - [Zapier's app directory](https://zapier.com/apps) covers many SaaS tools.
 - Its [Slack](https://zapier.com/apps/slack/integrations) and [Notion](https://zapier.com/apps/notion/integrations) connectors provide documented read, write, and instant-trigger options.
 - [API Request actions](https://help.zapier.com/hc/en-us/articles/12899607716493-Send-API-requests-in-Zaps) can fill native-action gaps while retaining Zapier authentication.
-- The [managed service](https://zapier.com/terms-of-service) removes infrastructure and upgrade work.
+- The [managed service](https://zapier.com/terms) removes infrastructure and upgrade work.
 
 ### Cons
 
 - [Polling intervals](https://help.zapier.com/hc/en-us/articles/8496244568589-How-often-does-Zapier-check-for-new-data) can delay time-sensitive workflows.
 - Zapier's separately presented [automation](https://zapier.com/pricing) and [Agents](https://zapier.com/agents) products can make AI workflow costs harder to estimate.
-- [Zapier describes its service as a hosted platform](https://zapier.com/terms-of-service), not a self-hostable runtime.
+- [Zapier describes its service as a hosted platform](https://zapier.com/terms), not a self-hostable runtime.
 
 ### Pricing
 
@@ -182,7 +182,7 @@ Native integration depth varies by app. The [Notion node](https://docs.n8n.io/in
 
 ### Cons
 
-- [n8n uses its Sustainable Use License](https://docs.n8n.io/sustainable-use-license/), a fair-code license rather than a permissive OSI-approved open-source license.
+- [n8n uses its Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), a fair-code license rather than a permissive OSI-approved open-source license.
 - The operations and trigger coverage shown in [n8n's node documentation](https://docs.n8n.io/integrations/) vary by node.
 - Technical flexibility comes with more deployment, security, upgrade, and maintenance work than a managed no-code platform.
 
@@ -196,15 +196,15 @@ Native integration depth varies by app. The [Notion node](https://docs.n8n.io/in
 
 **Best for:** Non-technical operations and go-to-market teams that want a polished managed canvas and AI-assisted connector setup without operating infrastructure.
 
-Gumloop emphasizes managed no-code workflows and generated connectors over manual API work. Its documentation describes [AI-created triggers](https://docs.gumloop.com/core-concepts/triggers) that monitor external apps, while its [Slack integration](https://docs.gumloop.com/integrations/slack) can connect workflows with Slack.
+Gumloop emphasizes managed no-code workflows and generated connectors over manual API work. Its documentation describes [AI-created triggers](https://docs.gumloop.com/core-concepts/triggers) that monitor external apps, while its [Slack integration](https://docs.gumloop.com/nodes/mcp/slack) can connect workflows with Slack.
 
-Gumloop's [public documentation](https://docs.gumloop.com) does not itemize its Notion and Airtable actions with the same detail as several competitors. Buyers may need to test which records can be read, which fields can be updated, and whether a required event uses webhooks or polling. [MCP integrations](https://docs.gumloop.com/integrations/mcp) can cover some native-catalog gaps, but teams should test every required action before adoption.
+Gumloop's [public documentation](https://docs.gumloop.com) does not itemize its Notion and Airtable actions with the same detail as several competitors. Buyers may need to test which records can be read, which fields can be updated, and whether a required event uses webhooks or polling. [MCP integrations](https://docs.gumloop.com/nodes/mcp/custom_mcp_servers) can cover some native-catalog gaps, but teams should test every required action before adoption.
 
 ### Pros
 
 - [Gumloop's no-code canvas](https://docs.gumloop.com) makes workflow setup accessible without programming.
 - [AI-assisted trigger creation](https://docs.gumloop.com/core-concepts/triggers) can connect external apps.
-- [Documented MCP support](https://docs.gumloop.com/integrations/mcp) expands access to external tools and data.
+- [Documented MCP support](https://docs.gumloop.com/nodes/mcp/custom_mcp_servers) expands access to external tools and data.
 - [Workflow templates](https://www.gumloop.com/templates) cover common business use cases.
 
 ### Cons
@@ -226,13 +226,13 @@ As of August 2026, [Gumloop's pricing page](https://gumloop.com/pricing) uses cr
 
 Workato's [integrations catalog](https://www.workato.com/integrations) covers a broad range of enterprise and business systems. The platform emphasizes managed enterprise integration, centralized administration, and governed automation.
 
-Slack setup can require more administration than one-click OAuth flows. Workato's [Slack trigger documentation](https://docs.workato.com/connectors/slack/triggers.html) describes creating and configuring a custom Slack app for event triggers. [Workbot for Slack](https://docs.workato.com/workbot-for-slack.html) can then place workflow interactions inside Slack.
+Slack setup can require more administration than one-click OAuth flows. Workato's [Slack trigger documentation](https://docs.workato.com/connectors/slack/triggers.html) describes creating and configuring a custom Slack app for event triggers. [Workbot for Slack](https://docs.workato.com/en/workbot/workbot.html) can then place workflow interactions inside Slack.
 
 ### Pros
 
-- Workato's [connector catalog](https://www.workato.com/integrations) and [workspace administration](https://docs.workato.com/user-accounts-and-teams/workspace-roles.html) suit complex enterprise environments.
-- [Workbot](https://docs.workato.com/workbot-for-slack.html) lets employees interact with cross-application workflows from Slack.
-- [Workspace roles and privileges](https://docs.workato.com/user-accounts-and-teams/workspace-roles.html) support controlled administration.
+- Workato's [connector catalog](https://www.workato.com/integrations) and [workspace administration](https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html) suit complex enterprise environments.
+- [Workbot](https://docs.workato.com/en/workbot/workbot.html) lets employees interact with cross-application workflows from Slack.
+- [Workspace roles and privileges](https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html) support controlled administration.
 
 ### Cons
 
@@ -266,7 +266,7 @@ No platform fits every integration requirement, so choose according to the tools
 - **Maximum catalog breadth:** Choose [Zapier](https://zapier.com/apps) when broad app coverage matters most. Choose [Make](https://www.make.com/en/integrations) when you also want a visual canvas with detailed branching.
 - **Self-hosted deterministic automation:** Choose [n8n](https://docs.n8n.io/hosting/) when technical users want to manage infrastructure, add code, and use HTTP requests when native nodes fall short.
 - **Managed visual automation:** Choose [Gumloop](https://docs.gumloop.com) when non-technical operators value guided setup and AI-assisted workflow building more than publicly itemized connector depth.
-- **Enterprise governance:** Choose [Workato](https://docs.workato.com/user-accounts-and-teams/workspace-roles.html) when IT needs centralized administration, access controls, and governed automation across complex business systems.
+- **Enterprise governance:** Choose [Workato](https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html) when IT needs centralized administration, access controls, and governed automation across complex business systems.
 - **AI reasoning with write-back:** Choose [Sim](https://sim.ai) when an agent must reason over business data, decide what action to take, and write results into connected tools.
 
 Before committing, verify that the platform supports the exact read actions, write actions, and trigger types your workflow requires. A large catalog does not guarantee deep access to every app.
@@ -277,7 +277,7 @@ Sim is a strong choice for teams that need AI reasoning, write-back actions, rea
 
 Sim also gives buyers more deployment control than the managed platforms in this guide. Its Apache 2.0 core supports self-hosting, while custom API calls and MCP connections provide fallback options when a native integration lacks the required action.
 
-[Zapier](https://zapier.com/apps) and [Make](https://www.make.com/en/integrations) offer broad connector catalogs, so either may require less setup for long-tail SaaS tools. [Workato](https://docs.workato.com/user-accounts-and-teams/workspace-roles.html) also documents enterprise governance controls. Sim remains a practical option when priorities include agent reasoning, write-back, model choice, and control over hosting.
+[Zapier](https://zapier.com/apps) and [Make](https://www.make.com/en/integrations) offer broad connector catalogs, so either may require less setup for long-tail SaaS tools. [Workato](https://docs.workato.com/user-accounts-and-teams/role-based-access/access-control-v2.html) also documents enterprise governance controls. Sim remains a practical option when priorities include agent reasoning, write-back, model choice, and control over hosting.
 
 [Build your first agent with Sim](https://sim.ai).
 

@@ -26,7 +26,7 @@ const REFRESH_TIMEOUT_MS = 10 * 1000
  * and containing a copied token remains the authorization server's job.
  *
  * `invalid_grant` means the server no longer honours the refresh token — it
- * was revoked from Settings → Authorized apps, expired, or was already rotated
+ * was revoked from Settings → General → Authorized apps, expired, or was already rotated
  * by a process this one could not see — and the remedy is logout followed by a
  * new login.
  */

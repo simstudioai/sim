@@ -9,7 +9,8 @@ import { VideoChapters } from '@/components/ui/video-chapters'
 import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, ROUTER_TRIAGE_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Workflows" title="Logs" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-logs.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Workflows" title="Logs" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/workflows-logs.mp4"
+  captionsSrc="/captions/academy/workflows-logs.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -49,7 +50,7 @@ Every time a workflow runs, Sim writes down exactly what happened: the trigger, 
 
 ## Every run leaves a record
 
-When a workflow runs, the run isn't a black box. Sim records the **trigger** that started it, every **block** in the order it executed, and for each block its **input**, its **output**, its **timing**, and an error message if it failed. Nothing about a run is a mystery; it all gets written down.
+When a workflow runs, the run isn't a black box. Sim records the **trigger** that started it, every **block** in the order it executed, and for each block its **input**, its **output**, its **timing**, and an error message if it failed. Use these recorded fields to compare the run with what you expected.
 
 Here's the kind of workflow whose runs you'll read: a trigger, an agent, and the branches it routes between:
 
@@ -67,9 +68,7 @@ Selecting a block shows everything it actually did: the **input** it received, t
 
 The log also shows where every value came from. A block's input names the block that produced it: a connection tag like `<triage.content>`. So to debug, you start from the **wrong value** and step **backwards**: which block produced it, what that block read, and on back through the chain until you reach the source. Debugging a workflow is reading its log backward from the symptom.
 
-## Every run writes one
 
-You don't enable any of this: every run produces a log automatically. When a workflow does something you didn't expect, the log is the first place to look, because it's the one place that records what actually happened.
 
 <FAQ items={[
   { question: "Do I need to enable logging?", answer: "No. Every run writes a complete log automatically: the trigger, every block in order, and each block's input, output, timing, and any error." },

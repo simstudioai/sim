@@ -102,7 +102,7 @@ For each stage, choose the **entity types** to redact from the searchable grid. 
 - **United Kingdom** — NHS number, National Insurance number
 - **Other regions** — Spanish (NIF, NIE), Italian (fiscal code, driver's licence, VAT code, passport, identity card), Polish (PESEL), Singaporean (NRIC/FIN, UEN), Australian (ABN, ACN, TFN, Medicare), Indian (PAN, Aadhaar, vehicle registration, voter ID, passport), and Finnish (personal identity code) identifiers
 
-The **Block outputs** stage is restricted to regex- and checksum-based recognizers, so it can run in-flight over large payloads without a performance penalty. Types that need name-model detection — person name, location, date or time, and nationality/religious/political group — are not offered for that stage.
+The **Block outputs** stage is restricted to regex- and checksum-based recognizers, to support in-flight masking without name-model detection. Types that need name-model detection — person name, location, date or time, and nationality/religious/political group — are not offered for that stage.
 
 Detection is language-aware: pick the **language** whose recognizers should apply. English, Spanish, Italian, Polish, and Finnish are supported, and the grid filters to the identifiers available for the selected language.
 

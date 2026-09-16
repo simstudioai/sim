@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
 import { SITE_URL } from '@/lib/core/utils/urls'
 
-/** Shared OpenGraph/Twitter card image for landing pages. */
-const OG_IMAGE_URL = '/logo/426-240/reverse/small.png'
-const OG_IMAGE_WIDTH = 2130
-const OG_IMAGE_HEIGHT = 1200
+/** Shared Open Graph/Twitter image for landing pages and content indexes. */
+export const LANDING_SOCIAL_IMAGE = {
+  url: '/logo/426-240/reverse/small.png',
+  width: 2130,
+  height: 1200,
+  type: 'image/png',
+} as const
 
 interface LandingMetadataInput {
   /** Absolute `<title>`, rendered as-is (no site template applied). */
@@ -59,11 +62,8 @@ export function buildLandingMetadata({
       locale: 'en_US',
       images: [
         {
-          url: OG_IMAGE_URL,
-          width: OG_IMAGE_WIDTH,
-          height: OG_IMAGE_HEIGHT,
+          ...LANDING_SOCIAL_IMAGE,
           alt: ogAlt,
-          type: 'image/png',
         },
       ],
     },
@@ -73,7 +73,7 @@ export function buildLandingMetadata({
       creator: '@simdotai',
       title,
       description,
-      images: { url: OG_IMAGE_URL, alt: twitterAlt },
+      images: { url: LANDING_SOCIAL_IMAGE.url, alt: twitterAlt },
     },
     alternates: {
       canonical: url,

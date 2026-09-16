@@ -1079,6 +1079,10 @@ for (const [legacyOperationId, replacement] of Object.entries(LEGACY_CORE_REPLAC
 
 const workflowMetaGroups = [
   {
+    tag: 'Workspace Sync',
+    file: 'content/docs/api-reference/(generated)/workspace-sync/meta.json',
+  },
+  {
     tag: 'Workflows',
     file: 'content/docs/api-reference/(generated)/workflows/meta.json',
   },

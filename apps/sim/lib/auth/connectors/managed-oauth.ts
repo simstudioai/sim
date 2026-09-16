@@ -7,10 +7,11 @@ import { createRemoteJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { verifyGitHubRepositoriesIdentity } from '@/lib/oauth/github-repositories'
 import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { isTerminalRefreshError } from '@/lib/oauth/terminal-errors'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { getCanonicalScopesForProvider, isScopeSatisfiedBy } from '@/lib/oauth/utils'
 import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
 
 const GOOGLE_OPENID_SCOPE = 'openid'
@@ -61,7 +62,6 @@ export interface ManagedOAuthConnectorConfig {
    */
   scopeless?: boolean
   nonceVerification: 'id_token' | 'state_only'
-  includeLoginHint: boolean
   prompt?: string
   authorizationUrlParams?: Record<string, string>
   getAuthorizationAppId(clientId: string): string
@@ -91,7 +91,7 @@ function hasRequiredGoogleScopes(
   const granted = new Set(grantedScopes.map(canonicalGoogleScope))
   return requiredScopes.every((requestedScope) => {
     const required = canonicalGoogleScope(requestedScope)
-    if (granted.has(required)) return true
+    if (granted.has(required) || isScopeSatisfiedBy(required, granted)) return true
     return (
       providerId === 'google-email' &&
       granted.has(GMAIL_MODIFY_SCOPE) &&
@@ -118,7 +118,6 @@ export function createGoogleManagedOAuthConnector(providerId: string): ManagedOA
     requiresRefreshToken: true,
     pkce: true,
     nonceVerification: 'id_token',
-    includeLoginHint: true,
     prompt: 'consent select_account',
     authorizationUrlParams: { include_granted_scopes: 'false' },
     getAuthorizationAppId(clientId) {
@@ -197,7 +196,6 @@ export function createAtlassianManagedOAuthConnector(
     requiresRefreshToken: true,
     pkce: false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     prompt: 'consent',
     authorizationUrlParams: { audience: 'api.atlassian.com' },
     getAuthorizationAppId(clientId) {
@@ -237,7 +235,7 @@ export function createAtlassianManagedOAuthConnector(
       return requiredScopes.every((scope) => granted.has(scope))
     },
     isTerminalRefreshError(errorCode) {
-      return errorCode === 'invalid_grant'
+      return errorCode === 'invalid_grant' || errorCode === 'unauthorized_client'
     },
   }
 }
@@ -348,7 +346,6 @@ export function createMicrosoftManagedOAuthConnector(
     requiresRefreshToken: true,
     pkce: true,
     nonceVerification: 'id_token',
-    includeLoginHint: true,
     prompt: 'select_account',
     getAuthorizationAppId(clientId) {
       return `microsoft:${createHash('sha256').update(clientId).digest('hex')}`
@@ -519,7 +516,6 @@ export function createUserInfoManagedOAuthConnector(
     requiresRefreshToken: options.requiresRefreshToken,
     pkce: options.pkce ?? false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     ...(options.scopeless ? { scopeless: true } : {}),
     ...(options.prompt ? { prompt: options.prompt } : {}),
     ...(options.authorizationUrlParams
@@ -657,7 +653,6 @@ function createAttioManagedOAuthConnector(): ManagedOAuthConnectorConfig {
     requiresRefreshToken: false,
     pkce: false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     getAuthorizationAppId(clientId) {
       return `attio:${createHash('sha256').update(clientId).digest('hex')}`
     },
@@ -743,7 +738,6 @@ function createBitbucketManagedOAuthConnector(): ManagedOAuthConnectorConfig {
     requiresRefreshToken: true,
     pkce: false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     getAuthorizationAppId(clientId) {
       return `bitbucket:${createHash('sha256').update(clientId).digest('hex')}`
     },
@@ -975,6 +969,28 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
   ],
   ['attio', createAttioManagedOAuthConnector],
   ['bitbucket', createBitbucketManagedOAuthConnector],
+  [
+    'github-repositories',
+    () => ({
+      additionalScopes: [],
+      requiresRefreshToken: true,
+      pkce: true,
+      scopeless: true,
+      nonceVerification: 'state_only',
+      getAuthorizationAppId(clientId) {
+        return `github-repositories:${createHash('sha256').update(clientId).digest('hex')}`
+      },
+      verifyIdentity({ tokens }) {
+        return verifyGitHubRepositoriesIdentity(tokens.accessToken ?? '')
+      },
+      hasRequiredScopes(_grantedScopes, requiredScopes) {
+        return requiredScopes.length === 0
+      },
+      isTerminalRefreshError(errorCode) {
+        return isTerminalRefreshError(errorCode)
+      },
+    }),
+  ],
   [
     'hubspot',
     () =>

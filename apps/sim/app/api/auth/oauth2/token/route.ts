@@ -15,11 +15,16 @@ import {
   unsupportedGrantResponse,
 } from '@/lib/auth/oauth-protocol-request'
 import { withOAuthProviderIssuanceCompensation } from '@/lib/auth/oauth-provider-adapter-guard'
-import { isOAuthProviderEnabled } from '@/lib/auth/oauth-provider-feature'
+import {
+  InvalidOAuthResourceError,
+  parseOAuthSearchResource,
+  withOAuthResourceIssuance,
+} from '@/lib/auth/oauth-resource'
 import {
   rotateOAuthRefreshToken,
   validateOAuthClientCredentials,
 } from '@/lib/auth/oauth-token-family'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -40,7 +45,7 @@ const TOKEN_RATE_LIMIT: TokenBucketConfig = {
  * transaction that the provider does not expose as a configuration hook.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  if (!(await isOAuthProviderEnabled())) {
+  if (isAuthDisabled) {
     return NextResponse.json(
       { error: 'OAuth provider is not enabled' },
       { status: 404, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }
@@ -61,9 +66,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (grantType !== 'authorization_code' && grantType !== 'refresh_token') {
       return unsupportedGrantResponse(grantType)
     }
-    if (parsed.value.form.has('resource')) {
-      return oauthErrorResponse('invalid_request', 'The resource parameter is not supported.')
-    }
+    const resource = parseOAuthSearchResource(parsed.value.form.get('resource'))
     if (grantType === 'authorization_code') {
       const codeVerifier = parsed.value.form.get('code_verifier')
       if (codeVerifier !== null && !isValidOAuthCodeVerifier(codeVerifier)) {
@@ -80,8 +83,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           parsed.value.credentials.method
         )
       }
-      const response = await withOAuthProviderIssuanceCompensation(() =>
-        betterAuthPOST(buildDelegatedOAuthRequest(request, parsed.value))
+      /** The verified issuance hook owns audience binding for the provider's opaque-token path. */
+      const delegatedForm = new URLSearchParams(parsed.value.form)
+      delegatedForm.delete('resource')
+      const response = await withOAuthResourceIssuance(resource, () =>
+        withOAuthProviderIssuanceCompensation(() =>
+          betterAuthPOST(
+            buildDelegatedOAuthRequest(request, {
+              ...parsed.value,
+              rawBody: delegatedForm.toString(),
+            })
+          )
+        )
       )
       return normalizeDelegatedOAuthTokenResponse(response, parsed.value.credentials.method)
     }
@@ -96,6 +109,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       credentials: parsed.value.credentials,
       refreshToken,
       requestedScopes: parseRequestedScopes(parsed.value.form),
+      ...(resource !== null && { resource }),
     })
     if (!result.success) {
       return oauthProtocolErrorResponse(
@@ -117,6 +131,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }
     )
   } catch (error) {
+    if (error instanceof InvalidOAuthResourceError) {
+      return oauthErrorResponse('invalid_target', error.message)
+    }
     logger.error('OAuth token endpoint failed', { error: toError(error) })
     return oauthErrorResponse('server_error', 'Token endpoint failed.', 500)
   }

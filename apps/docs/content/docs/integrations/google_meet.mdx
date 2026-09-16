@@ -11,19 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Meet](https://meet.google.com) is Google's video conferencing and online meeting platform, providing secure, high-quality video calls for individuals and teams. As a core component of Google Workspace, Google Meet enables real-time collaboration through video meetings, screen sharing, and integrated chat.
-
-The Google Meet REST API (v2) allows programmatic management of meeting spaces and conference records, enabling automated workflows to create meetings, track participation, and manage active conferences without manual intervention.
-
-Key features of the Google Meet API include:
-
-- **Meeting Space Management**: Create, retrieve, and configure meeting spaces with customizable access controls.
-- **Conference Records**: Access historical conference data including start/end times and associated spaces.
-- **Participant Tracking**: View participant details for any conference including join/leave times and user types.
-- **Access Controls**: Configure who can join meetings (open, trusted, or restricted) and which entry points are allowed.
-- **Active Conference Management**: Programmatically end active conferences in meeting spaces.
-
-In Sim, the Google Meet integration allows your agents to create meeting spaces on demand, monitor conference activity, track participation across meetings, and manage active conferences as part of automated workflows. This enables scenarios such as automatically provisioning meeting rooms for scheduled events, generating attendance reports, ending stale conferences, and building meeting analytics dashboards.
+[Google Meet](https://meet.google.com/) provides meeting spaces and conference records. Create or configure a meeting space, inspect participants and past conferences, or end an active conference. Select the space or conference identifier required by the operation.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -51,7 +39,7 @@ Create a new Google Meet meeting space
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `name` | string | Resource name of the space \(e.g., spaces/abc123\) |
-| `meetingUri` | string | Meeting URL \(e.g., https://meet.google.com/abc-defg-hij\) |
+| `meetingUri` | string | Meeting URL \(e.g., https://meet.google.com/abc-defg-hij) |
 | `meetingCode` | string | Meeting code \(e.g., abc-defg-hij\) |
 | `accessType` | string | Access type configuration |
 | `entryPointAccess` | string | Entry point access configuration |

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credential, credentialMember } from '@sim/db/schema'
+import { credential, credentialMember, member, workspace } from '@sim/db/schema'
 import { and, eq, inArray, isNotNull, notInArray, or, sql } from 'drizzle-orm'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
 import {
@@ -32,7 +32,8 @@ export type CredentialRow = typeof credential.$inferSelect
 
 export interface VisibleWorkspaceCredential {
   id: string
-  workspaceId: string
+  workspaceId: string | null
+  organizationId?: string | null
   type: CredentialRow['type']
   displayName: string
   description: string | null
@@ -42,6 +43,7 @@ export interface VisibleWorkspaceCredential {
   accountId: string | null
   envKey: string | null
   envOwnerUserId: string | null
+  providerTenantId?: string | null
   createdBy: string
   createdAt: Date
   updatedAt: Date
@@ -87,6 +89,22 @@ const CREDENTIAL_SORTS = {
 
 /** One page of workspace credentials plus the keys that resume it. */
 export type WorkspaceCredentialPage = KeysetPage<VisibleWorkspaceCredential>
+
+/** Personal organization tokens are visible only to their owner in the same organization. */
+function visibleCredentialScope(workspaceId: string, userId?: string) {
+  return or(
+    eq(credential.workspaceId, workspaceId),
+    userId
+      ? and(
+          eq(credential.type, 'personal_token'),
+          eq(credential.createdBy, userId),
+          sql`exists (select 1 from ${workspace} inner join ${member} on ${member.organizationId} = ${workspace.organizationId}
+        where ${workspace.id} = ${workspaceId} and ${workspace.organizationId} = ${credential.organizationId}
+        and ${member.userId} = ${userId} and ${workspace.archivedAt} is null)`
+        )
+      : undefined
+  )
+}
 
 /**
  * The credentials a user may see in a workspace.
@@ -134,9 +152,10 @@ export async function listVisibleWorkspaceCredentials(params: {
   } = params
 
   const whereClauses = [
-    eq(credential.workspaceId, workspaceId),
+    visibleCredentialScope(workspaceId, userId),
     notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
     isNotNull(credential.createdBy),
+    or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, userId)),
   ]
   if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
@@ -155,14 +174,20 @@ export async function listVisibleWorkspaceCredentials(params: {
     ? or(
         isNotNull(credentialMember.id),
         inArray(credential.type, SHARED_CREDENTIAL_TYPES),
-        eq(credential.envOwnerUserId, userId)
+        eq(credential.envOwnerUserId, userId),
+        and(eq(credential.type, 'personal_token'), eq(credential.createdBy, userId))
       )
-    : or(isNotNull(credentialMember.id), eq(credential.envOwnerUserId, userId))
+    : or(
+        isNotNull(credentialMember.id),
+        eq(credential.envOwnerUserId, userId),
+        and(eq(credential.type, 'personal_token'), eq(credential.createdBy, userId))
+      )
 
   const query = db
     .select({
       id: credential.id,
       workspaceId: credential.workspaceId,
+      organizationId: credential.organizationId,
       type: credential.type,
       displayName: credential.displayName,
       description: credential.description,
@@ -171,6 +196,7 @@ export async function listVisibleWorkspaceCredentials(params: {
       accountId: credential.accountId,
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
+      providerTenantId: credential.providerTenantId,
       createdBy: credential.createdBy,
       createdAt: credential.createdAt,
       updatedAt: credential.updatedAt,
@@ -200,9 +226,12 @@ export async function listVisibleWorkspaceCredentials(params: {
   const rows = await (limit === undefined ? query : query.limit(limit + 1))
 
   const mapped = rows.map(({ memberRole, encryptedServiceAccountKey, ...rest }) => {
+    if (!rest.workspaceId && !(rest.type === 'personal_token' && rest.organizationId))
+      throw new Error('Workspace credential query returned an unscoped credential')
     if (!rest.createdBy) throw new Error(`Credential ${rest.id} has no creator`)
     return {
       ...rest,
+      workspaceId: rest.workspaceId,
       createdBy: rest.createdBy,
       hasServiceAccountKey: Boolean(encryptedServiceAccountKey),
       /**
@@ -211,6 +240,7 @@ export async function listVisibleWorkspaceCredentials(params: {
        */
       role:
         (rest.type === 'env_personal' && rest.envOwnerUserId === userId) ||
+        (rest.type === 'personal_token' && rest.createdBy === userId) ||
         (isWorkspaceAdmin && isSharedCredentialType(rest.type))
           ? ('admin' as const)
           : (memberRole ?? ('member' as const)),
@@ -277,9 +307,12 @@ export async function listWorkspacePrincipalCredentials(params: {
   const rows = await query.limit(limit + 1)
 
   const mapped = rows.map((row) => {
+    if (!row.workspaceId)
+      throw new Error('Workspace credential query returned an unscoped credential')
     if (!row.createdBy) throw new Error(`Credential ${row.id} has no creator`)
     return {
       ...row,
+      workspaceId: row.workspaceId,
       createdBy: row.createdBy,
       envKey: null,
       envOwnerUserId: null,
@@ -297,6 +330,7 @@ export async function listWorkspacePrincipalCredentials(params: {
 export async function getWorkspaceCredential(params: {
   workspaceId: string
   credentialId: string
+  organizationId?: string
 }): Promise<CredentialRow | null> {
   const [row] = await db
     .select()
@@ -304,7 +338,15 @@ export async function getWorkspaceCredential(params: {
     .where(
       and(
         eq(credential.id, params.credentialId),
-        eq(credential.workspaceId, params.workspaceId),
+        or(
+          eq(credential.workspaceId, params.workspaceId),
+          params.organizationId
+            ? and(
+                eq(credential.type, 'personal_token'),
+                eq(credential.organizationId, params.organizationId)
+              )
+            : undefined
+        ),
         notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
       )
     )
@@ -316,6 +358,7 @@ export async function getWorkspaceCredential(params: {
 export async function findWorkspaceCredentialLookup(params: {
   workspaceId: string
   credentialId: string
+  userId?: string
 }): Promise<WorkspaceCredentialLookup | null> {
   const projection = {
     id: credential.id,
@@ -329,8 +372,11 @@ export async function findWorkspaceCredentialLookup(params: {
     .where(
       and(
         eq(credential.id, params.credentialId),
-        eq(credential.workspaceId, params.workspaceId),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+        visibleCredentialScope(params.workspaceId, params.userId),
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
+        params.userId
+          ? or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, params.userId))
+          : sql`${credential.type} <> 'personal_token'`
       )
     )
     .limit(1)
@@ -343,7 +389,10 @@ export async function findWorkspaceCredentialLookup(params: {
       and(
         eq(credential.accountId, params.credentialId),
         eq(credential.workspaceId, params.workspaceId),
-        notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
+        notInArray(credential.type, ['managed_oauth', 'managed_mcp']),
+        params.userId
+          ? or(sql`${credential.type} <> 'personal_token'`, eq(credential.createdBy, params.userId))
+          : sql`${credential.type} <> 'personal_token'`
       )
     )
     .limit(1)

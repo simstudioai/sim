@@ -20,6 +20,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
 import {
   adminParsers,
@@ -158,7 +159,7 @@ export function Admin() {
         onSuccess: async () => {
           recordImpersonation(email)
           await clearUserData({ preserveRecentImpersonations: true })
-          window.location.assign('/workspace')
+          window.location.assign(APP_ENTRY_PATH)
         },
       }
     )

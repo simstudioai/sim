@@ -3,7 +3,11 @@ import { db } from '@sim/db'
 import { oauthConsent, oauthTokenFamily } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import type { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { APIError } from 'better-auth/api'
 import { inArray } from 'drizzle-orm'
+import { getOAuthIssuedResource } from '@/lib/auth/oauth-resource'
+import { capabilityRefusal } from '@/lib/permission-groups/capabilities'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 
 type BetterAuthAdapter = ReturnType<ReturnType<typeof drizzleAdapter>>
 export type AuthDatabase = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -88,6 +92,31 @@ export function guardOAuthProviderWrites(
   return {
     ...adapter,
     create: async (input) => {
+      /**
+       * permission-group-enforced: oauth_apps.use — recheck the canonical token
+       * owner after code validation, including codes issued before a policy change.
+       */
+      if (input.model === 'oauthAccessToken' || input.model === 'oauthRefreshToken') {
+        const userId = input.data.userId
+        if (typeof userId !== 'string' || !userId) {
+          throw new APIError('BAD_REQUEST', {
+            error: 'invalid_grant',
+            error_description: 'OAuth tokens require a user.',
+          })
+        }
+        if (await isCapabilityWithheldForUser(userId, 'oauth_apps.use')) {
+          throw new APIError('BAD_REQUEST', {
+            error: 'invalid_grant',
+            error_description: capabilityRefusal('oauth_apps.use'),
+          })
+        }
+        const scopes = Array.isArray(input.data.scopes) ? input.data.scopes : []
+        input = {
+          ...input,
+          data: { ...input.data, resource: getOAuthIssuedResource(scopes) },
+        }
+      }
+
       if (input.model !== 'oauthConsent') {
         const created = await adapter.create(input)
         if (input.model === 'oauthRefreshToken') {

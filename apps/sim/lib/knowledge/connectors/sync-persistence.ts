@@ -1,41 +1,44 @@
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, exists, isNull, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
-import { EMPTY_ACL, WORKSPACE_ACL } from '@/lib/knowledge/access/tokens'
+import {
+  EMPTY_ACL,
+  validateMirroredDocumentAcl,
+  WORKSPACE_ACL,
+} from '@/lib/knowledge/access/tokens'
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
+import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
+import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
-import { StorageService } from '@/lib/uploads'
+import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
+import {
+  claimKnowledgeUploadForAttachment,
+  uploadKnowledgeArtifact,
+} from '@/lib/knowledge/documents/storage-upload'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
-import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
+import { getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { DocumentTags, ExternalDocument } from '@/connectors/types'
 
 const logger = createLogger('ConnectorSyncPersistence')
 
-/**
- * Who may read a document the sync writes. A workspace-mode connector's
- * documents are visible to the whole workspace on insert and on every update.
- * A members-mode connector's documents are born hidden and only the member
- * engine's ACL materialisation, which knows who observed them, makes them
- * visible; an update never touches the ACL.
- */
-export type SyncDocumentAccess = 'workspace' | 'members'
-
-function insertedDocumentAcl(access: SyncDocumentAccess): string[] {
-  return [...(access === 'members' ? EMPTY_ACL : WORKSPACE_ACL)]
+function insertedDocumentAcl(access: ConnectorAccessMode): string[] {
+  return [...(aclIsDerived(access) ? EMPTY_ACL : WORKSPACE_ACL)]
 }
 
-function updatedDocumentAcl(access: SyncDocumentAccess): { acl?: string[] } {
-  return access === 'members' ? {} : { acl: [...WORKSPACE_ACL] }
+function updatedDocumentAcl(access: ConnectorAccessMode) {
+  return aclIsDerived(access)
+    ? {}
+    : { acl: [...WORKSPACE_ACL], aclRequirements: [], aclVerifiedAt: null }
 }
 
 /**
@@ -51,11 +54,11 @@ export async function restoreWorkspaceDocumentAcls(
   const workspaceAcl = textArrayLiteral(WORKSPACE_ACL)
   const restored = await executor
     .update(document)
-    .set({ acl: [...WORKSPACE_ACL] })
+    .set({ acl: [...WORKSPACE_ACL], aclRequirements: [], aclVerifiedAt: null })
     .where(
       and(
         eq(document.connectorId, connectorId),
-        sql`${document.acl} <> ${workspaceAcl}`,
+        sql`(${document.acl} <> ${workspaceAcl} OR ${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`,
         exists(
           executor
             .select({ one: sql`1` })
@@ -73,23 +76,108 @@ export async function restoreWorkspaceDocumentAcls(
   return restored.length
 }
 
+/**
+ * Documents whose ACL is rewritten per statement. Documents are grouped by
+ * identical ACL first — files under one folder overwhelmingly share theirs — so
+ * a crawl of thousands usually resolves to a handful of statements.
+ */
+const ACL_WRITE_BATCH_SIZE = 500
+
+export interface DocumentAclWriteResult {
+  /** Documents whose ACL or authoritative evidence timestamp was refreshed. */
+  updated: number
+  /** Documents whose ACL the source could not express; stored as readable by nobody. */
+  rejected: number
+}
+
+/**
+ * Permission-only changes must not trigger re-embedding. Unchanged ACLs still refresh
+ * their evidence timestamp; failed fetches cannot extend it. Malformed or oversized
+ * ACLs are stored as unreadable so the previous grant cannot survive failed verification.
+ * An unresolved duplicate may retain evidence verified during this durable crawl,
+ * without refreshing its timestamp; explicit empty ACLs always revoke access.
+ */
+export async function persistDocumentAcls(
+  connectorId: string,
+  acls: ReadonlyMap<string, MirroredDocumentAcl>,
+  executor: DbOrTx = db,
+  evidence?: {
+    unresolvedExternalIds: ReadonlySet<string>
+    generationStartedAt: Date
+  }
+): Promise<DocumentAclWriteResult> {
+  const byAcl = new Map<
+    string,
+    { acl: string[]; requirements: string[][]; externalIds: string[]; unresolved: boolean }
+  >()
+  let rejected = 0
+
+  for (const [externalId, value] of acls) {
+    const validation = validateMirroredDocumentAcl(value)
+    if (!validation.valid) {
+      rejected += 1
+      logger.error('Storing a connector document as readable by nobody: unusable ACL', {
+        connectorId,
+        externalId,
+        reason: validation.reason,
+      })
+    }
+    const acl = validation.valid ? validation.acl : [...EMPTY_ACL]
+    /**
+     * Keep the primary clause in the conjunctive snapshot too: an old writer
+     * during rolling deployment knows only `acl` and must not erase the space
+     * requirement while leaving this snapshot's verification time intact.
+     */
+    const requirements =
+      validation.valid && validation.requirements.length > 0
+        ? [acl, ...validation.requirements]
+        : []
+    const unresolved = Boolean(
+      evidence?.unresolvedExternalIds.has(externalId) && validation.valid && acl.length === 0
+    )
+    const key = JSON.stringify([acl, requirements, unresolved])
+    const group = byAcl.get(key)
+    if (group) group.externalIds.push(externalId)
+    else byAcl.set(key, { acl, requirements, externalIds: [externalId], unresolved })
+  }
+
+  let updated = 0
+  for (const { acl, requirements, externalIds, unresolved } of byAcl.values()) {
+    for (const batch of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
+      const rows = await executor
+        .update(document)
+        .set({
+          acl,
+          aclRequirements: requirements,
+          aclVerifiedAt: acl.length > 0 ? sql`statement_timestamp() AT TIME ZONE 'UTC'` : null,
+        })
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            inArray(document.externalId, batch),
+            unresolved && evidence
+              ? or(
+                  isNull(document.aclVerifiedAt),
+                  lt(document.aclVerifiedAt, evidence.generationStartedAt)
+                )
+              : undefined
+          )
+        )
+        .returning({ id: document.id })
+      updated += rows.length
+    }
+  }
+
+  return { updated, rejected }
+}
+
 const MAX_SAFE_TITLE_LENGTH = 200
 
-/** Sanitizes a document title for use in S3 storage keys. */
 function sanitizeStorageTitle(title: string): string {
   return title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, MAX_SAFE_TITLE_LENGTH)
 }
 
-/**
- * Sanitizes a source file's name for a storage key, keeping its extension.
- *
- * `sanitizeStorageTitle` truncates a long title outright, which for a source file
- * would cut the extension off the end — and the extension is what
- * `resolveStoredArtifactExtension` reads to pick a parser. Such a document would
- * still parse correctly by falling back to its display name, but only by luck;
- * preserving the suffix keeps the storage key authoritative for every file rather
- * than for most of them.
- */
+/** Preserve the extension when truncating: parser selection reads the storage key. */
 function sanitizeStorageFileName(fileName: string): string {
   const dotIndex = fileName.lastIndexOf('.')
   if (dotIndex <= 0) return sanitizeStorageTitle(fileName)
@@ -102,18 +190,7 @@ function sanitizeStorageFileName(fileName: string): string {
   return base + extension
 }
 
-/**
- * The bytes to store for a connector document, together with the name and type
- * that describe them.
- *
- * The stored object must declare the format it actually holds, because
- * `resolveStoredArtifactExtension` picks the parser off its storage key. A
- * connector that hands over the source file keeps that file's own name and type,
- * so the shared pipeline parses it exactly as an upload of the same file — which
- * is what routes PDFs to OCR. A connector that extracted text itself stores
- * `.txt`, since that is what the bytes now are; keeping the source extension
- * there would re-parse extracted text as the original binary.
- */
+/** Source files retain their parser format; connector-extracted text must use .txt. */
 function connectorStoredArtifact(extDoc: ExternalDocument): {
   bytes: Buffer
   fileName: string
@@ -132,18 +209,22 @@ function connectorStoredArtifact(extDoc: ExternalDocument): {
     mimeType: 'text/plain',
   }
 }
-type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
+type KnowledgeBaseLockingTx = Pick<typeof db, 'select'>
 
+/**
+ * Holds an active KB through commit without serializing independent document saves.
+ * SHARE blocks soft deletion's NO KEY UPDATE but permits other saves and FK checks.
+ * Callers acquire this before connector/document locks and must not update the KB.
+ */
 async function isKnowledgeBaseActiveInTx(
   tx: KnowledgeBaseLockingTx,
   knowledgeBaseId: string
 ): Promise<boolean> {
-  await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
-
   const rows = await tx
     .select({ id: knowledgeBase.id })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .for('share')
     .limit(1)
 
   return rows.length > 0
@@ -174,52 +255,34 @@ export function resolveTagMapping(
   return result
 }
 
-/** Owning workspace + user for a knowledge base, resolved once per sync. */
+/** Canonical owning scope and uploader attribution, resolved once per sync. */
 export interface KnowledgeBaseOwner {
   workspaceId: string | null
+  organizationId?: string | null
   userId: string
 }
 
-/**
- * Build the storage `metadata` that records a trusted ownership binding for a
- * synced `kb/` object. Returns `undefined` for legacy null-workspace KBs (no
- * workspace-scoped ownership to bind), which `uploadFile` treats as "no binding".
- */
-function kbOwnershipMetadata(
-  kbOwner: KnowledgeBaseOwner,
-  originalName: string
-): { workspaceId: string; userId: string; originalName: string } | undefined {
-  return kbOwner.workspaceId
-    ? { workspaceId: kbOwner.workspaceId, userId: kbOwner.userId, originalName }
-    : undefined
-}
-
-/** Builds a content-less `failed` document row for a skipped (e.g. oversized) file. */
+/** Builds a content-less document row for an intentional source exclusion. */
 function buildSkippedDocumentRow(
   knowledgeBaseId: string,
   connectorId: string,
   connectorType: string,
   extDoc: ExternalDocument,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess
+  access: ConnectorAccessMode
 ) {
   const reason = extDoc.skippedReason ?? 'Document was skipped during sync'
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-  // Connectors put the source size under either `fileSize` or `size`; accept both
-  // so the skipped failed row shows the real size instead of 0.
-  const rawSize = extDoc.metadata?.fileSize ?? extDoc.metadata?.size
-  const fileSize =
-    typeof rawSize === 'number' && Number.isFinite(rawSize) ? Math.max(0, Math.trunc(rawSize)) : 0
-
   return {
     id: generateId(),
     knowledgeBaseId,
     filename: extDoc.title,
     fileUrl: '',
     storageKey: null,
-    fileSize,
+    /** No artifact was stored; a provider's reported source size is not local storage usage. */
+    fileSize: 0,
     mimeType: 'text/plain',
     processingStatus: 'failed',
     processingError: reason,
@@ -236,7 +299,7 @@ function buildSkippedDocumentRow(
 }
 
 /**
- * Records source files that were intentionally not indexed as content-less `failed`
+ * Records source files that were intentionally not indexed as content-less
  * documents. New rows are inserted in bulk; authoritative skips replace stale rows.
  * This keeps the files visible in the knowledge base UI — with `processingError`
  * explaining why — instead of silently dropping them. The rows have no storage key,
@@ -263,7 +326,7 @@ export async function persistSkippedDocuments(
     extDoc: ExternalDocument
   }>,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess,
+  access: ConnectorAccessMode,
   lease: SyncWriteLease
 ): Promise<PersistedDocument[]> {
   if (skipOps.length === 0) {
@@ -290,7 +353,6 @@ export async function persistSkippedDocuments(
   const replacements = skipOps.filter((op): op is typeof op & { existingId: string } =>
     Boolean(op.existingId)
   )
-  const replacedFileUrls: string[] = []
 
   await db.transaction(async (tx) => {
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
@@ -313,10 +375,16 @@ export async function persistSkippedDocuments(
         access
       )
       const [current] = await tx
-        .select({ fileUrl: document.fileUrl })
+        .select({
+          fileUrl: document.fileUrl,
+          workspaceId: knowledgeBase.workspaceId,
+          organizationId: knowledgeBase.organizationId,
+          userId: sql<string>`COALESCE(${document.uploadedBy}, ${knowledgeBase.userId})`,
+        })
         .from(document)
+        .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
         .where(connectorDocumentSyncTarget(replacement.existingId, knowledgeBaseId, connectorId))
-        .for('update')
+        .for('update', { of: document })
       if (!current) {
         throw new Error(`Document ${replacement.existingId} is no longer active`)
       }
@@ -355,25 +423,14 @@ export async function persistSkippedDocuments(
       if (replaced.length === 0) {
         throw new Error(`Document ${replacement.existingId} is no longer active`)
       }
-      if (current.fileUrl) replacedFileUrls.push(current.fileUrl)
+      await enqueueKnowledgeStorageCleanup(
+        tx,
+        [{ id: replacement.existingId, ...current }],
+        replacement.existingId
+      )
       await tx.delete(embedding).where(eq(embedding.documentId, replacement.existingId))
     }
   })
-
-  for (const fileUrl of replacedFileUrls) {
-    try {
-      const urlPath = new URL(fileUrl, 'http://localhost').pathname
-      const storageKey = extractStorageKey(urlPath)
-      if (storageKey && storageKey !== urlPath) {
-        await deleteFile({ key: storageKey, context: 'knowledge-base' })
-        await deleteFileMetadata(storageKey)
-      }
-    } catch (error) {
-      logger.warn('Failed to delete storage for an authoritatively skipped document', {
-        error: toError(error).message,
-      })
-    }
-  }
 
   return persisted
 }
@@ -415,6 +472,88 @@ export async function persistSkippedRetryHashes(
   return missedExternalIds
 }
 
+/** Records a failed source refresh without discarding prior bytes; null hash guarantees a later source retry. */
+export async function persistSourceDocumentFailures(input: {
+  knowledgeBaseId: string
+  connectorId: string
+  connectorType: string
+  documents: readonly ExternalDocument[]
+  failedExternalIds: ReadonlySet<string>
+  sourceFailures?: ReadonlyMap<string, ConnectorFailureDiagnostic>
+  priorByExternalId: ReadonlyMap<string, { id: string }>
+  sourceConfig: Record<string, unknown>
+  access: ConnectorAccessMode
+  lease: SyncWriteLease
+}): Promise<void> {
+  const failed = [
+    ...new Map(
+      input.documents
+        .filter((item) => input.failedExternalIds.has(item.externalId))
+        .map((item) => [item.externalId, item])
+    ).values(),
+  ]
+  if (failed.length === 0) return
+  await db.transaction(async (tx) => {
+    if (!(await isKnowledgeBaseActiveInTx(tx, input.knowledgeBaseId)))
+      throw new Error('Knowledge base was deleted')
+    await assertSyncLeaseHeldInTx(tx, input.connectorId, input.lease)
+    const existingIdsByError = new Map<string, string[]>()
+    for (const item of failed) {
+      const existing = input.priorByExternalId.get(item.externalId)
+      if (!existing) continue
+      const message = input.sourceFailures?.get(item.externalId)?.message ?? SOURCE_CONTENT_ERROR
+      const ids = existingIdsByError.get(message) ?? []
+      ids.push(existing.id)
+      existingIdsByError.set(message, ids)
+    }
+    for (const [message, existingIds] of existingIdsByError) {
+      for (let offset = 0; offset < existingIds.length; offset += 500) {
+        await tx
+          .update(document)
+          .set({
+            contentHash: null,
+            processingStatus: 'failed',
+            processingError: message,
+            processingQueuedAt: null,
+            processingQueueToken: null,
+            processingDeferredUntil: null,
+            processingCompletedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(document.connectorId, input.connectorId),
+              eq(document.knowledgeBaseId, input.knowledgeBaseId),
+              inArray(document.id, existingIds.slice(offset, offset + 500)),
+              eq(document.userExcluded, false),
+              isNull(document.archivedAt)
+            )
+          )
+      }
+    }
+    const newItems = failed.filter((item) => !input.priorByExternalId.has(item.externalId))
+    for (let offset = 0; offset < newItems.length; offset += 500) {
+      await tx.insert(document).values(
+        newItems.slice(offset, offset + 500).map((item) => ({
+          ...buildSkippedDocumentRow(
+            input.knowledgeBaseId,
+            input.connectorId,
+            input.connectorType,
+            {
+              ...item,
+              skippedReason:
+                input.sourceFailures?.get(item.externalId)?.message ?? SOURCE_CONTENT_ERROR,
+            },
+            input.sourceConfig,
+            input.access
+          ),
+          contentHash: null,
+          processingCompletedAt: new Date(),
+        }))
+      )
+    }
+  })
+}
+
 /**
  * Stores the document's bytes (see {@link connectorStoredArtifact}) and inserts
  * its `pending` row; the caller dispatches processing.
@@ -426,21 +565,18 @@ export async function addDocument(
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess,
+  access: ConnectorAccessMode,
   lease: SyncWriteLease
 ): Promise<DocumentData> {
   const documentId = generateId()
   const artifact = connectorStoredArtifact(extDoc)
   const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, artifact.fileName)}`
 
-  const fileInfo = await StorageService.uploadFile({
-    file: artifact.bytes,
-    fileName: artifact.fileName,
-    contentType: artifact.mimeType,
-    context: 'knowledge-base',
-    customKey,
-    preserveKey: true,
-    metadata: kbOwnershipMetadata(kbOwner, artifact.fileName),
+  const fileInfo = await uploadKnowledgeArtifact({
+    documentId,
+    key: customKey,
+    owner: kbOwner,
+    artifact,
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -448,47 +584,46 @@ export async function addDocument(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-
-  try {
-    await db.transaction(async (tx) => {
-      const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
-      if (!isActive) {
-        throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
-      }
-      await assertSyncLeaseHeldInTx(tx, connectorId, lease)
-
-      await tx.insert(document).values({
-        id: documentId,
-        knowledgeBaseId,
-        filename: extDoc.title,
-        fileUrl,
-        storageKey: fileInfo.key,
-        fileSize: artifact.bytes.length,
-        mimeType: artifact.mimeType,
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-        processingStatus: 'pending',
-        enabled: true,
-        connectorId,
-        externalId: extDoc.externalId,
-        contentHash: extDoc.contentHash,
-        sourceUrl: extDoc.sourceUrl ?? null,
-        sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
-        acl: insertedDocumentAcl(access),
-        ...tagValues,
-        uploadedAt: new Date(),
-      })
-    })
-  } catch (error) {
-    const urlPath = new URL(fileUrl, 'http://localhost').pathname
-    const storageKey = extractStorageKey(urlPath)
-    if (storageKey && storageKey !== urlPath) {
-      await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
-      await deleteFileMetadata(storageKey).catch(() => undefined)
+  await db.transaction(async (tx) => {
+    await claimKnowledgeUploadForAttachment(tx, fileInfo.cleanupEventId)
+    const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
+    if (!isActive) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
     }
-    throw error
-  }
+    await assertSyncLeaseHeldInTx(tx, connectorId, lease)
+    const [uploadedBinding] = await getFileMetadataByKeys([fileInfo.key], 'knowledge-base', tx, {
+      lock: 'share',
+    })
+    if (
+      !uploadedBinding ||
+      uploadedBinding.id !== fileInfo.metadataId ||
+      uploadedBinding.contentUpdatedAt.getTime() !== fileInfo.contentUpdatedAt.getTime()
+    )
+      throw new Error('Connector upload expired before it could be attached')
+
+    await tx.insert(document).values({
+      id: documentId,
+      knowledgeBaseId,
+      filename: extDoc.title,
+      fileUrl,
+      storageKey: fileInfo.key,
+      fileSize: artifact.bytes.length,
+      mimeType: artifact.mimeType,
+      chunkCount: 0,
+      tokenCount: 0,
+      characterCount: 0,
+      processingStatus: 'pending',
+      enabled: true,
+      connectorId,
+      externalId: extDoc.externalId,
+      contentHash: extDoc.contentHash,
+      sourceUrl: extDoc.sourceUrl ?? null,
+      sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
+      acl: insertedDocumentAcl(access),
+      ...tagValues,
+      uploadedAt: new Date(),
+    })
+  })
 
   return {
     documentId,
@@ -526,7 +661,7 @@ export async function updateDocument(
   extDoc: ExternalDocument,
   kbOwner: KnowledgeBaseOwner,
   sourceConfig: Record<string, unknown> | undefined,
-  access: SyncDocumentAccess,
+  access: ConnectorAccessMode,
   lease: SyncWriteLease
 ): Promise<DocumentData> {
   const existingRows = await db
@@ -536,19 +671,15 @@ export async function updateDocument(
     .limit(1)
   const existingRow = existingRows[0]
   if (!existingRow) throw new Error(`Document ${existingDocId} is no longer active`)
-  const oldFileUrl = existingRow.fileUrl
 
   const artifact = connectorStoredArtifact(extDoc)
-  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${existingDocId}-`, artifact.fileName)}`
+  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${generateId()}-`, artifact.fileName)}`
 
-  const fileInfo = await StorageService.uploadFile({
-    file: artifact.bytes,
-    fileName: artifact.fileName,
-    contentType: artifact.mimeType,
-    context: 'knowledge-base',
-    customKey,
-    preserveKey: true,
-    metadata: kbOwnershipMetadata(kbOwner, artifact.fileName),
+  const fileInfo = await uploadKnowledgeArtifact({
+    documentId: existingDocId,
+    key: customKey,
+    owner: kbOwner,
+    artifact,
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -556,81 +687,80 @@ export async function updateDocument(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-
-  try {
-    await db.transaction(async (tx) => {
-      const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
-      if (!isActive) {
-        throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
-      }
-      await assertSyncLeaseHeldInTx(tx, connectorId, lease)
-
-      await tx
-        .update(document)
-        .set({
-          filename: extDoc.title,
-          fileUrl,
-          storageKey: fileInfo.key,
-          fileSize: artifact.bytes.length,
-          // Re-stated on every update: a document first stored as connector-extracted
-          // text and later re-synced as its source file has to stop declaring
-          // `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
-          mimeType: artifact.mimeType,
-          contentHash: extDoc.contentHash,
-          sourceUrl: extDoc.sourceUrl ?? null,
-          sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
-          ...tagValues,
-          processingStatus: 'pending',
-          /** Prevents an older delayed worker from claiming newly stored content. */
-          processingQueuedAt: null,
-          processingQueueToken: null,
-          processingDeferredUntil: null,
-          /** A new document version starts with a fresh unattended-retry budget. */
-          processingAttempts: 0,
-          processingStartedAt: null,
-          processingCompletedAt: null,
-          processingError: null,
-          uploadedAt: new Date(),
-          // A tombstoned document reappearing with changed content is resurrected
-          // in the same write as its content update — otherwise reconciliation's
-          // separate resurrect step would clear deletedAt while this update, gated
-          // on deletedAt IS NULL, rejects the row and leaves stale content active.
-          deletedAt: null,
-          ...updatedDocumentAcl(access),
-        })
-        .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
-        .returning({ id: document.id })
-        .then((rows) => {
-          if (rows.length === 0) {
-            throw new Error(`Document ${existingDocId} is no longer active`)
-          }
-        })
+  await db.transaction(async (tx) => {
+    await claimKnowledgeUploadForAttachment(tx, fileInfo.cleanupEventId)
+    const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
+    if (!isActive) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
+    }
+    await assertSyncLeaseHeldInTx(tx, connectorId, lease)
+    const [uploadedBinding] = await getFileMetadataByKeys([fileInfo.key], 'knowledge-base', tx, {
+      lock: 'share',
     })
-  } catch (error) {
-    const urlPath = new URL(fileUrl, 'http://localhost').pathname
-    const storageKey = extractStorageKey(urlPath)
-    if (storageKey && storageKey !== urlPath) {
-      await deleteFile({ key: storageKey, context: 'knowledge-base' }).catch(() => undefined)
-      await deleteFileMetadata(storageKey).catch(() => undefined)
-    }
-    throw error
-  }
+    if (
+      !uploadedBinding ||
+      uploadedBinding.id !== fileInfo.metadataId ||
+      uploadedBinding.contentUpdatedAt.getTime() !== fileInfo.contentUpdatedAt.getTime()
+    )
+      throw new Error('Connector upload expired before it could be attached')
+    const [previous] = await tx
+      .select({ fileUrl: document.fileUrl })
+      .from(document)
+      .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
+      .for('update')
+      .limit(1)
+    if (!previous) throw new Error(`Document ${existingDocId} is no longer active`)
+    await enqueueKnowledgeStorageCleanup(
+      tx,
+      [{ id: existingDocId, fileUrl: previous.fileUrl, ...kbOwner }],
+      existingDocId
+    )
 
-  if (oldFileUrl) {
-    try {
-      const urlPath = new URL(oldFileUrl, 'http://localhost').pathname
-      const storageKey = extractStorageKey(urlPath)
-      if (storageKey && storageKey !== urlPath) {
-        await deleteFile({ key: storageKey, context: 'knowledge-base' })
-        await deleteFileMetadata(storageKey)
-      }
-    } catch (error) {
-      logger.warn('Failed to delete old storage file', {
-        documentId: existingDocId,
-        error: toError(error).message,
+    await tx
+      .update(document)
+      .set({
+        filename: extDoc.title,
+        fileUrl,
+        storageKey: fileInfo.key,
+        fileSize: artifact.bytes.length,
+        /**
+         * Re-stated on every update: a document first stored as connector-extracted
+         * text and later re-synced as its source file has to stop declaring
+         * `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
+         */
+        mimeType: artifact.mimeType,
+        contentHash: extDoc.contentHash,
+        sourceUrl: extDoc.sourceUrl ?? null,
+        sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
+        ...tagValues,
+        processingStatus: 'pending',
+        /** Prevents an older delayed worker from claiming newly stored content. */
+        processingQueuedAt: null,
+        processingQueueToken: null,
+        processingDeferredUntil: null,
+        /** A new document version starts with a fresh unattended-retry budget. */
+        processingAttempts: 0,
+        processingStartedAt: null,
+        processingCompletedAt: null,
+        processingError: null,
+        uploadedAt: new Date(),
+        /**
+         * A tombstoned document reappearing with changed content is resurrected
+         * in the same write as its content update — otherwise reconciliation's
+         * separate resurrect step would clear deletedAt while this update, gated
+         * on deletedAt IS NULL, rejects the row and leaves stale content active.
+         */
+        deletedAt: null,
+        ...updatedDocumentAcl(access),
       })
-    }
-  }
+      .where(connectorDocumentSyncTarget(existingDocId, knowledgeBaseId, connectorId))
+      .returning({ id: document.id })
+      .then((rows) => {
+        if (rows.length === 0) {
+          throw new Error(`Document ${existingDocId} is no longer active`)
+        }
+      })
+  })
 
   return {
     documentId: existingDocId,

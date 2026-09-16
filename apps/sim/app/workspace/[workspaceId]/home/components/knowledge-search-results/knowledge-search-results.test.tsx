@@ -1,67 +1,146 @@
-/**
- * @vitest-environment jsdom
- */
-import { describe, expect, it, vi } from 'vitest'
-import type { WorkspaceMemberConnector } from '@/hooks/queries/kb/connectors'
+/** @vitest-environment jsdom */
+import { act } from 'react'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/hooks/queries/kb/connectors', () => ({ useWorkspaceMemberConnectors: vi.fn() }))
-vi.mock('@/hooks/queries/kb/knowledge', () => ({
-  useKnowledgeBasesQuery: vi.fn(),
-  useWorkspaceKnowledgeSearch: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  index: vi.fn(),
+  overview: vi.fn(),
+  search: vi.fn(),
+  retry: vi.fn(),
 }))
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useWorkspaceHostContext: vi.fn(),
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'reader' } } }),
+}))
+vi.mock('@/hooks/queries/kb/connectors', () => ({
+  useSearchIndex: mocks.index,
+  useSearchSourceOverview: mocks.overview,
+}))
+vi.mock('@/hooks/queries/kb/knowledge', () => ({
+  useWorkspaceKnowledgeSearch: mocks.search,
 }))
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card',
-  () => ({ SourceCard: () => null })
+  () => ({ SourceCard: ({ source }: { source: { title: string } }) => <span>{source.title}</span> })
 )
 
-import { indexingSourceNames } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
 
-function memberConnector(
-  overrides: Partial<WorkspaceMemberConnector> = {}
-): WorkspaceMemberConnector {
-  return {
-    knowledgeBaseId: 'kb-1',
-    knowledgeBaseName: 'Sim Search',
-    connectorId: 'connector-1',
-    connectorType: 'google_drive',
-    memberSyncStatus: 'running',
-    viewerMembership: 'connected',
-    viewerDocumentCount: 0,
-    ...overrides,
-  }
+let root: Root
+let container: HTMLDivElement
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.index.mockReturnValue({ data: { knowledgeBaseId: 'index' }, isPending: false })
+  mocks.search.mockReturnValue({
+    data: { query: 'launch', results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    refetch: mocks.retry,
+  })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  container = document.createElement('div')
+  root = createRoot(container)
+})
+afterEach(() => {
+  act(() => root.unmount())
+  vi.unstubAllGlobals()
+})
+async function render(scope: ResourceScope = { kind: 'workspace', workspaceId: 'workspace' }) {
+  await act(async () =>
+    root.render(
+      <NuqsTestingAdapter>
+        <KnowledgeSearchResults scope={scope} query='launch' onSummarize={vi.fn()} />
+      </NuqsTestingAdapter>
+    )
+  )
 }
 
-describe('indexingSourceNames', () => {
-  it('names each source still indexing for the viewer once, in the searched bases only', () => {
-    const names = indexingSourceNames(
-      [
-        memberConnector({ connectorId: 'a', connectorType: 'google_drive' }),
-        memberConnector({
-          connectorId: 'b',
-          connectorType: 'google_drive',
-          knowledgeBaseId: 'kb-2',
-        }),
-        memberConnector({ connectorId: 'c', connectorType: 'slack', memberSyncStatus: 'pending' }),
-        memberConnector({ connectorId: 'd', connectorType: 'notion', knowledgeBaseId: 'kb-3' }),
-      ],
-      ['kb-1', 'kb-2']
-    )
-
-    expect(names).toEqual(['Google Drive', 'Slack'])
-  })
-
-  it('ignores sources that are idle or not connected for the viewer', () => {
-    expect(
-      indexingSourceNames(
-        [
-          memberConnector({ connectorId: 'a', memberSyncStatus: 'idle' }),
-          memberConnector({ connectorId: 'b', viewerMembership: 'invited' }),
+describe('source indexing context in search results', () => {
+  it('uses provider overview state independently of loaded source pages', async () => {
+    mocks.overview.mockReturnValue({
+      data: {
+        providers: [
+          { connectorType: 'google_drive', isSyncing: true },
+          { connectorType: 'slack', isSyncing: false },
         ],
-        ['kb-1']
+        hasSearchableDocuments: false,
+      },
+    })
+    await render()
+    expect(mocks.overview).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'workspace' })
+    expect(container.textContent).toContain('Google Drive')
+    expect(container.textContent).toContain('Slack')
+    expect(container.textContent).toContain('Still indexing Google Drive;')
+  })
+  it('does not invent indexing progress while the overview is unavailable', async () => {
+    mocks.overview.mockReturnValue({ data: undefined })
+    await render()
+    expect(container.textContent).not.toContain('Still indexing')
+    expect(container.textContent).toContain('Search found no results.')
+  })
+})
+
+describe('incomplete search coverage', () => {
+  it.each([false, true])(
+    'distinguishes incomplete retrieval and permits retry (hasResults=%s)',
+    async (hasResults) => {
+      mocks.search.mockReturnValue({
+        data: {
+          query: 'launch',
+          results: hasResults
+            ? [
+                {
+                  documentId: 'document-1',
+                  knowledgeBaseId: 'index',
+                  knowledgeBaseName: 'Search index',
+                  documentName: 'Release plan',
+                  sourceUrl: 'https://fixture.test/release',
+                  connectorType: null,
+                  sourceModifiedAt: null,
+                  author: null,
+                  content: 'launch details',
+                  chunkIndex: 0,
+                  similarity: 0.9,
+                },
+              ]
+            : [],
+          retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+        },
+        isPending: false,
+        isFetching: false,
+        isError: false,
+        refetch: mocks.retry,
+      })
+      await render()
+      expect(container.textContent).not.toContain('Search couldn’t run')
+      expect(container.textContent).not.toContain('No documents')
+      expect(container.textContent).toContain(
+        hasResults ? '1 document · some results may be missing.' : 'Search didn’t finish.'
       )
-    ).toEqual([])
+      expect(container.textContent).not.toContain('Search found no results.')
+      if (hasResults) expect(container.textContent).toContain('Release plan')
+      const retry = [...container.querySelectorAll('button')].find(
+        (button) => button.textContent === 'Try again'
+      )
+      expect(retry).toBeDefined()
+      await act(async () => retry?.click())
+      expect(mocks.retry).toHaveBeenCalledOnce()
+    }
+  )
+})
+
+describe('source setup navigation', () => {
+  it.each([
+    [{ kind: 'workspace', workspaceId: 'workspace' }, '/workspace/workspace/knowledge'],
+    [{ kind: 'organization', organizationId: 'organization' }, '/o/organization/integrations'],
+  ] as const)('links empty results to the source page for %j', async (scope, href) => {
+    mocks.index.mockReturnValue({ data: { knowledgeBaseId: null }, isPending: false })
+    mocks.overview.mockReturnValue({ data: undefined })
+    await render(scope)
+    expect(container.textContent).toContain('No sources are set up yet.')
+    expect(container.querySelector('a')?.getAttribute('href')).toBe(href)
   })
 })

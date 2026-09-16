@@ -4,8 +4,10 @@ import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
+import { readNdjson } from '../../http/ndjson'
 import { safeOneLine, sanitize } from '../../output/render'
-import { executeOperation } from '../../runtime/execute'
+import { executeOperation, runFailureMessage } from '../../runtime/execute'
+import { retypeApiError } from '../../runtime/naming'
 import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
@@ -23,6 +25,7 @@ import type { OperationSpec } from '../../runtime/types'
  */
 const AGENT_STREAM_PROTOCOL_HEADER = 'x-sim-stream-protocol'
 const AGENT_STREAM_PROTOCOL_V1 = 'agent-events-v1'
+const WORKFLOW_RESULT_STREAM_CONTENT_TYPE = 'application/x-ndjson'
 
 /** Terminal marker. Sent JSON-encoded, so the raw payload carries its quotes. */
 const DONE_SENTINEL = '[DONE]'
@@ -103,6 +106,76 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function stringField(frame: Record<string, unknown>, key: string): string | null {
   const value = frame[key]
   return typeof value === 'string' ? value : null
+}
+
+/**
+ * Reads the heartbeat-delimited result transport used for long synchronous
+ * runs. A server that predates the transport ignores `Accept` and returns its
+ * ordinary JSON envelope, which is consumed without retrying the run.
+ */
+async function readWorkflowResult(response: Response): Promise<Record<string, unknown>> {
+  const contentType = (response.headers.get('content-type') ?? '').toLowerCase()
+  if (!contentType.includes(WORKFLOW_RESULT_STREAM_CONTENT_TYPE)) {
+    let envelope: unknown
+    try {
+      envelope = await response.json()
+    } catch {
+      throw new SimApiError(
+        `Workflow run returned malformed JSON${contentType ? ` as ${contentType}` : ''}`,
+        response.status
+      )
+    }
+    if (!isRecord(envelope)) {
+      throw new SimApiError('Workflow run returned an invalid result envelope', response.status)
+    }
+    return isRecord(envelope.data) ? envelope.data : envelope
+  }
+
+  for await (const value of readNdjson(response.body, 'Workflow result stream')) {
+    if (!isRecord(value) || typeof value.type !== 'string') {
+      throw new SimApiError('Workflow result stream returned an unknown event', response.status)
+    }
+    if (value.type === 'heartbeat') continue
+    if (value.type === 'error') {
+      throw new SimApiError(
+        safeOneLine(typeof value.error === 'string' ? value.error : 'Workflow run failed'),
+        typeof value.status === 'number' ? value.status : 0,
+        typeof value.code === 'string' ? value.code : null
+      )
+    }
+    if (value.type === 'final' && isRecord(value.data)) return value.data
+    throw new SimApiError('Workflow result stream returned an unknown event', response.status)
+  }
+
+  throw new SimApiError('Workflow result stream ended without a final result', response.status)
+}
+
+/** Runs synchronously while keeping idle-limited HTTP paths active. */
+async function runWithResultStream(workflowId: string, command: Command): Promise<void> {
+  const flags = command.optsWithGlobals() as Record<string, unknown>
+  const { client, profile } = clientFrom(command)
+  const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
+  const commandSpec = CLI_CONTRACT.executeWorkflow ?? {}
+
+  try {
+    const request = buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
+    const response = await client.requestRaw(request.path, {
+      method: operation.method,
+      query: request.query,
+      body: request.body,
+      headers: { ...request.headers, accept: WORKFLOW_RESULT_STREAM_CONTENT_TYPE },
+    })
+    const payload = await readWorkflowResult(response)
+
+    renderResult('executeWorkflow', profile.output, payload, commandSpec, {
+      expandedTrace: flags.trace === true,
+    })
+
+    const failure = runFailureMessage('executeWorkflow', payload)
+    if (failure) throw new SimApiError(failure, 0)
+  } catch (error) {
+    throw retypeApiError(error, 'executeWorkflow', commandSpec, operation)
+  }
 }
 
 /**
@@ -361,8 +434,11 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
           0
         )
       }
-      // Whatever was installed before wins, so a second augmentation of the
-      // same leaf composes with this one instead of replacing it.
+      if (flags.async !== true) {
+        await runWithResultStream(workflowId, command)
+        return
+      }
+
       if (previous) {
         await previous(command.processedArgs)
         return
@@ -389,8 +465,8 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
  * would have to restate every one of them and then drift.
  *
  * Commander offers no way to read the action it already holds, so the existing
- * handler is captured and delegated to — every non-`--follow` invocation still
- * runs the generated path byte for byte.
+ * handler is captured for async execution. Synchronous execution uses the same
+ * generated request and result builders with a heartbeat-capable response.
  */
 export function attachWorkflowRunFollow(workflows: Command): void {
   const run = workflows.commands.find((command) => command.name() === 'run')

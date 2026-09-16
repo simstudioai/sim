@@ -606,7 +606,6 @@ export function SubflowNodeView({
         <div
           role='button'
           tabIndex={0}
-          aria-label={`Select ${blockName}`}
           onClick={onSelect}
           onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
           className='workflow-drag-handle relative z-20 flex cursor-grab items-center justify-between px-2 [&:active]:cursor-grabbing'

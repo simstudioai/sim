@@ -127,6 +127,18 @@ describe('fireworksProvider', () => {
     apiKey: 'fw-test-key',
   }
 
+  it('preserves custom deployment paths when stripping an uppercase namespace', async () => {
+    mockCreate.mockResolvedValueOnce(textResponse('ok'))
+    await fireworksProvider.executeRequest({
+      ...baseRequest,
+      model: 'FIREWORKS/accounts/Example/models/CustomModel',
+    })
+    expect(mockResolveFireworksWireModel).toHaveBeenCalledWith(
+      'accounts/Example/models/CustomModel'
+    )
+    expect(callBody(0).model).toBe('accounts/Example/models/CustomModel')
+  })
+
   it('throws when the API key is missing', async () => {
     await expect(
       fireworksProvider.executeRequest({ ...baseRequest, apiKey: undefined })

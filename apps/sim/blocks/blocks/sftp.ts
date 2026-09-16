@@ -1,13 +1,16 @@
 import { ClipboardList, Download, File, Search, Server, Trash, Upload } from '@sim/emcn/icons'
+import { omit } from '@sim/utils/object'
 import { SftpIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { SftpUploadResult } from '@/tools/sftp/types'
 
-export const SftpBlock: BlockConfig<SftpUploadResult> = {
+export const SftpBlock = {
   type: 'sftp',
-  name: 'SFTP',
+  name: 'SFTP (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sftp_v2' },
   description: 'Transfer files via SFTP (SSH File Transfer Protocol)',
   longDescription:
     'Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.',
@@ -332,6 +335,50 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
     message: { type: 'string', description: 'Operation status message' },
     error: { type: 'string', description: 'Error message if operation failed' },
   },
+} satisfies BlockConfig<SftpUploadResult>
+
+const selectSftpV2Tool = createVersionedToolSelector({
+  baseToolSelector: SftpBlock.tools.config.tool,
+  suffix: '_v2',
+  fallbackToolId: 'sftp_download_v2',
+})
+
+export const SftpV2Block: BlockConfig = {
+  ...SftpBlock,
+  type: 'sftp_v2',
+  name: 'SFTP',
+  hideFromToolbar: false,
+  sunset: undefined,
+  subBlocks: SftpBlock.subBlocks.filter((subBlock) => subBlock.id !== 'encoding'),
+  tools: {
+    ...SftpBlock.tools,
+    access: SftpBlock.tools.access.map((toolId) =>
+      toolId === 'sftp_download' ? 'sftp_download_v2' : toolId
+    ),
+    config: {
+      ...SftpBlock.tools.config,
+      tool: (params) =>
+        params.operation === 'sftp_download'
+          ? selectSftpV2Tool(params)
+          : SftpBlock.tools.config.tool(params),
+      params: (params) => {
+        const input: Record<string, unknown> = SftpBlock.tools.config.params(params)
+        return omit(input, ['encoding'])
+      },
+    },
+  },
+  inputs: omit(SftpBlock.inputs, ['encoding']),
+  outputs: {
+    ...omit(SftpBlock.outputs, ['content', 'fileName', 'size']),
+    success: {
+      ...SftpBlock.outputs.success,
+      condition: { field: 'operation', value: 'sftp_download', not: true },
+    },
+    message: {
+      ...SftpBlock.outputs.message,
+      condition: { field: 'operation', value: 'sftp_download', not: true },
+    },
+  },
 }
 
 export const SftpBlockMeta = {
@@ -416,7 +463,7 @@ export const SftpBlockMeta = {
       name: 'pull-remote-drop-folder',
       description: 'Poll a remote SFTP drop folder on a schedule and ingest any new files.',
       content:
-        '# Pull Remote Drop Folder\n\nPeriodically fetch newly arrived files from a remote SFTP directory into a workflow.\n\n## Steps\n1. Use the List Directory operation to read the remote drop folder and inspect `entries`.\n2. Filter for files newer than the last processed timestamp.\n3. For each new file, use the Download File operation and read `file`/`content`.\n4. Hand the contents to downstream blocks for parsing.\n\n## Output\nNew remote files are downloaded and their contents are available for processing each run.',
+        '# Pull Remote Drop Folder\n\nPeriodically fetch newly arrived files from a remote SFTP directory into a workflow.\n\n## Steps\n1. Use the List Directory operation to read the remote drop folder and inspect `entries`.\n2. Filter for files newer than the last processed timestamp.\n3. For each new file, use the Download File operation and read `file`.\n4. Pass the file to downstream blocks for parsing.\n\n## Output\nNew remote files are downloaded and available for processing each run.',
     },
     {
       name: 'push-report-to-partner',

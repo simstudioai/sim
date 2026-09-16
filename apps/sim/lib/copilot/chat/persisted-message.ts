@@ -1,5 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { compactRetrievalCitations } from '@/lib/copilot/chat/retrieval-citations'
 import {
   mergeAndRedactPersistedBlocks,
   redactSensitiveContent,
@@ -21,6 +22,7 @@ import type {
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
+import { normalizeToolActivityDescription } from '@/lib/copilot/tools/tool-display'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
@@ -35,6 +37,7 @@ interface PersistedToolCall {
   calledBy?: string
   durationMs?: number
   display?: { title?: string }
+  activityDescription?: string
 }
 
 export interface PersistedContentBlock {
@@ -121,6 +124,7 @@ function copyTextSelection(
 export interface PersistedMessage {
   id: string
   role: 'user' | 'assistant'
+  requestMode?: 'agent' | 'assistant'
   content: string
   timestamp: string
   requestId?: string
@@ -131,7 +135,7 @@ export interface PersistedMessage {
 
 /**
  * Drop persisted tool outputs, keeping `success` and `error`. The one narrow
- * UI-state exception is a browser takeover's user-authored instruction, which
+ * UI-state exceptions are bounded retrieval citations and a browser takeover's user-authored instruction, which
  * restores its answered question recap after reload. Other outputs are never
  * rendered or replayed to the model (the upstream service owns conversation
  * memory), so storing them only bloats
@@ -151,6 +155,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     const result = toolCall?.result
     if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
     const output = result.output
+    const citations = result.success ? compactRetrievalCitations(toolCall.name, output) : undefined
     const userInstruction =
       toolCall.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && isPlainRecord(output)
         ? output.userInstruction
@@ -167,6 +172,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     changed = true
     const strippedResult: { success: boolean; output?: unknown; error?: string } = {
       success: result.success,
+      ...(citations ? { output: citations } : {}),
       ...(normalizedInstruction ? { output: { userInstruction: normalizedInstruction } } : {}),
     }
     if (result.error !== undefined) strippedResult.error = result.error
@@ -280,10 +286,14 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
 
       const redactedResult = redactToolCallResult(block.toolCall.name, block.toolCall.result)
 
+      const activityDescription = normalizeToolActivityDescription(
+        block.toolCall.activityDescription
+      )
       const toolCall: PersistedToolCall = {
         id: block.toolCall.id,
         name: block.toolCall.name,
         state,
+        ...(activityDescription ? { activityDescription } : {}),
         ...(isSubagentTool && isNonTerminal ? {} : { result: redactedResult }),
         ...(isSubagentTool && isNonTerminal
           ? {}
@@ -313,11 +323,13 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
 
 export function buildPersistedAssistantMessage(
   result: OrchestratorResult,
-  requestId?: string
+  requestId?: string,
+  requestMode?: 'agent' | 'assistant'
 ): PersistedMessage {
   const message: PersistedMessage = {
     id: generateId(),
     role: 'assistant',
+    ...(requestMode ? { requestMode } : {}),
     content: redactSensitiveContent(result.content),
     timestamp: new Date().toISOString(),
   }
@@ -383,6 +395,7 @@ export function withStoppedContentBlock(message: PersistedMessage): PersistedMes
 }
 
 export interface UserMessageParams {
+  requestMode?: 'agent' | 'assistant'
   id: string
   content: string
   fileAttachments?: PersistedFileAttachment[]
@@ -393,6 +406,7 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
   const message: PersistedMessage = {
     id: params.id,
     role: 'user',
+    ...(params.requestMode ? { requestMode: params.requestMode } : {}),
     content: params.content,
     timestamp: new Date().toISOString(),
   }
@@ -458,6 +472,7 @@ interface RawBlock {
     params?: Record<string, unknown>
     result?: { success: boolean; output?: unknown; error?: string }
     display?: { text?: string; title?: string; phaseLabel?: string }
+    activityDescription?: string
     calledBy?: string
     durationMs?: number
     error?: string
@@ -515,10 +530,12 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.status) result.status = block.status as MothershipStreamV1CompletionStatus
   if (block.parentToolCallId) result.parentToolCallId = block.parentToolCallId
   if (block.toolCall) {
+    const activityDescription = normalizeToolActivityDescription(block.toolCall.activityDescription)
     result.toolCall = {
       id: block.toolCall.id ?? '',
       name: block.toolCall.name ?? '',
       state: normalizeToolState(block.toolCall.state),
+      ...(activityDescription ? { activityDescription } : {}),
       ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
       ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
       ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
@@ -541,6 +558,7 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
 
 function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
   if (block.type === 'tool_call' && block.toolCall) {
+    const activityDescription = normalizeToolActivityDescription(block.toolCall.activityDescription)
     return {
       type: MothershipStreamV1EventType.tool,
       phase: MothershipStreamV1ToolPhase.call,
@@ -548,6 +566,7 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
         id: block.toolCall.id ?? '',
         name: block.toolCall.name ?? '',
         state: normalizeToolState(block.toolCall.state),
+        ...(activityDescription ? { activityDescription } : {}),
         ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
         ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
         ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
@@ -697,6 +716,9 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
     content: (raw.content as string) ?? '',
     timestamp: (raw.timestamp as string) ?? new Date().toISOString(),
   }
+
+  if (raw.requestMode === 'assistant' || raw.requestMode === 'agent')
+    msg.requestMode = raw.requestMode
 
   if (raw.requestId && typeof raw.requestId === 'string') {
     msg.requestId = raw.requestId

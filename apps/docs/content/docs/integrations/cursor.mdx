@@ -11,18 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Cursor](https://www.cursor.so) is an intelligent cloud-based platform that enables you to launch and manage AI agents capable of collaborating on your GitHub repositories. Cursor agents are designed to help automate software development workflows, accelerate code changes, and provide powerful assistance directly within your version control stack.
-
-With Cursor, you can:
-
-- **Launch cloud agents**: Instantly start AI agents to perform tasks on your repositories—ranging from code generation and refactoring to documentation and bug fixing.
-- **Collaborate on pull requests and branches**: Agents can work on feature branches, propose changes, and assist with code reviews.
-- **Guide and refine AI work**: Provide follow-up instructions to agents, enabling you to iteratively direct their actions and results.
-- **Monitor progress and results**: Check agent status, review their output, and inspect conversation threads—all from a unified dashboard or API.
-- **Control agent lifecycle**: Start, stop, restart, or archive agents as needed to manage compute resources and workflow states.
-- **Integrate with your workflow**: Use the API to connect Cursor agents with CI/CD pipelines, chatbots, or internal tools for automated workflows.
-
-Integrating Cursor into your Sim automations unleashes the power of AI assistance on your software projects. Let agents contribute code, resolve issues, and complete repetitive development tasks so you and your team can focus on higher-level engineering work.
+Use [Cursor](https://www.cursor.so) to launch Cloud Agents on GitHub repositories, send follow-up instructions, and inspect their status, conversations, and artifacts. The actions below also cover stopping and deleting agents and listing available models and repositories.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -104,7 +93,7 @@ Start a new cloud agent to work on a GitHub repository with the given instructio
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Cursor API key |
-| `repository` | string | Yes | GitHub repository URL \(e.g., https://github.com/your-org/your-repo\) |
+| `repository` | string | Yes | GitHub repository URL \(e.g., https://github.com/your-org/your-repo) |
 | `ref` | string | No | Branch, tag, or commit to work from \(defaults to default branch\) |
 | `promptText` | string | Yes | The instruction text for the agent |
 | `promptImages` | string | No | JSON array of image objects with base64 data and dimensions |

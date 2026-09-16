@@ -61,9 +61,12 @@ export function createJoiningOrderedList() {
           ),
         })),
       }
-      const parsed = parse?.(resolved, helpers) ?? []
+      const parsedList = parse?.(resolved, helpers) ?? []
+      if (Array.isArray(parsedList)) return parsedList
+      /** Use the registered item parser so empty items retain their schema-required paragraph. */
+      const parsed = { ...parsedList, content: helpers.parseChildren(resolved.items) }
       /** The stock parser's truthy default turns a valid zero start into one. */
-      if (groups[0]?.start === 0 && !Array.isArray(parsed) && 'type' in parsed) {
+      if (groups[0]?.start === 0) {
         return { ...parsed, attrs: { ...parsed.attrs, start: 0 } }
       }
       return parsed

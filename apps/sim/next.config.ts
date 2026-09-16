@@ -100,10 +100,11 @@ const nextConfig: NextConfig = {
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
     /**
-     * PDF.js loads its worker and optional canvas primitives relative to its package at runtime.
-     * Bundling relocates that code and leaves DOMMatrix unavailable in the standalone image.
+     * Keep PDF.js and its native canvas implementation intact. The shared server
+     * loader initializes canvas primitives before PDF.js evaluates its module.
      */
     'pdfjs-dist',
+    '@napi-rs/canvas',
     // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
     // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
     'jsdom',
@@ -266,6 +267,16 @@ const nextConfig: NextConfig = {
             value: 'public, max-age=86400, stale-while-revalidate=604800',
           },
         ],
+      },
+      {
+        /** Generated footer artwork uses content hashes, so URLs are immutable. */
+        source: '/landing/footer-artwork/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        /** Generated hero artwork uses content hashes, so URLs are immutable. */
+        source: '/landing/hero-artwork/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
       {
         source: '/.well-known/:path*',

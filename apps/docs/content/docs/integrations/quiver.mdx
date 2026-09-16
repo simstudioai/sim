@@ -6,7 +6,7 @@ description: Generate and vectorize SVGs
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="quiver"
+  type="quiver_v2"
   color="#FFFFFF"
 />
 
@@ -57,16 +57,12 @@ Generate SVG images from text prompts using QuiverAI
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the SVG generation succeeded |
-| `output` | object | Generated SVG output |
-|   ↳ `file` | file | First generated SVG file |
-|   ↳ `files` | json | All generated SVG files \(when n &gt; 1\) |
-|   ↳ `svgContent` | string | Raw SVG markup content of the first result |
-|   ↳ `id` | string | Generation request ID |
-|   ↳ `usage` | json | Token usage statistics |
-|     ↳ `totalTokens` | number | Total tokens used |
-|     ↳ `inputTokens` | number | Input tokens used |
-|     ↳ `outputTokens` | number | Output tokens used |
+| `files` | file[] | All generated SVG files |
+| `id` | string | Request ID |
+| `usage` | json | Token usage statistics |
+|   ↳ `totalTokens` | number | Total tokens used |
+|   ↳ `inputTokens` | number | Input tokens used |
+|   ↳ `outputTokens` | number | Output tokens used |
 
 ### Quiver Image to SVG
 
@@ -90,15 +86,12 @@ Convert raster images into vector SVG format using QuiverAI
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the vectorization succeeded |
-| `output` | object | Vectorized SVG output |
-|   ↳ `file` | file | Generated SVG file |
-|   ↳ `svgContent` | string | Raw SVG markup content |
-|   ↳ `id` | string | Vectorization request ID |
-|   ↳ `usage` | json | Token usage statistics |
-|     ↳ `totalTokens` | number | Total tokens used |
-|     ↳ `inputTokens` | number | Input tokens used |
-|     ↳ `outputTokens` | number | Output tokens used |
+| `files` | file[] | All generated SVG files |
+| `id` | string | Request ID |
+| `usage` | json | Token usage statistics |
+|   ↳ `totalTokens` | number | Total tokens used |
+|   ↳ `inputTokens` | number | Input tokens used |
+|   ↳ `outputTokens` | number | Output tokens used |
 
 ### Quiver List Models
 

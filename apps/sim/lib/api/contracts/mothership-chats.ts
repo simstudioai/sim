@@ -14,10 +14,16 @@ const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(v
 export const mothershipChatScopeSchema = z.enum(['active', 'archived'])
 export type MothershipChatScope = z.output<typeof mothershipChatScopeSchema>
 
-export const listMothershipChatsQuerySchema = z.object({
-  workspaceId: z.string().min(1),
-  scope: mothershipChatScopeSchema.default('active'),
-})
+const mothershipChatOwnerSchema = z.union([
+  z.object({ workspaceId: z.string().min(1), organizationId: z.never().optional() }),
+  z.object({ organizationId: z.string().min(1), workspaceId: z.never().optional() }),
+])
+
+export const listMothershipChatsQuerySchema = mothershipChatOwnerSchema.and(
+  z.object({
+    scope: mothershipChatScopeSchema.default('active'),
+  })
+)
 
 export const mothershipChatParamsSchema = z.object({
   chatId: z.string().min(1),
@@ -36,9 +42,7 @@ export const updateMothershipChatBodySchema = z
     }
   )
 
-export const createMothershipChatBodySchema = z.object({
-  workspaceId: z.string().min(1),
-})
+export const createMothershipChatBodySchema = mothershipChatOwnerSchema
 export type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
 
 export const markMothershipChatReadBodySchema = z.object({
@@ -135,16 +139,13 @@ export const mothershipExecuteBodySchema = z.object({
 })
 export type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
 
-export const mothershipEventsQuerySchema = z
-  .object({
-    workspaceId: z.string().optional(),
-  })
-  .passthrough()
+export const mothershipEventsQuerySchema = mothershipChatOwnerSchema
 
 export const mothershipChatGetQuerySchema = z
   .object({
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),
+    organizationId: z.string().optional(),
     chatId: z.string().optional(),
   })
   .passthrough()
@@ -155,6 +156,7 @@ export const mothershipChatPostEnvelopeSchema = z
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),
+    organizationId: z.string().optional(),
   })
   .passthrough()
 
@@ -397,9 +399,18 @@ export const createMothershipChatContract = defineRouteContract({
   },
 })
 
+export const mothershipExecuteHeadersSchema = z.object({
+  'x-sim-mcp-delegation': z
+    .string()
+    .min(1, 'Signed MCP workflow provenance is required')
+    .max(16384),
+})
+export type MothershipExecuteHeaders = z.input<typeof mothershipExecuteHeadersSchema>
+
 export const mothershipExecuteContract = defineRouteContract({
   method: 'POST',
   path: '/api/mothership/execute',
+  headers: mothershipExecuteHeadersSchema,
   body: mothershipExecuteBodySchema,
   response: {
     mode: 'json',

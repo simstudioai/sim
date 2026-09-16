@@ -83,7 +83,11 @@ function queueGroupResolution(
   workspaceGroups: WorkspaceGroupRow[] = [],
   defaultGroup: Array<{ config: Record<string, unknown> }> = []
 ) {
-  queueTableRows(permissionGroup, workspaceGroups)
+  /** Every row carries the column default the resolver reads, as a real row would. */
+  queueTableRows(
+    permissionGroup,
+    workspaceGroups.map((row) => ({ membershipMode: 'inherit', ...row }))
+  )
   queueTableRows(permissionGroup, defaultGroup)
 }
 

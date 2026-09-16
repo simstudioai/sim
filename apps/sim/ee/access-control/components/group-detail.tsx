@@ -724,21 +724,13 @@ export function GroupDetail({
 
   /**
    * Local, authoritative copy of the group while the detail view is open. Seeded
-   * from the prop and re-seeded only when the selected group id changes, so
+   * from the prop for this keyed group instance, so
    * optimistic scope/default/config writes are not clobbered by list refetches.
    */
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup>(group)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig>({ ...group.config })
   const [editingName, setEditingName] = useState(group.name.trim())
   const [editingDescription, setEditingDescription] = useState((group.description ?? '').trim())
-  const prevGroupIdRef = useRef(group.id)
-  if (prevGroupIdRef.current !== group.id) {
-    prevGroupIdRef.current = group.id
-    setViewingGroup(group)
-    setEditingConfig({ ...group.config })
-    setEditingName(group.name.trim())
-    setEditingDescription((group.description ?? '').trim())
-  }
 
   /**
    * Monotonic token for scope-affecting writes (workspace select + default

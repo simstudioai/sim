@@ -1,4 +1,5 @@
-import type { ToolResponse } from '@/tools/types'
+import type { UserFile } from '@/executor/types'
+import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 /**
  * Connection and credentials. `table` is optional here because EWLogin is
@@ -149,12 +150,7 @@ export interface AgiloftRetrieveAttachmentParams extends AgiloftBaseParams {
 
 export interface AgiloftRetrieveAttachmentResponse extends ToolResponse {
   output: {
-    file: {
-      name: string
-      mimeType: string
-      data: string
-      size: number
-    }
+    file: UserFile | ToolFileData
   }
 }
 

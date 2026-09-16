@@ -23,6 +23,7 @@ vi.mock('@sim/logger', () => ({
   logger: ollamaLogger,
   runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
   getRequestContext: vi.fn(() => undefined),
+  setRequestAuth: vi.fn(),
 }))
 
 vi.mock('@/providers/utils', () => ({

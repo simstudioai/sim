@@ -77,6 +77,18 @@ export function registerEmitFunctions(
 
 let currentRegisteredWorkflowId: string | null = null
 
+/**
+ * Pending subblock operations a newer one for the same field makes redundant. A value-only update
+ * never supersedes one that also carries canonical modes, or those modes would be lost.
+ */
+const SUPERSEDED_SUBBLOCK_OPERATIONS: Partial<Record<string, readonly string[]>> = {
+  'subblock-update': ['subblock-update'],
+  'subblock-update-with-canonical-modes': [
+    'subblock-update',
+    'subblock-update-with-canonical-modes',
+  ],
+}
+
 /** Targets whose payload id refers to a canvas block (subflow ids are loop/parallel blocks). */
 const BLOCK_SCOPED_TARGETS = ['block', 'subblock', 'subflow']
 
@@ -150,15 +162,13 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
     let shouldDropPendingOperation = (_op: QueuedOperation) => false
 
-    if (
-      operation.operation.operation === 'subblock-update' &&
-      operation.operation.target === 'subblock'
-    ) {
+    const supersededOperations = SUPERSEDED_SUBBLOCK_OPERATIONS[operation.operation.operation]
+    if (supersededOperations && operation.operation.target === 'subblock') {
       const { blockId, subblockId } = operation.operation.payload
       shouldDropPendingOperation = (op) =>
         op.status === 'pending' &&
         op.workflowId === operation.workflowId &&
-        op.operation.operation === 'subblock-update' &&
+        supersededOperations.includes(op.operation.operation) &&
         op.operation.target === 'subblock' &&
         op.operation.payload?.blockId === blockId &&
         op.operation.payload?.subblockId === subblockId

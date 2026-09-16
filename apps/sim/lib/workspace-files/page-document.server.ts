@@ -1,3 +1,4 @@
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
@@ -11,6 +12,9 @@ const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024
  * that do not fit what is left keep their URL reference, exactly like an oversized one.
  */
 const MAX_INLINE_TOTAL_BYTES = 32 * 1024 * 1024
+
+/** Bounds metadata reads even when the page references many missing or empty images. */
+const MAX_INLINE_IMAGE_REFERENCES = 256
 
 const IMAGE_SRC = /src="[^"]*\/api\/files\/view\/([^"]+)"/g
 
@@ -27,30 +31,32 @@ export async function renderSimPageDocumentWithAssets(
   source: string,
   options: { workspaceId?: string }
 ): Promise<string> {
+  return (await renderSimPageDocumentWithContributors(source, options)).html
+}
+
+/** Servable page bytes and the exact stored image revisions actually embedded in them. */
+export async function renderSimPageDocumentWithContributors(
+  source: string,
+  options: { workspaceId?: string }
+): Promise<{ html: string; contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] }> {
   const documentHtml = renderSimPageDocument(source, options)
-  const ids = [...new Set([...documentHtml.matchAll(IMAGE_SRC)].map((match) => match[1]))]
-  if (ids.length === 0 || !options.workspaceId) return documentHtml
+  if (!options.workspaceId) return { html: documentHtml, contributingFiles: [] }
 
-  const candidates = await Promise.all(
-    ids.map(async (id) => {
-      const record = await getFileMetadataById(id).catch(() => null)
-      if (!record || record.context !== 'workspace' || record.workspaceId !== options.workspaceId)
-        return null
-      return { id, record }
-    })
-  )
-
-  // One image at a time, charged against the budget by what each download actually
-  // delivered. Fetching them concurrently made the peak the sum of every image rather
-  // than the largest one, and the ceiling on the finished document could only observe
-  // that after the fact. Each download is given whatever the budget has left, so an
-  // image that does not fit is refused by the read itself instead of after it lands.
-  const inlined = new Map<string, string>()
+  const visited = new Set<string>()
+  const inlined = new Map<
+    string,
+    { dataUri: string; identity: WorkspaceFileSecretProvenanceIdentity }
+  >()
   let remaining = MAX_INLINE_TOTAL_BYTES
-  for (const candidate of candidates) {
-    if (!candidate) continue
-    if (remaining === 0) break
-    const { id, record } = candidate
+  for (const match of documentHtml.matchAll(IMAGE_SRC)) {
+    const id = match[1]
+    if (visited.has(id)) continue
+    if (remaining === 0 || visited.size >= MAX_INLINE_IMAGE_REFERENCES) break
+    visited.add(id)
+    const record = await getFileMetadataById(id).catch(() => null)
+    if (!record || record.context !== 'workspace' || record.workspaceId !== options.workspaceId) {
+      continue
+    }
     try {
       const bytes = await downloadFile({
         key: record.key,
@@ -61,14 +67,28 @@ export async function renderSimPageDocumentWithAssets(
       const mime = record.contentType?.startsWith('image/')
         ? record.contentType
         : 'application/octet-stream'
-      inlined.set(id, `data:${mime};base64,${bytes.toString('base64')}`)
+      inlined.set(id, {
+        dataUri: `data:${mime};base64,${bytes.toString('base64')}`,
+        identity: {
+          fileId: record.id,
+          key: record.key,
+          context: 'workspace',
+          contentUpdatedAt: record.contentUpdatedAt,
+        },
+      })
     } catch {
-      // A missing, unreadable or too-large image keeps its URL reference.
+      /** A missing, unreadable or too-large image keeps its URL reference. */
     }
   }
-  if (inlined.size === 0) return documentHtml
-  return documentHtml.replace(IMAGE_SRC, (match, id: string) => {
-    const dataUri = inlined.get(id)
-    return dataUri ? `src="${dataUri}"` : match
+  /** Charge each occurrence: repeating one image must not multiply the rendered byte budget. */
+  let remainingEncodedBytes = Math.ceil((MAX_INLINE_TOTAL_BYTES * 4) / 3)
+  const contributors = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
+  const html = documentHtml.replace(IMAGE_SRC, (match, id: string) => {
+    const image = inlined.get(id)
+    if (!image || image.dataUri.length > remainingEncodedBytes) return match
+    remainingEncodedBytes -= image.dataUri.length
+    contributors.set(id, image.identity)
+    return `src="${image.dataUri}"`
   })
+  return { html, contributingFiles: [...contributors.values()] }
 }

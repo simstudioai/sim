@@ -1,1 +1,0 @@
-export { Lifecycle } from './lifecycle'

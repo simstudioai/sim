@@ -1,4 +1,4 @@
-import { account, credential, credentialMember } from '@sim/db/schema'
+import { account, credential, credentialMember, member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,6 +29,21 @@ describe('getCredentialActorContext', () => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
+
+  it.each(['owner', 'admin', 'shared-user'])(
+    'personal token authority is exactly the immutable owner, regardless of workspace or membership admin',
+    async (userId) => {
+      queueTableRows(credential, [
+        { id: 'token', workspaceId: 'ws', type: 'personal_token', createdBy: 'owner' },
+      ])
+      queueTableRows(credentialMember, [{ role: 'admin' }])
+      mockCheckWorkspaceAccess.mockResolvedValue(workspaceAdminAccess)
+      const result = await getCredentialActorContext('token', userId)
+      expect(result.isAdmin).toBe(userId === 'owner')
+      expect(Boolean(result.credential)).toBe(userId === 'owner')
+      expect(result.member).toBeNull()
+    }
+  )
 
   it('treats an explicit credential admin membership as admin', async () => {
     queueTableRows(credential, [{ id: 'c1', workspaceId: 'ws', type: 'oauth' }])
@@ -159,5 +174,58 @@ describe('resolveCredentialTokenIdentity', () => {
 
     await expect(resolveCredentialTokenIdentity('c1', 'ws')).resolves.toBeNull()
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+})
+
+describe('organization background credential identity', () => {
+  const scope = { kind: 'organization' as const, organizationId: 'org-1' }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+  it('requires current organization membership for a service-account creator', async () => {
+    queueTableRows(credential, [
+      { workspaceId: null, organizationId: 'org-1', createdBy: 'admin-1', type: 'service_account' },
+    ])
+    queueTableRows(member, [{ id: 'membership-1' }])
+    await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toEqual({
+      kind: 'service_account',
+    })
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+  it('refuses a service account after its creator has left the organization', async () => {
+    queueTableRows(credential, [
+      { workspaceId: null, organizationId: 'org-1', createdBy: 'admin-1', type: 'service_account' },
+    ])
+    queueTableRows(member, [])
+    await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toBeNull()
+  })
+  it('requires the OAuth account owner to be a current organization member', async () => {
+    queueTableRows(credential, [
+      {
+        workspaceId: null,
+        organizationId: 'org-1',
+        createdBy: 'admin-1',
+        type: 'oauth',
+        accountId: 'account-1',
+      },
+    ])
+    queueTableRows(account, [{ userId: 'admin-1' }])
+    queueTableRows(member, [{ id: 'membership-1' }])
+    await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toEqual({
+      kind: 'oauth',
+      userId: 'admin-1',
+    })
+  })
+  it('never treats a raw account id as an organization credential', async () => {
+    queueTableRows(credential, [])
+    queueTableRows(account, [{ userId: 'admin-1' }])
+    await expect(resolveCredentialTokenIdentity('raw-account', scope)).resolves.toBeNull()
+  })
+  it('denies a workspace credential when asserted as an organization source', async () => {
+    queueTableRows(credential, [
+      { workspaceId: 'ws-1', organizationId: null, createdBy: 'admin-1', type: 'service_account' },
+    ])
+    await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toBeNull()
   })
 })

@@ -1,0 +1,15 @@
+{
+  "title": "Search",
+  "pages": [
+    "connect-your-account",
+    "mcp",
+    "confluence",
+    "github",
+    "gitlab",
+    "gmail",
+    "google-calendar",
+    "google-drive",
+    "jira",
+    "slack"
+  ]
+}

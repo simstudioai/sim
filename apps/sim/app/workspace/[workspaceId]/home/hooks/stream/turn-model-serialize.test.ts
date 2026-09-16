@@ -112,6 +112,107 @@ function blocksByType(blocks: ReturnType<typeof modelToContentBlocks>, type: str
   return blocks.filter((b) => b.type === type)
 }
 
+describe('model-authored tool activities', () => {
+  it.each(['main', 'subagent'] as const)(
+    'keeps %s descriptions stable through completion and snapshot replay',
+    (lane) => {
+      const scope: Scope | undefined =
+        lane === 'subagent'
+          ? { lane, spanId: 'browser-span', parentSpanId: 'main', agentId: 'browser' }
+          : undefined
+      const m = build([
+        env(
+          1,
+          'tool',
+          {
+            phase: 'call',
+            toolCallId: 'activity-call',
+            toolName: 'browser_click',
+            partial: true,
+          },
+          scope
+        ),
+      ])
+      expect(
+        modelToContentBlocks(m).find((b) => b.toolCall)?.toolCall?.activityDescription
+      ).toBeUndefined()
+      reduceEvent(
+        m,
+        env(
+          2,
+          'tool',
+          {
+            phase: 'call',
+            toolCallId: 'activity-call',
+            toolName: 'browser_click',
+            arguments: { ref: 'button-1' },
+            activityDescription: '  Opening  the export menu ',
+          },
+          scope
+        )
+      )
+      reduceEvent(
+        m,
+        env(
+          3,
+          'tool',
+          {
+            phase: 'result',
+            toolCallId: 'activity-call',
+            toolName: 'browser_click',
+            success: true,
+          },
+          scope
+        )
+      )
+      reduceEvent(
+        m,
+        env(
+          4,
+          'tool',
+          {
+            phase: 'call',
+            toolCallId: 'activity-call',
+            toolName: 'browser_click',
+            arguments: { ref: 'button-1' },
+            activityDescription: 'Opening another menu',
+          },
+          scope
+        )
+      )
+      const blocks = modelToContentBlocks(m)
+      const expected = {
+        status: 'success',
+        activityDescription: 'Opening the export menu',
+        displayTitle: 'Opening the export menu',
+        params: { ref: 'button-1' },
+      }
+      expect(blocks.find((b) => b.toolCall)?.toolCall).toMatchObject(expected)
+      const replayed = modelToContentBlocks(contentBlocksToModel(blocks))
+      expect(replayed.find((b) => b.toolCall)?.toolCall).toMatchObject(expected)
+    }
+  )
+
+  it.each([undefined, '', '   ', 12, 'x'.repeat(161)])(
+    'falls back to deterministic wording for invalid metadata %s',
+    (activityDescription) => {
+      const blocks = modelToContentBlocks(
+        build([
+          env(1, 'tool', {
+            phase: 'call',
+            toolCallId: 'fallback-call',
+            toolName: 'run_function',
+            arguments: { title: 'Checking the project setup' },
+            activityDescription,
+          }),
+        ])
+      )
+      expect(blocks[0].toolCall).toMatchObject({ displayTitle: 'Checking the project setup' })
+      expect(blocks[0].toolCall?.activityDescription).toBeUndefined()
+    }
+  )
+})
+
 describe('modelToContentBlocks', () => {
   it('emits main-lane blocks without spanId and subagent-lane blocks with spanId', () => {
     const blocks = modelToContentBlocks(build(fileDelegationEvents()))

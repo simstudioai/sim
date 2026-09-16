@@ -1,17 +1,204 @@
 import fs from 'fs'
 import path from 'path'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 import {
+  escapeMdxCell,
   extractAllBlockConfigs,
   extractBlockSuppliedParamIds,
+  extractInheritedBlockCategory,
   extractToolInfo,
   extractUserSettableParamIds,
+  generateIconMappings,
   getToolInfo,
   parseConstProperties,
   parsePropertiesContent,
 } from './generate-docs'
 
+describe('documentation editor icon metadata', () => {
+  it('keeps core icons and inherited categories out of the integration catalog', async () => {
+    const { docs, visible, coreBlockTypes } = await generateIconMappings()
+    expect(docs.wait.name).toBe('CirclePause')
+    expect(docs.schedule.name).toBe('Clock')
+    expect(docs.generic_webhook.name).toBe('Webhook')
+    expect(coreBlockTypes).toEqual(
+      expect.arrayContaining(['agent', 'file_v5', 'human_in_the_loop_v2'])
+    )
+    expect(visible.agent).toBeUndefined()
+    expect(visible.wait).toBeUndefined()
+    expect(visible.generic_webhook).toBeUndefined()
+  })
+
+  it('resolves nested inheritance, honors overrides, and stops at cycles', () => {
+    const source = `
+      export const BaseBlock: BlockConfig = { category: 'blocks' }
+      export const NextBlock: BlockConfig = {
+        ...BaseBlock,
+      }
+      export const CycleBlock: BlockConfig = {
+        ...CycleBlock,
+      }
+    `
+    expect(extractInheritedBlockCategory('{\n ...NextBlock,\n}', source)).toBe('blocks')
+    expect(extractInheritedBlockCategory("{\n ...NextBlock,\n category: 'tools'\n}", source)).toBe(
+      'tools'
+    )
+    expect(extractInheritedBlockCategory('{\n ...CycleBlock,\n}', source)).toBeNull()
+  })
+})
+
 describe('documentation tool metadata', () => {
+  it('preserves a satisfies block and replaces only the versioned download operation', () => {
+    const [block] = extractAllBlockConfigs(`
+      export const DownloadBlock = ({
+        type: 'download', name: 'Download (Legacy)', description: 'Download stored files',
+        category: 'tools', integrationType: IntegrationType.Documents, bgColor: '#123456',
+        hideFromToolbar: true,
+        subBlocks: [
+          { id: 'operation', type: 'dropdown', options: [
+            { id: 'download', label: 'Download' }, { id: 'list', label: 'List' },
+          ] },
+          { id: 'fileId', type: 'short-input' },
+        ],
+        tools: { access: ['download_file', 'download_list'] },
+        outputs: { file: { type: 'file' }, content: { type: 'string' } },
+      } as const) satisfies BlockConfig<Response>
+      export const DownloadV2Block: BlockConfig = {
+        ...DownloadBlock,
+        type: 'download_v2', name: 'Download', hideFromToolbar: false,
+        tools: { access: DownloadBlock.tools.access.map((toolId) =>
+          toolId === 'download_file' ? 'download_file_v2' : toolId
+        ) },
+        outputs: omit(DownloadBlock.outputs, ['content']),
+      }
+    `)
+    expect(block).toMatchObject({
+      type: 'download_v2',
+      description: 'Download stored files',
+      category: 'tools',
+      bgColor: '#123456',
+      tools: { access: ['download_file_v2', 'download_list'] },
+    })
+    expect(block.operations).toHaveLength(2)
+    expect(block.userSettableParamIds).toContain('fileId')
+    expect(block.outputs).toHaveProperty('file')
+    expect(block.outputs).not.toHaveProperty('content')
+  })
+
+  it('inherits tool descriptions and params but omits removed outputs from a versioned tool', () => {
+    const source = `
+      export const downloadTool = ({
+        id: 'example_download', description: 'Download a file',
+        params: { fileId: { type: 'string', required: true, description: 'File ID', } },
+        outputs: { file: { type: 'file', description: 'Stored file' }, content: { type: 'string' } },
+      }) satisfies ToolConfig<Params, Response>
+      export const downloadV2Tool: ToolConfig<Params, V2Response> = {
+        ...downloadTool, id: 'example_download_v2',
+        outputs: omit(downloadTool.outputs, ['content']),
+      }
+    `
+    const legacy = extractToolInfo('example_download', source)
+    const current = extractToolInfo('example_download_v2', source)
+    expect(legacy?.outputs).toHaveProperty('content')
+    expect(current?.description).toBe('Download a file')
+    expect(current?.params).toEqual([
+      { name: 'fileId', type: 'string', required: true, description: 'File ID' },
+    ])
+    expect(current?.outputs).toHaveProperty('file')
+    expect(current?.outputs).not.toHaveProperty('content')
+  })
+
+  it('keeps inherited block outputs available to unchanged operations', () => {
+    const source = fs.readFileSync(path.resolve('apps/sim/blocks/blocks/servicenow.ts'), 'utf8')
+    const current = extractAllBlockConfigs(source).find((block) => block.type === 'servicenow_v2')
+    expect(current?.outputs).toHaveProperty('record')
+    expect(current?.outputs).toHaveProperty('records')
+    expect(current?.outputs).toHaveProperty('attachments')
+    expect(current?.outputs).toHaveProperty('file')
+    expect(current?.outputs?.content.description).toBe('HTML body of a knowledge article')
+  })
+
+  it('merges explicit overrides after spreading omitted block outputs', () => {
+    const source = `
+      export const DownloadBlock = {
+        type: 'download', hideFromToolbar: true,
+        outputs: {
+          file: { type: 'file', description: 'Stored file' },
+          content: { type: 'string', description: 'Inline content' },
+          size: { type: 'number', description: 'File size' },
+          result: { type: 'json', description: 'Old result' },
+        },
+      } satisfies BlockConfig
+      export const DownloadV2Block: BlockConfig = {
+        ...DownloadBlock, type: 'download_v2', hideFromToolbar: false,
+        outputs: {
+          ...omit(DownloadBlock.outputs, ['content', 'size']),
+          result: { type: 'json', description: 'Provider result' },
+        },
+      }
+    `
+    const [current] = extractAllBlockConfigs(source)
+    expect(current.outputs).toEqual({
+      file: { type: 'file', description: 'Stored file' },
+      result: { type: 'json', description: 'Provider result' },
+    })
+  })
+
+  it.each([
+    ['sftp', ['file', 'uploadedFiles', 'entries'], ['content', 'fileName', 'size']],
+    ['ssh', ['file', 'stdout', 'content'], ['fileContent']],
+    ['quiver', ['files', 'id', 'usage', 'models'], ['file', 'svgContent']],
+    [
+      'microsoft_dataverse',
+      ['file', 'fileColumn', 'records'],
+      ['fileContent', 'fileSize', 'mimeType'],
+    ],
+  ])('keeps %s block fallback outputs after versioned omissions', (service, retained, removed) => {
+    const source = fs.readFileSync(path.resolve('apps/sim/blocks/blocks', `${service}.ts`), 'utf8')
+    const current = extractAllBlockConfigs(source).find((block) => block.type === `${service}_v2`)
+    for (const key of retained) expect(current?.outputs).toHaveProperty(key)
+    for (const key of removed) expect(current?.outputs).not.toHaveProperty(key)
+  })
+
+  it('preserves the existing block-output fallback for unchanged ServiceNow operations', async () => {
+    const tool = await getToolInfo('servicenow_create_incident')
+    expect(tool?.params.map((param) => param.name)).toContain('shortDescription')
+    expect(tool?.outputs).toEqual({})
+  }, 15_000)
+
+  it.each([
+    ['box', 'box_download_file_v2'],
+    ['dropbox', 'dropbox_download_v2'],
+    ['dub', 'dub_get_qr_code_v2'],
+    ['microsoft_dataverse', 'microsoft_dataverse_download_file_v2'],
+    ['servicenow', 'servicenow_download_attachment_v2'],
+    ['quiver', 'quiver_text_to_svg_v2'],
+    ['sftp', 'sftp_download_v2'],
+    ['ssh', 'ssh_download_file_v2'],
+  ])(
+    'documents the current %s block with its file-only download output',
+    async (service, toolId) => {
+      const source = fs.readFileSync(
+        path.resolve('apps/sim/blocks/blocks', `${service}.ts`),
+        'utf8'
+      )
+      const current = extractAllBlockConfigs(source).find((block) => block.type === `${service}_v2`)
+      expect(current?.description).toBeTruthy()
+      expect(current?.operations?.length).toBeGreaterThan(0)
+      expect(current?.tools?.access).toContain(toolId)
+      const info = await getToolInfo(toolId, current?.userSettableParamIds)
+      expect(info?.description).toBeTruthy()
+      expect(info?.params.length).toBeGreaterThan(0)
+      expect(info?.outputs).toHaveProperty(service === 'quiver' ? 'files' : 'file')
+      expect(info?.outputs).not.toHaveProperty('content')
+      expect(info?.outputs).not.toHaveProperty('fileContent')
+      expect(info?.outputs).not.toHaveProperty('svgContent')
+    },
+    15_000
+  )
+
   it('uses evaluated outputs for factory-defined tools', async () => {
     const approve = await getToolInfo('sailpoint_approve_access_request')
     const identity = await getToolInfo('sailpoint_get_identity')
@@ -941,5 +1128,88 @@ describe('template interpolation is lexed rather than brace-counted', () => {
     )
 
     expect(ids).toEqual(['a', 'b'])
+  })
+})
+
+describe('generated reference Markdown', () => {
+  it('renders example URLs without adding punctuation or escape characters to their destinations', () => {
+    const description = escapeMdxCell(
+      'Use a URL (e.g., https://example.com/file) or [https://example.com/other].'
+    )
+    const tree = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .parse(`| Description |\n| --- |\n| ${description} |`)
+    const table = tree.children[0]
+    if (table.type !== 'table') throw new Error('Expected a reference table')
+    const links = table.children[1].children[0].children.filter((node) => node.type === 'link')
+    expect(links.map((link) => link.url)).toEqual([
+      'https://example.com/file',
+      'https://example.com/other',
+    ])
+  })
+
+  it('retains one table cell for descriptions containing pipes and MDX expressions', () => {
+    const description = escapeMdxCell('Use {value} with <file> and a | b.')
+    const tree = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .parse(`| Description |\n| --- |\n| ${description} |`)
+    const table = tree.children[0]
+    if (table.type !== 'table') throw new Error('Expected a reference table')
+    expect(table.children[1].children).toHaveLength(1)
+    expect(table.children[1].children[0].children).toMatchObject([
+      { type: 'text', value: 'Use {value} with <file> and a | b.' },
+    ])
+  })
+  it('keeps Markdown link examples literal while preserving their automatic URL links', () => {
+    const input = 'Use [label](https://example.com/file) and ![image](https://example.com/image).'
+    const description = escapeMdxCell(input)
+    const tree = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .parse(`| Description |\n| --- |\n| ${description} |`)
+    const table = tree.children[0]
+    if (table.type !== 'table') throw new Error('Expected a reference table')
+    const children = table.children[1].children[0].children
+    expect(children).toMatchObject([
+      { type: 'text', value: 'Use [label](' },
+      {
+        type: 'link',
+        url: 'https://example.com/file',
+        children: [{ type: 'text', value: 'https://example.com/file' }],
+      },
+      { type: 'text', value: ') and ![image](' },
+      {
+        type: 'link',
+        url: 'https://example.com/image',
+        children: [{ type: 'text', value: 'https://example.com/image' }],
+      },
+      { type: 'text', value: ').' },
+    ])
+  })
+
+  it('preserves balanced parentheses in HTTP and www destinations', () => {
+    const description = escapeMdxCell('Use (https://example.com/a(b)) or www.example.com/a(b).')
+    const tree = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .parse(`| Description |\n| --- |\n| ${description} |`)
+    const table = tree.children[0]
+    if (table.type !== 'table') throw new Error('Expected a reference table')
+    const links = table.children[1].children[0].children.filter((node) => node.type === 'link')
+    expect(links.map((link) => link.url)).toEqual([
+      'https://example.com/a(b)',
+      'http://www.example.com/a(b)',
+    ])
+  })
+
+  it('retains existing escaping outside automatic URLs', () => {
+    expect(escapeMdxCell('Keep [field], field[0], and fn(arg).')).toBe(
+      'Keep \\[field\\], field\\[0\\], and fn\\(arg\\).'
+    )
+    expect(escapeMdxCell('Keep [field] and fn(arg) beside (https://example.com/file).')).toBe(
+      'Keep \\[field\\] and fn\\(arg\\) beside \\(https://example.com/file).'
+    )
   })
 })

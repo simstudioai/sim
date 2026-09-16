@@ -1,41 +1,31 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Button, Chip, OverflowText } from '@sim/emcn'
-import { FileText } from '@sim/emcn/icons'
-import { formatDate } from '@sim/utils/formatting'
+import { useState } from 'react'
+import { Chip, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
-import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
+import { ActivityStatus } from '@/components/ui/activity-status'
+import type {
+  WorkspaceKnowledgeSearchResult,
+  WorkspaceSearchFilters,
+} from '@/lib/api/contracts/knowledge'
+import { useSession } from '@/lib/auth/auth-client'
+import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
-import { searchedKnowledgeBases } from '@/lib/sim-search/knowledge-bases'
-import {
-  highlightTerms,
-  SOURCE_ROW_CLASSES,
-  SOURCE_ROW_MARK_CLASSES,
-  SourceCard,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
+import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import {
   isHttpUrl,
   type SourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { isIndexing } from '@/app/workspace/[workspaceId]/home/components/search-sources'
 import {
   resourceUrlKeys,
   searchFilterParsers,
   UPDATED_WINDOWS,
 } from '@/app/workspace/[workspaceId]/home/search-params'
-import {
-  useWorkspaceMemberConnectors,
-  type WorkspaceMemberConnector,
-} from '@/hooks/queries/kb/connectors'
-import { useKnowledgeBasesQuery, useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
-import { useMemberAccessAvailable } from '@/hooks/use-member-access'
+import { useSearchIndex, useSearchSourceOverview } from '@/hooks/queries/kb/connectors'
+import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
-const EMPTY_MEMBER_CONNECTORS: WorkspaceMemberConnector[] = []
-
-/** Filters appear only once a list is long and mixed enough for them to help. */
-const FILTERS_MIN_RESULTS = 10
 const DAY_MS = 24 * 60 * 60 * 1000
 /** Every result without a connector is an upload; the filter names them so. */
 const UPLOAD_SOURCE = 'upload'
@@ -58,34 +48,19 @@ export function groupResultsByDocument(
 }
 
 /**
- * The names of the sources still indexing for the viewer among the bases the
- * search spans, each once. A base outside the search cannot grow its results,
- * so its indexing is not the reader's concern here.
- */
-export function indexingSourceNames(
-  memberConnectors: readonly WorkspaceMemberConnector[],
-  knowledgeBaseIds: readonly string[]
-): string[] {
-  const searched = new Set(knowledgeBaseIds)
-  return [
-    ...new Set(
-      memberConnectors
-        .filter((connection) => searched.has(connection.knowledgeBaseId) && isIndexing(connection))
-        .map((connection) => connectorDisplayName(connection.connectorType))
-    ),
-  ]
-}
-
-/**
  * A result as the source card renders it: the row's second line names the
- * source app, or the knowledge base for an upload. A document without an
- * http(s) source URL cannot be opened, and a connector-supplied value of any
- * other scheme is never handed to the browser as a link.
+ * source app, or the knowledge base for an upload. Without an HTTP(S) source
+ * URL, the link opens the canonical document in Sim.
  */
-function toSource(result: WorkspaceKnowledgeSearchResult, query: string): SourceTagData | null {
-  if (!isHttpUrl(result.sourceUrl)) return null
+function toSource(
+  result: WorkspaceKnowledgeSearchResult,
+  query: string,
+  scope: ResourceScope
+): SourceTagData {
   return {
-    url: result.sourceUrl,
+    url: isHttpUrl(result.sourceUrl)
+      ? result.sourceUrl
+      : `${getBaseUrl()}${scope.kind === 'organization' ? `/o/${encodeURIComponent(scope.organizationId)}` : `/workspace/${encodeURIComponent(scope.workspaceId)}`}/knowledge/${encodeURIComponent(result.knowledgeBaseId)}/${encodeURIComponent(result.documentId)}`,
     title: result.documentName ?? undefined,
     siteName: result.connectorType
       ? connectorDisplayName(result.connectorType)
@@ -106,6 +81,7 @@ function handleResultsKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
   const links = [...event.currentTarget.querySelectorAll<HTMLAnchorElement>('a[data-source-link]')]
   if (links.length === 0) return
   const index = links.findIndex((link) => link === document.activeElement)
+  if (index < 0) return
   const next =
     event.key === 'ArrowDown' ? Math.min(index + 1, links.length - 1) : Math.max(index - 1, 0)
   if (next === index) return
@@ -113,131 +89,101 @@ function handleResultsKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
   links[next].focus()
 }
 
-interface UnlinkedResultRowProps {
-  result: WorkspaceKnowledgeSearchResult
+type KnowledgeSearchResultsProps = (
+  | { workspaceId: string; scope?: never }
+  | { scope: ResourceScope; workspaceId?: never }
+) & {
   query: string
+  /** Binds the Assistant turn to the selected canonical document. */
+  onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
 }
 
-/**
- * A document with nowhere to open, such as an upload: the same row as a
- * linked result, with the file mark in place of a brand mark, so the list's
- * columns and the matched passage stay aligned whatever the document is.
- */
-function UnlinkedResultRow({ result, query }: UnlinkedResultRowProps) {
-  const meta = [
-    result.knowledgeBaseName,
-    result.author,
-    result.sourceModifiedAt ? formatDate(new Date(result.sourceModifiedAt)) : null,
-  ].filter((part): part is string => Boolean(part))
+/** A new query or access scope starts a fresh search and rolling-date anchor. */
+export function KnowledgeSearchResults({
+  workspaceId,
+  scope: suppliedScope,
+  query,
+  onSummarize,
+}: KnowledgeSearchResultsProps) {
+  const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
+  const { data: session } = useSession()
+  const trimmed = query.trim()
   return (
-    <div className={SOURCE_ROW_CLASSES}>
-      <span className={SOURCE_ROW_MARK_CLASSES}>
-        <FileText className='size-[16px] text-[var(--text-icon)]' />
-      </span>
-      <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-        <OverflowText
-          label={result.documentName ?? 'Untitled document'}
-          className='text-[var(--text-primary)] text-sm'
-        />
-        <OverflowText label={meta.join(' · ')} className='text-[var(--text-muted)] text-caption' />
-        <p className='line-clamp-2 text-[var(--text-body)] text-small leading-snug'>
-          {highlightTerms(matchSnippet(result.content, query), query)}
-        </p>
-      </div>
-    </div>
+    <SearchResults
+      key={JSON.stringify([resourceScopeKey(scope), session?.user?.id, trimmed])}
+      scope={scope}
+      query={trimmed}
+      onSummarize={onSummarize}
+    />
   )
 }
 
-interface KnowledgeSearchResultsProps {
-  workspaceId: string
+interface SearchResultsProps {
+  scope: ResourceScope
   query: string
-  /** Asks the agent about one document; the prompt names it and links to it. */
-  onSummarize: (prompt: string) => void
-  /** Asks the agent the query itself, for a prose answer with citations. */
-  onAnswer: (query: string) => void
+  onSummarize: KnowledgeSearchResultsProps['onSummarize']
 }
 
-/**
- * The composer's Search mode: the documents the signed-in person may read that
- * match their query, across every knowledge base in the workspace, as rows
- * that open the source. A header says how many and that the search ran as
- * them; while a connected source is still indexing it says so, and the list
- * grows as documents land. Filters by source and recency appear only once the
- * list is long and mixed enough to need them, and live in the URL beside the
- * query so a filtered search is a shareable link.
- */
-export function KnowledgeSearchResults({
-  workspaceId,
-  query,
-  onSummarize,
-  onAnswer,
-}: KnowledgeSearchResultsProps) {
+function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
+  const [searchedAt] = useState(Date.now)
   const {
-    data: knowledgeBases = [],
+    data: index,
     isPending: basesPending,
-    error: basesError,
-  } = useKnowledgeBasesQuery(workspaceId)
-  const knowledgeBaseIds = searchedKnowledgeBases(knowledgeBases, workspaceId).map((kb) => kb.id)
+    isError: basesFailed,
+    isFetching: basesFetching,
+    refetch: refetchIndex,
+  } = useSearchIndex(scope)
+  const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
+  const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
+  const searchFilters: WorkspaceSearchFilters = {
+    ...(filters.source ? { source: filters.source } : {}),
+    ...(window?.days
+      ? { modifiedAfter: new Date(searchedAt - window.days * DAY_MS).toISOString() }
+      : {}),
+  }
   const {
-    data: results,
+    data: search,
     isPending,
     isFetching,
     isPlaceholderData,
-    error,
-  } = useWorkspaceKnowledgeSearch(workspaceId, knowledgeBaseIds, query)
-  /**
-   * With per-member access off, member-scoped documents are hidden, so the
-   * indexing list is not worth asking for.
-   */
-  const memberAccessAvailable = useMemberAccessAvailable()
-  const { data: memberConnectorRows } = useWorkspaceMemberConnectors(workspaceId, {
-    enabled: memberAccessAvailable,
-  })
-  /** Rows cached before the feature went off are not this surface's to show. */
-  const memberConnectors = memberAccessAvailable
-    ? (memberConnectorRows ?? EMPTY_MEMBER_CONNECTORS)
-    : EMPTY_MEMBER_CONNECTORS
-  const indexing = indexingSourceNames(memberConnectors, knowledgeBaseIds)
-  const documents = useMemo(() => groupResultsByDocument(results ?? []), [results])
-  const sourceTypes = useMemo(
-    () => [...new Set(documents.map((result) => result.connectorType ?? UPLOAD_SOURCE))],
-    [documents]
-  )
-  const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
-  const filtersActive = filters.source !== null || filters.updated !== 'any'
-  /** The controls appear once the list is long and mixed, and stay while a filter from the link is active. */
-  const showFilters =
-    filtersActive || (documents.length >= FILTERS_MIN_RESULTS && sourceTypes.length > 1)
-  const visible = useMemo(() => {
-    if (!filtersActive) return documents
-    const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
-    const cutoff = window?.days ? Date.now() - window.days * DAY_MS : null
-    return documents.filter((result) => {
-      if (filters.source && (result.connectorType ?? UPLOAD_SOURCE) !== filters.source) return false
-      if (cutoff !== null) {
-        const modified = result.sourceModifiedAt ? Date.parse(result.sourceModifiedAt) : Number.NaN
-        if (Number.isNaN(modified) || modified < cutoff) return false
-      }
-      return true
-    })
-  }, [documents, filtersActive, filters.source, filters.updated])
+    isError: searchFailed,
+    refetch: refetchSearch,
+  } = useWorkspaceKnowledgeSearch(scope, query, searchFilters)
+  const { data: overview } = useSearchSourceOverview(scope)
+  const indexing = (overview?.providers ?? [])
+    .filter((provider) => provider.isSyncing)
+    .map((provider) => connectorDisplayName(provider.connectorType))
+  const documents = groupResultsByDocument(search?.results ?? [])
+  const sourceTypes = [
+    ...new Set([
+      ...(filters.source ? [filters.source] : []),
+      ...(overview?.providers.map((provider) => provider.connectorType) ?? []),
+      UPLOAD_SOURCE,
+    ]),
+  ].sort((left, right) => connectorDisplayName(left).localeCompare(connectorDisplayName(right)))
+  const failed = basesFailed || searchFailed
+  const pending = basesPending || isPending
+  const fetching = basesFetching || isFetching
+  const noSources = !basesPending && !basesFailed && !index?.knowledgeBaseId
+  const partial = search?.retrieval.status === 'partial'
+  const documentCount = documents.length === 1 ? '1 document' : `${documents.length} documents`
 
-  const failure = basesError ?? error
-  if (failure) {
-    return <p className='px-2 py-2 text-[var(--text-error)] text-caption'>{failure.message}</p>
-  }
-  if (!basesPending && knowledgeBaseIds.length === 0) {
+  if (noSources) {
     return (
-      <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-        Nothing to search yet. Clear the query and connect a source to index what you can open.
-      </p>
+      <div className='flex items-center gap-2 px-2 py-2'>
+        <p className='text-[var(--text-muted)] text-caption'>No sources are set up yet.</p>
+        <ChipLink
+          href={
+            scope.kind === 'organization'
+              ? `/o/${scope.organizationId}/integrations`
+              : `/workspace/${scope.workspaceId}/knowledge`
+          }
+        >
+          View sources
+        </ChipLink>
+      </div>
     )
   }
-  /** Kept results belong to the previous query; a new query shows its own state. */
-  if (isPending || isPlaceholderData || (isFetching && !results)) {
-    return <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>Searching…</p>
-  }
-
   const indexingNote =
     indexing.length > 0
       ? `Still indexing ${indexing.join(', ')}; results grow as documents land.`
@@ -246,70 +192,98 @@ export function KnowledgeSearchResults({
   return (
     <div className='flex flex-col'>
       <div className='flex items-center gap-2 px-2 py-2'>
-        <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
-          <span className='tabular-nums'>
-            {documents.length === 1 ? '1 document' : `${documents.length} documents`}
-          </span>
-          {' · searched as you'}
-          {indexingNote && <span className='block'>{indexingNote}</span>}
-        </span>
-        <Button variant='ghost' size='sm' onClick={() => onAnswer(query)}>
-          Answer with Sim
-        </Button>
-      </div>
-      {showFilters && (
-        <div className='flex flex-wrap items-center gap-1.5 px-2 pb-2'>
-          <Chip
-            shape='round'
-            active={filters.source === null}
-            onClick={() => setFilters({ source: null })}
-          >
-            All sources
-          </Chip>
-          {sourceTypes.map((type) => (
-            <Chip
-              key={type}
-              shape='round'
-              active={filters.source === type}
-              onClick={() => setFilters({ source: filters.source === type ? null : type })}
-            >
-              {type === UPLOAD_SOURCE ? 'Uploads' : connectorDisplayName(type)}
-            </Chip>
-          ))}
-          <span aria-hidden className='mx-0.5 h-[16px] w-px bg-[var(--border)]' />
-          {UPDATED_WINDOWS.map((window) => (
-            <Chip
-              key={window.id}
-              shape='round'
-              active={filters.updated === window.id}
-              onClick={() => setFilters({ updated: window.id })}
-            >
-              {window.label}
-            </Chip>
-          ))}
+        <div className='min-w-0 flex-1'>
+          {fetching || (pending && !failed) ? (
+            <ActivityStatus label={pending ? 'Searching…' : 'Updating results…'} isActive />
+          ) : (
+            <p role='status' className='text-[var(--text-muted)] text-caption'>
+              {failed
+                ? 'Search couldn’t run.'
+                : partial
+                  ? documents.length === 0
+                    ? 'Search didn’t finish.'
+                    : `${documentCount} · some results may be missing.`
+                  : documents.length === 0
+                    ? 'Search found no results.'
+                    : `${documentCount} · searched as you`}
+            </p>
+          )}
+          {indexingNote && !failed && (
+            <p className='text-[var(--text-muted)] text-caption'>{indexingNote}</p>
+          )}
         </div>
-      )}
-      {visible.length === 0 ? (
-        <p className='px-2 py-2 text-[var(--text-muted)] text-caption'>
-          {documents.length === 0
-            ? `No documents you can read match “${query}”.`
-            : 'No documents match these filters.'}
-        </p>
-      ) : (
-        <div className='flex flex-col' onKeyDown={handleResultsKeyDown}>
-          {visible.map((result) => {
-            const source = toSource(result, query)
-            return source ? (
+        {(failed || partial) && (
+          <Chip
+            variant='border'
+            disabled={fetching}
+            onClick={() => void (basesFailed ? refetchIndex() : refetchSearch())}
+          >
+            {fetching ? 'Retrying…' : 'Try again'}
+          </Chip>
+        )}
+      </div>
+      <div
+        role='group'
+        aria-label='Search filters'
+        className='flex flex-wrap items-center gap-1.5 px-2 pb-2'
+      >
+        <Chip
+          shape='round'
+          active={filters.source === null}
+          aria-pressed={filters.source === null}
+          onClick={() => setFilters({ source: null })}
+        >
+          All sources
+        </Chip>
+        {sourceTypes.map((type) => (
+          <Chip
+            key={type}
+            shape='round'
+            active={filters.source === type}
+            aria-pressed={filters.source === type}
+            onClick={() => setFilters({ source: filters.source === type ? null : type })}
+          >
+            {type === UPLOAD_SOURCE ? 'Uploads' : connectorDisplayName(type)}
+          </Chip>
+        ))}
+        <span aria-hidden className='mx-0.5 h-[16px] w-px bg-[var(--border)]' />
+        {UPDATED_WINDOWS.map((window) => (
+          <Chip
+            key={window.id}
+            shape='round'
+            active={filters.updated === window.id}
+            aria-pressed={filters.updated === window.id}
+            onClick={() => setFilters({ updated: window.id })}
+          >
+            {window.label}
+          </Chip>
+        ))}
+      </div>
+      {!failed && !basesPending && documents.length > 0 && (
+        <div
+          role='region'
+          aria-label='Search results'
+          aria-busy={isFetching}
+          className={cn('flex flex-col', isPlaceholderData && 'opacity-60')}
+          onKeyDown={handleResultsKeyDown}
+        >
+          {documents.map((result) => {
+            const source = toSource(result, query, scope)
+            return (
               <SourceCard
                 key={result.documentId}
                 source={source}
                 query={query}
-                onSummarize={(cited) =>
-                  onSummarize(`Summarize "${cited.title ?? cited.url}" (${cited.url})`)
+                onSummarize={
+                  isPlaceholderData
+                    ? undefined
+                    : (cited) =>
+                        onSummarize(`Summarize "${cited.title ?? cited.url}"`, {
+                          ...searchFilters,
+                          documentIds: [result.documentId],
+                        })
                 }
               />
-            ) : (
-              <UnlinkedResultRow key={result.documentId} result={result} query={query} />
             )
           })}
         </div>

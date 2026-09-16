@@ -47,5 +47,11 @@ export function StatusNotice({ preview = false }: StatusNoticeProps) {
     return null
   }
 
-  return <StatusAlert />
+  /* The gutter lives here rather than on the sidebar's slot: a slot padded for a
+     notice that renders nothing would hold an empty band above the footer. */
+  return (
+    <div className='shrink-0 px-2 py-2'>
+      <StatusAlert />
+    </div>
+  )
 }

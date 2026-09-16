@@ -1,10 +1,10 @@
 import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
-import type { MenuItemConstructorOptions } from 'electron'
+import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, Menu, nativeImage } from 'electron'
+import { BrowserWindow, Menu, type nativeImage } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import * as driverModule from '@/main/browser-agent/driver'
 import * as session from '@/main/browser-agent/session'
@@ -77,7 +77,7 @@ describe('executeTool', () => {
   })
 
   it('validates navigation URLs before touching the session', async () => {
-    const grant = vi.spyOn(session, 'grantSiteOriginForAgentNavigation')
+    const prepare = vi.spyOn(session, 'prepareExplicitNavigation')
     const result = await driver.executeTool('chat-test', 'browser_navigate', {
       url: 'file:///etc/passwd',
     })
@@ -85,7 +85,7 @@ describe('executeTool', () => {
       ok: false,
       error: 'URL must be absolute and start with http:// or https://',
     })
-    expect(grant).not.toHaveBeenCalled()
+    expect(prepare).not.toHaveBeenCalled()
   })
 
   it('reports missing required parameters by name', async () => {
@@ -94,8 +94,7 @@ describe('executeTool', () => {
     expect(result.error).toMatch(/Missing required parameter "url"/)
   })
 
-  it('grants only SSRF-checked agent navigation destinations before loading them', async () => {
-    const grant = vi.spyOn(session, 'grantSiteOriginForAgentNavigation')
+  it('loads SSRF-checked agent navigation destinations', async () => {
     const navigations = [
       ['browser_navigate', 'http://127.0.0.1:4011/navigate'],
       ['browser_open_url', 'http://127.0.0.1:4012/open'],
@@ -106,9 +105,9 @@ describe('executeTool', () => {
       await expect(driver.executeTool('chat-test', tool, { url })).resolves.toMatchObject({
         ok: true,
       })
-      expect(grant).toHaveBeenCalledWith(expect.anything(), url)
+      const contents = session.requireAutomationTab().view.webContents
+      expect(contents.loadURL).toHaveBeenCalledWith(url)
     }
-    expect(grant).toHaveBeenCalledTimes(navigations.length)
   })
 
   it('keeps the 400ms hydration grace without rediscovering a completed load', async () => {
@@ -486,8 +485,11 @@ describe('executeTool', () => {
       )
       await Promise.resolve()
       expect(captureScreenshot).toHaveBeenCalledOnce()
+      const signal = captureScreenshot.mock.calls[0][2]
+      expect(signal?.aborted).toBe(false)
 
       driver.disposeBrowserScope('chat-test')
+      expect(signal?.aborted).toBe(true)
       automationTab.mockClear()
       await expect(screenshot).resolves.toMatchObject({
         ok: false,
@@ -1140,8 +1142,8 @@ describe('executeTool', () => {
     expect(respond).toHaveBeenCalledWith('request-1', true)
   })
 
-  it('routes an exact renderer site decision through the scoped session boundary', async () => {
-    const respond = vi.spyOn(session, 'respondToSitePermission').mockReturnValue(true)
+  it('ignores retired site decisions without changing tab ownership', async () => {
+    const claim = vi.spyOn(session, 'claimActiveTabForUser')
 
     await driver.handlePanelAction('chat-test', {
       action: 'respond-site-permission',
@@ -1153,22 +1155,18 @@ describe('executeTool', () => {
       requestId: 'request-2',
     })
 
-    expect(respond).toHaveBeenCalledOnce()
-    expect(respond).toHaveBeenCalledWith('request-1', true)
+    expect(claim).not.toHaveBeenCalled()
   })
 
-  it('grants only the exact origin entered through the user omnibox', async () => {
+  it('loads the exact URL entered through the user omnibox', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
-    const grant = vi.spyOn(session, 'grantSiteOriginForUserNavigation')
 
     await driver.handlePanelAction('chat-test', {
       action: 'navigate',
       url: 'https://docs.example/private?token=secret',
     })
 
-    expect(grant).toHaveBeenCalledOnce()
-    expect(grant).toHaveBeenCalledWith(contents, 'https://docs.example/private?token=secret')
     expect(contents.loadURL).toHaveBeenCalledWith('https://docs.example/private?token=secret')
   })
 
@@ -1275,6 +1273,18 @@ describe('executeTool', () => {
     await driver.executeTool('pending:other-chat', 'browser_open_tab', {})
     await driver.executeTool('chat-occupied', 'browser_open_tab', {})
     expect(driver.migrateBrowserScope('pending:other-chat', 'chat-occupied')).toBe(false)
+  })
+
+  it('keeps a durable destination adoptable after an empty restore', async () => {
+    await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
+    driver.activateBrowserScope('chat-real')
+    expect(driver.restoreBrowserScope('chat-real')).toMatchObject({ tabs: [] })
+
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+    await expect(driver.executeTool('chat-real', 'browser_list_tabs', {})).resolves.toMatchObject({
+      ok: true,
+      result: { scopeId: 'chat-real', tabs: [{ tabId: '1' }] },
+    })
   })
 
   it('cancels only the replaced destination authorizations during migration', async () => {
@@ -1395,7 +1405,7 @@ describe('executeTool', () => {
   it('keeps activation lazy, then restores and disposes through the driver API', async () => {
     const snapshot: BrowserSessionSnapshot = {
       v: 1,
-      tabs: [{ url: 'https://restored.example/', pinned: false }],
+      tabs: [{ url: 'https://restored.example/' }],
       activeIndex: 0,
       downloads: [],
     }
@@ -2135,6 +2145,50 @@ describe('credential protection', () => {
     return { contents, values, writes, dialogs, selectionReads: () => selectionReads }
   }
 
+  it.each([
+    { values: ['a', 'b'], labels: ['A', 'B'], expected: true },
+    { values: ['a'], labels: ['A'], expected: false },
+    { values: ['a', 'b'], labels: ['A', 'Other'], expected: false },
+  ])(
+    'verifies the entire multiple selection %j',
+    async ({ values: readbackValues, labels, expected }) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        selectOptionInElement: {
+          selected: 'A',
+          value: 'a',
+          values: ['a', 'b'],
+          labels: ['A', 'B'],
+        },
+        readSelectElementState: { selected: 'A', value: 'a', values: readbackValues, labels },
+      })
+      const result = await driver.executeTool('chat-test', 'browser_select_option', {
+        elementId: 0,
+        values: ['a', 'b'],
+      })
+      expect(result, JSON.stringify(result)).toMatchObject({
+        ok: true,
+        result: { effectObserved: expected, readback: { values: readbackValues } },
+      })
+    }
+  )
+
+  it.each([
+    { value: 'a', values: ['b'] },
+    { values: [1] },
+    { values: Array.from({ length: 101 }, () => 'a') },
+    {},
+  ])('rejects invalid selection arguments before dispatch', async (params) => {
+    const contents = await openPage()
+    vi.mocked(contents.executeJavaScript).mockClear()
+    const result = await driver.executeTool('chat-test', 'browser_select_option', {
+      elementId: 0,
+      ...params,
+    })
+    expect(result.ok).toBe(false)
+    expect(contents.executeJavaScript).not.toHaveBeenCalled()
+  })
+
   const formFields = [
     { elementId: 1, kind: 'select', value: 'first' },
     { elementId: 2, kind: 'select', value: 'second' },
@@ -2275,8 +2329,11 @@ describe('credential protection', () => {
     expect(form.writes).toEqual([0])
   })
 
-  function mockScreenshotImage(size: { width: number; height: number } | null): void {
-    vi.mocked(nativeImage.createFromBuffer).mockReturnValueOnce({
+  function mockScreenshotImage(
+    contents: WebContents,
+    size: { width: number; height: number } | null
+  ): void {
+    vi.mocked(contents.capturePage).mockResolvedValue({
       isEmpty: vi.fn(() => size === null),
       getSize: vi.fn(() => size ?? { width: 0, height: 0 }),
       resize: vi.fn(() => ({ toJPEG: vi.fn(() => Buffer.from('resized')) })),
@@ -2460,6 +2517,97 @@ describe('credential protection', () => {
       },
     })
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
+  })
+
+  it('sets structured input values without dispatching text or select-all keystrokes', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      focusElementForTyping: { focused: true, kind: 'input', valueInput: true, x: 24, y: 48 },
+      setFocusedInputValue: { dispatched: true },
+      readActiveElementState: { activeElement: 'input', valueLength: 10 },
+      readPageActionState: {},
+    })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: '2026-09-15',
+    })
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true, trusted: false } })
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
+  })
+
+  it('does not retry a rejected structured value through synthetic typing', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      focusElementForTyping: { focused: true, kind: 'input', valueInput: true, x: 24, y: 48 },
+      setFocusedInputValue: { error: 'Invalid value; the field was not changed.' },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'invalid-date',
+    })
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Invalid value') })
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.filter(([expression]) => isPageCall(String(expression), 'typeIntoElement'))
+    ).toHaveLength(0)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+  })
+
+  it('reports an interrupted structured write as uncertain without replaying it', async () => {
+    const contents = await openPage()
+    let writes = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'focusElementForTyping'))
+        return Promise.resolve({ focused: true, valueInput: true, x: 24, y: 48 })
+      if (isPageCall(expression, 'setFocusedInputValue')) {
+        writes++
+        return Promise.reject(new Error('Execution context was destroyed'))
+      }
+      return Promise.resolve({})
+    })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: '2026-09-15',
+    })
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('may have reached the field and was not retried'),
+    })
+    expect(writes).toBe(1)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'typeIntoElement'))
+    ).toBe(false)
+  })
+
+  it('refuses a field whose input mode changes before dispatch', async () => {
+    const contents = await openPage()
+    let reads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'focusElementForTyping'))
+        return Promise.resolve({ focused: true, valueInput: ++reads === 1, x: 24, y: 48 })
+      return Promise.resolve({})
+    })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: '2026-09-15',
+    })
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('field type changed'),
+    })
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'setFocusedInputValue'))
+    ).toBe(false)
   })
 
   it('accepts empty text and sends it through native insertion to clear a field', async () => {
@@ -3959,7 +4107,11 @@ describe('credential protection', () => {
     try {
       const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
 
-      expect(capture).toHaveBeenCalledWith(contents, { x: 20, y: 30, width: 200, height: 100 })
+      expect(capture).toHaveBeenCalledWith(
+        contents,
+        { x: 20, y: 30, width: 200, height: 100 },
+        expect.any(AbortSignal)
+      )
       expect(result).toMatchObject({
         ok: true,
         result: { element: 'button', clip: { x: 20, y: 30, width: 200, height: 100 } },
@@ -4002,15 +4154,12 @@ describe('credential protection', () => {
 
   it('returns the screenshot scale for coordinate mapping', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
           cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
         })
-      }
-      if (method === 'Page.captureScreenshot') {
-        return Promise.resolve({ data: 'c2lt' })
       }
       return Promise.resolve(undefined)
     })
@@ -4039,13 +4188,10 @@ describe('credential protection', () => {
 
   it('uses the in-page CSS viewport when CDP exposes only deprecated device metrics', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
-      }
-      if (method === 'Page.captureScreenshot') {
-        return Promise.resolve({ data: 'c2lt' })
       }
       return Promise.resolve(undefined)
     })
@@ -4095,12 +4241,11 @@ describe('credential protection', () => {
     const fullTitle = `Example ${'t'.repeat(600)}`
     vi.mocked(contents.getURL).mockReturnValue(fullUrl)
     vi.mocked(contents.getTitle).mockReturnValue(fullTitle)
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
     respondWith(contents, {
@@ -4128,33 +4273,31 @@ describe('credential protection', () => {
     })
   })
 
-  it('rejects an undecodable screenshot instead of returning an unverified scale', async () => {
+  it('rejects an empty screenshot instead of returning an unverified scale', async () => {
     const contents = await openPage()
-    mockScreenshotImage(null)
+    mockScreenshotImage(contents, null)
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
           cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
         })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
 
     const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
 
     expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/verify the screenshot dimensions/)
+    expect(result.error).toMatch(/empty image/)
   })
 
   it('rejects a screenshot when no CSS viewport can be established', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
     respondWith(contents, { getViewportInfo: null })
@@ -4167,12 +4310,11 @@ describe('credential protection', () => {
 
   it('rejects coordinate mapping when the viewport changes during capture', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 256 })
+    mockScreenshotImage(contents, { width: 1024, height: 256 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 1024, clientHeight: 256 } })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
     respondWith(contents, {
@@ -4192,18 +4334,20 @@ describe('credential protection', () => {
 
   it('rejects a screenshot when the document navigates during capture', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
           cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
         })
       }
-      if (method === 'Page.captureScreenshot') {
-        emitContentsEvent(contents, 'did-navigate')
-        return Promise.resolve({ data: 'c2lt' })
-      }
       return Promise.resolve(undefined)
+    })
+
+    const image = await contents.capturePage()
+    vi.mocked(contents.capturePage).mockImplementation(async () => {
+      emitContentsEvent(contents, 'did-navigate')
+      return image
     })
 
     const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
@@ -4216,7 +4360,7 @@ describe('credential protection', () => {
     'rejects a screenshot when the page %s changes during capture',
     async (identityField) => {
       const contents = await openPage()
-      mockScreenshotImage({ width: 1024, height: 512 })
+      mockScreenshotImage(contents, { width: 1024, height: 512 })
       const initialUrl = contents.getURL()
       const initialTitle = contents.getTitle()
       let currentUrl = initialUrl
@@ -4229,12 +4373,14 @@ describe('credential protection', () => {
             cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
           })
         }
-        if (method === 'Page.captureScreenshot') {
-          if (identityField === 'url') currentUrl = 'https://example.com/changed'
-          else currentTitle = 'Changed title'
-          return Promise.resolve({ data: 'c2lt' })
-        }
         return Promise.resolve(undefined)
+      })
+
+      const image = await contents.capturePage()
+      vi.mocked(contents.capturePage).mockImplementation(async () => {
+        if (identityField === 'url') currentUrl = 'https://example.com/changed'
+        else currentTitle = 'Changed title'
+        return image
       })
 
       const result = await driver.executeTool('chat-test', 'browser_screenshot', {})

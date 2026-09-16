@@ -1,15 +1,26 @@
 import { Table as TableIcon } from '@sim/emcn/icons'
-import { AgentIcon, CodeIcon, SlackIcon, StartIcon } from '@/components/icons'
-import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
-import { BLOCK_WIDTH } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
+import { CONNECTION_KNOB_PEAK_PX } from '@sim/workflow-renderer'
+import {
+  AgentIcon,
+  ApiIcon,
+  CodeIcon,
+  ConditionalIcon,
+  SlackIcon,
+  StartIcon,
+} from '@/components/icons'
+import {
+  BLOCK_WIDTH,
+  type BlockDef,
+  blockHeight,
+} from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
  * Design-space geometry for the hero's live workflow stage - the lead-enrichment
- * flow the chat conversation "builds": Start feeds the enrichment agent, a
- * scoring function follows, and the flow fans out to Slack and Tables. Block
- * tiles use the platform's grey text ramp (each block a different shade, dark
- * enough to carry the white glyph) - color is reserved for REAL third-party
- * marks, so only Slack keeps its brand tile (#611F69).
+ * flow the chat conversation "builds": Start feeds a research agent, normalized
+ * company data is scored, and a condition routes qualified leads through Slack
+ * into Tables while the alternate path verifies the company through an API.
+ * The graph follows production's left-input/right-output topology and extends
+ * beyond the initial viewport so the homepage canvas has useful space to pan.
  *
  * Blocks are ordered by build sequence - the stage reveals `blocks[0..built-1]`
  * as the loop's build counter advances, and an edge draws once both its
@@ -19,63 +30,116 @@ export const STAGE_BLOCKS: BlockDef[] = [
   {
     id: 'start',
     name: 'Start',
+    type: 'start_trigger',
+    typeLabel: 'Start',
     icon: StartIcon,
     bgColor: 'var(--text-muted)',
     isTrigger: true,
-    rows: [{ title: 'Inputs', value: '-' }],
-    x: 155,
-    y: 12,
+    rows: [],
+    x: 40,
+    y: 310,
   },
   {
     id: 'enrich',
     name: 'Enrich lead',
+    type: 'agent',
+    typeLabel: 'Agent',
     icon: AgentIcon,
     bgColor: 'var(--text-primary)',
-    rows: [
-      { title: 'Messages', value: '-' },
-      { title: 'Model', value: '-' },
-      { title: 'Files', value: '-' },
-    ],
-    x: 155,
-    y: 172,
+    sentence: {
+      segments: ['Prompt', { subBlockId: 'model', noun: 'model' }],
+      values: { model: 'GPT-6 Astra' },
+    },
+    rows: [],
+    x: 390,
+    y: 278,
   },
   {
     id: 'score',
-    name: 'Score fit',
+    name: 'Score company fit',
+    type: 'function',
+    typeLabel: 'Function',
     icon: CodeIcon,
-    bgColor: 'var(--text-secondary)',
+    bgColor: '#FF402F',
+    sentence: {
+      segments: ['Run', { subBlockId: 'code', noun: 'code' }],
+      values: { code: 'code' },
+    },
+    rows: [],
+    x: 740,
+    y: 278,
+  },
+  {
+    id: 'route',
+    name: 'Qualified lead?',
+    type: 'condition',
+    typeLabel: 'Condition',
+    icon: ConditionalIcon,
+    bgColor: '#FF752F',
     rows: [
-      { title: 'Code', value: '-' },
-      { title: 'Timeout', value: '-' },
+      { title: 'If', value: 'score ≥ 80' },
+      { title: 'Else', value: 'score < 80' },
     ],
-    x: 155,
-    y: 390,
+    x: 1090,
+    y: 266,
   },
   {
     id: 'slack',
-    name: 'Post to #sales',
+    name: 'Post qualified lead',
+    type: 'slack',
+    typeLabel: 'Slack',
+    isIntegration: true,
     icon: SlackIcon,
     bgColor: '#611F69',
-    isTerminal: true,
-    rows: [
-      { title: 'Channel', value: '-' },
-      { title: 'Message', value: '-' },
-    ],
-    x: 0,
-    y: 580,
+    sentence: {
+      segments: [
+        'Post',
+        { subBlockId: 'message', noun: 'message' },
+        'to',
+        { subBlockId: 'channel', noun: 'channel' },
+      ],
+      values: { message: 'lead summary', channel: '#sales' },
+    },
+    rows: [],
+    x: 1440,
+    y: 170,
   },
   {
     id: 'tables',
-    name: 'Save to Tables',
+    name: 'Save qualified lead',
+    type: 'table',
+    typeLabel: 'Table',
     icon: TableIcon,
-    bgColor: 'var(--text-body)',
+    bgColor: '#10B981',
     isTerminal: true,
-    rows: [
-      { title: 'Table', value: '-' },
-      { title: 'Operation', value: '-' },
-    ],
-    x: 310,
-    y: 580,
+    sentence: {
+      segments: ['Insert row into', { subBlockId: 'table', noun: 'table' }],
+      values: { table: 'Qualified leads' },
+    },
+    rows: [],
+    x: 1790,
+    y: 170,
+  },
+  {
+    id: 'verify',
+    name: 'Verify company data',
+    type: 'api',
+    typeLabel: 'API',
+    icon: ApiIcon,
+    bgColor: '#2F55FF',
+    isTerminal: true,
+    sentence: {
+      segments: [
+        'Send',
+        { subBlockId: 'method', noun: 'method' },
+        'request to',
+        { subBlockId: 'url', noun: 'a URL' },
+      ],
+      values: { method: 'GET', url: 'company API' },
+    },
+    rows: [],
+    x: 1440,
+    y: 430,
   },
 ]
 
@@ -83,23 +147,14 @@ export const STAGE_BLOCKS: BlockDef[] = [
 export const STAGE_EDGES: ReadonlyArray<readonly [string, string]> = [
   ['start', 'enrich'],
   ['enrich', 'score'],
-  ['score', 'slack'],
-  ['score', 'tables'],
+  ['score', 'route'],
+  ['route', 'slack'],
+  ['slack', 'tables'],
+  ['route', 'verify'],
 ]
 
-/** Design-space bounding box of the layout above. */
-export const STAGE_CANVAS = { width: 560, height: 700 } as const
-
-/**
- * Approximate rendered block height - the icon-tile header (~40px) plus the
- * rows section (16px padding + 21px per row + 8px gaps). Used to place a
- * block's bottom (outgoing) handle; a few px of drift is invisible at stage
- * scale.
- */
-export function blockHeight(block: BlockDef): number {
-  const n = block.rows.length
-  return 40 + (n > 0 ? 16 + n * 21 + (n - 1) * 8 : 0)
-}
+/** Initial camera viewport. The workflow continues to the right. */
+export const STAGE_CANVAS = { width: 860, height: 720 } as const
 
 /**
  * Rounded orthogonal ("smoothstep") path for a VERTICAL flow - from a source's
@@ -124,7 +179,10 @@ export function verticalSmoothStep(sx: number, sy: number, tx: number, ty: numbe
 /** Handle anchor points for a block at its fixed position. */
 export function handleAnchors(block: BlockDef) {
   return {
-    out: { x: block.x + BLOCK_WIDTH / 2, y: block.y + blockHeight(block) },
-    in: { x: block.x + BLOCK_WIDTH / 2, y: block.y },
+    out: {
+      x: block.x + BLOCK_WIDTH / 2,
+      y: block.y + blockHeight(block) + CONNECTION_KNOB_PEAK_PX,
+    },
+    in: { x: block.x + BLOCK_WIDTH / 2, y: block.y - CONNECTION_KNOB_PEAK_PX },
   }
 }

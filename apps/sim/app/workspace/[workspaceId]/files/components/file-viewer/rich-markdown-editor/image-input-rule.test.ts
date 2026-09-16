@@ -7,6 +7,7 @@ import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { markdownToYDoc } from '@/lib/collab-doc/converter'
 import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
+import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 
 const cleanups: Array<() => void> = []
 afterEach(() => {
@@ -129,7 +130,7 @@ describe.each([false, true])('image input rules (collaborative=%s)', (collaborat
       for (const chunk of chunks) inputText(editor, chunk)
       const images: unknown[] = []
       editor.state.doc.descendants((node) => {
-        if (node.type.name === 'image') images.push(node.attrs)
+        if (isImageNode(node)) images.push(node.attrs)
       })
       expect(images).toMatchObject([
         { src: 'https://example.com/logo.png', alt: 'Audit image', title: 'Brand' },

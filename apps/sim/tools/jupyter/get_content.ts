@@ -1,11 +1,12 @@
 import { encodeJupyterPath, parseJupyterContentModel } from '@/lib/internal/jupyter/protocol'
-import type { JupyterGetContentParams, JupyterGetContentResponse } from '@/tools/jupyter/types'
+import type {
+  JupyterGetContentParams,
+  JupyterGetContentResponse,
+  JupyterGetContentV2Response,
+} from '@/tools/jupyter/types'
 import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterGetContentTool: InternalToolConfig<
-  JupyterGetContentParams,
-  JupyterGetContentResponse
-> = {
+export const jupyterGetContentTool = {
   id: 'jupyter_get_content',
   name: 'Jupyter Get Content',
   description: 'Read a file or notebook from a Jupyter server',
@@ -114,5 +115,36 @@ export const jupyterGetContentTool: InternalToolConfig<
       description: 'Binary content stored as a file, for base64-format content',
       optional: true,
     },
+  },
+} satisfies InternalToolConfig<JupyterGetContentParams, JupyterGetContentResponse>
+
+export const jupyterGetContentV2Tool: InternalToolConfig<
+  JupyterGetContentParams,
+  JupyterGetContentV2Response
+> = {
+  ...jupyterGetContentTool,
+  id: 'jupyter_get_content_v2',
+  version: '2.0.0',
+  description:
+    'Download a file as a stored file, or read structured notebook and directory content',
+  operation: {
+    input: (params) => ({
+      serverUrl: params.serverUrl,
+      token: params.token,
+      method: 'GET',
+      path: params.path,
+    }),
+  },
+  transformResponse: async (response) => response.json(),
+  outputs: {
+    file: { type: 'file', description: 'Downloaded file', optional: true },
+    text: {
+      type: 'string',
+      description: 'JSON-stringified notebook or directory content',
+      optional: true,
+    },
+    name: { type: 'string', description: 'Notebook or directory name', optional: true },
+    path: { type: 'string', description: 'Notebook or directory path', optional: true },
+    mimetype: { type: 'string', description: 'Notebook or directory MIME type', optional: true },
   },
 }

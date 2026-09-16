@@ -1,0 +1,119 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:05.500
+The agent block is the part of the
+workflow where language model reasoning
+
+00:00:05.500 --> 00:00:11.100
+happens. But to make it reliable, it's
+helpful to understand what you're actually
+
+00:00:11.100 --> 00:00:15.640
+giving the model. The messages it starts
+from, the model you choose, the tools and
+
+00:00:15.640 --> 00:00:21.220
+skills it can reach for, and the output
+other blocks will use afterwards. Once you
+
+00:00:21.220 --> 00:00:26.700
+see those pieces clearly, agents become
+much easier to design and debug. Let me
+
+00:00:26.700 --> 00:00:31.580
+show you how the agent block works. On the
+canvas, an agent block looks like any
+
+00:00:31.580 --> 00:00:35.760
+other step. A run arrives at its input
+handle and a result leaves on the other
+
+00:00:35.760 --> 00:00:41.760
+side. But this block has more going on
+inside than any other block in Sim. So
+
+00:00:41.760 --> 00:00:47.000
+this time, let's follow the data in.
+Inside, the agent block is a conversation
+
+00:00:47.000 --> 00:00:51.900
+machine with a station for the messages, a
+station for the model, and a station for
+
+00:00:51.900 --> 00:00:56.560
+what comes out. The first station is the
+message stack, and it starts with your
+
+00:00:56.560 --> 00:01:01.180
+system message, the standing instructions
+that tell the agent who it is and how to
+
+00:01:01.180 --> 00:01:06.060
+judge. You can preload the stack with
+earlier user and assistant messages, so
+
+00:01:06.060 --> 00:01:11.340
+every run starts with that history already
+in place. And the data we followed in
+
+00:01:11.340 --> 00:01:15.960
+lands at the bottom of the stack, as the
+newest user message, filled in from the
+
+00:01:15.960 --> 00:01:21.100
+start block's input. The second station is
+the model, and this is where you choose
+
+00:01:21.100 --> 00:01:26.620
+the brain that will read the whole stack.
+Here, it's Claude Sonnet. And the brain is
+
+00:01:26.620 --> 00:01:31.320
+swappable. Sim supports all the frontier
+providers, and the block around it never
+
+00:01:31.320 --> 00:01:35.380
+changes, so you could hand this exact
+stack to any of them without rebuilding
+
+00:01:35.380 --> 00:01:40.480
+the step. When the run reaches the model,
+every message on the stack is sent in, and
+
+00:01:40.480 --> 00:01:45.100
+you are billed for what it reads, measured
+in tokens. If tools are attached to the
+
+00:01:45.100 --> 00:01:49.480
+block, the model can reach out from right
+here, calling them mid -run when it needs
+
+00:01:49.480 --> 00:01:54.620
+more than the stack contains. Then it
+writes, The reply streams out word by
+
+00:01:54.620 --> 00:01:59.800
+word, and the output side of the bill
+counts those tokens, too. Everything the
+
+00:01:59.800 --> 00:02:04.200
+run produced gets packed into the block's
+output, the content, the model it used,
+
+00:02:04.460 --> 00:02:09.400
+the token counts, and any tool calls it
+made. And with that, we are back on the
+
+00:02:09.400 --> 00:02:13.620
+canvas. The output flows onto the next
+block, which reads the agent's content
+
+00:02:13.620 --> 00:02:19.000
+like any other value. So that's the agent
+block, one step on the canvas, and a whole
+
+00:02:19.000 --> 00:02:20.580
+conversation running inside.

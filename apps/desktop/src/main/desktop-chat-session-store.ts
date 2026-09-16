@@ -23,7 +23,6 @@ export interface BrowserSessionSnapshot {
   v: typeof SNAPSHOT_VERSION
   tabs: Array<{
     url: string
-    pinned: boolean
   }>
   activeIndex: number
   downloads: Array<{
@@ -155,31 +154,18 @@ function normalizeBrowserSnapshot(value: unknown): BrowserSessionSnapshot | null
     tab: BrowserSessionSnapshot['tabs'][number]
     sourceIndex: number
   }> = []
-  const replaceableTabIndex = (): number => {
-    for (let index = selectedTabs.length - 1; index >= 0; index--) {
-      const entry = selectedTabs[index]
-      if (entry.sourceIndex !== activeSourceIndex && !entry.tab.pinned) return index
-    }
-    return -1
-  }
+  // The cap keeps the first tabs, always making room for the active one. A
+  // `pinned` flag from older snapshots is ignored.
   for (let sourceIndex = 0; sourceIndex < value.tabs.length; sourceIndex++) {
     const candidate = value.tabs[sourceIndex]
-    if (!isRecordLike(candidate) || typeof candidate.pinned !== 'boolean') continue
+    if (!isRecordLike(candidate)) continue
     const url = normalizeBrowserUrl(candidate.url)
     if (url === null) continue
-    const next = { tab: { url, pinned: candidate.pinned }, sourceIndex }
+    const next = { tab: { url }, sourceIndex }
     if (selectedTabs.length < MAX_BROWSER_TABS) {
       selectedTabs.push(next)
-      continue
-    }
-    if (sourceIndex === activeSourceIndex) {
-      const replacementIndex = replaceableTabIndex()
-      selectedTabs[replacementIndex >= 0 ? replacementIndex : selectedTabs.length - 1] = next
-      continue
-    }
-    if (candidate.pinned) {
-      const replacementIndex = replaceableTabIndex()
-      if (replacementIndex >= 0) selectedTabs[replacementIndex] = next
+    } else if (sourceIndex === activeSourceIndex) {
+      selectedTabs[selectedTabs.length - 1] = next
     }
   }
   selectedTabs.sort((left, right) => left.sourceIndex - right.sourceIndex)

@@ -7,15 +7,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   requestJson: vi.fn(),
   useMutation: vi.fn(),
+  useQuery: vi.fn(),
   invalidateQueries: vi.fn(),
+  getQueryData: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
   keepPreviousData: Symbol('keepPreviousData'),
   useInfiniteQuery: vi.fn(),
   useMutation: mocks.useMutation,
-  useQuery: vi.fn(),
-  useQueryClient: vi.fn(() => ({ invalidateQueries: mocks.invalidateQueries })),
+  useQuery: mocks.useQuery,
+  useQueryClient: vi.fn(() => ({
+    invalidateQueries: mocks.invalidateQueries,
+    getQueryData: mocks.getQueryData,
+  })),
+}))
+
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'reader' } } }),
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -29,8 +38,14 @@ vi.mock('@/lib/api/client/request', () => ({
 import {
   useBulkDocumentOperation,
   useDeleteDocument,
+  useDocumentChunkSearchQuery,
+  useDocumentQuery,
+  useKnowledgeBasesQuery,
+  useKnowledgeChunksQuery,
+  useKnowledgeDocumentsQuery,
   useUpdateDocument,
   useUpdateDocumentTags,
+  useWorkspaceKnowledgeSearch,
 } from '@/hooks/queries/kb/knowledge'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
@@ -97,5 +112,116 @@ describe('knowledge document mutations', () => {
     mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', operation: 'enable' })
 
     expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: knowledgeKeys.lists() })
+  })
+})
+
+interface CapturedQuery {
+  queryKey: readonly unknown[]
+  queryFn: (context: { signal: AbortSignal }) => Promise<unknown>
+  retry?: boolean
+  placeholderData?: (previous: unknown, query: { queryKey: readonly unknown[] }) => unknown
+}
+
+function captureQuery(build: () => unknown): CapturedQuery {
+  let captured: CapturedQuery | undefined
+  mocks.useQuery.mockImplementation((options: CapturedQuery) => {
+    captured = options
+    return {}
+  })
+  build()
+  if (!captured) throw new Error('useQuery was not called')
+  return captured
+}
+
+describe('knowledge query placeholder scope', () => {
+  it('waits for a nonempty owner before searching', () => {
+    const query = captureQuery(() => useWorkspaceKnowledgeSearch('', 'query'))
+    expect(query).toMatchObject({ enabled: false })
+  })
+
+  it('forwards search cancellation and leaves provider retries to the server', async () => {
+    const data = {
+      query: 'query',
+      results: [],
+      retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+    }
+    mocks.requestJson.mockResolvedValueOnce({ data })
+    const query = captureQuery(() =>
+      useWorkspaceKnowledgeSearch('workspace-1', ' query ', { source: 'slack' })
+    )
+    const controller = new AbortController()
+    await expect(query.queryFn({ signal: controller.signal })).resolves.toEqual(data)
+
+    expect(query.retry).toBe(false)
+    expect(mocks.requestJson).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        signal: controller.signal,
+        body: expect.objectContaining({ query: 'query' }),
+      })
+    )
+  })
+
+  it('does not carry a prior workspace list or document detail into another resource', () => {
+    expect(
+      captureQuery(() => useKnowledgeBasesQuery('workspace-2')).placeholderData
+    ).toBeUndefined()
+    expect(captureQuery(() => useDocumentQuery('kb-2', 'doc-2')).placeholderData).toBeUndefined()
+  })
+
+  it('keeps document pagination and filters within the same knowledge base', () => {
+    const query = captureQuery(() =>
+      useKnowledgeDocumentsQuery({ knowledgeBaseId: 'kb-1', search: 'new', offset: 50 })
+    )
+    const previous = { documents: [{ id: 'visible-document' }], pagination: { total: 1 } }
+    expect(
+      query.placeholderData?.(previous, { queryKey: knowledgeKeys.documents('kb-1', 'old-filter') })
+    ).toBe(previous)
+    expect(
+      query.placeholderData?.(previous, { queryKey: knowledgeKeys.documents('kb-2', 'old-filter') })
+    ).toBeUndefined()
+  })
+
+  it.each([
+    [
+      'chunks',
+      () => useKnowledgeChunksQuery({ knowledgeBaseId: 'kb-1', documentId: 'doc-1', offset: 50 }),
+    ],
+    [
+      'chunk search',
+      () =>
+        useDocumentChunkSearchQuery({
+          knowledgeBaseId: 'kb-1',
+          documentId: 'doc-1',
+          search: 'new',
+        }),
+    ],
+  ])('keeps %s placeholders only for the same document', (_name, build) => {
+    const query = captureQuery(build)
+    const previous = [{ content: 'Previously authorized content' }]
+    expect(
+      query.placeholderData?.(previous, { queryKey: knowledgeKeys.chunks('kb-1', 'doc-1', 'old') })
+    ).toBe(previous)
+    expect(
+      query.placeholderData?.(previous, { queryKey: knowledgeKeys.chunks('kb-1', 'doc-2', 'old') })
+    ).toBeUndefined()
+    expect(
+      query.placeholderData?.(previous, { queryKey: knowledgeKeys.chunks('kb-2', 'doc-1', 'old') })
+    ).toBeUndefined()
+  })
+
+  it('partitions search cache entries by filter and reader', () => {
+    const query = captureQuery(() =>
+      useWorkspaceKnowledgeSearch('workspace-1', 'new query', { source: 'slack' })
+    )
+    expect(query.queryKey).toEqual(
+      knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 'reader')
+    )
+    expect(knowledgeKeys.search('workspace-1', 'query', { source: 'slack' })).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', { source: 'gitlab' })
+    )
+    expect(knowledgeKeys.search('workspace-1', 'query', {}, 'reader')).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', {}, 'another-reader')
+    )
   })
 })

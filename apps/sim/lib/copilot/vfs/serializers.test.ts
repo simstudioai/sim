@@ -19,8 +19,8 @@ import {
   serializeAccountWorkspaces,
   serializeApiKeyIntegrations,
   serializeBlockSchema,
+  serializeConnectedAccounts,
   serializeConnectors,
-  serializeCredentialGroups,
   serializeCredentials,
   serializeDeployments,
   serializeFileMeta,
@@ -858,7 +858,7 @@ describe('account and organization namespace serializers', () => {
       ],
       forksMounted: false,
       permissionGroupsMounted: false,
-      credentialGroupsMounted: true,
+      connectedAccountsMounted: true,
     })
 
     expect(readme).toContain('# Organization')
@@ -868,33 +868,49 @@ describe('account and organization namespace serializers', () => {
     // Gated files must not be advertised when unmounted for this viewer.
     expect(readme).not.toContain('forks.json')
     expect(readme).not.toContain('permission-groups.json')
-    expect(readme).toContain('credential-groups.json')
+    expect(readme).toContain('connected-accounts.json')
   })
 
-  it('scopes credential-group people to admins and flags truncated counts', () => {
-    const base = {
+  it('serializes singleton readiness without credentials, people, or container selection', () => {
+    const accounts = {
       id: 'cg-1',
-      name: 'Clients',
-      description: null,
+      name: 'Connected accounts',
       status: 'active' as const,
       options: [
-        { provider: 'gmail', label: 'Work email', required: true, configurationStatus: 'ready' },
-        { provider: 'slack', configurationStatus: 'not_configured' },
+        {
+          provider: 'gmail',
+          label: 'Work email',
+          required: true,
+          status: 'active' as const,
+          configurationStatus: 'ready',
+        },
+        {
+          provider: 'slack',
+          status: 'disabled' as const,
+          configurationStatus: 'not_configured',
+          slackBotCredentialId: 'private-credential-id',
+        },
       ],
-      enrollmentCounts: { completed: 2, invited: 1 },
-      enrollmentsTruncated: true,
-      people: [{ email: 'a@x.com', status: 'completed' }],
+      enrollmentCounts: { completed: 2 },
+      people: [{ email: 'private@example.com', status: 'completed' }],
+      encryptedProviderConfiguration: 'private-configuration',
     }
 
-    const admin = JSON.parse(serializeCredentialGroups([base], { includeEmails: true }))
-    expect(admin.credentialGroups[0].people).toHaveLength(1)
-    expect(admin.credentialGroups[0].enrollments.countsFromFirstPageOnly).toBe(true)
-    expect(admin.credentialGroups[0].options[1].configurationStatus).toBe('not_configured')
-
-    const member = JSON.parse(serializeCredentialGroups([base], { includeEmails: false }))
-    expect(member.credentialGroups[0].people).toBeUndefined()
-    // The runtime contract the model most needs: empty loop, not an error.
-    expect(member.note).toContain('empty loop, not an error')
+    const serialized = serializeConnectedAccounts(accounts)
+    const catalog = JSON.parse(serialized)
+    expect(catalog.status).toBe('active')
+    expect(catalog.options[1]).toEqual({
+      provider: 'slack',
+      status: 'disabled',
+      configurationStatus: 'not_configured',
+    })
+    expect(catalog.credentialGroups).toBeUndefined()
+    expect(catalog.id).toBeUndefined()
+    expect(catalog.people).toBeUndefined()
+    expect(catalog.enrollments).toBeUndefined()
+    expect(serialized).not.toContain('private-')
+    expect(serialized).not.toContain('private@example.com')
+    expect(catalog.note).toContain('no container selection is required')
   })
 
   it('maps the org workspace directory with access flags and fork parentage', () => {

@@ -280,6 +280,64 @@ describe('ChipModalBody', () => {
   })
 })
 
+describe('ChipModalField file actions', () => {
+  it('names each upload action with its field title', () => {
+    mount(
+      <>
+        <ChipModalField type='file' title='User mapping' onChange={() => {}} />
+        <ChipModalField type='file' title='Project permissions' onChange={() => {}} />
+      </>
+    )
+    const uploads = Array.from(document.querySelectorAll('input[type="file"]')).map(
+      (input) => input.closest('button')!
+    )
+    expect(uploads.map((upload) => upload.labels?.[0]?.textContent)).toEqual([
+      'User mapping',
+      'Project permissions',
+    ])
+    for (const upload of uploads) expect(upload.labels?.[0]?.control).toBe(upload)
+  })
+
+  it('keeps the title action outside the label and upload control', () => {
+    const onDownload = vi.fn()
+    mount(
+      <ChipModalField
+        type='file'
+        title='User mapping'
+        required
+        onChange={() => {}}
+        titleActions={<button onClick={onDownload}>Download template</button>}
+      />
+    )
+    const label = document.querySelector('label')!
+    const download = buttonByText('Download template')
+    const upload = document.querySelector('input[type="file"]')!.closest('button')!
+    expect(label.contains(download)).toBe(false)
+    expect(upload.contains(download)).toBe(false)
+    act(() => label.click())
+    expect(onDownload).not.toHaveBeenCalled()
+    act(() => download.click())
+    expect(onDownload).toHaveBeenCalledOnce()
+  })
+
+  it('resets the native input after every selection so the same file can be picked again', () => {
+    const onChange = vi.fn()
+    mount(<ChipModalField type='file' title='User mapping' onChange={onChange} />)
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+    const file = new File(['1,alice@example.com'], 'users.csv', { type: 'text/csv' })
+    Object.defineProperty(input, 'files', { value: [file], configurable: true })
+    Object.defineProperty(input, 'value', { value: 'users.csv', writable: true })
+    for (let selection = 0; selection < 2; selection++) {
+      input.value = 'users.csv'
+      act(() => input.dispatchEvent(new Event('change', { bubbles: true })))
+      expect(input.value).toBe('')
+    }
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(onChange).toHaveBeenLastCalledWith([file])
+    expect(input.getAttribute('aria-label')).toBe('User mapping')
+  })
+})
+
 describe('ChipModal default actions', () => {
   beforeEach(makeElementsVisible)
 

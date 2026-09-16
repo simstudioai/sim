@@ -14,7 +14,9 @@ export interface LoaderProps extends SVGProps<SVGSVGElement> {
  * Loader icon component with optional CSS-based spinning animation
  * Based on refresh-cw but without the arrows, just the circular arcs.
  * When animate is false, this is a lightweight static icon with no animation overhead.
- * When animate is true, CSS module animations are applied for continuous spin.
+ * When animate is true, CSS module animations are applied for continuous spin;
+ * the period defaults to 1s and follows `--loader-duration` when a consumer sets it
+ * (for example `className='[--loader-duration:650ms]'`).
  * @param props - SVG properties including className, animate, etc.
  */
 export function Loader({ animate = false, className, ...props }: LoaderProps) {

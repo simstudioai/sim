@@ -11,25 +11,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[RabbitMQ](https://www.rabbitmq.com/) is an open-source message broker that sits between the parts of a system that produce work and the parts that do it. A producer publishes a message to an **exchange**, the exchange matches the message's **routing key** against its **bindings**, and every matching **queue** holds the message until a consumer takes it. That indirection is the point: producers never need to know who consumes their messages, and a queue absorbs bursts that would otherwise overwhelm a downstream service.
+Use [RabbitMQ](https://www.rabbitmq.com/)'s Management HTTP API to publish and inspect messages, manage queue topology, and check broker health. Messages are published to exchanges and routed through bindings into queues.
 
-**Why RabbitMQ?**
-- **Durable buffering:** A queue holds work while consumers are slow, restarting, or offline, so a traffic spike becomes a backlog to work through rather than dropped requests.
-- **Flexible routing:** Direct exchanges route on an exact key, topic exchanges on wildcard patterns like `orders.*`, fanout exchanges to every bound queue, and headers exchanges on message metadata.
-- **Delivery guarantees:** Messages and queues can be marked durable so they survive a broker restart, and unacknowledged messages return to the queue when a consumer dies mid-work.
-- **Failure handling built in:** Dead-letter exchanges, per-message TTLs, and queue length limits let you decide up front what happens to work that expires, overflows, or repeatedly fails.
-- **Runs anywhere:** Self-hosted on your own infrastructure, or managed through providers such as CloudAMQP and Amazon MQ.
-
-**Using RabbitMQ in Sim**
-
-Sim talks to RabbitMQ over its **Management HTTP API** — the same interface behind the RabbitMQ management UI — using the management plugin's base URL plus a username and password. There is no AMQP connection to configure and no client library to install; if you can reach the management UI in a browser, Sim can reach your broker.
-
-**Key benefits of using RabbitMQ in Sim:**
-- **Publish from any workflow step:** Hand off enriched or classified data to an existing service by publishing to an exchange, without that service needing to know Sim exists.
-- **Inspect queues without consuming them:** The default acknowledgement mode requeues what it reads, so an agent can examine a dead-letter backlog and leave the messages exactly where they were.
-- **Triage failures with an agent:** Read a dead-letter queue, let an agent group messages by root cause, and route the summary to Slack, PagerDuty, or a table.
-- **Monitor broker health on a schedule:** List queues and read the broker overview to catch a queue whose depth is climbing or that has lost all its consumers.
-- **Declare topology as part of a workflow:** Create queues, set arguments such as quorum type or dead-lettering, and bind them to exchanges as an automated setup step.
+The default acknowledgement mode requeues messages after reading them, so an inspection workflow can leave messages available to other consumers.
 
 **Before you start**
 

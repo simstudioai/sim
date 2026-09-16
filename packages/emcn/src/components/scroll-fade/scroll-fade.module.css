@@ -1,0 +1,75 @@
+/*
+ * Edge fade for a scroll region. The mask is one gradient whose four stops are
+ * driven by custom properties, so a region fades at an edge only while content
+ * is hidden beyond it: at rest every stop collapses onto the edge and the mask is
+ * fully opaque, which is what keeps the fog off a list that fits or sits at its
+ * top. `--scroll-fade-inset` lets a consumer whose top edge is covered by a
+ * floating control (the command palette's search field) start the band below it.
+ */
+.root {
+  --scroll-fade-band: 12px;
+  --scroll-fade-top-start: 0px;
+  --scroll-fade-top-end: 0px;
+  --scroll-fade-bottom-start: 100%;
+  --scroll-fade-bottom-end: 100%;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent var(--scroll-fade-top-start),
+    black var(--scroll-fade-top-end),
+    black var(--scroll-fade-bottom-start),
+    transparent var(--scroll-fade-bottom-end)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent var(--scroll-fade-top-start),
+    black var(--scroll-fade-top-end),
+    black var(--scroll-fade-bottom-start),
+    transparent var(--scroll-fade-bottom-end)
+  );
+}
+
+.root[data-scroll-fade-top] {
+  --scroll-fade-top-start: var(--scroll-fade-inset, 0px);
+  --scroll-fade-top-end: calc(var(--scroll-fade-inset, 0px) + var(--scroll-fade-band));
+}
+
+.root[data-scroll-fade-bottom] {
+  --scroll-fade-bottom-start: calc(100% - var(--scroll-fade-band));
+  --scroll-fade-bottom-end: 100%;
+}
+
+/*
+ * The same fade for a region that scrolls sideways — a tab row, a chip strip.
+ * Same band, same rest state; the stops run left to right instead.
+ */
+.rootX {
+  --scroll-fade-band: 12px;
+  --scroll-fade-left-start: 0px;
+  --scroll-fade-left-end: 0px;
+  --scroll-fade-right-start: 100%;
+  --scroll-fade-right-end: 100%;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent var(--scroll-fade-left-start),
+    black var(--scroll-fade-left-end),
+    black var(--scroll-fade-right-start),
+    transparent var(--scroll-fade-right-end)
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent var(--scroll-fade-left-start),
+    black var(--scroll-fade-left-end),
+    black var(--scroll-fade-right-start),
+    transparent var(--scroll-fade-right-end)
+  );
+}
+
+.rootX[data-scroll-fade-left] {
+  --scroll-fade-left-start: 0px;
+  --scroll-fade-left-end: var(--scroll-fade-band);
+}
+
+.rootX[data-scroll-fade-right] {
+  --scroll-fade-right-start: calc(100% - var(--scroll-fade-band));
+  --scroll-fade-right-end: 100%;
+}

@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { oauthIssuerForEndpoint, redact } from '../config/profile'
 import { buildUrl, REDIRECT_STATUSES, SimApiError } from '../http/client'
-import { USER_AGENT } from '../version'
+import { identityHeaders } from '../telemetry/client-info'
 
 /**
  * The OAuth half of `sim login`: authorization code + PKCE with a loopback
@@ -17,7 +17,7 @@ import { USER_AGENT } from '../version'
  * the life of one login.
  *
  * The result is a short-lived access token and a rotating refresh token, both
- * revocable from Settings → Authorized apps, instead of the permanent API key
+ * revocable from Settings → General → Authorized apps, instead of the permanent API key
  * the pairing-code handoff in `device-flow.ts` mints. That handoff remains the
  * path for a terminal whose browser cannot reach it (SSH, containers).
  */
@@ -183,7 +183,7 @@ export async function discoverOAuthProvider(endpoint: string): Promise<OAuthProv
   let response: Response
   try {
     response = await fetch(buildUrl(endpoint, DISCOVERY_PATH), {
-      headers: { accept: 'application/json', 'user-agent': USER_AGENT },
+      headers: { accept: 'application/json', ...identityHeaders() },
       redirect: 'manual',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
@@ -236,7 +236,7 @@ async function postToken(
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
         accept: 'application/json',
-        'user-agent': USER_AGENT,
+        ...identityHeaders(),
       },
       body: new URLSearchParams(form).toString(),
       signal,
@@ -432,7 +432,7 @@ function listenForCallback(
         finish({
           ok: false,
           error: new SimApiError(
-            `Timed out after ${Math.round(timeoutMs / 60000)} minutes waiting for the browser. Run sim login again, or use --browserless if this terminal's browser cannot reach it.`,
+            `Timed out after ${Math.round(timeoutMs / 60000)} minutes waiting for the browser. Run sim login again, or use --method api-key if this terminal's browser cannot reach it.`,
             0
           ),
         }),
@@ -567,9 +567,9 @@ export async function loginWithBrowser(
 
 /**
  * Whether this terminal's browser is unlikely to reach a loopback listener on
- * this machine: an SSH session, or a Linux box with no display. The signals
- * Railway and Stripe use to auto-select their pairing flows; `--browserless`
- * forces it and `--callback-port` overrides the guess.
+ * this machine: an SSH session, or a Linux box with no display. An explicit
+ * `--method` selects the flow without this guess; `--callback-port` opts into
+ * OAuth when a forwarded port makes the loopback listener reachable.
  */
 export function isLikelyRemoteSession(
   env: NodeJS.ProcessEnv = process.env,

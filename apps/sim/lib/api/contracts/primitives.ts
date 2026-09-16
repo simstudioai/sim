@@ -590,3 +590,15 @@ export const optionalNumberQuerySchema = z.preprocess((value) => {
   if (value === null) return undefined
   return typeof value === 'string' && value.trim() === '' ? undefined : value
 }, z.coerce.number().optional())
+
+/** Exactly one routed owner for resources shared by Search surfaces. */
+export const resourceOwnerSchema = z
+  .object({
+    workspaceId: workspaceIdSchema.optional(),
+    organizationId: organizationIdSchema.optional(),
+  })
+  .refine((owner) => Boolean(owner.workspaceId) !== Boolean(owner.organizationId), {
+    message: 'Provide exactly one workspaceId or organizationId',
+    path: ['workspaceId'],
+  })
+export type ResourceOwnerInput = z.input<typeof resourceOwnerSchema>

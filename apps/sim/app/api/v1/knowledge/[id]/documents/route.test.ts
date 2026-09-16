@@ -75,8 +75,8 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
   validateFileType: mockValidateFileType,
-  // Read at module scope by `lib/uploads/utils/file-utils`, which the route now
-  // reaches transitively through the knowledge orchestration module.
+  /** Shared upload/connector limits are read by the knowledge orchestration imports. */
+  MAX_FILE_SIZE: 100 * 1024 * 1024,
   SUPPORTED_ARCHIVE_EXTENSIONS: [],
 }))
 

@@ -45,6 +45,10 @@ import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generat
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { searchKnowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/search-knowledge-base'
+import {
+  readDocumentServerTool,
+  searchWorkspaceServerTool,
+} from '@/lib/copilot/tools/server/knowledge/workspace-search'
 import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
 import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
@@ -178,6 +182,8 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getCredentialsServerTool.name]: getCredentialsServerTool,
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
   [searchKnowledgeBaseServerTool.name]: searchKnowledgeBaseServerTool,
+  [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
+  [readDocumentServerTool.name]: readDocumentServerTool,
   [enrichmentRunServerTool.name]: enrichmentRunServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [queryUserTableServerTool.name]: queryUserTableServerTool,

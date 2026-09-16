@@ -210,6 +210,47 @@ describe('listPublicWorkspaces', () => {
     ).rejects.toThrow('Accessible workspace workspace-a disappeared during listing')
   })
 
+  it.each(['sim-cli', 'partner-app'])(
+    'filters restricted OAuth workspaces before paginating for %s',
+    async (clientId) => {
+      mocks.listAccessible.mockResolvedValue(
+        ['workspace-a', 'workspace-b'].map((id, index) => ({
+          workspace: workspace(id, id, true, index + 1),
+          permissionType: 'read',
+          viaOrgAdmin: false,
+        }))
+      )
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockImplementation(
+        async (_userId: string, workspaceId: string) => ({
+          ...DEFAULT_PERMISSION_GROUP_CONFIG,
+          disableOAuthAppAccess: workspaceId === 'workspace-a',
+        })
+      )
+      const input = { sortBy: 'name', sortOrder: 'asc', limit: 1, offset: 0 } as const
+      const result = await listPublicWorkspaces.execute({
+        principal: {
+          kind: 'oauth_access_token',
+          userId: 'user-1',
+          clientId,
+          tokenId: 'token-1',
+          scopes: ['api:read'],
+          expiresAt: new Date('2099-01-01T00:00:00Z'),
+        },
+        input,
+      })
+      expect(result.workspaces.map(({ id }) => id)).toEqual(['workspace-b'])
+      expect(result.hasMore).toBe(false)
+      expect(mocks.getDetails).toHaveBeenCalledWith(['workspace-b'])
+
+      const apiKeyResult = await listPublicWorkspaces.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        input,
+      })
+      expect(apiKeyResult.workspaces.map(({ id }) => id)).toEqual(['workspace-a'])
+      expect(apiKeyResult.hasMore).toBe(true)
+    }
+  )
+
   it('limits a workspace key to its bound active workspace', async () => {
     mocks.loadContext.mockResolvedValue({
       workspaceId: 'workspace-bound',

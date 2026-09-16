@@ -104,7 +104,7 @@ const TEXT_TYPES = new Set([
   'application/javascript',
 ])
 
-const PARSEABLE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'])
+const PARSEABLE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx'])
 
 export function isReadableFileType(contentType: string): boolean {
   return TEXT_TYPES.has(contentType) || contentType.startsWith('text/')
@@ -587,6 +587,10 @@ export async function readFileRecord(
           try {
             const { parseBuffer } = await import('@/lib/file-parsers')
             const result = await parseBuffer(fetched.buffer, ext)
+            if (result.metadata?.degraded === true) {
+              /** Scraped ZIP internals or placeholder prose, not the document's text. */
+              throw new Error(result.metadata.warning ?? 'Parser returned degraded output')
+            }
             const content = result.content || ''
             const lines = content.split('\n').length
             span.setAttributes({

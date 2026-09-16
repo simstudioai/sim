@@ -1,7 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  isInternalToolFileResult,
+  type StoredToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
   fetchAuth: vi.fn(),
@@ -98,19 +103,23 @@ describe('Vanta operations', () => {
     )
 
     expect(mocks.fetchAuth.mock.calls[0]?.[2]).toEqual({ signal: context.signal })
-    expect(result).toEqual({
+    assert(isInternalToolFileResult(result))
+    expect(result.files).toEqual([
+      { name: 'report final.pdf', mimeType: 'application/pdf', buffer: Buffer.from('hello') },
+    ])
+    const storedFile: StoredToolFile = {
+      id: 'stored-file-1',
+      key: 'execution/stored-file-1',
+      url: '/api/files/serve/stored-file-1',
+      name: 'report final.pdf',
+      type: 'application/pdf',
+      mimeType: 'application/pdf',
+      size: 5,
+      context: 'execution',
+    }
+    expect(result.present([storedFile])).toEqual({
       success: true,
-      output: {
-        file: {
-          name: 'report final.pdf',
-          mimeType: 'application/pdf',
-          data: Buffer.from('hello').toString('base64'),
-          size: 5,
-        },
-        name: 'report final.pdf',
-        mimeType: 'application/pdf',
-        size: 5,
-      },
+      output: { file: storedFile, name: 'report final.pdf', mimeType: 'application/pdf', size: 5 },
     })
   })
 

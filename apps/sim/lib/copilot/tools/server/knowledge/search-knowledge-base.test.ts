@@ -19,27 +19,45 @@ describe('search_knowledge_base delegation', () => {
     vi.clearAllMocks()
   })
 
-  it.each(['get', 'query'])('forwards %s with the immutable trusted context', async (operation) => {
-    const params = { operation, args: { knowledgeBaseId: 'kb-1' } }
-    const context = {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      chatId: 'chat-1',
-      toolCallId: 'tool-1',
-      copilotToolExecution: true,
+  it.each(['get', 'query', 'list_tags'])(
+    'forwards %s with the immutable trusted context',
+    async (operation) => {
+      const params = { operation, args: { knowledgeBaseId: 'kb-1' } }
+      const context = {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        chatId: 'chat-1',
+        toolCallId: 'tool-1',
+        copilotToolExecution: true,
+      }
+      executeKnowledgeBase.mockResolvedValueOnce({ success: true, message: 'ok' })
+
+      await expect(searchKnowledgeBaseServerTool.execute(params, context)).resolves.toEqual({
+        success: true,
+        message: 'ok',
+      })
+      expect(executeKnowledgeBase).toHaveBeenCalledWith(params, context)
     }
-    executeKnowledgeBase.mockResolvedValueOnce({ success: true, message: 'ok' })
+  )
 
-    await expect(searchKnowledgeBaseServerTool.execute(params, context)).resolves.toEqual({
-      success: true,
-      message: 'ok',
-    })
-    expect(executeKnowledgeBase).toHaveBeenCalledWith(params, context)
-  })
-
-  it('does not expose the legacy delete compatibility operation', async () => {
+  it.each([
+    'create',
+    'add_file',
+    'update',
+    'delete',
+    'delete_document',
+    'update_document',
+    'create_tag',
+    'update_tag',
+    'delete_tag',
+    'add_connector',
+    'update_connector',
+    'delete_connector',
+    'sync_connector',
+    'unknown',
+  ])('refuses %s before entering any knowledge application operation', async (operation) => {
     const result = await searchKnowledgeBaseServerTool.execute(
-      { operation: 'delete', args: { knowledgeBaseId: 'kb-1' } },
+      { operation, args: { knowledgeBaseId: 'kb-1' } },
       {
         userId: 'user-1',
         workspaceId: 'workspace-1',

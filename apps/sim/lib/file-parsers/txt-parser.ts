@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
-import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
+import { decodeTextBuffer, sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('TxtParser')
 
@@ -25,14 +25,16 @@ export class TxtParser implements FileParser {
     try {
       logger.info('Parsing buffer, size:', buffer.length)
 
-      const rawContent = buffer.toString('utf-8')
-      const result = sanitizeTextForUTF8(rawContent)
+      const decoded = decodeTextBuffer(buffer)
+      const result = sanitizeTextForUTF8(decoded.text)
 
       return {
         content: result,
         metadata: {
           characterCount: result.length,
           tokenCount: result.length / 4,
+          encoding: decoded.encoding,
+          ...(decoded.warning ? { warning: decoded.warning } : {}),
         },
       }
     } catch (error) {
