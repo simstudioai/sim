@@ -152,6 +152,8 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   search_knowledge_base: Database,
   search_library_docs: Library,
   search_workspace: Search,
+  search_sources: Search,
+  settings: Settings,
   list_workspaces: Search,
   set_block_enabled: Pencil,
   set_environment_variables: Settings,

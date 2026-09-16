@@ -1,159 +1,88 @@
-/**
- * @vitest-environment node
- */
+/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { getToolActivitySummary } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
-function tool(toolName: string, status: ToolCallStatus = 'success'): ToolCallData {
-  return { id: toolName, toolName, displayTitle: `Running ${toolName}`, status }
+function tool(id: string, displayTitle: string, status: ToolCallStatus = 'success'): ToolCallData {
+  return { id, toolName: 'sim_cli', displayTitle, status }
 }
 
 describe('getToolActivitySummary', () => {
-  it('caps distinct actions in order and counts the remaining categories, not repeated calls', () => {
+  it('uses the latest concrete resource action plus the remaining call count', () => {
     expect(
       getToolActivitySummary([
-        tool('read'),
-        tool('terminal_run'),
-        tool('read'),
-        tool('grep'),
-        tool('browser_navigate'),
+        tool('read', 'Reading invoice inputs'),
+        tool('edit', 'Editing invoice workflow'),
+        tool('run', 'Running invoice workflow'),
       ])
-    ).toBe('Read files, ran commands, searched files +1 more')
+    ).toBe('Ran invoice workflow + 2')
   })
 
-  it('summarizes browser navigation and interactions without repeating actions', () => {
+  it('keeps model supplied descriptions without replacing them with action categories', () => {
     expect(
       getToolActivitySummary([
-        tool('browser_navigate'),
-        tool('browser_read_text'),
-        tool('browser_type'),
-        tool('browser_navigate'),
+        { ...tool('read', 'Reading inbox'), activityDescription: 'Read the latest inbox emails' },
       ])
-    ).toBe('Navigated, read pages, entered text')
+    ).toBe('Read the latest inbox emails')
   })
 
-  it.each([
-    [['browser_navigate', 'browser_read_text'], 'Navigated, read pages'],
-    [['browser_read_text', 'browser_navigate'], 'Read, navigated pages'],
-    [
-      ['browser_navigate', 'browser_read_text', 'browser_scroll'],
-      'Navigated, read, scrolled pages',
-    ],
-    [['browser_navigate', 'browser_type'], 'Navigated pages, entered text'],
-    [['browser_navigate', 'browser_navigate'], 'Navigated pages'],
-    [['read', 'browser_read_text'], 'Read files, read pages'],
-  ])('compacts only explicit shared objects: %j', (names, expected) => {
-    expect(getToolActivitySummary((names as string[]).map((name) => tool(name)))).toBe(expected)
-  })
-
-  it('does not describe unsuccessful work as completed actions', () => {
+  it('keeps failed attempts in history without naming or counting them in the summary', () => {
     expect(
       getToolActivitySummary([
-        tool('read'),
-        tool('apply_file_edit', 'error'),
-        tool('terminal_run', 'cancelled'),
-        tool('browser_type', 'rejected'),
+        tool('read', 'Reading invoice inputs'),
+        tool('failed', 'Running invoice workflow', 'error'),
+        tool('rejected', 'Editing invoice workflow', 'rejected'),
       ])
-    ).toBe('Read files · 1 stopped')
+    ).toBe('Read invoice inputs')
   })
 
-  it('does not invent actions when all calls failed or were stopped', () => {
+  it('does not claim success when every call failed', () => {
     expect(
       getToolActivitySummary([
-        tool('apply_file_edit', 'error'),
-        tool('terminal_run', 'interrupted'),
+        tool('failed', 'Reading invoice inputs', 'error'),
+        tool('rejected', 'Editing invoice workflow', 'rejected'),
       ])
-    ).toBe('2 tool calls · 1 stopped')
-  })
-
-  it('uses a neutral summary when every call failed', () => {
-    expect(
-      getToolActivitySummary([tool('run_workflow', 'error'), tool('terminal', 'rejected')])
     ).toBe('2 tool calls')
   })
 
-  it('does not infer tool failures from workflow results', () => {
+  it('preserves a concrete custom tool name instead of a generic used tools fallback', () => {
     expect(
       getToolActivitySummary([
-        tool('read'),
-        { ...tool('run_workflow'), result: { success: false, error: 'Workflow run failed' } },
+        { ...tool('a', 'Checking inventory'), toolName: 'custom_inventory' },
+        { ...tool('b', 'Reconciled account balances'), toolName: 'custom_reconcile' },
       ])
-    ).toBe('Read files, ran workflows')
+    ).toBe('Reconciled account balances + 1')
   })
+})
 
-  it('keeps an individual tool’s descriptive title', () => {
-    expect(
-      getToolActivitySummary([{ ...tool('read'), displayTitle: 'Reading project notes' }])
-    ).toBe('Read project notes')
-  })
-
+describe('interrupted activity summaries', () => {
   it.each([
     ['rejected', 'Running checks'],
     ['skipped', 'Skipped running checks'],
     ['interrupted', 'Stopped running checks'],
   ] as const)('labels a single %s tool as finished', (status, expected) => {
-    expect(
-      getToolActivitySummary([{ ...tool('terminal', status), displayTitle: 'Running checks' }])
-    ).toBe(expected)
+    expect(getToolActivitySummary([tool('terminal', 'Running checks', status)])).toBe(expected)
   })
 
-  it('keeps unknown tools visible with a neutral summary', () => {
-    expect(getToolActivitySummary([tool('future_tool'), tool('browser_future_action')])).toBe(
-      'Used tools, used the browser'
-    )
-  })
-
-  it('describes current browser and workflow tools', () => {
+  it('keeps earlier interruption counts without naming failed calls', () => {
     expect(
       getToolActivitySummary([
-        tool('browser_open_url'),
-        tool('browser_fill_form'),
-        tool('browser_insert_text'),
-        tool('read_document'),
-        tool('run_workflow'),
-        tool('deploy_as_api'),
-        tool('table_rows'),
+        tool('failed', 'Reading file', 'error'),
+        tool('stopped', 'Running checks', 'interrupted'),
+        tool('skipped', 'Running checks', 'skipped'),
+        tool('finished', 'Reading project notes'),
       ])
-    ).toBe('Navigated pages, filled forms, entered text +4 more')
+    ).toBe('Read project notes + 2 · 1 stopped · 1 skipped')
   })
 
-  it('keeps interruption counts without failure badges when action categories are capped', () => {
+  it('does not infer tool failures from workflow results', () => {
     expect(
       getToolActivitySummary([
-        tool('read'),
-        tool('grep'),
-        tool('terminal'),
-        tool('browser_navigate'),
-        tool('apply_file_edit', 'error'),
-        tool('wait', 'interrupted'),
-        tool('browser_type', 'skipped'),
+        {
+          ...tool('run_workflow', 'Running invoice workflow'),
+          result: { success: false, error: 'Workflow run failed' },
+        },
       ])
-    ).toBe('Read files, searched files, used the terminal +1 more · 1 stopped · 1 skipped')
-  })
-
-  it('keeps individual unsuccessful actions neutral without aggregate failure badges', () => {
-    const rejected = { ...tool('terminal', 'rejected'), displayTitle: 'Running checks' }
-    expect(getToolActivitySummary([rejected])).toBe('Running checks')
-    expect(getToolActivitySummary([rejected, tool('read', 'skipped')])).toBe(
-      '2 tool calls · 1 skipped'
-    )
-  })
-
-  it('deduplicates related tools and preserves opposite operations in the summary', () => {
-    expect(
-      getToolActivitySummary([
-        { ...tool('deploy_as_api'), params: { action: 'deploy' } },
-        { ...tool('deploy_as_chat'), params: { action: 'deploy' } },
-        { ...tool('deploy_as_mcp'), params: { action: 'undeploy' } },
-        tool('read'),
-      ])
-    ).toBe('Deployed workflows, undeployed workflows, read files')
-  })
-
-  it('describes terminal runs from their operation', () => {
-    expect(
-      getToolActivitySummary([{ ...tool('terminal'), params: { operation: 'run' } }, tool('read')])
-    ).toBe('Ran commands, read files')
+    ).toBe('Ran invoice workflow')
   })
 })

@@ -5,6 +5,7 @@ import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import {
@@ -162,6 +163,13 @@ export function AgentGroupView({
   const isMainAgent = agentName === 'mothership'
   const tools = isMainAgent ? [] : collectGroupTools(items)
   const statusTool = getActivityStatusTool(tools)
+  const activityDescriptor =
+    groupActivity ??
+    tools
+      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .reverse()
+      .find((entry) => entry?.title || entry?.completedTitle)
+  const runningCount = tools.filter((tool) => !isToolDone(tool.status)).length
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
   const activeBrowserTakeover =
@@ -256,14 +264,21 @@ export function AgentGroupView({
     <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>{items.map(renderItem)}</div>
   )
   const headerText = error
-    ? `${agentLabel} — Failed`
+    ? agentLabel
     : isWorking
       ? statusTool
-        ? getActiveToolActivityTitle(activeToolTitle(statusTool), statusTool, tools)
+        ? getActiveToolActivityTitle(
+            `${activeToolTitle(statusTool)}${runningCount > 1 ? ` + ${runningCount - 1}` : ''}`,
+            statusTool,
+            tools
+          )
         : 'Thinking'
-      : tools.length > 0
-        ? getToolActivitySummary(tools)
-        : 'Tool activity'
+      : activityDescriptor?.completedTitle &&
+          tools.every((tool) => tool.status === ToolCallStatus.success)
+        ? activityDescriptor.completedTitle
+        : tools.length > 0
+          ? getToolActivitySummary(tools)
+          : agentLabel
   const headerActive =
     !error &&
     isWorking &&
@@ -289,6 +304,7 @@ export function AgentGroupView({
         <ActivityStream
           activity={{ label: headerText, isActive: headerActive, icon: agentIcon }}
           activityKey={statusTool?.id}
+          expandedLabel={pendingInteraction ? undefined : activityDescriptor?.title}
           attentionKey={`${getActivityAttentionKey(tools)}:${activeBrowserTakeover?.id ?? ''}`}
           collapsible={collapsible}
           expanded={expanded}

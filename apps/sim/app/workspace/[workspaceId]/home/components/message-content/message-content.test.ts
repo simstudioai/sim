@@ -68,7 +68,7 @@ describe('top-level activity groups', () => {
       status: 'executing',
       params: title
         ? {
-            activity: { id: title, completedTitle: title.replace('Checking', 'Checked') },
+            activity: { id: title, title, completedTitle: title.replace('Checking', 'Checked') },
           }
         : {},
     },
@@ -85,7 +85,7 @@ describe('top-level activity groups', () => {
   })
 
   it.each([undefined, 'main'])(
-    'keeps parallel activities separate and rejoins their original group (%s)',
+    'keeps interleaved parallel calls in one chronological active group (%s)',
     (spanId) => {
       const blocks = [
         activityCall('a1', 'Checking invoice inputs', spanId),
@@ -95,12 +95,12 @@ describe('top-level activity groups', () => {
         activityReference('a4', 'Checking invoice inputs', spanId),
       ]
       const groups = parseBlocks(blocks).filter((segment) => segment.type === 'agent_group')
-      expect(groups).toHaveLength(2)
+      expect(groups).toHaveLength(1)
       expect(
         groups.map((group) =>
           group.items.flatMap((item) => (item.type === 'tool' ? [item.data.id] : []))
         )
-      ).toEqual([['a1', 'a2', 'a3', 'a4'], ['b1']])
+      ).toEqual([['a1', 'a2', 'b1', 'a3', 'a4']])
       const completed = blocks.map(
         (block): ContentBlock => ({
           ...block,
@@ -108,13 +108,13 @@ describe('top-level activity groups', () => {
         })
       )
       const stillRunning = [...completed.slice(0, -1), blocks.at(-1)!]
-      expect(parseBlocks(stillRunning)).toHaveLength(2)
+      expect(parseBlocks(stillRunning)).toHaveLength(3)
       const merged = parseBlocks(completed)
       expect(merged).toHaveLength(1)
       expect(merged[0]).toMatchObject({
         id: groups[0].id,
-        completedGroupCount: 2,
-        activity: { completedTitle: 'Checked customer inputs' },
+        completedGroupCount: 3,
+        activity: { completedTitle: 'Checked invoice inputs' },
         items: blocks.map((block) => ({ type: 'tool', data: { id: block.toolCall!.id } })),
       })
     }
@@ -150,18 +150,22 @@ describe('top-level activity groups', () => {
     ])
   })
 
-  it('keeps unassociated calls in a concrete fallback group instead of assigning another activity', () => {
+  it('keeps calls without new metadata inside the current sequential activity', () => {
     const groups = parseBlocks([
       activityCall('a1', 'Checking invoice inputs'),
       activityCall('b1'),
       activityReference('a2', 'Checking invoice inputs'),
     ]).filter((segment) => segment.type === 'agent_group')
-    expect(groups).toHaveLength(2)
-    expect(groups[1].activity).toBeUndefined()
-    expect(groups[1].items).toMatchObject([{ type: 'tool', data: { id: 'b1' } }])
+    expect(groups).toHaveLength(1)
+    expect(groups[0].activity?.title).toBe('Checking invoice inputs')
+    expect(groups[0].items.map((item) => item.type === 'tool' && item.data.id)).toEqual([
+      'a1',
+      'b1',
+      'a2',
+    ])
   })
 
-  it('keeps parallel activities open through thinking gaps until their batch closes', () => {
+  it('keeps only the latest sequential activity open through thinking gaps', () => {
     const completed = [
       activityCall('a1', 'Checking invoice inputs'),
       activityCall('b1', 'Checking customer inputs'),
@@ -173,16 +177,55 @@ describe('top-level activity groups', () => {
       })
     )
     const open = parseBlocks(completed, true)
-    expect(open).toHaveLength(2)
+    expect(open).toHaveLength(3)
     expect(open).toMatchObject([
-      { isOpen: true, items: [{ data: { id: 'a1' } }, { data: { id: 'a2' } }] },
-      { isOpen: true, items: [{ data: { id: 'b1' } }] },
+      { isOpen: false, items: [{ data: { id: 'a1' } }] },
+      { isOpen: false, items: [{ data: { id: 'b1' } }] },
+      { isOpen: true, items: [{ data: { id: 'a2' } }] },
     ])
     const settled = parseBlocks(completed, false)
     expect(settled).toHaveLength(1)
-    expect(settled[0]).toMatchObject({ isOpen: false, completedGroupCount: 2 })
+    expect(settled[0]).toMatchObject({ isOpen: false, completedGroupCount: 3 })
     const proseClosed = parseBlocks([...completed, mainText('The inputs are ready.')], true)
-    expect(proseClosed[0]).toMatchObject({ isOpen: false, completedGroupCount: 2 })
+    expect(proseClosed[0]).toMatchObject({ isOpen: false, completedGroupCount: 3 })
+  })
+
+  it('keeps one active group when parallel calls settle out of order without reordering history', () => {
+    const blocks = [
+      activityCall('a1', 'Checking invoice inputs'),
+      activityCall('b1', 'Checking customer inputs'),
+    ]
+    blocks[1].toolCall!.status = 'success'
+    const pending = parseBlocks(blocks, true)
+    expect(pending).toHaveLength(1)
+    expect(pending[0]).toMatchObject({
+      activity: { title: 'Checking invoice inputs' },
+      items: [{ data: { id: 'a1' } }, { data: { id: 'b1' } }],
+    })
+    blocks[0].toolCall!.status = 'success'
+    const open = parseBlocks(blocks, true).filter((segment) => segment.type === 'agent_group')
+    expect(open.map((group) => group.isOpen)).toEqual([false, true])
+    expect(open[0].id).toBe(pending[0].type === 'agent_group' ? pending[0].id : '')
+    expect(parseBlocks(blocks)[0]).toMatchObject({ completedGroupCount: 2 })
+  })
+
+  it('retains labels on id-only reuse and does not rewrite an earlier closed activity', () => {
+    const first = activityCall('a1', 'Checking invoice inputs')
+    const renamed = activityReference('a2', 'Checking invoice inputs')
+    renamed.toolCall!.params = {
+      activity: {
+        id: 'Checking invoice inputs',
+        title: 'Checking updated invoices',
+        completedTitle: 'Checked updated invoices',
+      },
+    }
+    first.toolCall!.status = 'success'
+    const segments = parseBlocks([first, mainText('Inputs changed.'), renamed], true)
+    const groups = segments.filter((segment) => segment.type === 'agent_group')
+    expect(groups.map((group) => group.activity?.title)).toEqual([
+      'Checking invoice inputs',
+      'Checking updated invoices',
+    ])
   })
 
   it('closes at prose and reopens a reused activity below it during the same turn', () => {

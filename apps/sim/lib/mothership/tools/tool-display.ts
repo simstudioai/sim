@@ -856,6 +856,48 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   switch (name) {
+    case 'settings': {
+      const scope = stringArg(args, 'scope')
+      const section = stringArg(args, 'section')
+      const operation = stringArg(args, 'operation')
+      const target = `${scope ? `${scope} ` : ''}settings${section ? `: ${humanizeDisplayIdentifier(section, 'sentence')}` : ''}`
+      switch (stringArg(args, 'action')) {
+        case 'list':
+          return `Listing ${target}`
+        case 'get':
+          return `Reading ${target}`
+        case 'open':
+          return `Opening ${target}`
+        case 'update':
+          return `Updating ${target}`
+        case 'describe':
+          return `Reading ${target}${operation ? ` — ${humanizeDisplayIdentifier(operation, 'sentence')}` : ''} requirements`
+        case 'execute':
+          return `Running ${target}${operation ? ` — ${humanizeDisplayIdentifier(operation, 'sentence')}` : ''}`
+        default:
+          return `Checking ${target}`
+      }
+    }
+    case 'search_sources': {
+      const connector = stringArg(args, 'connectorType')
+      const target = connector
+        ? `${humanizeDisplayIdentifier(connector)} search sources`
+        : 'search sources'
+      switch (stringArg(args, 'action')) {
+        case 'list':
+          return `Listing ${target}`
+        case 'get':
+          return 'Reading search source details'
+        case 'providers':
+          return 'Listing search source providers'
+        case 'setup':
+          return `Preparing ${target} setup`
+        case 'approve':
+          return `${args?.approved === false ? 'Disabling' : 'Enabling'} ${target}`
+        default:
+          return 'Checking search sources'
+      }
+    }
     case 'cli_blocks_get': {
       const block = stringArg({ value: cliFirstPositional(name, args) }, 'value')
       const operation = cliFlag(args, '--operation')

@@ -979,3 +979,53 @@ describe('model-authored activity outcomes', () => {
     expect(getToolStatusDisplayTitle(title, status, 'read', description)).toBe(expected)
   })
 })
+
+describe('settings and search source activity fallbacks', () => {
+  it.each([
+    ['list', undefined, 'Listing organization settings'],
+    ['get', undefined, 'Reading organization settings: Billing'],
+    ['open', undefined, 'Opening organization settings: Billing'],
+    ['update', undefined, 'Updating organization settings: Billing'],
+    ['describe', 'set_limit', 'Reading organization settings: Billing — Set limit requirements'],
+    ['execute', 'set_limit', 'Running organization settings: Billing — Set limit'],
+  ])('names settings %s from its action and operation', (action, operation, expected) => {
+    const title = getToolDisplayTitle('settings', {
+      action,
+      scope: 'organization',
+      section: action === 'list' ? undefined : 'billing',
+      operation,
+      changes: { secret: 'never-in-label' },
+      input: { secret: 'never-in-label' },
+    })
+    expect(title).toBe(expected)
+    expect(getToolCompletedTitle(title)).not.toBe(title)
+    expect(title).not.toContain('never-in-label')
+  })
+
+  it.each([
+    [{ action: 'list' }, 'Listing search sources'],
+    [{ action: 'get', connectorId: 'opaque-id' }, 'Reading search source details'],
+    [{ action: 'providers' }, 'Listing search source providers'],
+    [
+      { action: 'setup', connectorType: 'google_drive' },
+      'Preparing Google Drive search sources setup',
+    ],
+    [
+      { action: 'approve', connectorType: 'slack', approved: true },
+      'Enabling Slack search sources',
+    ],
+    [
+      { action: 'approve', connectorType: 'slack', approved: false },
+      'Disabling Slack search sources',
+    ],
+  ])('names source actions without exposing internal identifiers', (args, expected) => {
+    const title = getToolDisplayTitle('search_sources', args)
+    expect(title).toBe(expected)
+    expect(getToolCompletedTitle(title)).not.toBe(title)
+  })
+
+  it('keeps partial streamed arguments readable', () => {
+    expect(getToolDisplayTitle('settings')).toBe('Checking settings')
+    expect(getToolDisplayTitle('search_sources')).toBe('Checking search sources')
+  })
+})
