@@ -173,6 +173,8 @@ function createWebContentsMock() {
     print: vi.fn(),
     focus: vi.fn(),
     invalidate: vi.fn(),
+    beginFrameSubscription: vi.fn(),
+    endFrameSubscription: vi.fn(),
     isFocused: vi.fn(() => false),
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),

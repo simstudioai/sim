@@ -1237,7 +1237,7 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'outside-viewport') {
       throw new ToolError(
-        'That point is outside the visible viewport. Coordinates are CSS pixels within the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale, and scroll the target into view first.'
+        "That point is outside the visible viewport. Coordinates are CSS pixels within the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin, and scroll the target into view first."
       )
     }
     if (code === 'ambiguous-editable') {
@@ -2714,13 +2714,14 @@ async function executeToolInner(
       }
       return {
         dataUrl: shot.dataUrl,
+        imageSize: shot.imageSize,
         viewport,
         scale,
         ...(clip
           ? {
               element: elementClip?.element,
               refRecovered: elementClip?.refRecovered === true,
-              clip,
+              clip: shot.clip ?? clip,
             }
           : {}),
       }
@@ -4218,7 +4219,7 @@ async function executeToolInner(
       )
       if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
         throw new ToolError(
-          'Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale.'
+          "Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin."
         )
       }
       if (pointTarget.fileInput === true) {
@@ -4462,7 +4463,7 @@ async function executeToolInner(
         )
         if (!isRecordLike(probe) || probe.found !== true) {
           throw new ToolError(
-            `Nothing is rendered at the ${which} point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale.`
+            `Nothing is rendered at the ${which} point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin.`
           )
         }
         return {

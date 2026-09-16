@@ -96,7 +96,7 @@ test.describe('browser tools', () => {
 
   test.beforeEach(async () => {
     app = await electron.launch({
-      args: ['.'],
+      args: [process.env.SIM_DESKTOP_E2E_MAIN ?? '.'],
       cwd: DESKTOP_DIR,
       env: {
         ...process.env,
@@ -105,9 +105,15 @@ test.describe('browser tools', () => {
       },
     })
     window = await app.firstWindow()
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].webContents.setBackgroundThrottling(false)
-    )
+    await app.evaluate(({ app, BrowserWindow }) => {
+      const host = BrowserWindow.getAllWindows()[0]
+      host.webContents.setBackgroundThrottling(false)
+      app.focus({ steal: true })
+      host.focus()
+    })
+    await expect
+      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isFocused()))
+      .toBe(true)
     await expect(window.getByRole('heading')).toHaveText('Browser tools fixture')
     await window.evaluate(async (scope) => {
       const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
@@ -303,6 +309,180 @@ test.describe('browser tools', () => {
     })
   }
 
+  test('recovers a permanently pending native capture without losing the page', async () => {
+    await openForm()
+    const before = await app.evaluate(async ({ webContents }, origin) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((wc) => wc.getURL() === `${origin}/form`)
+      if (!contents) throw new Error('Missing capture fixture')
+      await contents.executeJavaScript(`
+        document.getElementById('name').value = 'Unsaved work';
+        document.getElementById('name').focus();
+      `)
+      contents.capturePage = () => new Promise(() => {})
+      return { id: contents.id, url: contents.getURL() }
+    }, origin)
+    for (const [color, dominantChannel] of [
+      ['rgb(240, 20, 30)', 0],
+      ['rgb(30, 40, 230)', 2],
+      ['rgb(20, 220, 50)', 1],
+    ] as const) {
+      await app.evaluate(
+        async ({ webContents }, { id, color }) => {
+          const contents = webContents.fromId(id)
+          if (!contents) throw new Error('Capture fixture was replaced')
+          await contents.executeJavaScript(`
+          document.body.style.background = ${JSON.stringify(color)};
+          new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        `)
+        },
+        { id: before.id, color }
+      )
+      const response = await execute('browser_screenshot', {})
+      expect(response.ok, response.error).toBe(true)
+      const shot = response.result as { dataUrl: string }
+      const pixel = await app.evaluate(({ nativeImage }, dataUrl) => {
+        const bitmap = nativeImage.createFromDataURL(dataUrl).toBitmap()
+        return [bitmap[2], bitmap[1], bitmap[0]]
+      }, shot.dataUrl)
+      expect(pixel[dominantChannel]).toBeGreaterThan(180)
+      for (let channel = 0; channel < 3; channel++) {
+        if (channel !== dominantChannel)
+          expect(pixel[dominantChannel] - pixel[channel]).toBeGreaterThan(80)
+      }
+    }
+    const after = await app.evaluate(async ({ webContents }, id) => {
+      const contents = webContents.fromId(id)
+      if (!contents) throw new Error('Capture fixture was replaced')
+      return {
+        id: contents.id,
+        url: contents.getURL(),
+        page: await contents.executeJavaScript(
+          `({value:document.getElementById('name').value,focus:document.activeElement.id})`
+        ),
+      }
+    }, before.id)
+    expect(after).toEqual({ ...before, page: { value: 'Unsaved work', focus: 'name' } })
+  })
+
+  test('maps a fractional narrow crop back to its actual viewport position', async () => {
+    await openForm()
+    const target = await app.evaluate(async ({ webContents }, origin) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((wc) => wc.getURL() === `${origin}/form`)
+      if (!contents) throw new Error('Missing crop fixture')
+      return contents.executeJavaScript(`
+        const button = document.createElement('button');
+        button.textContent = 'Narrow target';
+        button.style.cssText = 'position:absolute;left:20.1px;top:60.1px;width:1.1px;height:100px;padding:0;border:0;overflow:hidden';
+        button.onclick = () => { document.body.dataset.cropClicks = Number(document.body.dataset.cropClicks || 0) + 1 };
+        document.body.append(button);
+        const rect = button.getBoundingClientRect();
+        ({x:rect.x,y:rect.y,width:rect.width,height:rect.height,devicePixelRatio});
+      `) as Promise<{
+        x: number
+        y: number
+        width: number
+        height: number
+        devicePixelRatio: number
+      }>
+    }, origin)
+    const snapshot = await execute('browser_snapshot', {})
+    expect(snapshot.ok, snapshot.error).toBe(true)
+    const line = (snapshot.result as { outline: string }).outline
+      .split('\n')
+      .find((line) => line.includes('"Narrow target"'))
+    const match = line?.match(/\[ref=(\d+)\]/)
+    if (!match) throw new Error('Missing narrow target reference')
+    const response = await execute('browser_screenshot', { elementId: Number(match[1]) })
+    expect(response.ok, response.error).toBe(true)
+    const shot = response.result as {
+      imageSize: { width: number; height: number }
+      clip: { x: number; y: number; width: number; height: number }
+      scale: number
+    }
+    expect(shot.clip.x).toBeLessThanOrEqual(target.x)
+    expect(shot.clip.y).toBeLessThanOrEqual(target.y)
+    expect(shot.clip.x + shot.clip.width).toBeGreaterThanOrEqual(target.x + target.width)
+    expect(shot.clip.y + shot.clip.height).toBeGreaterThanOrEqual(target.y + target.height)
+    expect(target.x - shot.clip.x).toBeLessThan(1 / target.devicePixelRatio)
+    expect(target.y - shot.clip.y).toBeLessThan(1 / target.devicePixelRatio)
+    expect(shot.scale).toBeCloseTo(shot.imageSize.width / shot.clip.width)
+    const clicked = await execute('browser_click_at', {
+      x: shot.clip.x + shot.clip.width / 2,
+      y: shot.clip.y + shot.clip.height / 2,
+    })
+    expect(clicked.ok, clicked.error).toBe(true)
+    const count = await app.evaluate(async ({ webContents }, origin) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((wc) => wc.getURL() === `${origin}/form`)
+      return contents?.executeJavaScript('document.body.dataset.cropClicks')
+    }, origin)
+    expect(count).toBe('1')
+  })
+
+  for (const mode of ['hidden', 'minimized']) {
+    test(`recovers a stalled capture after restoring a ${mode} window`, async () => {
+      test.skip(mode === 'minimized' && process.platform !== 'darwin', 'Requires minimize events')
+      await openForm()
+      await app.evaluate(
+        async ({ BrowserWindow, webContents }, { origin, mode }) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((wc) => wc.getURL() === `${origin}/form`)
+          if (!contents) throw new Error('Missing capture fixture')
+          contents.capturePage = () => new Promise(() => {})
+          await contents.executeJavaScript("document.getElementById('name').value = 'Unsaved work'")
+          const win = BrowserWindow.getAllWindows()[0]
+          win.blur()
+          if (mode === 'hidden') win.hide()
+          else {
+            const minimized = new Promise<void>((resolve) => win.once('minimize', resolve))
+            win.minimize()
+            await minimized
+          }
+        },
+        { origin, mode }
+      )
+      const state = () =>
+        app.evaluate(async ({ BrowserWindow, webContents }, origin) => {
+          const win = BrowserWindow.getAllWindows()[0]
+          const contents = webContents
+            .getAllWebContents()
+            .find((wc) => wc.getURL() === `${origin}/form`)
+          if (!contents) throw new Error('Missing capture fixture')
+          return {
+            id: contents.id,
+            visible: win.isVisible(),
+            minimized: win.isMinimized(),
+            focused: BrowserWindow.getFocusedWindow()?.id ?? null,
+            bounds: win.getBounds(),
+            value: await contents.executeJavaScript("document.getElementById('name').value"),
+          }
+        }, origin)
+      const before = await state()
+      const start = Date.now()
+      const hiddenCapture = await execute('browser_screenshot', {})
+      expect(Date.now() - start).toBeLessThan(12_000)
+      if (!hiddenCapture.ok)
+        expect(hiddenCapture.error).toContain('Screenshot frame capture timed out')
+      expect(await state()).toEqual(before)
+      await app.evaluate(({ BrowserWindow }, mode) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        if (mode === 'minimized') win.restore()
+        else win.showInactive()
+      }, mode)
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const response = await execute('browser_screenshot', {})
+        expect(response.ok, response.error).toBe(true)
+      }
+      expect(await state()).toMatchObject({ id: before.id, value: 'Unsaved work' })
+    })
+  }
+
   for (const mode of ['visible', 'hidden', 'minimized']) {
     test(`captures a ${mode} window without changing its state`, async () => {
       test.skip(
@@ -383,7 +563,8 @@ test.describe('browser tools', () => {
             .find((wc) => wc.getURL() === `${origin}/form`)
           if (!contents) throw new Error('Missing screenshot fixture')
           await contents.executeJavaScript(
-            `document.body.style.background = ${JSON.stringify(color)}; void 0`
+            `document.body.style.background = ${JSON.stringify(color)};
+            new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
           )
         },
         { origin, color }

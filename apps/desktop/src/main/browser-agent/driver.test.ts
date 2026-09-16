@@ -3507,7 +3507,7 @@ describe('credential protection', () => {
     const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 9999, y: 5 })
 
     expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/divide image pixels by its scale/)
+    expect(result.error).toMatch(/X\/Y coordinate mapping and crop origin/)
   })
 
   it('inserts text into the focused editable at the caret', async () => {
@@ -4121,6 +4121,44 @@ describe('credential protection', () => {
     }
   })
 
+  it('returns the encoded crop geometry while checking the original element bounds for movement', async () => {
+    const contents = await openPage()
+    const measuredClip = { x: 0.1, y: 0.2, width: 1.1, height: 100 }
+    const capturedClip = { x: 0, y: 0, width: 1.5, height: 100.5 }
+    respondWith(contents, {
+      getElementScreenshotRect: { ...measuredClip, element: 'div', refRecovered: false },
+    })
+    const capture = vi.spyOn(cdp, 'captureScreenshot').mockResolvedValue({
+      dataUrl: 'data:image/jpeg;base64,c2lt',
+      scale: 2,
+      viewport: { width: 800, height: 600 },
+      imageSize: { width: 3, height: 201 },
+      clip: capturedClip,
+    })
+
+    try {
+      const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
+
+      expect(capture).toHaveBeenCalledWith(contents, measuredClip, expect.any(AbortSignal))
+      expect(result).toMatchObject({
+        ok: true,
+        result: {
+          element: 'div',
+          clip: capturedClip,
+          scale: 2,
+          imageSize: { width: 3, height: 201 },
+        },
+      })
+      expect(
+        vi
+          .mocked(contents.executeJavaScript)
+          .mock.calls.filter(([expression]) => isPageCall(expression, 'getElementScreenshotRect'))
+      ).toHaveLength(2)
+    } finally {
+      capture.mockRestore()
+    }
+  })
+
   it('rejects navigation during an element screenshot measurement', async () => {
     const contents = await openPage()
     vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
@@ -4171,6 +4209,7 @@ describe('credential protection', () => {
       ok: true,
       result: {
         scale: 0.5,
+        imageSize: { width: 1024, height: 512 },
         viewport: {
           url: 'https://example.com/login',
           title: 'Example',

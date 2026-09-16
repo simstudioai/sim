@@ -93,9 +93,9 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/chat/[chatId]/page.tsx": {
-      "modules": 3125,
+      "modules": 3126,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1521,
+        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1522,
         "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 961,
         "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 795,
         "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 790,
@@ -183,9 +183,9 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/home/page.tsx": {
-      "modules": 3125,
+      "modules": 3126,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1521,
+        "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1522,
         "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 961,
         "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/index.ts": 795,
         "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/index.ts": 790,
@@ -613,23 +613,23 @@
       }
     },
     "app/workspace/[workspaceId]/w/[workflowId]/page.tsx": {
-      "modules": 2168,
+      "modules": 2169,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 2167,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 2168,
         "apps/sim/triggers/registry.ts": 522,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 379,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 380,
         "apps/sim/blocks/registry.ts": 350,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 342,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 343,
         "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/index.ts": 275,
         "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/index.ts": 168,
         "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block.tsx": 149
       }
     },
     "app/workspace/[workspaceId]/w/page.tsx": {
-      "modules": 2149,
+      "modules": 2150,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 963,
-        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 633,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/index.ts": 964,
+        "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/index.ts": 634,
         "apps/sim/triggers/registry.ts": 522,
         "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/index.ts": 355,
         "apps/sim/blocks/registry.ts": 350,
