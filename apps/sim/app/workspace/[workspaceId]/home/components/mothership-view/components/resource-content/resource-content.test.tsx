@@ -102,6 +102,7 @@ import {
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 describe('ResourceContent handoff', () => {
   let container: HTMLDivElement
@@ -199,6 +200,31 @@ describe('ResourceContent handoff', () => {
         workspaceId: 'workspace-1',
       }),
     ])
+  })
+
+  it('leaves an existing workflow hydration error to the canvas retry UI instead of calling it missing', async () => {
+    const previous = useWorkflowRegistry.getState().hydration
+    useWorkflowRegistry.setState({
+      hydration: {
+        ...previous,
+        phase: 'error',
+        workspaceId: 'workspace-1',
+        workflowId: 'verified',
+        error: 'Temporary network failure',
+      },
+    })
+    client.setQueryData(workflowKeys.list('workspace-1'), [
+      { id: 'verified', name: 'Verified workflow' },
+    ])
+    try {
+      await act(async () =>
+        render({ type: 'workflow', id: 'verified', title: 'Verified workflow' })
+      )
+      expect(container.textContent).toContain('Verified workflow canvas')
+      expect(container.textContent).not.toContain('Workflow not found')
+    } finally {
+      useWorkflowRegistry.setState({ hydration: previous })
+    }
   })
 
   it('does not cancel canvas hydration when StrictMode replays panel effects', async () => {

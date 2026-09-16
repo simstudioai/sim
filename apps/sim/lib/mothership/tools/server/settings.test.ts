@@ -3,6 +3,10 @@ import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const resolve = vi.hoisted(() => vi.fn())
+const sectionAccess = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/settings/application/organization-section-access', () => ({
+  authorizeOrganizationSettingsSection: sectionAccess,
+}))
 const searchAvailable = vi.hoisted(() => vi.fn(() => Promise.resolve(false)))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   isKnowledgeMemberAccessAvailable: searchAvailable,
@@ -67,9 +71,28 @@ describe('settings tool dispatch', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     searchAvailable.mockResolvedValue(false)
+    sectionAccess.mockResolvedValue(true)
     resolve
       .mockReset()
       .mockResolvedValue({ scope: 'organization', organizationId: 'org', principal })
+  })
+
+  it('omits denied organization sections and refuses their setup or schema discovery', async () => {
+    sectionAccess.mockImplementation(async ({ section }) => section !== 'security')
+    const result = await settingsServerTool.execute({ scope: 'organization', action: 'list' })
+    expect(result).not.toMatchObject({
+      sections: expect.arrayContaining([expect.objectContaining({ id: 'security' })]),
+    })
+    for (const action of ['open', 'get'] as const) {
+      await expect(
+        settingsServerTool.execute({ scope: 'organization', action, section: 'security' })
+      ).rejects.toThrow('unavailable')
+    }
+    expect(sectionAccess).toHaveBeenCalledWith({
+      organizationId: 'org',
+      userId: 'actor',
+      section: 'security',
+    })
   })
 
   it('discovers names without eagerly reading every setting or dumping every schema', async () => {
@@ -93,6 +116,7 @@ describe('settings tool dispatch', () => {
       })
     ).toMatchObject({ setupUrl: '/o/org/settings/integrations', status: 'requires_user_setup' })
     searchAvailable.mockResolvedValue(false)
+    sectionAccess.mockResolvedValue(true)
     expect(
       await settingsServerTool.execute({
         scope: 'organization',

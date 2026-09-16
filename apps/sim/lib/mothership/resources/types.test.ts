@@ -301,3 +301,14 @@ describe('organization resource identity', () => {
     })
   })
 })
+
+it.each(['', '   ', 'r1'])(
+  'repairs placeholder title %j without allowing an empty update to erase a name',
+  (title) => {
+    const old = resource({ title })
+    const named = mergeChatResource(old, resource({ title: 'Canonical workflow' }))
+    expect(named.title).toBe('Canonical workflow')
+    expect(mergeChatResource(named, resource({ title: '' })).title).toBe('Canonical workflow')
+    expect(sanitizeChatResources([named])[0]?.title).toBe('Canonical workflow')
+  }
+)

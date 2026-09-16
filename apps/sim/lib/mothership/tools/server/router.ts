@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
+import { getValidationErrorMessage, isZodError } from '@/lib/api/server/validation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   Ffmpeg,
@@ -26,6 +27,7 @@ import {
 import { ffmpegServerTool } from '@/lib/mothership/tools/server/media/ffmpeg'
 import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
+import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
 import { organizationSearchSourcesServerTool } from '@/lib/mothership/tools/server/search-sources'
 import { settingsServerTool } from '@/lib/mothership/tools/server/settings'
 import { getCredentialsServerTool } from '@/lib/mothership/tools/server/user/get-credentials'
@@ -62,6 +64,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [listWorkspacesServerTool.name]: listWorkspacesServerTool,
   [organizationSearchSourcesServerTool.name]: organizationSearchSourcesServerTool,
   [settingsServerTool.name]: settingsServerTool,
+  [openResourceServerTool.name]: openResourceServerTool,
   [readDocumentServerTool.name]: readDocumentServerTool,
   // The streamed file-writing pair: prepare opens the write (live preview),
   // apply continues it. The preview machinery keys off these exact names.
@@ -130,9 +133,16 @@ export async function routeExecution(
     }
   }
 
-  const args = tool.inputSchema
-    ? tool.inputSchema.parse(normalizedPayload)
-    : validateGeneratedToolPayload(toolName, 'parameters', normalizedPayload)
+  let args: unknown
+  try {
+    args = tool.inputSchema
+      ? tool.inputSchema.parse(normalizedPayload)
+      : validateGeneratedToolPayload(toolName, 'parameters', normalizedPayload)
+  } catch (error) {
+    if (!isZodError(error)) throw error
+    const field = error.issues[0]?.path.join('.') || 'input'
+    throw new OrchestrationError('validation', `${field}: ${getValidationErrorMessage(error)}`)
+  }
 
   assertServerToolNotAborted(context, `User stop signal aborted ${toolName} after validation`)
 

@@ -14,8 +14,14 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   reorder: vi.fn(),
   add: vi.fn(),
+  ownerQueries: vi.fn<
+    (
+      ...args: unknown[]
+    ) => Array<{ data?: Array<{ id: string; workspaceId: string; name: string }> }>
+  >(() => []),
   files: vi.fn(() => ({ data: [] })),
 }))
+vi.mock('@tanstack/react-query', () => ({ useQueries: mocks.ownerQueries }))
 vi.mock('@sim/emcn', () => ({
   TabStrip: mocks.strip,
   Button: ({ children }: { children: ReactNode }) => children,
@@ -47,7 +53,7 @@ vi.mock(
 )
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry',
-  () => ({ getResourceConfig: () => ({ renderTabIcon: () => null }) })
+  () => ({ getResourceConfig: () => ({ renderTabIcon: () => null, label: 'Workflow' }) })
 )
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/use-terminal-close-confirmation',
@@ -75,6 +81,7 @@ function props(): ComponentProps<typeof TabStrip> {
 }
 beforeEach(async () => {
   vi.clearAllMocks()
+  mocks.ownerQueries.mockReturnValue([])
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('fetch', vi.fn())
   mocks.strip.mockReturnValue(null)
@@ -116,4 +123,49 @@ it('reorders the selected alias while retaining both owners', async () => {
   await act(async () => props().onReorder?.(getChatResourceSelectionId(second), 0))
   expect(mocks.reorder).toHaveBeenCalledExactlyOnceWith([second, first])
   expect(fetch).not.toHaveBeenCalled()
+})
+
+it('restores named workflow tabs across owners and ignores empty or wrong-owner names', async () => {
+  const workflows: MothershipResource[] = [
+    { type: 'workflow', id: 'flow-a', workspaceId: 'ws-a', title: 'Saved A' },
+    { type: 'workflow', id: 'flow-b', workspaceId: 'ws-b', title: 'Saved B' },
+  ]
+  mocks.ownerQueries.mockReturnValue([
+    { data: [{ id: 'flow-a', workspaceId: 'ws-a', name: 'Current A' }] },
+    { data: [{ id: 'flow-b', workspaceId: 'wrong-owner', name: 'Wrong name' }] },
+  ])
+  await act(async () =>
+    root.render(
+      <ResourceTabs
+        resources={workflows}
+        activeId='flow-a'
+        desktopScopeId='org-chat'
+        chatId='chat-a'
+      />
+    )
+  )
+  expect(props().tabs.map((tab) => tab.title)).toEqual(['Current A', 'Saved B'])
+  expect(
+    mocks.ownerQueries.mock.lastCall![0].queries.map(
+      (query: { queryKey: unknown }) => query.queryKey
+    )
+  ).toEqual([
+    ['workflows', 'list', 'ws-a', 'active'],
+    ['workflows', 'list', 'ws-b', 'active'],
+  ])
+  mocks.ownerQueries.mockReturnValue([
+    { data: [{ id: 'flow-a', workspaceId: 'ws-a', name: '' }] },
+    {},
+  ])
+  await act(async () =>
+    root.render(
+      <ResourceTabs
+        resources={workflows}
+        activeId='flow-b'
+        desktopScopeId='org-chat'
+        chatId='chat-a'
+      />
+    )
+  )
+  expect(props().tabs.map((tab) => tab.title)).toEqual(['Saved A', 'Saved B'])
 })

@@ -22,17 +22,7 @@ export async function runCli(
   files?: { observeDownload: SessionFileObserver; observeUpload: SessionFileObserver }
 ): Promise<AgentCliRawResult> {
   const readFile = sessionKey
-    ? async (path: string) => {
-        identity.signal?.throwIfAborted()
-        const read = await readSessionSandboxFile(sessionKey, path, 'base64', identity.signal)
-        identity.signal?.throwIfAborted()
-        if (read.outcome === 'read') return Buffer.from(read.content, 'base64')
-        throw new Error(
-          read.outcome === 'no-session'
-            ? `No workbench exists for this chat; write "${path}" first or pass the value inline.`
-            : `Could not read workbench file "${path}": ${read.detail}`
-        )
-      }
+    ? (path: string) => readCliInputFile(sessionKey, path, identity.signal)
     : undefined
   // Downloads land on the same machine `@path` reads from; without a sandbox session
   // the CLI refuses rather than writing to the server's disk.
@@ -61,4 +51,21 @@ export async function runCli(
     ...(openFile ? { openFile } : {}),
     ...(writeFile ? { writeFile } : {}),
   })
+}
+
+/** Uses the native CLI's bounded workbench reader; never reads the Sim host filesystem. */
+export async function readCliInputFile(
+  sessionKey: string,
+  path: string,
+  signal?: AbortSignal
+): Promise<Buffer> {
+  signal?.throwIfAborted()
+  const read = await readSessionSandboxFile(sessionKey, path, 'base64', signal)
+  signal?.throwIfAborted()
+  if (read.outcome === 'read') return Buffer.from(read.content, 'base64')
+  throw new Error(
+    read.outcome === 'no-session'
+      ? `No workbench exists for this chat; write "${path}" first or pass the value inline.`
+      : `Could not read workbench file "${path}": ${read.detail}`
+  )
 }

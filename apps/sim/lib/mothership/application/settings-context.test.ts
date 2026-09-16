@@ -11,7 +11,7 @@ vi.mock('@/lib/mothership/chat/organization-chats', () => ({
   authorizeOrganizationChatDelegation: { execute: boundary.organization },
 }))
 
-import { resolveSettingsContext } from './settings-context'
+import { resolveSettingsContext } from '@/lib/mothership/application/settings-context'
 
 const workspace = {
   userId: 'actor',
@@ -82,17 +82,12 @@ describe('settings conversation scope', () => {
     })
   })
 
-  it('derives an organization from the authorized workspace, not caller data', async () => {
-    const result = await resolveSettingsContext('organization', workspace)
-    expect(boundary.context).toHaveBeenCalledWith({
-      principal: expect.objectContaining({ kind: 'delegated', workspaceId: 'workspace-a' }),
-      input: {},
-    })
-    expect(result.principal).toMatchObject({
-      kind: 'organization_delegated',
-      subjectUserId: 'actor',
-      organizationId: 'organization-a',
-    })
+  it('never promotes a workspace conversation into parent organization settings', async () => {
+    await expect(resolveSettingsContext('organization', workspace)).rejects.toThrow(
+      'organization conversation'
+    )
+    expect(boundary.context).not.toHaveBeenCalled()
+    expect(boundary.organization).not.toHaveBeenCalled()
     boundary.workspace.mockRejectedValueOnce(new Error('Access revoked'))
     await expect(resolveSettingsContext('account', workspace)).rejects.toThrow('Access revoked')
   })

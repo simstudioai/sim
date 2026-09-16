@@ -8,6 +8,7 @@ import { createFileUploadTransport } from '@/lib/mothership/agent-cli/file-uploa
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
+import { executeAgentCliService } from '@/lib/mothership/agent-cli/services'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
@@ -22,23 +23,17 @@ import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-export interface AgentCliExecutionContext {
-  workspaceId?: string
-  organizationId?: string
-  chatOrganizationId?: string
-  userId: string
-  chatId?: string | undefined
-  signal?: AbortSignal | undefined
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+export interface AgentCliExecutionContext extends Omit<ServerToolContext, 'abortSignal'> {
+  signal?: AbortSignal
 }
 
 /**
  * Executes one typed request from the worker: mint the caller's delegated identity, run
- * the real CLI or the named engine, apply the pre-parsed pipeline, land the sink. Both
- * lanes share one server-minted identity so "the agent is the user" holds without any
+ * the real CLI, named engine or service, and land the pre-parsed sink. All
+ * lanes preserve the server-minted identity so "the agent is the user" holds without any
  * credential crossing to the worker. Success here means only "the invocation ran".
  */
 export async function executeAgentCliRequest(
@@ -46,6 +41,11 @@ export async function executeAgentCliRequest(
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
   context.signal?.throwIfAborted()
+  if (
+    request.invocation.kind === 'service' ||
+    (request.invocation.kind === 'stdout' && (context.chatOrganizationId || context.organizationId))
+  )
+    return executeAgentCliService(request, context)
   const target = await resolveInvocationWorkspace(context, request.workspaceId)
   return withWorkspaceInvocationScope(
     {
@@ -155,7 +155,7 @@ async function executeBoundAgentCliRequest(
         invocation.flags
       )
     )
-  } else {
+  } else if (invocation.kind === 'cli') {
     const { argv } = invocation
     result = await withCopilotSpan(TraceSpan.CopilotCliInvoke, undefined, () =>
       runCli(argv, identity, sessionKey, files)
@@ -165,7 +165,7 @@ async function executeBoundAgentCliRequest(
         curateBlockDetail(result, context)
       )
     }
-  }
+  } else throw new Error('Service invocation must use the service bridge')
   if (resources.length)
     result = { ...result, resources: [...resources, ...(result.resources ?? [])] }
   if (context.chatOrganizationId && result.resources?.length)

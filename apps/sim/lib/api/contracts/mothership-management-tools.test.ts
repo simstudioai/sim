@@ -1,6 +1,9 @@
 import Ajv from 'ajv'
 import { describe, expect, it } from 'vitest'
-import { managementToolContracts, managementToolDefinitions } from './mothership-management-tools'
+import {
+  managementToolContracts,
+  managementToolDefinitions,
+} from '@/lib/api/contracts/mothership-management-tools'
 
 const workspaceId = '6bbd0147-86ae-4e0b-aa32-26c64e61f58d'
 const examples = {
@@ -48,6 +51,24 @@ describe('management tool provider contract', () => {
       expect(validate({ action: 'arbitrary_operation' })).toBe(false)
     })
   }
+
+  it('publishes exact action variants for CLI required fields and allowed flags', () => {
+    for (const definition of managementToolDefinitions) {
+      for (const input of examples[definition.id]) {
+        const validate = new Ajv({ strict: false, validateFormats: false }).compile(
+          definition.actionSchemas[input.action]
+        )
+        expect(validate(input), JSON.stringify(validate.errors)).toBe(true)
+        expect(validate({ ...input, unexpected: true })).toBe(false)
+      }
+    }
+    const settings = managementToolDefinitions[0].actionSchemas
+    expect(settings.execute.required).toEqual(expect.arrayContaining(['operation', 'input']))
+    expect(settings.list.properties).not.toHaveProperty('operation')
+    expect(managementToolDefinitions[1].actionSchemas.approve.properties?.approved).toMatchObject({
+      type: 'boolean',
+    })
+  })
 
   it('keeps action-specific validation at the canonical execution boundary', () => {
     const settings = managementToolContracts[0].inputSchema

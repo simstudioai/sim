@@ -277,7 +277,10 @@ export function mergeChatResource(
     ...(next.clearViewId !== true && next.viewId !== undefined ? { viewId: next.viewId } : {}),
     ...(next.executionId !== undefined ? { executionId: next.executionId } : {}),
     title:
-      GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(next.title)
+      (!prev.title.trim() || prev.title === prev.id || GENERIC_RESOURCE_TITLES.has(prev.title)) &&
+      Boolean(next.title.trim()) &&
+      next.title !== next.id &&
+      !GENERIC_RESOURCE_TITLES.has(next.title)
         ? next.title
         : prev.title,
   }

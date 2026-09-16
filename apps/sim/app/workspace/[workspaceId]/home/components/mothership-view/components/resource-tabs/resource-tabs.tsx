@@ -22,6 +22,7 @@ import {
 } from '@sim/emcn'
 import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import type { TerminalTabState } from '@sim/terminal-protocol'
+import { useQueries } from '@tanstack/react-query'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
 import {
   openBrowserTab,
@@ -52,6 +53,7 @@ import type {
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
+import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
@@ -157,8 +159,24 @@ const NO_RESOURCE_NAMES = new Map<string, string>()
  */
 function useResourceNameLookup(
   workspaceId: string | undefined,
-  enabled: boolean
+  resources: MothershipResource[]
 ): Map<string, string> {
+  const enabled = resources.length > 0
+  const owners = [
+    ...new Set(
+      resources
+        .filter(
+          (resource) =>
+            resource.type === 'workflow' &&
+            resource.workspaceId &&
+            resource.workspaceId !== workspaceId
+        )
+        .map((resource) => resource.workspaceId!)
+    ),
+  ]
+  const ownedWorkflows = useQueries({
+    queries: owners.map((owner) => getWorkflowListQueryOptions(owner)),
+  })
   const { data: workflows } = useWorkflows(workspaceId ?? '', {
     enabled: enabled && Boolean(workspaceId),
   })
@@ -178,13 +196,18 @@ function useResourceNameLookup(
   return useMemo(() => {
     if (!enabled) return NO_RESOURCE_NAMES
     const map = new Map<string, string>()
-    for (const w of workflows ?? []) map.set(`workflow:${w.id}`, w.name)
+    for (const w of workflows ?? []) if (w.name.trim()) map.set(`workflow:${w.id}`, w.name)
+    for (const [index, result] of ownedWorkflows.entries()) {
+      for (const workflow of result.data ?? [])
+        if (workflow.name.trim() && workflow.workspaceId === owners[index])
+          map.set(`workflow:${workflow.id}`, workflow.name)
+    }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
     for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
-  }, [enabled, workflows, tables, files, knowledgeBases, folders])
+  }, [enabled, workflows, tables, files, knowledgeBases, folders, ownedWorkflows, owners])
 }
 
 interface ResourceTabsProps {
@@ -224,7 +247,7 @@ export function ResourceTabs({
   onAddResourceClose,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
-  const nameLookup = useResourceNameLookup(workspaceId, resources.length > 0)
+  const nameLookup = useResourceNameLookup(workspaceId, resources)
   const {
     selectResource,
     addResource: onAddResource,
@@ -279,7 +302,10 @@ export function ResourceTabs({
             ? browserTitles.get(resource.id)
             : terminal
               ? terminalTabTitle(terminal, settledCommands)
-              : nameLookup.get(`${resource.type}:${resource.id}`)) ?? resource.title,
+              : nameLookup.get(`${resource.type}:${resource.id}`)
+          )?.trim() ||
+          resource.title.trim() ||
+          getResourceConfig(resource.type).label,
         // A shell's label is a basename, and it may be running something it is
         // not naming yet, so hovering identifies the directory and program.
         ...(terminal ? { tooltip: terminalTooltip(terminal) } : {}),

@@ -25,6 +25,12 @@ export const managementToolContracts = [
 export const managementToolDefinitions = managementToolContracts.map(
   ({ inputSchema, ...definition }) => ({
     ...definition,
+    actionSchemas: Object.fromEntries(
+      inputSchema.options.map((option) => [
+        option.shape.action.value,
+        z.toJSONSchema(option, { target: 'draft-7', io: 'input' }),
+      ])
+    ),
     parameters: z.toJSONSchema(actionToolObject(inputSchema.options), {
       target: 'draft-7',
       io: 'input',

@@ -110,6 +110,114 @@ describe('named CLI resource rows', () => {
     )
   })
 
+  it.each([
+    ['cli_logs_list', ['logs', 'list'], 'Listing run logs in Sales'],
+    ['cli_files_list', ['files', 'list'], 'Listing files in Sales'],
+    ['cli_workspaces_get', ['workspaces', 'get', 'sales'], 'Reading Sales'],
+    ['cli_workflows_list', ['workflows', 'list'], 'Listing workflows in Sales'],
+    ['cli_workflows_get', ['workflows', 'get', id], 'Reading Invoice API in Sales'],
+    ['cli_files_get', ['files', 'get', id], 'Reading Revenue.csv in Sales'],
+  ])('names the invocation workspace for %s without a chat workspace', (name, argv, expected) => {
+    client.setQueryData(['workspace', 'list', 'user', 'active'], {
+      workspaces: [{ id: 'sales', name: 'Sales' }],
+    })
+    client.setQueryData(['workflows', 'list', 'sales', 'active'], [{ id, name: 'Invoice API' }])
+    client.setQueryData(
+      ['workspaceFiles', 'list', 'sales', 'active'],
+      [{ id, name: 'Revenue.csv' }]
+    )
+    const args = { request: { workspaceId: 'sales', invocation: { kind: 'cli', argv } } }
+    expect(resolveNamedCliToolDisplayTitle(name, args, {})).toBe(expected)
+    expect(client.isFetching()).toBe(0)
+  })
+
+  it('uses raw workspace selectors while arguments stream and keeps all workflow filters', () => {
+    client.setQueryData(
+      ['workspace', 'adminList', 'viewer', 'org'],
+      [{ id: 'sales', name: 'Sales' }]
+    )
+    client.setQueryData(
+      ['workflows', 'list', 'sales', 'active'],
+      [
+        { id, name: 'Invoice API' },
+        { id: 'second', name: 'Payments API' },
+      ]
+    )
+    const args = { args: ['--workspace=sales', 'logs', 'list', '--workflow', id, 'second'] }
+    expect(resolveNamedCliToolDisplayTitle('cli_logs_list', args, {})).toBe(
+      'Listing run logs for Invoice API, Payments API in Sales'
+    )
+    expect(
+      resolveNamedCliToolDisplayTitle(
+        'cli_workflows_get',
+        {
+          args: ['-wsales', 'workflows', 'get', id],
+        },
+        {}
+      )
+    ).toBe('Reading Invoice API in Sales')
+    expect(
+      resolveNamedCliToolDisplayTitle(
+        'cli_logs_list',
+        {
+          args: ['logs', 'list', '--workspace', 'sales', '--workflow', id, 'unknown'],
+        },
+        {}
+      )
+    ).toBe('Listing run logs in Sales')
+  })
+
+  it('uses confirmed owner and run names without mixing another workspace inventory', () => {
+    client.setQueryData(['workflows', 'list', 'chat-workspace', 'active'], [{ id, name: 'Wrong' }])
+    expect(
+      resolveNamedCliToolDisplayTitle(
+        'cli_workflows_get',
+        { args: ['workflows', 'get', id] },
+        {
+          ...context,
+          resources: [
+            {
+              type: 'workflow',
+              id,
+              title: 'Invoice API',
+              workspaceId: 'sales',
+              workspaceName: 'Sales',
+            },
+          ],
+        }
+      )
+    ).toBe('Reading Invoice API in Sales')
+    expect(
+      resolveNamedCliToolDisplayTitle(
+        'cli_logs_get',
+        { args: ['logs', 'get', 'run'] },
+        {
+          resources: [
+            {
+              type: 'log',
+              id: 'run',
+              title: 'Invoice API',
+              workspaceId: 'sales',
+              workspaceName: 'Sales',
+            },
+          ],
+        }
+      )
+    ).toBe('Reading run log for Invoice API in Sales')
+    expect(
+      resolveNamedCliToolDisplayTitle(
+        'cli_workflows_get',
+        {
+          request: {
+            workspaceId: 'other',
+            invocation: { kind: 'cli', argv: ['workflows', 'get', id] },
+          },
+        },
+        { resources: [{ type: 'workflow', id, title: 'Wrong', workspaceId: 'sales' }] }
+      )
+    ).toBeUndefined()
+  })
+
   it('names path-addressed file reads during replay without fetching an inventory', () => {
     expect(
       resolveNamedCliToolDisplayTitle(
@@ -140,6 +248,40 @@ describe('named CLI resource rows', () => {
         context
       )
     ).toBe('Reading Google Sheets configuration')
+  })
+
+  it('refreshes cross-workspace list labels when the organization inventory arrives', () => {
+    const blocks: ContentBlock[] = [
+      {
+        type: 'tool_call',
+        toolCall: {
+          id: 'logs',
+          name: 'cli_logs_list',
+          status: 'success',
+          displayTitle: 'Listing run logs',
+          params: {
+            request: { workspaceId: 'sales', invocation: { kind: 'cli', argv: ['logs', 'list'] } },
+          },
+        },
+      },
+    ]
+    function Probe() {
+      const titled = useToolResourceTitles(blocks)
+      return <span>{titled[0].toolCall?.displayTitle}</span>
+    }
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    act(() => root.render(<Probe />))
+    expect(container.textContent).toBe('Listing run logs')
+    act(() => {
+      client.setQueryData(
+        ['workspace', 'adminList', 'viewer', 'org'],
+        [{ id: 'sales', name: 'Sales' }]
+      )
+    })
+    expect(container.textContent).toBe('Listing run logs in Sales')
+    expect(client.isFetching()).toBe(0)
+    act(() => root.unmount())
   })
 
   it('refreshes persisted generic rows as inventory arrives and names change, with no fetch', () => {

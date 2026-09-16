@@ -6,6 +6,10 @@ import { mothershipTaskKeys } from '@/hooks/queries/mothership-tasks'
 import { TaskPill } from './task-pill'
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@/lib/mothership/tools/client/resource-display', () => ({
+  resolveResourceDisplayName: (_type: string, id: unknown) =>
+    id === 'workflow' ? 'Alfred' : undefined,
+}))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: request }))
 vi.mock('@sim/emcn', () => ({
   Check: () => null,
@@ -39,7 +43,8 @@ it('updates a pill in an earlier message without needing an event in that turn',
   await waitFor(() => expect(request).toHaveBeenCalledTimes(1))
   request.mockResolvedValue({ taskId: task.taskId, status: 'completed', summary: 'Timer elapsed' })
   await act(() => client.invalidateQueries({ queryKey: mothershipTaskKeys.detail(task.taskId) }))
-  expect(await screen.findByText(/completed timer.*Timer elapsed/)).toBeTruthy()
+  expect(await screen.findByText(/Background watch.*Completed timer/)).toBeTruthy()
+  expect(screen.getByRole('status').title).toContain('Timer elapsed')
 })
 
 it('never replaces a live terminal event with a cached pending status', async () => {
@@ -56,5 +61,42 @@ it('never replaces a live terminal event with a cached pending status', async ()
       <TaskPill task={{ ...task, status: 'stopped' }} />
     </QueryClientProvider>
   )
-  expect(screen.getByText(/stopped timer/)).toBeTruthy()
+  expect(screen.getByText(/Stopped timer/)).toBeTruthy()
 })
+
+it('shows completed workflow watches as status without duplicate run ids or action controls', () => {
+  const executionId = '733e3428-f081-4504-bc5e-25be3b515304'
+  const summary = `Workflow run ${executionId} of "Alfred" completed`
+  render(
+    <QueryClientProvider client={client}>
+      <TaskPill
+        task={{
+          ...task,
+          kind: 'workflow_run',
+          status: 'completed',
+          target: { executionId, workflowId: 'workflow', workspaceId: 'workspace' },
+          summary,
+        }}
+      />
+    </QueryClientProvider>
+  )
+  const status = screen.getByRole('status')
+  expect(status.textContent).toBe('Background watch · Completed workflow run · Alfred')
+  expect(status.title).toContain(summary)
+  expect(status.textContent).not.toContain(executionId)
+  expect(screen.queryByRole('button')).toBeNull()
+  expect(request).not.toHaveBeenCalled()
+})
+
+it.each(['failed', 'expired', 'stopped'] as const)(
+  'retains a %s workflow watch outcome and detail',
+  (status) => {
+    render(
+      <QueryClientProvider client={client}>
+        <TaskPill task={{ ...task, kind: 'workflow_run', status, summary: 'Run did not finish' }} />
+      </QueryClientProvider>
+    )
+    expect(screen.getByRole('status').textContent).not.toContain('Completed')
+    expect(screen.getByRole('status').title).toContain('Run did not finish')
+  }
+)

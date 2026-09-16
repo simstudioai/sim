@@ -101,3 +101,27 @@ describe('server tool adapter authority boundary', () => {
     )
   })
 })
+
+it('forwards canonical open-resource effects without replacing target assertions or injecting a workflow', async () => {
+  const resources = [
+    { type: 'workflow', id: 'flow', title: 'Canonical', workspaceId: 'workspace-1' },
+  ]
+  mocks.routeExecution.mockResolvedValue({ resources })
+  const params = {
+    workspaceId: 'asserted-workspace',
+    resources: [{ type: 'workflow', id: 'flow' }],
+  }
+  const result = await createServerToolHandler('open_resource')(params, {
+    userId: 'actor',
+    workspaceId: 'workspace-1',
+    workflowId: 'unrelated',
+    toolCallId: 'call',
+    copilotToolExecution: true,
+  })
+  expect(mocks.routeExecution).toHaveBeenCalledWith(
+    'open_resource',
+    params,
+    expect.objectContaining({ workspaceId: 'workspace-1', userId: 'actor' })
+  )
+  expect(result).toEqual({ success: true, output: { resources }, resources })
+})

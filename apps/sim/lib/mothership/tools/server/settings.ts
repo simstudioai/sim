@@ -1,4 +1,6 @@
+import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { z } from 'zod'
+import { ORGANIZATION_SETTINGS_ITEMS } from '@/components/settings/navigation'
 import {
   type MothershipSettingsInput,
   mothershipSettingsInputSchema,
@@ -57,6 +59,7 @@ import {
   readOrganizationSettings,
   updateOrganizationSettings,
 } from '@/lib/organizations/application/settings'
+import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { type SettingsSection, settingsSections } from '@/lib/settings/sections'
 import {
   delegatedAccountPreferencesSchema,
@@ -290,6 +293,20 @@ async function describeSection(context: SettingsContext, section: SettingsSectio
     }))
       ? 'integrations'
       : section.uiSection
+  if (context.scope === 'organization' && uiSection) {
+    const knownSection = ORGANIZATION_SETTINGS_ITEMS.find((item) => item.id === uiSection)
+    const userId = resolvePrincipalSubjectUserId(context.principal)
+    if (
+      knownSection &&
+      (!userId ||
+        !(await authorizeOrganizationSettingsSection({
+          organizationId: organizationInput(context).organizationId,
+          userId,
+          section: knownSection.id,
+        })))
+    )
+      return null
+  }
   const setupUrl = !uiSection
     ? undefined
     : context.scope === 'organization'
@@ -329,9 +346,11 @@ export const settingsServerTool: BaseServerTool<MothershipSettingsInput> = {
     if (input.action === 'list')
       return {
         scope: input.scope,
-        sections: await Promise.all(
-          settingsSections[input.scope].map((section) => describeSection(target, section))
-        ),
+        sections: (
+          await Promise.all(
+            settingsSections[input.scope].map((section) => describeSection(target, section))
+          )
+        ).filter((section) => section !== null),
         permissions:
           'Listed sections are discovery, not access grants. Selected operations recheck current roles, entitlements and policies.',
       }
@@ -344,6 +363,11 @@ export const settingsServerTool: BaseServerTool<MothershipSettingsInput> = {
         'Unknown settings section; use list to discover supported sections'
       )
     const description = await describeSection(target, section)
+    if (!description)
+      throw new OrchestrationError(
+        'forbidden',
+        'This settings section is unavailable for your current organization access'
+      )
     if (input.action === 'open') return { ...description, status: 'requires_user_setup' }
     const adapter = adapters[`${input.scope}/${input.section}`]
     const operations = settingsOperations[`${input.scope}/${input.section}`]

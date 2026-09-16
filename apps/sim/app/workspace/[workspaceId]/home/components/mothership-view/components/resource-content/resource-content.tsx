@@ -700,26 +700,9 @@ interface EmbeddedWorkflowProps {
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   const { data: workflowList } = useWorkflows(workspaceId)
   const workflowExists = (workflowList ?? []).some((workflow) => workflow.id === workflowId)
-  const hasLoadError = useWorkflowRegistry(
-    (state) => state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
-  )
 
   if (!workflowExists) {
     return <ResolveEmbeddedWorkflow workspaceId={workspaceId} workflowId={workflowId} />
-  }
-
-  if (hasLoadError) {
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This workflow may have been deleted or moved
-          </p>
-        </div>
-      </div>
-    )
   }
 
   return (

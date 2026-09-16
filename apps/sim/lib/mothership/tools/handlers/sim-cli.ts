@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
 import { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type {
   ToolExecutionContext,
@@ -37,6 +38,16 @@ export async function executeSimCli(
       userId: context.userId,
       chatId: context.chatId,
       signal: context.abortSignal,
+      toolCallId: context.toolCallId,
+      copilotToolExecution: context.copilotToolExecution,
+      requestMode: context.requestMode,
+      searchSurface: context.searchSurface,
+      assistantSearch: context.assistantSearch,
+      billingAttribution: context.billingAttribution,
+      executionId: context.executionId,
+      messageId: context.messageId,
+      parentToolCallId: context.parentToolCallId,
+      userPermission: context.userPermission,
       resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
     })
     logger.info('CLI invocation finished', {
@@ -53,6 +64,12 @@ export async function executeSimCli(
         : { error: result.stderr.split('\n')[0] || `sim CLI exited with code ${result.exitCode}` }),
     }
   } catch (error) {
-    return { success: false, error: getErrorMessage(error) }
+    return {
+      success: false,
+      error:
+        parsed.data.invocation.kind === 'service'
+          ? messageForCopilotApplicationError(error)
+          : getErrorMessage(error),
+    }
   }
 }

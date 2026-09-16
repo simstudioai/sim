@@ -48,6 +48,11 @@ export async function resolveSettingsContext(
     await authorizeOrganizationChatDelegation.execute({ principal })
     return { principal, scope, organizationId: trusted.organizationId }
   }
+  if (scope === 'organization')
+    throw new OrchestrationError(
+      'forbidden',
+      'Organization settings require an organization conversation'
+    )
   const trusted = requireTrustedCopilotExecutionContext(context)
   if (assertedWorkspaceId && assertedWorkspaceId !== trusted.workspaceId)
     throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
@@ -60,21 +65,5 @@ export async function resolveSettingsContext(
     delegation
   )
   const host = await readSettingsWorkspaceContext.execute({ principal, input: {} })
-  if (scope !== 'organization')
-    return { principal, scope, ...host, organizationId: host.organizationId ?? undefined }
-  if (!host.organizationId || !trusted.chatId)
-    throw new OrchestrationError('not_found', 'This workspace has no organization settings')
-  return {
-    scope,
-    organizationId: host.organizationId,
-    principal: createTrustedOrganizationCopilotPrincipal(
-      {
-        userId: trusted.userId,
-        organizationId: host.organizationId,
-        chatId: trusted.chatId,
-        delegationId: trusted.toolCallId,
-      },
-      delegation
-    ),
-  }
+  return { principal, scope, ...host, organizationId: host.organizationId ?? undefined }
 }
