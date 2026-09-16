@@ -1644,6 +1644,18 @@ export const schemaMock = {
     approved: 'organizationSearchIntegration.approved',
     updatedAt: 'organizationSearchIntegration.updatedAt',
   },
+  organizationSearchMcpInvocation: {
+    id: 'organizationSearchMcpInvocation.id',
+    organizationId: 'organizationSearchMcpInvocation.organizationId',
+    userId: 'organizationSearchMcpInvocation.userId',
+    authKind: 'organizationSearchMcpInvocation.authKind',
+    oauthClientId: 'organizationSearchMcpInvocation.oauthClientId',
+    clientName: 'organizationSearchMcpInvocation.clientName',
+    toolName: 'organizationSearchMcpInvocation.toolName',
+    outcome: 'organizationSearchMcpInvocation.outcome',
+    durationMs: 'organizationSearchMcpInvocation.durationMs',
+    createdAt: 'organizationSearchMcpInvocation.createdAt',
+  },
   organizationSearchInvocation: {
     id: 'organizationSearchInvocation.id',
     organizationId: 'organizationSearchInvocation.organizationId',
