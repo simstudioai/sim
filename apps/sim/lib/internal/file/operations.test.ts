@@ -1019,6 +1019,7 @@ describe('file manage folder wiring', () => {
 describe('file manage operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetFileMetadataByKey.mockResolvedValue(null)
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -1150,16 +1151,31 @@ describe('file manage operations', () => {
       },
     ]
 
-    beforeEach(() => {
-      mockResolveWorkspaceFileReference.mockResolvedValue(workspaceFile('document'))
-      mockGetFileMetadataByKey.mockResolvedValue({
-        id: contributor.fileId,
-        key: contributor.key,
-        context: contributor.context,
+    function mockContributorMetadata(overrides: { userId?: string; workspaceId?: string } = {}) {
+      const document = {
+        id: 'document',
+        key: 'workspace/workspace-1/document.txt',
+        context: 'workspace',
         workspaceId: 'workspace-1',
         userId: 'user-1',
         contentUpdatedAt: CONTENT_UPDATED_AT,
-      })
+      }
+      const image = {
+        ...document,
+        id: contributor.fileId,
+        key: contributor.key,
+        ...overrides,
+      }
+      const records = new Map([
+        [document.key, document],
+        [image.key, image],
+      ])
+      mockGetFileMetadataByKey.mockImplementation(async (key: string) => records.get(key) ?? null)
+    }
+
+    beforeEach(() => {
+      mockResolveWorkspaceFileReference.mockResolvedValue(workspaceFile('document'))
+      mockContributorMetadata()
       mockDownloadServableFileFromStorage.mockResolvedValue({
         buffer: Buffer.from('rendered image content'),
         contentType: 'text/plain',
@@ -1301,14 +1317,7 @@ describe('file manage operations', () => {
     it.each(['write', 'compress'] as const)(
       '%s retains the secret owner guard for rendered contributors',
       async (operation) => {
-        mockGetFileMetadataByKey.mockResolvedValue({
-          id: contributor.fileId,
-          key: contributor.key,
-          context: contributor.context,
-          workspaceId: 'workspace-1',
-          userId: 'other-user',
-          contentUpdatedAt: CONTENT_UPDATED_AT,
-        })
+        mockContributorMetadata({ userId: 'other-user' })
         mockGetBoundWorkspaceFileSecretProvenance.mockImplementation(
           async (_workspaceId: string, identity: { fileId: string }) => ({
             status: 'exact',
@@ -1326,14 +1335,7 @@ describe('file manage operations', () => {
     )
 
     it('refuses a rendered contributor whose canonical scope differs', async () => {
-      mockGetFileMetadataByKey.mockResolvedValue({
-        id: contributor.fileId,
-        key: contributor.key,
-        context: contributor.context,
-        workspaceId: 'other-workspace',
-        userId: 'user-1',
-        contentUpdatedAt: CONTENT_UPDATED_AT,
-      })
+      mockContributorMetadata({ workspaceId: 'other-workspace' })
       mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
 
       const response = await POST(renderedRequest('write'))

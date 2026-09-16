@@ -15,7 +15,10 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.permission,
 }))
 
-import { readStoredWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
+import {
+  readStoredWorkspaceFileRecordByKey,
+  StoredWorkspaceFileUnavailableError,
+} from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
 
 const input = {
   key: 'workspace/workspace-1/upload.png',
@@ -209,11 +212,18 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
 
   it('keeps absent initial metadata distinguishable for legacy access', async () => {
     mocks.metadata.mockResolvedValue(null)
-    await expect(
-      readStoredWorkspaceFileRecordByKey.execute({ principal: session, input })
-    ).rejects.toMatchObject({ code: 'not_found' })
+    const read = readStoredWorkspaceFileRecordByKey.execute({ principal: session, input })
+    await expect(read).rejects.toMatchObject({ code: 'not_found' })
+    await expect(read).rejects.not.toBeInstanceOf(StoredWorkspaceFileUnavailableError)
     expect(mocks.workspace).not.toHaveBeenCalled()
     expect(mocks.permission).not.toHaveBeenCalled()
+  })
+
+  it('conceals canonical unavailability as not_found', () => {
+    expect(new StoredWorkspaceFileUnavailableError()).toMatchObject({
+      code: 'not_found',
+      message: 'File not found',
+    })
   })
 
   it.each([
@@ -228,7 +238,7 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
     mocks.metadata.mockResolvedValue(record)
     await expect(
       readStoredWorkspaceFileRecordByKey.execute({ principal: session, input })
-    ).rejects.toMatchObject({ code: 'forbidden' })
+    ).rejects.toBeInstanceOf(StoredWorkspaceFileUnavailableError)
     expect(mocks.workspace).not.toHaveBeenCalled()
     expect(mocks.permission).not.toHaveBeenCalled()
   })
@@ -239,7 +249,7 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
       mocks.workspace.mockResolvedValue(record)
       await expect(
         readStoredWorkspaceFileRecordByKey.execute({ principal: session, input })
-      ).rejects.toMatchObject({ code: 'forbidden' })
+      ).rejects.toBeInstanceOf(StoredWorkspaceFileUnavailableError)
       expect(mocks.permission).not.toHaveBeenCalled()
     }
   )
@@ -256,7 +266,7 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
     mocks.metadata.mockResolvedValueOnce(file).mockResolvedValueOnce(record)
     await expect(
       readStoredWorkspaceFileRecordByKey.execute({ principal: session, input })
-    ).rejects.toMatchObject({ code: 'forbidden' })
+    ).rejects.toBeInstanceOf(StoredWorkspaceFileUnavailableError)
     expect(mocks.permission).toHaveBeenCalledOnce()
   })
 

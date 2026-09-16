@@ -19,9 +19,15 @@ vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,
 }))
 
-vi.mock('@/lib/workspace-files/application/read-stored-workspace-file-record-by-key', () => ({
-  readStoredWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileByKey },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/lib/workspace-files/application/read-stored-workspace-file-record-by-key')
+    >()),
+    readStoredWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileByKey },
+  })
+)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -29,6 +35,7 @@ import {
   readUserFileContent,
   readUserFileContentWithContributors,
 } from '@/lib/execution/payloads/materialization.server'
+import { StoredWorkspaceFileUnavailableError } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
 import type { UserFile } from '@/executor/types'
 
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas')
@@ -379,6 +386,30 @@ describe('readUserFileContent', () => {
         false,
         { knowledgeAccess: undefined }
       )
+    }
+  )
+
+  it.each(
+    ([undefined, 'workspace', 'mothership'] as const).flatMap((context) =>
+      [
+        { kind: 'session' as const, userId: 'reader', sessionId: 'session-1' },
+        delegatedReader,
+        { ...delegatedReader, resourceScope: { fileId: 'file-1', chatId: 'chat-1' } },
+      ].map((principal) => ({ context, principal }))
+    )
+  )(
+    'never falls back or reads bytes for a known unavailable binding: %j',
+    async ({ context, principal }) => {
+      const unavailable = new StoredWorkspaceFileUnavailableError()
+      mockReadWorkspaceFileByKey.mockRejectedValue(unavailable)
+      await expect(
+        readUserFileContent(
+          { ...generatedPdf, key: 'workspace/workspace-1/upload.png', context },
+          { principal, workspaceId: 'workspace-1', userId: 'reader', encoding: 'base64' }
+        )
+      ).rejects.toBe(unavailable)
+      expect(mockVerifyFileAccess).not.toHaveBeenCalled()
+      expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     }
   )
 

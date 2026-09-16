@@ -32,9 +32,15 @@ vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
   downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
 }))
 
-vi.mock('@/lib/workspace-files/application/read-stored-workspace-file-record-by-key', () => ({
-  readStoredWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileRecordByKey },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/lib/workspace-files/application/read-stored-workspace-file-record-by-key')
+    >()),
+    readStoredWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileRecordByKey },
+  })
+)
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
   getFileMetadataByKey: mockGetFileMetadataByKey,

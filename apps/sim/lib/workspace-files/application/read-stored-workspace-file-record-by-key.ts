@@ -20,6 +20,14 @@ interface StoredWorkspaceFileContext extends ActiveWorkspaceContext {
   file: FileMetadataRecord
 }
 
+/** Conceals a known unavailable binding without permitting legacy storage authorization. */
+export class StoredWorkspaceFileUnavailableError extends OrchestrationError {
+  constructor() {
+    super('not_found', 'File not found')
+    this.name = 'StoredWorkspaceFileUnavailableError'
+  }
+}
+
 /**
  * Authorizes stored bytes under the shared workspace tenancy of files and chat uploads.
  * Canonical metadata determines ownership; workspace-file CRUD remains workspace-only.
@@ -44,11 +52,11 @@ export const readStoredWorkspaceFileRecordByKey = defineAuthorizedWorkspaceUseCa
       !isWorkspaceScopedContext(file.context) ||
       file.workspaceId !== input.assertedWorkspaceId
     ) {
-      throw new OrchestrationError('forbidden', 'File not available')
+      throw new StoredWorkspaceFileUnavailableError()
     }
     const workspace = await loadActiveWorkspaceContext(file.workspaceId)
     if (!workspace || workspace.workspaceId !== file.workspaceId) {
-      throw new OrchestrationError('forbidden', 'File not available')
+      throw new StoredWorkspaceFileUnavailableError()
     }
     return { ...workspace, fileId: file.id, file }
   },
@@ -74,7 +82,7 @@ export const readStoredWorkspaceFileRecordByKey = defineAuthorizedWorkspaceUseCa
       file.context !== context.file.context ||
       file.chatId !== context.file.chatId
     ) {
-      throw new OrchestrationError('forbidden', 'File not available')
+      throw new StoredWorkspaceFileUnavailableError()
     }
     return { file }
   },

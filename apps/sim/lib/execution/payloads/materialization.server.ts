@@ -29,7 +29,10 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
-import { readStoredWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
+import {
+  readStoredWorkspaceFileRecordByKey,
+  StoredWorkspaceFileUnavailableError,
+} from '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
@@ -319,6 +322,7 @@ export async function assertUserFileContentAccess(
       return
     } catch (error) {
       if (!(error instanceof OrchestrationError && error.code === 'not_found')) throw error
+      if (error instanceof StoredWorkspaceFileUnavailableError) throw error
       /** Legacy storage metadata cannot prove a delegated file or chat identity. */
       if (
         options.principal.kind === 'delegated' &&
