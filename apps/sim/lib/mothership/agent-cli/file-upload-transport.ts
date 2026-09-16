@@ -53,6 +53,8 @@ export function createFileUploadTransport(context: {
       return context.fallback(input, init)
     }
     const request = new NextRequest(new Request(input, init))
+    /** In-process CLI requests have no network origin headers; signing uses the configured endpoint. */
+    request.headers.set('origin', base.origin)
     try {
       request.signal.throwIfAborted()
       const principal = context.invocation

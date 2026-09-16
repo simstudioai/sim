@@ -580,10 +580,10 @@ describe('buildCopilotRequestPayload', () => {
       {
         message: 'debug workspace',
         userId: 'user-1',
-        userMessageId: 'msg-1',
+        userMessageId: '00000000-0000-4000-8000-000000000001',
         mode: 'agent',
         model: 'claude-opus-4-8',
-        workspaceId: 'ws-1',
+        workspaceId: '00000000-0000-4000-8000-000000000002',
         userTimezone: 'America/Los_Angeles',
         effort: 'max',
         modelSelection: { model: 'gpt-6-astra', fastMode: true },
@@ -595,15 +595,16 @@ describe('buildCopilotRequestPayload', () => {
       expect.objectContaining({
         message: 'debug workspace',
         userId: 'user-1',
-        messageId: 'msg-1',
-        workspaceId: 'ws-1',
+        messageId: '00000000-0000-4000-8000-000000000001',
+        workspaceId: '00000000-0000-4000-8000-000000000002',
+        mode: 'agent',
         userTimezone: 'America/Los_Angeles',
         effort: 'max',
         modelSelection: { model: 'gpt-6-astra', fastMode: true },
       })
     )
-    // Model/provider/mode are server-decided (P12); permissions are enforced by v2 under
-    // the delegation token; workspace snapshots and desktop capabilities are gone.
+    expect(ChatPayloadSchema.parse(payload).mode).toBe('agent')
+    /** Model/provider are server-decided; v2 enforces permissions under the delegation token. */
     for (const legacy of [
       'workspaceContext',
       'vfs',
@@ -612,7 +613,6 @@ describe('buildCopilotRequestPayload', () => {
       'userPermission',
       'model',
       'provider',
-      'mode',
       'desktopCapabilities',
       'prefetch',
       'implicitFeedback',

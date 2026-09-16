@@ -172,7 +172,7 @@ async function executeBoundAgentCliRequest(
   } else throw new Error('Service invocation must use the service bridge')
   if (resources.length)
     result = { ...result, resources: [...resources, ...(result.resources ?? [])] }
-  if (context.chatOrganizationId && result.resources?.length)
+  if (result.resources?.length)
     result = {
       ...result,
       resources: result.resources.map((effect) => {
