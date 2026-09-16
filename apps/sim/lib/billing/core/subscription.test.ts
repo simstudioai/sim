@@ -9,6 +9,7 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -77,6 +78,7 @@ import {
   hasWorkspaceLiveSyncAccess,
   hasWorkspaceSandboxAccess,
   hasWorkspaceSandboxRetentionAccess,
+  isOrganizationGovernanceActive,
   isOrganizationOnEnterprisePlan,
   isWorkspaceOnEnterprisePlan,
   resolveOrganizationPlan,
@@ -582,6 +584,76 @@ describe('resolveOrganizationPlan', () => {
     await expect(resolveOrganizationPlan(ORGANIZATION_ID)).resolves.toBe(false)
     await expect(resolveOrganizationPlan(ORGANIZATION_ID, { onError: 'throw' })).rejects.toThrow(
       'userStats unavailable'
+    )
+  })
+})
+
+describe('isOrganizationGovernanceActive', () => {
+  const ORGANIZATION_ID = 'org-governed'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setEnvFlags({ isBillingEnabled: true, isHosted: true })
+    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+    mockCheckEnterprisePlan.mockReturnValue(true)
+  })
+
+  it('governs an organization holding an active enterprise plan', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'enterprise', status: 'active' }])
+
+    await expect(isOrganizationGovernanceActive(ORGANIZATION_ID)).resolves.toBe(true)
+  })
+
+  /**
+   * The bug this exists for: an unentitled organization resolves to `config: null`, which denies
+   * nothing, so treating a failing card as a lapsed plan lifted every restriction the organization
+   * had configured — silently, for the whole dunning window.
+   */
+  it('keeps governing through a past-due subscription', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'enterprise', status: 'past_due' }])
+
+    await expect(isOrganizationGovernanceActive(ORGANIZATION_ID)).resolves.toBe(true)
+    /**
+     * Asserted on the filter, not the returned row: the chain mock answers whatever is queued
+     * regardless of the where clause, so only the status set proves a past-due subscription is
+     * actually read. The feature gate below deliberately narrows to `active`.
+     */
+    expect(vi.mocked(inArray)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining(['active', 'past_due'])
+    )
+  })
+
+  it('reads a narrower status set than the feature gate does', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'enterprise', status: 'active' }])
+
+    await isOrganizationOnEnterprisePlan('org-feature-gate')
+    expect(vi.mocked(inArray)).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining(['past_due'])
+    )
+  })
+
+  /** A suspension is a billing state, not a decision to stop governing. */
+  it('keeps governing a billing-blocked organization', async () => {
+    mockIsOrganizationBillingBlocked.mockResolvedValue(true)
+    dbChainMockFns.limit.mockResolvedValue([{ plan: 'enterprise', status: 'past_due' }])
+
+    await expect(isOrganizationGovernanceActive(ORGANIZATION_ID)).resolves.toBe(true)
+  })
+
+  it('stops governing an organization with no subscription at all', async () => {
+    dbChainMockFns.limit.mockResolvedValue([])
+
+    await expect(isOrganizationGovernanceActive(ORGANIZATION_ID)).resolves.toBe(false)
+  })
+
+  /** A read failure must never read as "no restrictions". */
+  it('propagates a failed subscription read rather than answering false', async () => {
+    dbChainMockFns.limit.mockRejectedValue(new Error('billing database unavailable'))
+
+    await expect(isOrganizationGovernanceActive(ORGANIZATION_ID)).rejects.toThrow(
+      'billing database unavailable'
     )
   })
 })

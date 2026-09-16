@@ -40,7 +40,8 @@ export const pendingWorkspaceInvitationSchema = z
     id: z.string(),
     workspaceId: z.string(),
     email: z.string(),
-    token: z.string(),
+    /** Present only for a caller who may manage the workspace — it is an admin affordance. */
+    token: z.string().optional(),
     permission: workspacePermissionSchema,
     membershipIntent: z.enum(['internal', 'external']).optional(),
     status: z.string(),

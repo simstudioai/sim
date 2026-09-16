@@ -157,9 +157,9 @@ export async function syncSubscriptionPlan(
 }
 
 /**
- * Get the organization's subscription row when its status is one of
- * `USABLE_SUBSCRIPTION_STATUSES` (product access — stricter than
- * `ENTITLED_SUBSCRIPTION_STATUSES` which also includes `past_due`).
+ * Get the organization's subscription row when its status is one of `statuses`, which defaults to
+ * `USABLE_SUBSCRIPTION_STATUSES` (product access — stricter than `ENTITLED_SUBSCRIPTION_STATUSES`,
+ * which also includes `past_due`).
  * Use this for feature-gating ("can this org use the product right
  * now"). Use `getOrganizationSubscription` (from `core/billing.ts`)
  * when you need the billing-side entitlement row that includes
@@ -168,13 +168,22 @@ export async function syncSubscriptionPlan(
 interface GetOrganizationSubscriptionUsableOptions {
   onError?: 'return-null' | 'throw'
   executor?: DbOrTx
+  /**
+   * Which statuses count. Defaults to the usable set; a caller that governs behavior rather than
+   * granting a feature passes the entitled set, so a dunning window does not read as no plan.
+   */
+  statuses?: readonly string[]
 }
 
 export async function getOrganizationSubscriptionUsable(
   organizationId: string,
   options: GetOrganizationSubscriptionUsableOptions = {}
 ) {
-  const { onError = 'return-null', executor = db } = options
+  const {
+    onError = 'return-null',
+    executor = db,
+    statuses = USABLE_SUBSCRIPTION_STATUSES,
+  } = options
   try {
     const [orgSub] = await executor
       .select()
@@ -182,7 +191,7 @@ export async function getOrganizationSubscriptionUsable(
       .where(
         and(
           eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+          inArray(subscription.status, [...statuses])
         )
       )
       .limit(1)
@@ -437,12 +446,13 @@ export function isSubscriptionBackedEntitlement(): boolean {
  * `'return-false'` (the default) fails closed for a *feature* gate: the feature
  * is hidden, and the worst outcome is a button that is briefly missing.
  *
+ * Whether a permission-group regime *applies* is a different axis and is not asked here — see
+ * {@link isOrganizationGovernanceActive}, where a swallowed failure would lift restrictions.
+ *
  * `'throw'` is for callers where "no Enterprise plan" is not a smaller answer
- * but a different regime. Access Control resolves to `config: null` when the
- * organization is not entitled, and `null` means *every* capability allowed and
- * every allowlist off — so a swallowed subscription-read failure would silently
- * disable the whole permission-group regime for the request instead of
- * surfacing an error. Those callers must pass `'throw'`.
+ * but a different regime — SCIM deprovisioning and knowledge availability, where answering
+ * "not entitled" on a failed read would silently widen access rather than narrow it. Those
+ * callers must pass `'throw'`.
  *
  * A primitive rather than an options object on purpose: `cache()` keys on the
  * argument list, and a fresh object literal per call would miss the memo every
@@ -568,6 +578,35 @@ export async function resolveOrganizationPlan(
  * {@link EnterprisePlanErrorPolicy}.
  */
 export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterprisePlan)
+
+/**
+ * Whether an organization's permission-group regime governs its members.
+ *
+ * Deliberately not {@link isOrganizationOnEnterprisePlan}. That answers "may this organization use
+ * an Enterprise feature", where withholding the feature during a payment failure is the safe
+ * direction. Governance is the opposite: an organization that is not entitled resolves to
+ * `config: null`, and `null` denies nothing — so reading a past-due card as a lapsed plan would
+ * *lift* every restriction the organization configured, silently, for the whole dunning window.
+ *
+ * So this accepts every entitled status rather than only the usable ones, and does not consult the
+ * billing block: neither an unpaid invoice nor a suspension is a decision to stop governing. Read
+ * failures always throw for the same reason — a swallowed error would read as "no restrictions".
+ */
+async function resolveOrganizationGovernancePlan(
+  organizationId: string,
+  executor: DbOrTx = db
+): Promise<boolean> {
+  if (!isSubscriptionBackedEntitlement()) return true
+
+  const orgSub = await getOrganizationSubscriptionUsable(organizationId, {
+    executor,
+    onError: 'throw',
+    statuses: ENTITLED_SUBSCRIPTION_STATUSES,
+  })
+  return !!orgSub && checkEnterprisePlan(orgSub)
+}
+
+export const isOrganizationGovernanceActive = cache(resolveOrganizationGovernancePlan)
 
 /**
  * Entitlement for a single org-scoped enterprise feature.
