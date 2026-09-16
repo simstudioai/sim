@@ -4,7 +4,7 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
 } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
-import type { AbortResponse } from '@/lib/mothership/generated/protocol'
+import { AbortRequest, type AbortResponse } from '@/lib/mothership/generated/protocol'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { AbortReason } from '@/lib/mothership/request/session/abort'
@@ -19,8 +19,6 @@ export async function requestExplicitStreamAbort(params: {
   streamId: string
   userId: string
   chatId?: string
-  workspaceId?: string
-  organizationId?: string
   timeoutMs?: number
   otelContext?: Context
 }): Promise<Pick<AbortResponse, 'settled'>> {
@@ -28,8 +26,6 @@ export async function requestExplicitStreamAbort(params: {
     streamId,
     userId,
     chatId,
-    workspaceId,
-    organizationId,
     timeoutMs = DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS,
     otelContext,
   } = params
@@ -55,13 +51,8 @@ export async function requestExplicitStreamAbort(params: {
       method: 'POST',
       headers,
       signal: controller.signal,
-      body: JSON.stringify({
-        messageId: streamId,
-        userId,
-        ...(chatId ? { chatId } : {}),
-        ...(workspaceId ? { workspaceId } : {}),
-        ...(organizationId ? { organizationId } : {}),
-      }),
+      /** Sim authorizes the actor and canonical run before this service-authenticated signal. */
+      body: JSON.stringify(AbortRequest.parse({ messageId: streamId })),
       otelContext,
       spanName: 'sim → go /api/streams/explicit-abort',
       operation: 'explicit_abort',

@@ -133,11 +133,17 @@ export const reorderCopilotChatResourcesBodySchema = z.object({
 })
 export type ReorderCopilotChatResourcesBody = z.input<typeof reorderCopilotChatResourcesBodySchema>
 
-export const copilotChatAbortBodySchema = z.object({
-  streamId: z.string().optional(),
-  chatId: z.string().optional(),
-  workspaceId: z.string().min(1).optional(),
-})
+export const copilotChatAbortBodySchema = z
+  .object({
+    streamId: z.string().optional(),
+    chatId: z.string().optional(),
+    workspaceId: z.string().min(1).optional(),
+    organizationId: z.string().min(1).optional(),
+  })
+  .refine((body) => !(body.workspaceId && body.organizationId), {
+    message: 'Choose either workspaceId or organizationId, not both',
+    path: ['organizationId'],
+  })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
 export const copilotChatSteerBodySchema = z.object({
@@ -576,7 +582,9 @@ export const copilotChatAbortContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chat/abort',
   headers: z.object({ traceparent: z.string().max(512).optional() }),
-  body: copilotChatAbortBodySchema.extend({ streamId: z.string().min(1, 'streamId is required') }),
+  body: copilotChatAbortBodySchema.safeExtend({
+    streamId: z.string().min(1, 'streamId is required'),
+  }),
   response: {
     mode: 'json',
     schema: z.object({

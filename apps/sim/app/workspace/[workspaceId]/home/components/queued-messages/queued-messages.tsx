@@ -165,6 +165,7 @@ export function QueuedMessages({
                               e.stopPropagation()
                               void onSendNow(msg.id)
                             }}
+                            aria-label='Send now'
                             className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover-hover:bg-transparent disabled:hover-hover:text-[var(--text-icon)]'
                           >
                             <ArrowUp className='size-[13px]' />

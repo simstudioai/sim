@@ -367,7 +367,6 @@ export const POST = withRouteHandler(
           streamId: messageId,
           userId,
           chatId,
-          workspaceId,
         }).catch((error) => {
           reqLogger.warn('Failed to send explicit abort for chat request', {
             error: toError(error).message,

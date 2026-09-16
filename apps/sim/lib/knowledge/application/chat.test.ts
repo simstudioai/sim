@@ -407,7 +407,6 @@ describe('organization Search Assistant chat', () => {
     expect(mocks.explicitAbort).toHaveBeenCalledWith({
       streamId: expect.any(String),
       userId: 'member-1',
-      organizationId: 'org-1',
       chatId: 'private-chat',
     })
     expect(mocks.explicitAbort).toHaveBeenCalledOnce()

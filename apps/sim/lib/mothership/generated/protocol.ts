@@ -309,9 +309,8 @@ export interface ResumeResult {
 }
 
 /** POST /api/streams/explicit-abort */
-export interface AbortRequest {
-  messageId: string;
-}
+export const AbortRequest = z.strictObject({ messageId: z.uuid() });
+export type AbortRequest = z.infer<typeof AbortRequest>;
 
 /** Accepted Stop intent is distinct from an observed terminal worker run. */
 export interface AbortResponse {
@@ -353,17 +352,17 @@ export const ForkChatResponse = z.strictObject({
 export type ForkChatResponse = z.infer<typeof ForkChatResponse>;
 
 /** POST /api/generate-chat-title */
-export interface TitleRequest {
-  message: string;
-  /** Enterprise BYOK: the title call reads user content, so it pins the same key (S27). */
-  byokApiKey?: string | undefined;
-  /** Metering identity (Go metered title spend into request analytics): optional so
-   * older sim builds keep validating; absent values degrade to synthetic ids. */
-  chatId?: string | undefined;
-  workspaceId?: string | undefined;
-  organizationId?: string | undefined;
-  userId?: string | undefined;
-}
+export const TitleRequest = z.strictObject({
+  message: z.string().min(1),
+  /** Enterprise BYOK pins the title call because it reads user content. */
+  byokApiKey: z.string().optional(),
+  /** Optional metering identity for callers without a persisted chat yet. */
+  chatId: z.uuid().optional(),
+  workspaceId: z.uuid().optional(),
+  organizationId: z.string().min(1).max(200).optional(),
+  userId: z.string().optional(),
+});
+export type TitleRequest = z.infer<typeof TitleRequest>;
 
 /** The 409 body for a duplicate send while a sibling instance streams (S32). */
 export interface ActiveStreamConflict {

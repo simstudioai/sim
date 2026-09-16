@@ -127,7 +127,6 @@ export const readChatStream = defineAuthorizedChatUseCase({
         requestId,
         requestPayload: intent,
         currentChat: null,
-        isNewChat: false,
         message: '',
         titleModel: '',
         resumeSeq: events.at(-1)?.seq ?? 0,

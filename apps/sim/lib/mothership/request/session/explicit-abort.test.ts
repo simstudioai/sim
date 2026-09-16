@@ -23,19 +23,23 @@ vi.mock('@/lib/mothership/server/agent-url', () => ({
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({ 'X-Sim-Source-Env': 'test' }),
 }))
 
+import { AbortRequest } from '@/lib/mothership/generated/protocol'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 
 describe('requestExplicitStreamAbort', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockFetchGo.mockResolvedValue(new Response(null, { status: 200 }))
+    mockFetchGo.mockImplementation(async (_url, request) => {
+      AbortRequest.parse(JSON.parse(request.body))
+      return new Response(null, { status: 200 })
+    })
   })
 
   it('sends an explicit legacy protocol marker for strict Go admission', async () => {
     const result = await requestExplicitStreamAbort({
-      streamId: 'stream-1',
+      streamId: '11111111-1111-4111-8111-111111111111',
       userId: 'user-1',
-      workspaceId: 'workspace-1',
+      chatId: 'chat-1',
     })
     expect(result).toEqual({ settled: false })
 
@@ -50,10 +54,24 @@ describe('requestExplicitStreamAbort', () => {
     )
   })
 
+  it('sends only the canonical stream signal after organization authorization', async () => {
+    await requestExplicitStreamAbort({
+      streamId: '11111111-1111-4111-8111-111111111111',
+      userId: 'actor',
+      chatId: 'chat',
+    })
+    const body = JSON.parse(mockFetchGo.mock.calls[0][1].body)
+    expect(AbortRequest.parse(body)).toEqual({ messageId: '11111111-1111-4111-8111-111111111111' })
+    expect(Object.keys(body)).toEqual(['messageId'])
+  })
+
   it.each([true, false])('preserves the worker settlement acknowledgement: %s', async (settled) => {
     mockFetchGo.mockResolvedValue(Response.json({ stopped: true, settled }))
     await expect(
-      requestExplicitStreamAbort({ streamId: 'stream-1', userId: 'user-1' })
+      requestExplicitStreamAbort({
+        streamId: '11111111-1111-4111-8111-111111111111',
+        userId: 'user-1',
+      })
     ).resolves.toEqual({ settled })
   })
 
@@ -62,7 +80,10 @@ describe('requestExplicitStreamAbort', () => {
     async (body) => {
       mockFetchGo.mockResolvedValue(Response.json(body))
       await expect(
-        requestExplicitStreamAbort({ streamId: 'stream-1', userId: 'user-1' })
+        requestExplicitStreamAbort({
+          streamId: '11111111-1111-4111-8111-111111111111',
+          userId: 'user-1',
+        })
       ).resolves.toEqual({ settled: false })
     }
   )
