@@ -8,10 +8,7 @@ import {
 } from '@/components/settings/navigation'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
-import {
-  isOrganizationGovernanceActive,
-  isOrganizationOnEnterprisePlan,
-} from '@/lib/billing/core/subscription'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isInvitationsDisabled } from '@/lib/core/config/env-flags'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
@@ -21,7 +18,10 @@ import {
 } from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
-import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
+import {
+  getUserPermissionConfigForOrganization,
+  isOrganizationPermissionRegimeActive,
+} from '@/lib/permission-groups/resolve.server'
 
 export interface OrganizationSurfaceOrganization {
   id: string
@@ -98,9 +98,16 @@ async function resolveOrganizationSurfaceContext(
     deployment.hosted && access.isAdmin
       ? isOrganizationOnEnterprisePlan(organizationId)
       : Promise.resolve(false),
-    /** Access Control stays listed while a payment is failing, because its rules still apply. */
+    /**
+     * Access Control stays listed while a payment is failing, because its rules still apply.
+     *
+     * Resolved rather than rejected on a read failure: this value only decides whether a nav item
+     * is drawn, and it is shared by every organization page — letting it throw would take home,
+     * chat and search down with the billing table. The page and the management API read the same
+     * regime and still fail closed, so a listed item cannot be used to reach anything.
+     */
     deployment.hosted && access.isAdmin
-      ? isOrganizationGovernanceActive(organizationId)
+      ? isOrganizationPermissionRegimeActive(organizationId).catch(() => false)
       : Promise.resolve(false),
   ])
   return {
