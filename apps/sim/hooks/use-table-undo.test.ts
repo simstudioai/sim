@@ -272,3 +272,73 @@ describe('useTableUndo – restoring a deleted select column', () => {
     expect(payload.id).toBe('col_status')
   })
 })
+
+describe('useTableUndo – restoring a deleted currency column', () => {
+  it('re-creates the column with its original denomination', async () => {
+    mockPopUndo.mockReturnValueOnce(
+      makeEntry({
+        type: 'delete-column',
+        columnName: 'amount',
+        columnId: 'col_amount',
+        columnType: 'currency',
+        columnPosition: 0,
+        columnUnique: false,
+        columnRequired: false,
+        columnCurrencyCode: 'JPY',
+        cellData: [],
+        previousOrder: null,
+        previousWidth: null,
+        previousPinnedColumns: null,
+      })
+    )
+
+    const { undo } = TestHook()
+    ;(undo as () => void)()
+    await flush()
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'col_amount',
+        name: 'amount',
+        type: 'currency',
+        currencyCode: 'JPY',
+      }),
+      expect.any(Object)
+    )
+  })
+})
+
+describe('useTableUndo – restoring a deleted reference column', () => {
+  it('re-creates the column with its target table', async () => {
+    mockPopUndo.mockReturnValueOnce(
+      makeEntry({
+        type: 'delete-column',
+        columnName: 'owner',
+        columnId: 'col_owner',
+        columnType: 'reference',
+        columnPosition: 0,
+        columnUnique: false,
+        columnRequired: false,
+        columnReferenceTableId: 'tbl_people',
+        cellData: [],
+        previousOrder: null,
+        previousWidth: null,
+        previousPinnedColumns: null,
+      })
+    )
+
+    const { undo } = TestHook()
+    ;(undo as () => void)()
+    await flush()
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'col_owner',
+        name: 'owner',
+        type: 'reference',
+        referenceTableId: 'tbl_people',
+      }),
+      expect.any(Object)
+    )
+  })
+})

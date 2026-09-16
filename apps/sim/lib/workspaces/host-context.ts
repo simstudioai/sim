@@ -8,6 +8,7 @@ import {
   resolveKnowledgeAccessAvailability,
 } from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
+import { areTableReferenceColumnsEnabled } from '@/lib/table/reference-columns/availability'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 /**
@@ -27,11 +28,12 @@ async function resolveWorkspaceHostContextForViewer(
   }
 
   const hostOrganizationId = access.workspace.organizationId
-  const [ownerBilling, hostOrganizationAccess] = await Promise.all([
+  const [ownerBilling, hostOrganizationAccess, referenceColumnsEnabled] = await Promise.all([
     getWorkspaceOwnerSubscriptionAccess(workspaceId),
     hostOrganizationId
       ? getOrganizationSettingsAccess(hostOrganizationId, userId)
       : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
+    areTableReferenceColumnsEnabled(),
   ])
   const [credentialGroupsAvailable, knowledgeAccess, organizationSearch] = await Promise.all([
     hostOrganizationId
@@ -67,6 +69,7 @@ async function resolveWorkspaceHostContextForViewer(
       organizationSearch,
       knowledgeMemberAccess: knowledgeAccess.memberScoped,
       knowledgeSourceMirroredAccess: knowledgeAccess.sourceMirrored,
+      referenceColumns: referenceColumnsEnabled,
     },
     deployment: resolveDeploymentShape(),
   }

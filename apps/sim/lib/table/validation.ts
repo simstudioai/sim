@@ -52,6 +52,7 @@ const FOREIGN_METADATA_VERB: Record<TypeSpecificColumnKey, string> = {
   options: 'define options',
   multiple: 'be multiple',
   currencyCode: 'define a currency',
+  referenceTableId: 'reference another table',
 }
 
 type ValidationSuccess = { valid: true }

@@ -1,0 +1,339 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+interface ComboboxOption {
+  label: string
+  value: string
+  disabled?: boolean
+}
+
+interface ComboboxProps {
+  options: ComboboxOption[]
+  value?: string
+  placeholder?: string
+  searchable?: boolean
+  searchPlaceholder?: string
+  disabled?: boolean
+  isLoading?: boolean
+  onChange?: (value: string) => void
+}
+
+interface SelectOptionsEditorProps {
+  options: Array<{ id: string; name: string }>
+  onChange: (options: Array<{ id: string; name: string }>) => void
+}
+
+const {
+  capturedComboboxes,
+  capturedSelectEditor,
+  mockAddColumn,
+  mockUpdateColumn,
+  mockUseTablesList,
+} = vi.hoisted(() => ({
+  capturedComboboxes: { current: [] as ComboboxProps[] },
+  capturedSelectEditor: { current: null as SelectOptionsEditorProps | null },
+  mockAddColumn: vi.fn(),
+  mockUpdateColumn: vi.fn(),
+  mockUseTablesList: vi.fn(),
+}))
+
+vi.mock('@sim/emcn', () => ({
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
+  ChipCombobox: (props: ComboboxProps) => {
+    capturedComboboxes.current.push(props)
+    return <div data-placeholder={props.placeholder} />
+  },
+  ChipInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  FieldDivider: () => <hr />,
+  Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+    <label htmlFor={props.htmlFor ?? 'test-field'} {...props}>
+      {children}
+    </label>
+  ),
+  Switch: ({ checked }: { checked?: boolean }) => (
+    <button type='button' aria-pressed={checked}>
+      Toggle
+    </button>
+  ),
+  cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' '),
+  toast: { error: vi.fn(), success: vi.fn() },
+}))
+
+vi.mock('@sim/emcn/icons', () => ({
+  PlayOutline: () => <svg />,
+  X: () => <svg />,
+}))
+
+vi.mock('@/lib/table/column-types', () => ({
+  ALL_COLUMN_TYPES: [
+    { id: 'string', label: 'Text', icon: () => null },
+    { id: 'select', label: 'Select', icon: () => null },
+    { id: 'reference', label: 'Reference', icon: () => null },
+  ],
+  columnTypeById: (type: string) => ({ supportsUnique: type !== 'select' }),
+}))
+
+vi.mock('@/hooks/queries/tables', () => ({
+  useAddTableColumn: () => ({ isPending: false, mutateAsync: mockAddColumn }),
+  useTablesList: mockUseTablesList,
+  useUpdateColumn: () => ({ isPending: false, mutateAsync: mockUpdateColumn }),
+}))
+
+vi.mock('@/app/workspace/[workspaceId]/tables/[tableId]/components/select-field', () => ({
+  SelectOptionsEditor: (props: SelectOptionsEditorProps) => {
+    capturedSelectEditor.current = props
+    return <div data-testid='select-options-editor' />
+  },
+}))
+
+import { ColumnConfigSidebar } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/column-config-sidebar/column-config-sidebar'
+
+let container: HTMLDivElement
+let root: Root
+
+function findCombobox(placeholder: string): ComboboxProps | undefined {
+  return capturedComboboxes.current.find((combobox) => combobox.placeholder === placeholder)
+}
+
+function findButton(label: string): HTMLButtonElement | undefined {
+  return [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent === label
+  )
+}
+
+function setInputValue(input: HTMLInputElement, value: string): void {
+  const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  valueSetter?.call(input, value)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+beforeEach(() => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  capturedComboboxes.current = []
+  capturedSelectEditor.current = null
+  mockUseTablesList.mockReturnValue({
+    data: [
+      { id: 'table-current', name: 'Current table' },
+      { id: 'table-customers', name: 'Customers' },
+    ],
+    isPending: false,
+  })
+  mockAddColumn.mockResolvedValue({ data: { columns: [] } })
+  mockUpdateColumn.mockResolvedValue({ data: { columns: [] } })
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+  vi.clearAllMocks()
+})
+
+describe('ColumnConfigSidebar', () => {
+  it('creates a Reference column with the selected workspace table', async () => {
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'create', proposedName: 'Related row', type: 'reference' }}
+          onClose={vi.fn()}
+          existingColumn={null}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
+          workspaceId='workspace-1'
+          tableId='table-current'
+          referenceColumnsEnabled
+        />
+      )
+    })
+
+    expect(mockUseTablesList).toHaveBeenCalledWith('workspace-1', 'active', { enabled: true })
+    expect(container.querySelector<HTMLInputElement>('#column-sidebar-name')?.value).toBe(
+      'Related row'
+    )
+    expect(findCombobox('Select table')).toMatchObject({
+      options: [
+        { label: 'Current table', value: 'table-current' },
+        { label: 'Customers', value: 'table-customers' },
+      ],
+      searchable: true,
+      searchPlaceholder: 'Search tables',
+    })
+
+    act(() => findCombobox('Select table')?.onChange?.('table-customers'))
+    await act(async () => findButton('Save')?.click())
+
+    expect(mockAddColumn).toHaveBeenCalledWith({
+      name: 'Related row',
+      type: 'reference',
+      referenceTableId: 'table-customers',
+    })
+  })
+
+  it('keeps Reference creation open until a target table is selected', async () => {
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'create', proposedName: 'Related row', type: 'reference' }}
+          onClose={vi.fn()}
+          existingColumn={null}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
+          workspaceId='workspace-1'
+          tableId='table-current'
+          referenceColumnsEnabled
+        />
+      )
+    })
+
+    await act(async () => findButton('Save')?.click())
+
+    expect(container).toHaveTextContent('Select a table')
+    expect(mockAddColumn).not.toHaveBeenCalled()
+    expect(mockUpdateColumn).not.toHaveBeenCalled()
+  })
+
+  it('edits a Reference column name and target table together', async () => {
+    const onColumnRename = vi.fn()
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'edit', columnName: 'col-reference' }}
+          onClose={vi.fn()}
+          existingColumn={{
+            id: 'col-reference',
+            name: 'Related row',
+            type: 'reference',
+            referenceTableId: 'table-current',
+          }}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
+          workspaceId='workspace-1'
+          tableId='table-current'
+          onColumnRename={onColumnRename}
+          referenceColumnsEnabled
+        />
+      )
+    })
+
+    const nameInput = container.querySelector<HTMLInputElement>('#column-sidebar-name')
+    expect(nameInput?.value).toBe('Related row')
+
+    act(() => setInputValue(nameInput!, 'Renamed relation'))
+    act(() => findCombobox('Select table')?.onChange?.('table-customers'))
+    await act(async () => findButton('Save')?.click())
+
+    expect(mockUpdateColumn).toHaveBeenCalledWith({
+      columnName: 'col-reference',
+      updates: {
+        name: 'Renamed relation',
+        referenceTableId: 'table-customers',
+      },
+    })
+    expect(onColumnRename).toHaveBeenCalledWith('col-reference', 'Renamed relation')
+  })
+
+  it('keeps an existing Reference column visible but not retargetable when disabled', async () => {
+    mockUseTablesList.mockReturnValue({ data: [], isPending: false })
+
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'edit', columnName: 'col-reference' }}
+          onClose={vi.fn()}
+          existingColumn={{
+            id: 'col-reference',
+            name: 'Related row',
+            type: 'reference',
+            referenceTableId: 'table-current',
+          }}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
+          workspaceId='workspace-1'
+          tableId='table-current'
+          referenceColumnsEnabled={false}
+        />
+      )
+    })
+
+    expect(mockUseTablesList).toHaveBeenCalledWith('workspace-1', 'active', { enabled: true })
+    expect(findCombobox('Select table')).toMatchObject({
+      disabled: true,
+      options: [{ label: 'table-current', value: 'table-current' }],
+      value: 'table-current',
+    })
+    expect(findCombobox('Select type')?.options).toContainEqual(
+      expect.objectContaining({ value: 'reference', disabled: true })
+    )
+  })
+
+  it('shows the Reference table selector as loading while tables are fetched', async () => {
+    mockUseTablesList.mockReturnValue({ data: [], isPending: true })
+
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'create', proposedName: 'Related row', type: 'reference' }}
+          onClose={vi.fn()}
+          existingColumn={null}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
+          workspaceId='workspace-1'
+          tableId='table-current'
+          referenceColumnsEnabled
+        />
+      )
+    })
+
+    expect(findCombobox('Select table')?.isLoading).toBe(true)
+  })
+
+  it('keeps Select options in the edit sidebar', async () => {
+    await act(async () => {
+      root.render(
+        <ColumnConfigSidebar
+          config={{ mode: 'edit', columnName: 'col-status' }}
+          onClose={vi.fn()}
+          existingColumn={{
+            id: 'col-status',
+            name: 'Status',
+            type: 'select',
+            options: [{ id: 'option-ready', name: 'Ready' }],
+          }}
+          allColumns={[]}
+          tableRowTtlEnabled={false}
+          workspaceId='workspace-1'
+          tableId='table-current'
+          referenceColumnsEnabled
+        />
+      )
+    })
+
+    expect(container).toHaveTextContent('Options')
+    expect(container).toHaveTextContent('Multiselect')
+    act(() =>
+      capturedSelectEditor.current?.onChange([
+        { id: 'option-ready', name: 'Ready' },
+        { id: 'option-done', name: 'Done' },
+      ])
+    )
+    await act(async () => findButton('Save')?.click())
+
+    expect(mockUpdateColumn).toHaveBeenCalledWith({
+      columnName: 'col-status',
+      updates: {
+        options: [
+          { id: 'option-ready', name: 'Ready' },
+          { id: 'option-done', name: 'Done' },
+        ],
+      },
+    })
+  })
+})

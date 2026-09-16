@@ -9,12 +9,14 @@ const {
   mockGetOrganizationSettingsAccess,
   mockResolveKnowledgeAccessAvailability,
   mockIsKnowledgeMemberAccessAvailable,
+  mockAreTableReferenceColumnsEnabled,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetWorkspaceOwnerSubscriptionAccess: vi.fn(),
   mockGetOrganizationSettingsAccess: vi.fn(),
   mockResolveKnowledgeAccessAvailability: vi.fn(),
   mockIsKnowledgeMemberAccessAvailable: vi.fn(),
+  mockAreTableReferenceColumnsEnabled: vi.fn(),
 }))
 
 vi.mock('@/lib/credential-groups/scoped-availability', () => ({
@@ -36,6 +38,10 @@ vi.mock('@/lib/billing/core/workspace-access', () => ({
 vi.mock('@/lib/knowledge/access/availability', () => ({
   resolveKnowledgeAccessAvailability: mockResolveKnowledgeAccessAvailability,
   isKnowledgeMemberAccessAvailable: mockIsKnowledgeMemberAccessAvailable,
+}))
+
+vi.mock('@/lib/table/reference-columns/availability', () => ({
+  areTableReferenceColumnsEnabled: mockAreTableReferenceColumnsEnabled,
 }))
 
 import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -86,6 +92,7 @@ describe('getWorkspaceHostContextForViewer', () => {
       sourceMirrored: true,
     })
     mockIsKnowledgeMemberAccessAvailable.mockResolvedValue(true)
+    mockAreTableReferenceColumnsEnabled.mockResolvedValue(true)
   })
 
   it('returns host membership and route permission for an internal member', async () => {
@@ -102,6 +109,7 @@ describe('getWorkspaceHostContextForViewer', () => {
       expect.objectContaining({
         workspace: expect.objectContaining({ allowPersonalApiKeys: false }),
         hostOrganizationId: 'org-host',
+        features: expect.objectContaining({ referenceColumns: true }),
         viewer: {
           permission: 'write',
           isHostOrganizationMember: true,
@@ -146,6 +154,7 @@ describe('getWorkspaceHostContextForViewer', () => {
         organizationSearch,
         knowledgeMemberAccess: workspaceKnowledge,
         knowledgeSourceMirroredAccess: workspaceKnowledge,
+        referenceColumns: true,
       })
       expect(mockIsKnowledgeMemberAccessAvailable).toHaveBeenCalledExactlyOnceWith({
         organizationId: 'org-host',
