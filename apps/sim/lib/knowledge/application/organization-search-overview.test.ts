@@ -151,6 +151,17 @@ describe('organization Search administration overview', () => {
     expect(organizationSearchOverviewSchema.parse(result)).toEqual(result)
   })
 
+  it('includes member document and dispatch failures in provider health queries', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(knowledgeConnector, [{ ...health }])
+    await readOrganizationSearchOverview.execute({ principal, input })
+    const selection = dbChainMockFns.select.mock.calls.find(([fields]) => fields?.hasError)?.[0]
+    const { params } = renderFragment(selection?.hasError)
+    expect(params).toContain('knowledgeConnectorMemberSyncLog.docsFailed')
+    expect(params).toContain('knowledgeConnectorMemberSyncLog.processingDispatchFailed')
+    expect(params).not.toContain(undefined)
+  })
+
   it('keeps unfinished work observable without presenting an idle worker as indexing', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(knowledgeConnector, [{ ...health, hasPendingSync: true, hasUnstarted: true }])
