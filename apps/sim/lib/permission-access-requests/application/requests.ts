@@ -19,6 +19,11 @@ import {
   loadAccessRequestCatalog,
 } from '@/lib/permission-access-requests/catalog'
 import {
+  ACCESS_REQUEST_MAX_DAILY_SUBMISSIONS,
+  ACCESS_REQUEST_MAX_PENDING,
+  ACCESS_REQUEST_SUBMISSION_WINDOW_MS,
+} from '@/lib/permission-access-requests/constants'
+import {
   PERMISSION_ACCESS_REQUEST_CREATED_EVENT,
   PERMISSION_ACCESS_REQUEST_DECIDED_EVENT,
 } from '@/lib/permission-access-requests/notification-events'
@@ -151,7 +156,7 @@ export const discoverAccessRequests = defineAuthorizedAccessRequestUseCase({
           eq(permissionAccessRequest.status, 'pending')
         )
       )
-      .limit(100)
+      .limit(ACCESS_REQUEST_MAX_PENDING)
     const pendingMemberLimit = pending.find((row) => row.targetKey === 'usage_limit:member')
     const memberLimitMembershipMatches = pendingMemberLimit
       ? await hasCurrentMemberLimitMembership(
@@ -351,10 +356,10 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
           eq(permissionAccessRequest.status, 'pending')
         )
       )
-    if ((outstanding?.total ?? 0) >= 100)
+    if ((outstanding?.total ?? 0) >= ACCESS_REQUEST_MAX_PENDING)
       throw new OrchestrationError(
         'conflict',
-        'You have 100 pending requests. Cancel an existing request before sending another.'
+        `You have ${ACCESS_REQUEST_MAX_PENDING} pending requests. Cancel an existing request before sending another.`
       )
     const [daily] = await executor
       .select({ total: count() })
@@ -363,13 +368,16 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
         and(
           eq(permissionAccessRequest.organizationId, organizationId),
           eq(permissionAccessRequest.requesterId, principal.userId),
-          gte(permissionAccessRequest.createdAt, new Date(Date.now() - 86_400_000))
+          gte(
+            permissionAccessRequest.createdAt,
+            new Date(Date.now() - ACCESS_REQUEST_SUBMISSION_WINDOW_MS)
+          )
         )
       )
-    if ((daily?.total ?? 0) >= 25)
+    if ((daily?.total ?? 0) >= ACCESS_REQUEST_MAX_DAILY_SUBMISSIONS)
       throw new OrchestrationError(
         'conflict',
-        'You have sent the maximum of 25 requests today. Try again tomorrow.'
+        `You have sent ${ACCESS_REQUEST_MAX_DAILY_SUBMISSIONS} requests in the last 24 hours. Try again later.`
       )
     const [row] = await executor
       .insert(permissionAccessRequest)
@@ -402,6 +410,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
                   action: AuditAction.PERMISSION_ACCESS_REQUEST_CLOSED,
                   resourceType: AuditResourceType.PERMISSION_ACCESS_REQUEST,
                   resourceId: result.closedRequest.id,
+                  workspaceId: result.closedRequest.workspaceId,
                   metadata: { target: result.closedRequest.target },
                 },
               ]
@@ -413,6 +422,7 @@ export const createAccessRequest = defineAuthorizedAccessRequestUseCase({
                 : AuditAction.PERMISSION_ACCESS_REQUEST_CREATED,
             resourceType: AuditResourceType.PERMISSION_ACCESS_REQUEST,
             resourceId: result.request.id,
+            workspaceId: result.request.workspaceId,
             metadata: { target: result.request.target },
           },
         ]
@@ -492,6 +502,7 @@ export const cancelAccessRequest = defineAuthorizedAccessRequestUseCase({
             action: AuditAction.PERMISSION_ACCESS_REQUEST_CANCELLED,
             resourceType: AuditResourceType.PERMISSION_ACCESS_REQUEST,
             resourceId: result.request.id,
+            workspaceId: result.request.workspaceId,
           },
         ]
       : [],

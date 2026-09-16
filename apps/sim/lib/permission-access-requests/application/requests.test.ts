@@ -285,7 +285,7 @@ describe('create access requests', () => {
 
   it.each([
     { pending: 100, daily: 0, message: '100 pending requests' },
-    { pending: 0, daily: 25, message: 'maximum of 25 requests today' },
+    { pending: 0, daily: 100, message: '100 requests in the last 24 hours' },
   ])('enforces bounded admissions ($message)', async ({ pending, daily, message }) => {
     queueTableRows(permissionAccessRequest, [])
     queueTableRows(permissionAccessRequest, [{ total: pending }])
@@ -296,6 +296,22 @@ describe('create access requests', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(mocks.outbox).not.toHaveBeenCalled()
   })
+
+  it.each([25, 99])(
+    'allows a new request after %s submissions in the rolling window',
+    async (daily) => {
+      queueTableRows(permissionAccessRequest, [])
+      queueTableRows(permissionAccessRequest, [{ total: 0 }])
+      queueTableRows(permissionAccessRequest, [{ total: daily }])
+      dbChainMockFns.returning.mockResolvedValueOnce([stored()])
+      const result = await createAccessRequest.execute({ principal, input: { scope, target } })
+      expect(result.changed).toBe(true)
+      expect(dbChainMockFns.insert).toHaveBeenCalledWith(permissionAccessRequest)
+      expect(mocks.audit.mock.calls[0][4]).toEqual([
+        expect.objectContaining({ workspaceId: 'workspace', resourceId: 'request' }),
+      ])
+    }
+  )
 
   it('normalizes member cap requests to one organization-wide request across workspaces', async () => {
     const cap = stored({
@@ -315,6 +331,9 @@ describe('create access requests', () => {
       input: { scope, target: { kind: 'usage_limit', id: 'member' } },
     })
     expect(first.changed).toBe(true)
+    expect(mocks.audit.mock.calls[0][4]).toEqual([
+      expect.objectContaining({ workspaceId: null, resourceId: cap.id }),
+    ])
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceId: null,
@@ -489,6 +508,27 @@ describe('discovery and request history', () => {
 })
 
 describe('cancel access requests', () => {
+  it.each(['workspace', null])(
+    'keeps cancellation in the stored request scope %s',
+    async (workspaceId) => {
+      const row = stored({
+        workspaceId,
+        ...(workspaceId === null
+          ? {
+              scopeKey: 'organization:organization:member-limit',
+              target: { kind: 'usage_limit', id: 'member' },
+            }
+          : {}),
+      })
+      mocks.stored.mockResolvedValue(row)
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...row, status: 'cancelled' }])
+      await cancelAccessRequest.execute({ principal, input: { scope, requestId: row.id } })
+      expect(mocks.audit.mock.calls[0][4]).toEqual([
+        expect.objectContaining({ workspaceId, resourceId: row.id }),
+      ])
+    }
+  )
+
   it('allows cancellation while disabled and does not resend a decision for terminal requests', async () => {
     mocks.enabled.mockResolvedValue(false)
     dbChainMockFns.returning.mockResolvedValueOnce([stored({ status: 'cancelled' })])

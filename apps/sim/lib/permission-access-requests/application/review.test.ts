@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { AuditAction } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   organizationMemberUsageLimit,
@@ -407,6 +408,44 @@ describe('permission request review', () => {
     expect(mocks.outbox).toHaveBeenCalledOnce()
   })
 
+  it.each(['workspace', null])(
+    'attributes a declined request to its stored scope %s',
+    async (workspaceId) => {
+      mocks.stored.mockResolvedValue(stored({ workspaceId }))
+      dbChainMockFns.returning.mockResolvedValueOnce([stored({ workspaceId, status: 'declined' })])
+      await resolveAccessRequest.execute({
+        principal,
+        input: { ...input, decision: { action: 'decline', reason: 'Use the existing provider.' } },
+      })
+      expect(mocks.audit.mock.calls[0][4]).toEqual([
+        expect.objectContaining({
+          action: AuditAction.PERMISSION_ACCESS_REQUEST_DECLINED,
+          workspaceId,
+        }),
+      ])
+    }
+  )
+
+  it('keeps request fulfillment workspace-scoped and the group change organization-scoped', async () => {
+    const before = await preview()
+    queueWorkspace()
+    dbChainMockFns.returning.mockResolvedValueOnce([stored({ status: 'fulfilled' })])
+    await resolveAccessRequest.execute({
+      principal,
+      input: { ...input, decision: { action: 'apply', expectedFingerprint: before.fingerprint } },
+    })
+    const [, defaultWorkspaceId, , , entries] = mocks.audit.mock.calls[0]
+    expect(defaultWorkspaceId).toBeNull()
+    expect(entries).toEqual([
+      expect.objectContaining({
+        action: AuditAction.PERMISSION_ACCESS_REQUEST_FULFILLED,
+        workspaceId: 'workspace',
+      }),
+      expect.objectContaining({ action: AuditAction.PERMISSION_GROUP_UPDATED }),
+    ])
+    expect(entries[1]).not.toHaveProperty('workspaceId')
+  })
+
   it('does not apply or notify a second time after resolution', async () => {
     mocks.stored.mockResolvedValue(stored({ status: 'fulfilled' }))
     const result = await resolveAccessRequest.execute({
@@ -417,6 +456,7 @@ describe('permission request review', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.outbox).not.toHaveBeenCalled()
     expect(mocks.catalog).not.toHaveBeenCalled()
+    expect(mocks.audit.mock.calls[0][4]).toEqual([])
   })
 
   it('reads fulfilled history from its stored decision without rebuilding the catalog', async () => {
@@ -483,7 +523,11 @@ describe('member limit review', () => {
     })
     queueLimit(2000)
     dbChainMockFns.returning.mockResolvedValueOnce([
-      stored({ status: 'fulfilled', target: { kind: 'usage_limit', id: 'member' } }),
+      stored({
+        workspaceId: null,
+        status: 'fulfilled',
+        target: { kind: 'usage_limit', id: 'member' },
+      }),
     ])
     await resolveAccessRequest.execute({
       principal,
@@ -498,6 +542,16 @@ describe('member limit review', () => {
     })
     expect(mocks.setLimit).toHaveBeenCalledWith('organization', 'requester', 15, 'admin', db)
     expect(dbChainMockFns.update).not.toHaveBeenCalledWith(permissionGroup)
+    const [, defaultWorkspaceId, , , entries] = mocks.audit.mock.calls[0]
+    expect(defaultWorkspaceId).toBeNull()
+    expect(entries).toEqual([
+      expect.objectContaining({
+        action: AuditAction.PERMISSION_ACCESS_REQUEST_FULFILLED,
+        workspaceId: null,
+      }),
+      expect.objectContaining({ action: AuditAction.ORG_MEMBER_USAGE_LIMIT_CHANGED }),
+    ])
+    expect(entries[1]).not.toHaveProperty('workspaceId')
     expect(mocks.outbox).toHaveBeenCalledWith(db, PERMISSION_ACCESS_REQUEST_DECIDED_EVENT, {
       requestId: 'request',
     })
