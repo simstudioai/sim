@@ -563,7 +563,8 @@ test.describe('browser tools', () => {
             .find((wc) => wc.getURL() === `${origin}/form`)
           if (!contents) throw new Error('Missing screenshot fixture')
           await contents.executeJavaScript(
-            `document.body.style.background = ${JSON.stringify(color)}; void 0`
+            `document.body.style.background = ${JSON.stringify(color)};
+            new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`
           )
         },
         { origin, color }
