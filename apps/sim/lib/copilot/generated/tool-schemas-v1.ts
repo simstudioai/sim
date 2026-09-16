@@ -1540,19 +1540,36 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   },
   browser_select_option: {
     parameters: {
-      type: 'object',
+      oneOf: [
+        {
+          required: ['value'],
+        },
+        {
+          required: ['values'],
+        },
+      ],
       properties: {
         elementId: {
-          type: 'number',
           description:
             "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+          type: 'number',
         },
         value: {
+          description: "One option's visible label or value. Omit when supplying values.",
           type: 'string',
-          description: "The option's visible label or its value.",
+        },
+        values: {
+          description:
+            'The complete desired selection for a native multiple-selection control: at most 100 visible labels or values. Empty array clears the selection. Omit value when using this field.',
+          items: {
+            type: 'string',
+          },
+          maxItems: 100,
+          type: 'array',
         },
       },
-      required: ['elementId', 'value'],
+      required: ['elementId'],
+      type: 'object',
     },
     resultSchema: {
       type: 'object',
@@ -1560,6 +1577,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         effectObserved: {
           type: 'boolean',
           description: 'Whether the settled readback retained the requested selection.',
+        },
+        labels: {
+          type: 'array',
+          description:
+            'Visible labels for the complete selected set in a multiple-selection control, in option order.',
+          items: {
+            type: 'string',
+          },
         },
         note: {
           type: 'string',
@@ -1577,6 +1602,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'object',
           description: 'Settled selected label and value.',
           properties: {
+            labels: {
+              type: 'array',
+              description:
+                'Visible labels for the complete selected set in a multiple-selection control, in option order.',
+              items: {
+                type: 'string',
+              },
+            },
             selected: {
               type: 'string',
               description: 'Settled visible option label.',
@@ -1584,6 +1617,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             value: {
               type: 'string',
               description: 'Settled option value.',
+            },
+            values: {
+              type: 'array',
+              description:
+                'Selected native option values in DOM order; included for multiple-selection controls.',
+              items: {
+                type: 'string',
+              },
             },
           },
         },
@@ -1599,6 +1640,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         value: {
           type: 'string',
           description: 'Canonical value of the matched option.',
+        },
+        values: {
+          type: 'array',
+          description:
+            'Selected native option values in DOM order; included for multiple-selection controls.',
+          items: {
+            type: 'string',
+          },
         },
       },
       required: ['selected'],
@@ -1769,7 +1818,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         text: {
           type: 'string',
           description:
-            "The text to type. Replaces the element's current content. Must be non-empty — an empty string is rejected as a missing parameter; to clear a field, press Mod+A then Backspace with browser_press_key.",
+            'The replacement value. Empty text clears an ordinary text field. For structured inputs use YYYY-MM-DD (date), HH:mm (time), YYYY-MM-DDTHH:mm (datetime-local), YYYY-MM (month), YYYY-Www (week), #rrggbb (color), or a numeric range value. Alternatively use Mod+A then Backspace to clear ordinary text with browser_press_key.',
         },
       },
       required: ['elementId', 'text'],

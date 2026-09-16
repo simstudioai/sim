@@ -5,6 +5,30 @@ import { describe, expect, it } from 'vitest'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
+describe('validateGeneratedToolPayload browser_select_option parameters', () => {
+  it.each([
+    { elementId: 0, value: 'a' },
+    { elementId: 0, values: ['a', 'b'] },
+    { elementId: 0, values: [] },
+  ])('accepts a single selection mode %#', (payload) => {
+    expect(validateGeneratedToolPayload('browser_select_option', 'parameters', payload)).toBe(
+      payload
+    )
+  })
+
+  it.each([
+    { elementId: 0 },
+    { elementId: 0, value: 'a', values: ['b'] },
+    { elementId: 0, value: 'a', values: [] },
+    { elementId: 0, values: [1] },
+    { elementId: 0, values: Array.from({ length: 101 }, () => 'a') },
+  ])('rejects missing, conflicting or malformed selection arguments %#', (payload) => {
+    expect(() =>
+      validateGeneratedToolPayload('browser_select_option', 'parameters', payload)
+    ).toThrow(OrchestrationError)
+  })
+})
+
 describe('validateGeneratedToolPayload browser_fill_form parameters', () => {
   it('accepts mixed fields, including empty text and false checked state', () => {
     const payload = {

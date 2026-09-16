@@ -984,6 +984,7 @@ async function doExecuteBrowserTool(
     }
     nativeActionPending = false
     if (cancelled) return
+    const effectUnconfirmed = isRecordLike(result) && result.effectObserved === false
     const formStopped =
       toolName === 'browser_fill_form' && isRecordLike(result) && result.completed === false
     reportTerminalCompletion(
@@ -993,7 +994,9 @@ async function doExecuteBrowserTool(
           : ASYNC_TOOL_CONFIRMATION_STATUS.success,
         message: formStopped
           ? 'Form filling stopped; inspect the partial result'
-          : 'Browser action completed',
+          : effectUnconfirmed
+            ? 'Browser input completed; its effect is unconfirmed. Inspect the current state before retrying.'
+            : 'Browser action completed',
         data: sanitizeResultForModel(toolName, result),
       },
       'Failed to report successful browser tool completion'

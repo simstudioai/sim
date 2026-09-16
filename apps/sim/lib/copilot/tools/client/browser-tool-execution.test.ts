@@ -581,6 +581,25 @@ describe('executeBrowserToolOnClient', () => {
     }
   )
 
+  it('reports an unconfirmed effect without retrying or marking completed input as failed', async () => {
+    const result = { dispatched: true, effectObserved: false, possibleEffectObserved: true }
+    mockExecuteBrowserTool.mockResolvedValue(result)
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+
+    expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      toolCallId,
+      'success',
+      'Browser input completed; its effect is unconfirmed. Inspect the current state before retrying.',
+      result
+    )
+  })
+
   it('uses unload-safe delivery when a stateful replay-guard rejection cannot be reported normally', async () => {
     const storageWrite = vi.spyOn(window.sessionStorage, 'setItem').mockImplementation(() => {
       throw new DOMException('Quota exceeded', 'QuotaExceededError')
