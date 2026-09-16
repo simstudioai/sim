@@ -3,7 +3,7 @@
 import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText, Tooltip } from '@sim/emcn'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { faviconUrl } from '@/lib/core/utils/favicon'
-import { blockTypeToIconMap } from '@/lib/integrations'
+import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 import {
   externalLinkHostname,
   handleExternalLinkClick,

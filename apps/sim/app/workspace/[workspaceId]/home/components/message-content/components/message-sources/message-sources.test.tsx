@@ -9,7 +9,7 @@ vi.mock('@/lib/browser-agent/open-in-panel', () => ({
   shouldOpenInBrowserPanel: () => false,
   openInBrowserPanel: vi.fn(),
 }))
-vi.mock('@/lib/integrations', () => ({
+vi.mock('@/lib/integrations/icon-mapping', () => ({
   blockTypeToIconMap: { confluence_v2: () => <svg data-brand='confluence' /> },
 }))
 

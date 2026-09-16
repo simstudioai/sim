@@ -19,7 +19,7 @@
  *   bun run scripts/generate-block-successors.ts
  *   bun run scripts/generate-block-successors.ts --check
  */
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
@@ -27,7 +27,7 @@ import { formatGeneratedSource } from './format-generated-source'
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/permission-groups/block-successors.generated.ts')
-const NAMES_OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/permission-groups/block-names.generated.ts')
+const NAMES_OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/block-metadata/names.generated.ts')
 const CHECK_MODE = process.argv.includes('--check')
 
 interface SunsetBlock {
@@ -123,6 +123,22 @@ ${entries}
 `
 }
 
+/** Display labels are looked up after successor resolution; retired aliases need no second row. */
+export function buildBlockNames(
+  registry: Readonly<Record<string, Pick<SunsetBlock, 'name'>>>,
+  successors: ReadonlyMap<string, string>
+): ReadonlyMap<string, string> {
+  const names: Array<[string, string]> = [
+    ['loop', 'Loop'],
+    ['parallel', 'Parallel'],
+    ...Object.entries(registry)
+      .filter(([type]) => !successors.has(type))
+      .map(([type, block]): [string, string] => [type, block.name]),
+  ]
+  names.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+  return new Map(names)
+}
+
 async function main(): Promise<void> {
   const successors = await buildBlockSuccessors()
 
@@ -140,12 +156,7 @@ async function main(): Promise<void> {
   }
 
   const registry = await loadRegistry()
-  const names: Array<[string, string]> = [
-    ['loop', 'Loop'],
-    ['parallel', 'Parallel'],
-    ...Object.entries(registry).map(([type, block]): [string, string] => [type, block.name]),
-  ]
-  names.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+  const names = buildBlockNames(registry, successors)
   const artifacts = [
     { path: OUTPUT_PATH, source: render(successors) },
     {
@@ -168,6 +179,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = ${JSON.stringify(Ob
         )
       }
     } else {
+      await mkdir(dirname(artifact.path), { recursive: true })
       await writeFile(artifact.path, generated)
       process.stdout.write(`Generated ${artifact.path}\n`)
     }

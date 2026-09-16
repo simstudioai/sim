@@ -7,7 +7,7 @@ import type {
   AccessRequestPreviewResponse,
   AccessRequestTarget,
 } from '@/lib/api/contracts/access-requests'
-import { BLOCK_NAMES } from '@/lib/permission-groups/block-names.generated'
+import { BLOCK_NAMES } from '@/lib/block-metadata/names.generated'
 import { PERMISSION_GROUP_FIELDS } from '@/lib/permission-groups/fields'
 import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 
