@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
 import { ArrowRight, ChevronDown, cn, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
 import { Table } from '@sim/emcn/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
@@ -8,10 +9,9 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { GmailIcon, SlackIcon } from '@/components/icons'
 import {
-  INTEGRATIONS,
   resolveOAuthServiceForIntegration,
   resolveOAuthServiceForSlug,
-} from '@/lib/integrations'
+} from '@/lib/integrations/oauth-service'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import type {
@@ -30,12 +30,12 @@ import { useTablesList } from '@/hooks/queries/tables'
 
 /** Lookup integration slug by OAuth service display name (case-insensitive). */
 const SLUG_BY_LOWER_NAME: ReadonlyMap<string, string> = new Map(
-  INTEGRATIONS.map((i) => [i.name.toLowerCase(), i.slug])
+  INTEGRATION_METADATA.map((i) => [i.name.toLowerCase(), i.slug])
 )
 
 /** Lookup base block type by catalog slug, for the connect-row popularity weight. */
 const TYPE_BY_SLUG: ReadonlyMap<string, string> = new Map(
-  INTEGRATIONS.map((i) => [i.slug, stripVersionSuffix(i.type)])
+  INTEGRATION_METADATA.map((i) => [i.slug, stripVersionSuffix(i.type)])
 )
 
 /**
@@ -86,7 +86,10 @@ const TABLE_STARTERS: readonly Candidate[] = [
  */
 const CANDIDATES: readonly Candidate[] = (() => {
   const integrationByType = new Map(
-    INTEGRATIONS.flatMap((i) => [[i.type, i] as const, [stripVersionSuffix(i.type), i] as const])
+    INTEGRATION_METADATA.flatMap((i) => [
+      [i.type, i] as const,
+      [stripVersionSuffix(i.type), i] as const,
+    ])
   )
   const out: Candidate[] = [...TABLE_STARTERS]
   for (const [blockType, meta] of Object.entries(getAllBlockMeta())) {
