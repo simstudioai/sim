@@ -1,6 +1,6 @@
 /** @vitest-environment node */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(),
@@ -22,7 +22,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({ isOrganizationAdminOrOwne
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mocks.enterprise,
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({ resolveWorkspaceGroup: mocks.group }))
+vi.mock('@/lib/permission-groups/resolve.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/permission-groups/resolve.server')>()),
+  resolveWorkspaceGroup: mocks.group,
+}))
 
 import { userPermissionConfigSchema } from '@/lib/api/contracts/permission-groups'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -53,6 +56,7 @@ function get(query = '?workspaceId=workspace') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  setEnvFlags({ isHosted: true, isAccessControlEnabled: true })
   mocks.session.mockResolvedValue({
     user: { id: 'viewer' },
     session: { id: 'session', activeOrganizationId: 'unrelated-org' },
@@ -64,7 +68,40 @@ beforeEach(() => {
   mocks.group.mockResolvedValue(null)
 })
 
+afterEach(resetEnvFlagsMock)
+
 describe('user permission policy shared read', () => {
+  it.each([
+    { hosted: false, accessControl: false, entitled: false },
+    { hosted: false, accessControl: true, entitled: true },
+    { hosted: true, accessControl: false, entitled: true },
+  ])(
+    'matches the active permission regime ($hosted, $accessControl)',
+    async ({ hosted, accessControl, entitled }) => {
+      setEnvFlags({
+        isHosted: hosted,
+        isAccessControlEnabled: accessControl,
+        isBillingEnabled: false,
+      })
+      mocks.admin.mockResolvedValue(true)
+      const group = {
+        permissionGroupId: 'group',
+        groupName: 'Restricted',
+        config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, hideCopilot: true },
+      }
+      mocks.group.mockResolvedValue(group)
+      const expected = { ...unrestricted, ...(entitled ? group : {}), entitled, isOrgAdmin: true }
+      expect(await (await get()).json()).toEqual(expected)
+      expect(
+        await readUserPermissionConfig.execute({ principal, input: { workspaceId: 'workspace' } })
+      ).toEqual(expected)
+      if (!entitled) {
+        expect(mocks.group).not.toHaveBeenCalled()
+        expect(mocks.enterprise).not.toHaveBeenCalled()
+      }
+    }
+  )
+
   it('authenticates before parsing or protected lookups', async () => {
     mocks.session.mockResolvedValue(null)
     expect((await get('')).status).toBe(401)

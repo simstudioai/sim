@@ -28,14 +28,27 @@ export const storedAccessRequestPolicyValueSchema = z.union([
   PERMISSION_GROUP_FIELDS.allowedIntegrations.readSchema,
 ])
 
-export const storedAccessRequestPolicyChangeSchema = z.object({
-  configKey: z.enum(
-    Object.keys(PERMISSION_GROUP_FIELDS) as (keyof typeof PERMISSION_GROUP_FIELDS)[]
-  ),
-  label: z.string().min(1).max(512),
-  before: storedAccessRequestPolicyValueSchema,
-  after: storedAccessRequestPolicyValueSchema,
-})
+export const storedAccessRequestPolicyChangeSchema = z
+  .object({
+    configKey: z.enum(
+      Object.keys(PERMISSION_GROUP_FIELDS) as (keyof typeof PERMISSION_GROUP_FIELDS)[]
+    ),
+    label: z.string().min(1).max(512),
+    before: storedAccessRequestPolicyValueSchema,
+    after: storedAccessRequestPolicyValueSchema,
+  })
+  .superRefine((change, context) => {
+    const schema = PERMISSION_GROUP_FIELDS[change.configKey].readSchema
+    for (const side of ['before', 'after'] as const) {
+      if (!schema.safeParse(change[side]).success) {
+        context.addIssue({
+          code: 'custom',
+          path: [side],
+          message: `Invalid ${side} value for ${change.configKey}`,
+        })
+      }
+    }
+  })
 
 export const storedAccessRequestDecisionSchema = z.object({
   resolutionKind: z.enum(['permission', 'usage_limit']),

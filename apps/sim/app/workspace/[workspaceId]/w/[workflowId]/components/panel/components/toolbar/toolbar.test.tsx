@@ -204,4 +204,21 @@ describe('toolbar access requests', () => {
     expect(container.textContent).not.toContain('Access required')
     expect(container.textContent).not.toContain('Locked')
   })
+
+  it('does not reopen a request after requests are disabled and re-enabled', () => {
+    act(() => root.render(<Toolbar />))
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Request access to Locked tool"]')
+        ?.click()
+    )
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    discovery.mockReturnValue({ data: { enabled: false } })
+    act(() => root.render(<Toolbar isActive={false} />))
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    discovery.mockReturnValue({ data: { enabled: true } })
+    act(() => root.render(<Toolbar isActive />))
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Request access to Locked tool"]')).not.toBeNull()
+  })
 })

@@ -418,6 +418,54 @@ describe('create access requests', () => {
 })
 
 describe('discovery and request history', () => {
+  it('finds an exact target beyond the first catalog page', async () => {
+    const integrations = Array.from({ length: 125 }, (_, index) => ({
+      id: `integration-${index}`,
+      label: `Integration ${index}`,
+    }))
+    mocks.catalog.mockResolvedValue(
+      createAccessRequestCatalog({
+        integrations,
+        providers: [],
+        models: [],
+        tools: [],
+        knowledgeConnectors: [],
+      })
+    )
+    mocks.targets.mockReturnValue(integrations.map(({ id }) => ({ kind: 'integration', id })))
+    mocks.group.mockResolvedValue({
+      ...group,
+      config: { ...group.config, allowedIntegrations: [] },
+    })
+    const selected = { kind: 'integration', id: 'integration-124' } as const
+    queueTableRows(permissionAccessRequest, [
+      stored({ target: selected, targetKey: 'integration:integration-124' }),
+    ])
+    const result = await discoverAccessRequests.execute({
+      principal,
+      input: {
+        ...scope,
+        targetKind: 'integration',
+        targetKey: 'integration:integration-124',
+        limit: 1,
+        offset: 0,
+      },
+    })
+    expect(result).toMatchObject({
+      total: 1,
+      hasMore: false,
+      entries: [{ target: selected, state: 'requestable', pendingRequestId: 'request' }],
+    })
+  })
+
+  it('does not substitute another target when an exact target is unavailable', async () => {
+    const result = await discoverAccessRequests.execute({
+      principal,
+      input: { ...scope, targetKey: 'integration:missing', limit: 1, offset: 0 },
+    })
+    expect(result).toMatchObject({ total: 0, hasMore: false, entries: [] })
+  })
+
   it('filters requestable state before pagination and reports pending request IDs', async () => {
     mocks.targets.mockReturnValue([
       { kind: 'feature', configKey: 'hideKnowledgeBaseTab' },

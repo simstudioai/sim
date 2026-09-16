@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipDropdown, ChipTag, Switch, toast } from '@sim/emcn'
+import { Chip, ChipDropdown, ChipSwitch, ChipTag, toast } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { AccessRequestReview } from '@/components/access-requests/access-request-review'
 import {
@@ -9,6 +9,10 @@ import {
 } from '@/components/access-requests/search-params'
 import { ACCESS_REQUEST_STATUS_LABELS } from '@/components/access-requests/status'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
@@ -44,30 +48,42 @@ export function OrganizationAccessRequests({
 
   return (
     <div className='flex flex-col gap-5'>
-      <SettingsResourceRow
-        title='Allow users to request permissions'
-        description={
-          settings.data?.allowRequests === false
-            ? 'New requests and approvals are paused. Request history remains available.'
-            : 'Members can ask administrators to review access and credit limits.'
-        }
-        trailing={
-          settings.isSuccess ? (
-            <Switch
+      {settings.isPending ? (
+        <SettingsEmptyState variant='inline'>Loading request settings...</SettingsEmptyState>
+      ) : settings.isError ? (
+        <SettingsQueryErrorState
+          variant='inline'
+          error={settings.error}
+          fallback='Unable to load request settings'
+          isRetrying={settings.isFetching}
+          onRetry={() => void settings.refetch()}
+        />
+      ) : (
+        <SettingsResourceRow
+          title='Allow users to request permissions'
+          description={
+            settings.data.allowRequests === false
+              ? 'New requests and approvals are paused.'
+              : 'Includes access and credit limit requests.'
+          }
+          trailing={
+            <ChipSwitch
               aria-label='Allow users to request permissions'
-              checked={settings.data.allowRequests}
-              onCheckedChange={(checked) =>
-                updateSettings.mutate(checked, {
+              size='compact'
+              options={[
+                { value: 'enabled', label: 'Enabled' },
+                { value: 'paused', label: 'Paused' },
+              ]}
+              value={settings.data.allowRequests ? 'enabled' : 'paused'}
+              onChange={(value) =>
+                updateSettings.mutate(value === 'enabled', {
                   onError: (error) => toast.error(error.message),
                 })
               }
               disabled={updateSettings.isPending}
             />
-          ) : undefined
-        }
-      />
-      {settings.isError && (
-        <p className='text-[var(--text-error)] text-sm'>{settings.error.message}</p>
+          }
+        />
       )}
       <div className='flex items-center justify-between gap-2'>
         <h2 className='text-[var(--text-body)] text-sm'>Requests</h2>

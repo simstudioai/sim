@@ -64,6 +64,7 @@ const discoveryShape = {
   ...paginationShape,
   search: z.string().trim().max(ACCESS_REQUEST_MAX_SEARCH_LENGTH).optional(),
   targetKind: z.enum(ACCESS_REQUEST_TARGET_KINDS).optional(),
+  targetKey: z.string().min(1, 'Target key cannot be empty').max(2048).optional(),
   state: z.enum(['allowed', 'requestable', 'unavailable']).optional(),
 }
 

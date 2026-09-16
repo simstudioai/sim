@@ -65,6 +65,8 @@ describe('access request contracts', () => {
       { limit: 0 },
       { offset: -1 },
       { search: 'a'.repeat(201) },
+      { targetKey: '' },
+      { targetKey: 'a'.repeat(2049) },
     ]) {
       expect(discoverAccessRequestsQuerySchema.safeParse({ ...scope, ...override }).success).toBe(
         false

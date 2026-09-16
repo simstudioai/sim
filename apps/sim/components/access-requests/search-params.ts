@@ -53,7 +53,9 @@ export const accessReviewSearchParams = {
 export const accessRequestUrlOptions = { history: 'replace', clearOnDefault: true } as const
 
 export const accessRequestEntrySearchParams = {
+  ...accessRequestSearchParams,
   organizationId: accessRequestIdParser,
   view: parseAsStringLiteral(['requests', 'catalog', 'admin'] as const).withDefault('requests'),
-  requestId: accessRequestIdParser,
+  'request-page': accessReviewSearchParams['request-page'],
+  'request-status': accessReviewSearchParams['request-status'],
 } as const

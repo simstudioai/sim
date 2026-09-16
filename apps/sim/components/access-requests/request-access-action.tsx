@@ -6,6 +6,7 @@ import {
   ChipLink,
   ChipModal,
   ChipModalBody,
+  ChipModalDescription,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
@@ -14,8 +15,10 @@ import {
   toast,
 } from '@sim/emcn'
 import { Lock } from '@sim/emcn/icons'
+import { useRouter } from 'next/navigation'
 import type { AccessRequestScope, AccessRequestTarget } from '@/lib/api/contracts/access-requests'
-import { useCreateAccessRequest } from '@/hooks/queries/access-requests'
+import { getAccessRequestTargetKey } from '@/lib/permission-groups/access-requests/targets'
+import { useCreateAccessRequest, useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 
 interface RequestAccessActionProps {
   scope: AccessRequestScope
@@ -24,6 +27,16 @@ interface RequestAccessActionProps {
   pendingRequestId?: string | null
   onViewRequest?: (requestId: string) => void
   variant?: ChipProps['variant']
+}
+
+function accessRequestHref(scope: AccessRequestScope, requestId: string): string {
+  const params = new URLSearchParams({ requestId })
+  if (scope.kind === 'organization') params.set('organizationId', scope.organizationId)
+  const pathname =
+    scope.kind === 'workspace'
+      ? `/workspace/${encodeURIComponent(scope.workspaceId)}/access-requests`
+      : '/access-requests'
+  return `${pathname}?${params}`
 }
 
 export function RequestAccessAction({
@@ -47,16 +60,10 @@ export function RequestAccessAction({
         </Chip>
       )
     }
-    const params = new URLSearchParams({ requestId: pendingRequestId })
-    if (scope.kind === 'organization') params.set('organizationId', scope.organizationId)
-    const pathname =
-      scope.kind === 'workspace'
-        ? `/workspace/${encodeURIComponent(scope.workspaceId)}/access-requests`
-        : '/access-requests'
     return (
       <ChipLink
         variant={variant}
-        href={`${pathname}?${params}`}
+        href={accessRequestHref(scope, pendingRequestId)}
         leftIcon={Lock}
         aria-label={`View request for ${label}`}
       >
@@ -71,12 +78,19 @@ export function RequestAccessAction({
       scope={scope}
       target={target}
       label={label}
+      onViewRequest={onViewRequest}
       variant={variant}
     />
   )
 }
 
-function RequestableAccessAction({ scope, target, label, variant }: RequestAccessActionProps) {
+function RequestableAccessAction({
+  scope,
+  target,
+  label,
+  variant,
+  onViewRequest,
+}: RequestAccessActionProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -98,6 +112,7 @@ function RequestableAccessAction({ scope, target, label, variant }: RequestAcces
           scope={scope}
           target={target}
           label={label}
+          onViewRequest={onViewRequest}
           onClose={() => setOpen(false)}
         />
       )}
@@ -106,17 +121,40 @@ function RequestableAccessAction({ scope, target, label, variant }: RequestAcces
 }
 
 interface RequestAccessModalProps
-  extends Pick<RequestAccessActionProps, 'scope' | 'target' | 'label'> {
+  extends Pick<RequestAccessActionProps, 'scope' | 'target' | 'label' | 'onViewRequest'> {
   onClose: () => void
 }
 
-export function RequestAccessModal({ scope, target, label, onClose }: RequestAccessModalProps) {
+export function RequestAccessModal({
+  scope,
+  target,
+  label,
+  onViewRequest,
+  onClose,
+}: RequestAccessModalProps) {
+  const router = useRouter()
+  const discovery = useDiscoverAccessRequests({
+    ...scope,
+    targetKind: target.kind,
+    targetKey: getAccessRequestTargetKey(target),
+    limit: 1,
+    offset: 0,
+  })
   const [reason, setReason] = useState('')
   const createRequest = useCreateAccessRequest()
   const usageLimitRequest = target.kind === 'usage_limit'
   const title = usageLimitRequest ? 'Request a higher credit limit' : 'Request access'
+  const entry = discovery.isSuccess ? discovery.data.entries[0] : undefined
+  const pendingRequestId = entry?.pendingRequestId
+  const canRequest = discovery.data?.enabled && entry?.state === 'requestable' && !pendingRequestId
+  const alreadyAllowed = entry?.state === 'allowed'
+  const unavailableReason =
+    discovery.isSuccess && !pendingRequestId && !canRequest && !alreadyAllowed
+      ? (entry?.reason ?? 'Access requests are unavailable.')
+      : null
 
   const submit = () => {
+    if (!canRequest || createRequest.isPending) return
     createRequest.mutate(
       { scope, target, reason: reason.trim() },
       {
@@ -147,23 +185,51 @@ export function RequestAccessModal({ scope, target, label, onClose }: RequestAcc
         <ChipModalField type='custom' title='Access'>
           <p className='break-words text-[var(--text-body)] text-sm'>{label}</p>
         </ChipModalField>
-        <ChipModalField
-          type='textarea'
-          title='Reason (optional)'
-          value={reason}
-          onChange={setReason}
-          maxLength={1000}
-          rows={3}
-          placeholder='Describe what you need to do.'
-        />
-        <ChipModalError>{createRequest.error?.message}</ChipModalError>
+        {alreadyAllowed && (
+          <ChipModalDescription>Access is already available.</ChipModalDescription>
+        )}
+        {canRequest && (
+          <ChipModalField
+            type='textarea'
+            title='Reason (optional)'
+            value={reason}
+            onChange={setReason}
+            maxLength={1000}
+            rows={3}
+            placeholder='Describe what you need to do.'
+          />
+        )}
+        <ChipModalError>
+          {discovery.error?.message ?? unavailableReason ?? createRequest.error?.message}
+        </ChipModalError>
       </ChipModalBody>
       <ChipModalFooter
         onCancel={onClose}
         primaryAction={{
-          label: createRequest.isPending ? 'Sending...' : 'Send request',
-          onClick: submit,
-          disabled: createRequest.isPending,
+          label: discovery.isPending
+            ? 'Loading...'
+            : discovery.isError
+              ? 'Retry'
+              : pendingRequestId
+                ? 'View request'
+                : createRequest.isPending
+                  ? 'Sending...'
+                  : 'Send request',
+          onClick: discovery.isError
+            ? () => {
+                void discovery.refetch()
+              }
+            : pendingRequestId
+              ? () => {
+                  if (onViewRequest) onViewRequest(pendingRequestId)
+                  else router.push(accessRequestHref(scope, pendingRequestId))
+                  onClose()
+                }
+              : submit,
+          disabled:
+            createRequest.isPending ||
+            discovery.isPending ||
+            (!discovery.isError && !pendingRequestId && !canRequest),
         }}
       />
     </ChipModal>

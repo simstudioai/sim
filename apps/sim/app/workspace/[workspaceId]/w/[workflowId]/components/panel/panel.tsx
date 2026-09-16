@@ -217,15 +217,20 @@ export const Panel = memo(function Panel() {
     scope: usageLimitScope,
     isLoading: isUsageGateLoading,
   } = useUsageLimits({ workspaceId })
+  const isMemberLimitExceeded = usageExceeded && usageLimitScope === 'member'
   const memberLimitRequest = useDiscoverAccessRequests(
     { kind: 'workspace', workspaceId, targetKind: 'usage_limit', limit: 1, offset: 0 },
-    usageExceeded && usageLimitScope === 'member'
+    isMemberLimitExceeded
   )
   const [showLimitRequest, setShowLimitRequest] = useState(false)
   const memberLimitTarget =
-    memberLimitRequest.isSuccess && memberLimitRequest.data.enabled
+    isMemberLimitExceeded && memberLimitRequest.isSuccess && memberLimitRequest.data.enabled
       ? memberLimitRequest.data.entries.find((entry) => entry.state === 'requestable')
       : undefined
+
+  if (showLimitRequest && !memberLimitTarget) {
+    setShowLimitRequest(false)
+  }
 
   // Workflow execution hook
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()

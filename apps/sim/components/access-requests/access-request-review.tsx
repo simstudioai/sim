@@ -118,12 +118,6 @@ export function AccessRequestReview({
                       <p className='break-words text-[var(--text-body)] text-sm'>
                         {data.group?.name ?? 'No longer available'}
                       </p>
-                      <p className='text-[var(--text-muted)] text-sm'>
-                        May affect up to {data.impact.memberCount}{' '}
-                        {data.impact.memberCount === 1 ? 'person' : 'people'} across{' '}
-                        {data.impact.workspaceCount}{' '}
-                        {data.impact.workspaceCount === 1 ? 'workspace' : 'workspaces'}.
-                      </p>
                     </ChipModalField>
                   )}
                   {pending && alreadyAvailable && (
@@ -171,7 +165,7 @@ export function AccessRequestReview({
                       value={newLimit}
                       onChange={setNewLimit}
                       required
-                      hint='Applies to this member. Enter a whole number above their current limit.'
+                      hint='Enter a whole number above the current limit.'
                     />
                   )}
                 </>

@@ -500,6 +500,13 @@ export const Toolbar = memo(
         allTools.find((item) => item.type === requestedBlockType))
       : undefined
 
+    if (
+      requestedBlockType !== null &&
+      (!requestedBlock || !workspaceId || !accessRequestsEnabled)
+    ) {
+      setRequestedBlockType(null)
+    }
+
     // Published custom blocks are their own section. Exclude disabled blocks (still
     // resolvable so placed instances survive, but not offered for new placement) and
     // the block bound to the CURRENT workflow — adding a workflow's own block recurses.
