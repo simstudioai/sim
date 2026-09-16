@@ -116,12 +116,17 @@ type ToolProgress = Extract<SlackStreamChunk, { type: 'task_update' }>
 /** Serial delivery through the same provider primitives as Slack blocks; ambiguous sends are terminal. */
 export class SlackSearchAssistantStream {
   private stream?: { channel: string; ts: string }
+  private sessionStarted = false
+  private streamStartAttempted = false
+  private leadingChunks: SlackStreamChunk[] = []
   private text = ''
+  /** Safe text already delivered or buffered ahead of the first visible chunk. */
   private sent = ''
   private lastSentAt = 0
   private failure?: Error
   private closed = false
   private closeAttempted = false
+  private cleanupAttempted = false
   private pendingEvents: Promise<void> = Promise.resolve()
   private evidence = new Map<string, Record<string, unknown>>()
   private toolProgress = new Map<string, { toolName: string; chunk: ToolProgress }>()
@@ -151,13 +156,7 @@ export class SlackSearchAssistantStream {
         'processing',
         controller.signal
       )
-      this.stream = await startSlackAgentStream(
-        token,
-        { channel, threadTs },
-        [],
-        'timeline',
-        controller.signal
-      )
+      this.sessionStarted = true
     })
   }
 
@@ -168,6 +167,7 @@ export class SlackSearchAssistantStream {
 
   private async handleEvent(event: StreamEvent) {
     if (this.failure) throw this.failure
+    this.options.controller.signal.throwIfAborted()
     if (event.type === 'tool' && 'phase' in event.payload && event.payload.phase === 'result') {
       const { toolName, success, status, output } = event.payload
       this.collectSources([
@@ -192,7 +192,7 @@ export class SlackSearchAssistantStream {
     if (event.type !== 'text' || event.payload.channel !== 'assistant' || event.scope) return
     this.text += event.payload.text
     if (this.text.length > 128_000) throw new Error('Slack answer exceeds the supported size')
-    if (Date.now() - this.lastSentAt >= 750) await this.flush(false)
+    if (!this.stream || Date.now() - this.lastSentAt >= 750) await this.flush(false)
   }
 
   /** Only static labels reach Slack; arguments, account details, and backend errors stay private. */
@@ -272,16 +272,9 @@ export class SlackSearchAssistantStream {
       /** Unresolved citations and partial markup must not let a task overtake withheld text. */
       if (!complete && prefix !== this.projectAnswer(preceding, true, sources)) return
       await this.deliver(async () => {
-        if (!this.stream || this.closed) throw new Error('Slack stream is not active')
         /** Include an ambiguously started task in failure cleanup, but never an unsent task. */
         if (!this.deliveredProgress.has(chunk.id)) this.deliveredProgress.set(chunk.id, chunk)
-        await appendSlackAgentStream(
-          this.options.token,
-          this.stream.channel,
-          this.stream.ts,
-          [chunk],
-          this.options.controller.signal
-        )
+        await this.writeChunk(chunk, this.options.controller.signal)
       })
       this.deliveredProgress.set(chunk.id, chunk)
       this.pendingProgress.shift()
@@ -299,7 +292,7 @@ export class SlackSearchAssistantStream {
   private async appendText(text: string) {
     if (this.sent.startsWith(text)) return
     if (!text.startsWith(this.sent)) throw new Error('The safe answer changed after delivery')
-    const { token, controller } = this.options
+    const { controller } = this.options
     let pending = text.slice(this.sent.length)
     while (pending.length) {
       let end = Math.min(4000, pending.length)
@@ -314,19 +307,36 @@ export class SlackSearchAssistantStream {
       if (end === 0) throw new Error('Slack citation exceeds the supported chunk size')
       const chunk = pending.slice(0, end)
       await this.deliver(async () => {
-        if (!this.stream || this.closed) throw new Error('Slack stream is not active')
-        await appendSlackAgentStream(
-          token,
-          this.stream.channel,
-          this.stream.ts,
-          [{ type: 'markdown_text', text: chunk }],
-          controller.signal
-        )
+        await this.writeChunk({ type: 'markdown_text', text: chunk }, controller.signal)
       })
       this.sent += chunk
       pending = pending.slice(chunk.length)
-      this.lastSentAt = Date.now()
+      if (this.stream) this.lastSentAt = Date.now()
     }
+  }
+
+  /** Start with visible content, preserving buffered whitespace and tool positions in that request. */
+  private async writeChunk(chunk: SlackStreamChunk, signal: AbortSignal) {
+    if (!this.sessionStarted || this.closed) throw new Error('Slack session is not active')
+    const { token, channel, threadTs } = this.options
+    if (this.stream) {
+      await appendSlackAgentStream(token, this.stream.channel, this.stream.ts, [chunk], signal)
+      return
+    }
+    if (this.streamStartAttempted) throw new Error('Slack stream start was not confirmed')
+    if (chunk.type === 'markdown_text' && !chunk.text.trim()) {
+      this.leadingChunks.push(chunk)
+      return
+    }
+    this.streamStartAttempted = true
+    this.stream = await startSlackAgentStream(
+      token,
+      { channel, threadTs },
+      [...this.leadingChunks, chunk],
+      'timeline',
+      signal
+    )
+    this.leadingChunks = []
   }
 
   async finish(result: OrchestratorResult) {
@@ -349,48 +359,68 @@ export class SlackSearchAssistantStream {
         '\n\nUse the connection buttons in our DM, then reply here when you’re ready to continue.'
     }
     await this.flush(true)
-    await this.close([])
+    await this.deliver(() => this.close(false, this.options.controller.signal))
   }
 
-  /** A confirmed Assistant failure closes the established stream without exposing backend errors. */
+  /** A confirmed Assistant failure is visible even if no answer stream has started. */
   async finishWithError() {
-    await this.close(FAILURE_BLOCKS)
+    await this.pendingEvents
+    await this.deliver(() => this.close(true, this.options.controller.signal))
   }
 
-  /** Closes a known stream once after abort, with fresh authority and no replay of failed sends. */
+  /** Settle once after abort, with fresh authority and no replay of ambiguous sends. */
   async terminateAfterFailure() {
-    if (!this.stream || this.closed || this.closeAttempted) return
+    if (
+      !this.sessionStarted ||
+      this.closed ||
+      this.cleanupAttempted ||
+      (this.stream && this.closeAttempted)
+    )
+      return
+    this.cleanupAttempted = true
     const signal = AbortSignal.timeout(5000)
     await this.options.beforeCleanup(signal)
     signal.throwIfAborted()
-    this.closeAttempted = true
-    await stopSlackAgentStream(
-      this.options.token,
-      this.stream.channel,
-      this.stream.ts,
-      'active',
-      signal,
-      FAILURE_BLOCKS,
-      this.interruptedToolProgress()
-    )
-    this.closed = true
+    if (this.closeAttempted) {
+      /** Only the idempotent status reset can repeat; never replay an unconfirmed message send. */
+      const { token, channel, threadTs } = this.options
+      await setSlackAgentSessionStatus(token, { channel, threadTs }, 'active', signal)
+      this.closed = true
+      return
+    }
+    await this.close(true, signal)
   }
 
-  private async close(blocks: Record<string, unknown>[]) {
-    await this.deliver(async () => {
-      if (!this.stream || this.closed) throw new Error('Slack stream is not active')
+  private async close(failed: boolean, signal: AbortSignal) {
+    if (!this.sessionStarted || this.closed || this.closeAttempted)
+      throw new Error('Slack session is not active')
+    const { token, channel, threadTs } = this.options
+    let blocks = failed ? FAILURE_BLOCKS : []
+    try {
+      if (!this.stream && failed && !this.streamStartAttempted) {
+        await this.writeChunk({ type: 'markdown_text', text: SLACK_SEARCH_FAILED_ANSWER }, signal)
+        blocks = []
+      }
+    } finally {
+      /** A failed notification must still settle the session, including during failure cleanup. */
+      signal.throwIfAborted()
       this.closeAttempted = true
-      await stopSlackAgentStream(
-        this.options.token,
-        this.stream.channel,
-        this.stream.ts,
-        'active',
-        this.options.controller.signal,
-        blocks,
-        this.interruptedToolProgress()
-      )
+      if (this.stream) {
+        await stopSlackAgentStream(
+          token,
+          this.stream.channel,
+          this.stream.ts,
+          'active',
+          signal,
+          blocks,
+          this.interruptedToolProgress()
+        )
+      } else {
+        /** Empty runs and unconfirmed starts still need to end the native loading state. */
+        await setSlackAgentSessionStatus(token, { channel, threadTs }, 'active', signal)
+      }
       this.closed = true
-    })
+    }
   }
 
   assertHealthy() {
