@@ -60,12 +60,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
      * persists a map derived from the pre-replace state, discarding this one
      * entirely.
      *
-     * The reconcile below stays outside because it opens its own transaction.
-     * That leaves a known gap: it prunes mirrors against this request's key
-     * list, so a secret added after the commit loses its mirror while its
-     * value survives. Closing it means having the reconcile read the map
-     * itself rather than trust a caller's list, across all four of its
-     * callers.
+     * The reconcile below opens its own transaction and re-reads the map
+     * under this same lock so a later save cannot be undone by stale keys.
      */
     await db.transaction(async (tx) => {
       await lockPersonalEnvMap(tx, session.user.id)
@@ -89,7 +85,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     await syncPersonalEnvCredentialsForUser({
       userId: session.user.id,
-      envKeys: Object.keys(variables),
     })
 
     recordAudit({
