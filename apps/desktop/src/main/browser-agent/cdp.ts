@@ -479,7 +479,7 @@ async function captureViewportImage(
     })
     const capture = (async () => {
       try {
-        return await contents.capturePage(undefined, { stayHidden: false })
+        return await contents.capturePage(undefined, { stayHidden: true })
       } finally {
         pendingScreenshotCaptures.delete(contents)
       }

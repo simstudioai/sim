@@ -18,7 +18,15 @@ const SCOPE = 'browser-tools-e2e'
 const FORM = `<!doctype html><html><head><title>Form fixture</title></head><body>
   <label>Name <input id="name" autocomplete="off"></label>
   <label>Plan <select id="plan" aria-label="Plan"><option value="basic">Basic</option><option value="pro">Pro</option></select></label>
+  <label>Regions <select id="regions" aria-label="Regions" multiple><option value="a">A</option><option value="b">B</option><option value="c" disabled>C</option></select></label>
   <label>Updates <input id="updates" type="checkbox"></label>
+  <label>Date <input id="date" type="date" oninput="this.dataset.events = Number(this.dataset.events || 0) + 1"></label>
+  <label>Time <input id="time" type="time"></label>
+  <label>Appointment <input id="appointment" type="datetime-local"></label>
+  <label>Month <input id="month" type="month"></label>
+  <label>Week <input id="week" type="week"></label>
+  <label>Color <input id="color" type="color"></label>
+  <label>Range <input id="range" type="range"></label>
   <label>Password <input id="password" type="password"></label>
   <label>Route <input id="route" oninput="history.pushState({}, '', '/form?changed=1')"></label>
   <a href="/redirect">Other website</a>
@@ -144,7 +152,9 @@ test.describe('browser tools', () => {
     const result = response.result as { snapshot: { outline: string } }
     expect(result.snapshot.outline).toContain('Name')
     return (name: string) => {
-      const line = result.snapshot.outline.split('\n').find((line) => line.includes(`"${name}"`))
+      const line = result.snapshot.outline
+        .split('\n')
+        .find((line) => line.includes(`"${name}"`) && /\[ref=\d+\]/.test(line))
       const match = line?.match(/\[ref=(\d+)\]/)
       if (!match) throw new Error(`No reference for ${name}: ${result.snapshot.outline}`)
       return Number(match[1])
@@ -167,6 +177,87 @@ test.describe('browser tools', () => {
       })`)
     }, origin)
   }
+
+  test('sets and clears multiple selections without partial writes for invalid options', async () => {
+    const ref = await openForm()
+    const selected = await execute('browser_select_option', {
+      elementId: ref('Regions'),
+      values: ['A', 'B'],
+    })
+    expect(selected.ok, selected.error).toBe(true)
+    expect(selected.result).toMatchObject({
+      values: ['a', 'b'],
+      effectObserved: true,
+      readback: { values: ['a', 'b'] },
+    })
+    const invalid = await execute('browser_select_option', {
+      elementId: ref('Regions'),
+      values: ['B', 'C'],
+    })
+    expect(invalid.ok).toBe(false)
+    const values = await app.evaluate(async ({ webContents }, origin) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((wc) => wc.getURL() === `${origin}/form`)
+      if (!contents) throw new Error('Missing form fixture')
+      return contents.executeJavaScript(
+        'Array.from(document.getElementById("regions").selectedOptions, option => option.value)'
+      )
+    }, origin)
+    expect(values).toEqual(['a', 'b'])
+    const cleared = await execute('browser_select_option', {
+      elementId: ref('Regions'),
+      values: [],
+    })
+    expect(cleared.result).toMatchObject({
+      values: [],
+      effectObserved: true,
+      readback: { values: [] },
+    })
+  })
+
+  test('fills structured native fields and leaves invalid dates unchanged', async () => {
+    const ref = await openForm()
+    for (const [name, text] of [
+      ['Date', '2026-09-15'],
+      ['Time', '15:48'],
+      ['Appointment', '2026-09-15T15:48:00'],
+      ['Month', '2026-09'],
+      ['Week', '2026-W38'],
+      ['Color', '#AABBCC'],
+      ['Range', '75'],
+    ]) {
+      const response = await execute('browser_type', { elementId: ref(name), text })
+      expect(response.ok, response.error).toBe(true)
+      expect(response.result).toMatchObject({
+        trusted: false,
+        dispatched: true,
+        effectObserved: true,
+      })
+    }
+    const invalid = await execute('browser_type', { elementId: ref('Date'), text: '2026-02-30' })
+    expect(invalid.ok).toBe(false)
+    expect(invalid.error).toContain('Invalid value')
+    const state = await app.evaluate(async ({ webContents }, origin) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((wc) => wc.getURL() === `${origin}/form`)
+      if (!contents) throw new Error('Missing form fixture')
+      return contents.executeJavaScript(
+        '({date:document.getElementById("date").value,time:document.getElementById("time").value,appointment:document.getElementById("appointment").value,month:document.getElementById("month").value,week:document.getElementById("week").value,color:document.getElementById("color").value,range:document.getElementById("range").value,events:document.getElementById("date").dataset.events})'
+      )
+    }, origin)
+    expect(state).toEqual({
+      date: '2026-09-15',
+      time: '15:48',
+      appointment: '2026-09-15T15:48',
+      month: '2026-09',
+      week: '2026-W38',
+      color: '#aabbcc',
+      range: '75',
+      events: '1',
+    })
+  })
 
   for (const mode of ['menu', 'sticky']) {
     test(`clicks a ${mode} target without losing its identity`, async () => {

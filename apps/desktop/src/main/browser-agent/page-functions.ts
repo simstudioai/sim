@@ -480,6 +480,9 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
     if (el.getAttribute('aria-required') === 'true') parts.push('aria-required')
     if (tag === 'INPUT') {
       const input = el as HTMLInputElement
+      if (!['text', 'checkbox', 'radio', 'submit', 'button', 'reset'].includes(input.type)) {
+        parts.push(`type=${quote(input.type)}`)
+      }
       if (input.type === 'checkbox' || input.type === 'radio') {
         parts.push(input.indeterminate ? 'mixed' : input.checked ? 'checked' : 'unchecked')
       }
@@ -489,8 +492,9 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
       const textarea = el as HTMLTextAreaElement
       if (textarea.readOnly) parts.push('readonly')
       if (textarea.required) parts.push('required')
-    } else if (tag === 'SELECT' && (el as HTMLSelectElement).required) {
-      parts.push('required')
+    } else if (tag === 'SELECT') {
+      if ((el as HTMLSelectElement).required) parts.push('required')
+      if ((el as HTMLSelectElement).multiple) parts.push('multiple')
     }
     for (const attribute of ['aria-checked', 'aria-expanded', 'aria-pressed', 'aria-selected']) {
       const value = el.getAttribute(attribute)
@@ -562,24 +566,42 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
     )
   }
 
-  const walk = (elements: Iterable<Element>, depth: number, suppressTextCoveredBy = ''): void => {
+  const walk = (nodes: Iterable<Node>, depth: number, suppressTextCoveredBy = ''): void => {
     if (refCount >= refCap || depth > depthCap) {
       truncated = true
       return
     }
-    for (const el of elements) {
+    for (const node of nodes) {
       visitedNodes++
       if (refCount >= refCap || visitedNodes > nodeCap) {
         truncated = true
         return
       }
+      const indent = '  '.repeat(depth)
+      if (node.nodeType === Node.TEXT_NODE) {
+        const root = node.getRootNode()
+        const parent = node.parentElement ?? ('host' in root ? (root.host as Element) : null)
+        if (parent?.tagName.toUpperCase() === 'TEXTAREA') continue
+        const text = cut((node.textContent || '').replace(/\s+/g, ' ').trim(), 160)
+        if (
+          text &&
+          parent &&
+          isVisible(parent) &&
+          (!suppressTextCoveredBy || !suppressTextCoveredBy.includes(text))
+        ) {
+          if (!push(`${indent}- text ${quote(text)}`)) return
+        }
+        continue
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) continue
+      const el = node as Element
       const tag = String(el.tagName || '').toUpperCase()
       if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'TEMPLATE') continue
 
-      const indent = '  '.repeat(depth)
       let childDepth = depth
       let emittedInteractive = false
       let interactiveName = ''
+      let emittedText = ''
       const visible = isVisible(el)
 
       if (el.matches(landmarkSelector) && visible) {
@@ -587,15 +609,15 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
         childDepth = depth + 1
       } else {
         const level = headingLevel(el)
-        if (level !== null && visible) {
-          const text = cut(((el as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim(), 160)
-          if (text) push(`${indent}- heading ${quote(text)} (h${level})`)
-        } else if (visible && (el.matches(interactiveSelector) || pointerBoundary(el))) {
+        if (visible && (el.matches(interactiveSelector) || pointerBoundary(el))) {
           emitInteractive(el, indent)
           emittedInteractive = true
           interactiveName = nameFor(el)
           // Interactive containers rarely nest other interactives; still
           // recurse so e.g. a clickable card exposes its inner links.
+        } else if (level !== null && visible) {
+          emittedText = cut(((el as HTMLElement).innerText || '').replace(/\s+/g, ' ').trim(), 160)
+          if (emittedText) push(`${indent}- heading ${quote(emittedText)} (h${level})`)
         } else if (visible) {
           const visibleElementChild = Array.from(el.children).some(isVisible)
           const leafLabel = visibleElementChild
@@ -609,18 +631,21 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
             (!suppressTextCoveredBy || !suppressTextCoveredBy.includes(leafLabel))
           ) {
             emitTextLeaf(el, indent, leafLabel)
+            emittedText = leafLabel
           }
         }
       }
 
-      const coveredText = emittedInteractive ? interactiveName : suppressTextCoveredBy
+      const coveredText = emittedInteractive
+        ? interactiveName
+        : emittedText || suppressTextCoveredBy
 
       if (tag === 'IFRAME' || tag === 'FRAME') {
         try {
           const innerDoc = (el as HTMLIFrameElement).contentDocument
           if (innerDoc?.body && isVisible(el)) {
             if (!push(`${indent}- iframe:`)) return
-            walk(innerDoc.body.children, childDepth + 1, coveredText)
+            walk(innerDoc.body.childNodes, childDepth + 1, coveredText)
           } else if (scopedRoot && !innerDoc && visible) {
             truncated = true
           }
@@ -631,13 +656,13 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
       }
 
       const shadow = (el as HTMLElement).shadowRoot
-      if (shadow) walk(shadow.children, childDepth, coveredText)
-      walk(el.children, childDepth, coveredText)
+      if (shadow) walk(shadow.childNodes, childDepth, coveredText)
+      walk(el.childNodes, childDepth, coveredText)
     }
   }
 
   if (scopedRoot) walk([scopedRoot], 0)
-  else if (document.body) walk(document.body.children, 0)
+  else if (document.body) walk(document.body.childNodes, 0)
 
   /**
    * React commonly replaces a control's DOM node while preserving its
@@ -1354,6 +1379,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       .some((token) => token === 'current-password' || token === 'new-password')
   }
 
+  const valueInputTypes = ['date', 'time', 'datetime-local', 'month', 'week', 'color', 'range']
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
@@ -1366,7 +1392,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     if (field.readOnly || field.getAttribute('aria-readonly') === 'true') return 'readonly'
     if (String(field.tagName || '').toUpperCase() === 'TEXTAREA') return 'writable'
     const type = String((field as HTMLInputElement).type || 'text').toLowerCase()
-    return ['text', 'search', 'email', 'url', 'tel', 'number'].includes(type)
+    return ['text', 'search', 'email', 'url', 'tel', 'number', ...valueInputTypes].includes(type)
       ? 'writable'
       : 'not-editable'
   }
@@ -1380,7 +1406,16 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     if (
       tag === 'TEXTAREA' ||
       (tag === 'INPUT' &&
-        ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
+        [
+          'text',
+          'search',
+          'email',
+          'url',
+          'tel',
+          'number',
+          'password',
+          ...valueInputTypes,
+        ].includes(inputType)) ||
       (node as HTMLElement).isContentEditable ||
       // An ARIA-only textbox. The snapshot already advertises these as
       // `[textbox]` with a ref, and browser_insert_text accepts them, so
@@ -1642,8 +1677,65 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     x: chosenPoint.x,
     y: chosenPoint.y,
     coveredByRelatedPopup,
+    valueInput:
+      editableTag === 'INPUT' && valueInputTypes.includes((editable as HTMLInputElement).type),
     refRecovered: resolved?.recovered === true,
   }
+}
+
+/** Sets structured native inputs after the driver's ordinary typing actionability checks. */
+export function setFocusedInputValue(id: number, text: string): unknown {
+  const resolver = window.__simAgentResolveElement
+  const resolved = resolver?.(id)
+  const registered = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
+  if (!registered?.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
+  let active = registered.ownerDocument.activeElement
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
+  if (String(registered.tagName || '').toUpperCase() !== 'INPUT') {
+    return {
+      error:
+        'Structured inputs require the field reference itself, not a container. Take a fresh browser_snapshot.',
+    }
+  }
+  if (active !== registered) return { error: 'different' }
+  const input = active as HTMLInputElement
+  const type = input.type.toLowerCase()
+  const hints = (input.getAttribute('autocomplete') || '').toLowerCase().split(/\s+/)
+  if (
+    type === 'password' ||
+    hints.some((hint) => hint === 'current-password' || hint === 'new-password')
+  ) {
+    return { error: 'password' }
+  }
+  if (!['date', 'time', 'datetime-local', 'month', 'week', 'color', 'range'].includes(type)) {
+    return {
+      error:
+        'The focused field no longer accepts a structured input value. Take a fresh browser_snapshot.',
+    }
+  }
+  if (input.matches(':disabled') || input.getAttribute('aria-disabled') === 'true')
+    return { error: 'disabled' }
+  if (input.readOnly || input.getAttribute('aria-readonly') === 'true') return { error: 'readonly' }
+  const value = type === 'color' ? text.trim().toLowerCase() : text.trim()
+  const probe = input.cloneNode(false) as HTMLInputElement
+  probe.value = value
+  if (
+    (value !== '' && probe.value === '') ||
+    (['color', 'range'].includes(type) && probe.value !== value)
+  ) {
+    return {
+      error: `Invalid value for input[type=${type}]. Use the native format; the field was not changed.`,
+    }
+  }
+  const view = input.ownerDocument.defaultView
+  if (!view) return { error: 'stale' }
+  const setter = Object.getOwnPropertyDescriptor(view.HTMLInputElement.prototype, 'value')?.set
+  if (!setter)
+    return { error: 'The native input value setter is unavailable; the field was not changed.' }
+  setter.call(input, probe.value)
+  input.dispatchEvent(new view.Event('input', { bubbles: true, composed: true }))
+  input.dispatchEvent(new view.Event('change', { bubbles: true }))
+  return { dispatched: true }
 }
 
 /**
@@ -2671,42 +2763,74 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
   }
 }
 
-export function selectOptionInElement(id: number, value: string): unknown {
+export function selectOptionInElement(id: number, value: string | string[]): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
   if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   if (String(el.tagName || '').toUpperCase() !== 'SELECT') return { error: 'not-select' }
   const select = el as HTMLSelectElement
-  if (select.disabled || select.getAttribute('aria-disabled') === 'true') {
+  if (select.matches(':disabled') || select.getAttribute('aria-disabled') === 'true') {
     return { error: 'disabled' }
   }
-  const wanted = value.trim().toLowerCase()
-  const option = Array.from(select.options).find(
-    (o) => o.value.trim().toLowerCase() === wanted || o.label.trim().toLowerCase() === wanted
-  )
-  if (!option) {
+  if (Array.isArray(value) && !select.multiple) {
     return {
-      error: 'no-option',
-      options: Array.from(select.options)
-        .slice(0, 50)
-        .map((o) =>
-          o.label
+      error:
+        'Use value for a single-selection dropdown; values requires a multiple-selection control.',
+    }
+  }
+  const requested = Array.isArray(value) ? value : [value]
+  if (requested.length > 100 || requested.some((entry) => typeof entry !== 'string')) {
+    return { error: 'A selection requires at most 100 string values.' }
+  }
+  const options = Array.from(select.options)
+  const chosen = new Set<HTMLOptionElement>()
+  for (const entry of requested) {
+    const wanted = entry.trim().toLowerCase()
+    const option = options.find(
+      (candidate) =>
+        candidate.value.trim().toLowerCase() === wanted ||
+        candidate.label.trim().toLowerCase() === wanted
+    )
+    if (!option) {
+      return {
+        error: 'no-option',
+        options: options.slice(0, 50).map((candidate) =>
+          candidate.label
             .trim()
             .slice(0, 200)
             .replace(/[\uD800-\uDBFF]$/, '')
         ),
+      }
     }
+    if (
+      option.disabled ||
+      (option.parentElement as HTMLOptGroupElement | null)?.disabled === true
+    ) {
+      return { error: 'disabled' }
+    }
+    chosen.add(option)
   }
-  if (option.disabled || (option.parentElement as HTMLOptGroupElement | null)?.disabled === true) {
-    return { error: 'disabled' }
+  const selected = options.filter((option) => chosen.has(option))
+  const selection = {
+    selected: selected[0]?.label.trim() || '',
+    value: selected[0]?.value || '',
+    ...(select.multiple
+      ? {
+          values: selected.map((option) => option.value),
+          labels: selected.map((option) => option.label.trim()),
+        }
+      : {}),
   }
-  select.value = option.value
+  if (select.multiple) {
+    for (const option of options) option.selected = chosen.has(option)
+  } else {
+    select.value = selected[0].value
+  }
   select.dispatchEvent(new Event('input', { bubbles: true }))
   select.dispatchEvent(new Event('change', { bubbles: true }))
   return {
-    selected: option.label.trim(),
-    value: option.value,
+    ...selection,
     refRecovered: resolved?.recovered === true,
   }
 }
@@ -2818,9 +2942,19 @@ export function readSelectElementState(id: number): unknown {
   if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   if (String(el.tagName || '').toUpperCase() !== 'SELECT') return { error: 'not-select' }
   const select = el as HTMLSelectElement
+  const values: string[] = []
+  const labels: string[] = []
+  if (select.multiple) {
+    for (const option of select.selectedOptions) {
+      values.push(option.value)
+      labels.push(option.label.trim())
+      if (values.length > 100) break
+    }
+  }
   return {
     selected: select.selectedOptions[0]?.label.trim() || '',
     value: select.value,
+    ...(select.multiple ? { values, labels } : {}),
   }
 }
 

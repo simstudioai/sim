@@ -66,6 +66,7 @@ import {
   readSelectElementState,
   scrollPage,
   selectOptionInElement,
+  setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
 import * as session from '@/main/browser-agent/session'
@@ -1290,6 +1291,7 @@ function unwrapPageResult(result: unknown): unknown {
         `No option matched that label or value. Available options: ${options.join(', ')}`
       )
     }
+    throw new ToolError(String(code))
   }
   return result
 }
@@ -3336,16 +3338,19 @@ async function executeToolInner(
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
       }
-      let trusted = true
+      const valueInput = initialSurface.valueInput === true
+      let trusted = !valueInput
       let nativeInserted = false
       let nativeInsertAttempted = false
       try {
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
-        await dispatchKeyCombo(
-          contents,
-          parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
-        )
+        if (!valueInput) {
+          await dispatchKeyCombo(
+            contents,
+            parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
+          )
+        }
         // The guard above vetted the element we asked to focus, but the insert
         // below goes wherever focus actually is now, a round trip later. Login
         // forms that auto-advance from username to password move it in exactly
@@ -3398,8 +3403,32 @@ async function executeToolInner(
         }
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
+        if ((finalSurface.valueInput === true) !== valueInput) {
+          throw new ToolError('The field type changed before input. Take a fresh browser_snapshot.')
+        }
         nativeInsertAttempted = true
-        await cdp.insertText(contents, text)
+        if (valueInput) {
+          const written = unwrapPageResult(
+            await execInPage(
+              target,
+              setFocusedInputValue,
+              [elementId, text],
+              false,
+              executionDeadline
+            ).catch((error) => {
+              throw new ToolError(
+                `The structured field write did not acknowledge completion (${getErrorMessage(error)}). It may have reached the field and was not retried; inspect the page before continuing.`
+              )
+            })
+          )
+          if (!isRecordLike(written) || written.dispatched !== true) {
+            throw new ToolError(
+              'The field did not acknowledge the value write. Inspect it before retrying.'
+            )
+          }
+        } else {
+          await cdp.insertText(contents, text)
+        }
         nativeInserted = true
 
         let submitted = false
@@ -3837,6 +3866,19 @@ async function executeToolInner(
     }
 
     case 'browser_select_option': {
+      const values = params.values
+      if (values !== undefined && params.value !== undefined) {
+        throw new ToolError('Provide value or values, not both.')
+      }
+      if (
+        values !== undefined &&
+        (!Array.isArray(values) ||
+          values.length > 100 ||
+          values.some((value) => typeof value !== 'string'))
+      ) {
+        throw new ToolError('values must be an array of at most 100 strings.')
+      }
+      const selection = values === undefined ? requireStr(params, 'value') : (values as string[])
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
@@ -3872,7 +3914,7 @@ async function executeToolInner(
         await execInPage(
           target,
           selectOptionInElement,
-          [elementId, requireStr(params, 'value')],
+          [elementId, selection],
           false,
           executionDeadline
         )
@@ -3886,10 +3928,22 @@ async function executeToolInner(
       }
       await sleep(50)
       const state = unwrapPageResult(await execInPage(target, readSelectElementState, [elementId]))
+      const selectedValues = selected.values
+      const readbackValues = isRecordLike(state) ? state.values : undefined
+      const selectedLabels = selected.labels
+      const readbackLabels = isRecordLike(state) ? state.labels : undefined
       const effectObserved =
         isRecordLike(state) &&
         selected.selected === state.selected &&
-        selected.value === state.value
+        selected.value === state.value &&
+        (!Array.isArray(selectedValues) ||
+          (Array.isArray(readbackValues) &&
+            selectedValues.length === readbackValues.length &&
+            selectedValues.every((value, index) => value === readbackValues[index]) &&
+            Array.isArray(selectedLabels) &&
+            Array.isArray(readbackLabels) &&
+            selectedLabels.length === readbackLabels.length &&
+            selectedLabels.every((label, index) => label === readbackLabels[index])))
       return {
         ...selected,
         effectObserved,

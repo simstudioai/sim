@@ -524,7 +524,7 @@ describe('browser-agent screenshot capture', () => {
 
     await captureScreenshot(contents)
 
-    expect(contents.capturePage).toHaveBeenCalledWith(undefined, { stayHidden: false })
+    expect(contents.capturePage).toHaveBeenCalledWith(undefined, { stayHidden: true })
     expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
       'Page.captureScreenshot',
       expect.anything()
@@ -536,7 +536,7 @@ describe('browser-agent screenshot capture', () => {
 
     const shot = await captureScreenshot(contents, { x: 100, y: 50, width: 200, height: 100 })
 
-    expect(contents.capturePage).toHaveBeenCalledWith(undefined, { stayHidden: false })
+    expect(contents.capturePage).toHaveBeenCalledWith(undefined, { stayHidden: true })
     expect(contents.debugger.sendCommand).not.toHaveBeenCalledWith(
       'Page.captureScreenshot',
       expect.anything()

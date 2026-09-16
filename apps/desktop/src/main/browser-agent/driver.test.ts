@@ -2145,6 +2145,50 @@ describe('credential protection', () => {
     return { contents, values, writes, dialogs, selectionReads: () => selectionReads }
   }
 
+  it.each([
+    { values: ['a', 'b'], labels: ['A', 'B'], expected: true },
+    { values: ['a'], labels: ['A'], expected: false },
+    { values: ['a', 'b'], labels: ['A', 'Other'], expected: false },
+  ])(
+    'verifies the entire multiple selection %j',
+    async ({ values: readbackValues, labels, expected }) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        selectOptionInElement: {
+          selected: 'A',
+          value: 'a',
+          values: ['a', 'b'],
+          labels: ['A', 'B'],
+        },
+        readSelectElementState: { selected: 'A', value: 'a', values: readbackValues, labels },
+      })
+      const result = await driver.executeTool('chat-test', 'browser_select_option', {
+        elementId: 0,
+        values: ['a', 'b'],
+      })
+      expect(result, JSON.stringify(result)).toMatchObject({
+        ok: true,
+        result: { effectObserved: expected, readback: { values: readbackValues } },
+      })
+    }
+  )
+
+  it.each([
+    { value: 'a', values: ['b'] },
+    { values: [1] },
+    { values: Array.from({ length: 101 }, () => 'a') },
+    {},
+  ])('rejects invalid selection arguments before dispatch', async (params) => {
+    const contents = await openPage()
+    vi.mocked(contents.executeJavaScript).mockClear()
+    const result = await driver.executeTool('chat-test', 'browser_select_option', {
+      elementId: 0,
+      ...params,
+    })
+    expect(result.ok).toBe(false)
+    expect(contents.executeJavaScript).not.toHaveBeenCalled()
+  })
+
   const formFields = [
     { elementId: 1, kind: 'select', value: 'first' },
     { elementId: 2, kind: 'select', value: 'second' },
@@ -2473,6 +2517,97 @@ describe('credential protection', () => {
       },
     })
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
+  })
+
+  it('sets structured input values without dispatching text or select-all keystrokes', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      focusElementForTyping: { focused: true, kind: 'input', valueInput: true, x: 24, y: 48 },
+      setFocusedInputValue: { dispatched: true },
+      readActiveElementState: { activeElement: 'input', valueLength: 10 },
+      readPageActionState: {},
+    })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: '2026-09-15',
+    })
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true, trusted: false } })
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
+  })
+
+  it('does not retry a rejected structured value through synthetic typing', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      focusElementForTyping: { focused: true, kind: 'input', valueInput: true, x: 24, y: 48 },
+      setFocusedInputValue: { error: 'Invalid value; the field was not changed.' },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'invalid-date',
+    })
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Invalid value') })
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.filter(([expression]) => isPageCall(String(expression), 'typeIntoElement'))
+    ).toHaveLength(0)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+  })
+
+  it('reports an interrupted structured write as uncertain without replaying it', async () => {
+    const contents = await openPage()
+    let writes = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'focusElementForTyping'))
+        return Promise.resolve({ focused: true, valueInput: true, x: 24, y: 48 })
+      if (isPageCall(expression, 'setFocusedInputValue')) {
+        writes++
+        return Promise.reject(new Error('Execution context was destroyed'))
+      }
+      return Promise.resolve({})
+    })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: '2026-09-15',
+    })
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('may have reached the field and was not retried'),
+    })
+    expect(writes).toBe(1)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'typeIntoElement'))
+    ).toBe(false)
+  })
+
+  it('refuses a field whose input mode changes before dispatch', async () => {
+    const contents = await openPage()
+    let reads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'focusElementForTyping'))
+        return Promise.resolve({ focused: true, valueInput: ++reads === 1, x: 24, y: 48 })
+      return Promise.resolve({})
+    })
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: '2026-09-15',
+    })
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('field type changed'),
+    })
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+    expect(
+      vi
+        .mocked(contents.executeJavaScript)
+        .mock.calls.some(([expression]) => isPageCall(String(expression), 'setFocusedInputValue'))
+    ).toBe(false)
   })
 
   it('accepts empty text and sends it through native insertion to clear a field', async () => {
