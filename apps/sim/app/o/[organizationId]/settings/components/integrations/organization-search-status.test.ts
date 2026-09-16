@@ -29,6 +29,7 @@ describe('organization source status labels', () => {
     ['sync_failed', 'Sync failed'],
     ['account_sync_incomplete', 'Some accounts are not up to date'],
     ['document_indexing_failed', 'Some documents failed to index'],
+    ['permission_sync_incomplete', 'Some permissions could not be verified'],
   ] as const)('describes %s and keeps concurrent recovery visible', (issue, label) => {
     expect(organizationSearchStatusLabel({ ...provider, status: 'needs_attention', issue })).toBe(
       label

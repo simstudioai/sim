@@ -13,7 +13,10 @@ import {
   type ListingCheckpoint,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
-import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  SOURCE_CONTENT_ERROR,
+  SOURCE_PERMISSION_ERROR,
+} from '@/lib/knowledge/connectors/sync-limits'
 import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import type { ExternalDocument, SyncResult } from '@/connectors/types'
@@ -105,6 +108,7 @@ beforeEach(() => {
   hydrationVersion = undefined
   sourceBody = { value: '' }
   mocks.hardDelete.mockResolvedValue(0)
+  mocks.onPage.mockReset()
   mocks.upload.mockImplementation(async ({ customKey }: { customKey: string }) => ({
     key: customKey,
     path: `/api/files/serve/${encodeURIComponent(customKey)}`,
@@ -381,6 +385,45 @@ function contentWrite(): Record<string, unknown> {
 }
 
 describe('content pass checkpoint intent', () => {
+  it('persists unresolved permissions independently of successful content processing', async () => {
+    sourceBody = { value: '<p>Current content</p>' }
+    mocks.onPage.mockResolvedValue({ permissionsIncomplete: true })
+    const { pass, result } = await runPass({ access: 'admin' })
+    expect(pass).toMatchObject({
+      complete: true,
+      holdNotice: SOURCE_PERMISSION_ERROR,
+      checkpoint: { permissionFailures: true, contentFailures: false },
+    })
+    expect(result.docsFailed).toBe(0)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listingCheckpoint: expect.objectContaining({ permissionFailures: true }),
+      })
+    )
+  })
+
+  it('does not erase an earlier worker permission failure when later pages verify successfully', async () => {
+    const checkpoint = {
+      ...beginListingCheckpoint({
+        fingerprint: 'a'.repeat(64),
+        generationId: 'prior',
+        startedAt: new Date(0),
+      }),
+      permissionFailures: true,
+    }
+    mocks.onPage.mockResolvedValue({ permissionsIncomplete: false })
+    const { pass } = await runPass({ checkpoint, access: 'admin' })
+    expect(pass.holdNotice).toBe(SOURCE_PERMISSION_ERROR)
+    expect(pass.checkpoint.permissionFailures).toBe(true)
+  })
+
+  it('clears permission failure evidence for a newly verified crawl', async () => {
+    mocks.onPage.mockResolvedValue({ permissionsIncomplete: false })
+    const { pass } = await runPass({ access: 'admin' })
+    expect(pass.checkpoint.permissionFailures).toBe(false)
+    expect(pass.holdNotice).toBeNull()
+  })
+
   it('uses the database clock for a new generation despite a different worker clock', async () => {
     const databaseTime = new Date('2026-09-08T10:00:00Z')
     sourceBody = { value: '<p>Current content</p>' }

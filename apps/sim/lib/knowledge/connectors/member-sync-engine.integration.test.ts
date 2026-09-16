@@ -565,6 +565,9 @@ describe('member engine with a dedicated content credential', () => {
     mocks.get.mockRejectedValueOnce(new Error('Download interrupted'))
     const result = await run()
     expect(result.docsFailed).toBe(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partial', docsFailed: 1, processingDispatchFailed: 0 })
+    )
     expect(mocks.add).not.toHaveBeenCalled()
     expect(dbChainMockFns.set.mock.calls.some(([value]) => value.lastSyncAt instanceof Date)).toBe(
       false
@@ -577,6 +580,16 @@ describe('member engine with a dedicated content credential', () => {
     expect(result.error).toBeUndefined()
     expect(result.docsAdded).toBe(1)
     expect(mocks.get.mock.calls[0][0]).toBe('service-token')
+  })
+
+  it('records processing dispatch failures separately from document failures', async () => {
+    const run = arrange()
+    mocks.dispatch.mockResolvedValue({ accepted: 0, failed: 1 })
+    const result = await run()
+    expect(result.processingDispatch.failed).toBe(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partial', docsFailed: 0, processingDispatchFailed: 1 })
+    )
   })
 
   it('keeps an interrupted forced crawl due instead of retaining its previous fresh watermark', async () => {

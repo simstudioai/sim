@@ -1777,6 +1777,8 @@ export const schemaMock = {
     membersCompleted: 'knowledgeConnectorMemberSyncLog.membersCompleted',
     membersIncomplete: 'knowledgeConnectorMemberSyncLog.membersIncomplete',
     membersFailed: 'knowledgeConnectorMemberSyncLog.membersFailed',
+    docsFailed: 'knowledgeConnectorMemberSyncLog.docsFailed',
+    processingDispatchFailed: 'knowledgeConnectorMemberSyncLog.processingDispatchFailed',
     docsListed: 'knowledgeConnectorMemberSyncLog.docsListed',
     docsAdded: 'knowledgeConnectorMemberSyncLog.docsAdded',
     docsUpdated: 'knowledgeConnectorMemberSyncLog.docsUpdated',

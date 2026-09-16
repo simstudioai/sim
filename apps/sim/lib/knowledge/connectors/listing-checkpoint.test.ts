@@ -1,4 +1,6 @@
 /** @vitest-environment node */
+
+import { omit } from '@sim/utils/object'
 import { describe, expect, it, vi } from 'vitest'
 import {
   beginListingCheckpoint,
@@ -204,7 +206,12 @@ describe('durable connector listing checkpoints', () => {
   )
 
   it('restarts an expired provider cursor once with a new generation', async () => {
-    const f = fixture({ ...checkpoint(), cursor: 'expired', listedCount: 700 })
+    const f = fixture({
+      ...checkpoint(),
+      cursor: 'expired',
+      listedCount: 700,
+      permissionFailures: true,
+    })
     const error = new Error('expired')
     const databaseTime = new Date('2026-09-08T10:00:00Z')
     const getGenerationStartedAt = vi.fn(async () => databaseTime)
@@ -222,7 +229,7 @@ describe('durable connector listing checkpoints', () => {
     expect(result.generationId).not.toBe('cycle-1')
     expect(result.startedAt).toBe(databaseTime.toISOString())
     expect(getGenerationStartedAt).toHaveBeenCalledOnce()
-    expect(result).toMatchObject({ complete: true, listedCount: 1 })
+    expect(result).toMatchObject({ complete: true, listedCount: 1, permissionFailures: false })
     expect(f.listDocuments.mock.calls[1][2]).toBeUndefined()
     expect(f.processPage.mock.calls[0][1].generationId).toBe(result.generationId)
   })
@@ -252,6 +259,11 @@ describe('durable connector listing checkpoints', () => {
     const f = fixture({ ...checkpoint(), complete: true, listedCount: 10 })
     expect(await runResumableListing(f.input)).toMatchObject({ complete: true, listedCount: 10 })
     expect(f.listDocuments).not.toHaveBeenCalled()
+  })
+
+  it('resumes older checkpoints without inventing permission failures', () => {
+    const legacy = omit(checkpoint(), ['permissionFailures'])
+    expect(readListingCheckpoint(legacy, fingerprint)).toMatchObject({ permissionFailures: false })
   })
 
   it('rejects checkpoints from a changed configuration or malformed serialized value', () => {

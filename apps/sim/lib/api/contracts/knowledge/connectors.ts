@@ -177,6 +177,8 @@ export const syncLogDataSchema = z
     docsUnchanged: z.number(),
     docsSkipped: z.number().int().nonnegative().default(0),
     docsFailed: z.number(),
+    /** Older responses omit this; null records an unfinished listing. */
+    listedCount: z.number().int().nonnegative().nullable().optional(),
     errorMessage: z.string().nullable(),
   })
   .passthrough()
@@ -193,6 +195,9 @@ export const memberSyncLogDataSchema = z
     membersCompleted: z.number(),
     membersIncomplete: z.number(),
     membersFailed: z.number(),
+    /** Null for historical logs; absent from responses served by older deployments. */
+    docsFailed: z.number().int().nonnegative().nullable().optional(),
+    processingDispatchFailed: z.number().int().nonnegative().nullable().optional(),
     docsListed: z.number(),
     docsAdded: z.number(),
     docsUpdated: z.number(),
@@ -462,8 +467,17 @@ export const organizationSearchProviderSummarySchema = z.object({
   approved: z.boolean(),
   sourceCount: z.number().int().nonnegative(),
   status: organizationSearchProviderStatusSchema,
-  issue: z.enum(['sync_failed', 'account_sync_incomplete', 'document_indexing_failed']).nullable(),
+  issue: z
+    .enum([
+      'sync_failed',
+      'account_sync_incomplete',
+      'document_indexing_failed',
+      'permission_sync_incomplete',
+    ])
+    .nullable(),
   isSyncing: z.boolean(),
+  /** Older servers omit the continuation signal during a rolling deployment. */
+  hasPendingSync: z.boolean().optional(),
 })
 export type OrganizationSearchProviderSummary = z.output<
   typeof organizationSearchProviderSummarySchema
