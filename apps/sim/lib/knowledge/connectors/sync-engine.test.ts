@@ -2728,6 +2728,45 @@ describe('executeSync heartbeats during the listing phase', () => {
     }
   )
 
+  it.each([
+    { acl: undefined, incomplete: true },
+    { acl: ['invalid-token'], incomplete: true },
+    { acl: [], incomplete: false },
+    { acl: ['u:reader@example.com'], incomplete: false },
+  ])(
+    'reports rejected mirrored permissions without rejecting valid grants: %j',
+    async ({ acl, incomplete }) => {
+      const contentPass = await import('@/lib/knowledge/connectors/sync-content-pass')
+      primeSyncUpToListing()
+      dbChainMockFns.returning.mockReset()
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode: 'admin' }])
+      let permissionResult: { permissionsIncomplete: boolean } | undefined
+      const pass = vi
+        .spyOn(contentPass, 'runConnectorContentPass')
+        .mockImplementation(async (input) => {
+          permissionResult = await input.onPage?.(
+            [{ externalId: 'page-1', title: 'Page', content: 'Body', mimeType: 'text/plain', acl }],
+            new Date()
+          )
+          throw new Error('Stopped after permission persistence')
+        })
+      try {
+        const result = await executeSync('c-1', {
+          billingAttribution: { workspaceId: 'ws-1' } as never,
+        })
+        expect(result.error).toBe('Stopped after permission persistence')
+        expect(permissionResult).toEqual({ permissionsIncomplete: incomplete })
+        expect(dbChainMockFns.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            acl: incomplete ? [] : acl,
+          })
+        )
+      } finally {
+        pass.mockRestore()
+      }
+    }
+  )
+
   it('beats between pages and abandons the run when the lock was reclaimed', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')
     const { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } = await import(

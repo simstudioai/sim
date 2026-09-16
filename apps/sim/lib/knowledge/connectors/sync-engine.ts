@@ -174,7 +174,7 @@ async function applySourceMirroredAcls(input: {
       }
     )
   }
-  return { permissionsIncomplete: unattributed > 0 }
+  return { permissionsIncomplete: unattributed > 0 || written.rejected > 0 }
 }
 
 /** Whether an automatic connector sync may begin from this persisted state. */
