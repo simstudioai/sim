@@ -1,4 +1,6 @@
 /** @vitest-environment node */
+
+import { omit } from '@sim/utils/object'
 import { describe, expect, it, vi } from 'vitest'
 import {
   beginListingCheckpoint,
@@ -252,6 +254,11 @@ describe('durable connector listing checkpoints', () => {
     const f = fixture({ ...checkpoint(), complete: true, listedCount: 10 })
     expect(await runResumableListing(f.input)).toMatchObject({ complete: true, listedCount: 10 })
     expect(f.listDocuments).not.toHaveBeenCalled()
+  })
+
+  it('resumes older checkpoints without inventing permission failures', () => {
+    const legacy = omit(checkpoint(), ['permissionFailures'])
+    expect(readListingCheckpoint(legacy, fingerprint)).toMatchObject({ permissionFailures: false })
   })
 
   it('rejects checkpoints from a changed configuration or malformed serialized value', () => {

@@ -122,7 +122,7 @@ async function applySourceMirroredAcls(input: {
   ownedExternalIds: readonly (string | null)[]
   lease?: SyncRunLease
   generationStartedAt: Date
-}): Promise<void> {
+}): Promise<{ permissionsIncomplete: boolean }> {
   const { connectorId, connectorConfig, externalDocs } = input
 
   /**
@@ -174,6 +174,7 @@ async function applySourceMirroredAcls(input: {
       }
     )
   }
+  return { permissionsIncomplete: unattributed > 0 }
 }
 
 /** Whether an automatic connector sync may begin from this persisted state. */
@@ -296,6 +297,7 @@ export interface ContentPassOutcome {
   checkpoint: {
     unsafe: boolean
     contentFailures?: boolean
+    permissionFailures?: boolean
     startedAt: string
     listedCount: number
     incrementalSince?: string | null
@@ -303,17 +305,18 @@ export interface ContentPassOutcome {
 }
 
 /**
- * A content pass is incomplete when the listing has not reached the end of the
- * source (the generation resumes on the next run) or a source read failed (the
- * next pass replays it). `checkpoint.unsafe` is deliberately not part of this:
- * it means "do not infer deletions from this listing" and is honored by the
- * deletion hold in `reconcileCompletedListing`. A held pass is still a
- * completed sync whose watermark advances.
+ * A deletion hold alone does not make a sync incomplete: `checkpoint.unsafe`
+ * prevents deletion reconciliation, but an otherwise successful crawl may
+ * still advance its watermark.
  */
 export function isContentPassIncomplete(
   contentPass: Pick<ContentPassOutcome, 'complete' | 'checkpoint'>
 ): boolean {
-  return !contentPass.complete || contentPass.checkpoint.contentFailures === true
+  return (
+    !contentPass.complete ||
+    contentPass.checkpoint.contentFailures === true ||
+    contentPass.checkpoint.permissionFailures === true
+  )
 }
 
 /**
@@ -392,6 +395,7 @@ export async function completeSuccessfulSync(
           docsUnchanged: result.docsUnchanged,
           docsSkipped: result.docsSkipped,
           docsFailed: result.docsFailed,
+          errorMessage: reconciliationHoldNotice,
         })
         .where(
           and(
@@ -1110,7 +1114,7 @@ export async function executeSync(
         onPage: mirrored
           ? async (externalDocs, generationStartedAt) => {
               await directoryRefreshed
-              await applySourceMirroredAcls({
+              return applySourceMirroredAcls({
                 connectorId,
                 connectorConfig,
                 sourceConfig,

@@ -45,6 +45,7 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import {
   type ConnectorDetailData,
+  type OrganizationSearchOverview,
   readSearchIndexContract,
 } from '@/lib/api/contracts/knowledge/connectors'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE } from '@/lib/knowledge/constants'
@@ -55,6 +56,7 @@ import {
   useConnectorDetail,
   useConnectorDocuments,
   useConnectorList,
+  useOrganizationSearchOverview,
   useSearchIndex,
   useSearchSources,
   useTriggerSync,
@@ -157,6 +159,36 @@ describe('isConnectorSyncingOrPending', () => {
       expect(isConnectorSyncingOrPending(makeConnector({ status }))).toBe(false)
     }
   )
+})
+
+describe('organization overview polling', () => {
+  it.each([
+    { isSyncing: true, hasPendingSync: false, polling: true },
+    { isSyncing: false, hasPendingSync: true, polling: true },
+    { isSyncing: false, hasPendingSync: false, polling: false },
+    { isSyncing: false, hasPendingSync: undefined, polling: false },
+  ])('polls unfinished work across worker handoffs: %j', ({ polling, ...state }) => {
+    useOrganizationSearchOverview('organization-1')
+    const { refetchInterval } = capturedQueryOptions<OrganizationSearchOverview>()
+    const interval = refetchInterval({
+      state: {
+        data: {
+          providers: [
+            {
+              connectorType: 'confluence',
+              approved: true,
+              sourceCount: 1,
+              status: 'active',
+              issue: null,
+              ...state,
+            },
+          ],
+        },
+      },
+    })
+    if (polling) expect(interval).toBeGreaterThan(0)
+    else expect(interval).toBe(false)
+  })
 })
 
 describe('useConnectorList polling', () => {

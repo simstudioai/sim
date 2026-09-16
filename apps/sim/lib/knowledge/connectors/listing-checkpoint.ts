@@ -21,6 +21,7 @@ const checkpointSchema = z.object({
   listedCount: z.number().int().nonnegative(),
   unsafe: z.boolean(),
   contentFailures: z.boolean().default(false),
+  permissionFailures: z.boolean().default(false),
   changeCursor: z
     .string()
     .max(512 * 1024)
@@ -66,6 +67,7 @@ export function beginListingCheckpoint(input: {
     listedCount: 0,
     unsafe: false,
     contentFailures: false,
+    permissionFailures: false,
     changeCursor: input.changeCursor ?? null,
     incrementalSince: input.incrementalSince?.toISOString() ?? null,
     forceRehydrate: input.forceRehydrate ?? false,
