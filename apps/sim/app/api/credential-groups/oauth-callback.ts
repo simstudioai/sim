@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { sha256Hex } from '@sim/security/hash'
+import { describeError, getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { CredentialGroupOAuthCallbackQuery } from '@/lib/api/contracts/credential-groups'
 import { internalSessionAuth } from '@/lib/api/server/routes'
@@ -23,6 +24,18 @@ import {
 } from '@/app/api/credential-groups/enrollment-redirect'
 
 const logger = createLogger('CredentialGroupOAuthCallbackAPI')
+const DIAGNOSTIC_ERROR_TYPES = new Set([
+  'Error',
+  'TypeError',
+  'ReferenceError',
+  'SyntaxError',
+  'RangeError',
+  'ZodError',
+  'PostgresError',
+  'DrizzleQueryError',
+  'InternalUnauthenticatedError',
+  'ManagedOAuthCredentialError',
+])
 
 interface HandleCredentialGroupOAuthCallbackParams {
   request: NextRequest
@@ -87,13 +100,17 @@ export async function handleCredentialGroupOAuthCallback({
     return failureRedirect('failed')
   }
 
+  let stage = 'session_authentication'
   try {
     if (installationSetup) {
       const principal = await internalSessionAuth.authenticate()
+      stage = 'setup_completion'
       await completeGitHubSetupReaderOAuth.execute({ principal, input: { attempt, code }, request })
       return setupRedirect()
     }
+    stage = 'enrollment_authentication'
     const principal = await credentialGroupOAuthAttemptPrincipal(attempt)
+    stage = 'enrollment_completion'
     await completePublicCredentialGroupOAuth.execute({
       principal,
       input: { attempt, code },
@@ -137,19 +154,32 @@ export async function handleCredentialGroupOAuthCallback({
       }
     }
     const applicationError = asOrchestrationError(error)
+    const errorClass =
+      error instanceof CredentialGroupInvitationUnavailableError
+        ? 'invitation_unavailable'
+        : error instanceof CredentialGroupOAuthError
+          ? 'credential_group_oauth'
+          : error instanceof CredentialGroupProviderConfigurationError
+            ? 'provider_configuration'
+            : applicationError
+              ? 'application'
+              : 'unexpected'
+    const unexpectedError = errorClass === 'unexpected' ? describeError(error) : undefined
     logger.error('Managed OAuth authorization failed', {
       provider,
       failure: status,
-      errorClass:
-        error instanceof CredentialGroupInvitationUnavailableError
-          ? 'invitation_unavailable'
-          : error instanceof CredentialGroupOAuthError
-            ? 'credential_group_oauth'
-            : error instanceof CredentialGroupProviderConfigurationError
-              ? 'provider_configuration'
-              : applicationError
-                ? 'application'
-                : 'unexpected',
+      errorClass,
+      /** Provider errors and SQL parameters may contain credentials; retain only bounded diagnostics. */
+      ...(unexpectedError && {
+        stage,
+        errorType: DIAGNOSTIC_ERROR_TYPES.has(unexpectedError.name)
+          ? unexpectedError.name
+          : 'UnknownError',
+        fingerprint: sha256Hex(unexpectedError.message).slice(0, 12),
+        ...(unexpectedError.code && /^[0-9A-Z]{5}$/.test(unexpectedError.code)
+          ? { databaseCode: unexpectedError.code }
+          : {}),
+      }),
       ...(error instanceof CredentialGroupOAuthError && { statusCode: error.statusCode }),
       ...(error instanceof CredentialGroupProviderConfigurationError && { statusCode: 503 }),
       ...(applicationError && {
