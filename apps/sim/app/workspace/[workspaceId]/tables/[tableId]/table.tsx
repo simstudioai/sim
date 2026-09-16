@@ -328,9 +328,9 @@ export function Table({
   }, [])
 
   /**
-   * Sink populated by the grid: invoked from sidebar `onColumnRename` so the
-   * grid can rewrite its local `columnWidths` / `columnOrder` keys after a
-   * rename. The grid's render assigns to `current`; the wrapper forwards calls.
+   * Sink populated by the grid: invoked from the workflow sidebar after a
+   * rename so the grid can rewrite its local `columnWidths` / `columnOrder`
+   * keys. The grid's render assigns to `current`; the wrapper forwards calls.
    */
   const columnRenameSinkRef = useRef<((oldName: string, newName: string) => void) | null>(null)
   const onColumnRename = (oldName: string, newName: string) => {
@@ -1737,7 +1737,6 @@ export function Table({
             ? LOCK_TOOLTIPS.schema
             : 'You don’t have permission to change columns.'
         }
-        onColumnRename={onColumnRename}
       />
       <EnrichmentsSidebar
         open={slideout.kind === 'enrichments'}

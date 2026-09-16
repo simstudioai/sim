@@ -42,7 +42,6 @@ vi.mock('@sim/emcn/icons', () => ({
   Pin: () => null,
   PinOff: () => null,
   PlayOutline: () => null,
-  Settings: () => null,
   SquareArrowUpRight: () => null,
   Trash: () => null,
   Workflow: () => null,
@@ -102,6 +101,7 @@ function renderMenu(column: ColumnDefinition, onGoToReferenceTable: (tableId: st
         onInsertLeft={vi.fn()}
         onInsertRight={vi.fn()}
         onDeleteColumn={vi.fn()}
+        onOpenConfig={vi.fn()}
         onGoToReferenceTable={onGoToReferenceTable}
       />
     )
@@ -194,5 +194,13 @@ describe('ColumnHeaderMenu read-only Reference navigation', () => {
 
     expect(onGoToReferenceTable).toHaveBeenCalledWith('table-accounts')
     expect(container.querySelector('button[aria-label="Column options"]')).toBeNull()
+  })
+})
+
+describe('ColumnOptionsMenu editing', () => {
+  it('keeps rename out of the column menu', () => {
+    renderMenu({ id: 'col-name', name: 'Name', type: 'string' }, vi.fn())
+
+    expect(findButton('Rename column')).toBeUndefined()
   })
 })
