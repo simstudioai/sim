@@ -430,3 +430,183 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     })
   })
 })
+
+describe('getWorkflowExecutionStatus settled resume attempts', () => {
+  const resumeInput = { ...input, executionId: 'resume-run-1' }
+
+  function parentLog(overrides: Record<string, unknown> = {}) {
+    return {
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      status: 'completed',
+      level: 'info',
+      trigger: 'api',
+      startedAt: new Date('2026-08-05T11:00:00.000Z'),
+      endedAt: new Date('2026-08-05T12:00:05.000Z'),
+      totalDurationMs: 3605000,
+      executionData: { finalOutput: { answer: 42 } },
+      costTotal: '0.5',
+      ...overrides,
+    }
+  }
+
+  function settledAttempt(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'resume-entry-1',
+      parentExecutionId: 'execution-1',
+      status: 'completed',
+      queuedAt: new Date('2026-08-05T12:00:00.000Z'),
+      claimedAt: new Date('2026-08-05T12:00:01.000Z'),
+      completedAt: new Date('2026-08-05T12:00:05.000Z'),
+      failureReason: null,
+      ...overrides,
+    }
+  }
+
+  /** The attempt has no log of its own; the parent run is read second. */
+  function queueSettledResume(
+    attempt: Record<string, unknown>,
+    log: Record<string, unknown>,
+    pausedRows: unknown[] = []
+  ) {
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+    queueTableRows(schemaMock.resumeQueue, [attempt])
+    queueTableRows(schemaMock.workflowExecutionLogs, [log])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, pausedRows)
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetJob.mockResolvedValue(null)
+    mockMaterializeForDisplayWithBlockOutputs.mockImplementation(async (executionData) => ({
+      executionData,
+      blockOutputs: new Map(),
+    }))
+  })
+
+  it('projects a completed resume from the run it continued, under its own run ID', async () => {
+    queueSettledResume(settledAttempt(), parentLog())
+
+    const status = await getWorkflowExecutionStatus({ ...resumeInput, includeOutput: true })
+
+    expect(status).toEqual({
+      executionId: 'resume-run-1',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      trigger: 'api',
+      level: 'info',
+      startedAt: '2026-08-05T12:00:01.000Z',
+      endedAt: '2026-08-05T12:00:05.000Z',
+      totalDurationMs: 4000,
+      paused: null,
+      cost: { total: 0.5 },
+      error: null,
+      finalOutput: { answer: 42 },
+      blockOutputs: null,
+    })
+    expect(mockMaterializeForDisplayWithBlockOutputs).toHaveBeenCalledWith(
+      expect.anything(),
+      { workspaceId: 'workspace-1', workflowId: 'workflow-1', executionId: 'execution-1' },
+      []
+    )
+    expect(mockGetJob).toHaveBeenCalledWith('workflow-execution:resume-run-1')
+  })
+
+  it('reports the next pause when a completed resume paused the run again', async () => {
+    queueSettledResume(settledAttempt(), parentLog({ status: 'paused', executionData: {} }), [
+      {
+        id: 'paused-1',
+        status: 'partially_resumed',
+        pausePoints: {
+          'context-2': {
+            contextId: 'context-2',
+            blockId: 'block-2',
+            pauseKind: 'human',
+            resumeStatus: 'paused',
+          },
+        },
+        metadata: {},
+        resumedCount: 1,
+        pausedAt: new Date('2026-08-05T12:00:04.000Z'),
+        nextResumeAt: null,
+      },
+    ])
+
+    const status = await getWorkflowExecutionStatus(resumeInput)
+
+    expect(status).toMatchObject({
+      executionId: 'resume-run-1',
+      status: 'paused',
+      endedAt: '2026-08-05T12:00:05.000Z',
+      paused: { contextId: 'context-2', pausedExecutionId: 'paused-1', resumedCount: 1 },
+    })
+  })
+
+  it('reports no end time while a later resume is still running the run', async () => {
+    queueSettledResume(settledAttempt(), parentLog({ status: 'running', endedAt: null }))
+
+    const status = await getWorkflowExecutionStatus(resumeInput)
+
+    expect(status).toMatchObject({
+      executionId: 'resume-run-1',
+      status: 'running',
+      startedAt: '2026-08-05T12:00:01.000Z',
+      endedAt: null,
+      totalDurationMs: null,
+    })
+  })
+
+  it('reports a failed resume that left the run paused as failed with its reason', async () => {
+    queueSettledResume(
+      settledAttempt({ status: 'failed', failureReason: 'Resume execution cancelled' }),
+      parentLog({ status: 'paused', executionData: {} })
+    )
+
+    const status = await getWorkflowExecutionStatus({ ...resumeInput, includeOutput: true })
+
+    expect(status).toMatchObject({
+      executionId: 'resume-run-1',
+      status: 'failed',
+      level: 'error',
+      error: 'Resume execution cancelled',
+      endedAt: '2026-08-05T12:00:05.000Z',
+      paused: null,
+      finalOutput: null,
+      blockOutputs: null,
+    })
+  })
+
+  it("prefers the run's own error when the failed resume failed the run", async () => {
+    queueSettledResume(
+      settledAttempt({ status: 'failed', failureReason: 'Unexpected error' }),
+      parentLog({ status: 'failed', level: 'error', executionData: { error: 'Block 2 timed out' } })
+    )
+
+    const status = await getWorkflowExecutionStatus(resumeInput)
+
+    expect(status).toMatchObject({ status: 'failed', error: 'Block 2 timed out' })
+  })
+
+  it('reports a resume that lost to cancellation as cancelled', async () => {
+    queueSettledResume(
+      settledAttempt({ status: 'failed', failureReason: 'Paused execution cancelled' }),
+      parentLog({ status: 'cancelled', executionData: {} })
+    )
+
+    const status = await getWorkflowExecutionStatus(resumeInput)
+
+    expect(status).toMatchObject({ status: 'cancelled', level: 'info', error: null })
+  })
+
+  it('returns null when the run a settled resume continued no longer exists', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+    queueTableRows(schemaMock.resumeQueue, [settledAttempt()])
+    queueTableRows(schemaMock.workflowExecutionLogs, [])
+    queueTableRows(schemaMock.resumeQueue, [])
+
+    await expect(getWorkflowExecutionStatus(resumeInput)).resolves.toBeNull()
+  })
+})
