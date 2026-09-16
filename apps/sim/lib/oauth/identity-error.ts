@@ -1,5 +1,5 @@
 export type OAuthIdentityFailureReason =
-  | 'email_mismatch'
+  | 'email_unverified'
   | 'email_access_denied'
   | 'provider_rejected'
   | 'rate_limited'

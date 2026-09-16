@@ -483,11 +483,11 @@ describe('GitHub setup reader OAuth continuation', () => {
     admin()
     await continueGitHubSearchSetup.execute({
       principal,
-      input: { ...input, oauth: 'github_email_mismatch' },
+      input: { ...input, oauth: 'github_email_unverified' },
     })
     await expect(status()).resolves.toMatchObject({
       status: 'failed',
-      error: expect.stringContaining('verified secondary email'),
+      error: expect.stringContaining('verify your primary email address'),
     })
     expect(m.connect).not.toHaveBeenCalled()
   })

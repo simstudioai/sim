@@ -115,7 +115,6 @@ describe('credential group OAuth callback', () => {
 
   it.each([
     [new CredentialGroupInvitationUnavailableError(), 'unavailable'],
-    [new CredentialGroupOAuthError('Sign in with your own account', 403), 'account_mismatch'],
     [new CredentialGroupOAuthError('Missing scopes', 403), 'permissions_required'],
     [new CredentialGroupOAuthError('Changed settings', 409), 'configuration_changed'],
     [new Error('Provider failed'), 'failed'],
@@ -250,7 +249,6 @@ describe('credential group OAuth callback', () => {
 
   it.each([
     [new CredentialGroupInvitationUnavailableError(), 'unavailable'],
-    [new CredentialGroupOAuthError('Sign in with your own account', 403), 'account_mismatch'],
     [new CredentialGroupOAuthError('Missing scopes', 403), 'permissions_required'],
     [new CredentialGroupOAuthError('Changed settings', 409), 'configuration_changed'],
     [new Error('Provider failed'), 'failed'],

@@ -122,7 +122,7 @@ afterEach(() => {
 })
 
 describe('useMemberEnrollment', () => {
-  it('reports an OAuth mismatch once per attempt and allows the same error on a later retry', () => {
+  it('reports an OAuth failure once per attempt and allows the same error on a later retry', () => {
     mount(new Set(), true, mocks.connectionError)
     for (let index = 0; index < 2; index += 1) {
       act(() => enrollment().connect('kb-1', 'connector-1'))
@@ -132,16 +132,20 @@ describe('useMemberEnrollment', () => {
         })
       )
       act(() =>
-        mocks.channels[index].onmessage?.(new MessageEvent('message', { data: 'account_mismatch' }))
+        mocks.channels[index].onmessage?.(
+          new MessageEvent('message', { data: 'permissions_required' })
+        )
       )
       act(() =>
-        mocks.channels[index].onmessage?.(new MessageEvent('message', { data: 'account_mismatch' }))
+        mocks.channels[index].onmessage?.(
+          new MessageEvent('message', { data: 'permissions_required' })
+        )
       )
       expect(mocks.connectionError).toHaveBeenCalledTimes(index + 1)
       expect(enrollment().isAwaiting('connector-1')).toBe(false)
     }
     expect(mocks.connectionError).toHaveBeenLastCalledWith(
-      'Choose the account matching your Sim email address.'
+      'All requested permissions are required to connect this account.'
     )
     act(() => vi.advanceTimersByTime(10 * 60_000))
     expect(mocks.connectionError).toHaveBeenCalledTimes(2)
@@ -179,7 +183,7 @@ describe('useMemberEnrollment', () => {
       act(() => mocks.channels[1].onmessage?.(new MessageEvent('message', { data: 'connected' })))
       act(() => vi.advanceTimersByTime(10 * 60_000))
       act(() =>
-        mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'account_mismatch' }))
+        mocks.channels[0].onmessage?.(new MessageEvent('message', { data: 'permissions_required' }))
       )
       expect(mocks.connectionError).not.toHaveBeenCalled()
       expect(enrollment().error).toBeNull()
@@ -211,10 +215,10 @@ describe('useMemberEnrollment', () => {
   })
 
   it.each([
-    ['existing', 'account_mismatch'],
+    ['existing', 'permissions_required'],
     ['existing', 'denied'],
     ['existing', 'expired'],
-    ['new', 'account_mismatch'],
+    ['new', 'permissions_required'],
     ['new', 'denied'],
     ['new', 'expired'],
   ] as const)(

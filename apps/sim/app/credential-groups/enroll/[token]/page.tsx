@@ -110,7 +110,6 @@ function UnavailableSearchConnection({
 const OAUTH_MESSAGES = {
   ...CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES,
   denied: 'Authorization was canceled. Nothing was connected.',
-  account_mismatch: 'Choose the account matching the email address on this invitation.',
   permissions_required: 'All requested permissions are required to connect this account.',
   configuration_changed: 'This credential option changed. Reload the page and try again.',
   unavailable: 'Account authorization is temporarily unavailable. Please try again.',

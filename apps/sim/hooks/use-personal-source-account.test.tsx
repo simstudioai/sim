@@ -108,10 +108,12 @@ describe('personal source account authorization', () => {
     act(() => root.render(<Probe />))
     expect(current.pending).toBe(false)
   })
-  it('shows an account mismatch as a toast and allows a fresh attempt', async () => {
+  it('shows missing permissions as a toast and allows a fresh attempt', async () => {
     await act(async () => current.connect())
-    act(() => channels[0].onmessage?.({ data: 'account_mismatch' } as MessageEvent<unknown>))
-    expect(mocks.error).toHaveBeenCalledWith('Choose the account matching your Sim email address.')
+    act(() => channels[0].onmessage?.({ data: 'permissions_required' } as MessageEvent<unknown>))
+    expect(mocks.error).toHaveBeenCalledWith(
+      'All requested permissions are required to connect this account.'
+    )
     expect(current.pending).toBe(false)
     await act(async () => current.connect())
     expect(mocks.authorize).toHaveBeenCalledTimes(2)

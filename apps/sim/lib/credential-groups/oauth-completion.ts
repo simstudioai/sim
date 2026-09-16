@@ -3,9 +3,8 @@ import { isValidUuid } from '@sim/utils/id'
 export const CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES = {
   expired: 'This connection attempt expired. Try connecting your account again.',
   denied: 'Authorization was canceled. Try connecting your account again.',
-  account_mismatch: 'Choose the account matching your Sim email address.',
-  github_email_mismatch:
-    'In GitHub Settings → Emails, add and verify the email address used for this Sim connection, then try again. A verified secondary email is supported.',
+  github_email_unverified:
+    'In GitHub Settings → Emails, verify your primary email address, then try again.',
   github_email_access_denied:
     'GitHub did not allow access to your email addresses. Ask an admin to check that the GitHub App has Email addresses: Read-only permission, then authorize the app again.',
   permissions_required: 'All requested permissions are required to connect this account.',

@@ -65,8 +65,8 @@ describe('GitHub managed OAuth failure presentation', () => {
   describe.each([false, true])('completion redirect: %s', (completionRedirect) => {
     it.each([
       {
-        failure: new OAuthIdentityVerificationError('email_mismatch', 'emails'),
-        status: 'github_email_mismatch',
+        failure: new OAuthIdentityVerificationError('email_unverified', 'emails'),
+        status: 'github_email_unverified',
       },
       {
         failure: new OAuthIdentityVerificationError('email_access_denied', 'emails', 403),
