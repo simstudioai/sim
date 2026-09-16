@@ -21,6 +21,7 @@ const {
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
   mockGetEmbeddingModelInfo,
   mockGetFileMetadataByKeys,
+  mockLogError,
   mockProcessDocument,
   mockTrigger,
 } = vi.hoisted(() => ({
@@ -30,9 +31,15 @@ const {
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
   mockGetEmbeddingModelInfo: vi.fn(),
   mockGetFileMetadataByKeys: vi.fn(),
+  mockLogError: vi.fn(),
   mockProcessDocument: vi.fn(),
   mockTrigger: vi.fn(),
 }))
+
+vi.mock('@sim/logger', async () => {
+  const { createMockLogger, loggerMock } = await import('@sim/testing/mocks/logger.mock')
+  return { ...loggerMock, createLogger: () => ({ ...createMockLogger(), error: mockLogError }) }
+})
 
 vi.mock('@trigger.dev/sdk', () => ({
   tasks: { batchTrigger: mockBatchTrigger, trigger: mockTrigger },
@@ -1485,6 +1492,34 @@ describe('in-process quota continuation dispatch', () => {
     expect(mockProcessDocument.mock.calls[0][6].processingDeadlineAt).toBe(
       context.deadlineAt - 15_000
     )
+  })
+
+  it('redacts database query details in the in-process worker without changing acceptance', async () => {
+    const databaseError = new DrizzleQueryError(
+      'insert private-query',
+      ['private-parameter'],
+      Object.assign(new Error('private-driver-message'), { code: '57014' })
+    )
+    mockGenerateEmbeddings.mockRejectedValue(databaseError)
+
+    await expect(
+      processDocumentsWithQueue(
+        [queuedDocument],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      '[request-1] In-process document processing failed',
+      expect.objectContaining({
+        error: 'Database request failed (SQLSTATE 57014).',
+        diagnostic: expect.objectContaining({ category: 'database', code: '57014' }),
+      })
+    )
+    expect(JSON.stringify(mockLogError.mock.calls)).not.toContain('private-')
   })
 
   it('resumes an OCR-throttled regular KB from the durable outbox to a completed index', async () => {

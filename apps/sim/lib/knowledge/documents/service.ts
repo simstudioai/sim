@@ -1389,9 +1389,11 @@ async function dispatchInProcess(
         const message = processingClaimed
           ? 'In-process document processing failed'
           : 'In-process document dispatch failed before claiming the document'
+        const diagnostic = getConnectorFailureDiagnostic(error)
         logger.error(`[${requestId}] ${message}`, {
           documentId: p.documentId,
-          error: getErrorMessage(error),
+          error: diagnostic?.message ?? getErrorMessage(error),
+          ...(diagnostic ? { diagnostic } : {}),
         })
         return processingClaimed
       }
