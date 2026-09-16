@@ -23,32 +23,16 @@ import type {
   WorkspaceUsageGate,
 } from '@/lib/api/contracts/workspaces'
 import { ACCESS_REQUEST_LIST_PAGE_SIZE } from '@/lib/permission-access-requests/constants'
-import { permissionGroupKeys } from '@/ee/access-control/hooks/permission-groups'
+import {
+  ACCESS_REQUESTS_STALE_TIME,
+  accessRequestKeys,
+} from '@/hooks/queries/utils/access-request-keys'
 import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
+import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
 import { workspaceUsageKeys } from '@/hooks/queries/utils/workspace-usage-keys'
 
-export const ACCESS_REQUESTS_STALE_TIME = 15_000
 export const ACCESS_REQUESTS_POLL_INTERVAL = 30_000
 export const ACCESS_REQUEST_PAGE_SIZE = ACCESS_REQUEST_LIST_PAGE_SIZE
-
-export const accessRequestKeys = {
-  all: ['accessRequests'] as const,
-  lists: () => [...accessRequestKeys.all, 'list'] as const,
-  mine: (scope: AccessRequestScope, offset: number, requestId?: string) =>
-    [...accessRequestKeys.lists(), 'mine', scope, offset, requestId ?? ''] as const,
-  organization: (organizationId: string, offset: number, status: AccessRequestStatus | 'all') =>
-    [...accessRequestKeys.lists(), 'organization', organizationId, offset, status] as const,
-  discoveries: () => [...accessRequestKeys.all, 'discovery'] as const,
-  discovery: (query: DiscoverAccessRequestsQuery) =>
-    [...accessRequestKeys.discoveries(), query] as const,
-  details: () => [...accessRequestKeys.all, 'detail'] as const,
-  organizationDetails: (organizationId: string) =>
-    [...accessRequestKeys.details(), organizationId] as const,
-  preview: (organizationId: string, requestId: string) =>
-    [...accessRequestKeys.organizationDetails(organizationId), requestId] as const,
-  settings: (organizationId: string) =>
-    [...accessRequestKeys.all, 'settings', organizationId] as const,
-}
 
 export function useDiscoverAccessRequests(query: DiscoverAccessRequestsQuery, enabled = true) {
   const queryClient = useQueryClient()

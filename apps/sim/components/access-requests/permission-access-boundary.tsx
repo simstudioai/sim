@@ -11,13 +11,14 @@ import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/re
 import { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/tables-empty-state'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
+import { workspaceFeatureDiscoveryQuery } from '@/hooks/queries/utils/access-request-keys'
 
 /** Safe feature metadata shared by navigation and access-required pages. */
 export function useWorkspaceAccessRequestFeatures() {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
   return useDiscoverAccessRequests(
-    { kind: 'workspace', workspaceId, targetKind: 'feature', limit: 100, offset: 0 },
+    workspaceFeatureDiscoveryQuery(workspaceId),
     Boolean(workspaceId)
   )
 }
