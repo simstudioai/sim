@@ -6,11 +6,20 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
+  executeOrganization: vi.fn(),
   getBaseUrl: vi.fn(),
 }))
 
 const useCases = vi.hoisted(() => ({
   prepare: { operation: { id: 'credentials.connections.prepare' } },
+  prepareOrganization: { operation: { id: 'credentials.organization.personal.prepareConnection' } },
+}))
+
+vi.mock('@/lib/mothership/application/resolve-organization-personal-token', () => ({
+  executeCopilotOrganizationCredentialUseCase: mocks.executeOrganization,
+}))
+vi.mock('@/lib/credentials/application/resolve-organization-personal-token', () => ({
+  prepareOrganizationPersonalConnection: useCases.prepareOrganization,
 }))
 
 vi.mock('@/lib/mothership/application/execute-credential-use-case', () => ({
@@ -43,6 +52,41 @@ describe('executeOAuthGetAuthLink', () => {
       providerId: 'google-email',
       workspaceId: 'workspace-1',
     })
+  })
+
+  it('returns the exact organization connection control without workspace authority', async () => {
+    const target = {
+      type: 'link',
+      provider: 'google-email',
+      connectorType: 'gmail',
+      connectorId: 'source',
+      credentialId: 'own',
+    }
+    mocks.executeOrganization.mockResolvedValue({
+      provider: 'Gmail',
+      providerId: 'google-email',
+      target,
+    })
+    const organizationContext = {
+      ...context,
+      workflowId: '',
+      workspaceId: undefined,
+      organizationId: 'org',
+      requestMode: 'assistant',
+    }
+    const result = await executeOAuthGetAuthLink(
+      { providerName: 'Gmail', credentialId: 'own' },
+      organizationContext
+    )
+    expect(mocks.executeOrganization).toHaveBeenCalledWith(
+      organizationContext,
+      useCases.prepareOrganization,
+      { providerName: 'Gmail', credentialId: 'own' }
+    )
+    expect(result.output).toMatchObject({
+      instructions: expect.stringContaining(`<credential>${JSON.stringify(target)}</credential>`),
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('uses the credential application adapter for a new connection', async () => {
@@ -218,11 +262,19 @@ describe('executeOAuthGetAuthLink', () => {
   })
 
   it('cannot substitute a model workspace for organization-only context', async () => {
+    mocks.executeOrganization.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Connection unavailable')
+    )
     const result = await executeOAuthGetAuthLink(
       { providerName: 'slack', workspaceId: 'workspace-1' },
       { ...context, requestMode: 'assistant', workspaceId: undefined, organizationId: 'org-1' }
     )
-    expect(result).toEqual({ success: false, error: 'workspaceId is required' })
+    expect(result).toEqual({ success: false, error: 'Connection unavailable' })
+    expect(mocks.executeOrganization).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org-1', workspaceId: undefined }),
+      useCases.prepareOrganization,
+      { providerName: 'slack', credentialId: undefined }
+    )
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 

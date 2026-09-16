@@ -4,6 +4,7 @@ import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/applicatio
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
 import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
 import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
+import { resolveCopilotOrganizationPersonalToken } from '@/lib/mothership/application/resolve-organization-personal-token'
 import type { CopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import {
   type CredentialTokenPayload,
@@ -61,11 +62,25 @@ export async function resolveExecutorCredentialToken(
       throw new Error('Assistant credential use requires the authenticated person for this turn.')
     }
     const tool = toolId ? getToolMetadata(toolId) : undefined
-    if (!tool?.oauth?.required || !copilotExecutionContext.workspaceId || params.impersonateEmail) {
+    if (
+      !tool?.oauth?.required ||
+      (!copilotExecutionContext.workspaceId && !copilotExecutionContext.organizationId) ||
+      params.impersonateEmail
+    ) {
       throw new Error(
         'Assistant requires your own connected account and cannot impersonate another user.'
       )
     }
+    if (copilotExecutionContext.organizationId) {
+      return resolveCopilotOrganizationPersonalToken(copilotExecutionContext, {
+        credentialId,
+        expectedProviderId: tool.oauth.provider,
+        requiredScopes: params.scopes ?? [],
+        toolId: tool.id,
+      })
+    }
+    if (!copilotExecutionContext.workspaceId)
+      throw new Error('Workspace credential scope is required')
     await executeCopilotCredentialUseCase(copilotExecutionContext, authorizePersonalCredential, {
       workspaceId: copilotExecutionContext.workspaceId,
       credentialId,

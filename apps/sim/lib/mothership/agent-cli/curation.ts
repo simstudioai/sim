@@ -8,10 +8,10 @@
 import { omit } from '@sim/utils/object'
 import { mothershipBlockDetailSchema } from '@/lib/api/contracts/mothership-catalog'
 import { type V2BlockDetail, v2BlockDetailSchema } from '@/lib/api/contracts/v2/catalog'
+import { resolveDeniedBlockOperations } from '@/lib/integrations/tool-projection'
 import { withModelHints } from '@/lib/mothership/agent-cli/model-hints'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
-import { resolveDeniedBlockOperations } from '@/lib/mothership/integration-tool-projection'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 

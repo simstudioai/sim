@@ -52,7 +52,7 @@ export async function executeTool(
       return { success: false, error: 'Invalid organization execution scope' }
     const organizationTools =
       context.requestMode === 'assistant'
-        ? ['search_workspace', 'read_document']
+        ? ['search_workspace', 'read_document', 'oauth_get_auth_link']
         : [
             'list_workspaces',
             'search_workspace',
@@ -68,8 +68,18 @@ export async function executeTool(
         }
       return executeBoundTool(toolId, params, context)
     }
-    if (context.requestMode === 'assistant')
-      return { success: false, error: 'Organization Assistant can search and read documents.' }
+    if (context.requestMode === 'assistant') {
+      if (context.targetWorkspaceId)
+        return { success: false, error: 'Organization Assistant does not take a workspace target' }
+      try {
+        const metadata = getToolMetadata(toolId)
+        assertAssistantIntegrationCall(metadata, params)
+        if (metadata?.personalToken) throw new Error('This account type is unavailable in Search.')
+      } catch (error) {
+        return { success: false, error: toError(error).message }
+      }
+      return executeBoundTool(toolId, params, context)
+    }
     if (toolId === 'sim_cli') return executeBoundTool(toolId, params, context)
     if (['run_code', 'run_function'].includes(toolId) && !context.targetWorkspaceId)
       return executeBoundTool(toolId, params, {
@@ -189,6 +199,7 @@ async function executeBoundTool(
           userId: context.userId,
           workflowId: context.workflowId,
           workspaceId: context.workspaceId,
+          organizationId: context.organizationId,
           executionId: context.executionId,
           chatId: context.chatId,
           toolCallId: context.toolCallId,
@@ -286,6 +297,7 @@ function buildAppToolParams(
     userId: context.userId,
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
+    organizationId: context.organizationId,
     chatId: context.chatId,
     executionId: context.executionId,
     runId: context.runId,

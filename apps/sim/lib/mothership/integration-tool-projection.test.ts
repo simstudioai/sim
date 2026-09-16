@@ -60,11 +60,11 @@ vi.mock('@/lib/integrations/availability.server', () => ({
   isIntegrationDeploymentAvailableForVisibility: () => true,
 }))
 
+import { resetExposedIntegrationToolsCache } from '@/lib/integrations/tool-catalog'
 import {
   projectIntegrationToolsForViewer,
   resolveDeniedBlockOperations,
-} from '@/lib/mothership/integration-tool-projection'
-import { resetExposedIntegrationToolsCache } from '@/lib/mothership/integration-tools'
+} from '@/lib/integrations/tool-projection'
 
 function toolIds(config: Parameters<typeof projectIntegrationToolsForViewer>[1]): string[] {
   return projectIntegrationToolsForViewer(null, config)

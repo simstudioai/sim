@@ -37,7 +37,7 @@ import {
   filterExposedIntegrationTools,
   getExposedIntegrationTools,
   resetExposedIntegrationToolsCache,
-} from '@/lib/mothership/integration-tools'
+} from '@/lib/integrations/tool-catalog'
 
 const allowAllOwners = () => true
 const allowAllTools = () => true

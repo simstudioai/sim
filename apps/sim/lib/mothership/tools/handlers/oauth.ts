@@ -1,9 +1,11 @@
 import { oauthGetAuthLinkInputSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { prepareCredentialConnection } from '@/lib/credentials/application/prepare-credential-connection'
+import { prepareOrganizationPersonalConnection } from '@/lib/credentials/application/resolve-organization-personal-token'
 import { isServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
 import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
+import { executeCopilotOrganizationCredentialUseCase } from '@/lib/mothership/application/resolve-organization-personal-token'
 import type {
   ToolExecutionContext,
   ToolExecutionResult,
@@ -23,6 +25,26 @@ export async function executeOAuthGetAuthLink(
   }
   const { providerName, credentialId } = parsed.data
   const baseUrl = getBaseUrl()
+
+  if (context.organizationId && context.requestMode === 'assistant') {
+    try {
+      const result = await executeCopilotOrganizationCredentialUseCase(
+        context,
+        prepareOrganizationPersonalConnection,
+        { providerName, credentialId }
+      )
+      return {
+        success: true,
+        output: {
+          provider: result.provider,
+          providerId: result.providerId,
+          instructions: `End your response with <credential>${JSON.stringify(result.target)}</credential>. Use this exact connection control. Wait for the connection status before continuing; setup does not mean connected or indexed.`,
+        },
+      }
+    } catch (error) {
+      return { success: false, error: messageForCopilotApplicationError(error) }
+    }
+  }
 
   /** Reject service-account aliases before the provider resolver's fuzzy OAuth match. */
   const serviceAccountId = providerName

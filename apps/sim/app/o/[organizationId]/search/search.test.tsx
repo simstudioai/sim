@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   assistant: vi.fn(),
   urlUpdate: vi.fn(),
   push: vi.fn(),
+  pathname: vi.fn(),
   speech: vi.fn<typeof useSpeechToText>(),
   toggleListening: vi.fn(),
 }))
@@ -26,7 +27,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
 }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push }),
-  usePathname: () => '/o/organization-a/search',
+  usePathname: mocks.pathname,
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: () => ({
@@ -64,6 +65,7 @@ let container: HTMLDivElement
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.pathname.mockReturnValue('/o/organization-a/search')
   mocks.assistant.mockReturnValue(<div>Search Assistant composer</div>)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
@@ -227,6 +229,35 @@ describe('organization Search query navigation', () => {
 })
 
 describe('organization Search intent toggle', () => {
+  it('keeps the live Assistant mounted when the first message replaces the URL with a chat route', async () => {
+    await render('?view=assistant')
+    const composer = Array.from(container.querySelectorAll('div')).find(
+      (node) => node.textContent === 'Search Assistant composer' && node.childElementCount === 0
+    )
+    expect(composer).toBeDefined()
+    mocks.pathname.mockReturnValue('/o/organization-a/chat/new-chat')
+    await render('')
+    expect(container.contains(composer!)).toBe(true)
+    expect(container.querySelector('input[aria-label="Search your sources"]')).toBeNull()
+    expect(mocks.assistant).toHaveBeenLastCalledWith(
+      expect.objectContaining({ requestMode: 'assistant', chatId: undefined }),
+      undefined
+    )
+    expect(
+      container.querySelector('[role="radio"][value="assistant"]')?.getAttribute('aria-checked')
+    ).toBe('true')
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[role="radio"][value="results"]')!.click()
+    )
+    expect(mocks.push).toHaveBeenCalledWith('/o/organization-a/search?')
+  })
+
+  it('does not treat another organization chat path as this organization Assistant', async () => {
+    mocks.pathname.mockReturnValue('/o/organization-other/chat/chat')
+    await render('')
+    expect(searchInput()).toBeDefined()
+    expect(mocks.assistant).not.toHaveBeenCalled()
+  })
   it('preserves committed query and filters without submitting an Assistant turn', async () => {
     await render('?q=Orion&source=slack&updated=7d')
     await act(async () =>

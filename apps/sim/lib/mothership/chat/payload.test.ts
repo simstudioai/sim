@@ -12,6 +12,7 @@ const {
   mockIsIntegrationDeploymentAvailable,
   mockIsOAuthServiceDeploymentAvailable,
   mockTrackChatUpload,
+  mockSearchApprovals,
 } = vi.hoisted(() => ({
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockGetHighestPrioritySubscription: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockIsIntegrationDeploymentAvailable: vi.fn((_blockType: string) => true),
   mockIsOAuthServiceDeploymentAvailable: vi.fn((_providerId: string) => true),
   mockTrackChatUpload: vi.fn(),
+  mockSearchApprovals: vi.fn(async () => new Map<string, boolean>()),
 }))
 
 // The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
@@ -93,7 +95,7 @@ vi.mock('@/lib/mothership/block-visibility', () => ({
   visibilitySignature: vi.fn(() => 'vis:none'),
 }))
 
-vi.mock('@/lib/mothership/integration-tools', () => ({
+vi.mock('@/lib/integrations/tool-catalog', () => ({
   filterExposedIntegrationTools: vi.fn(
     (
       tools: Array<{ toolId: string; blockType: string; service: string }>,
@@ -167,6 +169,11 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfig: mockGetUserPermissionConfig,
+  getUserPermissionConfigForOrganization: mockGetUserPermissionConfig,
+}))
+
+vi.mock('@/lib/knowledge/search/integration-policy', () => ({
+  listOrganizationSearchApprovals: mockSearchApprovals,
 }))
 
 import {
@@ -626,6 +633,22 @@ describe('Assistant payload', () => {
     mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
     mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
+    mockSearchApprovals.mockResolvedValue(new Map())
+  })
+  it('advertises approved personal organization integrations and rechecks revocation', async () => {
+    mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))
+    const options = {
+      schemaSurface: 'copilot' as const,
+      personalAccountsOnly: true,
+      organizationId: 'org',
+    }
+    const approved = await buildIntegrationToolSchemas('person', options)
+    expect(approved.map((tool) => tool.name)).toContain('gmail_send')
+    mockSearchApprovals.mockResolvedValue(new Map([['gmail', false]]))
+    expect(await buildIntegrationToolSchemas('person', options)).toEqual([])
+    mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))
+    mockGetUserPermissionConfig.mockResolvedValue({ hideIntegrationsTab: true })
+    expect(await buildIntegrationToolSchemas('person', options)).toEqual([])
   })
   it('sends prepared organization images as model-readable attachments without workspace tracking', async () => {
     mockTrackChatUpload.mockClear()

@@ -11,7 +11,7 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { ArrowUp, Search } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -155,6 +155,7 @@ export function OrganizationSearch(props: OrganizationSearchProps) {
 function OrganizationSearchContent({ chatId, userName }: OrganizationSearchProps) {
   const { organization } = useOrganizationContext()
   const router = useRouter()
+  const pathname = usePathname()
   const [{ q, view }, setParams] = useQueryStates(
     organizationSearchParsers,
     organizationSearchUrlKeys
@@ -182,7 +183,10 @@ function OrganizationSearchContent({ chatId, userName }: OrganizationSearchProps
   }
 
   const searching = query.length > 0
-  const activeView = chatId ? 'assistant' : view
+  /** First-message admission replaces browser history without replacing this page's server props. */
+  const isChatRoute =
+    Boolean(chatId) || Boolean(pathname?.startsWith(organizationRoutes(organization.id).chat('')))
+  const activeView = isChatRoute ? 'assistant' : view
 
   return (
     <div className='flex h-full min-h-0 flex-col bg-[var(--bg)]'>
@@ -194,7 +198,7 @@ function OrganizationSearchContent({ chatId, userName }: OrganizationSearchProps
             aria-label='Search view'
             onValueChange={(next) => {
               if (next !== 'results' && next !== 'assistant') return
-              if (chatId) {
+              if (isChatRoute) {
                 router.push(
                   `${organizationRoutes(organization.id).search}?${new URLSearchParams({ ...(q ? { q } : {}), ...(filters.source ? { source: filters.source } : {}), ...(filters.updated !== 'any' ? { updated: filters.updated } : {}), ...(next === 'assistant' ? { view: next } : {}) })}`
                 )
