@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { env, envNumber } from '@/lib/core/config/env'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { StreamingExecution } from '@/executor/types'
 import {
   applyModelCostPolicy,
@@ -41,9 +42,7 @@ import {
 
 const logger = createLogger('Providers')
 
-async function omitUnsafeProviderFileAttachments(
-  request: ProviderRequest
-): Promise<ProviderRequest> {
+async function prepareProviderFileAttachments(request: ProviderRequest): Promise<ProviderRequest> {
   const attachments = (request.messages ?? []).flatMap((message) => message.files ?? [])
   if (attachments.length === 0) return request
 
@@ -72,7 +71,13 @@ async function omitUnsafeProviderFileAttachments(
     messages: request.messages?.map((message) => {
       if (!message.files) return message
       const files = message.files.filter((file) => safe.has(file))
-      return { ...message, ...(files.length > 0 ? { files } : { files: undefined }) }
+      const omittedCount = message.files.length - files.length
+      if (omittedCount === 0) return message
+      return {
+        ...message,
+        content: appendUnavailableAttachmentNotice(message.content, omittedCount),
+        files: files.length > 0 ? files : undefined,
+      }
     }),
   }
 }
@@ -236,8 +241,7 @@ export async function executeProviderRequest(
     sanitizedRequest.responseFormat = undefined
   }
 
-  const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
-  const modelSafeRequest = provenanceSafeRequest
+  const modelSafeRequest = await prepareProviderFileAttachments(sanitizedRequest)
   const toolIdentities = assignProviderToolIdentities(modelSafeRequest.tools)
   const failedFunctionToolCost = { total: 0 }
   const requestRuntimeContext: ProviderRuntimeContext = {

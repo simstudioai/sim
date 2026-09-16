@@ -34,7 +34,10 @@ import {
   type RawFileInput,
   tryInferContextFromKey,
 } from '@/lib/uploads/utils/file-utils'
-import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
+import {
+  appendUnavailableAttachmentNotice,
+  selectModelBoundFileInputPaths,
+} from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import {
@@ -1602,8 +1605,13 @@ export class AgentBlockHandler implements BlockHandler {
         )
       }
 
+      const omittedCount = hydratedFiles.length - modelSafeHydratedFiles.length
       nextMessages[messageIndex] = {
         ...message,
+        content:
+          omittedCount > 0
+            ? appendUnavailableAttachmentNotice(message.content, omittedCount)
+            : message.content,
         files: modelSafeHydratedFiles,
       }
     }

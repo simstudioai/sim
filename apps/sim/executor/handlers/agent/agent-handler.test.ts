@@ -1040,55 +1040,87 @@ describe('AgentBlockHandler', () => {
       }
     })
 
-    it('omits only a generated document whose embedded contributor is not model-safe', async () => {
-      const key = 'workspace/ws-1/report.pdf'
-      mockContext.workspaceId = 'ws-1'
-      const hydrationSpy = vi
-        .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
-        .mockImplementationOnce(async (files, options) => {
-          await options.onServableFileContributors?.(files[0], [
-            {
-              fileId: 'image-1',
-              key: 'workspace/ws-1/image-1.png',
-              context: 'workspace',
-              contentUpdatedAt: new Date('2026-08-06T00:00:00.000Z'),
-            },
-          ])
-          return files.map((file) => ({ ...file, base64: 'JVBERi0=' }))
-        })
-      mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValueOnce(false)
-
-      try {
-        mockGetProviderFromModel.mockReturnValue('openai')
-
-        await handler.execute(mockContext, mockBlock, {
-          model: 'gpt-4o',
-          userPrompt: 'Analyze this document',
-          files: [
-            {
-              id: 'file-1',
-              name: 'report.pdf',
-              path: `/api/files/serve/${encodeURIComponent(key)}?context=workspace`,
-              key,
-              size: 128,
-              type: 'text/x-python-pdf',
-            },
-          ],
-          apiKey: 'test-api-key',
-        })
-
-        expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([])
-        expect(mockImportWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
-          expect.objectContaining({
-            workspaceId: mockContext.workspaceId,
-            view: 'opaque',
-            identity: expect.objectContaining({ fileId: 'image-1' }),
+    it.each([
+      { safe: false, includeSafeFile: false },
+      { safe: false, includeSafeFile: true },
+      { safe: true, includeSafeFile: true },
+    ])(
+      'continues after document contributor admission (safe=$safe, mixed=$includeSafeFile)',
+      async ({ safe, includeSafeFile }) => {
+        const key = 'workspace/ws-1/report.pdf'
+        mockContext.workspaceId = 'ws-1'
+        const hydrationSpy = vi
+          .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+          .mockImplementationOnce(async (files, options) => {
+            await options.onServableFileContributors?.(files[0], [
+              {
+                fileId: 'image-1',
+                key: 'workspace/ws-1/image-1.png',
+                context: 'workspace',
+                contentUpdatedAt: new Date('2026-08-06T00:00:00.000Z'),
+              },
+            ])
+            return files.map((file) => ({ ...file, base64: 'JVBERi0=' }))
           })
-        )
-      } finally {
-        hydrationSpy.mockRestore()
+        mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValueOnce(safe)
+
+        try {
+          mockGetProviderFromModel.mockReturnValue('openai')
+
+          await handler.execute(mockContext, mockBlock, {
+            model: 'gpt-4o',
+            userPrompt: 'Analyze this document',
+            files: [
+              {
+                id: 'file-1',
+                name: 'report.pdf',
+                path: `/api/files/serve/${encodeURIComponent(key)}?context=workspace`,
+                key,
+                size: 128,
+                type: 'text/x-python-pdf',
+              },
+              ...(includeSafeFile
+                ? [
+                    {
+                      id: 'file-2',
+                      name: 'safe.pdf',
+                      path: '/safe.pdf',
+                      key: 'workspace/ws-1/safe.pdf',
+                      size: 128,
+                      type: 'application/pdf',
+                    },
+                  ]
+                : []),
+            ],
+            apiKey: 'test-api-key',
+          })
+
+          expect(mockExecuteProviderRequest).toHaveBeenCalledOnce()
+          const sent = mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)
+          expect(sent.files.map((file: { id: string }) => file.id)).toEqual([
+            ...(safe ? ['file-1'] : []),
+            ...(includeSafeFile ? ['file-2'] : []),
+          ])
+          if (safe) {
+            expect(sent.content).toBe('Analyze this document')
+          } else {
+            expect(sent.content).toMatch(
+              /^Analyze this document\n\nAttachment error: 1 requested file attachment was not provided/
+            )
+            expect(JSON.stringify(sent)).not.toContain(key)
+          }
+          expect(mockImportWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
+            expect.objectContaining({
+              workspaceId: mockContext.workspaceId,
+              view: 'opaque',
+              identity: expect.objectContaining({ fileId: 'image-1' }),
+            })
+          )
+        } finally {
+          hydrationSpy.mockRestore()
+        }
       }
-    })
+    )
 
     it('should reject files for providers without attachment support', async () => {
       const inputs = {
