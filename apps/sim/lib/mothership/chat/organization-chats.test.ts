@@ -1,19 +1,24 @@
 /** @vitest-environment node */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
   authorizeOrganizationChatCancellation,
+  authorizeOrganizationChat,
   authorizeOrganizationChatDelegation,
   authorizeOrganizationChatEvents,
   createOrganizationChat,
 } from '@/lib/mothership/chat/organization-chats'
 
-const { authorize, requireSearch, publish } = vi.hoisted(() => ({
+const { authorize, requireSearch, publish, permissionConfig } = vi.hoisted(() => ({
   authorize: vi.fn(),
+  permissionConfig: vi.fn(),
   requireSearch: vi.fn(),
   publish: vi.fn(),
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: permissionConfig,
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   requireOrganizationSearchAvailable: requireSearch,
@@ -172,5 +177,63 @@ describe('organization chat events application boundary', () => {
     expect(dbChainMockFns.returning.mock.invocationCallOrder[0]).toBeLessThan(
       publish.mock.invocationCallOrder[0]
     )
+  })
+})
+
+afterAll(resetEnvFlagsMock)
+describe('organization Build admission', () => {
+  const session = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    permissionConfig.mockResolvedValue(null)
+    setEnvFlags({ isBillingEnabled: true })
+  })
+  it.each([
+    { role: 'member', billing: true, denied: false, allowed: false },
+    { role: 'owner', billing: true, denied: false, allowed: true },
+    { role: 'admin', billing: true, denied: true, allowed: false },
+    { role: 'member', billing: false, denied: false, allowed: true },
+    { role: 'member', billing: false, denied: true, allowed: false },
+  ])(
+    'enforces the same permission on sends and creation: $role/$billing/$denied',
+    async ({ role, billing, denied, allowed }) => {
+      authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role })
+      permissionConfig.mockResolvedValue({ disableWorkspaceCreation: denied })
+      setEnvFlags({ isBillingEnabled: billing })
+      dbChainMockFns.returning.mockResolvedValue([{ id: 'new-chat' }])
+      for (const operation of [authorizeOrganizationChat, createOrganizationChat]) {
+        const result = operation.execute({
+          principal: session,
+          input: { organizationId: 'org-1', mode: 'agent' },
+        })
+        if (allowed) await expect(result).resolves.toBeDefined()
+        else await expect(result).rejects.toThrow('Build requires permission')
+      }
+      if (!allowed) expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      expect(permissionConfig).toHaveBeenCalledWith('org-1')
+    }
+  )
+  it('keeps Search and saved-history reads available without Build permission', async () => {
+    authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'member' })
+    await authorizeOrganizationChat.execute({
+      principal: session,
+      input: { organizationId: 'org-1', mode: 'assistant' },
+    })
+    await authorizeOrganizationChat.execute({
+      principal: session,
+      input: { organizationId: 'org-1' },
+    })
+    expect(permissionConfig).not.toHaveBeenCalled()
+  })
+  it('checks current membership before the Build permission projection', async () => {
+    authorize.mockRejectedValueOnce(new Error('Membership revoked'))
+    await expect(
+      authorizeOrganizationChat.execute({
+        principal: session,
+        input: { organizationId: 'org-1', mode: 'agent' },
+      })
+    ).rejects.toThrow('Membership revoked')
+    expect(permissionConfig).not.toHaveBeenCalled()
   })
 })

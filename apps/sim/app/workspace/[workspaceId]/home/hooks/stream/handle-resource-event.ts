@@ -1,10 +1,16 @@
+import { resourceScopeKey } from '@/lib/core/resource-scope'
 import {
   type MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import { getChatResourceKey, getChatResourceSelectionId } from '@/lib/mothership/resources/types'
+import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
+import {
+  getChatResourceKey,
+  getChatResourceSelectionId,
+  mergeChatResource,
+} from '@/lib/mothership/resources/types'
 import { notifyWorkflowExternalUpdate } from '@/lib/workflows/external-update'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
@@ -17,6 +23,7 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 
@@ -48,6 +55,51 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
+  if (payload.resource.type === 'search') {
+    if (payload.op === 'refresh' || payload.op === 'clear_view') return
+    const search = payload.resource.search
+    if (!search) return
+    const validScope = searchResourceMatchesOwner(search, {
+      organizationId: ctx.deps.organizationId,
+      workspaceId: chatWorkspaceId,
+    })
+    if (!validScope) return
+    const resource: MothershipResource = {
+      ...payload.resource,
+      type: 'search',
+      title: payload.resource.title ?? 'Search results',
+      search,
+    }
+    if (payload.op === 'remove') {
+      setResources((current) =>
+        current.filter((item) => getChatResourceKey(item) !== getChatResourceKey(resource))
+      )
+      return
+    }
+    const scopeKey =
+      search.scope.kind === 'workspace' ? search.scope.workspaceId : resourceScopeKey(search.scope)
+    void queryClient.invalidateQueries({
+      queryKey: knowledgeKeys.search(scopeKey, search.query, search.filters, search.topK),
+    })
+    if (payload.replay || ctx.deps.options.deferFlushes) {
+      const chatId = ctx.deps.chatIdRef.current
+      if (chatId)
+        void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      return
+    }
+    if (payload.effectId)
+      setResources((current) => {
+        const found = current.find(
+          (item) => getChatResourceKey(item) === getChatResourceKey(resource)
+        )
+        return found
+          ? current.map((item) => (item === found ? mergeChatResource(item, resource) : item))
+          : [...current, resource]
+      })
+    else addResource(resource)
+    onResourceEvent?.(getChatResourceSelectionId(resource))
+    return
+  }
   const workspaceId = payload.resource.workspaceId ?? chatWorkspaceId
   if (!workspaceId || (chatWorkspaceId && workspaceId !== chatWorkspaceId)) return
   // Browser and terminal tabs are projected from the desktop app's live

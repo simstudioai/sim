@@ -3,12 +3,15 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
+import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
+import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 export const organizationChatOperations = {
   subscribe: defineOrganizationOperation({
@@ -44,11 +47,26 @@ interface OrganizationChatInput {
   organizationId: string
 }
 
+async function requireBuildPermission(context: { organizationId: string; role: OrganizationRole }) {
+  const config = await getUserPermissionConfigForOrganization(context.organizationId)
+  if (!canCreateOrganizationWorkspace(context.role, config))
+    throw new OrchestrationError(
+      'forbidden',
+      'Build requires permission to create organization workspaces'
+    )
+}
+
 /** Rechecks current membership before exposing a private organization conversation. */
 export const authorizeOrganizationChat = {
   operation: organizationChatOperations.read,
-  execute({ principal, input }: { principal: Principal; input: OrganizationChatInput }) {
-    return authorizeOrganizationOperation(principal, organizationChatOperations.read, input)
+  async execute({ principal, input }: { principal: Principal; input: OrganizationChatInput }) {
+    const context = await authorizeOrganizationOperation(
+      principal,
+      organizationChatOperations.read,
+      input
+    )
+    if (input.mode === 'agent') await requireBuildPermission(context)
+    return context
   },
 }
 
@@ -96,6 +114,7 @@ export const createOrganizationChat = {
       organizationChatOperations.create,
       input
     )
+    if (input.mode === 'agent') await requireBuildPermission(context)
     const [chat] = await db
       .insert(copilotChats)
       .values({

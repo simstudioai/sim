@@ -102,16 +102,26 @@ async function render({
   scope = { kind: 'organization', organizationId: 'organization' },
   query = 'launch',
   params = '',
+  filters,
+  topK,
 }: {
   scope?: ResourceScope
   query?: string
   params?: string
+  filters?: import('@/lib/api/contracts/knowledge').WorkspaceSearchFilters
+  topK?: number
 } = {}) {
   await act(async () => {
     root.render(
       <QueryClientProvider client={client}>
         <NuqsTestingAdapter hasMemory searchParams={params} onUrlUpdate={mocks.urlUpdate}>
-          <KnowledgeSearchResults scope={scope} query={query} onSummarize={mocks.summarize} />
+          <KnowledgeSearchResults
+            scope={scope}
+            query={query}
+            filters={filters}
+            topK={topK}
+            onSummarize={mocks.summarize}
+          />
         </NuqsTestingAdapter>
       </QueryClientProvider>
     )
@@ -170,6 +180,17 @@ async function complete(
 }
 
 describe('search refinement with the real query cache and URL state', () => {
+  it('honors an explicitly empty tool filter and limit instead of page filters', async () => {
+    await render({ params: '?source=gmail&updated=7d', filters: {}, topK: 5 })
+    expect(requests[0].body.filters).toEqual({})
+    expect(requests[0].body.topK).toBe(5)
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
+    await complete(0)
+    await render({ params: '?source=gmail&updated=7d', filters: {}, topK: 10 })
+    expect(requests[1].body.topK).toBe(10)
+    expect(container.textContent).not.toContain('Release plan')
+  })
+
   it('replaces filter URL state while preserving unrelated parameters', async () => {
     await render({ params: '?q=launch&panel=details' })
     await click('Gmail')

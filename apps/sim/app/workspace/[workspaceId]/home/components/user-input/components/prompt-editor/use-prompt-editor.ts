@@ -116,6 +116,8 @@ export interface UsePromptEditorProps {
   contextsEnabled?: boolean
   /** Workspace whose resources, integrations, and skills the editor mentions. */
   workspaceId: string
+  /** Keeps organization chat context references explicitly workspace-addressed. */
+  organizationId?: string
   /** Initial text. Chipified (`@`-mentions / `/`-skills converted) on mount. */
   initialValue?: string
   /**
@@ -164,6 +166,7 @@ export type PromptEditorInstance = ReturnType<typeof usePromptEditor>
 export function usePromptEditor({
   contextsEnabled = true,
   workspaceId,
+  organizationId,
   initialValue = '',
   initialContexts,
   onContextAdd,
@@ -171,8 +174,13 @@ export function usePromptEditor({
 }: UsePromptEditorProps) {
   const contextsEnabledRef = useRef(contextsEnabled)
   contextsEnabledRef.current = contextsEnabled
-  const { data: skills = [] } = useSkills(workspaceId)
-  const { data: allMcpServers = [] } = useMcpToolServers(workspaceId)
+  const { data: queriedSkills = [], isPlaceholderData: skillsAreStale } = useSkills(
+    contextsEnabled ? workspaceId : ''
+  )
+  const skills = organizationId && skillsAreStale ? [] : queriedSkills
+  const { data: allMcpServers = [] } = useMcpToolServers(
+    contextsEnabled && !organizationId ? workspaceId : ''
+  )
   const mcpServers = useMemo(
     () => allMcpServers.filter((server) => server.enabled && server.workspaceId === workspaceId),
     [allMcpServers, workspaceId]
@@ -252,6 +260,7 @@ export function usePromptEditor({
   const skillAutoMention = useSkillAutoMention({
     skills,
     mcpServers,
+    workspaceId: organizationId ? workspaceId : undefined,
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
@@ -426,7 +435,9 @@ export function usePromptEditor({
 
   const insertResource = useCallback(
     (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
-      const candidate = mapResourceToContext(resource)
+      const mapped = mapResourceToContext(resource)
+      if (!mapped) return
+      const candidate = organizationId ? { ...mapped, workspaceId: workspaceIdRef.current } : mapped
       const context =
         candidate.kind === 'folder' || candidate.kind === 'filefolder'
           ? (selected.find(
@@ -471,7 +482,7 @@ export function usePromptEditor({
       addContextNotified(context)
       return context
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addContextNotified, organizationId]
   )
 
   /**
@@ -483,7 +494,7 @@ export function usePromptEditor({
       let selected = contextManagementRef.current.selectedContexts
       for (const resource of resources) {
         const context = insertResource(resource, selected)
-        selected = [...selected, context]
+        if (context) selected = [...selected, context]
       }
       atInsertPosRef.current = null
     },
@@ -526,9 +537,14 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({ kind: 'skill', skillId: skill.id, label: skill.name })
+      addContextNotified({
+        kind: 'skill',
+        skillId: skill.id,
+        label: skill.name,
+        ...(organizationId ? { workspaceId: workspaceIdRef.current } : {}),
+      })
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addContextNotified, organizationId]
   )
 
   const handleMcpSelect = useCallback(
@@ -1034,10 +1050,9 @@ export function usePromptEditor({
     // is already attached there is nothing to add, and claiming the event anyway
     // would swallow the keystroke entirely — no chip and no text. Falling through
     // pastes the selection's plain text, which is what the user asked for.
-    const selectionContext = readSelectionContextFromClipboard(
-      e.clipboardData,
-      workspaceIdRef.current
-    )
+    const selectionContext = contextsEnabledRef.current
+      ? readSelectionContextFromClipboard(e.clipboardData, workspaceIdRef.current)
+      : null
     const preparedSelection = selectionContext
       ? prepareContextForInsert(selectionContext, contextManagementRef.current.selectedContexts)
       : null
@@ -1081,7 +1096,7 @@ export function usePromptEditor({
     // space is REQUIRED so useContextManagement's sync effect doesn't purge the
     // freshly-added context) and register the contexts directly.
     const pastedText = pastedPlainText
-    const links = parseChipLinks(pastedText)
+    const links = contextsEnabledRef.current ? parseChipLinks(pastedText) : []
     if (links.length > 0) {
       e.preventDefault()
 
@@ -1251,6 +1266,7 @@ export function usePromptEditor({
 
     /** @internal Wiring consumed by the {@link PromptEditor} view. */
     workspaceId,
+    contextsEnabled,
     /** @internal */
     skills,
     /** @internal */

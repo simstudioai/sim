@@ -22,7 +22,7 @@ export default async function OrganizationSearchPage({
   if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
   return (
     <Suspense fallback={<OrganizationSearchLoading />}>
-      <OrganizationSearch userName={session.user.name ?? undefined} />
+      <OrganizationSearch />
     </Suspense>
   )
 }

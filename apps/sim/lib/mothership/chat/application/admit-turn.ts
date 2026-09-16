@@ -7,10 +7,12 @@ import type { z } from 'zod'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { insertRunSegment, withRunAdmissionLock } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
+import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import {
   buildPersistedUserMessage,
   type UserMessageParams,
@@ -53,7 +55,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
     return resolveOwnedChatContext(principal, input.chatId)
   },
   authorizationOptions: {},
-  async execute({ context, input }) {
+  async execute({ principal, context, input }) {
     const { userId, workspaceId, organizationId, chatId } = context
     const recovery = StreamRecoveryConfigSchema.parse(input.recovery)
     const request = recovery.request
@@ -61,7 +63,6 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       request.userId !== userId ||
       request.workspaceId !== workspaceId ||
       request.organizationId !== organizationId ||
-      (organizationId && request.mode !== context.mode) ||
       (input.message.requestMode === 'assistant') !== (request.mode === 'assistant') ||
       request.chatId !== chatId ||
       request.messageId !== input.message.id ||
@@ -69,11 +70,27 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
     ) {
       throw new OrchestrationError('validation', 'Turn identity does not match its chat')
     }
+    if (organizationId) {
+      if (request.mode === 'agent')
+        await authorizeOrganizationChat.execute({
+          principal,
+          input: { organizationId, mode: 'agent' },
+        })
+      else await requireOrganizationSearchAvailable(organizationId)
+    }
     await assertChatStreamLease(input.lease)
     return withRunAdmissionLock(userId, request.messageId, async (tx) => {
       const [chat] = await tx
         .update(copilotChats)
-        .set({ conversationId: request.messageId, updatedAt: new Date() })
+        .set({
+          conversationId: request.messageId,
+          updatedAt: new Date(),
+          ...(organizationId
+            ? {
+                config: sql`COALESCE(${copilotChats.config}, '{}'::jsonb) || jsonb_build_object('conversationMode', ${request.mode}::text)`,
+              }
+            : {}),
+        })
         .where(
           and(
             eq(copilotChats.id, chatId),

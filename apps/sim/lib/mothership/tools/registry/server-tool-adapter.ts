@@ -5,6 +5,7 @@ import { managementToolContracts } from '@/lib/api/contracts/mothership-manageme
 import { openResourceOutputSchema } from '@/lib/api/contracts/mothership-resource-tools'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import { searchResourceFromToolResult } from '@/lib/mothership/resources/search-tool-result'
 import type { ToolExecutionResult, ToolHandler } from '@/lib/mothership/tool-executor/types'
 import { routeExecution } from '@/lib/mothership/tools/server/router'
 
@@ -48,9 +49,14 @@ export function createServerToolHandler(toolId: string): ToolHandler {
           `${toolId} failed`
         return { success: false, error: message, output: result }
       }
+      const searchResource =
+        toolId === 'search_workspace'
+          ? searchResourceFromToolResult(enrichedParams, result, context)
+          : undefined
       return {
         success: true,
         output: result,
+        ...(searchResource ? { resources: [searchResource] } : {}),
         ...(toolId === 'open_resource'
           ? { resources: openResourceOutputSchema.parse(result).resources }
           : {}),

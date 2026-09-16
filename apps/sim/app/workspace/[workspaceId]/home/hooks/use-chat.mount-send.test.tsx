@@ -289,7 +289,8 @@ function renderUseChatInChat(
   sharedQueryClient: QueryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   }),
-  selectedResourceId?: string
+  selectedResourceId?: string,
+  requestMode?: 'agent' | 'assistant'
 ): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
@@ -305,7 +306,10 @@ function renderUseChatInChat(
 
   function Probe() {
     const activeResourceState = useState<string | null>(selectedResourceId ?? null)
-    result = useChat('ws-1', chatId, selectedResourceId ? { activeResourceState } : undefined)
+    result = useChat('ws-1', chatId, {
+      ...(selectedResourceId ? { activeResourceState } : {}),
+      ...(requestMode ? { requestMode } : {}),
+    })
     return null
   }
 
@@ -437,6 +441,24 @@ async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void>
 }
 
 describe('useChat remount send recovery', () => {
+  it.each([
+    ['agent', 'assistant'],
+    ['assistant', 'agent'],
+  ] as const)('uses the selected %s harness over persisted %s mode', async (selected, saved) => {
+    const { getResult } = renderUseChatInChat(
+      'chat-a',
+      { id: 'chat-a', title: 'Existing conversation', mode: saved, messages: [], resources: [] },
+      undefined,
+      undefined,
+      selected
+    )
+    await act(async () => {
+      void getResult().sendMessage('Continue here')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    expect(state.postBodies[0]).toMatchObject({ chatId: 'chat-a', mode: selected })
+  })
+
   it('sends and recovers an image-only organization turn', async () => {
     navigationMocks.usePathname.mockReturnValue('/o/org-1/home')
     const { getResult, unmount } = renderUseChat({ organizationId: 'org-1' })

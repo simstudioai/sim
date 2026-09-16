@@ -1,11 +1,15 @@
 /** @vitest-environment jsdom */
 import { act, type ComponentProps, type ReactNode } from 'react'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthorizedApp, AuthorizedAppsPage } from '@/lib/api/contracts/user'
+import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(),
+  push: vi.fn(),
+  resourcePanel: vi.fn(),
   chat: vi.fn(),
   composer: vi.fn(),
   renderer: vi.fn(),
@@ -19,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   upload: vi.fn(),
   addResource: vi.fn(),
 }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ fetchQuery: vi.fn() }) }))
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
   useResourcePanelController: () => ({
@@ -32,7 +37,7 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
   }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () => ({
-  ChatResourcePanel: ({ children }: { children: ReactNode }) => children,
+  ChatResourcePanel: mocks.resourcePanel,
 }))
 vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: 'reader' } } }),
@@ -63,6 +68,8 @@ let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
+  useOrganizationChatModeStore.setState({ modes: {} })
+  mocks.resourcePanel.mockImplementation(({ children }: { children: ReactNode }) => children)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'URL',
@@ -76,6 +83,7 @@ beforeEach(() => {
     organization: { id: 'organization-a' },
     searchAccess: { memberScoped: true },
     mothershipAvailable: true,
+    canBuild: true,
     viewer: { isAdmin: false, canUseSearchMcp: true },
   })
   mocks.sources.mockReturnValue({ data: { providers: [], hasSearchableDocuments: false } })
@@ -98,6 +106,13 @@ afterEach(async () => {
   container.remove()
   vi.unstubAllGlobals()
 })
+function renderHome(element: ReactNode, searchParams = '') {
+  root.render(
+    <NuqsTestingAdapter hasMemory searchParams={searchParams}>
+      {element}
+    </NuqsTestingAdapter>
+  )
+}
 function composerProps(): ComponentProps<typeof Composer> {
   return mocks.composer.mock.lastCall![0]
 }
@@ -131,7 +146,7 @@ describe('organization home', () => {
     'does not mount Home or chat %s when Mothership is unavailable',
     async (chatId) => {
       mocks.context.mockReturnValue({ searchAccess: { memberScoped: false } })
-      await act(async () => root.render(<OrganizationHome chatId={chatId} />))
+      await act(async () => renderHome(<OrganizationHome chatId={chatId} />))
       expect(container.textContent).toBe('')
       expect(mocks.composer).not.toHaveBeenCalled()
       expect(mocks.chat).not.toHaveBeenCalled()
@@ -141,7 +156,7 @@ describe('organization home', () => {
   )
 
   it('greets the viewer over the composer and steps while the history query is pending', async () => {
-    await act(async () => root.render(<OrganizationHome userName='Ada Lovelace' />))
+    await act(async () => renderHome(<OrganizationHome userName='Ada Lovelace' />))
     expect(container.textContent).toContain('What should we get done, Ada?')
     expect(container.textContent).toContain('Question composer')
     expect(container.textContent).toContain('Get started')
@@ -155,7 +170,7 @@ describe('organization home', () => {
     )
   })
   it('keeps history loading scoped to an actual routed chat', async () => {
-    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
     expect(mocks.renderer).toHaveBeenCalledWith(
       expect.objectContaining({ isLoading: true }),
       undefined
@@ -170,7 +185,7 @@ describe('organization home', () => {
       isChatHistoryPending: true,
       sendMessage: mocks.send,
     })
-    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
     expect(mocks.renderer).toHaveBeenCalledWith(
       expect.objectContaining({ isLoading: false }),
       undefined
@@ -184,11 +199,11 @@ describe('organization home', () => {
       sendMessage: mocks.send,
     })
     mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
-    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
     await act(async () => composerProps().onChange('A draft for chat A'))
-    await act(async () => root.render(<OrganizationHome chatId='chat-a' />))
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
     expect(composerProps().value).toBe('A draft for chat A')
-    await act(async () => root.render(<OrganizationHome chatId='chat-b' />))
+    await act(async () => renderHome(<OrganizationHome chatId='chat-b' />))
     expect(composerProps().value).toBe('')
     expect(mocks.chat).toHaveBeenLastCalledWith(
       { organizationId: 'organization-a' },
@@ -201,7 +216,7 @@ describe('organization home', () => {
   })
   it('preserves the conversation when the first send adopts a chat ID', async () => {
     mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     await act(async () => composerProps().onChange('A follow-up draft'))
     mocks.chat.mockReturnValue({
       resources: [],
@@ -211,7 +226,7 @@ describe('organization home', () => {
       isSending: true,
       sendMessage: mocks.send,
     })
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     expect(composerProps().value).toBe('A follow-up draft')
     expect(mocks.renderer).toHaveBeenCalledWith(
       expect.objectContaining({ chatId: 'chat-a', isLoading: false, isSending: true }),
@@ -228,9 +243,10 @@ describe('organization home', () => {
         organization: { id: 'organization-a' },
         searchAccess: { memberScoped: true },
         mothershipAvailable: true,
+        canBuild: true,
         viewer: { isAdmin, canUseSearchMcp: true },
       })
-      await act(async () => root.render(<OrganizationHome />))
+      await act(async () => renderHome(<OrganizationHome />))
       expect(
         Array.from(container.querySelectorAll('a')).map((link) => ({
           label: link.textContent,
@@ -249,7 +265,7 @@ describe('organization home', () => {
   )
   it('does not complete MCP onboarding for an unrelated personal API key', async () => {
     mocks.apiKeys.mockReturnValue({ data: { personalKeys: [{ id: 'workflow-api-key' }] } })
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     expect(hasCompletedMcpStep()).toBe(false)
     expect(mocks.apiKeys).not.toHaveBeenCalled()
   })
@@ -259,10 +275,11 @@ describe('organization home', () => {
       organization: { id: 'organization-a' },
       searchAccess: { memberScoped: true },
       mothershipAvailable: true,
+      canBuild: true,
       viewer: { isAdmin: false, canUseSearchMcp: false },
     })
     mockAuthorizedApps([{ apps: [], nextCursor: 'older-apps' }])
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     expect(container.textContent).not.toContain('Connect Sim Search MCP')
     expect(container.textContent).toContain('Connect an integration')
     expect(mocks.authorizedApps).toHaveBeenCalledWith('', { enabled: false })
@@ -278,7 +295,7 @@ describe('organization home', () => {
     { scopes: ['unrecognized:read'], completed: false },
   ])('derives MCP completion from OAuth scopes $scopes', async ({ scopes, completed }) => {
     mockAuthorizedApps([{ apps: [authorizedApp(scopes)], nextCursor: null }])
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     expect(hasCompletedMcpStep()).toBe(completed)
   })
 
@@ -288,7 +305,7 @@ describe('organization home', () => {
       nextCursor: 'older-apps',
     }
     mockAuthorizedApps([firstPage])
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     expect(hasCompletedMcpStep()).toBe(false)
     expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1)
 
@@ -296,7 +313,7 @@ describe('organization home', () => {
       firstPage,
       { apps: [authorizedApp(['search:read'])], nextCursor: 'even-older-apps' },
     ])
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     expect(hasCompletedMcpStep()).toBe(true)
     expect(mocks.fetchNextPage).toHaveBeenCalledTimes(1)
   })
@@ -305,7 +322,7 @@ describe('organization home', () => {
     'does not start another authorization page request while %j',
     async (state) => {
       mockAuthorizedApps([{ apps: [], nextCursor: 'older-apps' }], state)
-      await act(async () => root.render(<OrganizationHome />))
+      await act(async () => renderHome(<OrganizationHome />))
       expect(mocks.fetchNextPage).not.toHaveBeenCalled()
       expect(hasCompletedMcpStep()).toBe(false)
     }
@@ -313,18 +330,18 @@ describe('organization home', () => {
 
   it('clears MCP completion when the Search authorization is revoked', async () => {
     mockAuthorizedApps([{ apps: [authorizedApp(['search:read'])], nextCursor: null }])
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     expect(hasCompletedMcpStep()).toBe(true)
 
     mockAuthorizedApps([{ apps: [], nextCursor: null }])
-    await act(async () => root.render(<OrganizationHome />))
+    await act(async () => renderHome(<OrganizationHome />))
     expect(hasCompletedMcpStep()).toBe(false)
   })
 
   it('sends the member question as an assistant turn and clears the draft', async () => {
-    await act(async () => root.render(<OrganizationHome requestMode='assistant' />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     await act(async () => composerProps().onChange('Find our launch plan'))
-    await act(async () => composerProps().onSubmit())
+    await act(async () => composerProps().onSubmit(composerProps().value))
     expect(mocks.send).toHaveBeenCalledExactlyOnceWith(
       'Find our launch plan',
       undefined,
@@ -334,20 +351,20 @@ describe('organization home', () => {
     expect(composerProps().value).toBe('')
   })
   it('ignores a blank submission', async () => {
-    await act(async () => root.render(<OrganizationHome requestMode='assistant' />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     await act(async () => composerProps().onChange('   '))
-    await act(async () => composerProps().onSubmit())
+    await act(async () => composerProps().onSubmit(composerProps().value))
     expect(mocks.send).not.toHaveBeenCalled()
   })
   it('sends image-only turns with canonical attachment properties and clears the draft', async () => {
-    await act(async () => root.render(<OrganizationHome requestMode='assistant' />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     const files = [new File(['image'], 'screenshot.png', { type: 'image/png' })]
     await act(async () =>
       composerProps().files.processFiles(
         Object.assign(files, { item: (index: number) => files[index] ?? null })
       )
     )
-    await act(async () => composerProps().onSubmit())
+    await act(async () => composerProps().onSubmit(composerProps().value))
     expect(mocks.send).toHaveBeenCalledWith(
       '',
       [
@@ -387,7 +404,7 @@ describe('organization home', () => {
         fileAttachments: attachments,
       }),
     })
-    await act(async () => root.render(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
     await act(async () => mocks.renderer.mock.lastCall![0].onEditQueuedMessage('queued-a'))
     expect(composerProps().files.attachedFiles[0]).toEqual(
       expect.objectContaining({
@@ -397,7 +414,7 @@ describe('organization home', () => {
         path: '/api/files/serve/image-key?context=mothership&preview=1',
       })
     )
-    await act(async () => composerProps().onSubmit())
+    await act(async () => composerProps().onSubmit(composerProps().value))
     expect(mocks.send).toHaveBeenCalledWith(
       'Explain this',
       [{ ...attachments[0], path: '/api/files/serve/image-key?context=mothership&preview=1' }],
@@ -419,7 +436,7 @@ describe('organization home', () => {
       },
     ]
     mocks.consume.mockReturnValueOnce({ message: '', fileAttachments: attachments })
-    await act(async () => root.render(<OrganizationHome requestMode='assistant' />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(mocks.send).toHaveBeenCalledWith('', attachments, undefined, {
       requestMode: 'assistant',
     })
@@ -427,7 +444,7 @@ describe('organization home', () => {
   it('resumes a scoped handoff with the original search filters', async () => {
     const assistantSearch = { documentIds: ['document-a'] }
     mocks.consume.mockReturnValueOnce({ message: 'Summarize', assistantSearch })
-    await act(async () => root.render(<OrganizationHome requestMode='assistant' />))
+    await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
     expect(mocks.consume).toHaveBeenCalledWith(
       { organizationId: 'organization-a' },
       undefined,
@@ -444,11 +461,12 @@ it('uses agent mode on new Home and does not consume a Search handoff', async ()
   mocks.context.mockReturnValue({
     organization: { id: 'organization-a' },
     mothershipAvailable: true,
+    canBuild: true,
     searchAccess: { memberScoped: false },
   })
-  await act(async () => root.render(<OrganizationHome />))
+  await act(async () => renderHome(<OrganizationHome />))
   await act(async () => composerProps().onChange('Update the workflow'))
-  await act(async () => composerProps().onSubmit())
+  await act(async () => composerProps().onSubmit(composerProps().value))
   expect(mocks.send).toHaveBeenCalledWith('Update the workflow', undefined, undefined, {
     requestMode: 'agent',
   })
@@ -458,4 +476,169 @@ it('uses agent mode on new Home and does not consume a Search handoff', async ()
     'agent'
   )
   expect(mocks.sources).not.toHaveBeenCalled()
+})
+
+describe('Home permission-selected harness', () => {
+  it('defaults to Mothership when workspace creation is allowed', async () => {
+    await act(async () => renderHome(<OrganizationHome />))
+    expect(composerProps().requestMode).toBe('agent')
+    expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ searchRequest: undefined }),
+      undefined
+    )
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+  it('defaults to Assistant when workspace creation is forbidden', async () => {
+    mocks.context.mockReturnValue({ ...mocks.context(), canBuild: false })
+    await act(async () => renderHome(<OrganizationHome />))
+    expect(composerProps().requestMode).toBe('assistant')
+    expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ searchRequest: undefined }),
+      undefined
+    )
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+  it('retains a saved Search chat for a user who can now Build', async () => {
+    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+    expect(composerProps().requestMode).toBe('assistant')
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+  it('shows fast results for the latest user query while the Assistant is still working', async () => {
+    mocks.chat.mockReturnValue({
+      resources: [],
+      messages: [
+        { id: '1', role: 'user', content: 'Older query' },
+        { id: '2', role: 'assistant', content: 'Earlier answer' },
+        { id: '3', role: 'user', content: 'Orion release checks' },
+      ],
+      isSending: true,
+      sendMessage: mocks.send,
+    })
+    await act(async () =>
+      renderHome(<OrganizationHome chatId='search-a' requestMode='assistant' />)
+    )
+    expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        organizationId: 'organization-a',
+        searchRequest: { messageId: '3', query: 'Orion release checks' },
+      }),
+      undefined
+    )
+    expect(mocks.chat).toHaveBeenLastCalledWith(
+      { organizationId: 'organization-a' },
+      'search-a',
+      expect.objectContaining({ requestMode: 'assistant', projectsDesktopTabs: false })
+    )
+  })
+  it('keeps old Build history readable after permission removal without a writable composer', async () => {
+    mocks.context.mockReturnValue({ ...mocks.context(), canBuild: false })
+    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='agent' />))
+    expect(mocks.composer).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Build requires permission')
+    expect(container.querySelector('a')?.getAttribute('href')).toBe('/o/organization-a/home')
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+})
+
+it('passes explicitly selected skill workspace contexts through the ordinary Build send', async () => {
+  await act(async () => renderHome(<OrganizationHome />))
+  const contexts = [
+    { kind: 'skill' as const, skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+  ]
+  await act(async () => composerProps().onSubmit('/review Check this draft', contexts))
+  expect(mocks.send).toHaveBeenCalledWith('/review Check this draft', undefined, contexts, {
+    requestMode: 'agent',
+  })
+})
+
+describe('same-chat mode selection', () => {
+  it('preserves an existing chat and draft and applies the selected harness to its next turn', async () => {
+    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='agent' />))
+    await act(async () => composerProps().onChange('Keep this draft'))
+    await act(async () => composerProps().onModeChange?.('assistant'))
+    expect(composerProps().value).toBe('Keep this draft')
+    expect(composerProps().requestMode).toBe('assistant')
+    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(mocks.chat).toHaveBeenLastCalledWith(
+      { organizationId: 'organization-a' },
+      'chat-a',
+      expect.objectContaining({ requestMode: 'assistant' })
+    )
+    await act(async () => composerProps().onSubmit('Keep this draft'))
+    expect(mocks.send).toHaveBeenLastCalledWith('Keep this draft', undefined, undefined, {
+      requestMode: 'assistant',
+    })
+    expect(useOrganizationChatModeStore.getState().modes['reader:organization-a']).toBe('assistant')
+  })
+  it('uses only this user and organization preference for new chats without changing saved chats', async () => {
+    const store = useOrganizationChatModeStore.getState()
+    store.setMode('other-user', 'organization-a', 'assistant')
+    store.setMode('reader', 'other-org', 'assistant')
+    await act(async () => renderHome(<OrganizationHome />))
+    expect(composerProps().requestMode).toBe('agent')
+    await act(async () => store.setMode('reader', 'organization-a', 'assistant'))
+    expect(composerProps().requestMode).toBe('assistant')
+    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+    await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='agent' />))
+    expect(composerProps().requestMode).toBe('agent')
+    expect(useOrganizationChatModeStore.getState().modes['reader:organization-a']).toBe('assistant')
+  })
+  it.each(['isSending', 'isReconnecting', 'messageQueue'] as const)(
+    'blocks changes while %s is active',
+    async (field) => {
+      mocks.chat.mockReturnValue({
+        ...mocks.chat(),
+        [field]: field === 'messageQueue' ? [{ id: 'queued' }] : true,
+      })
+      await act(async () => renderHome(<OrganizationHome />))
+      expect(composerProps().modeChangeDisabled).toBe(true)
+      await act(async () => composerProps().onModeChange?.('assistant'))
+      expect(composerProps().requestMode).toBe('agent')
+      expect(useOrganizationChatModeStore.getState().modes).toEqual({})
+    }
+  )
+  it('offers only Search without a picker when creation is forbidden', async () => {
+    mocks.context.mockReturnValue({ ...mocks.context(), canBuild: false })
+    await act(async () => renderHome(<OrganizationHome />))
+    expect(composerProps().showModeSelector).toBe(false)
+    expect(composerProps().requestMode).toBe('assistant')
+    await act(async () => composerProps().onModeChange?.('agent'))
+    expect(composerProps().requestMode).toBe('assistant')
+  })
+})
+
+it('does not seed results for a Build turn just because Search is selected next', async () => {
+  mocks.chat.mockReturnValue({
+    ...mocks.chat(),
+    messages: [{ id: 'user-1', role: 'user', content: 'Build a table', requestMode: 'agent' }],
+  })
+  mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='agent' />))
+  await act(async () => composerProps().onModeChange?.('assistant'))
+  expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
+    expect.objectContaining({ searchRequest: undefined }),
+    undefined
+  )
+})
+
+it('keeps the latest submitted Search query when the next turn is switched to Build', async () => {
+  mocks.chat.mockReturnValue({
+    ...mocks.chat(),
+    messages: [
+      { id: 'user-1', role: 'user', content: 'Find the release note', requestMode: 'assistant' },
+    ],
+  })
+  mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  await act(async () => composerProps().onModeChange?.('agent'))
+  expect(mocks.resourcePanel).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      searchRequest: { messageId: 'user-1', query: 'Find the release note' },
+    }),
+    undefined
+  )
 })

@@ -38,8 +38,9 @@ export const knowledgeKeys = {
     scopeKey: string | undefined,
     query: string,
     filters?: WorkspaceSearchFilters,
+    topK = 20,
     userId?: string
-  ) => [...knowledgeKeys.searchQuery(scopeKey, query, userId), filters ?? {}] as const,
+  ) => [...knowledgeKeys.searchQuery(scopeKey, query, userId), filters ?? {}, topK] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
   tagUsage: (knowledgeBaseId: string) =>

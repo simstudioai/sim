@@ -7,7 +7,6 @@ import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 import OrganizationSearchLoading from '@/app/o/[organizationId]/search/loading'
-import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
 
 export const metadata: Metadata = { title: 'Chat' }
 
@@ -31,7 +30,11 @@ export default async function OrganizationChatPage({
     if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
     return (
       <Suspense fallback={<OrganizationSearchLoading />}>
-        <OrganizationSearch userName={session.user.name ?? undefined} chatId={chatId} />
+        <OrganizationHome
+          requestMode='assistant'
+          userName={session.user.name ?? undefined}
+          chatId={chatId}
+        />
       </Suspense>
     )
   }

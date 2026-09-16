@@ -94,6 +94,9 @@ type KnowledgeSearchResultsProps = (
   | { scope: ResourceScope; workspaceId?: never }
 ) & {
   query: string
+  /** A tool-owned search keeps its exact scope instead of inheriting page filters. */
+  filters?: WorkspaceSearchFilters
+  topK?: number
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
 }
@@ -103,6 +106,8 @@ export function KnowledgeSearchResults({
   workspaceId,
   scope: suppliedScope,
   query,
+  filters: suppliedFilters,
+  topK,
   onSummarize,
 }: KnowledgeSearchResultsProps) {
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
@@ -113,18 +118,22 @@ export function KnowledgeSearchResults({
       key={JSON.stringify([resourceScopeKey(scope), session?.user?.id, trimmed])}
       scope={scope}
       query={trimmed}
+      suppliedFilters={suppliedFilters}
+      topK={topK}
       onSummarize={onSummarize}
     />
   )
 }
 
 interface SearchResultsProps {
+  suppliedFilters?: WorkspaceSearchFilters
+  topK?: number
   scope: ResourceScope
   query: string
   onSummarize: KnowledgeSearchResultsProps['onSummarize']
 }
 
-function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
+function SearchResults({ scope, query, onSummarize, suppliedFilters, topK }: SearchResultsProps) {
   const [searchedAt] = useState(Date.now)
   const {
     data: index,
@@ -135,12 +144,13 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   } = useSearchIndex(scope)
   const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
   const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
-  const searchFilters: WorkspaceSearchFilters = {
+  const pageFilters: WorkspaceSearchFilters = {
     ...(filters.source ? { source: filters.source } : {}),
     ...(window?.days
       ? { modifiedAfter: new Date(searchedAt - window.days * DAY_MS).toISOString() }
       : {}),
   }
+  const searchFilters = suppliedFilters ?? pageFilters
   const {
     data: search,
     isPending,
@@ -148,7 +158,7 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
     isPlaceholderData,
     isError: searchFailed,
     refetch: refetchSearch,
-  } = useWorkspaceKnowledgeSearch(scope, query, searchFilters)
+  } = useWorkspaceKnowledgeSearch(scope, query, searchFilters, topK)
   const { data: overview } = useSearchSourceOverview(scope)
   const indexing = (overview?.providers ?? [])
     .filter((provider) => provider.isSyncing)
@@ -222,43 +232,45 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
           </Chip>
         )}
       </div>
-      <div
-        role='group'
-        aria-label='Search filters'
-        className='flex flex-wrap items-center gap-1.5 px-2 pb-2'
-      >
-        <Chip
-          shape='round'
-          active={filters.source === null}
-          aria-pressed={filters.source === null}
-          onClick={() => setFilters({ source: null })}
+      {suppliedFilters === undefined && (
+        <div
+          role='group'
+          aria-label='Search filters'
+          className='flex flex-wrap items-center gap-1.5 px-2 pb-2'
         >
-          All sources
-        </Chip>
-        {sourceTypes.map((type) => (
           <Chip
-            key={type}
             shape='round'
-            active={filters.source === type}
-            aria-pressed={filters.source === type}
-            onClick={() => setFilters({ source: filters.source === type ? null : type })}
+            active={filters.source === null}
+            aria-pressed={filters.source === null}
+            onClick={() => setFilters({ source: null })}
           >
-            {type === UPLOAD_SOURCE ? 'Uploads' : connectorDisplayName(type)}
+            All sources
           </Chip>
-        ))}
-        <span aria-hidden className='mx-0.5 h-[16px] w-px bg-[var(--border)]' />
-        {UPDATED_WINDOWS.map((window) => (
-          <Chip
-            key={window.id}
-            shape='round'
-            active={filters.updated === window.id}
-            aria-pressed={filters.updated === window.id}
-            onClick={() => setFilters({ updated: window.id })}
-          >
-            {window.label}
-          </Chip>
-        ))}
-      </div>
+          {sourceTypes.map((type) => (
+            <Chip
+              key={type}
+              shape='round'
+              active={filters.source === type}
+              aria-pressed={filters.source === type}
+              onClick={() => setFilters({ source: filters.source === type ? null : type })}
+            >
+              {type === UPLOAD_SOURCE ? 'Uploads' : connectorDisplayName(type)}
+            </Chip>
+          ))}
+          <span aria-hidden className='mx-0.5 h-[16px] w-px bg-[var(--border)]' />
+          {UPDATED_WINDOWS.map((window) => (
+            <Chip
+              key={window.id}
+              shape='round'
+              active={filters.updated === window.id}
+              aria-pressed={filters.updated === window.id}
+              onClick={() => setFilters({ updated: window.id })}
+            >
+              {window.label}
+            </Chip>
+          ))}
+        </div>
+      )}
       {!failed && !basesPending && documents.length > 0 && (
         <div
           role='region'

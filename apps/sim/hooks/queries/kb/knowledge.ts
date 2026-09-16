@@ -1207,7 +1207,8 @@ async function searchWorkspaceKnowledge(
 export function useWorkspaceKnowledgeSearch(
   owner: string | ResourceScope | undefined,
   query: string,
-  filters?: WorkspaceSearchFilters
+  filters?: WorkspaceSearchFilters,
+  topK = 20
 ) {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
@@ -1222,13 +1223,14 @@ export function useWorkspaceKnowledgeSearch(
   const scopeKey =
     scope?.kind === 'workspace' ? scope.workspaceId : scope ? resourceScopeKey(scope) : undefined
   return useQuery({
-    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters, userId),
+    queryKey: knowledgeKeys.search(scopeKey, trimmed, filters, topK, userId),
     queryFn: ({ signal }) =>
       searchWorkspaceKnowledge(
         {
           ...(scope ? resourceScopeFields(scope) : {}),
           query: trimmed,
           filters,
+          topK,
         },
         signal
       ),
@@ -1238,6 +1240,7 @@ export function useWorkspaceKnowledgeSearch(
     placeholderData: (previous, previousQuery) =>
       userId &&
       previousQuery?.state.status === 'success' &&
+      previousQuery.queryKey[6] === topK &&
       !previousQuery.state.isInvalidated &&
       knowledgeKeys
         .searchQuery(scopeKey, trimmed, userId)

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, useState } from 'react'
+import { act, type ComponentProps, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,8 +10,44 @@ const mocks = vi.hoisted(() => ({
   toggleListening: vi.fn(),
   resetTranscript: vi.fn(),
   submit: vi.fn(),
+  contexts: vi.fn(),
   upload: vi.fn(),
 }))
+
+vi.mock('@/hooks/queries/workspace', () => ({
+  useWorkspacesQuery: () => ({
+    data: [
+      {
+        id: 'workspace-a',
+        name: 'Team',
+        organizationId: 'organization-a',
+        workspaceMode: 'grandfathered_shared',
+      },
+      {
+        id: 'workspace-other',
+        name: 'Other org',
+        organizationId: 'organization-b',
+        workspaceMode: 'organization',
+      },
+    ],
+  }),
+}))
+vi.mock('@/hooks/queries/skills', () => ({
+  useSkills: (workspaceId: string) => ({
+    data:
+      workspaceId === 'workspace-a'
+        ? [{ id: 'skill-a', name: 'review', description: 'Review a draft' }]
+        : [],
+  }),
+}))
+vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
+vi.mock('@/blocks/integration-matcher', () => ({
+  getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
+}))
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/plus-menu-dropdown',
+  () => ({ PlusMenuDropdown: () => null })
+)
 
 vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
@@ -30,6 +66,22 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  HTMLElement.prototype.scrollIntoView = vi.fn()
+  vi.stubGlobal(
+    'DataTransfer',
+    class {
+      files: File[] = []
+      items = { add: (file: File) => this.files.push(file) }
+    }
+  )
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+  )
   vi.stubGlobal(
     'URL',
     class extends URL {
@@ -71,7 +123,11 @@ afterEach(async () => {
 async function render(
   isInitialView: boolean,
   initialValue = 'Summarize',
-  requestMode: 'agent' | 'assistant' = 'assistant'
+  requestMode: 'agent' | 'assistant' = 'assistant',
+  controls: Pick<
+    ComponentProps<typeof Composer>,
+    'isSending' | 'showModeSelector' | 'onModeChange' | 'modeChangeDisabled' | 'restoredContexts'
+  > = { isSending: false }
 ) {
   function Harness() {
     const [value, setValue] = useState(initialValue)
@@ -83,14 +139,19 @@ async function render(
     return (
       <Composer
         requestMode={requestMode}
+        showModeSelector={controls.showModeSelector}
+        onModeChange={controls.onModeChange}
+        modeChangeDisabled={controls.modeChangeDisabled}
+        restoredContexts={controls.restoredContexts}
         value={value}
         files={files}
         onChange={setValue}
         isInitialView={isInitialView}
-        isSending={false}
+        isSending={controls.isSending}
         onStop={vi.fn()}
-        onSubmit={() => {
-          mocks.submit(value, files.attachedFiles)
+        onSubmit={(text, contexts) => {
+          mocks.submit(text, files.attachedFiles)
+          mocks.contexts(contexts)
           setValue('')
           files.clearAttachedFiles()
         }}
@@ -106,6 +167,9 @@ describe('organization voice composer', () => {
     async (isInitialView) => {
       await render(isInitialView)
       const mic = container.querySelector<HTMLButtonElement>('button[aria-label="Voice input"]')!
+      expect(mic.previousElementSibling?.getAttribute('aria-label')).toBe(
+        'Model and reasoning effort'
+      )
       expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
       await act(async () => mic.click())
       expect(mocks.toggleListening).toHaveBeenCalledOnce()
@@ -144,7 +208,14 @@ function fileList(files: File[]): FileList {
 
 async function paste(files: File[]) {
   const event = new Event('paste', { bubbles: true, cancelable: true })
-  Object.defineProperty(event, 'clipboardData', { value: { files: fileList(files) } })
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      files: fileList(files),
+      items: files.map((file) => ({ kind: 'file', getAsFile: () => file })),
+      getData: () => '',
+      types: [],
+    },
+  })
   await act(async () => container.querySelector('textarea')!.dispatchEvent(event))
   return event
 }
@@ -264,3 +335,161 @@ it('uploads an agent document with explicit mode while Assistant remains image-o
   expect(container.querySelector('input[type="file"]')?.getAttribute('accept')).toContain('.txt')
   expect(container.querySelector('button[aria-label="Model and reasoning effort"]')).not.toBeNull()
 })
+
+it('discovers an organization-owned legacy workspace and sends its scoped skill context', async () => {
+  await render(true, '', 'agent')
+  const slash = container.querySelector<HTMLButtonElement>('button[aria-label="Skills"]')!
+  expect(slash.previousElementSibling?.getAttribute('aria-label')).toBe('Attach file')
+  expect(slash.previousElementSibling?.previousElementSibling?.getAttribute('aria-label')).toBe(
+    'Add resources'
+  )
+  await act(async () =>
+    slash.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  expect(document.body.textContent).not.toContain('Other org')
+  const workspace = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (item) => item.textContent === 'Team'
+  )!
+  await act(async () => workspace.click())
+  const skill = [...document.querySelectorAll<HTMLElement>('button')].find(
+    (item) => item.textContent === 'review'
+  )!
+  expect(skill).toBeDefined()
+  await act(async () => skill.click())
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
+  )
+  expect(mocks.submit.mock.calls.at(-1)?.[0]).toBe('/review ')
+  expect(mocks.contexts).toHaveBeenLastCalledWith([
+    { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+  ])
+})
+
+it('keeps restored queued skills scoped when replacing a draft', async () => {
+  let restore: () => void = () => {}
+  function Harness() {
+    const [value, setValue] = useState('Original draft')
+    const [contexts, setContexts] = useState<ComponentProps<typeof Composer>['restoredContexts']>()
+    restore = () => {
+      setValue('/review fix this')
+      setContexts([
+        { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+      ])
+    }
+    const files = useFileAttachments({
+      userId: 'user-a',
+      organizationId: 'organization-a',
+      requestMode: 'agent',
+    })
+    return (
+      <Composer
+        requestMode='agent'
+        value={value}
+        onChange={setValue}
+        restoredContexts={contexts}
+        files={files}
+        isInitialView={false}
+        isSending={false}
+        onStop={() => {}}
+        onSubmit={mocks.submit}
+      />
+    )
+  }
+  await act(async () => root.render(<Harness />))
+  await act(async () => restore())
+  expect(container.querySelector('textarea')!.value).toBe('\u2003review fix this')
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
+  )
+  expect(mocks.submit).toHaveBeenLastCalledWith('/review fix this', [
+    { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+  ])
+})
+
+it('does not expose resource or skill controls in Search', async () => {
+  await render(true)
+  expect(container.querySelector('[aria-label="Skills"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Add resources"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Attach images"]')).not.toBeNull()
+})
+
+it('lists organization-owned legacy workspaces in the resource picker', async () => {
+  await render(true, '', 'agent')
+  const plus = container.querySelector<HTMLButtonElement>('button[aria-label="Add resources"]')!
+  await act(async () =>
+    plus.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].map(
+    (item) => item.textContent
+  )
+  expect(items).toContain('Team')
+  expect(items).not.toContain('Other org')
+  expect(items).not.toContain('No accessible workspaces')
+})
+
+it('offers a text-only controlled mode picker after the staging input controls', async () => {
+  const onModeChange = vi.fn()
+  await render(true, 'Preserved draft', 'agent', {
+    isSending: false,
+    showModeSelector: true,
+    onModeChange,
+  })
+  const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
+  expect(mode.previousElementSibling?.getAttribute('aria-label')).toBe('Skills')
+  expect(mode.querySelector('svg')).toBeNull()
+  await act(async () =>
+    mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  const search = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+    (item) => item.textContent === 'Search'
+  )!
+  expect(search.querySelector('svg')).toBeNull()
+  await act(async () => search.click())
+  expect(onModeChange).toHaveBeenCalledExactlyOnceWith('assistant')
+  expect(container.querySelector('textarea')!.value).toBe('Preserved draft')
+})
+
+it('disables the mode picker when the parent has queued messages', async () => {
+  await render(true, '', 'agent', {
+    isSending: false,
+    showModeSelector: true,
+    onModeChange: vi.fn(),
+    modeChangeDisabled: true,
+  })
+  expect(
+    container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!.disabled
+  ).toBe(true)
+})
+
+it.each(['skill', 'file'] as const)(
+  'keeps a Build draft intact when %s context cannot move to Search',
+  async (kind) => {
+    const onModeChange = vi.fn()
+    const info = vi.spyOn(toast, 'info').mockReturnValue('notice')
+    await render(true, kind === 'skill' ? '/review Draft' : 'Document draft', 'agent', {
+      isSending: false,
+      showModeSelector: true,
+      onModeChange,
+      restoredContexts:
+        kind === 'skill'
+          ? [{ kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' }]
+          : undefined,
+    })
+    if (kind === 'file')
+      await paste([new File(['document'], 'note.pdf', { type: 'application/pdf' })])
+    const before = container.querySelector('textarea')!.value
+    const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
+    await act(async () =>
+      mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    const search = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+      (item) => item.textContent === 'Search'
+    )!
+    await act(async () => search.click())
+    expect(onModeChange).not.toHaveBeenCalled()
+    expect(info).toHaveBeenCalledWith(
+      'Remove resource and skill mentions and non-image attachments before switching to Search.'
+    )
+    expect(container.querySelector('textarea')!.value).toBe(before)
+  }
+)

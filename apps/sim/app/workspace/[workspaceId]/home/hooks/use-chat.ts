@@ -1198,7 +1198,7 @@ export function useChat(
     options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
   )
   requestModeRef.current =
-    chatHistory?.mode ?? options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
+    options?.requestMode ?? chatHistory?.mode ?? (organizationId ? 'assistant' : 'agent')
   const messages = useMemo(() => {
     const source = chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages
     return source.map((m) => restoreRevealedSimKeysForMessage(m, revealedSimKeysRef.current))

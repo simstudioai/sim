@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
+import Link from 'next/link'
 import { requestJson } from '@/lib/api/client/request'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
@@ -28,6 +30,8 @@ import type {
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
+import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
+import type { ChatContext } from '@/stores/panel'
 
 interface OrganizationHomeProps {
   userName?: string
@@ -35,27 +39,36 @@ interface OrganizationHomeProps {
   requestMode?: ChatRequestMode
 }
 
-/** Private organization chats, with an explicit Home or Search conversation intent. */
+/** Home chooses the next turn harness while keeping the current conversation intact. */
 export function OrganizationHome(props: OrganizationHomeProps) {
-  const { organization, searchAccess, mothershipAvailable } = useOrganizationContext()
-  if (props.requestMode === 'assistant' ? !searchAccess.memberScoped : !mothershipAvailable)
-    return null
-  return (
-    <OrganizationHomeContent
-      key={`${organization.id}:${props.chatId ?? 'new'}:${props.requestMode ?? 'agent'}`}
-      {...props}
-    />
-  )
+  const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
+  if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
+  return <OrganizationHomeContent key={`${organization.id}:${props.chatId ?? 'new'}`} {...props} />
 }
 
 function OrganizationHomeContent({
   userName,
   chatId,
-  requestMode = 'agent',
+  requestMode: savedMode,
 }: OrganizationHomeProps) {
-  const { organization, searchAccess } = useOrganizationContext()
+  const { organization, searchAccess, canBuild } = useOrganizationContext()
   const { data: session } = useSession()
+  const userId = session?.user?.id
+  const rememberedMode = useOrganizationChatModeStore(
+    (state) => state.modes[`${userId}:${organization.id}`]
+  )
+  const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
+  const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
+  const requestMode =
+    selectedMode ??
+    savedMode ??
+    (!canBuild
+      ? 'assistant'
+      : rememberedMode === 'assistant' && searchAccess.memberScoped
+        ? 'assistant'
+        : 'agent')
   const [draft, setDraft] = useState('')
+  const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>([])
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
   const chat = useChat({ organizationId: organization.id }, chatId, {
@@ -118,7 +131,8 @@ function OrganizationHomeContent({
       requestMode
     )
     if (handoff && (handoff.message || handoff.fileAttachments?.length)) {
-      void sendMessage(handoff.message ?? '', handoff.fileAttachments, undefined, {
+      setSelectedMode(requestMode)
+      void sendMessage(handoff.message ?? '', handoff.fileAttachments, handoff.contexts, {
         requestMode,
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
@@ -128,13 +142,31 @@ function OrganizationHomeContent({
     }
   }, [chatId, organization.id, requestMode, sendMessage])
 
-  const send = (message: string, fileAttachments?: FileAttachmentForApi[]) => {
-    panel.prepareResourceViewForAgentTurn()
-    void sendMessage(message, fileAttachments, undefined, { requestMode })
+  const send = (
+    message: string,
+    fileAttachments?: FileAttachmentForApi[],
+    contexts?: ChatContext[],
+    assistantSearch?: WorkspaceSearchFilters
+  ) => {
+    if (requestMode === 'agent' && !canBuild) return
+    setSelectedMode(requestMode)
+    if (requestMode === 'agent') panel.prepareResourceViewForAgentTurn()
+    void sendMessage(message, fileAttachments, contexts, {
+      requestMode,
+      ...(assistantSearch ? { assistantSearch } : {}),
+    })
+  }
+  const modeChangeDisabled =
+    chat.isSending || chat.isReconnecting || Boolean(chat.messageQueue?.length)
+  const changeMode = (mode: ChatRequestMode) => {
+    if (!canBuild || !searchAccess.memberScoped || modeChangeDisabled || mode === requestMode)
+      return
+    setSelectedMode(mode)
+    if (userId) rememberMode(userId, organization.id, mode)
   }
 
-  const submit = () => {
-    const message = draft.trim()
+  const submit = (text: string, contexts?: ChatContext[]) => {
+    const message = text.trim()
     if (files.attachedFiles.some((file) => file.uploading)) return
     const attachments: FileAttachmentForApi[] = files.attachedFiles
       .filter((file) => file.key)
@@ -148,25 +180,40 @@ function OrganizationHomeContent({
       }))
     if (!message && !attachments.length) return
     setDraft('')
-    send(message, attachments.length ? attachments : undefined)
+    send(message, attachments.length ? attachments : undefined, contexts)
+    setRestoredContexts([])
     files.clearAttachedFiles()
   }
 
   const hasChat = Boolean(chatId || chat.messages.length)
-  const composer = (
-    <Composer
-      requestMode={requestMode}
-      value={draft}
-      files={files}
-      isInitialView={!hasChat}
-      isSending={chat.isSending || chat.isReconnecting}
-      onChange={setDraft}
-      onSubmit={submit}
-      onStop={() => {
-        void chat.stopGeneration()
-      }}
-    />
-  )
+  const composer =
+    requestMode === 'agent' && !canBuild ? (
+      <div className='px-4 py-3 text-[var(--text-muted)] text-sm'>
+        Build requires permission to create workspaces.{' '}
+        {searchAccess.memberScoped && (
+          <Link href={`/o/${organization.id}/home`} className='underline'>
+            Start a Search chat
+          </Link>
+        )}
+      </div>
+    ) : (
+      <Composer
+        requestMode={requestMode}
+        showModeSelector={canBuild && searchAccess.memberScoped}
+        onModeChange={changeMode}
+        modeChangeDisabled={modeChangeDisabled}
+        value={draft}
+        restoredContexts={restoredContexts}
+        files={files}
+        isInitialView={!hasChat}
+        isSending={chat.isSending || chat.isReconnecting}
+        onChange={setDraft}
+        onSubmit={submit}
+        onStop={() => {
+          void chat.stopGeneration()
+        }}
+      />
+    )
 
   const content = (
     <div className='flex h-full min-h-0 min-w-[240px] flex-1 flex-col bg-[var(--bg)]'>
@@ -190,6 +237,7 @@ function OrganizationHomeContent({
             const queued = chat.editQueuedMessage(id)
             if (queued) {
               setDraft(queued.content)
+              setRestoredContexts(queued.contexts ?? [])
               files.restoreAttachedFiles(
                 (queued.fileAttachments ?? []).map((file) => ({
                   id: file.id,
@@ -233,11 +281,23 @@ function OrganizationHomeContent({
       )}
     </div>
   )
-  return requestMode === 'agent' ? (
-    <ChatResourcePanel organizationId={organization.id} chat={chat} panel={panel}>
+  const latestQuestion = [...chat.messages]
+    .reverse()
+    .find((message) => message.role === 'user' && message.origin !== 'task')
+  const latestQuestionMode = latestQuestion?.requestMode ?? savedMode ?? requestMode
+  return (
+    <ChatResourcePanel
+      organizationId={organization.id}
+      chat={chat}
+      panel={panel}
+      searchRequest={
+        latestQuestion && latestQuestionMode === 'assistant'
+          ? { messageId: latestQuestion.id, query: latestQuestion.content.trim() }
+          : undefined
+      }
+      onSummarize={(message, filters) => send(message, undefined, undefined, filters)}
+    >
       {content}
     </ChatResourcePanel>
-  ) : (
-    content
   )
 }

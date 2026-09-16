@@ -21,7 +21,8 @@ export default async function OrganizationHomePage({
   if (!session?.user?.id) notFound()
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
   if (!context) notFound()
-  if (!context.mothershipAvailable) redirect(WORKSPACE_SETTINGS_PATH)
+  if (!context.mothershipAvailable || (!context.canBuild && !context.searchAccess.memberScoped))
+    redirect(WORKSPACE_SETTINGS_PATH)
 
   return (
     <Suspense fallback={<OrganizationHomeLoading />}>

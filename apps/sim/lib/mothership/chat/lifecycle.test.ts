@@ -314,6 +314,41 @@ describe('organization chat isolation', () => {
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
 
+  it.each(['agent', 'assistant'] as const)(
+    'retains the same transcript and resources when requesting %s for the next turn',
+    async (mode) => {
+      const resources = [{ type: 'table', id: 'table', title: 'Evidence' }]
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        {
+          ...chatRow,
+          organizationId: 'org-1',
+          type: 'mothership',
+          mode: mode === 'agent' ? 'assistant' : 'agent',
+          resources,
+        },
+      ])
+      dbChainMockFns.orderBy.mockResolvedValueOnce([{ content: userMsg }, { content: asstMsg }])
+      const result = await resolveOrCreateChat({
+        chatId: CHAT_ID,
+        userId: USER_ID,
+        organizationId: 'org-1',
+        principal: orgPrincipal,
+        mode,
+        model: 'm',
+        type: 'mothership',
+      })
+      expect(result.chatId).toBe(CHAT_ID)
+      expect(result.isNew).toBe(false)
+      expect(result.chat?.resources).toEqual(resources)
+      expect(result.conversationHistory).toEqual([userMsg, asstMsg])
+      expect(mockAuthorizeOrganization).toHaveBeenCalledWith({
+        principal: orgPrincipal,
+        input: { organizationId: 'org-1', mode },
+      })
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
   it('refuses to resume an org chat through a different organization', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       { ...chatRow, organizationId: 'org-2', type: 'mothership' },

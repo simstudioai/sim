@@ -1,7 +1,13 @@
 /** @vitest-environment node */
 import { copilotChats, copilotRuns, member } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 
 const mocks = vi.hoisted(() => ({
@@ -9,7 +15,12 @@ const mocks = vi.hoisted(() => ({
   lease: vi.fn(),
   config: vi.fn(),
   banned: vi.fn(),
+  searchAvailable: vi.fn(),
 }))
+vi.mock('@/lib/knowledge/access/availability', () => ({
+  requireOrganizationSearchAvailable: mocks.searchAvailable,
+}))
+afterAll(resetEnvFlagsMock)
 vi.mock('@/lib/mothership/chat/messages-store', () => ({ appendCopilotChatMessages: mocks.append }))
 vi.mock('@/lib/mothership/request/session/controller-lease', () => ({
   assertChatStreamLease: mocks.lease,
@@ -30,13 +41,13 @@ const chat = {
   workspaceId: null,
   type: 'mothership',
 }
-function input() {
+function input(mode: 'assistant' | 'agent' = 'assistant') {
   return {
     chatId,
     runId: 'run-1',
     executionId: 'execution-1',
     requestId: 'request-1',
-    message: { id: streamId, content: 'Find the policy', requestMode: 'assistant' as const },
+    message: { id: streamId, content: 'Find the policy', requestMode: mode },
     recovery: {
       kind: 'interactive_stream' as const,
       goRoute: '/api/mothership' as const,
@@ -46,7 +57,7 @@ function input() {
         chatId,
         messageId: streamId,
         organizationId: 'org-1',
-        mode: 'assistant' as const,
+        mode,
         message: 'Find the policy',
       },
     },
@@ -62,6 +73,8 @@ describe('organization turn admission through current private-chat authorization
     resetDbChainMock()
     mocks.config.mockResolvedValue(null)
     mocks.banned.mockResolvedValue([])
+    mocks.searchAvailable.mockResolvedValue(undefined)
+    setEnvFlags({ isBillingEnabled: true })
   })
   it('persists the organization owner and accepted message in the existing admission transaction', async () => {
     queueTableRows(copilotChats, [chat])
@@ -93,6 +106,64 @@ describe('organization turn admission through current private-chat authorization
       expect.objectContaining({ streamId }),
       expect.anything()
     )
+  })
+  it.each(['agent', 'assistant'] as const)(
+    'switches the same chat to %s atomically with turn admission',
+    async (mode) => {
+      queueTableRows(copilotChats, [{ ...chat, mode: mode === 'agent' ? 'assistant' : 'agent' }])
+      queueTableRows(member, [{ role: 'owner' }])
+      if (mode === 'agent') queueTableRows(member, [{ role: 'owner' }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([{ model: null }])
+        .mockResolvedValueOnce([{ id: 'run-1' }])
+        .mockResolvedValueOnce([{ key: 'claim' }])
+      await admitChatTurn.execute({ principal, input: input(mode) })
+      const update = dbChainMockFns.set.mock.calls[0][0]
+      expect(Object.keys(update).sort()).toEqual(['config', 'conversationId', 'updatedAt'])
+      expect(update.config.toSQL().sql).toContain("jsonb_build_object('conversationMode'")
+      expect(update.config.toSQL().params).toContain(mode)
+      expect(mocks.append).toHaveBeenCalledWith(
+        chatId,
+        [expect.objectContaining({ requestMode: mode })],
+        expect.anything(),
+        expect.anything()
+      )
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestContext: expect.objectContaining({
+            recovery: expect.objectContaining({
+              request: expect.objectContaining({ mode, chatId }),
+            }),
+          }),
+        })
+      )
+    }
+  )
+  it('denies switching to Build without current workspace-create permission before any mutation', async () => {
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(admitChatTurn.execute({ principal, input: input('agent') })).rejects.toThrow(
+      'Build requires permission'
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mocks.append).not.toHaveBeenCalled()
+  })
+  it('denies switching to Search after its availability is revoked', async () => {
+    queueTableRows(copilotChats, [{ ...chat, mode: 'agent' }])
+    queueTableRows(member, [{ role: 'owner' }])
+    mocks.searchAvailable.mockRejectedValueOnce(new Error('Search disabled'))
+    await expect(admitChatTurn.execute({ principal, input: input() })).rejects.toThrow(
+      'Search disabled'
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+  it('does not rewrite mode if the stream lease is lost', async () => {
+    queueTableRows(copilotChats, [{ ...chat, mode: 'agent' }])
+    queueTableRows(member, [{ role: 'owner' }])
+    mocks.lease.mockRejectedValueOnce(new Error('Lease lost'))
+    await expect(admitChatTurn.execute({ principal, input: input() })).rejects.toThrow('Lease lost')
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
   it.each([
     { ...chat, userId: 'other' },
