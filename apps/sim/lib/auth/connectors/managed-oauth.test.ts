@@ -45,7 +45,6 @@ describe('Atlassian managed OAuth connector', () => {
       requiresRefreshToken: true,
       pkce: false,
       nonceVerification: 'state_only',
-      includeLoginHint: false,
       authorizationUrlParams: { audience: 'api.atlassian.com' },
     })
     expect(fetchMock).toHaveBeenCalledWith(
@@ -490,7 +489,6 @@ describe('Microsoft managed OAuth connector', () => {
           requiresRefreshToken: true,
           pkce: true,
           nonceVerification: 'id_token',
-          includeLoginHint: true,
           prompt: 'select_account',
         })
         return policy.getAuthorizationAppId(CLIENT_ID)

@@ -112,16 +112,14 @@ export async function handleCredentialGroupOAuthCallback({
       error instanceof CredentialGroupInvitationUnavailableError
         ? 'unavailable'
         : error instanceof CredentialGroupOAuthError && error.statusCode === 403
-          ? error.message.startsWith('Sign in with')
-            ? 'account_mismatch'
-            : 'permissions_required'
+          ? 'permissions_required'
           : error instanceof CredentialGroupOAuthError && error.statusCode === 409
             ? 'configuration_changed'
             : 'failed'
     if (identityFailure) {
       switch (identityFailure.reason) {
-        case 'email_mismatch':
-          status = provider === 'github-repositories' ? 'github_email_mismatch' : 'account_mismatch'
+        case 'email_unverified':
+          status = provider === 'github-repositories' ? 'github_email_unverified' : 'failed'
           break
         case 'email_access_denied':
           status =

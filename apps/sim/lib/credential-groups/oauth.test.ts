@@ -98,8 +98,8 @@ describe('credential group OAuth persistence', () => {
       providerId: POLICY.providerId,
       providerSubjectId: 'google-subject-1',
       providerTenantId: null,
-      displayName: 'person@example.com',
-      metadata: { email: 'person@example.com' },
+      displayName: 'provider@example.com',
+      metadata: { email: 'provider@example.com' },
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       grantedScopes: POLICY.requiredScopes,
@@ -177,7 +177,7 @@ describe('credential group OAuth persistence', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
-  it('returns a created event result after inserting a first credential', async () => {
+  it('persists a different-email provider account under the enrolled Sim user', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'invited' }])
     queueTableRows(schemaMock.credentialGroup, [GROUP])
     queueTableRows(schemaMock.credential, [])
@@ -214,10 +214,19 @@ describe('credential group OAuth persistence', () => {
       credentialGroupOptionId: 'option-1',
       provider: 'gmail',
       providerId: 'google-email',
-      displayName: 'person@example.com',
+      displayName: 'provider@example.com',
       enrollmentStatus: 'in_progress',
     })
     expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.credential)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createdBy: CONTEXT.credentialOwnerId,
+        credentialGroupEnrollmentId: CONTEXT.enrollmentId,
+        providerSubjectId: 'google-subject-1',
+        displayName: 'provider@example.com',
+        providerMetadata: { email: 'provider@example.com' },
+      })
+    )
   })
 
   it.each([true, false])(
@@ -362,7 +371,7 @@ describe('credential group OAuth persistence', () => {
       credentialGroupOptionId: 'option-1',
       provider: 'gmail',
       providerId: 'google-email',
-      displayName: 'person@example.com',
+      displayName: 'provider@example.com',
       enrollmentStatus: 'completed',
     })
   })
@@ -417,7 +426,7 @@ describe('credential group OAuth persistence', () => {
       credentialGroupOptionId: 'option-1',
       provider: 'gmail',
       providerId: 'google-email',
-      displayName: 'person@example.com',
+      displayName: 'provider@example.com',
       enrollmentStatus: 'completed',
     })
   })
@@ -562,7 +571,7 @@ describe('credential group OAuth persistence', () => {
       credentialGroupOptionId: 'option-1',
       provider: 'gmail',
       providerId: 'google-email',
-      displayName: 'person@example.com',
+      displayName: 'provider@example.com',
       enrollmentStatus: 'completed',
     })
   })

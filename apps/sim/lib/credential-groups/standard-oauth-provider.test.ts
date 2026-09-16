@@ -34,7 +34,6 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
           requiresRefreshToken: true,
           pkce: true,
           nonceVerification: 'id_token',
-          includeLoginHint: true,
           prompt: 'consent select_account',
           authorizationUrlParams: { include_granted_scopes: 'false' },
           getAuthorizationAppId: (clientId: string) => `google:${clientId}`,
@@ -64,7 +63,6 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
           requiresRefreshToken: true,
           pkce: false,
           nonceVerification: 'state_only',
-          includeLoginHint: false,
           prompt: 'consent',
           authorizationUrlParams: { audience: 'api.atlassian.com' },
           getAuthorizationAppId: (clientId: string) => `jira:${clientId}`,
@@ -174,7 +172,8 @@ describe('standard OAuth Credential Group provider', () => {
     expect(authorizationUrl.searchParams.get('client_id')).toBe('client-1')
     expect(authorizationUrl.searchParams.get('state')).toBe('state-1')
     expect(authorizationUrl.searchParams.get('nonce')).toBe('nonce-1')
-    expect(authorizationUrl.searchParams.get('login_hint')).toBe('person@example.com')
+    expect(authorizationUrl.searchParams.has('login_hint')).toBe(false)
+    expect(authorizationUrl.searchParams.get('prompt')).toBe('consent select_account')
     expect(authorizationUrl.searchParams.get('include_granted_scopes')).toBe('false')
     expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256')
   })
@@ -213,7 +212,52 @@ describe('standard OAuth Credential Group provider', () => {
     })
   })
 
-  it('rejects a different invited email', async () => {
+  it.each(['workspace', 'organization'] as const)(
+    'accepts a different provider email for a %s credential group',
+    async (scope) => {
+      mockVerifyIdentity.mockResolvedValueOnce({
+        providerSubjectId: 'google-sub-2',
+        providerTenantId: null,
+        email: ' Other@Example.com ',
+        emailVerified: true,
+        nonce: 'nonce-1',
+        grantedScopes: ['calendar.read', 'profile', 'openid'],
+      })
+      const context = buildContext()
+      if (scope === 'organization') {
+        context.workspaceId = undefined
+        context.organizationId = 'org-1'
+      }
+      const policy = await adapter.getPolicy(context.option, {
+        workspaceId: context.workspaceId,
+        credentialGroupId: context.credentialGroupId,
+      })
+
+      await expect(
+        adapter.exchangeAndVerify({
+          context,
+          attempt: buildAttempt(policy.scopeVersion),
+          code: 'code-1',
+          policy,
+        })
+      ).resolves.toMatchObject({
+        providerSubjectId: 'google-sub-2',
+        displayName: 'other@example.com',
+        metadata: { email: 'other@example.com' },
+      })
+      expect(mockVerifyIdentity).toHaveBeenCalledExactlyOnceWith({
+        tokens: expect.objectContaining({ accessToken: 'access-1' }),
+        clientId: 'client-1',
+      })
+    }
+  )
+
+  it.each([
+    { name: 'an unverified email', identity: { emailVerified: false }, statusCode: 502 },
+    { name: 'a mismatched nonce', identity: { nonce: 'wrong-nonce' }, statusCode: 502 },
+    { name: 'a missing nonce', identity: { nonce: undefined }, statusCode: 502 },
+    { name: 'missing permissions', identity: { grantedScopes: ['openid'] }, statusCode: 403 },
+  ])('still rejects $name when connecting a different email', async ({ identity, statusCode }) => {
     mockVerifyIdentity.mockResolvedValueOnce({
       providerSubjectId: 'google-sub-2',
       providerTenantId: null,
@@ -221,13 +265,13 @@ describe('standard OAuth Credential Group provider', () => {
       emailVerified: true,
       nonce: 'nonce-1',
       grantedScopes: ['calendar.read', 'profile', 'openid'],
+      ...identity,
     })
     const context = buildContext()
     const policy = await adapter.getPolicy(context.option, {
       workspaceId: context.workspaceId,
       credentialGroupId: context.credentialGroupId,
     })
-
     await expect(
       adapter.exchangeAndVerify({
         context,
@@ -235,11 +279,11 @@ describe('standard OAuth Credential Group provider', () => {
         code: 'code-1',
         policy,
       })
-    ).rejects.toMatchObject({ statusCode: 403 })
+    ).rejects.toMatchObject({ statusCode })
   })
 
   it.each([
-    new OAuthIdentityVerificationError('email_mismatch', 'emails'),
+    new OAuthIdentityVerificationError('email_unverified', 'emails'),
     new OAuthIdentityVerificationError('email_access_denied', 'emails', 403),
     new OAuthIdentityVerificationError('provider_unavailable', 'profile', 503),
   ])('preserves safe identity diagnostics through managed authorization: %s', async (failure) => {

@@ -246,12 +246,6 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
         expectedUserId: grant.userId,
       })
       const email = normalizeEmail(identity.email)
-      if (email !== context.email) {
-        throw new CredentialGroupOAuthError(
-          `Sign in with ${context.email} to complete this invitation.`,
-          403
-        )
-      }
 
       return {
         providerId: policy.providerId,

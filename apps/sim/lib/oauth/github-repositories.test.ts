@@ -154,7 +154,7 @@ describe('GitHub identity verification', () => {
     })
   })
 
-  it('allows an invitation to match a verified secondary work email', async () => {
+  it('uses the verified primary email for a managed connection without an invitation email', async () => {
     vi.stubGlobal(
       'fetch',
       vi
@@ -167,44 +167,40 @@ describe('GitHub identity verification', () => {
       policy.verifyIdentity({
         tokens: { accessToken: 'ghu_access' },
         clientId: 'app-client',
-        expectedEmail: 'Work@Example.com',
       })
-    ).resolves.toMatchObject({ email: work.email, providerSubjectId: '1234' })
+    ).resolves.toMatchObject({ email: primary.email, providerSubjectId: '1234' })
   })
 
   it('checks later email pages without following provider-supplied destinations', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(response(user))
-      .mockResolvedValueOnce(response(Array.from({ length: 100 }, () => primary)))
-      .mockResolvedValueOnce(response([work]))
+      .mockResolvedValueOnce(response(Array.from({ length: 100 }, () => work)))
+      .mockResolvedValueOnce(response([primary]))
     vi.stubGlobal('fetch', fetchMock)
-    await expect(verifyGitHubRepositoriesIdentity('ghu_access', work.email)).resolves.toMatchObject(
-      {
-        email: work.email,
-      }
-    )
+    await expect(verifyGitHubRepositoriesIdentity('ghu_access')).resolves.toMatchObject({
+      email: primary.email,
+    })
     expect(fetchMock.mock.calls[2]![0]).toBe(
       'https://api.github.com/user/emails?per_page=100&page=2'
     )
   })
 
-  it.each([{ emails: [primary] }, { emails: [{ ...work, verified: false }] }, { emails: [] }])(
-    'refuses absent or unverified invited email $emails',
-    async ({ emails }) => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValueOnce(response(user)).mockResolvedValueOnce(response(emails))
-      )
-      await expect(
-        verifyGitHubRepositoriesIdentity('ghu_access', work.email)
-      ).rejects.toMatchObject({
-        name: 'OAuthIdentityVerificationError',
-        reason: 'email_mismatch',
-        stage: 'emails',
-      })
-    }
-  )
+  it.each([
+    { emails: [work] },
+    { emails: [{ ...primary, verified: false }, work] },
+    { emails: [] },
+  ])('refuses absent or unverified primary email $emails', async ({ emails }) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(response(user)).mockResolvedValueOnce(response(emails))
+    )
+    await expect(verifyGitHubRepositoriesIdentity('ghu_access')).rejects.toMatchObject({
+      name: 'OAuthIdentityVerificationError',
+      reason: 'email_unverified',
+      stage: 'emails',
+    })
+  })
 
   it('rejects a bot identity', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ ...user, type: 'Bot' }))
@@ -225,7 +221,7 @@ describe('GitHub identity verification', () => {
     })
   })
 
-  it('distinguishes denied email-read permission from a verified email mismatch', async () => {
+  it('distinguishes denied email-read permission from an unverified email', async () => {
     vi.stubGlobal(
       'fetch',
       vi
@@ -233,7 +229,7 @@ describe('GitHub identity verification', () => {
         .mockResolvedValueOnce(response(user))
         .mockResolvedValueOnce(response({ message: 'Resource not accessible by integration' }, 403))
     )
-    await expect(verifyGitHubRepositoriesIdentity('ghu_access', work.email)).rejects.toMatchObject({
+    await expect(verifyGitHubRepositoriesIdentity('ghu_access')).rejects.toMatchObject({
       reason: 'email_access_denied',
       stage: 'emails',
       httpStatus: 403,
@@ -261,9 +257,7 @@ describe('GitHub identity verification', () => {
             })
           )
       )
-      await expect(
-        verifyGitHubRepositoriesIdentity('ghu_access', work.email)
-      ).rejects.toMatchObject({
+      await expect(verifyGitHubRepositoriesIdentity('ghu_access')).rejects.toMatchObject({
         reason: 'rate_limited',
         stage: 'emails',
         httpStatus: error.status,
@@ -273,7 +267,7 @@ describe('GitHub identity verification', () => {
 
   it('reports GitHub service failure without retaining its response body', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ message: work.email }, 503)))
-    const failure = await verifyGitHubRepositoriesIdentity('ghu_access', work.email).catch(
+    const failure = await verifyGitHubRepositoriesIdentity('ghu_access').catch(
       (error: unknown) => error
     )
     expect(failure).toBeInstanceOf(OAuthIdentityVerificationError)
@@ -287,7 +281,7 @@ describe('GitHub identity verification', () => {
 
   it('sanitizes network failures instead of retaining a transport error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('transport failed ghu_access')))
-    const failure = await verifyGitHubRepositoriesIdentity('ghu_access', work.email).catch(
+    const failure = await verifyGitHubRepositoriesIdentity('ghu_access').catch(
       (error: unknown) => error
     )
     expect(failure).toMatchObject({ reason: 'provider_unavailable', stage: 'profile' })
@@ -295,7 +289,7 @@ describe('GitHub identity verification', () => {
     expect(failure).not.toHaveProperty('cause')
   })
 
-  it('distinguishes an invalid email response from a verified email mismatch', async () => {
+  it('distinguishes an invalid email response from an unverified email', async () => {
     vi.stubGlobal(
       'fetch',
       vi
@@ -310,19 +304,19 @@ describe('GitHub identity verification', () => {
           ])
         )
     )
-    await expect(verifyGitHubRepositoriesIdentity('ghu_access', work.email)).rejects.toMatchObject({
+    await expect(verifyGitHubRepositoriesIdentity('ghu_access')).rejects.toMatchObject({
       reason: 'invalid_response',
       stage: 'emails',
     })
   })
 
-  it('does not claim a mismatch when the bounded email scan cannot finish', async () => {
+  it('does not claim an unverified email when the bounded email scan cannot finish', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(response(user))
     for (let page = 0; page < 10; page++) {
-      fetchMock.mockResolvedValueOnce(response(Array.from({ length: 100 }, () => primary)))
+      fetchMock.mockResolvedValueOnce(response(Array.from({ length: 100 }, () => work)))
     }
     vi.stubGlobal('fetch', fetchMock)
-    await expect(verifyGitHubRepositoriesIdentity('ghu_access', work.email)).rejects.toMatchObject({
+    await expect(verifyGitHubRepositoriesIdentity('ghu_access')).rejects.toMatchObject({
       reason: 'invalid_response',
       stage: 'emails',
     })

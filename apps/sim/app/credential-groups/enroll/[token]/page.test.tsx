@@ -307,7 +307,7 @@ describe('focused Search enrollment', () => {
   })
 
   it.each([
-    ['github_email_mismatch', 'add and verify the email address'],
+    ['github_email_unverified', 'verify your primary email address'],
     ['github_email_access_denied', 'Email addresses: Read-only permission'],
     ['provider_unavailable', 'Try connecting again in a few minutes'],
   ])(

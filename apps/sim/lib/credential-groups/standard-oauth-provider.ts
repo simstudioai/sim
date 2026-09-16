@@ -248,7 +248,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
     async getPolicy() {
       return getCurrentProvider(provider).policy
     },
-    async prepareAuthorization(context, policy) {
+    async prepareAuthorization(_context, policy) {
       const current = getCurrentProvider(provider)
       assertCurrentPolicy(policy, current.policy)
       const managed = current.connector.managedOAuth
@@ -278,7 +278,6 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
             accessType: current.connector.accessType,
             responseType: current.connector.responseType,
             responseMode: current.connector.responseMode,
-            loginHint: managed.includeLoginHint ? context.email : undefined,
             additionalParams: {
               ...staticParams(
                 current.connector.authorizationUrlParams,
@@ -292,7 +291,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
         },
       }
     },
-    async exchangeAndVerify({ context, attempt, code, policy }) {
+    async exchangeAndVerify({ attempt, code, policy }) {
       const current = getCurrentProvider(provider)
       assertCurrentPolicy(policy, current.policy)
       const redirectUri = getRedirectUri(provider, current)
@@ -331,7 +330,6 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
         identity = await managed.verifyIdentity({
           tokens,
           clientId: current.connector.clientId,
-          expectedEmail: context.email,
         })
       } catch (error) {
         throw new CredentialGroupOAuthError(
@@ -350,12 +348,6 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
         )
       }
       const email = normalizeEmail(identity.email)
-      if (email !== context.email) {
-        throw new CredentialGroupOAuthError(
-          `Sign in with ${context.email} to complete this invitation.`,
-          403
-        )
-      }
       if (!managed.hasRequiredScopes(identity.grantedScopes, policy.requiredScopes)) {
         throw new CredentialGroupOAuthError(
           `All requested ${service.name} permissions are required to connect this account.`,
