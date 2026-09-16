@@ -296,12 +296,12 @@ export function UsageMonitoring({
       <SettingsPanel
         actions={[
           {
-            text: 'Credit events',
+            text: 'All events',
             onSelect: () => router.push(eventsHref),
             onPrefetch: () => router.prefetch(eventsHref),
           },
           {
-            text: 'Export credits',
+            text: 'Export',
             icon: Download,
             onSelect: () => void handleExport(),
             disabled: isExporting,
