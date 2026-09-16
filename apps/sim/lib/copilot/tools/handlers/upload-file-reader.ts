@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { type WorkspaceFileRow, workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
@@ -115,7 +115,7 @@ export async function findMothershipUploadRowByChatAndName(
   fileName: string
 ): Promise<WorkspaceFileRow | null> {
   const exactRows = await db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
@@ -136,7 +136,7 @@ export async function findMothershipUploadRowByChatAndName(
   }
 
   const allRows = await db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
@@ -157,7 +157,7 @@ export async function findMothershipUploadRowByChatAndName(
 export async function listChatUploads(chatId: string): Promise<WorkspaceFileRecord[]> {
   try {
     const rows = await db
-      .select(workspaceFileColumns)
+      .select()
       .from(workspaceFiles)
       .where(
         and(

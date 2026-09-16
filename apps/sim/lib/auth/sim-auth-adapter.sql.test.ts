@@ -1,9 +1,7 @@
 /**
  * @vitest-environment node
  */
-import * as schema from '@sim/db/schema'
 import type { BetterAuthOptions } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { organization } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/pg-proxy'
 import { describe, expect, it, vi } from 'vitest'
@@ -69,14 +67,5 @@ describe('Better Auth organization SQL', () => {
     for (const query of queries) {
       expect(query, operation.name).not.toContain('"departed_member_usage"')
     }
-  })
-
-  it('retains the full migration schema while the unprojected adapter remains incompatible', async () => {
-    const execute = vi.fn(async (_query: string) => ({ rows: [] }))
-    const adapter = drizzleAdapter(drizzle(execute), { provider: 'pg', schema })(OPTIONS)
-
-    await adapter.findOne({ model: 'organization', where: WHERE })
-
-    expect(execute.mock.calls[0][0]).toContain('"departed_member_usage"')
   })
 })

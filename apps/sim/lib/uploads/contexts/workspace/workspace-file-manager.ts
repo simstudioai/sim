@@ -5,14 +5,7 @@
 
 import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
-import {
-  uploadSession,
-  type WorkspaceFileRow,
-  workspace,
-  workspaceFileColumns,
-  workspaceFiles,
-} from '@sim/db/schema'
+import { uploadSession, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   describeError,
@@ -267,7 +260,7 @@ async function insertWorkspaceFileMetadataInTx(
   metadata: WorkspaceFileMetadataInsert
 ): Promise<WorkspaceFileRow | undefined> {
   const [inserted] = await tx
-    .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
+    .insert(workspaceFiles)
     .values({
       ...omit(metadata, ['size']),
       sizeBytes: metadata.size,
@@ -280,7 +273,7 @@ async function insertWorkspaceFileMetadataInTx(
       contentUpdatedAt: new Date(),
     })
     .onConflictDoNothing()
-    .returning(workspaceFileColumns)
+    .returning()
   return inserted
 }
 
@@ -298,7 +291,7 @@ async function findWorkspaceFileByRegistrationKey(
   key: string
 ): Promise<WorkspaceFileRow | undefined> {
   const files = await executor
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(eq(workspaceFiles.key, key))
     .orderBy(sql`${workspaceFiles.deletedAt} IS NULL DESC`)
@@ -315,7 +308,7 @@ async function findWorkspaceFileForLifecycle(
   fileId: string
 ): Promise<WorkspaceFileRow | undefined> {
   const [file] = await executor
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
@@ -1057,7 +1050,7 @@ export async function trackChatUpload(
 
       await db.transaction(async (tx) => {
         const [inserted] = await tx
-          .insert(withInsertColumns(workspaceFiles, workspaceFileColumns))
+          .insert(workspaceFiles)
           .values({
             id: fileId,
             key: s3Key,
@@ -1223,7 +1216,7 @@ export async function getWorkspaceFileByName(
 ): Promise<WorkspaceFileRecord | null> {
   const folderId = options?.folderId ?? null
   const files = await db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
@@ -1647,7 +1640,7 @@ export async function getWorkspaceFile(
   try {
     const { includeDeleted = false } = options ?? {}
     const files = await db
-      .select(workspaceFileColumns)
+      .select()
       .from(workspaceFiles)
       .where(
         includeDeleted
@@ -1837,7 +1830,7 @@ export async function updateWorkspaceFileContent(
     try {
       finalized = await db.transaction(async (tx) => {
         const [currentFile] = await tx
-          .select(workspaceFileColumns)
+          .select()
           .from(workspaceFiles)
           .where(
             and(
@@ -1906,7 +1899,7 @@ export async function updateWorkspaceFileContent(
               isNull(workspaceFiles.deletedAt)
             )
           )
-          .returning(workspaceFileColumns)
+          .returning()
         if (!updatedFile) {
           throw new OrchestrationError('not_found', 'File not found or could not be updated')
         }
@@ -2203,7 +2196,7 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
           isNull(workspaceFiles.deletedAt)
         )
       )
-      .returning(workspaceFileColumns)
+      .returning()
     if (!archived) return
 
     logger.info(`Successfully archived workspace file: ${archived.originalName}`)
@@ -2352,7 +2345,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
             isNotNull(workspaceFiles.deletedAt)
           )
         )
-        .returning(workspaceFileColumns)
+        .returning()
       if (!restored) return
 
       logger.info(`Successfully restored workspace file: ${newName}`)

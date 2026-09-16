@@ -12,7 +12,6 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   apiKey,
   document,
@@ -26,7 +25,6 @@ import {
   oauthClient,
   oauthConsent,
   organization,
-  organizationColumns,
   organizationSearchIntegration,
   rateLimitBucket,
   user,
@@ -254,7 +252,7 @@ describe('organization Search MCP with real ingestion and current access', () =>
         updatedAt: new Date(),
       }))
     )
-    await db.insert(withInsertColumns(organization, organizationColumns)).values({
+    await db.insert(organization).values({
       id: otherOrganizationId,
       name: 'Other organization MCP fixture',
       slug: otherOrganizationId,

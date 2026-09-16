@@ -1,6 +1,5 @@
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
-import { member, organization, settings, user, userStats, userStatsColumns } from '@sim/db/schema'
+import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
@@ -156,7 +155,7 @@ export async function getOrgUsageLimit(
  */
 export async function handleNewUser(userId: string): Promise<void> {
   try {
-    await db.insert(withInsertColumns(userStats, userStatsColumns)).values({
+    await db.insert(userStats).values({
       id: generateId(),
       userId: userId,
       currentUsageLimit: getFreeTierLimit().toString(),
@@ -183,7 +182,7 @@ export async function handleNewUser(userId: string): Promise<void> {
  */
 export async function ensureUserStatsExists(userId: string): Promise<void> {
   await db
-    .insert(withInsertColumns(userStats, userStatsColumns))
+    .insert(userStats)
     .values({
       id: generateId(),
       userId: userId,
@@ -214,7 +213,7 @@ export async function getResolvedUserUsageData(
       // inserted, which a lagging replica can miss (this path throws on a
       // missing row). Stays on the primary deliberately.
       db
-        .select(userStatsColumns)
+        .select()
         .from(userStats)
         .where(eq(userStats.userId, userId))
         .limit(1),
@@ -331,7 +330,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
   try {
     const [subscription, userStatsRecord] = await Promise.all([
       getHighestPrioritySubscription(userId),
-      db.select(userStatsColumns).from(userStats).where(eq(userStats.userId, userId)).limit(1),
+      db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
     ])
 
     if (userStatsRecord.length === 0) {
@@ -582,7 +581,7 @@ export async function checkUsageStatus(userId: string): Promise<{
 export async function syncUsageLimitsFromSubscription(userId: string): Promise<void> {
   const [subscription, currentUserStats] = await Promise.all([
     getHighestPriorityPersonalSubscription(userId, { onError: 'throw' }),
-    db.select(userStatsColumns).from(userStats).where(eq(userStats.userId, userId)).limit(1),
+    db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
   ])
 
   if (currentUserStats.length === 0) {

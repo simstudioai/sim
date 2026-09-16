@@ -6,7 +6,6 @@
  */
 
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   account,
   credential,
@@ -19,7 +18,6 @@ import {
   subscription as subscriptionTable,
   user,
   userStats,
-  userStatsColumns,
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
@@ -1839,7 +1837,7 @@ export async function transferOrganizationOwnership(
 
       if (oldStats) {
         await tx
-          .insert(withInsertColumns(userStats, userStatsColumns))
+          .insert(userStats)
           .values({
             id: generateId(),
             userId: newOwnerUserId,

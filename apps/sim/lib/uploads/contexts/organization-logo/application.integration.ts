@@ -1,7 +1,6 @@
 /** Real PostgreSQL verifies cross-session registration and durable logo retention. */
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
-import { member, organization, organizationColumns, uploadSession } from '@sim/db/schema'
+import { member, organization, uploadSession } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type { Sql } from 'postgres'
@@ -75,7 +74,7 @@ describe('organization logo concurrency and retention', () => {
     for (const table of ['user', 'member', 'organization', 'upload_session']) {
       await connection`CREATE TABLE ${connection(table)} (LIKE ${connection(`public.${table}`)} INCLUDING ALL)`
     }
-    await db.insert(withInsertColumns(organization, organizationColumns)).values({
+    await db.insert(organization).values({
       id: organizationId,
       name: 'Logo test organization',
       slug: generateId(),
