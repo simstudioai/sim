@@ -557,35 +557,24 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   )
 }
 
-/** Each explicit activity owns a top-level group, including interleaved parallel calls. */
+/** Activities follow transcript order; unfinished parallel calls share one active group. */
 function groupByActivity(segments: MessageSegment[], isStreaming: boolean): MessageSegment[] {
   const labels = new Map<string, ToolActivity>()
-  for (const segment of segments) {
-    if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') continue
-    for (const item of segment.items) {
-      if (item.type !== 'tool') continue
-      const activity = readToolActivity(item.data.params, item.data.streamingArgs)
-      if (activity?.completedTitle && !labels.has(activity.id)) labels.set(activity.id, activity)
-    }
-  }
   return segments.flatMap((segment, index): MessageSegment[] => {
     if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') return [segment]
-    /** A quiet model round can append calls to any activity in this visible batch. */
     const isOpen = isStreaming && index === segments.length - 1
     const groups: AgentGroupSegment[] = []
-    const byActivity = new Map<string, AgentGroupSegment>()
     let current: AgentGroupSegment | undefined
-    let currentActivityId: string | undefined
     for (const item of segment.items) {
       const activity =
         item.type === 'tool'
           ? readToolActivity(item.data.params, item.data.streamingArgs)
           : undefined
-      if (activity && byActivity.has(activity.id)) current = byActivity.get(activity.id)
-      else if (!current || activity || currentActivityId) {
+      if (activity) labels.set(activity.id, { ...labels.get(activity.id), ...activity })
+      if (!current || (activity && activity.id !== current.activity?.id)) {
         current = {
           ...segment,
-          isOpen,
+          isOpen: false,
           activity: activity ? labels.get(activity.id) : undefined,
           id:
             groups.length === 0
@@ -594,12 +583,14 @@ function groupByActivity(segments: MessageSegment[], isStreaming: boolean): Mess
           items: [],
         }
         groups.push(current)
-        if (activity) byActivity.set(activity.id, current)
+      } else if (activity) {
+        current.activity = labels.get(activity.id)
       }
-      currentActivityId = activity?.id
-      current?.items.push(item)
+      current.items.push(item)
     }
-    /** Prose and subagents remain boundaries; finished tool batches retain stream order. */
+    if (!current) return [segment]
+    current.isOpen = isOpen
+    /** Finished contiguous activities keep the compact summary and chronological expanded history. */
     const summaryActivity = [...groups].reverse().find((group) => group.activity)?.activity
     if (
       groups.length > 1 &&
@@ -610,7 +601,15 @@ function groupByActivity(segments: MessageSegment[], isStreaming: boolean): Mess
     ) {
       return [{ ...segment, activity: summaryActivity, completedGroupCount: groups.length }]
     }
-    return groups.length ? groups : [segment]
+    const firstWorking = groups.findIndex((group) => !isAgentGroupResolved(group.items))
+    if (firstWorking >= 0 && firstWorking < groups.length - 1) {
+      const working = groups[firstWorking]
+      return [
+        ...groups.slice(0, firstWorking),
+        { ...working, isOpen, items: groups.slice(firstWorking).flatMap((group) => group.items) },
+      ]
+    }
+    return groups
   })
 }
 

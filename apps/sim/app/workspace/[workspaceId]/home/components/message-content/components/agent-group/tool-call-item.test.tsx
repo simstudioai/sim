@@ -256,7 +256,7 @@ describe('ToolCallItem', () => {
       const disclosure = container.querySelector<HTMLElement>('[role="button"]')!
       act(() => disclosure.click())
       expect(disclosure.getAttribute('aria-expanded')).toBe('true')
-      expect(header().textContent).toBe('Tool activity')
+      expect(header().textContent).toBe('Reading messages')
       expect(header().querySelector('svg')).toBeNull()
       const childRows = Array.from(container.querySelectorAll('[role="status"]')).slice(1)
       expect(childRows).toHaveLength(2)

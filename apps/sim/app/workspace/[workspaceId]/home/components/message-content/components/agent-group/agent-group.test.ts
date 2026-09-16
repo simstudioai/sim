@@ -418,7 +418,7 @@ describe('AgentGroup inline main activity', () => {
         })
       )
     )
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('Checked inputs + 1')
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Read second document')
     act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
     expect(container.textContent).toContain('Failed reading first document')
   })
@@ -494,7 +494,7 @@ describe('AgentGroup inline main activity', () => {
         )
       )
       expect(container.textContent).toBe(
-        status === 'executing' ? 'Viewing image.png' : 'Viewed image.png + 2'
+        status === 'executing' ? 'Viewing image.png' : 'Viewed image.png'
       )
       act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
       expect(container.textContent).toContain('Failed reading image.png')
@@ -650,8 +650,8 @@ describe('AgentGroup inline main activity', () => {
       const header = container.querySelector<HTMLElement>('[role="button"]')
       act(() => header?.click())
       expect(header?.hasAttribute('aria-label')).toBe(false)
-      expect(header?.textContent).toBe('Tool activity')
-      expect(header).toHaveAccessibleName('Tool activity')
+      expect(header?.textContent).toBe('Waiting 1s')
+      expect(header).toHaveAccessibleName('Waiting 1s')
       expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
         'Waiting 1sRead notes'
       )
@@ -667,8 +667,8 @@ describe('AgentGroup inline main activity', () => {
         read,
         { ...wait, data: { ...wait.data, id: 'wait-second' } },
       ])
-      expect(header?.textContent).toBe('Tool activity')
-      expect(header).toHaveAccessibleName('Tool activity')
+      expect(header?.textContent).toBe('Waiting 3s')
+      expect(header).toHaveAccessibleName('Waiting 3s')
       expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
       expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
         'WaitedRead notesWaiting 3s'
@@ -721,8 +721,8 @@ describe('AgentGroup inline main activity', () => {
         )
       )
       const header = container.querySelector<HTMLElement>('[role="button"]')
-      expect(header?.textContent).toBe('Read files, ran commands')
-      expect(header).toHaveAccessibleName('Read files, ran commands')
+      expect(header?.textContent).toBe('Ran checks + 1')
+      expect(header).toHaveAccessibleName('Ran checks + 1')
       expect(container.querySelectorAll('[data-tool-call-id]')).toHaveLength(0)
       act(() => header?.click())
       expect(

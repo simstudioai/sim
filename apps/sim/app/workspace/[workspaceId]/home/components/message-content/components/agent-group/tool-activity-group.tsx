@@ -3,18 +3,13 @@
 import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
-import {
-  getToolActivitySummaryActions,
-  readToolActivity,
-} from '@/lib/mothership/tools/tool-activity'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { getActivityAttentionKey } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
-
-const MAX_SUMMARY_ACTIONS = 3
 
 function isFailedTool(tool: ToolCallData): boolean {
   return tool.status === ToolCallStatus.error || tool.status === ToolCallStatus.rejected
@@ -26,26 +21,20 @@ function toolCountLabel(tools: ToolCallData[]): string {
 
 /** Summarize completed actions without describing failed or skipped work as successful. */
 export function getToolActivitySummary(tools: ToolCallData[]): string {
-  if (tools.length === 1) {
-    const tool = tools[0]
-    if (isFailedTool(tool)) return toolCountLabel(tools)
-    return getToolStatusDisplayTitle(
-      tool.displayTitle,
-      tool.status,
-      tool.toolName,
-      tool.activityDescription
-    )
-  }
-  const { labels, additionalActions } = getToolActivitySummaryActions(
-    tools.filter((tool) => tool.status === ToolCallStatus.success),
-    MAX_SUMMARY_ACTIONS
+  const statusTool = getActivityStatusTool(tools)
+  if (!statusTool || isFailedTool(statusTool)) return toolCountLabel(tools)
+  const label = getToolStatusDisplayTitle(
+    statusTool.displayTitle,
+    statusTool.status,
+    statusTool.toolName,
+    statusTool.activityDescription
   )
-  const summary = labels.join(', ')
-  const summaryLabel = summary ? summary[0].toUpperCase() + summary.slice(1) : toolCountLabel(tools)
-  return [
-    additionalActions > 0 ? `${summaryLabel} +${additionalActions} more` : summaryLabel,
-    ...getToolActivityInterruptions(tools),
-  ].join(' · ')
+  const visibleCount = tools.filter((tool) => !isFailedTool(tool)).length
+  return getActiveToolActivityTitle(
+    `${label}${visibleCount > 1 ? ` + ${visibleCount - 1}` : ''}`,
+    statusTool,
+    tools
+  )
 }
 
 function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
@@ -111,19 +100,14 @@ export function ToolActivityGroup({
     tools
       .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
       .reverse()
-      .find((entry) => entry?.completedTitle)
+      .find((entry) => entry?.title || entry?.completedTitle)
   const running = tools.filter((tool) => !isToolDone(tool.status))
   const working = running.length > 0
   const complete = !isActive && !working
   const headerActive = working && statusTool.status !== ToolCallStatus.awaiting_approval
   const attentionKey = getActivityAttentionKey(tools)
-  const activityTools =
-    completedGroupCount > 1 && groupedActivity
-      ? tools.filter(
-          (tool) => readToolActivity(tool.params, tool.streamingArgs)?.id === groupedActivity.id
-        )
-      : tools
-  const failedActivityTool = activityTools.find(
+  /** A merged summary cannot claim success when any represented call did not complete. */
+  const failedActivityTool = tools.find(
     (tool) => isToolDone(tool.status) && tool.status !== ToolCallStatus.success
   )
   const completedActivityLabel = groupedActivity?.completedTitle
@@ -139,10 +123,7 @@ export function ToolActivityGroup({
       : groupedActivity.completedTitle
     : undefined
   const completedLabel = completedActivityLabel
-    ? [
-        `${completedActivityLabel}${completedGroupCount > 1 ? ` + ${completedGroupCount - 1}` : ''}`,
-        ...getToolActivityOutcomes(tools.filter((tool) => !activityTools.includes(tool))),
-      ].join(' · ')
+    ? `${completedActivityLabel}${completedGroupCount > 1 ? ` + ${completedGroupCount - 1}` : ''}`
     : undefined
   const generatingCall =
     working &&
@@ -163,18 +144,14 @@ export function ToolActivityGroup({
                   tools
                 )
               : complete
-                ? (completedLabel ??
-                  getActiveToolActivityTitle(
-                    `${status.label}${tools.length > 1 ? ` + ${tools.length - 1}` : ''}`,
-                    statusTool,
-                    tools
-                  ))
+                ? (completedLabel ?? getToolActivitySummary(tools))
                 : getActiveToolActivityTitle(status.label, statusTool, tools),
             isActive: headerActive,
           }}
           activityKey={statusTool.id}
           attentionKey={attentionKey}
-          collapsible={tools.length > 1 || isFailedTool(statusTool)}
+          expandedLabel={groupedActivity?.title}
+          collapsible={tools.length > 1 || Boolean(groupedActivity) || isFailedTool(statusTool)}
           expanded={expanded}
           onToggle={() => setExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}

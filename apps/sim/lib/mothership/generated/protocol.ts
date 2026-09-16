@@ -21,8 +21,9 @@ import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 1;
 
-/** Model-authored completion label for one top-level tool activity, carried in tool arguments. */
+/** Model-authored intent labels for one top-level tool activity, carried in tool arguments. */
 export const ToolActivity = z.object({
+  title: z.string().trim().min(1).max(120).optional(),
   id: z.string().trim().min(1).max(64),
   completedTitle: z.string().trim().min(1).max(120).optional(),
 });
