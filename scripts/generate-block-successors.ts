@@ -145,7 +145,7 @@ async function main(): Promise<void> {
     ['parallel', 'Parallel'],
     ...Object.entries(registry).map(([type, block]): [string, string] => [type, block.name]),
   ]
-  names.sort(([left], [right]) => left.localeCompare(right))
+  names.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
   const artifacts = [
     { path: OUTPUT_PATH, source: render(successors) },
     {
