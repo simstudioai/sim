@@ -20,6 +20,7 @@ import {
   sameResourceScopeCondition,
 } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import type { OrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
@@ -36,6 +37,7 @@ interface ManagedMcpTokenEnvelope {
 }
 
 export interface ManagedMcpCredentialApplicationContext extends WorkspaceAuthorizationContext {
+  credentialType: OrganizationCredentialType
   organizationId?: string
   credentialId: string
   credentialGroupId: string
@@ -45,6 +47,7 @@ export interface ManagedMcpCredentialApplicationContext extends WorkspaceAuthori
 }
 
 export interface ManagedMcpRuntimeCredential {
+  credentialType: OrganizationCredentialType
   grantedAt: Date
   oauthConfigVersion: number
   scope: ResourceScope
@@ -150,7 +153,7 @@ export async function loadManagedMcpCredentialApplicationContext(
   if (!row.managedConnectorId) {
     throw new Error(`Managed MCP server ${row.mcpServerId} has no connector ID`)
   }
-  getManagedMcpConnector(row.managedConnectorId)
+  const connector = getManagedMcpConnector(row.managedConnectorId)
   const workspaceContext = await loadActiveWorkspaceApplicationContext(workspaceId)
   if (
     !workspaceContext ||
@@ -159,7 +162,12 @@ export async function loadManagedMcpCredentialApplicationContext(
       : row.workspaceId !== workspaceId)
   )
     return null
-  return { ...row, ...workspaceContext, organizationId: row.organizationId ?? undefined }
+  return {
+    ...row,
+    ...workspaceContext,
+    credentialType: `mcp:${connector.id}` as const,
+    organizationId: row.organizationId ?? undefined,
+  }
 }
 
 export async function loadManagedMcpRuntimeCredential(
@@ -221,7 +229,7 @@ export async function loadManagedMcpRuntimeCredential(
   if (!row.managedConnectorId) {
     throw new ManagedMcpCredentialError('Managed MCP connector metadata is missing', 500)
   }
-  getManagedMcpConnector(row.managedConnectorId)
+  const connector = getManagedMcpConnector(row.managedConnectorId)
   if (
     row.status !== 'active' ||
     row.groupStatus !== 'active' ||
@@ -239,6 +247,7 @@ export async function loadManagedMcpRuntimeCredential(
   if (!row.grantedAt)
     throw new ManagedMcpCredentialError('Managed MCP grant version is missing', 500)
   return {
+    credentialType: `mcp:${connector.id}`,
     credentialId: row.credentialId,
     oauthConfigVersion: row.serverOauthConfigVersion,
     credentialGroupId: row.credentialGroupId,

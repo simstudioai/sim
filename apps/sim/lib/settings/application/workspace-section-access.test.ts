@@ -336,10 +336,10 @@ describe('authorizeWorkspaceSettingsSection', () => {
   it.each([
     { groups: true, search: false, allowed: true },
     { groups: false, search: false, allowed: false },
-    { groups: true, search: true, allowed: false },
+    { groups: true, search: true, allowed: true },
     { groups: false, search: true, allowed: false },
   ])(
-    'gates Connected accounts with organization groups=$groups and search=$search',
+    'gates Credential Groups with organization groups=$groups and search=$search',
     async ({ groups, search, allowed }) => {
       mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
       mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(groups)
@@ -357,11 +357,7 @@ describe('authorizeWorkspaceSettingsSection', () => {
         kind: 'organization',
         organizationId: 'organization-1',
       })
-      if (groups) {
-        expect(mocks.isKnowledgeMemberAccessAvailable).toHaveBeenCalledWith({
-          organizationId: 'organization-1',
-        })
-      }
+      expect(mocks.isKnowledgeMemberAccessAvailable).not.toHaveBeenCalled()
       expect(mocks.isOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
     }
   )
@@ -385,9 +381,9 @@ describe('authorizeWorkspaceSettingsSection', () => {
     expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
   })
 
-  it('propagates feature lookup failures instead of opening Connected accounts', async () => {
+  it('propagates feature lookup failures instead of opening Credential Groups', async () => {
     mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
-    mocks.isKnowledgeMemberAccessAvailable.mockRejectedValue(new Error('Feature lookup failed'))
+    mocks.isScopedCredentialGroupsAvailable.mockRejectedValue(new Error('Feature lookup failed'))
 
     await expect(authorize('connected-accounts')).rejects.toThrow('Feature lookup failed')
   })

@@ -21,6 +21,7 @@ export const RESOURCE_POLICY_DEFINITIONS = Object.freeze({
     conditionKeys: [
       'credential_group:ActorOwnsCredential',
       'credential_group:OptionId',
+      'credential_group:CredentialType',
       'execution:WorkflowMode',
     ],
   },

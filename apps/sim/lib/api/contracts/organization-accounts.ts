@@ -16,11 +16,16 @@ import {
 } from '@/lib/api/contracts/credential-groups'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { ORGANIZATION_CREDENTIAL_TYPES } from '@/lib/credential-groups/credential-types'
 import {
   ORGANIZATION_ACCOUNT_INDEXING_SOURCE_LIMIT,
   ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT,
   ORGANIZATION_VIEWER_ACCOUNT_LIMIT,
 } from '@/lib/credential-groups/limits'
+import {
+  organizationAccountWorkspaceGrantsSchema,
+  organizationCredentialTypeSchema,
+} from '@/lib/credential-groups/workspace-grants'
 
 const organizationAccountsParamsSchema = z.object({ id: organizationIdSchema })
 const organizationCredentialGroupSchema = credentialGroupSchema.extend({
@@ -131,10 +136,7 @@ export type UpdateOrganizationAccountsBody = z.input<typeof updateCredentialGrou
 
 export const organizationAccountWorkspaceAccessSchema = z.object({
   revision: z.number().int().positive(),
-  workspaceIds: z
-    .array(workspaceIdSchema)
-    .max(ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT)
-    .refine((ids) => new Set(ids).size === ids.length, 'Workspace IDs must be unique'),
+  grants: organizationAccountWorkspaceGrantsSchema,
 })
 export const getOrganizationAccountWorkspaceAccessContract = defineRouteContract({
   method: 'GET',
@@ -143,6 +145,11 @@ export const getOrganizationAccountWorkspaceAccessContract = defineRouteContract
   response: {
     mode: 'json',
     schema: organizationAccountWorkspaceAccessSchema.extend({
+      credentialTypes: z
+        .array(
+          z.object({ id: organizationCredentialTypeSchema, label: z.string().min(1).max(256) })
+        )
+        .max(ORGANIZATION_CREDENTIAL_TYPES.length),
       workspaces: z
         .array(z.object({ id: workspaceIdSchema, name: z.string().max(256) }))
         .max(ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT),

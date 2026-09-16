@@ -52,7 +52,7 @@ vi.mock('@/ee/credential-groups/components/organization-account-people', () => (
   OrganizationAccountPeople: () => null,
 }))
 vi.mock('@/ee/credential-groups/components/organization-account-workspace-access', () => ({
-  OrganizationAccountWorkspaceAccess: () => null,
+  OrganizationAccountWorkspaceAccess: () => <div data-testid='workspace-access'>Workspaces</div>,
 }))
 
 import { OrganizationAccountProviders } from '@/ee/credential-groups/components/organization-account-providers'
@@ -167,6 +167,33 @@ describe('organization provider configuration UI', () => {
     })
   }
 
+  it('keeps workspace allowlists in the Access tab and preserves the integration controls', async () => {
+    mocks.accounts.mockReturnValue({
+      data: {
+        canManage: true,
+        credentialGroup: { ...group, options: [gmail] },
+        availableProviders: ['gmail'],
+      },
+    })
+    await act(async () =>
+      root.render(
+        <NuqsTestingAdapter hasMemory>
+          <OrganizationConnectedAccounts organizationId='org-1' />
+        </NuqsTestingAdapter>
+      )
+    )
+    expect(container.textContent).toContain('Update configurations')
+    expect(container.querySelector('[data-testid="workspace-access"]')).toBeNull()
+    await clickButton('Access')
+    expect(container.querySelector('[data-testid="workspace-access"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('Update configurations')
+    expect(container.querySelector('[role="combobox"]')).toBeNull()
+    await clickButton('Integrations')
+    expect(container.textContent).toContain('Update configurations')
+    expect(container.querySelector('[data-testid="workspace-access"]')).toBeNull()
+    expect(mocks.update).not.toHaveBeenCalled()
+  })
+
   it('shows only added providers and searches the remaining catalog', async () => {
     await render([], [gmail])
     expect(container.textContent).toContain('Gmail')
@@ -175,7 +202,7 @@ describe('organization provider configuration UI', () => {
     expect(container.textContent).not.toMatch(/Ready|Setup required/)
     expect(container.textContent).not.toContain('Fireflies')
     expect(container.querySelector('[role="radio"]')).toBeNull()
-    await clickButton('Add provider')
+    await clickButton('Add integration')
     expect(document.querySelector('[aria-label="Add Gmail"]')).toBeNull()
     const search = document.querySelector('[aria-label="Search providers"]')
     await act(async () => {
@@ -191,7 +218,7 @@ describe('organization provider configuration UI', () => {
 
   it('adds Fireflies directly without an empty configuration modal', async () => {
     await render([])
-    await clickButton('Add provider')
+    await clickButton('Add integration')
     await clickButton('Add Fireflies')
     expect(mocks.add).toHaveBeenCalledWith(
       { organizationId: 'org-1', connectorId: 'fireflies' },
@@ -208,7 +235,7 @@ describe('organization provider configuration UI', () => {
 
   it('adds Gmail directly without opening indexing configuration', async () => {
     await render([])
-    await clickButton('Add provider')
+    await clickButton('Add integration')
     await clickButton('Add Gmail')
     expect(mocks.update).toHaveBeenCalledWith(
       {
@@ -341,7 +368,7 @@ describe('organization provider configuration UI', () => {
   it('surfaces an add failure in the catalog and does not open configuration', async () => {
     mocks.add.mockImplementation(() => {})
     await render([])
-    await clickButton('Add provider')
+    await clickButton('Add integration')
     await clickButton('Add Fireflies')
     mocks.addError = new Error('Could not add Fireflies')
     await render([])
@@ -373,7 +400,7 @@ describe('organization provider configuration UI', () => {
   it('returns an unfinished Databricks entry to the catalog until its configuration is saved', async () => {
     await render([provider])
     expect(container.textContent).not.toContain('Databricks')
-    await clickButton('Add provider')
+    await clickButton('Add integration')
     await clickButton('Add Databricks')
     expect(mocks.add).not.toHaveBeenCalled()
     expect(mocks.addAsync).not.toHaveBeenCalled()
@@ -393,7 +420,7 @@ describe('organization provider configuration UI', () => {
 
   it('cancels Databricks setup without adding a provider', async () => {
     await render([])
-    await clickButton('Add provider')
+    await clickButton('Add integration')
     await clickButton('Add Databricks')
     expect(mocks.setup).toHaveBeenCalledWith('org-1', false)
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Add Databricks')
@@ -413,7 +440,7 @@ describe('organization provider configuration UI', () => {
 
   it('adds Databricks with its complete configuration in one organization-scoped request', async () => {
     await render([])
-    await clickButton('Add provider')
+    await clickButton('Add integration')
     await clickButton('Add Databricks')
     expect(mocks.addAsync).not.toHaveBeenCalled()
     await fill('Name', ' Analytics ')
@@ -437,7 +464,7 @@ describe('organization provider configuration UI', () => {
   it('keeps Databricks configuration open after validation fails and allows correction', async () => {
     mocks.addAsync.mockRejectedValueOnce(new Error('Enter a valid Databricks MCP URL'))
     await render([])
-    await clickButton('Add provider')
+    await clickButton('Add integration')
     await clickButton('Add Databricks')
     await fill('MCP URL', 'https://invalid.example.com/mcp')
     await fill('OAuth Client ID', 'client-1')
