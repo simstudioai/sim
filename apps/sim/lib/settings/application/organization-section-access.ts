@@ -8,6 +8,7 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 
 interface AuthorizeOrganizationSettingsSectionInput {
   organizationId: string
@@ -31,12 +32,20 @@ export async function authorizeOrganizationSettingsSection({
 
   const deployment = getDeploymentShape()
   const needsEnterprisePlan = deployment.hosted && section !== 'members' && section !== 'billing'
-  const hasEnterprisePlan = needsEnterprisePlan
-    ? await isOrganizationOnEnterprisePlan(organizationId)
-    : false
+  /**
+   * Access Control's availability follows the permission regime rather than the plan gate, and no
+   * other section reads it — so each section pays for exactly one of the two lookups.
+   */
+  const readsRegime = needsEnterprisePlan && section === 'access-control'
+  const [hasEnterprisePlan, governanceActive] = await Promise.all([
+    needsEnterprisePlan && !readsRegime
+      ? isOrganizationOnEnterprisePlan(organizationId)
+      : Promise.resolve(false),
+    readsRegime ? isOrganizationPermissionRegimeActive(organizationId) : Promise.resolve(false),
+  ])
 
   return isOrganizationSettingsSectionAvailable(
     section,
-    getOrganizationSettingsFeatures(hasEnterprisePlan, deployment)
+    getOrganizationSettingsFeatures(hasEnterprisePlan, deployment, governanceActive)
   )
 }

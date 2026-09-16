@@ -74,6 +74,10 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
 vi.mock('@/lib/knowledge/access/availability', () => ({
   isKnowledgeMemberAccessAvailable: mocks.isKnowledgeMemberAccessAvailable,
 }))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  /** Access Control follows the regime; these tests drive it from the same plan knob. */
+  isOrganizationPermissionRegimeActive: mocks.isOrganizationOnEnterprisePlan,
+}))
 vi.mock('@/lib/organizations/settings-access', () => ({
   canOpenOrganizationSettingsSection: mocks.canOpenOrganizationSettingsSection,
 }))
@@ -277,7 +281,27 @@ describe('authorizeWorkspaceSettingsSection', () => {
 
     mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
     await expect(authorize('access-control')).resolves.toEqual({ allowed: true })
-    expect(mocks.getOrganizationSettingsFeatures).toHaveBeenCalledWith(true, mocks.deploymentShape)
+    /**
+     * Access Control is gated on the permission regime rather than the plan, so the plan lookup is
+     * skipped for it and the regime is what reaches the navigation gate.
+     */
+    expect(mocks.getOrganizationSettingsFeatures).toHaveBeenCalledWith(
+      false,
+      mocks.deploymentShape,
+      true
+    )
+  })
+
+  /**
+   * The workspace-scoped page reads the same regime as the organization one: an organization whose
+   * restrictions still apply during a failing payment must not have this page taken away.
+   */
+  it('keeps the workspace Access Control page open while the organization is governed', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.isOrganizationOnEnterprisePlan.mockResolvedValue(false)
+
+    await expect(authorize('access-control')).resolves.toEqual({ allowed: true })
+    expect(mocks.isOrganizationOnEnterprisePlan).toHaveBeenCalledTimes(1)
   })
 
   it('resolves the exact entitlement source only for gated workspace sections', async () => {

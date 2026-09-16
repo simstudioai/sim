@@ -14,6 +14,7 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isAccessRequestEnabled } from '@/lib/permission-access-requests/settings'
 import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
@@ -114,17 +115,26 @@ async function canOpenOrganizationSection(
   }
 
   const needsEnterprisePlan = organizationSection !== 'members' && organizationSection !== 'billing'
-  const [canOpenSection, isEnterpriseOrganization] = await Promise.all([
+  /** Same split as the organization surface: Access Control follows the regime, everything else the plan. */
+  const readsRegime = needsEnterprisePlan && organizationSection === 'access-control'
+  const [canOpenSection, isEnterpriseOrganization, governanceActive] = await Promise.all([
     canOpenOrganizationSettingsSection(workspace.organizationId, input.userId, organizationSection),
-    needsEnterprisePlan
+    needsEnterprisePlan && !readsRegime
       ? isOrganizationOnEnterprisePlan(workspace.organizationId)
+      : Promise.resolve(false),
+    readsRegime
+      ? isOrganizationPermissionRegimeActive(workspace.organizationId)
       : Promise.resolve(false),
   ])
   return (
     canOpenSection &&
     isOrganizationSettingsSectionAvailable(
       organizationSection,
-      getOrganizationSettingsFeatures(needsEnterprisePlan && isEnterpriseOrganization, deployment)
+      getOrganizationSettingsFeatures(
+        needsEnterprisePlan && isEnterpriseOrganization,
+        deployment,
+        governanceActive
+      )
     )
   )
 }

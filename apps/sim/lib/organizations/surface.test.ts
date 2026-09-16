@@ -16,6 +16,8 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
 
 vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: mockPermissionConfig,
+  /** The nav lists Access Control on the regime; these tests drive it from the plan knob. */
+  isOrganizationPermissionRegimeActive: mockEnterprisePlan,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockEnterprisePlan,

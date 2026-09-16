@@ -18,7 +18,10 @@ import {
 } from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
-import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
+import {
+  getUserPermissionConfigForOrganization,
+  isOrganizationPermissionRegimeActive,
+} from '@/lib/permission-groups/resolve.server'
 
 export interface OrganizationSurfaceOrganization {
   id: string
@@ -77,19 +80,36 @@ async function resolveOrganizationSurfaceContext(
   if (!row) return null
 
   const deployment = getDeploymentShape()
-  const [config, [{ memberCount }], connectedAccountsAvailable, searchAccess, hasEnterprisePlan] =
-    await Promise.all([
-      getUserPermissionConfigForOrganization(organizationId),
-      db
-        .select({ memberCount: count() })
-        .from(member)
-        .where(eq(member.organizationId, organizationId)),
-      isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }),
-      resolveKnowledgeAccessAvailability({ organizationId }),
-      deployment.hosted && access.isAdmin
-        ? isOrganizationOnEnterprisePlan(organizationId)
-        : Promise.resolve(false),
-    ])
+  const [
+    config,
+    [{ memberCount }],
+    connectedAccountsAvailable,
+    searchAccess,
+    hasEnterprisePlan,
+    governanceActive,
+  ] = await Promise.all([
+    getUserPermissionConfigForOrganization(organizationId),
+    db
+      .select({ memberCount: count() })
+      .from(member)
+      .where(eq(member.organizationId, organizationId)),
+    isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }),
+    resolveKnowledgeAccessAvailability({ organizationId }),
+    deployment.hosted && access.isAdmin
+      ? isOrganizationOnEnterprisePlan(organizationId)
+      : Promise.resolve(false),
+    /**
+     * Access Control stays listed while a payment is failing, because its rules still apply.
+     *
+     * Resolved rather than rejected on a read failure: this value only decides whether a nav item
+     * is drawn, and it is shared by every organization page — letting it throw would take home,
+     * chat and search down with the billing table. The page and the management API read the same
+     * regime and still fail closed, so a listed item cannot be used to reach anything.
+     */
+    deployment.hosted && access.isAdmin
+      ? isOrganizationPermissionRegimeActive(organizationId).catch(() => false)
+      : Promise.resolve(false),
+  ])
   return {
     organization: {
       id: row.id,
@@ -112,7 +132,11 @@ async function resolveOrganizationSurfaceContext(
     },
     connectedAccountsAvailable,
     searchAccess,
-    settingsFeatures: getOrganizationSettingsFeatures(hasEnterprisePlan, deployment),
+    settingsFeatures: getOrganizationSettingsFeatures(
+      hasEnterprisePlan,
+      deployment,
+      governanceActive
+    ),
     deployment,
   }
 }

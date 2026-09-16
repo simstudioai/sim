@@ -2,12 +2,12 @@ import { db } from '@sim/db'
 import { permissionGroup, permissionGroupWorkspace, workspace } from '@sim/db/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import type { DbOrTx } from '@/lib/db/types'
 import type {
   AllMembersConflict,
   ScopeConflict,
 } from '@/lib/permission-groups/application/group-membership'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
 /** A workspace reference (id + display name). */
@@ -32,13 +32,12 @@ export async function authorizeOrgAccessControl(
   }
 
   /**
-   * The feature gate, deliberately, not the governance reader: the Access Control settings page is
-   * gated on the same plan check, so reading governance here would open the API for a past-due
-   * organization whose page still 404s. Restrictions keep applying through a dunning window —
-   * that is what the governance reader is for — but managing them follows the page.
+   * The active permission regime, which is what the Access Control page now reads too: an
+   * organization whose restrictions still apply has to be able to see and loosen them, and a
+   * deployment with Access Control switched off governs nobody, so neither should manage anything.
    */
-  const entitled = await isOrganizationOnEnterprisePlan(organizationId)
-  if (!entitled) {
+  const governed = await isOrganizationPermissionRegimeActive(organizationId)
+  if (!governed) {
     return NextResponse.json({ error: 'Access Control is an Enterprise feature' }, { status: 403 })
   }
 
