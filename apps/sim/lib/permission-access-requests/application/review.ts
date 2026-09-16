@@ -363,6 +363,7 @@ export const resolveAccessRequest = defineAuthorizedAccessRequestUseCase({
             : AuditAction.PERMISSION_ACCESS_REQUEST_DECLINED,
         resourceType: AuditResourceType.PERMISSION_ACCESS_REQUEST,
         resourceId: result.request.id,
+        workspaceId: result.request.workspaceId,
         metadata: {
           target: result.request.target,
           requesterId: result.request.requester.id,

@@ -25,7 +25,7 @@ async function createFixture() {
   await client.unsafe(`SET search_path TO "${schema}"`)
   await client.unsafe(`
     CREATE TABLE workspace (id text PRIMARY KEY, name text, organization_id text, archived_at timestamp);
-    CREATE TABLE permission_group (id text PRIMARY KEY, organization_id text, is_default boolean, updated_at timestamp, membership_mode text);
+    CREATE TABLE permission_group (id text PRIMARY KEY, organization_id text, is_default boolean, updated_at timestamp, membership_mode text, created_at timestamp DEFAULT now());
     CREATE TABLE permissions (id text PRIMARY KEY, user_id text, entity_id text, entity_type text, permission_type text, updated_at timestamp);
     CREATE TABLE member (id text PRIMARY KEY, user_id text, organization_id text, role text);
     CREATE TABLE permission_group_member (id text PRIMARY KEY, organization_id text, permission_group_id text, user_id text);
@@ -69,6 +69,84 @@ describe.skipIf(!databaseUrl)('access request impact on PostgreSQL', () => {
         workspaceNames: ['One', 'Two'],
         truncated: false,
       })
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('ignores disjoint group, assignment, scope, and ordinary member changes', async () => {
+    const fixture = await createFixture()
+    try {
+      const load = () => loadAccessRequestGroupImpact(fixture.executor, 'org', 'group')
+      const before = await load()
+      await fixture.client`INSERT INTO permission_group VALUES ('unrelated', 'org', false, now(), 'explicit')`
+      await fixture.client`INSERT INTO permission_group_workspace VALUES ('unrelated-scope', 'org', 'unrelated', 'two')`
+      await fixture.client`INSERT INTO permission_group_member VALUES ('unrelated-assignment', 'org', 'unrelated', 'unrelated-user')`
+      expect(await load()).toEqual(before)
+      await fixture.client`UPDATE permission_group SET updated_at = updated_at + interval '1 second' WHERE id = 'unrelated'`
+      expect(await load()).toEqual(before)
+      await fixture.client`UPDATE permission_group_member SET user_id = 'different-user' WHERE id = 'unrelated-assignment'`
+      expect(await load()).toEqual(before)
+      await fixture.client`DELETE FROM permission_group_workspace WHERE id = 'unrelated-scope'`
+      expect(await load()).toEqual(before)
+      await fixture.client`INSERT INTO member VALUES ('unrelated-membership', 'unrelated-member', 'org', 'member')`
+      expect(await load()).toEqual(before)
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('tracks competing group precedence but ignores their unrelated policy updates and scopes', async () => {
+    const fixture = await createFixture()
+    try {
+      const load = () => loadAccessRequestGroupImpact(fixture.executor, 'org', 'group')
+      const before = await load()
+      await fixture.client`INSERT INTO permission_group VALUES ('competitor', 'org', false, now(), 'inherit')`
+      await fixture.client`INSERT INTO permission_group_workspace VALUES ('competing-scope', 'org', 'competitor', 'one')`
+      const competing = await load()
+      expect(competing.revision).not.toBe(before.revision)
+      await fixture.client`UPDATE permission_group SET updated_at = updated_at + interval '1 second' WHERE id = 'competitor'`
+      await fixture.client`INSERT INTO permission_group_workspace VALUES ('other-scope', 'org', 'competitor', 'two')`
+      expect(await load()).toEqual(competing)
+      await fixture.client`INSERT INTO permission_group_member VALUES ('competing-member', 'org', 'competitor', 'unrelated-user')`
+      const assigned = await load()
+      expect(assigned.revision).not.toBe(competing.revision)
+      await fixture.client`UPDATE permission_group SET membership_mode = 'explicit' WHERE id = 'competitor'`
+      const explicit = await load()
+      expect(explicit.revision).not.toBe(assigned.revision)
+      await fixture.client`UPDATE permission_group SET created_at = created_at - interval '1 day' WHERE id = 'competitor'`
+      const reordered = await load()
+      expect(reordered.revision).not.toBe(explicit.revision)
+      await fixture.client`DELETE FROM permission_group_workspace WHERE id = 'competing-scope'`
+      expect((await load()).revision).not.toBe(reordered.revision)
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('tracks relevant membership and administrator roles, and keeps default-group scope broad', async () => {
+    const fixture = await createFixture()
+    try {
+      const load = () => loadAccessRequestGroupImpact(fixture.executor, 'org', 'group')
+      const before = await load()
+      await fixture.client`INSERT INTO member VALUES ('guest-member', 'guest', 'org', 'member')`
+      const joined = await load()
+      expect(joined.impact).toEqual(before.impact)
+      expect(joined.revision).not.toBe(before.revision)
+      await fixture.client`UPDATE member SET role = 'owner' WHERE id = 'm2'`
+      const promoted = await load()
+      expect(promoted.impact.memberCount).toBe(3)
+      expect(promoted.revision).not.toBe(joined.revision)
+      await fixture.client`UPDATE permission_group SET is_default = true WHERE id = 'group'`
+      const defaultGroup = await load()
+      await fixture.client`INSERT INTO member VALUES ('new-member', 'new-person', 'org', 'member')`
+      const added = await load()
+      expect(added.impact.memberCount).toBe(defaultGroup.impact.memberCount + 1)
+      expect(added.revision).not.toBe(defaultGroup.revision)
+      await fixture.client`UPDATE workspace SET archived_at = now() WHERE id = 'two'`
+      const archived = await load()
+      expect(archived.impact.workspaceCount).toBe(1)
+      expect(archived.revision).not.toBe(added.revision)
     } finally {
       await fixture.cleanup()
     }

@@ -6,7 +6,7 @@ import {
   permissions,
   workspace,
 } from '@sim/db/schema'
-import { and, count, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, count, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import type { AccessRequestImpact } from '@/lib/permission-access-requests/types'
 
@@ -35,6 +35,32 @@ export async function loadAccessRequestGroupImpact(
       ? undefined
       : sql`exists (select 1 from ${permissionGroupWorkspace} where ${permissionGroupWorkspace.permissionGroupId} = ${groupId} and ${permissionGroupWorkspace.workspaceId} = ${workspace.id})`
   )
+  const scopedWorkspaces = executor.select({ id: workspace.id }).from(workspace).where(scope)
+  const scopedGrantees = executor
+    .select({ userId: permissions.userId })
+    .from(permissions)
+    .where(
+      and(eq(permissions.entityType, 'workspace'), inArray(permissions.entityId, scopedWorkspaces))
+    )
+  /** Competing groups in the same workspaces can change explicit/inherited group precedence. */
+  const relevantGroups = executor
+    .select({ id: permissionGroup.id })
+    .from(permissionGroup)
+    .where(
+      and(
+        eq(permissionGroup.organizationId, organizationId),
+        or(
+          eq(permissionGroup.id, groupId),
+          inArray(
+            permissionGroup.id,
+            executor
+              .select({ groupId: permissionGroupWorkspace.permissionGroupId })
+              .from(permissionGroupWorkspace)
+              .where(inArray(permissionGroupWorkspace.workspaceId, scopedWorkspaces))
+          )
+        )
+      )
+    )
   const names = await executor
     .select({ name: workspace.name })
     .from(workspace)
@@ -64,13 +90,19 @@ export async function loadAccessRequestGroupImpact(
     .where(scope)
   const [orgMembers] = await executor
     .select({
-      total: count(),
       revision: membershipRevision(
         sql`jsonb_build_array(${member.id}, ${member.userId}, ${member.role})::text`
       ),
     })
     .from(member)
-    .where(eq(member.organizationId, organizationId))
+    .where(
+      and(
+        eq(member.organizationId, organizationId),
+        group?.isDefault
+          ? undefined
+          : or(inArray(member.role, ['admin', 'owner']), inArray(member.userId, scopedGrantees))
+      )
+    )
   const [assignments] = await executor
     .select({
       revision: membershipRevision(
@@ -78,7 +110,12 @@ export async function loadAccessRequestGroupImpact(
       ),
     })
     .from(permissionGroupMember)
-    .where(eq(permissionGroupMember.organizationId, organizationId))
+    .where(
+      and(
+        eq(permissionGroupMember.organizationId, organizationId),
+        inArray(permissionGroupMember.permissionGroupId, relevantGroups)
+      )
+    )
   const [scopes] = await executor
     .select({
       revision: membershipRevision(
@@ -86,7 +123,12 @@ export async function loadAccessRequestGroupImpact(
       ),
     })
     .from(permissionGroupWorkspace)
-    .where(eq(permissionGroupWorkspace.organizationId, organizationId))
+    .where(
+      and(
+        eq(permissionGroupWorkspace.organizationId, organizationId),
+        inArray(permissionGroupWorkspace.workspaceId, scopedWorkspaces)
+      )
+    )
   const candidates = executor
     .select({ userId: permissions.userId })
     .from(permissions)
@@ -111,11 +153,11 @@ export async function loadAccessRequestGroupImpact(
   const [groupVersions] = await executor
     .select({
       revision: membershipRevision(
-        sql`jsonb_build_array(${permissionGroup.id}, ${permissionGroup.updatedAt}, ${permissionGroup.membershipMode}, ${permissionGroup.isDefault})::text`
+        sql`jsonb_build_array(${permissionGroup.id}, ${permissionGroup.createdAt}, ${permissionGroup.membershipMode}, ${permissionGroup.isDefault})::text`
       ),
     })
     .from(permissionGroup)
-    .where(eq(permissionGroup.organizationId, organizationId))
+    .where(inArray(permissionGroup.id, relevantGroups))
   return {
     impact: {
       memberCount: Number(people?.total ?? 0),
