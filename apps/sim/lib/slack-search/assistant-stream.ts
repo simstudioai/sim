@@ -126,6 +126,7 @@ export class SlackSearchAssistantStream {
   private failure?: Error
   private closed = false
   private closeAttempted = false
+  private cleanupAttempted = false
   private pendingEvents: Promise<void> = Promise.resolve()
   private evidence = new Map<string, Record<string, unknown>>()
   private toolProgress = new Map<string, { toolName: string; chunk: ToolProgress }>()
@@ -369,10 +370,24 @@ export class SlackSearchAssistantStream {
 
   /** Settle once after abort, with fresh authority and no replay of ambiguous sends. */
   async terminateAfterFailure() {
-    if (!this.sessionStarted || this.closed || this.closeAttempted) return
+    if (
+      !this.sessionStarted ||
+      this.closed ||
+      this.cleanupAttempted ||
+      (this.stream && this.closeAttempted)
+    )
+      return
+    this.cleanupAttempted = true
     const signal = AbortSignal.timeout(5000)
     await this.options.beforeCleanup(signal)
     signal.throwIfAborted()
+    if (this.closeAttempted) {
+      /** Only the idempotent status reset can repeat; never replay an unconfirmed message send. */
+      const { token, channel, threadTs } = this.options
+      await setSlackAgentSessionStatus(token, { channel, threadTs }, 'active', signal)
+      this.closed = true
+      return
+    }
     await this.close(true, signal)
   }
 

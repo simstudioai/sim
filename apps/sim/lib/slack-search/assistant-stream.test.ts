@@ -349,14 +349,65 @@ describe('Slack lazy stream lifecycle', () => {
     )
   })
 
-  it('propagates an empty-run status failure without retrying or posting a reply', async () => {
+  it.each([false, true])(
+    'attempts status cleanup once after both notification and status fail (cleanup fails: %s)',
+    async (cleanupFails) => {
+      const { stream, controller, beforeCleanup } = setup()
+      await stream.start()
+      api.start.mockRejectedValueOnce(new Error('notification response lost'))
+      api.status.mockRejectedValueOnce(new Error('status response lost'))
+      await expect(stream.finishWithError()).rejects.toThrow('status response lost')
+      expect(controller.signal.aborted).toBe(true)
+      if (cleanupFails) {
+        api.status.mockRejectedValueOnce(new Error('cleanup response lost'))
+        await expect(stream.terminateAfterFailure()).rejects.toThrow('cleanup response lost')
+      } else {
+        await stream.terminateAfterFailure()
+      }
+      await stream.terminateAfterFailure()
+      expect(api.status).toHaveBeenCalledTimes(3)
+      const cleanupSignal = api.status.mock.calls[2][3]
+      expect(cleanupSignal).not.toBe(controller.signal)
+      expect(cleanupSignal.aborted).toBe(false)
+      expect(beforeCleanup).toHaveBeenCalledExactlyOnceWith(cleanupSignal)
+      expect(beforeCleanup.mock.invocationCallOrder[0]).toBeLessThan(
+        api.status.mock.invocationCallOrder[2]
+      )
+      expect(api.status).toHaveBeenLastCalledWith(
+        'test-token',
+        { channel: 'D1', threadTs: '1.1' },
+        'active',
+        cleanupSignal
+      )
+      expect(api.start).toHaveBeenCalledOnce()
+      expect(api.append).not.toHaveBeenCalled()
+      expect(api.stop).not.toHaveBeenCalled()
+    }
+  )
+
+  it('requires fresh authority before retrying a failed status reset', async () => {
+    const { stream, beforeCleanup } = setup()
+    await stream.start()
+    api.start.mockRejectedValueOnce(new Error('notification response lost'))
+    api.status.mockRejectedValueOnce(new Error('status response lost'))
+    await expect(stream.finishWithError()).rejects.toThrow('status response lost')
+    beforeCleanup.mockRejectedValueOnce(new Error('authority revoked'))
+    await expect(stream.terminateAfterFailure()).rejects.toThrow('authority revoked')
+    await stream.terminateAfterFailure()
+    expect(api.status).toHaveBeenCalledTimes(2)
+    expect(api.start).toHaveBeenCalledOnce()
+    expect(api.stop).not.toHaveBeenCalled()
+  })
+
+  it('propagates an empty-run status failure and cleans up without posting a reply', async () => {
     const { stream, controller } = setup()
     await stream.start()
     api.status.mockRejectedValueOnce(new Error('status response lost'))
     await expect(stream.finish(result)).rejects.toThrow('status response lost')
     expect(controller.signal.aborted).toBe(true)
     await stream.terminateAfterFailure()
-    expect(api.status).toHaveBeenCalledTimes(2)
+    await stream.terminateAfterFailure()
+    expect(api.status).toHaveBeenCalledTimes(3)
     expect(api.start).not.toHaveBeenCalled()
   })
 })
