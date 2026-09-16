@@ -221,18 +221,49 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:${{ matrix.ecr_repo_secret == 'ECR_APP' && format('{0}-dev', github.sha) || 'dev' }}
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
-  # Dev: deploy Trigger.dev background tasks to the preview "dev-sim" branch.
-  # Gated after migrate-dev for the same reason as build-dev — the new task
-  # code runs against the dev DB, so the schema must be pushed first.
+      - name: Promote dev app image
+        id: appdeploy
+        if: matrix.ecr_repo_secret == 'ECR_APP'
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ steps.ecr-repo.outputs.name }}
+        run: bash .github/scripts/promote-app-image.sh "$REGISTRY" "$REPOSITORY" "${GITHUB_SHA}-dev" dev
+
+      - name: Publish dev cutover metadata
+        if: matrix.ecr_repo_secret == 'ECR_APP'
+        env:
+          DIGEST: ${{ steps.appdeploy.outputs.app_image_digest }}
+          EPOCH: ${{ steps.appdeploy.outputs.retag_epoch }}
+          CHANGED: ${{ steps.appdeploy.outputs.app_image_changed }}
+        run: |
+          mkdir -p dev-meta
+          echo "$DIGEST" > dev-meta/digest.txt
+          echo "$EPOCH" > dev-meta/retag_epoch.txt
+          echo "$CHANGED" > dev-meta/app_image_changed.txt
+
+      - name: Upload dev cutover metadata
+        if: matrix.ecr_repo_secret == 'ECR_APP'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dev-cutover-meta
+          path: dev-meta/
+          retention-days: 1
+
+  # Dev: build & upload the Trigger.dev task version WITHOUT promoting it
+  # (--skip-promotion) to the preview "dev-sim" branch. promote-trigger-dev flips
+  # it at the dev ECS traffic cutover. Gated after migrate-dev so the schema is
+  # pushed before the new task version can run against the dev DB.
   deploy-trigger-dev:
     name: Deploy Trigger.dev (Dev)
     needs: [migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
+    outputs:
+      version: ${{ steps.deploy.outputs.deploymentVersion }}
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -256,17 +287,190 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Deploy to Trigger.dev
+      - name: Deploy to Trigger.dev (skip promotion)
+        id: deploy
         working-directory: ./apps/sim
         env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.DEV_TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
         run: |
+          set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: DEV_TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
             exit 1
           fi
-          bunx trigger.dev@4.5.12 deploy --env preview --branch dev-sim
+          bunx trigger.dev@4.5.12 deploy --env preview --branch dev-sim --skip-promotion
+
+      - name: Validate deployment version output
+        env:
+          VERSION: ${{ steps.deploy.outputs.deploymentVersion }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
+            echo "ERROR: Trigger.dev did not report a valid deploymentVersion output" >&2
+            exit 1
+          fi
+
+  # Dev: promote the skip-promoted preview version at the dev ECS traffic cutover.
+  # The dev app build moves :dev only after building its commit-tagged image,
+  # then passes the tag digest and retag timestamp through an artifact.
+  # trigger.dev supports promoting a specific preview branch: promote --env preview
+  # --branch dev-sim.
+  promote-trigger-dev:
+    name: Promote Trigger.dev (Dev)
+    needs: [build-dev, deploy-trigger-dev]
+    # Run as long as the task upload succeeded, even if a NON-app build-dev leg
+    # (realtime/pii/migrations) failed: the app leg pushes :dev independently and
+    # may have already triggered the ECS deploy, so an unrelated image failure must
+    # not strand the app on the old task version. The app-metadata artifact (only
+    # the app leg uploads it) is the real signal that an app deploy happened.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
+      needs.deploy-trigger-dev.result == 'success'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    # Dev bake is 5 min and dev deploys don't queue behind a bake (serialized by the
+    # ci-<ref> group), so a 20-min poll is ample; the 40-min job leaves ~20 min for
+    # setup + promote above it (mirrors the prod 90-vs-70 margin), and the 40-min
+    # session outlasts the poll.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            **/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Download dev cutover metadata
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: dev-cutover-meta
+          path: dev-meta
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.DEV_AWS_REGION }}
+          role-duration-seconds: 2400
+
+      - name: Wait for ECS traffic cutover
+        env:
+          OVERALL_TIMEOUT: "1200"
+        run: |
+          set -eo pipefail
+          CHANGED=$(cat dev-meta/app_image_changed.txt)
+          DIGEST=$(cat dev-meta/digest.txt)
+          EPOCH=$(cat dev-meta/retag_epoch.txt)
+          case "$CHANGED" in
+            true) ;;
+            false) EPOCH=0 ;;
+            *) echo "ERROR: invalid app image change metadata" >&2; exit 1 ;;
+          esac
+          bash .github/scripts/wait-for-ecs-cutover.sh sim-dev-us-east-1-app-deployment "$DIGEST" "$EPOCH"
+
+      - name: Promote Trigger.dev version
+        working-directory: ./apps/sim
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          VERSION: ${{ needs.deploy-trigger-dev.outputs.version }}
+        run: |
+          set -eo pipefail
+          if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
+            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            exit 1
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: no deployed version passed from deploy-trigger-dev" >&2
+            exit 1
+          fi
+          echo "Promoting Trigger.dev version $VERSION (preview / dev-sim)"
+          bunx trigger.dev@4.5.12 promote "$VERSION" --env preview --branch dev-sim
+
+  # Main/staging: build & upload the Trigger.dev task version WITHOUT promoting it
+  # (--skip-promotion). New runs keep executing the OLD promoted version until
+  # promote-trigger flips it at the ECS traffic cutover — so the app cutting over
+  # never changes which task version runs until promote-trigger (which depends on
+  # this job) promotes the version uploaded here. Runs in parallel with the build;
+  # intentionally NOT gating the app deploy on it, to avoid coupling every app /
+  # realtime / pii / migration deploy to trigger.dev availability.
+  deploy-trigger:
+    name: Deploy Trigger.dev
+    needs: [migrate]
+    if: >-
+      !cancelled() &&
+      needs.migrate.result == 'success' &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.deploy.outputs.deploymentVersion }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            **/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Deploy to Trigger.dev (skip promotion)
+        id: deploy
+        working-directory: ./apps/sim
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          TRIGGER_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
+        run: |
+          set -eo pipefail
+          if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
+            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            exit 1
+          fi
+          bunx trigger.dev@4.5.12 deploy --env "$TRIGGER_ENV" --skip-promotion
+
+      - name: Validate deployment version output
+        env:
+          VERSION: ${{ steps.deploy.outputs.deploymentVersion }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
+            echo "ERROR: Trigger.dev did not report a valid deploymentVersion output" >&2
+            exit 1
+          fi
 
   # Main/staging: build AMD64 images and push sha-tagged images to ECR + GHCR.
   # Runs in parallel with tests — only immutable sha tags are pushed here, and
@@ -415,7 +619,22 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    outputs:
+      # Whether the deploy tag was actually moved (false on a stale-run guard
+      # skip). promote-trigger keys off this so tasks are never promoted when
+      # the app itself wasn't.
+      promoted: ${{ steps.guard.outputs.fresh }}
+      # Epoch when the deploy tag was retagged (this push's ECS pipeline trigger).
+      # promote-trigger passes it to the poll script so a stale pipeline execution
+      # reusing the same image digest can't satisfy the cutover gate.
+      retag_epoch: ${{ steps.promote.outputs.retag_epoch }}
+      # Unchanged tags verify the latest execution's cutover without an epoch bound.
+      app_image_changed: ${{ steps.promote.outputs.app_image_changed }}
+      app_image_digest: ${{ steps.promote.outputs.app_image_digest }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
@@ -444,6 +663,7 @@ jobs:
           fi
 
       - name: Promote images to deploy tags
+        id: promote
         if: steps.guard.outputs.fresh == 'true'
         env:
           ECR_REPOS: >-
@@ -460,6 +680,8 @@ jobs:
             ECR_TAG="staging"
           fi
 
+          APP_REPO="${{ secrets.ECR_APP }}"
+
           # Verify every sha image exists before moving any deploy tag, so a
           # missing/expired image aborts the whole promotion up front.
           for repo in $ECR_REPOS; do
@@ -469,10 +691,111 @@ jobs:
 
           for repo in $ECR_REPOS; do
             echo "🚀 Promoting ${repo}:${{ github.sha }} to ${ECR_TAG}"
-            docker buildx imagetools create \
-              -t "${REGISTRY}/${repo}:${ECR_TAG}" \
-              "${REGISTRY}/${repo}:${{ github.sha }}"
+            if [ "$repo" = "$APP_REPO" ]; then
+              bash .github/scripts/promote-app-image.sh "$REGISTRY" "$APP_REPO" "$GITHUB_SHA" "$ECR_TAG"
+            else
+              docker buildx imagetools create \
+                -t "${REGISTRY}/${repo}:${ECR_TAG}" \
+                "${REGISTRY}/${repo}:${{ github.sha }}"
+            fi
           done
+
+  # Main/staging: promote the parked Trigger.dev version after observing the ECS
+  # traffic cutover (CodeDeploy AllowTraffic on every target). The image retag
+  # triggers the ECS pipeline; this job correlates it via the digest + retag epoch
+  # (rejecting a stale execution reusing the digest) and promotes at cutover.
+  # Skipped when promote-images skipped the tag move (stale run) — tasks then
+  # correctly stay on the old version. If the app deploy fails or never cuts over,
+  # promote never fires and this job fails visibly.
+  promote-trigger:
+    name: Promote Trigger.dev
+    needs: [promote-images, deploy-trigger]
+    # Explicit results also suppress skip propagation from optional ancestors.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+      needs.promote-images.result == 'success' &&
+      needs.deploy-trigger.result == 'success' &&
+      needs.promote-images.outputs.promoted == 'true'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    # Must exceed the poll script's OVERALL_TIMEOUT (70 min, covering a prod deploy
+    # queued behind a ~50-min bake) PLUS runner setup + the final promote step, so
+    # the Actions timeout never kills the job before the script's own deadline.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.1
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            **/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+          # The poll can run up to ~70 min (prod deploy queued behind a bake), which
+          # outlasts the default 1h session. Hold the session for the full job so AWS
+          # calls don't start failing mid-poll. Requires the deploy role's
+          # MaxSessionDuration to be >= this value (roles are managed outside the repo).
+          role-duration-seconds: 5400
+
+      # An unchanged tag may belong to a failed or still-running earlier deploy.
+      # Verify its latest cutover rather than treating tag equality as success.
+      - name: Wait for ECS traffic cutover
+        env:
+          APP_IMAGE_CHANGED: ${{ needs.promote-images.outputs.app_image_changed }}
+          DIGEST: ${{ needs.promote-images.outputs.app_image_digest }}
+          PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}-us-east-1-app-deployment
+          RETAG_EPOCH: ${{ needs.promote-images.outputs.retag_epoch }}
+        run: |
+          set -eo pipefail
+          case "$APP_IMAGE_CHANGED" in
+            true) ;;
+            false) RETAG_EPOCH=0 ;;
+            *) echo "ERROR: invalid app image change metadata" >&2; exit 1 ;;
+          esac
+          bash .github/scripts/wait-for-ecs-cutover.sh "$PIPELINE" "$DIGEST" "$RETAG_EPOCH"
+
+      - name: Promote Trigger.dev version
+        working-directory: ./apps/sim
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          TRIGGER_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
+          VERSION: ${{ needs.deploy-trigger.outputs.version }}
+        run: |
+          set -eo pipefail
+          if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
+            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            exit 1
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: no deployed version passed from deploy-trigger" >&2
+            exit 1
+          fi
+          echo "Promoting Trigger.dev version $VERSION ($TRIGGER_ENV)"
+          bunx trigger.dev@4.5.12 promote "$VERSION" --env "$TRIGGER_ENV"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
