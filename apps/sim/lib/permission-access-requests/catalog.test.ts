@@ -42,25 +42,37 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 }))
 vi.mock('@/providers/utils', () => ({ filterBlacklistedModels: mocks.filterModels }))
 vi.mock('@/tools/metadata', () => ({ getToolMetadata: mocks.toolMetadata }))
-vi.mock('@/providers/models', () => ({
-  DYNAMIC_MODEL_PROVIDERS: ['ollama', 'vllm', 'litellm', 'openrouter'],
-  PROVIDER_DEFINITIONS: {
-    openai: {
-      id: 'openai',
-      name: 'OpenAI',
-      models: [
-        { id: 'public-model' },
-        { id: 'blocked-model' },
-        { id: 'retired-model', sunset: { status: 'deprecated' } },
-      ],
+vi.mock('@/providers/models', () => {
+  const publicModels = {
+    openai: [
+      { id: 'public-model' },
+      { id: 'blocked-model' },
+      { id: 'retired-model', sunset: { status: 'deprecated' } },
+    ],
+    fireworks: [{ id: 'fireworks/public-model' }],
+  }
+  return {
+    getStaticProviderModels: (providerId: string) =>
+      publicModels[providerId as keyof typeof publicModels] ?? [],
+    PROVIDER_DEFINITIONS: {
+      openai: { id: 'openai', name: 'OpenAI', models: publicModels.openai },
+      anthropic: { id: 'anthropic', name: 'Anthropic', models: [{ id: 'anthropic-model' }] },
+      ollama: { id: 'ollama', name: 'Ollama', models: [{ id: 'private-local' }] },
+      vllm: { id: 'vllm', name: 'vLLM', models: [] },
+      litellm: { id: 'litellm', name: 'LiteLLM', models: [] },
+      openrouter: {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        models: [{ id: 'private-tenant-model' }],
+      },
+      fireworks: {
+        id: 'fireworks',
+        name: 'Fireworks',
+        models: [...publicModels.fireworks, { id: 'fireworks/private-model' }],
+      },
     },
-    anthropic: { id: 'anthropic', name: 'Anthropic', models: [{ id: 'anthropic-model' }] },
-    ollama: { id: 'ollama', name: 'Ollama', models: [{ id: 'private-local' }] },
-    vllm: { id: 'vllm', name: 'vLLM', models: [] },
-    litellm: { id: 'litellm', name: 'LiteLLM', models: [] },
-    openrouter: { id: 'openrouter', name: 'OpenRouter', models: [{ id: 'private-tenant-model' }] },
-  },
-}))
+  }
+})
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: {
     available: {
@@ -187,9 +199,21 @@ describe('access request catalog deployment ceilings', () => {
 
   it('omits blacklisted/retired models, unconfigured endpoints, and private dynamic names', async () => {
     const catalog = await loadAccessRequestCatalog(context)
-    expect([...catalog.providers.keys()]).toEqual(['openai', 'openrouter'])
-    expect([...catalog.models.keys()]).toEqual(['public-model'])
+    expect([...catalog.providers.keys()]).toEqual(['openai', 'openrouter', 'fireworks'])
+    expect([...catalog.models.keys()]).toEqual(['public-model', 'fireworks/public-model'])
     expect([...catalog.knowledgeConnectors.keys()]).toEqual(['available', 'token', 'fallback'])
+  })
+
+  it('keeps public models of dynamic providers requestable without exposing private names', async () => {
+    const catalog = await loadAccessRequestCatalog(context, 'model')
+
+    expect(catalog.models.get('fireworks/public-model')).toEqual({
+      id: 'fireworks/public-model',
+      label: 'fireworks/public-model',
+      providerId: 'fireworks',
+    })
+    expect(catalog.models.has('fireworks/private-model')).toBe(false)
+    expect(catalog.models.has('private-tenant-model')).toBe(false)
   })
 
   it('refuses ambiguous tool parent policies instead of choosing one silently', async () => {

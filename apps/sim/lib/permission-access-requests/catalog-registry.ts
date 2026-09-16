@@ -26,7 +26,7 @@ import {
 import { getBlockRegistry } from '@/blocks/registry'
 import { isHiddenUnder } from '@/blocks/visibility/context'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
+import { getStaticProviderModels, PROVIDER_DEFINITIONS } from '@/providers/models'
 import { filterBlacklistedModels } from '@/providers/utils'
 import { getToolMetadata } from '@/tools/metadata'
 
@@ -35,8 +35,6 @@ export interface AccessRequestCatalogContext {
   organizationId: string
   workspaceId: string | null
 }
-
-const DYNAMIC_PROVIDERS: ReadonlySet<string> = new Set(DYNAMIC_MODEL_PROVIDERS)
 
 function isProviderDeploymentAvailable(providerId: string): boolean {
   if (providerId === 'ollama') return !isHosted || isOllamaUrlConfigured()
@@ -128,10 +126,9 @@ export async function loadAccessRequestRegistryCatalog(
       continue
     }
     providers.push({ id: provider.id, label: provider.name })
-    /** Dynamic arrays may contain private names populated by another credential's discovery. */
-    if (targetKind === 'provider' || DYNAMIC_PROVIDERS.has(provider.id)) continue
+    if (targetKind === 'provider') continue
     const availableModelIds = filterBlacklistedModels(
-      provider.models
+      getStaticProviderModels(provider.id)
         .filter((model) => model.sunset?.status !== 'deprecated')
         .map((model) => model.id)
     )

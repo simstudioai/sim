@@ -50,6 +50,31 @@ describe('permission access request settings', () => {
     await expect(isAccessRequestEnabled('organization-one')).resolves.toBe(true)
   })
 
+  it('rechecks rollout after an enabled admission snapshot', async () => {
+    mockIsFeatureEnabled.mockResolvedValue(false)
+
+    await expect(isAccessRequestEnabled('organization-one', undefined, true)).resolves.toBe(false)
+
+    expect(mockIsFeatureEnabled).toHaveBeenCalledExactlyOnceWith('permission-access-requests')
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('keeps a disabled admission snapshot denied even if rollout is now enabled', async () => {
+    await expect(isAccessRequestEnabled('organization-one', undefined, false)).resolves.toBe(false)
+
+    expect(mockIsFeatureEnabled).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('requires the current organization preference after an enabled admission snapshot', async () => {
+    queueTableRows(organizationAccessRequestSettings, [{ allowRequests: false }])
+
+    await expect(isAccessRequestEnabled('organization-one', undefined, true)).resolves.toBe(false)
+
+    expect(mockIsFeatureEnabled).toHaveBeenCalledExactlyOnceWith('permission-access-requests')
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+  })
+
   it('honors an organization opt-out while global rollout is active', async () => {
     queueTableRows(organizationAccessRequestSettings, [{ allowRequests: false }])
 

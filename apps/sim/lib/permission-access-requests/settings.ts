@@ -18,8 +18,9 @@ export async function readAccessRequestSettings(organizationId: string, executor
 export async function isAccessRequestEnabled(
   organizationId: string,
   executor: DbOrTx = db,
-  globalEnabled?: boolean
+  enabledAtAdmission?: boolean
 ): Promise<boolean> {
-  if (!(globalEnabled ?? (await isFeatureEnabled('permission-access-requests')))) return false
+  if (enabledAtAdmission === false || !(await isFeatureEnabled('permission-access-requests')))
+    return false
   return (await readAccessRequestSettings(organizationId, executor)).allowRequests
 }
