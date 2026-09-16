@@ -27,6 +27,23 @@ const FORM = `<!doctype html><html><head><title>Form fixture</title></head><body
   </div>
 </body></html>`
 
+const CLICK_FIXTURE = `<!doctype html><title>Click fixture</title>
+<style>body{margin:0;height:2400px}button{position:absolute;left:100px;top:calc(100vh - 100px);width:200px;height:40px}</style>
+<button id="target" role="option" onclick="document.body.dataset.clicks = Number(document.body.dataset.clicks) + 1">Choose option</button>
+<script>
+ document.body.dataset.clicks = '0'; document.body.dataset.scrolls = '0';
+ const mode = new URLSearchParams(location.search).get('mode');
+ if (mode === 'sticky') {
+   document.getElementById('target').style.top = '1010px';
+   document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0 0 auto;height:80px;background:white;z-index:2">Sticky header</div>');
+   scrollTo(0,1000);
+ }
+ addEventListener('scroll', () => {
+   document.body.dataset.scrolls = Number(document.body.dataset.scrolls) + 1;
+   if (mode === 'menu' && document.body.dataset.armed === 'true') document.getElementById('target')?.remove();
+ });
+</script>`
+
 test.describe('browser tools', () => {
   const calls = new Map<
     string,
@@ -56,9 +73,11 @@ test.describe('browser tools', () => {
       }
       response.writeHead(200, { 'Content-Type': 'text/html' })
       response.end(
-        path === '/form'
-          ? FORM
-          : '<!doctype html><title>Sim fixture</title><h1>Browser tools fixture</h1>'
+        path === '/click'
+          ? CLICK_FIXTURE
+          : path === '/form'
+            ? FORM
+            : '<!doctype html><title>Sim fixture</title><h1>Browser tools fixture</h1>'
       )
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -78,15 +97,21 @@ test.describe('browser tools', () => {
       },
     })
     window = await app.firstWindow()
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].webContents.setBackgroundThrottling(false)
+    )
     await expect(window.getByRole('heading')).toHaveText('Browser tools fixture')
     await window.evaluate(async (scope) => {
       const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
       await api.browserAgent.activateScope(scope)
-      api.browserAgent.setPanelBounds(
-        { x: 0, y: 80, width: innerWidth, height: innerHeight - 80 },
-        null,
-        scope
-      )
+      const updateBounds = () =>
+        api.browserAgent.setPanelBounds(
+          { x: 0, y: 80, width: innerWidth, height: innerHeight - 80 },
+          null,
+          scope
+        )
+      updateBounds()
+      setInterval(updateBounds, 200)
     }, SCOPE)
   })
 
@@ -142,6 +167,148 @@ test.describe('browser tools', () => {
       })`)
     }, origin)
   }
+
+  for (const mode of ['menu', 'sticky']) {
+    test(`clicks a ${mode} target without losing its identity`, async () => {
+      const opened = await execute('browser_open_url', { url: `${origin}/click?mode=${mode}` })
+      expect(opened.ok, opened.error).toBe(true)
+      await app.evaluate(
+        async ({ webContents }, { origin, mode }) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((wc) => wc.getURL().startsWith(`${origin}/click`))
+          if (!contents) throw new Error('Missing click fixture')
+          await contents.executeJavaScript(`
+          history.scrollRestoration = 'manual';
+          document.getElementById('target').style.top = ${mode === 'sticky' ? '1010' : 'innerHeight - 100'} + 'px';
+          scrollTo(0, ${mode === 'sticky' ? '1000' : '0'});
+          new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+            document.body.dataset.scrolls = '0'; document.body.dataset.armed = 'true'; resolve();
+          })))
+        `)
+        },
+        { origin, mode }
+      )
+      const snapshot = await execute('browser_snapshot', {})
+      expect(snapshot.ok, snapshot.error).toBe(true)
+      const outline = (snapshot.result as { outline: string }).outline
+      const line = outline.split('\n').find((line) => line.includes('"Choose option"'))
+      const match = line?.match(/\[ref=(\d+)\]/)
+      if (!match) throw new Error(`Missing target: ${outline}`)
+      const result = await execute('browser_click', { elementId: Number(match[1]) })
+      expect(result.ok, result.error).toBe(true)
+      const state = await app.evaluate(async ({ webContents }, origin) => {
+        const contents = webContents
+          .getAllWebContents()
+          .find((wc) => wc.getURL().startsWith(`${origin}/click`))
+        if (!contents) throw new Error('Missing click fixture')
+        return contents.executeJavaScript(
+          '({clicks:document.body.dataset.clicks,scrolls:document.body.dataset.scrolls,scrollY})'
+        )
+      }, origin)
+      expect(state.clicks).toBe('1')
+      if (mode === 'menu') expect(state).toMatchObject({ scrolls: '0', scrollY: 0 })
+      else expect(state.scrollY).toBeLessThan(1000)
+    })
+  }
+
+  for (const mode of ['visible', 'hidden', 'minimized']) {
+    test(`captures a ${mode} window without changing its state`, async () => {
+      test.skip(
+        mode === 'minimized' && process.platform !== 'darwin',
+        'Requires a window manager with minimize events'
+      )
+      await openForm()
+      await app.evaluate(async ({ BrowserWindow }, mode) => {
+        const win = BrowserWindow.getAllWindows()[0]
+        win.blur()
+        if (mode === 'hidden') win.hide()
+        if (mode === 'minimized') {
+          const minimized = new Promise<void>((resolve) => win.once('minimize', () => resolve()))
+          win.minimize()
+          await minimized
+        }
+      }, mode)
+      const state = () =>
+        app.evaluate(async ({ BrowserWindow, webContents }, origin) => {
+          const win = BrowserWindow.getAllWindows()[0]
+          const contents = webContents
+            .getAllWebContents()
+            .find((wc) => wc.getURL() === `${origin}/form`)
+          if (!contents) throw new Error('Missing screenshot fixture')
+          return {
+            visible: win.isVisible(),
+            minimized: win.isMinimized(),
+            bounds: win.getBounds(),
+            focused: BrowserWindow.getFocusedWindow()?.id ?? null,
+            page: await contents.executeJavaScript(
+              '({width:innerWidth,height:innerHeight,scrollX,scrollY,html:document.body.innerHTML,focus:document.activeElement?.id})'
+            ),
+          }
+        }, origin)
+      const before = await state()
+      for (let i = 0; i < 3; i++) {
+        const response = await execute('browser_screenshot', {})
+        expect(response.ok, response.error).toBe(true)
+        const shot = response.result as {
+          dataUrl: string
+          scale: number
+          viewport: { width: number; height: number }
+        }
+        expect(shot.dataUrl.length).toBeGreaterThan(1000)
+        expect(shot.viewport.width).toBeGreaterThan(0)
+        expect(shot.viewport.height).toBeGreaterThan(0)
+        const image = await app.evaluate(({ nativeImage }, dataUrl) => {
+          const image = nativeImage.createFromDataURL(dataUrl)
+          return { empty: image.isEmpty(), ...image.getSize() }
+        }, shot.dataUrl)
+        expect(image).toEqual({
+          empty: false,
+          width: Math.round(shot.viewport.width * shot.scale),
+          height: Math.round(shot.viewport.height * shot.scale),
+        })
+        expect(await state()).toEqual(before)
+      }
+    })
+  }
+
+  test('captures fresh pixels after resizing and repainting the viewport', async () => {
+    await openForm()
+    const viewportWidth = () =>
+      app.evaluate(async ({ webContents }, origin) => {
+        const contents = webContents
+          .getAllWebContents()
+          .find((wc) => wc.getURL() === `${origin}/form`)
+        return contents?.executeJavaScript('innerWidth')
+      }, origin)
+    const beforeWidth = await viewportWidth()
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1280, 900))
+    await expect.poll(viewportWidth).not.toBe(beforeWidth)
+    for (const color of ['red', 'blue']) {
+      await app.evaluate(
+        async ({ webContents }, { origin, color }) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((wc) => wc.getURL() === `${origin}/form`)
+          if (!contents) throw new Error('Missing screenshot fixture')
+          await contents.executeJavaScript(
+            `document.body.style.background = ${JSON.stringify(color)}; void 0`
+          )
+        },
+        { origin, color }
+      )
+      const response = await execute('browser_screenshot', {})
+      expect(response.ok, response.error).toBe(true)
+      const shot = response.result as { dataUrl: string }
+      const pixel = await app.evaluate(({ nativeImage }, dataUrl) => {
+        const image = nativeImage.createFromDataURL(dataUrl)
+        return Array.from(image.toBitmap().subarray(0, 4))
+      }, shot.dataUrl)
+      const dominant = pixel[color === 'red' ? 2 : 0]
+      const other = pixel[color === 'red' ? 0 : 2]
+      expect(dominant - other, `${color}: ${pixel}`).toBeGreaterThan(150)
+    }
+  })
 
   test('opens with references, fills in order, and scrolls a horizontal pane', async () => {
     const ref = await openForm()

@@ -132,6 +132,72 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
+describe('conditional click scrolling', () => {
+  it('leaves a reachable target in place', () => {
+    const target = visible(document.createElement('button'))
+    document.body.append(target)
+    register(target)
+    target.scrollIntoView = vi.fn()
+    expect(runSerialized(clickElement, [0, false])).toMatchObject({ x: 50, y: 10 })
+    expect(target.scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('rechecks the hit target after scrolling past a sticky obstruction', () => {
+    const target = visible(document.createElement('button'))
+    const obstruction = visible(document.createElement('div'))
+    document.body.append(target, obstruction)
+    register(target)
+    let scrolled = false
+    target.scrollIntoView = vi.fn(() => {
+      scrolled = true
+    })
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => (scrolled ? target : obstruction),
+    })
+    expect(runSerialized(clickElement, [0, false])).toMatchObject({ x: 50, y: 10 })
+    expect(target.scrollIntoView).toHaveBeenCalledOnce()
+  })
+
+  it('reveals a parent control when only its nested button is initially reachable', () => {
+    const card = visible(document.createElement('div'))
+    card.setAttribute('role', 'button')
+    const nested = visible(document.createElement('button'))
+    card.append(nested)
+    document.body.append(card)
+    register(card)
+    let scrolled = false
+    card.scrollIntoView = vi.fn(() => {
+      scrolled = true
+    })
+    const nestedClick = vi.fn()
+    nested.addEventListener('click', nestedClick)
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => (scrolled ? card : nested),
+    })
+    expect(runSerialized(clickElement, [0, false])).toMatchObject({ x: 50, y: 10 })
+    expect(card.scrollIntoView).toHaveBeenCalledOnce()
+    expect(nestedClick).not.toHaveBeenCalled()
+  })
+
+  it('rejects a target removed by scrolling without dispatching input', () => {
+    const target = visible(document.createElement('button'))
+    const obstruction = visible(document.createElement('div'))
+    document.body.append(target, obstruction)
+    register(target)
+    const click = vi.fn()
+    target.addEventListener('click', click)
+    target.scrollIntoView = () => target.remove()
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => obstruction,
+    })
+    expect(runSerialized(clickElement, [0])).toMatchObject({ error: 'stale' })
+    expect(click).not.toHaveBeenCalled()
+  })
+})
+
 describe('serialization contract', () => {
   // The driver ships each of these to the page as `String(fn)`, so a reference
   // to anything in module scope — a shared helper, an import, a constant —

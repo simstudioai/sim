@@ -1,10 +1,10 @@
 import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
-import type { MenuItemConstructorOptions } from 'electron'
+import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, Menu, nativeImage } from 'electron'
+import { BrowserWindow, Menu, type nativeImage } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import * as driverModule from '@/main/browser-agent/driver'
 import * as session from '@/main/browser-agent/session'
@@ -485,8 +485,11 @@ describe('executeTool', () => {
       )
       await Promise.resolve()
       expect(captureScreenshot).toHaveBeenCalledOnce()
+      const signal = captureScreenshot.mock.calls[0][2]
+      expect(signal?.aborted).toBe(false)
 
       driver.disposeBrowserScope('chat-test')
+      expect(signal?.aborted).toBe(true)
       automationTab.mockClear()
       await expect(screenshot).resolves.toMatchObject({
         ok: false,
@@ -2282,8 +2285,11 @@ describe('credential protection', () => {
     expect(form.writes).toEqual([0])
   })
 
-  function mockScreenshotImage(size: { width: number; height: number } | null): void {
-    vi.mocked(nativeImage.createFromBuffer).mockReturnValueOnce({
+  function mockScreenshotImage(
+    contents: WebContents,
+    size: { width: number; height: number } | null
+  ): void {
+    vi.mocked(contents.capturePage).mockResolvedValue({
       isEmpty: vi.fn(() => size === null),
       getSize: vi.fn(() => size ?? { width: 0, height: 0 }),
       resize: vi.fn(() => ({ toJPEG: vi.fn(() => Buffer.from('resized')) })),
@@ -3966,7 +3972,11 @@ describe('credential protection', () => {
     try {
       const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
 
-      expect(capture).toHaveBeenCalledWith(contents, { x: 20, y: 30, width: 200, height: 100 })
+      expect(capture).toHaveBeenCalledWith(
+        contents,
+        { x: 20, y: 30, width: 200, height: 100 },
+        expect.any(AbortSignal)
+      )
       expect(result).toMatchObject({
         ok: true,
         result: { element: 'button', clip: { x: 20, y: 30, width: 200, height: 100 } },
@@ -4009,15 +4019,12 @@ describe('credential protection', () => {
 
   it('returns the screenshot scale for coordinate mapping', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
           cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
         })
-      }
-      if (method === 'Page.captureScreenshot') {
-        return Promise.resolve({ data: 'c2lt' })
       }
       return Promise.resolve(undefined)
     })
@@ -4046,13 +4053,10 @@ describe('credential protection', () => {
 
   it('uses the in-page CSS viewport when CDP exposes only deprecated device metrics', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
-      }
-      if (method === 'Page.captureScreenshot') {
-        return Promise.resolve({ data: 'c2lt' })
       }
       return Promise.resolve(undefined)
     })
@@ -4102,12 +4106,11 @@ describe('credential protection', () => {
     const fullTitle = `Example ${'t'.repeat(600)}`
     vi.mocked(contents.getURL).mockReturnValue(fullUrl)
     vi.mocked(contents.getTitle).mockReturnValue(fullTitle)
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
     respondWith(contents, {
@@ -4135,33 +4138,31 @@ describe('credential protection', () => {
     })
   })
 
-  it('rejects an undecodable screenshot instead of returning an unverified scale', async () => {
+  it('rejects an empty screenshot instead of returning an unverified scale', async () => {
     const contents = await openPage()
-    mockScreenshotImage(null)
+    mockScreenshotImage(contents, null)
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
           cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
         })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
 
     const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
 
     expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/verify the screenshot dimensions/)
+    expect(result.error).toMatch(/empty image/)
   })
 
   it('rejects a screenshot when no CSS viewport can be established', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
     respondWith(contents, { getViewportInfo: null })
@@ -4174,12 +4175,11 @@ describe('credential protection', () => {
 
   it('rejects coordinate mapping when the viewport changes during capture', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 256 })
+    mockScreenshotImage(contents, { width: 1024, height: 256 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 1024, clientHeight: 256 } })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
     respondWith(contents, {
@@ -4199,18 +4199,20 @@ describe('credential protection', () => {
 
   it('rejects a screenshot when the document navigates during capture', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
           cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
         })
       }
-      if (method === 'Page.captureScreenshot') {
-        emitContentsEvent(contents, 'did-navigate')
-        return Promise.resolve({ data: 'c2lt' })
-      }
       return Promise.resolve(undefined)
+    })
+
+    const image = await contents.capturePage()
+    vi.mocked(contents.capturePage).mockImplementation(async () => {
+      emitContentsEvent(contents, 'did-navigate')
+      return image
     })
 
     const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
@@ -4223,7 +4225,7 @@ describe('credential protection', () => {
     'rejects a screenshot when the page %s changes during capture',
     async (identityField) => {
       const contents = await openPage()
-      mockScreenshotImage({ width: 1024, height: 512 })
+      mockScreenshotImage(contents, { width: 1024, height: 512 })
       const initialUrl = contents.getURL()
       const initialTitle = contents.getTitle()
       let currentUrl = initialUrl
@@ -4236,12 +4238,14 @@ describe('credential protection', () => {
             cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
           })
         }
-        if (method === 'Page.captureScreenshot') {
-          if (identityField === 'url') currentUrl = 'https://example.com/changed'
-          else currentTitle = 'Changed title'
-          return Promise.resolve({ data: 'c2lt' })
-        }
         return Promise.resolve(undefined)
+      })
+
+      const image = await contents.capturePage()
+      vi.mocked(contents.capturePage).mockImplementation(async () => {
+        if (identityField === 'url') currentUrl = 'https://example.com/changed'
+        else currentTitle = 'Changed title'
+        return image
       })
 
       const result = await driver.executeTool('chat-test', 'browser_screenshot', {})

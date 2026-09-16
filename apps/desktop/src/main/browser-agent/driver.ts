@@ -2278,7 +2278,8 @@ async function executeToolInner(
   params: Record<string, unknown>,
   assertCurrentExecution: () => void,
   executionDeadline: number | undefined,
-  invocationEpoch: number
+  invocationEpoch: number,
+  signal?: AbortSignal
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -2630,15 +2631,11 @@ async function executeToolInner(
             }
           : undefined
       assertCaptureIsCurrent()
-      const shot = await cdp.captureScreenshot(contents, clip).catch((error) => {
-        logger.warn('Browser screenshot capture failed', { error: getErrorMessage(error) })
-        return null
-      })
-      if (!shot) {
+      const shot = await cdp.captureScreenshot(contents, clip, signal).catch((error) => {
         throw new ToolError(
-          'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
+          `Could not capture the page: ${getErrorMessage(error)}. Use browser_snapshot or browser_read_text instead.`
         )
-      }
+      })
       assertCaptureIsCurrent()
       if (elementId !== undefined && elementClip) {
         const currentClip = toRecord(
@@ -2662,11 +2659,6 @@ async function executeToolInner(
       if (shot.dataUrl.length > 8_000_000) {
         throw new ToolError(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
-        )
-      }
-      if (!shot.imageSize) {
-        throw new ToolError(
-          'Could not verify the screenshot dimensions. Retry browser_screenshot or use browser_snapshot instead.'
         )
       }
       const viewport = shot.viewport
@@ -4599,9 +4591,13 @@ export async function executeTool(
         throw new ToolError('This browser action was cancelled before it started.')
       }
       state.activeToolCallId = toolCallId ?? null
+      const executionController = new AbortController()
       let cancelActiveExecution: () => void = () => {}
       const cancellation = new Promise<never>((_resolve, reject) => {
-        cancelActiveExecution = () => reject(new ToolError('This browser action was cancelled.'))
+        cancelActiveExecution = () => {
+          executionController.abort()
+          reject(new ToolError('This browser action was cancelled.'))
+        }
       })
       state.activeToolCancel = cancelActiveExecution
       return await session.withBrowserScope(resolvedScopeId, async () => {
@@ -4629,12 +4625,14 @@ export async function executeTool(
             params,
             assertCurrentExecution,
             executionDeadline,
-            invocationEpoch
+            invocationEpoch,
+            executionController.signal
           )
           const guardedExecution =
             watchdogMs === null
               ? execution
               : raceAgainstWatchdog(execution, watchdogMs, () => {
+                  executionController.abort()
                   if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
                   if (
                     tool === 'browser_snapshot' ||
@@ -4654,6 +4652,7 @@ export async function executeTool(
           })
           return result
         } finally {
+          executionController.abort()
           if (keepHiddenPageActive && !state.disposed) {
             session.setAutomationActive(false)
           }

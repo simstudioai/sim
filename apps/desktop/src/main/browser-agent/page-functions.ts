@@ -929,7 +929,8 @@ export function clickElement(
   id: number,
   dispatchSynthetic = true,
   focusForKeyboard = false,
-  allowDisabled = false
+  allowDisabled = false,
+  scrollToTarget = false
 ): unknown {
   const isSecretField = (node: Element | null): boolean => {
     if (!node || String(node.tagName || '').toUpperCase() !== 'INPUT') return false
@@ -974,7 +975,10 @@ export function clickElement(
       return { error: 'file-input' }
     }
   }
-  el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+  if (scrollToTarget) {
+    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+    if (!el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
+  }
 
   const view = el.ownerDocument.defaultView
   if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
@@ -1021,7 +1025,11 @@ export function clickElement(
         rect.right - rect.left > 1 &&
         rect.bottom - rect.top > 1
     )
-  if (rects.length === 0) return { error: 'not-visible' }
+  if (rects.length === 0) {
+    return scrollToTarget
+      ? { error: 'not-visible' }
+      : clickElement(id, dispatchSynthetic, focusForKeyboard, allowDisabled, true)
+  }
 
   const composedParent = (node: Element): Element | null => {
     if (node.parentElement) return node.parentElement
@@ -1202,6 +1210,9 @@ export function clickElement(
     if (suggestionsCoverFocusedEditable()) {
       return { error: 'suggestions-open', blocker: blockerLabel(blocker) }
     }
+    if (!scrollToTarget) {
+      return clickElement(id, dispatchSynthetic, focusForKeyboard, allowDisabled, true)
+    }
     // A hit INSIDE the requested element is not an overlay — it is the ref
     // wrapping its own control (a row containing a button, a card containing a
     // link). hitBelongsToTarget rejects both cases identically, so this was
@@ -1247,6 +1258,9 @@ export function clickElement(
     if (parentElementAt) {
       const parentHit: Element | null = parentElementAt(pageX, pageY)
       if (parentHit !== frame) {
+        if (!scrollToTarget) {
+          return clickElement(id, dispatchSynthetic, focusForKeyboard, allowDisabled, true)
+        }
         return { error: 'obstructed', blocker: blockerLabel(parentHit) }
       }
     }
