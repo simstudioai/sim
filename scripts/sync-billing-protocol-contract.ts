@@ -195,6 +195,10 @@ function render(schema: SchemaNode): string {
     'BillingProtocolV1Limits.accountDecisionHeaderMaxBytes'
   )
   const callbackOutcomes = namedPairs(definitions, 'BillingProtocolV1CallbackOutcomes')
+  const validationPurposes = stringEnum(
+    schemaDefinition(definitions, 'CopilotValidationPurpose'),
+    'CopilotValidationPurpose'
+  )
   const analyticsOutcomes = stringEnum(
     schemaDefinition(definitions, 'BillingAnalyticsOutcome'),
     'BillingAnalyticsOutcome'
@@ -237,6 +241,22 @@ export const COPILOT_BILLING_PROTOCOL_VALUES = [
   COPILOT_BILLING_PROTOCOL.direct,
   COPILOT_BILLING_PROTOCOL.legacy,
 ] as const;
+
+export const COPILOT_VALIDATION_PURPOSE = {
+${renderRecord(
+  validationPurposes.map((value) => {
+    const name = pascalCase(value)
+    return { name: name.charAt(0).toLowerCase() + name.slice(1), value }
+  })
+)}
+} as const;
+
+export const COPILOT_VALIDATION_PURPOSE_VALUES = [
+${validationPurposes.map((value) => `  ${JSON.stringify(value)},`).join('\n')}
+] as const;
+
+export type CopilotValidationPurpose =
+  (typeof COPILOT_VALIDATION_PURPOSE_VALUES)[number];
 
 export const BILLING_ATTRIBUTION_HEADER_MAX_BYTES = ${attributionHeaderMaxBytes};
 export const BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES = ${accountDecisionHeaderMaxBytes};

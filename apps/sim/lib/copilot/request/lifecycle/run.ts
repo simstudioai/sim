@@ -990,11 +990,11 @@ async function runCheckpointLoop(
     payload = { ...payload, systemPromptOverride }
   }
 
-  // Go's auth middleware re-validates every Sim -> Go request by reading
-  // workspaceId from the JSON body and forwarding it to Sim's validate route,
-  // where it is required for the per-member usage gate. Normalize the initial
-  // leg from the lifecycle option so callers that only set the option (not the
-  // raw payload) still send it on the first request.
+  /**
+   * The initial turn needs its workspace for pooled and member spend admission.
+   * Resumes authenticate again, then Go rechecks current access using the
+   * checkpoint's original scope and payer without repeating spend admission.
+   */
   if (lifecycleWorkspaceId && !nonBlankString(payload.workspaceId)) {
     payload = { ...payload, workspaceId: lifecycleWorkspaceId }
   }

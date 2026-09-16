@@ -9,6 +9,8 @@ import {
   embedding,
   knowledgeBase,
   knowledgeConnector,
+  knowledgeConnectorMember,
+  knowledgeDocumentObservation,
   member,
   organization,
   user,
@@ -35,6 +37,7 @@ import { seedSearchReaderFixture } from '@/lib/knowledge/__integration__/seed-se
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
+  seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import {
   SearchBudget,
@@ -127,6 +130,7 @@ interface CapturedQuery {
 interface ExplainNode {
   'Node Type': string
   'Actual Rows': number
+  'Actual Loops': number
   'Index Name'?: string
   'Relation Name'?: string
   Output?: string[]
@@ -138,6 +142,7 @@ const explainNodeSchema: z.ZodType<ExplainNode> = z.lazy(() =>
     .object({
       'Node Type': z.string(),
       'Actual Rows': z.number(),
+      'Actual Loops': z.number(),
       'Index Name': z.string().optional(),
       'Relation Name': z.string().optional(),
       Output: z.array(z.string()).optional(),
@@ -153,6 +158,19 @@ function assertCompactCandidates(node: ExplainNode) {
   for (const expression of node.Output ?? [])
     expect(expression).not.toMatch(/binary_quantize\([^)]*embedding\.embedding/)
   for (const child of node.Plans ?? []) assertCompactCandidates(child)
+}
+
+/** Small scopes must seek chunk metadata by document without reading the full vector projection. */
+function assertIndexedChunkProbe(node: ExplainNode): number {
+  let lookups = 0
+  if (node['Relation Name'] === 'embedding_search') {
+    expect(['Index Scan', 'Index Only Scan']).toContain(node['Node Type'])
+    expect(node['Index Name']).toBe('embedding_search_document_lookup_idx')
+    expect((node.Output ?? []).join(' ')).not.toMatch(/(?:embedding_search\.)?(?:vector|binary)/)
+    lookups = node['Actual Loops']
+  }
+  for (const child of node.Plans ?? []) lookups += assertIndexedChunkProbe(child)
+  return lookups
 }
 
 /** Keyword sort memory must scale with identities and scores, not the matched document text. */
@@ -227,10 +245,10 @@ async function search(
   )
 }
 
-async function searchDashboard(query = 'Orion deployment') {
+async function searchDashboard(query = 'Orion deployment', userId = ids.aliceId) {
   const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
     kind: 'session',
-    userId: ids.aliceId,
+    userId,
     sessionId: 'fixture-dashboard',
   })
   try {
@@ -305,6 +323,7 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
         item.query.includes('FROM "embedding_keyword_search"')) &&
       (item.query.includes('order by') ||
         item.query.includes('limit') ||
+        item.query.includes('CROSS JOIN LATERAL') ||
         item.query.includes('WITH visible_search_documents') ||
         item.query.includes('WITH scored_search_candidates') ||
         item.query.includes('WITH visible_keyword_documents'))
@@ -313,6 +332,7 @@ async function sample(label: string, run: () => ReturnType<typeof search>) {
   for (const query of searches) {
     const plan = await db.$client.begin(async (tx) => {
       await tx.unsafe("SET LOCAL statement_timeout = '45s'")
+      await tx.unsafe('SET LOCAL jit = off')
       await tx.unsafe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
       await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 20000')
       if (
@@ -563,6 +583,19 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       sql`SELECT current_setting('statement_timeout') AS timeout`
     )
     expect(settings.timeout).toBe('0')
+  })
+
+  it('disables compilation only inside deadline-bound search transactions', async () => {
+    const [before] = await db.execute<{ jit: string }>(sql`SELECT current_setting('jit') AS jit`)
+    for (const leg of ['vector', 'keyword', 'tags'] as const) {
+      const budget = new SearchBudget(leg, performance.now() + 2000)
+      const [inside] = await budget.query(`${leg}.sql`, (executor) =>
+        executor.execute<{ jit: string }>(sql`SELECT current_setting('jit') AS jit`)
+      )
+      expect(inside.jit).toBe('off')
+    }
+    const [settings] = await db.execute<{ jit: string }>(sql`SELECT current_setting('jit') AS jit`)
+    expect(settings.jit).toBe(before.jit)
   })
 
   it('expires waiting for a saturated pool without executing abandoned work', async () => {
@@ -834,27 +867,150 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
   }, 180_000)
 
   it('ranks a small permission scope by its bounded IDs without a corpus-wide vector probe', async () => {
-    const documentIds = [0, 8, 16].map((index) => `${ids.workspaceId}-doc-${index}`)
+    const lastTopicDocument = Math.floor((chunkCount / chunksPerDocument - 1) / 8) * 8
+    const documentIds = [0, 8, 16].map(
+      (offset) => `${ids.workspaceId}-doc-${lastTopicDocument - offset}`
+    )
     await db
       .update(document)
       .set({ acl: [`u:${ids.aliceId}@fixture.test`, `u:${ids.bobId}@fixture.test`] })
       .where(inArray(document.id, documentIds))
     try {
-      const { result, plans } = await sample('small-scope', () => search(ids.bobId))
-      expect(result.data.results.length).toBeGreaterThan(0)
-      expect(result.data.results.every((row) => documentIds.includes(row.documentId))).toBe(true)
-      const probe = plans.filter((plan) => plan.kind === 'probe')
-      expect(probe).toHaveLength(1)
-      expect(probe[0].query).not.toContain('<=>')
-      expect(probe[0].plan[0].Plan['Actual Rows']).toBe(12)
-      const vector = plans.filter((plan) => plan.kind === 'rerank')
-      expect(vector).toHaveLength(1)
-      expect(vector[0].query).toContain('"embedding"."id" in')
+      for (const surface of ['copilot', 'dashboard'] as const) {
+        const { result, plans, diagnostics } = await sample(`small-scope.${surface}`, () =>
+          surface === 'copilot' ? search(ids.bobId) : searchDashboard('Orion deployment', ids.bobId)
+        )
+        expectCompleteVectorSearch(diagnostics)
+        expect(result.data.results.length).toBeGreaterThan(0)
+        expect(result.data.results.every((row) => documentIds.includes(row.documentId))).toBe(true)
+        const probe = plans.filter((plan) => plan.kind === 'probe')
+        expect(probe).toHaveLength(1)
+        expect(probe[0].query).not.toContain('<=>')
+        expect(probe[0].plan[0].Plan['Actual Rows']).toBe(12)
+        expect(assertIndexedChunkProbe(probe[0].plan[0].Plan)).toBe(documentIds.length)
+        const vector = plans.filter((plan) => plan.kind === 'rerank')
+        expect(vector).toHaveLength(1)
+        expect(vector[0].query).toContain('"embedding"."id" in')
+      }
     } finally {
       await db
         .update(document)
         .set({ acl: [`u:${ids.aliceId}@fixture.test`] })
         .where(inArray(document.id, documentIds))
+    }
+  }, 180_000)
+
+  it.each([200, 396, 400])(
+    'keeps a selective scope of %s chunks within both retrieval budgets',
+    async (count) => {
+      const documentCount = count / chunksPerDocument
+      const documentIds = Array.from(
+        { length: documentCount },
+        (_, index) => `${ids.workspaceId}-doc-${chunkCount / chunksPerDocument - 1 - index}`
+      )
+      await db
+        .update(document)
+        .set({ acl: [`u:${ids.aliceId}@fixture.test`, `u:${ids.bobId}@fixture.test`] })
+        .where(inArray(document.id, documentIds))
+      try {
+        for (const surface of ['copilot', 'dashboard'] as const) {
+          const { result, plans, diagnostics } = await sample(
+            `selective-${count}.${surface}`,
+            () =>
+              surface === 'copilot'
+                ? search(ids.bobId)
+                : searchDashboard('Orion deployment', ids.bobId)
+          )
+          expectCompleteVectorSearch(diagnostics)
+          expect(result.data.results.length).toBeGreaterThan(0)
+          expect(result.data.results.every((row) => documentIds.includes(row.documentId))).toBe(
+            true
+          )
+          const probe = plans.find((plan) => plan.kind === 'probe')!
+          expect(probe.plan[0].Plan['Actual Rows']).toBe(count)
+          expect(assertIndexedChunkProbe(probe.plan[0].Plan)).toBe(documentCount)
+          expect(plans.filter((plan) => plan.kind === 'vector')).toHaveLength(count < 400 ? 0 : 1)
+        }
+      } finally {
+        await db
+          .update(document)
+          .set({ acl: [`u:${ids.aliceId}@fixture.test`] })
+          .where(inArray(document.id, documentIds))
+      }
+    },
+    180_000
+  )
+
+  it('bounds member-observation searches and rejects suspended readers with current ACL checks', async () => {
+    const fixture = await seedKnowledgeMemberFixture(ids)
+    const [alice, bob] = fixture.members
+    const lastTopicDocument = Math.floor((chunkCount / chunksPerDocument - 1) / 8) * 8
+    const documentIds = [0, 8, 16].map(
+      (offset) => `${ids.workspaceId}-doc-${lastTopicDocument - offset}`
+    )
+    try {
+      await db
+        .update(document)
+        .set({ connectorId: fixture.connectorId, acl: [alice.subjectToken] })
+        .where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
+      await db.execute(sql`INSERT INTO knowledge_document_observation
+        (document_id, member_id, run_id)
+        SELECT id, ${alice.id}, ${fixture.runId} FROM document
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId}`)
+      await db.insert(knowledgeDocumentObservation).values(
+        documentIds.map((documentId) => ({
+          documentId,
+          memberId: bob.id,
+          runId: fixture.runId,
+        }))
+      )
+      await db
+        .update(document)
+        .set({ acl: [alice.subjectToken, bob.subjectToken] })
+        .where(inArray(document.id, documentIds))
+      await db.execute(sql`ANALYZE document`)
+      await db.execute(sql`ANALYZE knowledge_document_observation`)
+      for (const surface of ['copilot', 'dashboard'] as const) {
+        const broad = await sample(`member-broad.${surface}`, () =>
+          surface === 'copilot' ? search() : searchDashboard()
+        )
+        expectCompleteVectorSearch(broad.diagnostics)
+        expect(broad.result.data.results).toHaveLength(15)
+        const broadProbe = broad.plans.find((plan) => plan.kind === 'probe')!
+        expect(broadProbe.plan[0].Plan['Actual Rows']).toBe(400)
+        expect(assertIndexedChunkProbe(broadProbe.plan[0].Plan)).toBe(400 / chunksPerDocument)
+        const { result, plans, diagnostics } = await sample(`member-scope.${surface}`, () =>
+          surface === 'copilot' ? search(ids.bobId) : searchDashboard('Orion deployment', ids.bobId)
+        )
+        expectCompleteVectorSearch(diagnostics)
+        expect(result.data.results.length).toBeGreaterThan(0)
+        expect(result.data.results.every((row) => documentIds.includes(row.documentId))).toBe(true)
+        const probe = plans.find((plan) => plan.kind === 'probe')!
+        expect(probe).toBeDefined()
+        expect(probe.query).toContain('knowledge_document_observation')
+        expect(assertIndexedChunkProbe(probe.plan[0].Plan)).toBe(documentIds.length)
+      }
+      await db
+        .update(knowledgeConnectorMember)
+        .set({ status: 'suspended' })
+        .where(eq(knowledgeConnectorMember.id, bob.id))
+      const denied = await sample('member-scope.suspended', () => search(ids.bobId))
+      expectCompleteVectorSearch(denied.diagnostics)
+      expect(denied.result.data.results).toEqual([])
+    } finally {
+      await db
+        .update(document)
+        .set({ connectorId: ids.connectorId, acl: [`u:${ids.aliceId}@fixture.test`] })
+        .where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
+      await db.delete(knowledgeConnector).where(eq(knowledgeConnector.id, fixture.connectorId))
+      await db.delete(credential).where(
+        inArray(
+          credential.id,
+          fixture.members.map((member) => member.credentialId)
+        )
+      )
+      await db.delete(credentialGroup).where(eq(credentialGroup.id, fixture.groupId))
+      await db.execute(sql`ANALYZE document`)
     }
   }, 180_000)
 

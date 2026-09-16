@@ -111,17 +111,40 @@ export async function getOrgUsageLimit(
   seats: number | null,
   executor: DbClient = db
 ): Promise<OrgUsageLimitResult> {
-  const orgData = await executor
+  return (
+    (await findOrgUsageLimit(organizationId, plan, seats, executor)) ??
+    calculateOrgUsageLimit(organizationId, plan, seats, null)
+  )
+}
+
+async function findOrgUsageLimit(
+  organizationId: string,
+  plan: string,
+  seats: number | null,
+  executor: DbClient = db
+): Promise<OrgUsageLimitResult | null> {
+  const [orgData] = await executor
     .select({ orgUsageLimit: organization.orgUsageLimit })
     .from(organization)
     .where(eq(organization.id, organizationId))
     .limit(1)
 
-  const configured =
-    orgData.length > 0 && orgData[0].orgUsageLimit
-      ? toNumber(toDecimal(orgData[0].orgUsageLimit))
-      : null
+  if (!orgData) return null
 
+  return calculateOrgUsageLimit(
+    organizationId,
+    plan,
+    seats,
+    orgData.orgUsageLimit ? toNumber(toDecimal(orgData.orgUsageLimit)) : null
+  )
+}
+
+function calculateOrgUsageLimit(
+  organizationId: string,
+  plan: string,
+  seats: number | null,
+  configured: number | null
+): OrgUsageLimitResult {
   if (isEnterprise(plan)) {
     // Enterprise: Use configured limit directly (no per-seat minimum)
     if (configured !== null) {
@@ -466,21 +489,16 @@ export async function getUserUsageLimit(
       : await getHighestPrioritySubscription(userId)
 
   if (isOrgScopedSubscription(subscription, userId) && subscription) {
-    const orgExists = await db
-      .select({ id: organization.id })
-      .from(organization)
-      .where(eq(organization.id, subscription.referenceId))
-      .limit(1)
-
-    if (orgExists.length === 0) {
-      throw new Error(`Organization not found: ${subscription.referenceId} for user: ${userId}`)
-    }
-
-    const orgLimit = await getOrgUsageLimit(
+    const orgLimit = await findOrgUsageLimit(
       subscription.referenceId,
       subscription.plan,
       subscription.seats
     )
+
+    if (!orgLimit) {
+      throw new Error(`Organization not found: ${subscription.referenceId} for user: ${userId}`)
+    }
+
     return orgLimit.limit
   }
 

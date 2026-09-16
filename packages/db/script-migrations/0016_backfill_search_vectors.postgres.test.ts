@@ -169,19 +169,54 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
       INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
       WHERE indrelid IN ('embedding_search'::regclass, 'embedding_keyword_search'::regclass)
         AND (relname LIKE '%cosine_hnsw_idx' OR relname IN
-          ('embedding_keyword_search_kb_idx', 'embedding_keyword_search_document_idx', 'embedding_keyword_search_content_idx'))
+          ('embedding_search_document_lookup_idx', 'embedding_keyword_search_kb_idx', 'embedding_keyword_search_document_idx', 'embedding_keyword_search_content_idx'))
       ORDER BY indexrelid`
-    expect(indexes).toHaveLength(9)
+    expect(indexes).toHaveLength(10)
     expect(indexes.every((index) => index.indisvalid)).toBe(true)
     await buildSearchIndexes(sql)
     const replay = await sql`SELECT indexrelid, indisvalid FROM pg_index
       INNER JOIN pg_class ON pg_class.oid = pg_index.indexrelid
       WHERE indrelid IN ('embedding_search'::regclass, 'embedding_keyword_search'::regclass)
         AND (relname LIKE '%cosine_hnsw_idx' OR relname IN
-          ('embedding_keyword_search_kb_idx', 'embedding_keyword_search_document_idx', 'embedding_keyword_search_content_idx'))
+          ('embedding_search_document_lookup_idx', 'embedding_keyword_search_kb_idx', 'embedding_keyword_search_document_idx', 'embedding_keyword_search_content_idx'))
       ORDER BY indexrelid`
     expect(replay).toEqual(indexes)
   }, 60_000)
+
+  it('allows other writers while the document lookup index waits for an existing writer', async () => {
+    await sql.unsafe('DROP INDEX embedding_search_document_lookup_idx')
+    const writer = postgres(databaseUrl!, {
+      max: 1,
+      connection: { search_path: `${schemaName},public` },
+    })
+    const [{ pid }] = await sql`SELECT pg_backend_pid() AS pid`
+    await writer`BEGIN`
+    await writer`LOCK TABLE embedding_search IN ROW EXCLUSIVE MODE`
+    const build = Promise.allSettled([buildSearchIndexes(sql)])
+    try {
+      await vi.waitFor(async () => {
+        const [{ waiting }] = await admin`SELECT wait_event_type = 'Lock' AS waiting
+          FROM pg_stat_activity WHERE pid = ${pid}`
+        expect(waiting).toBe(true)
+      })
+      await admin.begin(async (tx) => {
+        await tx.unsafe("SET LOCAL lock_timeout = '1s'")
+        await tx.unsafe(`LOCK TABLE "${schemaName}".embedding_search IN ROW EXCLUSIVE MODE`)
+      })
+    } finally {
+      await writer`ROLLBACK`
+      await writer.end()
+      await build
+    }
+    const [result] = await build
+    if (result.status === 'rejected') throw result.reason
+    expect(
+      (
+        await sql`SELECT indisvalid FROM pg_index
+        WHERE indexrelid = 'embedding_search_document_lookup_idx'::regclass`
+      )[0].indisvalid
+    ).toBe(true)
+  })
 
   it('keeps inserts, state changes, width changes, and deletes synchronous after the upgrade', async () => {
     await sql.unsafe(`INSERT INTO embedding
@@ -316,7 +351,7 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
   it('runs 0016 directly after a partially committed, unjournaled 0015', async () => {
     await sql`CREATE TABLE script_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`
     for (const migration of scriptMigrations) {
-      if (migration.name !== '0016_backfill_search_vectors') {
+      if (migration.name < '0015') {
         await sql`INSERT INTO script_migrations (name) VALUES (${migration.name})`
       }
     }
@@ -353,6 +388,7 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     ).toEqual([
       { name: '0015_backfill_embedding_search' },
       { name: '0016_backfill_search_vectors' },
+      { name: '0017_index_search_documents' },
     ])
     const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
       JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id

@@ -32,6 +32,20 @@ export const COPILOT_BILLING_PROTOCOL_VALUES = [
   COPILOT_BILLING_PROTOCOL.legacy,
 ] as const
 
+export const COPILOT_VALIDATION_PURPOSE = {
+  newTurn: 'new-turn',
+  continuation: 'continuation',
+  cancellation: 'cancellation',
+} as const
+
+export const COPILOT_VALIDATION_PURPOSE_VALUES = [
+  'new-turn',
+  'continuation',
+  'cancellation',
+] as const
+
+export type CopilotValidationPurpose = (typeof COPILOT_VALIDATION_PURPOSE_VALUES)[number]
+
 export const BILLING_ATTRIBUTION_HEADER_MAX_BYTES = 8192
 export const BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES = 2048
 

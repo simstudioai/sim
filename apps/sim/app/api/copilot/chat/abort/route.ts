@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatAbortBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { getAccessibleCopilotChatForCancellation } from '@/lib/copilot/chat/lifecycle'
 import { CopilotAbortOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
@@ -75,7 +75,9 @@ export const POST = withRouteHandler((request: NextRequest) =>
         return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
       }
       const chat = run.chatId
-        ? await getAccessibleCopilotChatAuth(run.chatId, authenticatedUserId, { principal })
+        ? await getAccessibleCopilotChatForCancellation(run.chatId, authenticatedUserId, {
+            principal,
+          })
         : null
       if (run.chatId && !chat) {
         return NextResponse.json({ error: 'Stream not found' }, { status: 404 })

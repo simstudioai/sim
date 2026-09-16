@@ -7,11 +7,15 @@ import {
   type AsyncConfirmationStatus,
 } from '@/lib/copilot/async-runs/lifecycle'
 import {
+  BILLING_ACCOUNT_DECISION_HEADER,
+  BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
   BILLING_ATTRIBUTION_HEADER,
   BILLING_ATTRIBUTION_HEADER_MAX_BYTES,
   BILLING_REQUEST_ID_HEADER,
   COPILOT_BILLING_PROTOCOL_HEADER,
   COPILOT_BILLING_PROTOCOL_VALUES,
+  COPILOT_VALIDATION_PURPOSE,
+  COPILOT_VALIDATION_PURPOSE_VALUES,
 } from '@/lib/copilot/generated/billing-protocol-v1'
 import { PERSISTED_RESOURCE_TYPES } from '@/lib/copilot/resources/types'
 
@@ -255,6 +259,10 @@ export const deleteCopilotChatBodySchema = z.object({
 export type DeleteCopilotChatBody = z.input<typeof deleteCopilotChatBodySchema>
 
 export const validateCopilotApiKeyHeadersSchema = z.object({
+  [BILLING_ACCOUNT_DECISION_HEADER]: z
+    .string()
+    .max(BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES)
+    .optional(),
   [COPILOT_BILLING_PROTOCOL_HEADER]: z.enum(COPILOT_BILLING_PROTOCOL_VALUES).optional(),
   [BILLING_REQUEST_ID_HEADER]: z.string().uuid().optional(),
   [BILLING_ATTRIBUTION_HEADER]: z.string().max(BILLING_ATTRIBUTION_HEADER_MAX_BYTES).optional(),
@@ -271,6 +279,8 @@ export type ValidateCopilotApiKeyError = z.output<typeof validateCopilotApiKeyEr
 export const validateCopilotApiKeyBodySchema = z
   .object({
     userId: z.string().min(1, 'userId is required'),
+    /** Selected by authenticated Go lifecycle handlers, never by public callers. */
+    purpose: z.enum(COPILOT_VALIDATION_PURPOSE_VALUES).default(COPILOT_VALIDATION_PURPOSE.newTurn),
     /**
      * Originating execution workspace. Hosted attribution-v1 binds it to Sim's
      * immutable payer snapshot. Markerless legacy-v0 resolves a locally known

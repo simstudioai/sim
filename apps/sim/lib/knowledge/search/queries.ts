@@ -860,10 +860,6 @@ async function selectLiveVectorResults(
         ),
         excludeSearchSources(excludedSources),
       ]
-      const candidateVisibility = [
-        eq(embeddingSearch.enabled, true),
-        ...candidateDocumentVisibility,
-      ]
       /** Explicitly filtered scopes use exact ordering instead of HNSW traversal. */
       const exactPage = async (candidateIds?: string[]) => {
         annotateSearchDiagnostics({ vectorRanking: 'exact' })
@@ -888,22 +884,29 @@ async function selectLiveVectorResults(
       if (params.filters?.documentIds?.length || params.structuredFilters?.length) {
         return exactPage()
       }
-      /** Probe visibility without vector reads; revoked scopes must not detoast the corpus. */
+      /**
+       * Enumerate bounded chunk identities from visible documents. The lateral limit keeps
+       * the probe on document-indexed lookups instead of hashing the entire vector projection.
+       * An exhausted probe fits in the rerank pool and needs only one exact ranking pass.
+       */
       const probe = await runSearchQuery(params.budget, 'vector.probe', (executor) =>
-        executor
-          .select({ id: embeddingSearch.id })
-          .from(embeddingSearch)
-          .innerJoin(document, eq(document.id, embeddingSearch.documentId))
-          .where(
-            and(
+        executor.execute<{ id: string }>(sql`
+          SELECT scoped_chunk.id FROM ${document}
+          CROSS JOIN LATERAL (
+            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
+            WHERE ${and(
+              eq(embeddingSearch.documentId, document.id),
               inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-              ...candidateVisibility
-            )
-          )
-          .limit(LIVE_SEARCH_PAGE_SIZE)
+              eq(embeddingSearch.enabled, true)
+            )}
+            LIMIT ${candidateLimit}
+          ) AS scoped_chunk
+          WHERE ${and(...candidateDocumentVisibility)}
+          LIMIT ${candidateLimit}
+        `)
       )
       if (probe.length === 0) return { candidates: [], nextOffset: offset }
-      if (probe.length < LIVE_SEARCH_PAGE_SIZE) {
+      if (probe.length < candidateLimit) {
         return exactPage(probe.map((candidate) => candidate.id))
       }
       annotateSearchDiagnostics({

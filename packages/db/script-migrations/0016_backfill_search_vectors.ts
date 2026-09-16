@@ -187,6 +187,11 @@ export async function backfillSearchKeywords(sql: Sql): Promise<number> {
 /** Builds new indexes after bulk loading; interrupted builds are repaired without rebuilding valid ones. */
 export async function buildSearchIndexes(sql: Sql): Promise<void> {
   const indexes = [
+    {
+      name: 'embedding_search_document_lookup_idx',
+      table: 'embedding_search',
+      definition: 'ON embedding_search (document_id, knowledge_base_id, id) WHERE enabled',
+    },
     ...WIDTHS.map((width) => ({
       name: `embedding_search${width === 1536 ? '' : `_${width}`}_cosine_hnsw_idx`,
       table: 'embedding_search',

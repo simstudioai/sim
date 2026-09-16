@@ -18,35 +18,6 @@ export interface BillingEntityBlockStatus {
 }
 
 /**
- * Reads one user's own `user_stats` row, without re-deriving the block that
- * their organization membership would imply.
- *
- * Only the organization branch of {@link getBillingEntityBlockStatus} wants this
- * narrow read: an organization's debt is its owner's own debt, and some other
- * org the owner merely belongs to is not this organization's problem. Callers
- * asking whether a *user* is blocked want {@link getEffectiveBillingStatus}.
- */
-async function getUserStatsBlockStatus(
-  userId: string,
-  executor: DbOrTx
-): Promise<BillingEntityBlockStatus> {
-  const [stats] = await executor
-    .select({
-      billingBlocked: userStats.billingBlocked,
-      billingBlockedReason: userStats.billingBlockedReason,
-    })
-    .from(userStats)
-    .where(eq(userStats.userId, userId))
-    .limit(1)
-
-  const billingBlocked = Boolean(stats?.billingBlocked)
-  return {
-    billingBlocked,
-    billingBlockedReason: billingBlocked ? (stats?.billingBlockedReason ?? null) : null,
-  }
-}
-
-/**
  * Reads the effective block state of one payer, personal or organization.
  *
  * A personal payer resolves through {@link getEffectiveBillingStatus}, so a
@@ -72,8 +43,12 @@ export async function getBillingEntityBlockStatus(
   }
 
   const [owner] = await executor
-    .select({ userId: member.userId })
+    .select({
+      billingBlocked: userStats.billingBlocked,
+      billingBlockedReason: userStats.billingBlockedReason,
+    })
     .from(member)
+    .leftJoin(userStats, eq(userStats.userId, member.userId))
     .where(and(eq(member.organizationId, billingEntity.id), eq(member.role, 'owner')))
     .limit(1)
 
@@ -85,7 +60,11 @@ export async function getBillingEntityBlockStatus(
     return { billingBlocked: false, billingBlockedReason: null }
   }
 
-  return getUserStatsBlockStatus(owner.userId, executor)
+  const billingBlocked = Boolean(owner.billingBlocked)
+  return {
+    billingBlocked,
+    billingBlockedReason: billingBlocked ? (owner.billingBlockedReason ?? null) : null,
+  }
 }
 
 /**
