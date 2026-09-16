@@ -54,7 +54,7 @@ import {
   MAX_TABLE_SELECTION_ROWS,
   safeBrowserSelectionUrl,
 } from '@/lib/mothership/chat/selection-context'
-import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
+import { COPILOT_REQUEST_MODES, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import {
   type ChatRequest,
@@ -1404,7 +1404,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         runId,
         chatId: actualChatId,
         currentChat,
-        isNewChat: conversationHistory.length === 0,
         message: body.message,
         titleModel: branch.titleModel,
         ...(branch.titleProvider ? { titleProvider: branch.titleProvider } : {}),
@@ -1483,6 +1482,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         headers: {
           ...SSE_RESPONSE_HEADERS,
           traceparent: rootTraceparent,
+          ...(actualChatId ? { [MOTHERSHIP_CHAT_ID_HEADER]: actualChatId } : {}),
         },
       })
     }) // end otelContextApi.with

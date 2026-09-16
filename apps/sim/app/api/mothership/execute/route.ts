@@ -326,7 +326,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         streamId: messageId,
         userId,
         chatId: effectiveChatId,
-        workspaceId,
       }).catch((error) => {
         reqLogger.warn('Failed to send explicit abort for mothership execution', {
           error: toError(error).message,

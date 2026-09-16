@@ -134,7 +134,6 @@ export const organizationSearchChat: OperationUseCase<
         explicitAbort = requestExplicitStreamAbort({
           streamId: messageId,
           userId,
-          organizationId,
           chatId,
         })
           .then(() => undefined)

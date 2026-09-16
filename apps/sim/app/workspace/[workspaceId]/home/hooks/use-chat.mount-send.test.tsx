@@ -95,7 +95,8 @@ interface NetworkState {
    * - `deduped` — the 409 the server returns for an already-claimed send
    */
   postBehavior: 'hang' | 'accept' | 'deduped' | 'tool' | 'task'
-  postBodies: Array<{ message: string; userMessageId?: string }>
+  postBodies: Array<{ message: string; userMessageId?: string; chatId?: string }>
+  pendingAdmissions: Map<string, () => void>
   abortSettlements: boolean[]
   abortBodies: CopilotChatAbortBody[]
   stopBodies: CopilotChatStopBody[]
@@ -105,6 +106,7 @@ interface NetworkState {
 const state: NetworkState = {
   postBehavior: 'hang',
   postBodies: [],
+  pendingAdmissions: new Map(),
   abortSettlements: [],
   abortBodies: [],
   stopBodies: [],
@@ -125,7 +127,9 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
   const url = String(input instanceof Request ? input.url : input)
 
   if (url.includes('/api/copilot/chat/abort')) {
-    state.abortBodies.push(JSON.parse(String(init?.body)))
+    const body: CopilotChatAbortBody = JSON.parse(String(init?.body))
+    state.abortBodies.push(body)
+    if (body.streamId) state.pendingAdmissions.get(body.streamId)?.()
     state.abortTraceparents.push(new Headers(init?.headers).get('traceparent'))
     return Response.json({ aborted: true, settled: state.abortSettlements.shift() ?? true })
   }
@@ -147,6 +151,11 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
 
   if (url.includes('/api/mothership/chat') && init?.method === 'POST') {
     state.postBodies.push(JSON.parse(String(init.body)))
+    const sent = state.postBodies.at(-1)
+    const admissionHeaders = {
+      'Content-Type': 'text/event-stream',
+      'x-mothership-chat-id': sent?.chatId ?? DEDUPED_CHAT_ID,
+    }
     if (state.postBehavior === 'deduped') {
       return new Response(
         JSON.stringify({
@@ -181,7 +190,7 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`))
           },
         }),
-        { status: 200, headers: { 'Content-Type': 'text/event-stream' } }
+        { status: 200, headers: admissionHeaders }
       )
     }
     if (state.postBehavior === 'tool') {
@@ -208,10 +217,15 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`))
           },
         }),
-        { status: 200, headers: { 'Content-Type': 'text/event-stream', traceparent: TRACEPARENT } }
+        { status: 200, headers: { ...admissionHeaders, traceparent: TRACEPARENT } }
       )
     }
-    return new Promise<Response>((_, reject) => {
+    return new Promise<Response>((resolve, reject) => {
+      if (sent?.userMessageId) {
+        const admit = () => resolve(new Response(null, { status: 200, headers: admissionHeaders }))
+        state.pendingAdmissions.set(sent.userMessageId, admit)
+        if (state.abortBodies.some((body) => body.streamId === sent.userMessageId)) admit()
+      }
       const signal = init?.signal
       if (!signal) return
       // Real fetch rejects with the RAW abort reason (a string here), not an
@@ -500,6 +514,7 @@ describe('useChat remount send recovery', () => {
     navigationMocks.usePathname.mockReturnValue('/workspace/ws-1/home')
     state.postBehavior = 'hang'
     state.postBodies = []
+    state.pendingAdmissions.clear()
     state.abortSettlements = []
     state.abortBodies = []
     state.stopBodies = []
@@ -519,6 +534,137 @@ describe('useChat remount send recovery', () => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     vi.clearAllMocks()
+  })
+
+  it.each(['workspace', 'organization'] as const)(
+    'preserves a %s send stopped during preparation and keeps the next send in that chat',
+    async (scope) => {
+      if (scope === 'organization') navigationMocks.usePathname.mockReturnValue('/o/org-1/home')
+      const owner = scope === 'organization' ? { organizationId: 'org-1' } : 'ws-1'
+      const { getResult } = renderUseChat(owner, 'agent')
+      await act(async () => {
+        const sent = getResult().sendMessage('Keep this message even if I stop immediately')
+        const stopped = getResult().stopGeneration()
+        await Promise.all([sent, stopped])
+      })
+      expect(state.postBodies).toHaveLength(1)
+      expect(state.abortBodies[0]).toMatchObject({
+        streamId: state.postBodies[0].userMessageId,
+        ...(scope === 'organization' ? { organizationId: 'org-1' } : { workspaceId: 'ws-1' }),
+      })
+      expect(state.stopBodies[0]).toMatchObject({
+        chatId: DEDUPED_CHAT_ID,
+        streamId: state.postBodies[0].userMessageId,
+      })
+      await act(async () => {
+        void getResult().sendMessage('Continue in the same chat')
+      })
+      await waitFor(() => state.postBodies.length === 2)
+      expect(state.postBodies[1]).toMatchObject({ chatId: DEDUPED_CHAT_ID, createNewChat: false })
+      expect(allQueuedMessages()).toHaveLength(0)
+    }
+  )
+
+  it('identifies a Stop while an existing-chat query is still cancelling', async () => {
+    const { getResult } = renderUseChatInChat('chat-a')
+    let releaseCancellation!: () => void
+    vi.spyOn(queryClient, 'cancelQueries').mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseCancellation = resolve
+        })
+    )
+    let sent!: Promise<void>
+    let stopped!: Promise<void>
+    await act(async () => {
+      sent = getResult().sendMessage('Stop before the POST')
+      stopped = getResult().stopGeneration()
+    })
+    expect(state.postBodies).toHaveLength(0)
+    expect(state.abortBodies[0]?.streamId).toBeTruthy()
+    await act(async () => {
+      releaseCancellation()
+      await Promise.all([sent, stopped])
+    })
+    expect(state.postBodies[0].userMessageId).toBe(state.abortBodies[0].streamId)
+    expect(state.postBodies[0].chatId).toBe('chat-a')
+  })
+
+  it('does not navigate from an unmounted stopped send when admission arrives late', async () => {
+    let admit!: (response: Response) => void
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/api/mothership/chat') && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        return new Promise<Response>((resolve) => {
+          admit = resolve
+        })
+      }
+      return fetchStub(input, init)
+    })
+    const { getResult, unmount } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('Keep my stopped message')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    let stopped!: Promise<void>
+    await act(async () => {
+      stopped = getResult().stopGeneration()
+    })
+    unmount()
+    const replace = vi.spyOn(window.history, 'replaceState')
+    await act(async () => {
+      admit(new Response(null, { headers: { 'x-mothership-chat-id': DEDUPED_CHAT_ID } }))
+      await stopped
+    })
+    expect(replace).not.toHaveBeenCalled()
+    expect(state.stopBodies[0]).toMatchObject({ chatId: DEDUPED_CHAT_ID })
+  })
+
+  it('bounds the Stop wait without sending a follow-up into a second chat', async () => {
+    let admit!: (response: Response) => void
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/api/mothership/chat') && init?.method === 'POST') {
+        state.postBodies.push(JSON.parse(String(init.body)))
+        if (state.postBodies.length === 1)
+          return new Promise<Response>((resolve) => {
+            admit = resolve
+          })
+        return emptySseResponse()
+      }
+      return fetchStub(input, init)
+    })
+    const { getResult } = renderUseChat()
+    await act(async () => {
+      void getResult().sendMessage('A slowly admitted message')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+    vi.useFakeTimers()
+    try {
+      let stopped!: Promise<void>
+      await act(async () => {
+        stopped = getResult().stopGeneration()
+        void stopped.catch(() => {})
+        await vi.advanceTimersByTimeAsync(31_000)
+      })
+      await expect(stopped).rejects.toThrow('Operation deadline expired')
+      await act(async () => {
+        await getResult().sendMessage('Do not create a second chat')
+      })
+      await act(async () => {
+        await getResult().sendMessage('Keep another follow-up here too')
+      })
+      expect(state.postBodies).toHaveLength(1)
+      expect(allQueuedMessages()[0]?.content).toBe('Do not create a second chat')
+      await act(async () => {
+        admit(new Response(null, { headers: { 'x-mothership-chat-id': DEDUPED_CHAT_ID } }))
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(state.postBodies.length).toBeGreaterThanOrEqual(2)
+      expect(state.postBodies[1].chatId).toBe(DEDUPED_CHAT_ID)
+      expect(state.postBodies.slice(1).every((body) => body.chatId === DEDUPED_CHAT_ID)).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it.each([
@@ -1071,7 +1217,7 @@ describe('useChat remount send recovery', () => {
       streamId: state.postBodies[0].userMessageId,
       workspaceId: 'ws-1',
     })
-    expect(state.abortBodies[1]).toEqual(state.abortBodies[0])
+    expect(state.abortBodies[1]).toEqual({ ...state.abortBodies[0], chatId: DEDUPED_CHAT_ID })
   })
 
   it('retries unsettled chatless Stop with the same scoped identity and accepts settlement', async () => {
@@ -1085,7 +1231,7 @@ describe('useChat remount send recovery', () => {
       await getResult().stopGeneration()
     })
     expect(state.abortBodies).toHaveLength(2)
-    expect(state.abortBodies[1]).toEqual(state.abortBodies[0])
+    expect(state.abortBodies[1]).toEqual({ ...state.abortBodies[0], chatId: DEDUPED_CHAT_ID })
     expect(state.abortBodies[0]).not.toHaveProperty('chatId')
   })
 

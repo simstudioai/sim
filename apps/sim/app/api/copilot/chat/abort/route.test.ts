@@ -115,6 +115,7 @@ describe('POST /api/copilot/chat/abort', () => {
       allowPersonalApiKeys: false,
     })
     mockAuthorize.mockResolvedValue(undefined)
+    mockOrganizationAuthorize.mockResolvedValue(undefined)
     mockBannedUsers.mockResolvedValue([])
     mockWorkspaceContext.mockResolvedValue({
       workspaceId: 'workspace-1',
@@ -271,7 +272,81 @@ describe('POST /api/copilot/chat/abort', () => {
       'chat-1'
     )
     expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: 'chat-1', userId: 'user-1', workspaceId: 'workspace-1' })
+      expect.objectContaining({ chatId: 'chat-1', userId: 'user-1', streamId: 'stream-1' })
+    )
+  })
+
+  it('preserves organization scope through parsing for a chatless pre-admission Stop', async () => {
+    mockGetLatestRunForStream.mockResolvedValue(null)
+    mockRequestRunStop.mockResolvedValue(null)
+    const response = await POST(
+      createMockRequest('POST', { streamId: 'early-stream', organizationId: 'org-1' })
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ aborted: true, settled: true })
+    expect(mockOrganizationAuthorize).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'session', userId: 'user-1' }),
+      expect.objectContaining({ id: 'mothership.runs.abort', minimumRole: 'member' }),
+      { organizationId: 'org-1' }
+    )
+    expect(mockRequestRunStop).toHaveBeenCalledWith({
+      streamId: 'early-stream',
+      userId: 'user-1',
+      organizationId: 'org-1',
+      workspaceId: undefined,
+    })
+    expect(mockWorkspaceContext).not.toHaveBeenCalled()
+    expect(mockAuthorize).not.toHaveBeenCalled()
+    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
+  })
+
+  it('refuses mixed owner scopes in the HTTP contract before protected lookup', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        streamId: 'early-stream',
+        organizationId: 'org-1',
+        workspaceId: 'workspace-1',
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(mockGetLatestRunForStream).not.toHaveBeenCalled()
+    expect(mockRequestRunStop).not.toHaveBeenCalled()
+  })
+
+  it('rechecks organization membership before writing a pre-admission Stop', async () => {
+    mockGetLatestRunForStream.mockResolvedValue(null)
+    mockOrganizationAuthorize.mockRejectedValueOnce(
+      new OrchestrationError('forbidden', 'Membership revoked')
+    )
+    const response = await POST(
+      createMockRequest('POST', { streamId: 'early-stream', organizationId: 'org-1' })
+    )
+    expect(response.status).toBe(403)
+    expect(mockRequestRunStop).not.toHaveBeenCalled()
+  })
+
+  it('binds an organization admission that wins the Stop race before signalling it', async () => {
+    mockGetLatestRunForStream.mockResolvedValue(null)
+    mockChatContext.mockResolvedValue({
+      chatId: 'new-chat',
+      userId: 'user-1',
+      organizationId: 'org-1',
+    })
+    mockRequestRunStop.mockResolvedValue({
+      chatId: 'new-chat',
+      workspaceId: null,
+      organizationId: 'org-1',
+    })
+    const response = await POST(
+      createMockRequest('POST', { streamId: 'early-stream', organizationId: 'org-1' })
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ settled: true })
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        streamId: 'early-stream',
+        chatId: 'new-chat',
+      })
     )
   })
 
@@ -296,8 +371,6 @@ describe('POST /api/copilot/chat/abort', () => {
     expect(mockAuthorize).not.toHaveBeenCalled()
     expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationId: 'org-1',
-        workspaceId: undefined,
         chatId: 'chat-1',
         userId: 'user-1',
       })
@@ -399,7 +472,7 @@ describe('POST /api/copilot/chat/abort', () => {
     )
     expect(response.status).toBe(200)
     expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: 'chat-1', userId: 'user-1', workspaceId: 'workspace-1' })
+      expect.objectContaining({ chatId: 'chat-1', userId: 'user-1' })
     )
   })
   it('rejects a run admitted in a different scope during the lookup race', async () => {

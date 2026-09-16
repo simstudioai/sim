@@ -55,6 +55,9 @@ export const STREAM_STORAGE_KEY = 'copilot_active_stream'
 /** POST — send a chat message through the unified mothership chat surface. */
 export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
 
+/** Durable chat identity returned after the send transaction commits, before SSE delivery. */
+export const MOTHERSHIP_CHAT_ID_HEADER = 'x-mothership-chat-id'
+
 /** POST — confirm or reject a tool call. */
 export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'
 

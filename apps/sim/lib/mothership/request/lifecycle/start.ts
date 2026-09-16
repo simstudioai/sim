@@ -18,6 +18,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { TitleRequest } from '@/lib/mothership/generated/protocol'
 import {
   RequestTraceV1Outcome,
   RequestTraceV1SpanStatus,
@@ -76,7 +77,6 @@ export interface StreamingOrchestrationParams {
   runId: string
   chatId?: string
   currentChat: CurrentChatSummary
-  isNewChat: boolean
   message: string
   titleModel: string
   titleProvider?: string
@@ -100,7 +100,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     runId,
     chatId,
     currentChat,
-    isNewChat,
     message,
     titleModel,
     titleProvider,
@@ -305,7 +304,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             fireTitleGeneration({
               chatId,
               currentChat,
-              isNewChat,
               userId,
               message,
               titleModel,
@@ -508,7 +506,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 function fireTitleGeneration(params: {
   chatId?: string
   currentChat: CurrentChatSummary
-  isNewChat: boolean
   userId?: string
   message: string
   titleModel: string
@@ -523,7 +520,6 @@ function fireTitleGeneration(params: {
   const {
     chatId,
     currentChat,
-    isNewChat,
     userId,
     message,
     titleModel,
@@ -535,7 +531,8 @@ function fireTitleGeneration(params: {
     publisher,
     otelContext,
   } = params
-  if (!chatId || currentChat?.title || !isNewChat) return
+  /** A stopped first turn can leave a persisted chat untitled; each accepted turn may name it. */
+  if (!chatId || currentChat?.title) return
 
   requestChatTitle({
     chatId,
@@ -633,15 +630,16 @@ export async function requestChatTitle(params: {
       method: 'POST',
       signal,
       headers,
-      body: JSON.stringify({
-        message,
-        model,
-        ...(workspaceId ? { workspaceId } : {}),
-        ...(organizationId ? { organizationId, chatId } : {}),
-        ...(userId ? { userId } : {}),
-        ...(byokApiKey ? { byokApiKey } : {}),
-        ...(chatId ? { chatId } : {}),
-      }),
+      body: JSON.stringify(
+        TitleRequest.parse({
+          message,
+          ...(workspaceId ? { workspaceId } : {}),
+          ...(organizationId ? { organizationId, chatId } : {}),
+          ...(userId ? { userId } : {}),
+          ...(byokApiKey ? { byokApiKey } : {}),
+          ...(chatId ? { chatId } : {}),
+        })
+      ),
       otelContext,
       spanName: 'sim → go /api/generate-chat-title',
       operation: 'generate_chat_title',

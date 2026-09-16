@@ -5,12 +5,14 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
-import { resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { TitleRequest } from '@/lib/mothership/generated/protocol'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
@@ -49,7 +51,7 @@ const {
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
-  workspaceId: 'workspace-1',
+  workspaceId: '22222222-2222-4222-8222-222222222222',
   billedAccountUserId: 'owner-1',
   organizationId: 'org-1',
   billingEntity: { type: 'organization' as const, id: 'org-1' },
@@ -231,7 +233,6 @@ describe('createSSEStream terminal error handling', () => {
         executionId: 'exec-1',
         runId: 'run-1',
         currentChat: null,
-        isNewChat: false,
         message: 'hello',
         titleModel: '',
         requestId: 'req-1',
@@ -273,7 +274,6 @@ describe('createSSEStream terminal error handling', () => {
       executionId: 'exec-1',
       runId: 'run-1',
       currentChat: null,
-      isNewChat: false,
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-1',
@@ -290,6 +290,68 @@ describe('createSSEStream terminal error handling', () => {
     await vi.waitFor(() => expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1'))
   })
 
+  it.each([true, false])(
+    'persists and announces a generated title only when the conditional write wins (%s)',
+    async (stamped) => {
+      const chatId = '11111111-1111-4111-8111-111111111111'
+      const workspaceId = '22222222-2222-4222-8222-222222222222'
+      dbChainMockFns.returning.mockResolvedValue(stamped ? [{ id: chatId }] : [])
+      fetchGo.mockImplementation(async (_url, request) => {
+        TitleRequest.parse(JSON.parse(request.body))
+        return Response.json({ title: 'Workflow planning' })
+      })
+      let finish!: () => void
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      runCopilotLifecycle.mockImplementation(async () => {
+        await pending
+        return { success: true, content: 'Done', contentBlocks: [], toolCalls: [] }
+      })
+      const stream = createSSEStream({
+        requestPayload: { message: 'Plan a workflow' },
+        userId: 'user-1',
+        workspaceId,
+        chatId,
+        streamId: 'stream-title',
+        executionId: 'exec-title',
+        runId: 'run-title',
+        currentChat: null,
+        message: 'Plan a workflow',
+        titleModel: 'gpt-5.4',
+        requestId: 'req-title',
+        orchestrateOptions: { userId: 'user-1' },
+      })
+      try {
+        await vi.waitFor(() =>
+          expect(dbChainMockFns.set).toHaveBeenCalledWith({ title: 'Workflow planning' })
+        )
+        if (stamped) {
+          await vi.waitFor(() =>
+            expect(publishChatStatusChanged).toHaveBeenCalledWith(
+              { workspaceId, organizationId: undefined, userId: 'user-1' },
+              { chatId, type: 'renamed' }
+            )
+          )
+          expect(appendEvent).toHaveBeenCalledWith(
+            expect.objectContaining({
+              type: 'session',
+              payload: { kind: 'title', title: 'Workflow planning' },
+            })
+          )
+        } else {
+          expect(publishChatStatusChanged).not.toHaveBeenCalled()
+          expect(appendEvent).not.toHaveBeenCalledWith(
+            expect.objectContaining({ payload: expect.objectContaining({ kind: 'title' }) })
+          )
+        }
+      } finally {
+        finish()
+        await drainStream(stream)
+      }
+    }
+  )
+
   it('finishes a pre-admission Stop as cancelled without calling the agent or title model', async () => {
     createRunSegment.mockResolvedValueOnce({ status: 'cancelled' })
     await drainStream(
@@ -299,10 +361,9 @@ describe('createSSEStream terminal error handling', () => {
         streamId: 'stream-1',
         executionId: 'exec-1',
         runId: 'run-1',
-        chatId: 'chat-1',
-        workspaceId: 'workspace-1',
+        chatId: '11111111-1111-4111-8111-111111111111',
+        workspaceId: '22222222-2222-4222-8222-222222222222',
         currentChat: null,
-        isNewChat: true,
         message: 'hello',
         titleModel: 'gpt-5.4',
         requestId: 'req-1',
@@ -320,11 +381,73 @@ describe('createSSEStream terminal error handling', () => {
     expect(appendEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
     expect(unregisterActiveStream).toHaveBeenCalledWith('stream-1', expect.any(AbortController))
     expect(releasePendingChatStream).toHaveBeenCalledWith(
-      'chat-1',
+      '11111111-1111-4111-8111-111111111111',
       'stream-1',
       expect.objectContaining({ value: 'stream-1\ncontroller' })
     )
     await vi.waitFor(() => expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1'))
+  })
+
+  it('names an untitled chat on the next accepted turn after an initial Stop, then leaves its title alone', async () => {
+    const chatId = '11111111-1111-4111-8111-111111111111'
+    const params = {
+      requestPayload: { message: 'Plan a workflow' },
+      userId: 'user-1',
+      chatId,
+      workspaceId: '22222222-2222-4222-8222-222222222222',
+      streamId: 'cancelled-first',
+      executionId: 'first-execution',
+      runId: 'first-run',
+      currentChat: null,
+      message: 'Plan a workflow',
+      titleModel: 'gpt-5.4',
+      requestId: 'request',
+      orchestrateOptions: { userId: 'user-1' },
+    }
+    createRunSegment.mockResolvedValueOnce({ status: 'cancelled' })
+    await drainStream(createSSEStream(params))
+    expect(fetchGo).not.toHaveBeenCalled()
+    expect(runCopilotLifecycle).not.toHaveBeenCalled()
+
+    dbChainMockFns.returning.mockResolvedValue([{ id: chatId }])
+    fetchGo.mockImplementation(async (_url, request) => {
+      TitleRequest.parse(JSON.parse(request.body))
+      return Response.json({ title: 'Workflow planning' })
+    })
+    runCopilotLifecycle.mockResolvedValue({
+      success: true,
+      content: 'Done',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+    await drainStream(
+      createSSEStream({
+        ...params,
+        streamId: 'accepted-second',
+        executionId: 'second-execution',
+        runId: 'second-run',
+        currentChat: { title: null },
+      })
+    )
+    await vi.waitFor(() =>
+      expect(publishChatStatusChanged).toHaveBeenCalledWith(
+        { workspaceId: params.workspaceId, organizationId: undefined, userId: 'user-1' },
+        { chatId, type: 'renamed' }
+      )
+    )
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ title: 'Workflow planning' })
+    expect(fetchGo).toHaveBeenCalledTimes(1)
+
+    await drainStream(
+      createSSEStream({
+        ...params,
+        streamId: 'accepted-third',
+        executionId: 'third-execution',
+        runId: 'third-run',
+        currentChat: { title: 'Workflow planning' },
+      })
+    )
+    expect(fetchGo).toHaveBeenCalledTimes(1)
   })
 
   it('writes the thrown terminal error event before close for replay durability', async () => {
@@ -337,7 +460,6 @@ describe('createSSEStream terminal error handling', () => {
       executionId: 'exec-1',
       runId: 'run-1',
       currentChat: null,
-      isNewChat: false,
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-1',
@@ -370,7 +492,6 @@ describe('createSSEStream terminal error handling', () => {
       executionId: 'exec-1',
       runId: 'run-1',
       currentChat: null,
-      isNewChat: false,
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-cancelled',
@@ -414,7 +535,6 @@ describe('createSSEStream terminal error handling', () => {
       executionId: 'exec-1',
       runId: 'run-1',
       currentChat: null,
-      isNewChat: false,
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-otel',
@@ -441,7 +561,6 @@ describe('createSSEStream terminal error handling', () => {
       runId: 'run-leak',
       chatId: 'chat-leak',
       currentChat: null,
-      isNewChat: false,
       message: 'hello',
       titleModel: 'gpt-5.4',
       requestId: 'req-leak',
@@ -478,9 +597,8 @@ describe('createSSEStream terminal error handling', () => {
       streamId: 'stream-title',
       executionId: 'exec-title',
       runId: 'run-title',
-      chatId: 'chat-title',
+      chatId: '11111111-1111-4111-8111-111111111111',
       currentChat: null,
-      isNewChat: true,
       message: 'hello secret-value',
       titleModel: 'gpt-5.4',
       requestId: 'req-title',
@@ -513,12 +631,18 @@ describe('requestChatTitle billing protocol', () => {
     mockDisconnected = false
     resetDbChainMock()
     setEnvFlags({ isHosted: true })
-    fetchGo.mockResolvedValue(
-      new Response(JSON.stringify({ title: 'Billing Protocol' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    )
+    fetchGo.mockImplementation(async (_url, request) => {
+      const parsed = TitleRequest.safeParse(JSON.parse(request.body))
+      return new Response(
+        JSON.stringify(
+          parsed.success ? { title: 'Billing Protocol' } : { error: 'Invalid title request' }
+        ),
+        {
+          status: parsed.success ? 200 : 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    })
   })
 
   it('freezes and forwards a dedicated attributed identity before title work', async () => {
@@ -527,7 +651,7 @@ describe('requestChatTitle billing protocol', () => {
       message: 'explain billing',
       model: 'claude-opus-4.8',
       userId: 'user-1',
-      workspaceId: 'workspace-1',
+      workspaceId: '22222222-2222-4222-8222-222222222222',
       billingAttribution: BILLING_ATTRIBUTION,
       signal,
     })
@@ -557,13 +681,16 @@ describe('requestChatTitle billing protocol', () => {
         model: 'claude-opus-4.8',
         userId: 'user-1',
         organizationId: 'org-1',
-        chatId: 'chat-1',
+        chatId: '11111111-1111-4111-8111-111111111111',
         billingAttribution: attribution,
       })
     ).resolves.toBe('Billing Protocol')
     const options = fetchGo.mock.calls[0]?.[1]
     expect(JSON.parse(options.body)).toEqual(
-      expect.objectContaining({ organizationId: 'org-1', chatId: 'chat-1' })
+      expect.objectContaining({
+        organizationId: 'org-1',
+        chatId: '11111111-1111-4111-8111-111111111111',
+      })
     )
     expect(JSON.parse(options.body)).not.toHaveProperty('workspaceId')
     expect(JSON.parse(decodeURIComponent(options.headers['x-sim-billing-attribution']))).toEqual(

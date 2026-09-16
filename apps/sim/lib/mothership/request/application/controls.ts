@@ -162,8 +162,6 @@ export const abortRun = defineAuthorizedChatUseCase({
       streamId,
       userId,
       chatId,
-      workspaceId,
-      organizationId,
       timeoutMs: 3000,
     }).catch((error) => {
       logger.warn('Stop saved; worker delivery awaits reconciliation', {

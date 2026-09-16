@@ -30,6 +30,7 @@ import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
 import {
@@ -50,7 +51,7 @@ import {
   type RevealedSimKeysByMessage,
   restoreRevealedSimKeysForMessage,
 } from '@/lib/mothership/chat/sim-key-redaction'
-import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/mothership/constants'
+import { MOTHERSHIP_CHAT_API_PATH, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import {
   isTerminalStreamStatus,
@@ -205,6 +206,14 @@ interface StartSendMessageOptions {
   resumeUserMessageId?: string
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+}
+
+/** Stop must preserve send admission even when it precedes the first response byte. */
+interface PendingChatAdmission {
+  userMessageId: string
+  chatKey: string
+  controller: AbortController
+  settled: Promise<string | undefined>
 }
 
 /** A send an unmount cleanup withdrew, as handed to the next chat surface. */
@@ -806,6 +815,11 @@ export function useChat(
   const queueDispatchActionsRef = useRef<QueueDispatchAction[]>([])
   const queueDispatchTaskRef = useRef<Promise<void> | null>(null)
   const queueDispatchEpochRef = useRef(0)
+  const pendingChatAdmissionRef = useRef<PendingChatAdmission | null>(null)
+  const hasPendingChatAdmission = useCallback(
+    () => pendingChatAdmissionRef.current?.chatKey === chatKeyRef.current,
+    []
+  )
   const queueDispatchLoopRef = useRef<() => Promise<void>>(async () => {})
   const enqueueQueueDispatchRef = useRef<(action: QueueDispatchActionInput) => Promise<void>>(
     async () => {}
@@ -3189,7 +3203,6 @@ export function useChat(
 
       let consumedByTranscript = false
       let sendReachedServer = false
-      let sendAbortSignal: AbortSignal | null = null
 
       setError(null)
       setTransportStreaming()
@@ -3310,9 +3323,9 @@ export function useChat(
         contentBlocks: [],
       }
 
-      if (requestChatId) {
-        await queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(requestChatId) })
-      }
+      const cancelledQuery = requestChatId
+        ? queryClient.cancelQueries({ queryKey: mothershipChatKeys.detail(requestChatId) })
+        : Promise.resolve()
 
       const applyOptimisticSend = () => {
         const assistantSnapshot = buildAssistantSnapshotMessage({
@@ -3363,12 +3376,42 @@ export function useChat(
         )
       }
 
+      let gen: number | undefined
+      let streamTargetChatId: string | undefined
+      let admission: PendingChatAdmission | undefined
+      let resolveAdmission: ((chatId: string | undefined) => void) | undefined
+      const beginSend = () => {
+        gen = ++streamGenRef.current
+        locallyTerminalStreamIdRef.current = undefined
+        streamIdRef.current = userMessageId
+        lastCursorRef.current = '0'
+        resetStreamingBuffers()
+        activeTurnRef.current = {
+          userMessageId,
+          assistantMessageId: assistantId,
+          optimisticUserMessage,
+          optimisticAssistantMessage,
+          pendingChatKey: pendingChatKeyRef.current,
+          desktopScopeId: desktopScopeIdRef.current,
+        }
+        const controller = new AbortController()
+        abortControllerRef.current = controller
+        admission = {
+          userMessageId,
+          chatKey: chatKeyRef.current,
+          controller,
+          settled: new Promise((resolve) => {
+            resolveAdmission = resolve
+          }),
+        }
+        pendingChatAdmissionRef.current = admission
+      }
+      /** Publish identity before any asynchronous preparation, including query cancellation. */
+      if (!pendingStop && !queuedSendHandoff?.stopRequired) beginSend()
       applyOptimisticSend()
       onOptimisticSendApplied?.()
       consumedByTranscript = true
 
-      let gen: number | undefined
-      let streamTargetChatId: string | undefined
       try {
         if (pendingStop || queuedSendHandoff?.stopRequired) {
           try {
@@ -3383,7 +3426,7 @@ export function useChat(
                 headers: {},
                 body: {
                   streamId: predecessor,
-                  workspaceId,
+                  ...(organizationId ? { organizationId } : { workspaceId }),
                   ...(requestChatId ? { chatId: requestChatId } : {}),
                 },
               })
@@ -3445,22 +3488,10 @@ export function useChat(
         }
 
         streamTargetChatId = requestChatId
-        gen = ++streamGenRef.current
-        locallyTerminalStreamIdRef.current = undefined
-        streamIdRef.current = userMessageId
-        lastCursorRef.current = '0'
-        resetStreamingBuffers()
-        activeTurnRef.current = {
-          userMessageId,
-          assistantMessageId: assistantId,
-          optimisticUserMessage,
-          optimisticAssistantMessage,
-          pendingChatKey: pendingChatKeyRef.current,
-          desktopScopeId: desktopScopeIdRef.current,
-        }
-        const abortController = new AbortController()
-        abortControllerRef.current = abortController
-        sendAbortSignal = abortController.signal
+        if (!admission) beginSend()
+        if (!admission || gen === undefined) throw new Error('Send admission was not initialized')
+        const abortController = admission.controller
+        await cancelledQuery
 
         const resourceAttachments =
           options?.requestMode === 'assistant'
@@ -3503,6 +3534,20 @@ export function useChat(
           signal: abortController.signal,
         })
         sendReachedServer = true
+        const admittedChatId = response.ok
+          ? (response.headers.get(MOTHERSHIP_CHAT_ID_HEADER) ?? requestChatId)
+          : undefined
+        resolveAdmission?.(admittedChatId)
+        if (pendingChatAdmissionRef.current === admission) pendingChatAdmissionRef.current = null
+        if (streamGenRef.current !== gen) {
+          await response.body?.cancel()
+          return consumedByTranscript
+        }
+        if (admittedChatId && !requestChatId) {
+          requestChatId = admittedChatId
+          streamTargetChatId = admittedChatId
+          adoptResolvedChatId(admittedChatId, { replaceHomeHistory: true, invalidateList: true })
+        }
 
         // Capture for propagation on side-channel calls + non-React
         // tool-completion callbacks (via trace-context singleton).
@@ -3614,6 +3659,7 @@ export function useChat(
           }
         }
       } catch (err) {
+        const sendAbortSignal = admission?.controller.signal
         /* fetch rejects with the RAW abort reason (here a plain string) when
            its signal was aborted with abort(reason) — an `err.name` check alone
            misses those, so abort detection also consults the signal itself. */
@@ -3666,6 +3712,9 @@ export function useChat(
           })
         }
         return consumedByTranscript
+      } finally {
+        resolveAdmission?.(undefined)
+        if (pendingChatAdmissionRef.current === admission) pendingChatAdmissionRef.current = null
       }
       return consumedByTranscript
     },
@@ -3768,7 +3817,7 @@ export function useChat(
       const queuedAheadCount = (queueStore.queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE).length
       if (
         shouldQueueOutgoingMessage(
-          Boolean(sendingRef.current),
+          Boolean(sendingRef.current || hasPendingChatAdmission()),
           Boolean(pendingStopPromiseRef.current),
           queuedAheadCount
         )
@@ -3824,7 +3873,13 @@ export function useChat(
           )
         )
     },
-    [workspaceId, createQueuedMessage, startSendMessage, handOffWithdrawnSend]
+    [
+      workspaceId,
+      createQueuedMessage,
+      startSendMessage,
+      handOffWithdrawnSend,
+      hasPendingChatAdmission,
+    ]
   )
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -4049,11 +4104,13 @@ export function useChat(
       pendingStopPromiseRef.current = stopOperation
       pendingStopModeRef.current = mode
 
-      const wasSending = sendingRef.current
+      const pendingAdmission = hasPendingChatAdmission() ? pendingChatAdmissionRef.current : null
+      const wasSending = sendingRef.current || Boolean(pendingAdmission)
       let activeChatId = chatIdRef.current ?? selectedChatIdRef.current
       const sid =
         streamIdRef.current ||
         activeTurnRef.current?.userMessageId ||
+        pendingAdmission?.userMessageId ||
         (activeChatId
           ? queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(activeChatId))
               ?.activeStreamId
@@ -4118,11 +4175,14 @@ export function useChat(
       // Establish the stream boundary immediately after synchronous activity
       // settlement. Native cancellation above is deliberately fire-and-forget,
       // so a slow shell cannot delay the server-side abort below.
-      streamGenRef.current++
+      const stoppedGeneration = ++streamGenRef.current
       clearActiveTurn()
       streamReaderRef.current?.cancel().catch(() => {})
       streamReaderRef.current = null
-      abortControllerRef.current?.abort('user_stop:client_stopGeneration')
+      const stoppedController = abortControllerRef.current
+      if (stoppedController !== pendingAdmission?.controller) {
+        stoppedController?.abort('user_stop:client_stopGeneration')
+      }
       abortControllerRef.current = null
       setTransportIdle()
       // The paced reveal may still hold up to a drain-horizon of buffered text;
@@ -4193,7 +4253,7 @@ export function useChat(
               },
               body: {
                 streamId: sid,
-                workspaceId,
+                ...(organizationId ? { organizationId } : { workspaceId }),
                 ...(chatId ? { chatId } : {}),
               },
             })
@@ -4214,23 +4274,23 @@ export function useChat(
 
           let stopFailure: unknown
           try {
-            if (mode === 'queued-handoff' && !resolvedChatId && sid) {
-              resolvedChatId = await resolveChatIdForStream(sid, {
-                preferExistingChatId: false,
-              })
-              if (!resolvedChatId) {
+            if (pendingAdmission && pendingAdmission.userMessageId === sid) {
+              const admittedChatId = await pendingAdmission.settled
+              resolvedChatId ??= admittedChatId
+              pendingAdmission.controller.abort('user_stop:client_stopGeneration')
+            }
+            if (!resolvedChatId && sid) {
+              resolvedChatId = await resolveChatIdForStream(sid, { preferExistingChatId: false })
+              if (!resolvedChatId && mode === 'queued-handoff') {
                 throw new Error('Cannot send queued message until the active chat is known.')
               }
-              if (
-                pendingStopPromiseRef.current !== stopOperation ||
-                locallyTerminalStreamIdRef.current !== sid
-              ) {
-                throw new Error(
-                  'Previous response stop was superseded; queued message was restored.'
-                )
-              }
+            }
+            if (resolvedChatId) {
               activeChatId = resolvedChatId
-              if (!selectedChatIdRef.current || selectedChatIdRef.current === resolvedChatId) {
+              if (
+                streamGenRef.current === stoppedGeneration &&
+                (!selectedChatIdRef.current || selectedChatIdRef.current === resolvedChatId)
+              ) {
                 adoptResolvedChatId(resolvedChatId, { replaceHomeHistory: true })
               }
             }
@@ -4267,20 +4327,22 @@ export function useChat(
             activeChatId = resolvedChatId
           }
           stopSucceeded = true
+          if (streamGenRef.current === stoppedGeneration) {
+            notifyTurnEnded({ error: false, skipQueueDispatch: mode === 'queued-handoff' })
+          }
         } finally {
           invalidateChatQueries({
             includeDetail: mode !== 'queued-handoff' || !stopSucceeded,
+            ...(activeChatId ? { targetChatId: activeChatId } : {}),
           })
-          resetEphemeralPreviewState({ removeStreamingResource: true })
+          if (streamGenRef.current === stoppedGeneration) {
+            resetEphemeralPreviewState({ removeStreamingResource: true })
+          }
         }
       })()
 
       try {
-        await stopBarrier
-        notifyTurnEnded({
-          error: false,
-          skipQueueDispatch: mode === 'queued-handoff',
-        })
+        await withinDeadline(() => stopBarrier, Date.now() + STOP_REQUEST_TIMEOUT_MS)
         resolveStopOperation()
       } catch (err) {
         if (sid && !abortSucceeded && locallyTerminalStreamIdRef.current === sid) {
@@ -4289,7 +4351,9 @@ export function useChat(
         if (activeChatId) {
           invalidateChatQueries()
         }
-        setError(getErrorMessage(err, 'Failed to stop the previous response'))
+        if (streamGenRef.current === stoppedGeneration) {
+          setError(getErrorMessage(err, 'Failed to stop the previous response'))
+        }
         rejectStopOperation(err)
         throw err
       } finally {
@@ -4312,8 +4376,10 @@ export function useChat(
       clearResourceActivity,
       clearActiveTurn,
       getResourceActivityTracker,
+      hasPendingChatAdmission,
       setTransportIdle,
       workspaceId,
+      organizationId,
     ]
   )
 
@@ -4473,6 +4539,7 @@ export function useChat(
         if (action.epoch !== queueDispatchEpochRef.current) {
           continue
         }
+        if (hasPendingChatAdmission()) continue
 
         const queueState = useMothershipQueueStore.getState()
         const activeChatKey = chatKeyRef.current
@@ -4496,7 +4563,7 @@ export function useChat(
         void queueDispatchLoopRef.current()
       }
     })
-  }, [dispatchQueuedMessage])
+  }, [dispatchQueuedMessage, hasPendingChatAdmission])
   queueDispatchLoopRef.current = runQueueDispatchLoop
 
   const enqueueQueueDispatch = useCallback((action: QueueDispatchActionInput) => {
@@ -4523,6 +4590,7 @@ export function useChat(
       const msg = queue?.find((queued) => queued.id === id)
       if (!msg) return
       if (queuedMessageDispatchIdsRef.current.has(msg.id)) return
+      const admissionPending = hasPendingChatAdmission()
 
       // Explicit queue sends should supersede any older auto-drain work scheduled by finalize().
       queueDispatchActionsRef.current = queueDispatchActionsRef.current.filter(
@@ -4531,7 +4599,7 @@ export function useChat(
 
       const queuedSendHandoff =
         msg.queuedSendHandoff ??
-        ((sendingRef.current || pendingStopPromiseRef.current) && scopeKey
+        ((sendingRef.current || pendingStopPromiseRef.current || admissionPending) && scopeKey
           ? (() => {
               const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
               const cachedActiveStreamId = handoffChatId
@@ -4545,17 +4613,19 @@ export function useChat(
                 supersededStreamId:
                   streamIdRef.current ||
                   activeTurnRef.current?.userMessageId ||
+                  (admissionPending ? pendingChatAdmissionRef.current?.userMessageId : undefined) ||
                   cachedActiveStreamId ||
                   null,
               }
             })()
           : undefined)
 
-      const pendingStop = sendingRef.current
-        ? stopGeneration({
-            mode: 'queued-handoff',
-          })
-        : pendingStopPromiseRef.current
+      const pendingStop =
+        sendingRef.current || admissionPending
+          ? stopGeneration({
+              mode: 'queued-handoff',
+            })
+          : pendingStopPromiseRef.current
 
       await dispatchQueuedMessage(msg, {
         epoch: queueDispatchEpochRef.current,
@@ -4563,7 +4633,15 @@ export function useChat(
         queuedSendHandoff,
       })
     },
-    [dispatchQueuedMessage, queryClient, stopGeneration, workspaceId, organizationId, scopeKey]
+    [
+      dispatchQueuedMessage,
+      queryClient,
+      stopGeneration,
+      workspaceId,
+      organizationId,
+      scopeKey,
+      hasPendingChatAdmission,
+    ]
   )
 
   const sendNow = useCallback(

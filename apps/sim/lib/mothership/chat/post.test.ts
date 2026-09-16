@@ -727,7 +727,6 @@ describe('handleUnifiedChatPost', () => {
     expect(createSSEStream).toHaveBeenCalledWith(
       expect.objectContaining({
         chatId: 'chat-1',
-        isNewChat: false,
         orchestrateOptions: expect.objectContaining({
           executionContext: expect.objectContaining({ requestMode: mode }),
         }),
@@ -1682,6 +1681,7 @@ describe('handleUnifiedChatPost', () => {
       expect(response.status).toBe(500)
       expect(createSSEStream).not.toHaveBeenCalled()
       expect(releaseChatSendClaim).toHaveBeenCalledOnce()
+      expect(response.headers.get('x-mothership-chat-id')).toBeNull()
     })
 
     it('keeps the claim once a turn is actually streaming', async () => {
@@ -1699,6 +1699,9 @@ describe('handleUnifiedChatPost', () => {
 
       expect(response.status).toBe(200)
       expect(releaseChatSendClaim).not.toHaveBeenCalled()
+      expect(response.headers.get('x-mothership-chat-id')).toBe(
+        admitTurn.mock.calls.at(-1)?.[0].input.chatId
+      )
     })
   })
 })
