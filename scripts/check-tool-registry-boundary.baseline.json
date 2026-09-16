@@ -95,7 +95,7 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/chat/[chatId]/page.tsx": {
-      "modules": 3068,
+      "modules": 3133,
       "gateways": {
         "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1498,
         "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 910,
@@ -185,7 +185,7 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/home/page.tsx": {
-      "modules": 3068,
+      "modules": 3133,
       "gateways": {
         "apps/sim/app/workspace/[workspaceId]/home/home.tsx": 1498,
         "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx": 910,
@@ -574,7 +574,7 @@
       }
     },
     "app/workspace/[workspaceId]/tables/[tableId]/page.tsx": {
-      "modules": 1836,
+      "modules": 1878,
       "gateways": {
         "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/table.tsx": 1678,
         "apps/sim/triggers/registry.ts": 522,
