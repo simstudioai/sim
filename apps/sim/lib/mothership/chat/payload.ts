@@ -452,11 +452,7 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
     ...(params.organizationId ? { organizationId: params.organizationId } : {}),
     userId,
-    ...(isAssistant
-      ? { mode: 'assistant' as const }
-      : params.organizationId
-        ? { mode: 'agent' as const }
-        : {}),
+    mode: isAssistant ? 'assistant' : 'agent',
     ...((isAssistant || params.organizationId) && params.assistantSearch
       ? { assistantSearch: params.assistantSearch }
       : {}),

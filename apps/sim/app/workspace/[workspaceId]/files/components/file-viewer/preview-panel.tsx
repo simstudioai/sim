@@ -129,7 +129,7 @@ const HTML_PREVIEW_CSP = [
 
 const HTML_PREVIEW_BOOTSTRAP = `<script>
 (() => {
-  const allowHref = (href) => href.startsWith('#') || /^\\s*javascript:/i.test(href)
+  const allowHref = (href) => /^\\s*javascript:/i.test(href)
 
   document.addEventListener(
     'click',
@@ -138,6 +138,21 @@ const HTML_PREVIEW_BOOTSTRAP = `<script>
       const anchor = event.target.closest('a[href]')
       if (!(anchor instanceof HTMLAnchorElement)) return
       const href = anchor.getAttribute('href') || ''
+      /** The host's base-uri CSP can reject about:srcdoc; fragments must stay in this document. */
+      if (href.startsWith('#')) {
+        event.preventDefault()
+        location.hash = href
+        let id = href.slice(1)
+        try { id = decodeURIComponent(id) } catch {}
+        const target = document.getElementById(id)
+        if (target) {
+          target.scrollIntoView()
+          target.focus({ preventScroll: true })
+        } else if (!id) {
+          window.scrollTo(0, 0)
+        }
+        return
+      }
       if (allowHref(href)) return
       event.preventDefault()
       // The sandbox can neither navigate nor open windows, so hand the click

@@ -8,6 +8,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { scopeProviderToolCallId } from '@/lib/mothership/request/go/tool-call-identity'
 import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
+import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 afterAll(resetEnvironmentUtilsMock)
@@ -113,7 +114,8 @@ vi.mock('@/lib/mothership/server/agent-url', () => ({
   getMothershipSourceEnvHeaders: mockGetMothershipSourceEnvHeaders,
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
+vi.mock('@/lib/core/config/env', async (original) => ({
+  ...(await original<typeof import('@/lib/core/config/env')>()),
   env: mockEnv,
   envBoolean: vi.fn(() => undefined),
   getEnv: vi.fn((key: string) => (key === 'NEXT_PUBLIC_APP_URL' ? 'http://localhost:3000' : '')),
@@ -250,6 +252,43 @@ describe('runCopilotLifecycle', () => {
       expect(body.context).toEqual(inventory)
       expect(body).not.toHaveProperty('workspaceContext')
       expect(mockLoadCopilotSearchIntegrations).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['agent', 'assistant'] as const)(
+    'carries workspace %s mode to the resource receiver without relaxing target scope',
+    async (mode) => {
+      let captured: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+        captured = context
+      })
+      await runCopilotLifecycle(
+        { mode, message: 'Open my file' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          goRoute: '/api/mothership',
+          interactive: true,
+        }
+      )
+      expect(captured?.requestMode).toBe(mode)
+      await expect(
+        openResourceServerTool.execute(
+          { workspaceId: 'other-workspace', resources: [{ type: 'file', id: 'file-1' }] },
+          {
+            ...captured!,
+            userId: 'user-1',
+            workspaceId: 'ws-1',
+            copilotToolExecution: true,
+            toolCallId: 'call-1',
+          }
+        )
+      ).rejects.toThrow(
+        mode === 'agent'
+          ? 'Workspace not found in this invocation'
+          : 'Resource panels require agent mode'
+      )
     }
   )
 
