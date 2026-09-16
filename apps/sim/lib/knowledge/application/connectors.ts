@@ -107,6 +107,7 @@ import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integr
 import { escapeLikePattern } from '@/lib/knowledge/tags/utils'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
+import { ServiceAccountTokenError } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
@@ -328,8 +329,38 @@ export async function resolveConnectorCredentialAccessToken(input: {
     userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
     requestId: input.requestId,
     sourceConfig: input.sourceConfig,
-  }).catch(rethrowGitHubInstallationSourceError)
+  }).catch(rethrowConnectorCredentialError)
   return resolved
+}
+
+/** Exposes actionable credential refusals without returning raw provider payloads. */
+function rethrowConnectorCredentialError(error: unknown): never {
+  if (error instanceof ServiceAccountTokenError && [400, 401, 403].includes(error.statusCode)) {
+    let message: string
+    switch (error.errorCode) {
+      case 'unauthorized_client':
+        message =
+          "Google rejected service-account authorization (unauthorized_client). In Google Admin, authorize the JSON key's numeric client ID with every scope listed in this connector's setup guide. Verify the delegated user's Workspace email and allow time for recent delegation changes to propagate."
+        break
+      case 'invalid_grant':
+        message =
+          "Google rejected the service-account grant (invalid_grant). Check that the JSON key is valid and the delegated user's primary Workspace email is correct."
+        break
+      case 'invalid_scope':
+        message =
+          "Google rejected the service-account scopes (invalid_scope). Verify the scopes listed in this connector's setup guide are authorized in Google Admin."
+        break
+      case 'access_denied':
+        message =
+          'Google denied service-account access (access_denied). Ask your Workspace administrator to check API access policies and domain-wide delegation.'
+        break
+      default:
+        message =
+          "Google rejected service-account authorization. Check the JSON key and, if using domain-wide delegation, its numeric client ID, required scopes, and delegated user's Workspace email."
+    }
+    throw new OrchestrationError('validation', message)
+  }
+  rethrowGitHubInstallationSourceError(error)
 }
 
 export async function validateConnectorSourceConfig(input: {
@@ -426,7 +457,7 @@ export async function validateConnectorSourceConfig(input: {
     userId: tokenUserId,
     requestId: input.requestId,
     sourceConfig: input.sourceConfig,
-  }).catch(rethrowGitHubInstallationSourceError)
+  }).catch(rethrowConnectorCredentialError)
   if (!resolved) {
     return {
       message: 'Failed to refresh access token. Please reconnect your account.',
