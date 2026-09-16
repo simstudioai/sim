@@ -41,10 +41,13 @@ responses = json.loads((root / 'responses.json').read_text())
 if key not in responses:
     raise SystemExit('Unexpected AWS call: ' + key)
 response = responses[key]
+# Objects model steady state; lists are finite, ordered expectations.
 if isinstance(response, list):
-    response = response.pop(0)
-    responses[key] = response if not responses[key] else responses[key]
+    if not response:
+        raise SystemExit('Unexpected extra AWS call: ' + key)
+    next_response = response.pop(0)
     (root / 'responses.json').write_text(json.dumps(responses))
+    response = next_response
 if response.get('error'):
     sys.stderr.write(response['error'])
     sys.exit(254)
@@ -142,6 +145,12 @@ print(value)
         result, _ = self.poll({'list-pipeline-executions': {'json': [
             execution('1970-01-01T00:16:40+00:00')]}})
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_scripted_responses_reject_unexpected_extra_calls(self):
+        result, _ = self.poll({'list-pipeline-executions': [{'json': [execution()]}]})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Unexpected extra AWS call: list-pipeline-executions', result.stderr)
+        self.assertNotIn('Traffic cutover complete', result.stdout)
 
     def test_access_denial_fails_immediately(self):
         result, calls = self.poll({'list-pipeline-executions': {'error': 'AccessDeniedException'}})
