@@ -36,10 +36,16 @@ beforeEach(() => {
   api.project.mockImplementation((value: unknown) => ({ safe: true, value }))
 })
 
+function deliveredChunks() {
+  return [
+    ...api.start.mock.calls.flatMap((call) => call[2]),
+    ...api.append.mock.calls.flatMap((call) => call[3]),
+  ]
+}
+
 function deliveredText() {
-  return api.append.mock.calls
-    .flatMap((call) => call[3])
-    .map((chunk) => chunk.text)
+  return deliveredChunks()
+    .flatMap((chunk) => (chunk.type === 'markdown_text' ? [chunk.text] : []))
     .join('')
 }
 
@@ -111,6 +117,203 @@ function toolResult(
   }
 }
 
+describe('Slack lazy stream lifecycle', () => {
+  it('uses native processing status until public content is ready', async () => {
+    const { stream, controller } = setup()
+    await stream.start()
+    expect(api.status).toHaveBeenCalledExactlyOnceWith(
+      'test-token',
+      { channel: 'D1', threadTs: '1.1', initiatorUserId: 'U1' },
+      'processing',
+      controller.signal
+    )
+    expect(api.start).not.toHaveBeenCalled()
+    await stream.onEvent({ type: 'text', payload: { channel: 'thinking', text: 'private' } })
+    await stream.onEvent({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'private' },
+      scope: { lane: 'subagent', agentId: 'child' },
+    })
+    for (const text of ['', ' \n', '<thinking>private</thinking>', '<sou']) {
+      await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text } })
+    }
+    await stream.onEvent(toolCall('calendar_lookup'))
+    expect(api.start).not.toHaveBeenCalled()
+    expect(api.append).not.toHaveBeenCalled()
+    expect(api.status).toHaveBeenCalledOnce()
+    await stream.onEvent({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'rce>{"id":"unverified"}</source>' },
+    })
+    expect(api.start).not.toHaveBeenCalled()
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Answer.' } })
+    await stream.finish(result)
+    expect(api.start).toHaveBeenCalledOnce()
+    expect(deliveredText()).toBe(' \nAnswer.')
+    expect(api.stop).toHaveBeenCalledOnce()
+  })
+
+  it('preserves whitespace and starts with the first safe text without waiting for a timer', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      const { stream } = setup()
+      await stream.start()
+      for (const text of ['', ' ', '\n', 'Hello']) {
+        await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text } })
+        expect(api.start).not.toHaveBeenCalled()
+      }
+      await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: ' ' } })
+      expect(api.start).toHaveBeenCalledOnce()
+      expect(deliveredText()).toBe(' \nHello ')
+      expect(api.append).not.toHaveBeenCalled()
+      await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'world. ' } })
+      expect(api.append).not.toHaveBeenCalled()
+      vi.mocked(Date.now).mockReturnValue(1750)
+      await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Next ' } })
+      expect(api.append).toHaveBeenCalledOnce()
+      expect(deliveredText()).toBe(' \nHello world. Next ')
+      await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'line.' } })
+      await stream.finish(result)
+      expect(deliveredText()).toBe(' \nHello world. Next line.')
+      expect(api.start).toHaveBeenCalledOnce()
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('includes a long whitespace prefix in the same start request as meaningful text', async () => {
+    const { stream } = setup()
+    await stream.start()
+    const text = `${' '.repeat(4001)}Answer. `
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text } })
+    expect(api.start).toHaveBeenCalledOnce()
+    expect(api.start.mock.calls[0][2]).toEqual([
+      { type: 'markdown_text', text: ' '.repeat(4000) },
+      { type: 'markdown_text', text: ' Answer. ' },
+    ])
+    expect(deliveredText()).toBe(text)
+  })
+
+  it('shows tool progress immediately during tool latency, even before any answer text', async () => {
+    const { stream } = setup()
+    await stream.start()
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: '\n' } })
+    expect(api.start).not.toHaveBeenCalled()
+    await stream.onEvent(toolCall())
+    expect(api.start).toHaveBeenCalledOnce()
+    expect(api.start.mock.calls[0][2]).toEqual([
+      { type: 'markdown_text', text: '\n' },
+      { type: 'markdown_text', text: '\n\n' },
+      {
+        type: 'task_update',
+        id: expect.any(String),
+        title: 'Searching documents…',
+        status: 'in_progress',
+      },
+    ])
+    expect(api.append).not.toHaveBeenCalled()
+    expect(api.stop).not.toHaveBeenCalled()
+    await stream.onEvent(toolResult())
+    await stream.finish(result)
+    expect(deliveredChunks().at(-1)).toEqual({
+      ...api.start.mock.calls[0][2][2],
+      status: 'complete',
+    })
+    expect(api.stop).toHaveBeenCalledOnce()
+  })
+
+  it.each(['', ' \n\t', '<thinking>private</thinking>', 'https://unverified.test '])(
+    'settles an answer with no public text without creating a blank reply: %j',
+    async (text) => {
+      const { stream, controller } = setup()
+      await stream.start()
+      await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text } })
+      await stream.finish(result)
+      await stream.terminateAfterFailure()
+      expect(api.start).not.toHaveBeenCalled()
+      expect(api.append).not.toHaveBeenCalled()
+      expect(api.stop).not.toHaveBeenCalled()
+      expect(api.status).toHaveBeenCalledTimes(2)
+      expect(api.status).toHaveBeenLastCalledWith(
+        'test-token',
+        { channel: 'D1', threadTs: '1.1' },
+        'active',
+        controller.signal
+      )
+    }
+  )
+
+  it('rejects content and completion after Stop before the first visible chunk', async () => {
+    const { stream, controller } = setup()
+    await stream.start()
+    controller.abort(new Error('stopped'))
+    await expect(
+      stream.onEvent({
+        type: 'text',
+        payload: { channel: 'assistant', text: 'Late answer. ' },
+      })
+    ).rejects.toThrow('stopped')
+    await expect(stream.finish(result)).rejects.toThrow('stopped')
+    expect(api.start).not.toHaveBeenCalled()
+    expect(api.append).not.toHaveBeenCalled()
+    expect(api.stop).not.toHaveBeenCalled()
+  })
+
+  it.each(['confirmed', 'thrown'])(
+    'delivers a %s failure before content once and ends processing',
+    async (kind) => {
+      const { stream, controller, beforeCleanup } = setup()
+      await stream.start()
+      if (kind === 'thrown') {
+        controller.abort(new Error('private backend error'))
+        await stream.terminateAfterFailure()
+      } else {
+        await stream.finishWithError()
+      }
+      await stream.terminateAfterFailure()
+      expect(api.start).toHaveBeenCalledOnce()
+      expect(deliveredText()).toBe('I couldn’t complete this search. Please try again.')
+      expect(api.append).not.toHaveBeenCalled()
+      expect(api.stop).toHaveBeenCalledExactlyOnceWith(
+        'test-token',
+        'D1',
+        '1.2',
+        'active',
+        expect.any(AbortSignal),
+        [],
+        []
+      )
+      const signal = api.start.mock.calls[0][4]
+      expect(signal.aborted).toBe(false)
+      if (kind === 'thrown') {
+        expect(signal).not.toBe(controller.signal)
+        expect(beforeCleanup).toHaveBeenCalledExactlyOnceWith(signal)
+      }
+    }
+  )
+
+  it('does not retry an ambiguous failure notification before content', async () => {
+    const { stream } = setup()
+    await stream.start()
+    api.start.mockRejectedValueOnce(new Error('failure response lost'))
+    await expect(stream.finishWithError()).rejects.toThrow('failure response lost')
+    await stream.terminateAfterFailure()
+    expect(api.start).toHaveBeenCalledOnce()
+    expect(api.stop).not.toHaveBeenCalled()
+  })
+
+  it('propagates an empty-run status failure without retrying or posting a reply', async () => {
+    const { stream, controller } = setup()
+    await stream.start()
+    api.status.mockRejectedValueOnce(new Error('status response lost'))
+    await expect(stream.finish(result)).rejects.toThrow('status response lost')
+    expect(controller.signal.aborted).toBe(true)
+    await stream.terminateAfterFailure()
+    expect(api.status).toHaveBeenCalledTimes(2)
+    expect(api.start).not.toHaveBeenCalled()
+  })
+})
+
 describe('Slack tool progress', () => {
   it('preserves task positions when secret projection defers delivery until completion', async () => {
     const { stream, registry } = setup()
@@ -133,9 +336,10 @@ describe('Slack tool progress', () => {
       type: 'text',
       payload: { channel: 'assistant', text: 'Found a result.' },
     })
+    expect(api.start).not.toHaveBeenCalled()
     expect(api.append).not.toHaveBeenCalled()
     await stream.finish(result)
-    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    const chunks = deliveredChunks()
     expect(chunks).toEqual([
       { type: 'markdown_text', text: 'Checking [REDACTED_SECRET].\n\n' },
       {
@@ -147,7 +351,7 @@ describe('Slack tool progress', () => {
       { type: 'task_update', id: chunks[1].id, title: 'Searching documents…', status: 'complete' },
       { type: 'markdown_text', text: 'Found a result.' },
     ])
-    expect(JSON.stringify(api.append.mock.calls)).not.toContain('private-token')
+    expect(JSON.stringify(deliveredChunks())).not.toContain('private-token')
   })
 
   it('withholds tasks and following text until preceding citation evidence arrives', async () => {
@@ -165,9 +369,7 @@ describe('Slack tool progress', () => {
       type: 'text',
       payload: { channel: 'assistant', text: 'Found a result. ' },
     })
-    expect(api.append.mock.calls.flatMap((call) => call[3])).toEqual([
-      { type: 'markdown_text', text: 'Checking ' },
-    ])
+    expect(deliveredChunks()).toEqual([{ type: 'markdown_text', text: 'Checking ' }])
     const completed = toolResult('search_workspace')
     await stream.onEvent({
       ...completed,
@@ -186,7 +388,7 @@ describe('Slack tool progress', () => {
         },
       },
     })
-    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    const chunks = deliveredChunks()
     expect(chunks).toEqual([
       { type: 'markdown_text', text: 'Checking ' },
       { type: 'markdown_text', text: '[Policy](<https://example.com/policy>) for details.\n\n' },
@@ -200,7 +402,7 @@ describe('Slack tool progress', () => {
       { type: 'markdown_text', text: 'Found a result. ' },
     ])
     await stream.finish(result)
-    expect(api.append.mock.calls.flatMap((call) => call[3])).toEqual(chunks)
+    expect(deliveredChunks()).toEqual(chunks)
   })
 
   it('rejects a tool boundary whose prefix is unsafe in the complete secret projection', async () => {
@@ -220,6 +422,7 @@ describe('Slack tool progress', () => {
     await expect(stream.finish(result)).rejects.toThrow(
       'The safe answer changed at a tool boundary'
     )
+    expect(api.start).not.toHaveBeenCalled()
     expect(api.append).not.toHaveBeenCalled()
   })
 
@@ -231,16 +434,17 @@ describe('Slack tool progress', () => {
     await stream.start()
     await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Checking.' } })
     await stream.onEvent(toolCall('search_workspace'))
+    expect(api.start).not.toHaveBeenCalled()
     expect(api.append).not.toHaveBeenCalled()
-    api.append.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('response lost'))
+    api.append.mockRejectedValueOnce(new Error('response lost'))
     await expect(stream.finish(result)).rejects.toThrow('response lost')
     expect(controller.signal.aborted).toBe(true)
     await stream.terminateAfterFailure()
     await stream.terminateAfterFailure()
-    expect(api.append).toHaveBeenCalledTimes(2)
+    expect(api.append).toHaveBeenCalledOnce()
     expect(api.stop).toHaveBeenCalledOnce()
     expect(api.stop.mock.calls[0][6]).toEqual([
-      { ...api.append.mock.calls[1][3][0], status: 'error' },
+      { ...api.append.mock.calls[0][3][0], status: 'error' },
     ])
   })
 
@@ -258,7 +462,7 @@ describe('Slack tool progress', () => {
     await stream.onEvent(toolResult('search_workspace'))
     await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Done.' } })
     await stream.finish(result)
-    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    const chunks = deliveredChunks()
     expect(chunks.map((chunk) => chunk.type)).toEqual([
       'markdown_text',
       'markdown_text',
@@ -285,9 +489,7 @@ describe('Slack tool progress', () => {
     controller.abort(new Error('stopped'))
     await stream.terminateAfterFailure()
     expect(api.stop.mock.calls[0][6]).toEqual([])
-    expect(api.append.mock.calls.flatMap((call) => call[3])).toEqual([
-      { type: 'markdown_text', text: 'Checking ' },
-    ])
+    expect(deliveredChunks()).toEqual([{ type: 'markdown_text', text: 'Checking ' }])
   })
 
   it('flushes a batched sentence before starting tool progress', async () => {
@@ -304,7 +506,7 @@ describe('Slack tool progress', () => {
         payload: { channel: 'assistant', text: 'the connected sources for the handbook.' },
       })
       await stream.onEvent(toolCall('search_workspace'))
-      const chunks = api.append.mock.calls.flatMap((call) => call[3])
+      const chunks = deliveredChunks()
       expect(chunks).toEqual([
         { type: 'markdown_text', text: "I'll search " },
         {
@@ -345,36 +547,33 @@ describe('Slack tool progress', () => {
     })
     await stream.finish(result)
     expect(deliveredText()).toBe("I'll search the connected sources.")
-    expect(
-      api.append.mock.calls
-        .flatMap((call) => call[3])
-        .every((chunk) => chunk.type === 'markdown_text')
-    ).toBe(true)
+    expect(deliveredChunks().every((chunk) => chunk.type === 'markdown_text')).toBe(true)
   })
 
   it('serializes concurrent text and tool events without duplicating buffered text', async () => {
     const { stream } = setup()
     await stream.start()
-    let releaseAppend!: () => void
-    api.append.mockImplementationOnce(
+    let releaseStart!: (value: { channel: string; ts: string }) => void
+    api.start.mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          releaseAppend = resolve
+        new Promise<{ channel: string; ts: string }>((resolve) => {
+          releaseStart = resolve
         })
     )
     const text = stream.onEvent({
       type: 'text',
       payload: { channel: 'assistant', text: "I'll search the connected sources. " },
     })
-    await vi.waitFor(() => expect(api.append).toHaveBeenCalledOnce(), { interval: 1 })
+    await vi.waitFor(() => expect(api.start).toHaveBeenCalledOnce(), { interval: 1 })
     const call = stream.onEvent(toolCall('search_workspace'))
     const completed = stream.onEvent(toolResult('search_workspace'))
     const finished = stream.finish(result)
-    expect(api.append).toHaveBeenCalledOnce()
+    expect(api.start).toHaveBeenCalledOnce()
+    expect(api.append).not.toHaveBeenCalled()
     expect(api.stop).not.toHaveBeenCalled()
-    releaseAppend()
+    releaseStart({ channel: 'D1', ts: '1.2' })
     await Promise.all([text, call, completed, finished])
-    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    const chunks = deliveredChunks()
     expect(deliveredText()).toBe("I'll search the connected sources. \n\n")
     expect(chunks.map((chunk) => chunk.type)).toEqual([
       'markdown_text',
@@ -396,7 +595,7 @@ describe('Slack tool progress', () => {
     await stream.onEvent(toolResult(name))
     await stream.onEvent(toolResult(name))
     await stream.finish(result)
-    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    const chunks = deliveredChunks()
     expect(chunks).toEqual([
       { type: 'task_update', id: expect.any(String), title, status: 'in_progress' },
       { type: 'task_update', id: chunks[0].id, title, status: 'complete' },
@@ -411,7 +610,7 @@ describe('Slack tool progress', () => {
     await stream.onEvent(toolCall('search_workspace', 'search-2'))
     await stream.onEvent(toolResult('search_workspace', 'search-2'))
     await stream.onEvent(toolResult('search_workspace', 'search-1'))
-    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    const chunks = deliveredChunks()
     expect(chunks[0].id).not.toBe(chunks[1].id)
     expect(chunks[2]).toEqual({ ...chunks[1], status: 'complete' })
     expect(chunks[3]).toEqual({ ...chunks[0], status: 'complete' })
@@ -433,8 +632,9 @@ describe('Slack tool progress', () => {
     await stream.onEvent(toolCall('internal_tool'))
     await stream.onEvent(toolResult())
     expect(api.append).not.toHaveBeenCalled()
+    expect(api.start).not.toHaveBeenCalled()
     await stream.onEvent(toolCall())
-    expect(api.append).toHaveBeenCalledOnce()
+    expect(api.start).toHaveBeenCalledOnce()
   })
 
   it('reports failed tools without exposing arguments, account labels, or backend errors', async () => {
@@ -454,7 +654,7 @@ describe('Slack tool progress', () => {
         output: { accountLabel: 'private account' },
       },
     })
-    const chunks = api.append.mock.calls.flatMap((call) => call[3])
+    const chunks = deliveredChunks()
     expect(chunks[1]).toEqual({ ...chunks[0], status: 'error' })
     expect(JSON.stringify(chunks)).not.toContain('private')
   })
@@ -464,14 +664,13 @@ describe('Slack tool progress', () => {
     await stream.start()
     await stream.onEvent(toolCall())
     await stream.finishWithError()
-    expect(api.stop.mock.calls[0][6]).toEqual([
-      { ...api.append.mock.calls[0][3][0], status: 'error' },
-    ])
+    expect(api.stop.mock.calls[0][6]).toEqual([{ ...deliveredChunks()[0], status: 'error' }])
   })
 
   it('aborts an ambiguous progress send and cleans up once without replaying it', async () => {
     const { stream, controller } = setup()
     await stream.start()
+    await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Checking.\n\n' } })
     api.append.mockRejectedValueOnce(new Error('progress response lost'))
     await expect(stream.onEvent(toolCall())).rejects.toThrow('progress response lost')
     expect(controller.signal.aborted).toBe(true)
@@ -491,11 +690,13 @@ describe('Slack tool progress', () => {
     beforeDelivery.mockRejectedValueOnce(new Error('authority revoked'))
     await expect(stream.onEvent(toolCall())).rejects.toThrow('authority revoked')
     expect(controller.signal.aborted).toBe(true)
+    expect(api.start).not.toHaveBeenCalled()
     expect(api.append).not.toHaveBeenCalled()
     const cancelled = setup()
     await cancelled.stream.start()
     cancelled.controller.abort(new Error('stopped'))
     await expect(cancelled.stream.onEvent(toolCall())).rejects.toThrow('stopped')
+    expect(api.start).not.toHaveBeenCalled()
     expect(api.append).not.toHaveBeenCalled()
   })
 })
@@ -551,16 +752,11 @@ describe('Slack Assistant delivery', () => {
     expect(api.start).toHaveBeenCalledWith(
       'test-token',
       { channel: 'D1', threadTs: '1.1' },
-      [],
+      [{ type: 'markdown_text', text: 'Hello world. ' }],
       'timeline',
       expect.any(AbortSignal)
     )
-    expect(
-      api.append.mock.calls
-        .flatMap((call) => call[3])
-        .map((chunk) => chunk.text)
-        .join('')
-    ).toBe('Hello world. ')
+    expect(deliveredText()).toBe('Hello world. ')
     expect(api.stop).toHaveBeenCalledOnce()
   })
   it('aborts after an ambiguous append and closes the known stream without replaying text', async () => {
@@ -568,7 +764,10 @@ describe('Slack Assistant delivery', () => {
     api.append.mockRejectedValueOnce(new Error('connection closed'))
     await stream.start()
     await expect(
-      stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'answer ' } })
+      stream.onEvent({
+        type: 'text',
+        payload: { channel: 'assistant', text: `${'a'.repeat(4000)} answer ` },
+      })
     ).rejects.toThrow('connection closed')
     expect(controller.signal.aborted).toBe(true)
     await expect(stream.finish(result)).rejects.toThrow('connection closed')
@@ -591,13 +790,23 @@ describe('Slack Assistant delivery', () => {
   it('does not guess a stream identity after an ambiguous start', async () => {
     const { stream } = setup()
     api.start.mockRejectedValueOnce(new Error('start response lost'))
-    await expect(stream.start()).rejects.toThrow('start response lost')
+    await stream.start()
+    await expect(stream.onEvent(toolCall())).rejects.toThrow('start response lost')
     await stream.terminateAfterFailure()
+    await stream.terminateAfterFailure()
+    expect(api.start).toHaveBeenCalledOnce()
     expect(api.stop).not.toHaveBeenCalled()
+    expect(api.status).toHaveBeenLastCalledWith(
+      'test-token',
+      { channel: 'D1', threadTs: '1.1' },
+      'active',
+      expect.any(AbortSignal)
+    )
   })
   it('does not retry an ambiguous stop during cleanup', async () => {
     const { stream } = setup()
     await stream.start()
+    await stream.onEvent(toolCall())
     api.stop.mockRejectedValueOnce(new Error('stop response lost'))
     await expect(stream.finish(result)).rejects.toThrow('stop response lost')
     await stream.terminateAfterFailure()
@@ -618,6 +827,7 @@ describe('Slack Assistant delivery', () => {
     controller.abort(new Error('Assistant failed'))
     beforeCleanup.mockRejectedValueOnce(new Error('authority revoked'))
     await expect(stream.terminateAfterFailure()).rejects.toThrow('authority revoked')
+    expect(api.start).not.toHaveBeenCalled()
     expect(api.stop).not.toHaveBeenCalled()
   })
   it('separates public text before and after a tool call', async () => {
@@ -636,12 +846,7 @@ describe('Slack Assistant delivery', () => {
     })
     await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'Found it.' } })
     await stream.finish(result)
-    expect(
-      api.append.mock.calls
-        .flatMap((call) => call[3])
-        .map((chunk) => chunk.text)
-        .join('')
-    ).toBe('Searching.\n\nFound it.')
+    expect(deliveredText()).toBe('Searching.\n\nFound it.')
   })
   it.each(['options', 'question', 'thinking', 'usage_upgrade', 'credential', 'workspace_resource'])(
     'withholds %s payloads across every stream boundary',
@@ -656,8 +861,10 @@ describe('Slack Assistant delivery', () => {
   it('closes a confirmed Assistant failure with a safe error on the existing stream', async () => {
     const { stream, beforeDelivery } = setup()
     await stream.start()
+    await stream.onEvent(toolCall())
+    await stream.onEvent(toolResult())
     await stream.finishWithError()
-    expect(beforeDelivery).toHaveBeenCalledTimes(2)
+    expect(beforeDelivery).toHaveBeenCalledTimes(4)
     expect(api.stop).toHaveBeenCalledWith(
       'test-token',
       'D1',
@@ -672,7 +879,7 @@ describe('Slack Assistant delivery', () => {
       ],
       []
     )
-    expect(api.append).not.toHaveBeenCalled()
+    expect(deliveredText()).toBe('')
   })
   it('refuses delivery when installation or member access changes', async () => {
     const { stream, beforeDelivery } = setup()
@@ -681,6 +888,7 @@ describe('Slack Assistant delivery', () => {
     await expect(
       stream.onEvent({ type: 'text', payload: { channel: 'assistant', text: 'answer ' } })
     ).rejects.toThrow('membership revoked')
+    expect(api.start).not.toHaveBeenCalled()
     expect(api.append).not.toHaveBeenCalled()
   })
   it('places cited source names beside the supported text without a source footer', async () => {
@@ -935,9 +1143,13 @@ describe('Slack Assistant delivery', () => {
     })
     const link = '[Employee policy](<https://example.com/policy>)'
     expect(deliveredText()).toBe(`${prefix}${link} Done.`)
-    const chunks = api.append.mock.calls.flatMap((call) => call[3])
-    expect(chunks.some((chunk) => chunk.text.includes(link))).toBe(true)
-    expect(chunks.every((chunk) => chunk.text.length <= 4000)).toBe(true)
+    const chunks = deliveredChunks()
+    expect(
+      chunks.some((chunk) => chunk.type === 'markdown_text' && chunk.text.includes(link))
+    ).toBe(true)
+    expect(
+      chunks.every((chunk) => chunk.type === 'markdown_text' && chunk.text.length <= 4000)
+    ).toBe(true)
   })
   it.each([
     ['Answer <source>{"id":"x","url":"https://evil.test"}</source> done ', 'Answer '],
