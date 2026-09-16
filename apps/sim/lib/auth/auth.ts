@@ -1191,7 +1191,17 @@ export const auth = betterAuth({
       : []),
     admin(),
     oneTimeToken({
-      expiresIn: 24 * 60, // 24 hours in minutes (better-auth's expiresIn unit)
+      /**
+       * Minutes, and deliberately close to zero. A one-time token redeems through
+       * `/one-time-token/verify`, which answers with a session cookie for the session the
+       * token points at — so an unredeemed token is a bearer credential for that session
+       * until it expires, and its lifetime is the only thing bounding that. Nothing here
+       * needs a long one: the socket handshake mints a fresh token inside the Socket.IO
+       * `auth` callback and sends it in that same attempt, and the desktop handoff writes its
+       * own row with its own expiry, which `/one-time-token/verify` reads off the row rather
+       * than from this option (see lib/auth/desktop-handoff.ts).
+       */
+      expiresIn: 2,
     }),
     customSession(async ({ user, session }) => ({
       user,

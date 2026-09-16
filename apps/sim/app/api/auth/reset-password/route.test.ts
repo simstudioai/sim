@@ -46,6 +46,7 @@ vi.mock('@sim/logger', () => ({
   setRequestAuth: vi.fn(),
 }))
 
+import { APIError } from 'better-auth/api'
 import { POST } from '@/app/api/auth/reset-password/route'
 
 describe('Reset Password API Route', () => {
@@ -160,6 +161,22 @@ describe('Reset Password API Route', () => {
     expect(mockResetPassword).not.toHaveBeenCalled()
   })
 
+  it('refuses an invalid or expired token with a 400, not a server error', async () => {
+    // Better Auth reports a consumed, expired, or fabricated token as a 400-class APIError.
+    // Re-emitting that as a 500 paged on a routine click of a stale reset link.
+    mockResetPassword.mockRejectedValue(new APIError('BAD_REQUEST', { message: 'invalid token' }))
+
+    const response = await POST(
+      createMockRequest('POST', { token: 'expired-token', newPassword: 'newSecurePassword123!' })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      message: 'This reset link is invalid or has expired. Please request a new one.',
+    })
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
   it('should handle auth service error with message', async () => {
     const errorMessage = 'Invalid or expired token'
 
@@ -174,7 +191,11 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(500)
-    expect(data.message).toBe(errorMessage)
+    /** An unrecognized failure is ours, and its wording is not for an unauthenticated caller. */
+    expect(data.message).toBe(
+      'Failed to reset password. Please try again or request a new reset link.'
+    )
+    expect(data.message).not.toContain(errorMessage)
 
     expect(mockLogger.error).toHaveBeenCalledWith('Error during password reset:', {
       error: expect.any(Error),

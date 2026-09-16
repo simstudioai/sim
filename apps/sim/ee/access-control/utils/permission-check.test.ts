@@ -21,6 +21,12 @@ const { mockIsOrganizationOnEnterprisePlan, mockGetWorkspaceWithOwner, mockGetPr
 
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
+  /**
+   * The same knob drives both: these tests ask whether the organization is entitled at all, and
+   * permission resolution reads the governance axis, which only differs from the feature gate
+   * while a payment is failing.
+   */
+  isOrganizationGovernanceActive: mockIsOrganizationOnEnterprisePlan,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -226,7 +232,7 @@ describe('access control context resolution', () => {
     await expect(getUserPermissionConfig('user-123', 'workspace-1')).resolves.toMatchObject({
       disableMcpTools: true,
     })
-    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-1', 'throw')
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-1')
   })
 
   it('returns the explicit governing group and its effective config', async () => {
@@ -310,7 +316,7 @@ describe('access control context resolution', () => {
     )
 
     expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
-    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-verified', 'throw')
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-verified')
     expect(context).toMatchObject({
       organizationId: 'org-verified',
       entitled: true,

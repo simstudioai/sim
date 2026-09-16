@@ -190,6 +190,76 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
   })
 })
 
+describe('auth catch-all route password-reset mail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each([
+    'request-password-reset',
+    'email-otp/request-password-reset',
+    'forget-password/email-otp',
+    /** Matched by shape, so a plugin version that renames or adds an alias cannot reopen it. */
+    'request-password-reset/v2',
+    'some-plugin/forget-password',
+  ])('blocks %s, which reaches the mailer without the per-recipient budget', async (path) => {
+    const req = createMockRequest('POST', undefined, {}, `http://localhost:3000/api/auth/${path}`)
+
+    const res = await POST(req)
+
+    expect(res.status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+    await expect(res.json()).resolves.toEqual({
+      error: 'Password reset is handled by application API routes.',
+    })
+  })
+
+  /** The resend button on /verify calls this directly, so blocking it would break verification. */
+  it('leaves the verification-code sender reachable for the purpose the product sends', async () => {
+    const req = createMockRequest(
+      'POST',
+      { email: 'someone@example.com', type: 'email-verification' },
+      {},
+      'http://localhost:3000/api/auth/email-otp/send-verification-otp'
+    )
+
+    await POST(req)
+
+    expect(handlerMocks.betterAuthPOST).toHaveBeenCalled()
+  })
+
+  /**
+   * The same endpoint takes the OTP purpose from the body, and `forget-password` there sends reset
+   * mail to any address named — blocking the reset paths while leaving this open renames the hole.
+   */
+  it.each(['forget-password', 'sign-in', 'change-email'])(
+    'refuses the verification sender asked for %s',
+    async (type) => {
+      const req = createMockRequest(
+        'POST',
+        { email: 'victim@example.com', type },
+        {},
+        'http://localhost:3000/api/auth/email-otp/send-verification-otp'
+      )
+
+      expect((await POST(req)).status).toBe(404)
+      expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses the verification sender when the body cannot be read', async () => {
+    const req = createMockRequest(
+      'POST',
+      undefined,
+      {},
+      'http://localhost:3000/api/auth/email-otp/send-verification-otp'
+    )
+
+    expect((await POST(req)).status).toBe(404)
+    expect(handlerMocks.betterAuthPOST).not.toHaveBeenCalled()
+  })
+})
+
 describe('auth catch-all route organization mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
