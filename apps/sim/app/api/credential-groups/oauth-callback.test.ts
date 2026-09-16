@@ -1,4 +1,5 @@
 /** @vitest-environment node */
+import { sha256Hex } from '@sim/security/hash'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   consumeAttempt: vi.fn(),
   logError: vi.fn(),
   completeSetupOAuth: vi.fn(),
+  authenticateSession: vi.fn(),
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -21,7 +23,7 @@ vi.mock('@/lib/knowledge/application/github-setup', () => ({
 }))
 vi.mock('@/lib/api/server/routes', () => ({
   internalSessionAuth: {
-    authenticate: async () => ({ kind: 'session', userId: 'admin', sessionId: 'browser' }),
+    authenticate: mocks.authenticateSession,
   },
 }))
 vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
@@ -127,6 +129,55 @@ describe('GitHub managed OAuth failure presentation', () => {
       provider: 'github-repositories',
       failure: 'failed',
       errorClass: 'unexpected',
+      stage: 'enrollment_completion',
+      errorType: 'Error',
+      fingerprint: sha256Hex('member@example.com ghu_token').slice(0, 12),
+    })
+  })
+
+  it('identifies a wrapped database failure without logging SQL, parameters, or provider data', async () => {
+    const cause = Object.assign(new Error('duplicate key for member@example.com'), {
+      name: 'PostgresError',
+      code: '23505',
+      detail: 'ghu_private_token',
+    })
+    mocks.consumeAttempt.mockResolvedValue(attempt)
+    mocks.completeOAuth.mockRejectedValueOnce(
+      new Error('Failed query: INSERT INTO credential\nparams: ghu_private_token', { cause })
+    )
+    const response = await completeCallback()
+    expect(response.headers.get('location')).toContain('oauth=failed')
+    expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
+      provider: 'github-repositories',
+      failure: 'failed',
+      errorClass: 'unexpected',
+      stage: 'enrollment_completion',
+      errorType: 'PostgresError',
+      databaseCode: '23505',
+      fingerprint: sha256Hex(cause.message).slice(0, 12),
+    })
+    const logged = JSON.stringify(mocks.logError.mock.calls)
+    expect(logged).not.toContain('member@example.com')
+    expect(logged).not.toContain('ghu_private_token')
+    expect(logged).not.toContain('INSERT')
+  })
+
+  it('does not log arbitrary error names or codes as diagnostic metadata', async () => {
+    mocks.consumeAttempt.mockResolvedValue(attempt)
+    mocks.completeOAuth.mockRejectedValueOnce(
+      Object.assign(new Error('private provider response'), {
+        name: 'ghu_private_token',
+        code: 'client_secret=private',
+      })
+    )
+    await completeCallback()
+    expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
+      provider: 'github-repositories',
+      failure: 'failed',
+      errorClass: 'unexpected',
+      stage: 'enrollment_completion',
+      errorType: 'UnknownError',
+      fingerprint: sha256Hex('private provider response').slice(0, 12),
     })
   })
 
@@ -149,7 +200,40 @@ describe('GitHub managed OAuth failure presentation', () => {
 describe('GitHub installation setup OAuth return target', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.authenticateSession.mockResolvedValue({
+      kind: 'session',
+      userId: 'admin',
+      sessionId: 'browser',
+    })
   })
+
+  it.each(['session_authentication', 'setup_completion'])(
+    'identifies an unexpected failure during %s without exposing its message',
+    async (stage) => {
+      mocks.consumeAttempt.mockResolvedValue({
+        ...attempt,
+        returnTo: 'github-installation',
+        organizationId: 'organization',
+        completionId,
+      })
+      const error = new TypeError('private callback data')
+      if (stage === 'session_authentication') {
+        mocks.authenticateSession.mockRejectedValueOnce(error)
+      } else {
+        mocks.completeSetupOAuth.mockRejectedValueOnce(error)
+      }
+      const response = await completeCallback()
+      expect(response.headers.get('location')).toContain('oauth=failed')
+      expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
+        provider: 'github-repositories',
+        failure: 'failed',
+        errorClass: 'unexpected',
+        stage,
+        errorType: 'TypeError',
+        fingerprint: sha256Hex(error.message).slice(0, 12),
+      })
+    }
+  )
   it('resumes only the server-owned setup after the guarded OAuth completion', async () => {
     mocks.consumeAttempt.mockResolvedValue({
       ...attempt,
