@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
   GoogleDriveApiError,
@@ -9,6 +10,20 @@ import {
 import { ConnectorDirectoryError } from '@/connectors/source-error'
 
 describe('connector failure diagnostics', () => {
+  it.each([401, 403, 404, 429, 502, 503])(
+    'does not attribute a wrapped embedding HTTP %s to the source',
+    (status) => {
+      const error = new Error('private wrapper', {
+        cause: new EmbeddingAPIError('private provider details', status),
+      })
+      expect(getConnectorFailureDiagnostic(error)).toEqual({
+        category: 'embedding',
+        status,
+        message: `Embedding service request failed (HTTP ${status}).`,
+      })
+    }
+  )
+
   it('retains the SQLSTATE while discarding SQL, bound values and driver detail', () => {
     const error = new DrizzleQueryError(
       'select private_column from private_source where id = $1',

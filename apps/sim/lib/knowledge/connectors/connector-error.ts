@@ -1,5 +1,6 @@
 import { findCause, getPostgresErrorCode } from '@sim/utils/errors'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
 import {
   ConnectorDirectoryError,
   ConnectorSourceError,
@@ -8,7 +9,7 @@ import {
 } from '@/connectors/source-error'
 
 export interface ConnectorFailureDiagnostic {
-  category: 'directory' | 'database' | ConnectorSourceFailureCategory | 'transport'
+  category: 'directory' | 'database' | 'embedding' | ConnectorSourceFailureCategory | 'transport'
   message: string
   status?: number
   code?: string
@@ -77,6 +78,13 @@ function classifyFailure(error: unknown): ConnectorFailureDiagnostic | null {
   )
   if (!httpError) return null
   const { status } = httpError
+  if (httpError instanceof EmbeddingAPIError) {
+    return {
+      category: 'embedding',
+      status,
+      message: `Embedding service request failed (HTTP ${status}).`,
+    }
+  }
   const category = httpError instanceof ConnectorSourceError ? httpError.category : undefined
   if (category === 'authorization' || (!category && (status === 401 || status === 403))) {
     return {
