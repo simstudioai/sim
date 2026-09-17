@@ -81,10 +81,39 @@ while [ -z "$DEPLOYMENT_ID" ] || [ "$DEPLOYMENT_ID" = 'None' ]; do
     InProgress|Succeeded) ;;
     *) log "ERROR: unexpected pipeline status: $status"; exit 1 ;;
   esac
-  DEPLOYMENT_ID=$(aws_read codepipeline list-action-executions \
+  # Action history does not publish the external deployment ID until cleanup
+  # finishes. Live state exposes it while traffic is shifting. Correlate both
+  # the stage execution and action attempt so old state cannot satisfy this run.
+  deploy_state=$(aws_read codepipeline get-pipeline-state --name "$PIPELINE" \
+    --query "stageStates[?stageName=='Deploy'] | [0]" --output json)
+  deploy_actions=$(aws_read codepipeline list-action-executions \
     --pipeline-name "$PIPELINE" --filter pipelineExecutionId="$EXECUTION_ID" \
-    --query "actionExecutionDetails[?stageName=='Deploy'].output.executionResult.externalExecutionId | [0]" \
-    --output text)
+    --query "actionExecutionDetails[?stageName=='Deploy']" --output json)
+  DEPLOYMENT_ID=$(printf '%s\n' "$deploy_actions" | DEPLOY_STATE="$deploy_state" EXECUTION_ID="$EXECUTION_ID" python3 -c '
+import json, os, re, sys
+state = json.loads(os.environ["DEPLOY_STATE"])
+actions = json.load(sys.stdin)
+if not state or state.get("latestExecution", {}).get("pipelineExecutionId") != os.environ["EXECUTION_ID"] or not actions:
+    print("")
+    sys.exit(0)
+if len({a["actionName"] for a in actions}) != 1:
+    raise SystemExit("ERROR: expected one Deploy action in the app pipeline")
+latest = max(actions, key=lambda a: a["startTime"])
+matches = [a["latestExecution"] for a in state.get("actionStates", [])
+           if a["actionName"] == latest["actionName"]
+           and a.get("latestExecution", {}).get("actionExecutionId") == latest["actionExecutionId"]]
+if len(matches) > 1:
+    raise SystemExit("ERROR: ambiguous live Deploy action")
+if not matches:
+    print("")
+    sys.exit(0)
+if latest["status"] not in ("InProgress", "Succeeded"):
+    raise SystemExit("ERROR: Deploy action ended in " + latest["status"])
+deployment_id = matches[0].get("externalExecutionId", "")
+if deployment_id and not re.fullmatch(r"d-[A-Za-z0-9]+", deployment_id):
+    raise SystemExit("ERROR: invalid CodeDeploy deployment ID in pipeline state")
+print(deployment_id)
+')
   if [ -z "$DEPLOYMENT_ID" ] || [ "$DEPLOYMENT_ID" = 'None' ]; then
     if [ "$status" = 'Succeeded' ]; then
       log 'ERROR: successful pipeline has no CodeDeploy deployment'; exit 1
