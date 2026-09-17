@@ -87,6 +87,9 @@ describe('incomplete search coverage', () => {
   it.each([false, true])(
     'distinguishes incomplete retrieval and permits retry (hasResults=%s)',
     async (hasResults) => {
+      mocks.overview.mockReturnValue({
+        data: { providers: [{ connectorType: 'gmail', isSyncing: true }] },
+      })
       mocks.search.mockReturnValue({
         data: {
           query: 'launch',
@@ -118,9 +121,10 @@ describe('incomplete search coverage', () => {
       expect(container.textContent).not.toContain('Search couldn’t run')
       expect(container.textContent).not.toContain('No documents')
       expect(container.textContent).toContain(
-        hasResults ? '1 document · some results may be missing.' : 'Search didn’t finish.'
+        hasResults ? '1 document · some results may be missing.' : 'Search timed out.'
       )
       expect(container.textContent).not.toContain('Search found no results.')
+      expect(container.textContent).not.toContain('Still indexing')
       if (hasResults) expect(container.textContent).toContain('Release plan')
       const retry = [...container.querySelectorAll('button')].find(
         (button) => button.textContent === 'Try again'

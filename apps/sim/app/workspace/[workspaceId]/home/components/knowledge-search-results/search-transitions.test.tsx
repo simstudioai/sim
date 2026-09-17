@@ -15,6 +15,19 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: mocks.userId } } }),
 }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => '/o/organization/search',
+}))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
+  useOrganizationContext: () => ({
+    organization: { id: 'organization', name: 'Acme' },
+    searchAccess: { memberScoped: true },
+  }),
+}))
+vi.mock('@/hooks/use-speech-to-text', () => ({
+  useSpeechToText: () => ({ isSupported: false }),
+}))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
   useSearchIndex: () => ({ data: { knowledgeBaseId: 'index' }, isPending: false }),
   useSearchSourceOverview: () => ({
@@ -56,6 +69,7 @@ import type {
   WorkspaceKnowledgeSearchData,
 } from '@/lib/api/contracts/knowledge'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
@@ -102,16 +116,22 @@ async function render({
   scope = { kind: 'organization', organizationId: 'organization' },
   query = 'launch',
   params = '',
+  organizationPage = false,
 }: {
   scope?: ResourceScope
   query?: string
   params?: string
+  organizationPage?: boolean
 } = {}) {
   await act(async () => {
     root.render(
       <QueryClientProvider client={client}>
         <NuqsTestingAdapter hasMemory searchParams={params} onUrlUpdate={mocks.urlUpdate}>
-          <KnowledgeSearchResults scope={scope} query={query} onSummarize={mocks.summarize} />
+          {organizationPage ? (
+            <OrganizationSearch />
+          ) : (
+            <KnowledgeSearchResults scope={scope} query={query} onSummarize={mocks.summarize} />
+          )}
         </NuqsTestingAdapter>
       </QueryClientProvider>
     )
@@ -170,6 +190,69 @@ async function complete(
 }
 
 describe('search refinement with the real query cache and URL state', () => {
+  it('keeps the organization header docked while source and date changes run filtered searches', async () => {
+    await render({ organizationPage: true, params: '?q=launch' })
+    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+    await complete(0)
+    expect(container.querySelector('h1')).toBeNull()
+    const input = container.querySelector('input')
+    const filters = container.querySelector('[aria-label="Search filters"]')
+
+    for (const [label, expectedFilters] of [
+      ['Gmail', { source: 'gmail' }],
+      ['Past week', { source: 'gmail', modifiedAfter: '2026-01-08T12:00:00.000Z' }],
+      ['Past month', { source: 'gmail', modifiedAfter: '2025-12-16T12:00:00.000Z' }],
+    ] as const) {
+      const previousRequests = requests.length
+      const control = button(label)
+      await click(label)
+      expect(requests).toHaveLength(previousRequests + 1)
+      expect(requests.at(-1)?.body).toEqual({
+        organizationId: 'organization',
+        query: 'launch',
+        filters: expectedFilters,
+      })
+      expect(container.querySelector('h1')).toBeNull()
+      expect(container.querySelector('input')).toBe(input)
+      expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
+      expect(document.activeElement).toBe(control)
+      expect(container.textContent).toContain('Updating results…')
+      expect(
+        container.querySelector('[aria-label="Search results"]')?.getAttribute('aria-busy')
+      ).toBe('true')
+      expect(container.querySelector('a[data-source-link]')).not.toBeNull()
+      await complete(previousRequests, { title: `${label} result` })
+      expect(container.querySelector('a[data-source-link]')?.textContent).toBe(`${label} result`)
+      expect(document.activeElement).toBe(control)
+      expect(container.querySelector('h1')).toBeNull()
+    }
+  })
+
+  it.each(['empty', 'timeout', 'error'] as const)(
+    'keeps the organization header docked when a refinement returns %s',
+    async (outcome) => {
+      await render({ organizationPage: true, params: '?q=launch' })
+      await complete(0)
+      const gmail = button('Gmail')
+      await click('Gmail')
+      if (outcome === 'error') {
+        await act(async () => {
+          requests[1].reject(new Error('Search failed'))
+          await vi.advanceTimersByTimeAsync(1)
+        })
+      } else {
+        await complete(1, { empty: true, partial: outcome === 'timeout' })
+      }
+      expect(container.querySelector('h1')).toBeNull()
+      expect(button('Gmail')).toBe(gmail)
+      expect(document.activeElement).toBe(gmail)
+      expect(container.textContent).not.toContain('Release plan')
+      await click('All sources')
+      expect(container.textContent).toContain('Release plan')
+      expect(container.querySelector('h1')).toBeNull()
+    }
+  )
+
   it('replaces filter URL state while preserving unrelated parameters', async () => {
     await render({ params: '?q=launch&panel=details' })
     await click('Gmail')
@@ -302,7 +385,7 @@ describe('search refinement with the real query cache and URL state', () => {
       await render()
       await complete(0, { partial: true, empty })
       expect(container.textContent).toContain(
-        empty ? 'Search didn’t finish.' : 'some results may be missing.'
+        empty ? 'Search timed out.' : 'some results may be missing.'
       )
       expect(container.textContent).not.toContain('Search found no results.')
       const gmail = button('Gmail')

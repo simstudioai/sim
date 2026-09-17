@@ -220,3 +220,48 @@ describe('organization Search query navigation', () => {
     expectVisibleQuery('Orion')
   })
 })
+
+describe('organization Search header placement', () => {
+  it.each([
+    ['pending', { isPending: true, isFetching: true }],
+    ['failed', { isError: true, isPending: false }],
+    ['empty', { data: { results: [], retrieval: { status: 'complete', timedOutLegs: [] } } }],
+    [
+      'timed out',
+      { data: { results: [], retrieval: { status: 'partial', timedOutLegs: ['vector'] } } },
+    ],
+  ])('keeps the initial %s search in the centered layout', async (_state, response) => {
+    mocks.search.mockReturnValue(response)
+    await render('?q=Orion')
+    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+    expect(container.querySelector('[aria-label="Search results"]')).toBeNull()
+    expect(document.activeElement).toBe(searchInput())
+  })
+
+  it('docks only when results arrive without replacing the field or losing a draft', async () => {
+    const completed = mocks.search(scope, 'Orion')
+    mocks.search.mockReturnValue({ isPending: true, isFetching: true })
+    await render('?q=Orion')
+    const input = searchInput()
+    const filters = container.querySelector('[aria-label="Search filters"]')
+    await editDraft('Unsubmitted draft')
+    mocks.search.mockReturnValue(completed)
+    await render('?q=Orion')
+    expect(container.querySelector('h1')).toBeNull()
+    expect(searchInput()).toBe(input)
+    expect(input.value).toBe('Unsubmitted draft')
+    expect(document.activeElement).toBe(input)
+    expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
+
+    mocks.search.mockReturnValue({
+      data: { results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+    })
+    await render('?q=Orion')
+    expect(container.querySelector('h1')).toBeNull()
+    expect(searchInput()).toBe(input)
+
+    await render('?q=Vega')
+    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+    expect(searchInput().value).toBe('Vega')
+  })
+})
