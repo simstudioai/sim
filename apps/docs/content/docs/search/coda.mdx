@@ -19,14 +19,27 @@ Sign in to Coda with a dedicated integration account that can read the documents
 
 Use a standard REST API token. Do not select the MCP restriction.
 
-<Image className="mx-auto h-auto w-full max-w-2xl" src="/static/search/coda-api-token.jpg" alt="Coda API connections with the Generate new token dialog" width={1280} height={720} />
+<Image className="mx-auto h-auto w-full max-w-xl" loading="eager" src="/static/search/coda-token-creation.jpg" alt="Coda Generate new token dialog with a name and no restriction selected" width={600} height={281} />
 
 </Step>
 <Step>
 
-### Add the source
+### Add the credential
 
-In Sim, open **Settings → Sources → Add source → Coda**. Add or select a Coda service account credential and enter the token when prompted.
+In Sim, open **Settings → Sources → Add source → Coda**. If Coda is already listed, open it and select **Add connection**.
+
+Open **Service account → Add API token**. Paste the token, give it a recognizable display name, then select **Add API token**. You can also choose an existing Coda credential.
+
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/coda-credential.jpg" alt="Add Coda API token form with token, display name, and optional description fields" width={516} height={435} />
+
+</Step>
+<Step>
+
+### Choose documents
+
+Select the documents to index, or leave the selection empty for discovery.
+
+<Image className="mx-auto h-auto w-full max-w-md" src="/static/search/coda-setup.jpg" alt="Coda connection setup with a saved credential, Documents selector, and optional Enterprise organization ID" width={516} height={458} />
 
 | Field | What to enter |
 |---|---|
@@ -40,7 +53,7 @@ The picker shows accessible documents the token owner has opened. Use IDs for ot
 
 ### Sync and verify
 
-Select **Connect & Sync**. Open the source's **Documents** and **Sync history** to check indexing. Content and permission changes appear after synchronization.
+Select **Connect & Sync**. Open the source's **Documents** and **Sync history** to check indexing. Content and permission changes appear after synchronization. Have a teammate with a matching verified email search for a shared document, and confirm that an unshared teammate cannot find it.
 
 To rotate the token, add the replacement credential, update the source, and verify a sync before revoking the old token.
 
@@ -59,8 +72,15 @@ Ordinary connections index visible canvas text and base-table rows. Enterprise c
 
 Enterprise mode excludes deactivated and deleted users. Direct-share guests absent from the organization directory are excluded; guests explicitly listed in a group or workspace may receive that membership's access. Ordinary connections cannot check Coda organization deactivation, so manage departing users' Sim membership too.
 
-Sim refreshes permissions even when content is unchanged. Unverified permissions never become broad access, and Sim admin status does not override Coda sharing. For setup failures or missing results, check the token's access, Enterprise admin role if applicable, the teammate's verified email, and **Sync history**.
+Sim refreshes permissions even when content is unchanged. Unverified permissions never become broad access, and Sim admin status does not override Coda sharing.
 
-In a regular knowledge base, **Workspace access** intentionally shares all indexed content with that Sim workspace and does not use the Enterprise organization ID. The permissions above apply to organization Search and **Admin access** sources.
+## Troubleshooting
+
+| Problem | Next step |
+|---|---|
+| Document missing from the picker | Open it in Coda with the token owner, or enter its document ID. |
+| Enterprise setup fails | Confirm the organization ID and Enterprise org-admin role. A workspace admin token is insufficient. |
+| Teammate sees no results | Check organization membership, their verified Sim email, the Coda share, and **Sync history**. |
+| Token expired or revoked | Replace the credential in the connection's **Settings**, then verify a sync. |
 
 See Coda's [public API](https://coda.io/developers/apis/v1) and [Enterprise Admin API](https://coda.io/developers/apis/admin/v1).

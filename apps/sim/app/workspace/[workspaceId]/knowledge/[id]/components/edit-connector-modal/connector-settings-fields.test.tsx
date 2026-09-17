@@ -113,6 +113,7 @@ vi.mock(
 )
 
 import { ConnectorSettingsFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
+import { codaConnectorMeta } from '@/connectors/coda/meta'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { githubConnectorMeta } from '@/connectors/github/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
@@ -507,6 +508,7 @@ describe('connector settings service-account choices', () => {
       product: 'confluence',
     },
     { meta: googleDriveConnectorMeta, provider: 'google-service-account', product: undefined },
+    { meta: codaConnectorMeta, provider: 'coda-service-account', product: undefined },
   ])(
     'opens the correct $meta.name service-account setup from Search settings',
     async ({ meta, provider, product }) => {

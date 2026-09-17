@@ -19,6 +19,7 @@ import {
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
+import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import { initialConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
@@ -247,10 +248,8 @@ export function AddConnectorModal({
     !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId:
-      (isSearchIndex || requiresServiceAccount) &&
-      (serviceAccountProviderId === 'google-service-account' ||
-        serviceAccountProviderId === 'atlassian-service-account')
-        ? serviceAccountProviderId
+      isSearchIndex || requiresServiceAccount
+        ? asServiceAccountProviderId(serviceAccountProviderId)
         : undefined,
     serviceName: connectorConfig?.name,
     serviceIcon: connectorConfig?.icon,

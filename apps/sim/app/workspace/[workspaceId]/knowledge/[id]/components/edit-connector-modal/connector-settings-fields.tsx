@@ -12,6 +12,7 @@ import {
 import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
+import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import {
   getProviderIdFromServiceId,
   getServiceAccountProviderForProviderId,
@@ -174,10 +175,8 @@ export function ConnectorSettingsFields({
     : undefined
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId:
-      (isSearchIndex || requiresServiceAccount) &&
-      (serviceAccountProviderId === 'google-service-account' ||
-        serviceAccountProviderId === 'atlassian-service-account')
-        ? serviceAccountProviderId
+      isSearchIndex || requiresServiceAccount
+        ? asServiceAccountProviderId(serviceAccountProviderId)
         : undefined,
     serviceName: connectorConfig?.name,
     serviceIcon: connectorConfig?.icon,
