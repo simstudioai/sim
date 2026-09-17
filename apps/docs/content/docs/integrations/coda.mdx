@@ -1456,7 +1456,7 @@ Update a Coda page: rename it, change its subtitle, icon, cover, or visibility, 
 | `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
 | `pageId` | string | Yes | ID or name of the page \(IDs are recommended, e.g., "canvas-IjkLmnO"; names containing "/" are not supported\) |
 | `name` | string | No | New name of the page |
-| `subtitle` | string | No | New subtitle of the page |
+| `subtitle` | string | No | New subtitle of the page \(an empty value leaves the subtitle unchanged\) |
 | `iconName` | string | No | Name of the page icon \(e.g., "rocket"\) |
 | `imageUrl` | string | No | URL of a cover image for the page |
 | `isHidden` | boolean | No | Whether the page is hidden \(requires a paid Coda plan; ignored for pages that cannot be hidden\) |

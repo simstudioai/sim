@@ -39,14 +39,17 @@ type IdMap = Record<string, Set<string>>
 /**
  * Extracts subblock IDs from the `subBlocks: [ ... ]` section of a block
  * definition. Only grabs the top-level `id:` of each subblock object —
- * ignores nested IDs inside `options`, `columns`, etc.
+ * ignores nested IDs inside `options`, `columns`, etc. Callers pass the source
+ * starting at the block's own definition, because a file can declare an untyped
+ * legacy block before the typed block derived from it. A derived `subBlocks`
+ * expression (not an array literal) yields no IDs rather than borrowing a later
+ * bracket.
  */
 function extractSubBlockIds(source: string): string[] {
-  const startIdx = source.indexOf('subBlocks:')
-  if (startIdx === -1) return []
+  const literal = /subBlocks:(\s*)(.)/.exec(source)
+  if (!literal || literal[2] !== '[') return []
 
-  const bracketStart = source.indexOf('[', startIdx)
-  if (bracketStart === -1) return []
+  const bracketStart = literal.index + literal[0].length - 1
 
   const ids: string[] = []
   let braceDepth = 0
@@ -134,7 +137,7 @@ function getPreviousIds(): PreviousIdsResult {
       if (!typeMatch) continue
       const blockType = typeMatch[1]
 
-      const ids = extractSubBlockIds(content)
+      const ids = extractSubBlockIds(content.slice(typeMatch.index ?? 0))
       if (ids.length === 0) continue
 
       map[blockType] = new Set(ids)
