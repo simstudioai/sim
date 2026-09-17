@@ -3,6 +3,7 @@
  */
 
 import { outboxEvent } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,6 +36,11 @@ import {
   processOutboxEvents,
   withOutboxHandlerTimeout,
 } from '@/lib/core/outbox/service'
+
+const logger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'OutboxService')
+  ].value
 
 function makePendingRow(overrides: Partial<OutboxRow> = {}): OutboxRow {
   return {
@@ -69,8 +75,7 @@ function holdLease() {
 
 /** Queue metadata discovery followed by individually claimed rows. */
 function queuePendingEvents(rows: OutboxRow[]) {
-  queueTableRows(
-    outboxEvent,
+  dbChainMockFns.execute.mockResolvedValueOnce(
     [...new Set(rows.map(({ eventType }) => eventType))].map((eventType) => ({ eventType }))
   )
   for (const row of rows) queueTableRows(outboxEvent, [row])
@@ -288,6 +293,68 @@ describe('processOutboxEvents — empty / no handler', () => {
     expect(result.deadLettered).toBe(1)
     const terminal = updateSets().find((set) => set.status === 'dead_letter')
     expect(terminal?.lastError).toMatch(/No handler registered/)
+  })
+})
+
+describe('processOutboxEvents — infrastructure diagnostics', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('logs the nested database cause and rethrows discovery failures without exposing parameters', async () => {
+    const cause = Object.assign(new Error('canceling statement due to statement timeout'), {
+      code: '57014',
+    })
+    const error = new Error('Failed query: select event_type\nparams: private-token', { cause })
+    dbChainMockFns.execute.mockRejectedValueOnce(error)
+
+    await expect(processOutboxEvents({})).rejects.toBe(error)
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Outbox processing failed',
+      expect.objectContaining({
+        phase: 'discover',
+        processed: 0,
+        error: expect.objectContaining({
+          code: '57014',
+          message: 'canceling statement due to statement timeout',
+        }),
+      })
+    )
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain('private-token')
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes a reaper failure from discovery and stops the poll', async () => {
+    const error = new Error('connection closed')
+    dbChainMockFns.returning.mockRejectedValueOnce(error)
+
+    await expect(processOutboxEvents({})).rejects.toBe(error)
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Outbox processing failed',
+      expect.objectContaining({ phase: 'reap' })
+    )
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+  })
+
+  it('reports completed work when a later claim fails without rerunning handlers', async () => {
+    const handler = vi.fn(async () => {})
+    const error = new Error('connection closed')
+    queuePendingEvents([makePendingRow()])
+    holdLease()
+    dbChainMockFns.transaction
+      .mockImplementationOnce(async (callback) => callback(dbChainMock.db))
+      .mockRejectedValueOnce(error)
+
+    await expect(processOutboxEvents({ 'test.event': handler })).rejects.toBe(error)
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Outbox processing failed',
+      expect.objectContaining({ phase: 'claim', processed: 1 })
+    )
+    expect(handler).toHaveBeenCalledOnce()
   })
 })
 
@@ -542,7 +609,10 @@ describe('processOutboxEvents — handler timeout', () => {
       550_000
     )
     const shortHandler = vi.fn(async () => {})
-    queueTableRows(outboxEvent, [{ eventType: 'test.long' }, { eventType: 'test.short' }])
+    dbChainMockFns.execute.mockResolvedValueOnce([
+      { eventType: 'test.long' },
+      { eventType: 'test.short' },
+    ])
     queueTableRows(outboxEvent, [makePendingRow({ eventType: 'test.short' })])
     holdLease()
 
