@@ -607,7 +607,8 @@ export function initDriver(
   getMainWindow: () => BrowserWindow | null,
   config?: ConfigStore,
   persistence?: BrowserSessionPersistence,
-  downloadSettings?: session.BrowserDownloadSettings
+  downloadSettings?: session.BrowserDownloadSettings,
+  appSession?: session.BrowserAppSession
 ): void {
   driverCallbacks = callbacks
   knownSessions = config ? new BrowserKnownSessionRegistry(config) : null
@@ -670,7 +671,8 @@ export function initDriver(
     },
     getMainWindow,
     persistence,
-    downloadSettings
+    downloadSettings,
+    appSession
   )
 }
 
@@ -1058,7 +1060,7 @@ async function execInPage<Args extends unknown[], Result>(
   notAfter?: number
 ): Promise<Result> {
   const url = 'getURL' in target ? target.getURL() : target.url
-  if (url === '' || url === 'about:blank') {
+  if ('getURL' in target && (url === '' || url === 'about:blank')) {
     throw new ToolError(
       'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
     )
@@ -1359,8 +1361,17 @@ async function navigationResult(
   completion = waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
 ): Promise<Record<string, unknown>> {
   await completion
+  const target = session.navigationTarget(contents)
+  if (target !== contents) {
+    contents = target
+    await waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
+  }
   await sleep(NAVIGATION_SETTLE_MS)
   if (contents.isDestroyed()) throw new ToolError('The tab was closed during navigation.')
+  const issue = session.pageIssueForContents(contents)
+  if (issue?.kind === 'load-error') {
+    throw new ToolError(`The page failed to load (${issue.description || issue.code}).`)
+  }
   return { url: contents.getURL(), title: contents.getTitle() }
 }
 
@@ -1368,6 +1379,7 @@ async function loadAgentCheckedUrlAndGetResult(
   contents: WebContents,
   url: string
 ): Promise<Record<string, unknown>> {
+  contents = session.tabForNavigation(contents, url, { agentOwned: true })
   session.prepareExplicitNavigation(contents)
   if (contents.isDestroyed()) {
     throw new ToolError('The tab was closed before navigation could start.')
@@ -1383,13 +1395,16 @@ async function loadAgentCheckedUrlAndGetResult(
       candidate.code === 'ERR_ABORTED' ||
       candidate.errno === -3 ||
       /ERR_ABORTED/i.test(getErrorMessage(error))
-    if (!routineAbort) {
+    if (!routineAbort && session.navigationTarget(contents) === contents) {
       throw new ToolError(`The page failed to load (${getErrorMessage(error)}).`)
     }
     // Redirect/client-abort races can reject the initiating promise even
     // though a replacement navigation committed. Accept only concrete URL
     // progress; an unchanged URL is a real failure, not a successful load.
     await sleep(100)
+    contents = session.navigationTarget(contents)
+    if (!contents.getURL() && contents.isLoading())
+      await waitForLoadComplete(contents, NAVIGATION_TIMEOUT_MS)
     if (!contents.getURL() || contents.getURL() === beforeUrl) {
       throw new ToolError(`The navigation was aborted (${getErrorMessage(error)}).`)
     }
@@ -1776,6 +1791,11 @@ function pageEffect(
   }
 }
 
+/** Inline sandboxed previews are real browser frames even though they have no HTTP URL. */
+function isInspectableFrameUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url) || /^about:(?:srcdoc|blank)(?:[?#]|$)/i.test(url)
+}
+
 function crossOriginBoundaryFrames(contents: WebContents): WebFrameMain[] {
   const mainFrame = contents.mainFrame
   if (!mainFrame) return []
@@ -1783,8 +1803,8 @@ function crossOriginBoundaryFrames(contents: WebContents): WebFrameMain[] {
     if (sameWebFrame(frame, mainFrame) || frame.detached || frame.isDestroyed() || !frame.parent) {
       return false
     }
-    if (!/^https?:\/\//i.test(frame.url)) return false
-    return frame.origin !== frame.parent.origin
+    if (!isInspectableFrameUrl(frame.url)) return false
+    return frame.origin === 'null' || frame.origin !== frame.parent.origin
   })
 }
 
@@ -1897,7 +1917,7 @@ async function visibleFrameTargets(
         !frame.detached &&
         !frame.isDestroyed() &&
         Boolean(frame.parent) &&
-        /^https?:\/\//i.test(frame.url)
+        isInspectableFrameUrl(frame.url)
     )
     .slice(0, MAX_CROSS_ORIGIN_SCAN_FRAMES)
   const targets: WebFrameMain[] = []
@@ -2321,7 +2341,10 @@ async function executeToolInner(
       // A failed snapshot (browser-internal page, injection error) should not
       // fail the open itself — the page is on screen either way.
       assertCurrentExecution()
-      const snapshot = await captureSnapshot(contents, executionDeadline).catch(() => null)
+      const snapshot = await captureSnapshot(
+        session.requireAutomationTab().view.webContents,
+        executionDeadline
+      ).catch(() => null)
       return snapshot === null
         ? { ...nav, note: 'The page loaded but a snapshot could not be captured.' }
         : { ...nav, snapshot }
@@ -2368,12 +2391,12 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      const tab = session.addAutomationTab()
+      const tab = session.addAutomationTab(url)
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
         const result = await loadAgentCheckedUrlAndGetResult(contents, url)
-        return { tabId: tab.id, ...result }
+        return { tabId: session.requireAutomationTab().id, ...result }
       }
       return { tabId: tab.id, url: '', title: '' }
     }
@@ -4823,7 +4846,11 @@ export async function handlePanelAction(
     if (action.action === 'navigate') {
       if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
         session.claimActiveTabForUser()
-        const contents = session.ensureTab().view.webContents
+        const contents = session.tabForNavigation(
+          session.ensureTab().view.webContents,
+          action.url,
+          { agentOwned: false }
+        )
         session.prepareExplicitNavigation(contents)
         void contents.loadURL(action.url).catch(() => {})
       }

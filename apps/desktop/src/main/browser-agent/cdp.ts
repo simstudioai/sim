@@ -255,7 +255,11 @@ export function sameWebFrame(left: WebFrameMain, right: WebFrameMain): boolean {
   return false
 }
 
-function locateProtocolFrame(root: ProtocolFrameTree, target: WebFrameMain): ProtocolFrame | null {
+function locateProtocolFrame(
+  root: ProtocolFrameTree,
+  target: WebFrameMain,
+  ordered = true
+): ProtocolFrame | null {
   const path: WebFrameMain[] = []
   for (let current: WebFrameMain | null = target; current?.parent; current = current.parent) {
     path.push(current)
@@ -269,11 +273,13 @@ function locateProtocolFrame(root: ProtocolFrameTree, target: WebFrameMain): Pro
   while (electronParent.parent) electronParent = electronParent.parent
   for (const frame of path) {
     const children = tree.childFrames ?? []
+    /** A partial tree cannot distinguish an omitted sibling with the same URL. */
+    if (children.length !== electronParent.frames.length) return null
     const siblingIndex = electronParent.frames.findIndex((candidate) =>
       sameWebFrame(candidate, frame)
     )
     const indexed = siblingIndex >= 0 ? children[siblingIndex] : undefined
-    if (indexed && frameMatches(indexed.frame, frame)) {
+    if (ordered && indexed && frameMatches(indexed.frame, frame)) {
       tree = indexed
     } else {
       const matches = children.filter((candidate) => frameMatches(candidate.frame, frame))
@@ -298,7 +304,38 @@ export async function evaluateInIsolatedFrame(
 ): Promise<unknown> {
   const { frameTree } = await send<{ frameTree?: ProtocolFrameTree }>(contents, 'Page.getFrameTree')
   if (!frameTree) throw new Error('Chromium did not return a frame tree')
-  const protocolFrame = locateProtocolFrame(frameTree, frame)
+  let protocolFrame = locateProtocolFrame(frameTree, frame)
+  if (!protocolFrame) {
+    /** Chromium omits out-of-process frames from the root target's tree. */
+    const childSessions = [...(childSessionsByContents.get(contents)?.values() ?? [])]
+    const trees = await Promise.all(
+      childSessions.map(async (sessionId) => {
+        const result = await send<{ frameTree?: ProtocolFrameTree }>(
+          contents,
+          'Page.getFrameTree',
+          undefined,
+          sessionId
+        )
+        return result.frameTree
+      })
+    )
+    const nodes = new Map<string, ProtocolFrameTree>()
+    const visit = (tree: ProtocolFrameTree) => {
+      nodes.set(tree.frame.id, tree)
+      tree.childFrames?.forEach(visit)
+    }
+    visit(frameTree)
+    for (const tree of trees) if (tree) visit(tree)
+    for (const tree of trees) {
+      const parent = tree?.frame.parentId ? nodes.get(tree.frame.parentId) : undefined
+      if (!tree || !parent) continue
+      parent.childFrames ??= []
+      if (!parent.childFrames.some((child) => child.frame.id === tree.frame.id))
+        parent.childFrames.push(tree)
+    }
+    /** Target attachment order is not DOM order; ambiguous siblings must not be guessed. */
+    protocolFrame = locateProtocolFrame(frameTree, frame, false)
+  }
   if (!protocolFrame) throw new Error('Could not map the Electron frame to Chromium')
 
   const childSession = childSessionsByContents.get(contents)?.get(protocolFrame.id)

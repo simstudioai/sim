@@ -71,6 +71,44 @@ test.describe('browser tools', () => {
         response.end()
         return
       }
+      if (path === '/enter-sim') {
+        response.writeHead(302, { Location: `${origin}/private-chat` })
+        response.end()
+        return
+      }
+      if (path === '/api/auth/get-session') {
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify(
+            request.headers.cookie?.includes('better-auth.session_token=fixture')
+              ? { user: { id: 'browser-auth-fixture' }, session: { id: 'fixture-session' } }
+              : null
+          )
+        )
+        return
+      }
+      if (path === '/api/auth/sign-out') {
+        response.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Set-Cookie': 'better-auth.session_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0',
+        })
+        response.end('{}')
+        return
+      }
+      if (path === '/private-chat' || path === '/private-preview') {
+        if (!request.headers.cookie?.includes('better-auth.session_token=fixture')) {
+          response.writeHead(302, { Location: '/login' })
+          response.end()
+          return
+        }
+        response.writeHead(200, { 'Content-Type': 'text/html' })
+        response.end(
+          path === '/private-chat'
+            ? '<!doctype html><title>Private deployed chat</title><h1>Authenticated deployed chat</h1><label>Message <input id="message"></label><button onclick="document.getElementById(\'reply\').textContent = document.getElementById(\'message\').value">Send</button><p id="reply"></p>'
+            : `<!doctype html><title>Private HTML preview</title><h1>Authenticated HTML preview</h1><iframe sandbox="allow-scripts" srcdoc="<button onclick='document.body.dataset.clicked = true'>Test quiz</button><script>try { parent.document.body.dataset.escaped = true } catch { document.body.dataset.isolated = true }</script>"></iframe>`
+        )
+        return
+      }
       if (path === '/api/desktop/tool/authorize') {
         let body = ''
         for await (const chunk of request) body += chunk.toString()
@@ -80,7 +118,12 @@ test.describe('browser tools', () => {
         response.end(JSON.stringify(authorization ?? {}))
         return
       }
-      response.writeHead(200, { 'Content-Type': 'text/html' })
+      response.writeHead(200, {
+        'Content-Type': 'text/html',
+        ...(path === '/workspace' || path === '/home' || path === '/'
+          ? { 'Set-Cookie': 'better-auth.session_token=fixture; HttpOnly; SameSite=Lax; Path=/' }
+          : {}),
+      })
       response.end(
         path === '/click'
           ? CLICK_FIXTURE
@@ -167,6 +210,104 @@ test.describe('browser tools', () => {
       return Number(match[1])
     }
   }
+
+  test('shares desktop authentication for private HTML previews and deployed chats', async () => {
+    for (const path of ['/private-preview', '/private-chat']) {
+      const result = await execute('browser_open_url', { url: `${origin}${path}` })
+      expect(result.ok, result.error).toBe(true)
+      expect(result.result).toMatchObject({ url: `${origin}${path}` })
+      const state = await app.evaluate(async ({ webContents, BrowserWindow }, url) => {
+        const host = BrowserWindow.getAllWindows()[0].webContents
+        const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+        if (!page) throw new Error('Missing protected page')
+        return {
+          sharedSession: page.session === host.session,
+          hasDesktopBridge: await page.executeJavaScript(
+            'typeof window.simDesktop !== "undefined"'
+          ),
+          heading: await page.executeJavaScript('document.querySelector("h1").textContent'),
+          escaped: await page.executeJavaScript('document.body.dataset.escaped === "true"'),
+        }
+      }, `${origin}${path}`)
+      expect(state.sharedSession).toBe(true)
+      expect(state.hasDesktopBridge).toBe(false)
+      expect(state.heading).toContain('Authenticated')
+      expect(state.escaped).toBe(false)
+      if (path === '/private-preview') {
+        const outline = (result.result as { snapshot: { outline: string } }).snapshot.outline
+        const button = outline
+          .split('\n')
+          .find((line) => line.includes('"Test quiz"') && /\[ref=\d+\]/.test(line))
+          ?.match(/\[ref=(\d+)\]/)?.[1]
+        expect(button, JSON.stringify(result.result)).toBeTruthy()
+        const click = await execute('browser_click', { elementId: Number(button) })
+        expect(click.ok, click.error).toBe(true)
+        const frameState = await app.evaluate(async ({ webContents }, url) => {
+          const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+          const frame = page?.mainFrame.frames.find((frame) => frame.url === 'about:srcdoc')
+          if (!frame) throw new Error('Missing sandboxed preview')
+          return frame.executeJavaScript(
+            '({ clicked: document.body.dataset.clicked, isolated: document.body.dataset.isolated, bridge: typeof window.simDesktop })'
+          )
+        }, `${origin}${path}`)
+        expect(frameState).toEqual({ clicked: 'true', isolated: 'true', bridge: 'undefined' })
+      }
+    }
+    const typed = await execute('browser_open_url', { url: `${origin}/private-chat` })
+    expect(typed.ok, typed.error).toBe(true)
+    const result = typed.result as { snapshot: { outline: string } }
+    const message = result.snapshot.outline
+      .split('\n')
+      .find((line) => line.includes('"Message"') && /\[ref=\d+\]/.test(line))
+      ?.match(/\[ref=(\d+)\]/)?.[1]
+    const send = result.snapshot.outline
+      .split('\n')
+      .find((line) => line.includes('"Send"') && /\[ref=\d+\]/.test(line))
+      ?.match(/\[ref=(\d+)\]/)?.[1]
+    expect(message, result.snapshot.outline).toBeTruthy()
+    expect(send, result.snapshot.outline).toBeTruthy()
+    expect(
+      (await execute('browser_type', { elementId: Number(message), text: 'Session works' })).ok
+    ).toBe(true)
+    expect((await execute('browser_click', { elementId: Number(send) })).ok).toBe(true)
+    expect(JSON.stringify(await execute('browser_snapshot', {}))).toContain('Session works')
+  })
+
+  test('keeps external navigation isolated and authenticates redirects back into Sim', async () => {
+    expect((await execute('browser_open_url', { url: `${origin}/private-chat` })).ok).toBe(true)
+    const external = origin.replace('127.0.0.1', 'localhost')
+    const result = await execute('browser_open_url', { url: `${origin}/redirect` })
+    expect(result.ok, result.error).toBe(true)
+    expect(result.result).toMatchObject({ url: `${external}/landing` })
+    expect(
+      await app.evaluate(({ webContents, BrowserWindow }, url) => {
+        const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+        return page?.session === BrowserWindow.getAllWindows()[0].webContents.session
+      }, `${external}/landing`)
+    ).toBe(false)
+    const back = await execute('browser_open_url', { url: `${external}/enter-sim` })
+    expect(back.ok, back.error).toBe(true)
+    expect(back.result).toMatchObject({ url: `${origin}/private-chat` })
+  })
+
+  test('sign-out clears authenticated browser pages with the desktop session', async () => {
+    const opened = await execute('browser_open_url', { url: `${origin}/private-chat` })
+    expect(opened.ok, opened.error).toBe(true)
+    expect(opened.result).toMatchObject({ url: `${origin}/private-chat` })
+    await window.evaluate(async () => {
+      await fetch('/api/auth/sign-out', { method: 'POST' })
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ webContents }, url) =>
+            webContents.getAllWebContents().some((contents) => contents.getURL() === url),
+          `${origin}/private-chat`
+        )
+      )
+      .toBe(false)
+    await expect(window).toHaveURL(`${origin}/login`)
+  })
 
   async function formState() {
     return app.evaluate(async ({ webContents }, origin) => {

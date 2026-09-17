@@ -45,6 +45,7 @@ function createOopifFrameFixture() {
         {
           frame: {
             id: 'child',
+            parentId: 'top',
             name: 'account-menu',
             url: 'https://accounts.example/menu',
           },
@@ -310,76 +311,99 @@ describe('browser-agent CDP instrumentation', () => {
     }
   })
 
-  it('routes OOPIF isolated-world creation and evaluation through its flattened session', async () => {
-    const contents = new WebContentsView().webContents
-    const { child, frameTree } = createOopifFrameFixture()
-    await ensureInstrumented(contents, { onDialog: vi.fn() })
-    const listener = vi
-      .mocked(contents.debugger.on)
-      .mock.calls.find(([event]) => event === 'message')?.[1] as
-      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
-      | undefined
-    expect(listener).toBeTypeOf('function')
+  it.each(['complete', 'split', 'ambiguous'])(
+    'routes OOPIF evaluation through its session (%s tree)',
+    async (treeKind) => {
+      const contents = new WebContentsView().webContents
+      const { child, frameTree } = createOopifFrameFixture()
+      await ensureInstrumented(contents, { onDialog: vi.fn() })
+      const listener = vi
+        .mocked(contents.debugger.on)
+        .mock.calls.find(([event]) => event === 'message')?.[1] as
+        | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+        | undefined
+      expect(listener).toBeTypeOf('function')
 
-    listener?.(
-      {},
-      'Target.attachedToTarget',
-      {
-        sessionId: 'child-session',
-        targetInfo: { targetId: 'child', type: 'iframe' },
-      },
-      undefined
-    )
-    expect(contents.debugger.sendCommand).toHaveBeenCalledWith(
-      'Target.setAutoAttach',
-      { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
-      'child-session'
-    )
-    vi.mocked(contents.debugger.sendCommand).mockClear()
-    vi.mocked(contents.debugger.sendCommand).mockImplementation((method) => {
-      if (method === 'Page.getFrameTree') {
-        return Promise.resolve({ frameTree })
-      }
-      if (method === 'Page.createIsolatedWorld') {
-        return Promise.resolve({ executionContextId: 42 })
-      }
-      if (method === 'Runtime.evaluate') {
-        return Promise.resolve({ result: { type: 'number', value: 4 } })
-      }
-      return Promise.resolve({})
-    })
+      listener?.(
+        {},
+        'Target.attachedToTarget',
+        {
+          sessionId: 'child-session',
+          targetInfo: { targetId: 'child', type: 'iframe' },
+        },
+        undefined
+      )
+      expect(contents.debugger.sendCommand).toHaveBeenCalledWith(
+        'Target.setAutoAttach',
+        { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
+        'child-session'
+      )
+      vi.mocked(contents.debugger.sendCommand).mockClear()
+      vi.mocked(contents.debugger.sendCommand).mockImplementation((method, _params, sessionId) => {
+        if (method === 'Page.getFrameTree') {
+          return Promise.resolve({
+            frameTree:
+              treeKind === 'complete'
+                ? frameTree
+                : sessionId
+                  ? frameTree.childFrames[0]
+                  : { frame: frameTree.frame },
+          })
+        }
+        if (method === 'Page.createIsolatedWorld') {
+          return Promise.resolve({ executionContextId: 42 })
+        }
+        if (method === 'Runtime.evaluate') {
+          return Promise.resolve({ result: { type: 'number', value: 4 } })
+        }
+        return Promise.resolve({})
+      })
 
-    await expect(evaluateInIsolatedFrame(contents, child, '2 + 2')).resolves.toBe(4)
-
-    expect(
-      vi
-        .mocked(contents.debugger.sendCommand)
-        .mock.calls.filter(([method]) =>
-          ['Page.createIsolatedWorld', 'Runtime.evaluate'].includes(method)
+      if (treeKind === 'ambiguous') {
+        /** An omitted twin must not be mistaken for the only frame in a partial tree. */
+        child.parent?.frames.push(createOopifFrameFixture().child)
+        await expect(evaluateInIsolatedFrame(contents, child, '2 + 2')).rejects.toThrow(
+          'Could not map'
         )
-    ).toEqual([
-      [
-        'Page.createIsolatedWorld',
-        {
-          frameId: 'child',
-          worldName: 'sim-browser-agent',
-          grantUniveralAccess: false,
-        },
-        'child-session',
-      ],
-      [
-        'Runtime.evaluate',
-        {
-          expression: '2 + 2',
-          contextId: 42,
-          returnByValue: true,
-          awaitPromise: true,
-          userGesture: false,
-        },
-        'child-session',
-      ],
-    ])
-  })
+        expect(
+          vi
+            .mocked(contents.debugger.sendCommand)
+            .mock.calls.some(([method]) => method === 'Runtime.evaluate')
+        ).toBe(false)
+        return
+      }
+      await expect(evaluateInIsolatedFrame(contents, child, '2 + 2')).resolves.toBe(4)
+
+      expect(
+        vi
+          .mocked(contents.debugger.sendCommand)
+          .mock.calls.filter(([method]) =>
+            ['Page.createIsolatedWorld', 'Runtime.evaluate'].includes(method)
+          )
+      ).toEqual([
+        [
+          'Page.createIsolatedWorld',
+          {
+            frameId: 'child',
+            worldName: 'sim-browser-agent',
+            grantUniveralAccess: false,
+          },
+          'child-session',
+        ],
+        [
+          'Runtime.evaluate',
+          {
+            expression: '2 + 2',
+            contextId: 42,
+            returnByValue: true,
+            awaitPromise: true,
+            userGesture: false,
+          },
+          'child-session',
+        ],
+      ])
+    }
+  )
 
   it('falls back to the root target when OOPIF isolated-world creation fails', async () => {
     const contents = new WebContentsView().webContents

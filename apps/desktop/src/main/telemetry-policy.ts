@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { Session } from 'electron'
+import { isAgentWebContents } from '@/main/browser-agent/registry'
+import { handleBrowserRequest } from '@/main/browser-agent/request-policy'
 import { matchesHostList } from '@/main/navigation'
 
 const logger = createLogger('DesktopTelemetryPolicy')
@@ -16,11 +18,6 @@ export const BLOCKED_ANALYTICS_HOSTS: readonly string[] = [
   'analytics.google.com',
   'stats.g.doubleclick.net',
 ]
-
-const BLOCK_URL_PATTERNS = BLOCKED_ANALYTICS_HOSTS.flatMap((host) => [
-  `*://${host}/*`,
-  `*://*.${host}/*`,
-])
 
 /**
  * Suffix-matches a URL's hostname against the blocked analytics hosts.
@@ -40,11 +37,14 @@ export function shouldBlockRequest(rawUrl: string): boolean {
  * onBeforeRequest consumer — Electron allows a single listener per session.
  */
 export function attachTelemetryPolicy(session: Session, enabled: boolean): void {
-  if (!enabled) {
-    return
-  }
-  session.webRequest.onBeforeRequest({ urls: BLOCK_URL_PATTERNS }, (details, callback) => {
-    callback({ cancel: shouldBlockRequest(details.url) })
+  session.webRequest.onBeforeRequest((details, callback) => {
+    if (enabled && shouldBlockRequest(details.url)) {
+      callback({ cancel: true })
+    } else if (details.webContents && isAgentWebContents(details.webContents)) {
+      handleBrowserRequest(details, callback)
+    } else {
+      callback({ cancel: false })
+    }
   })
-  logger.info('Third-party analytics blocking enabled')
+  if (enabled) logger.info('Third-party analytics blocking enabled')
 }

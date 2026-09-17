@@ -156,6 +156,26 @@ const desktop = useDesktop()
 
 Good fits for the bridge: OS notifications + dock badge on workflow completion, global shortcuts, "reveal in Finder", tray, secure OS-keychain storage. Anything that touches the server/DB still goes through normal APIs — the bridge is only for **native** capability. This same bridge is also the robust way to retire the web-app couplings in the table above: have the web app *tell* the shell (`signalLogout()`, `markAuthSurface()`) instead of the shell inferring from URLs.
 
+### Browser authentication and Sim previews
+
+Browser tabs for the exact configured Sim origin share the desktop app's existing
+Electron session. This includes dev: authenticated file previews and deployed chat
+pages use the current login without copying cookies or exposing tokens to the model.
+Normal resource permissions and any separate deployed-chat password still apply.
+External websites use the independent `persist:sim-browser-agent` partition.
+
+Crossing between Sim and an external site opens a tab in the destination session and
+preserves the source tab's history; an unused blank tab adopts its first destination's
+session. A cross-session form POST is blocked instead of replayed as a GET. Restored
+tabs and popups select their session from the destination origin. Sign-out and account
+or server changes use the existing browser teardown. Browser views retain their own
+permission/download policy, SSRF guards, and minimal preload with no `simDesktop` API.
+
+Generated HTML remains inside its `allow-scripts` sandbox. The driver can inspect and
+interact with inline frames through isolated Chromium worlds, including out-of-process
+frames; it does not grant those pages access to the parent app. These shell changes
+require a desktop update, not just a hosted web deployment.
+
 ### Local filesystem access
 
 Copilot can inspect user-selected local directories through the ordinary VFS tools. Granted folders appear beneath the top-level `user-local/` namespace, and `glob`, `grep`, and `read` are routed to Electron only when their path/pattern is explicitly scoped there. This capability is:
@@ -188,8 +208,8 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 
 ## Known caveats
 
-- The hosted Sim renderer may request microphone access for voice input from the configured app origin; camera access remains denied. On macOS the shell also requires the operating-system microphone grant. Separately, a page in the isolated agent browser may request microphone or camera only from its main frame after a recent native user gesture; Sim then requires an explicit document-scoped prompt and the operating-system grant where applicable.
-- The built-in agent browser is not a general-purpose download manager. Its dedicated partition applies the same bounded policy to every download, including one started by a direct user click: at most 2 GiB per file, two active downloads per task, six app-wide, and a 1 GiB free-disk reserve. A rejected download appears in the browser's downloads menu; use a normal browser for an intentionally larger transfer.
+- The hosted Sim renderer may request microphone access for voice input from the configured app origin; camera access remains denied. On macOS the shell also requires the operating-system microphone grant. Separately, a page in the agent browser may request microphone or camera only from its main frame after a recent native user gesture; Sim then requires an explicit document-scoped prompt and the operating-system grant where applicable.
+- The built-in agent browser is not a general-purpose download manager. Both browser session types apply the same bounded policy to every download, including one started by a direct user click: at most 2 GiB per file, two active downloads per task, six app-wide, and a 1 GiB free-disk reserve. A rejected download appears in the browser's downloads menu; use a normal browser for an intentionally larger transfer.
 - Default Electron ships H.264/AAC/MP3 — do not swap in the codec-free ffmpeg build.
 - Third-party web analytics (GTM/GA) are blocked at the network layer by default (`blockThirdPartyAnalytics`); first-party PostHog `/ingest` is untouched.
 - `Cmd+F` opens the native find overlay in built-in browser tabs. The hosted Sim workspace continues to use Monaco- and table-specific find surfaces.
