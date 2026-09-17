@@ -1,17 +1,17 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { readyEventTypesQuery } from '@/lib/core/outbox/queries'
 
 const logger = createLogger('OutboxService')
 
 const DEFAULT_MAX_ATTEMPTS = 10
 const MAX_BULK_ENQUEUE_EVENTS = 1_000
 const MAX_PERSISTED_ERROR_LENGTH = 500
-const MAX_READY_EVENT_TYPES = 128
 const MAX_REAPED_EVENTS = 1_000
 
 /**
@@ -426,67 +426,72 @@ export async function processOutboxEvents(
   handlers: OutboxHandlerRegistry,
   options: { batchSize?: number; maxRuntimeMs?: number; minRemainingMs?: number } = {}
 ): Promise<ProcessOutboxResult> {
+  const startedAt = Date.now()
   const batchSize = options.batchSize ?? 10
-  const deadline = options.maxRuntimeMs ? Date.now() + options.maxRuntimeMs : undefined
+  const deadline = options.maxRuntimeMs ? startedAt + options.maxRuntimeMs : undefined
   const minRemainingMs = options.minRemainingMs ?? DEFAULT_HANDLER_TIMEOUT_MS + 5000
-
-  const reaped = await reapStuckProcessingRows()
-
+  let phase = 'reap'
+  let reaped = 0
   let processed = 0
   let retried = 0
   let deadLettered = 0
   let leaseLost = 0
-  const readyTypes = await findReadyEventTypes()
-  const eligibleTypes = readyTypes.map(({ eventType }) => eventType)
-  let cursor = 0
-  let claimed = 0
 
-  while (claimed < batchSize && eligibleTypes.length > 0) {
-    if (deadline && Date.now() + minRemainingMs > deadline) break
-    if (cursor >= eligibleTypes.length) cursor = 0
+  try {
+    reaped = await reapStuckProcessingRows()
+    phase = 'discover'
+    const readyTypes = await db.execute<{ eventType: string }>(readyEventTypesQuery(new Date()))
+    const eligibleTypes = readyTypes.map(({ eventType }) => eventType)
+    let cursor = 0
+    let claimed = 0
 
-    const eventType = eligibleTypes[cursor]
-    const handlerTimeout = handlers[eventType]?.timeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS
-    if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
-      eligibleTypes.splice(cursor, 1)
-      continue
+    while (claimed < batchSize && eligibleTypes.length > 0) {
+      if (deadline && Date.now() + minRemainingMs > deadline) break
+      if (cursor >= eligibleTypes.length) cursor = 0
+
+      const eventType = eligibleTypes[cursor]
+      const handlerTimeout = handlers[eventType]?.timeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS
+      if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+
+      phase = 'claim'
+      const [event] = await claimBatch(1, eventType)
+      if (!event) {
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+      claimed++
+      if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
+        phase = 'release'
+        await updateIfLeaseHeld(event, { status: 'pending', lockedAt: null })
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+      cursor++
+      phase = 'handle'
+      const result = await runHandler(event, handlers)
+      if (result === 'completed') processed++
+      else if (result === 'dead_letter') deadLettered++
+      else if (result === 'lease_lost') leaseLost++
+      else retried++
     }
 
-    const [event] = await claimBatch(1, eventType)
-    if (!event) {
-      eligibleTypes.splice(cursor, 1)
-      continue
-    }
-    claimed++
-    if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
-      await updateIfLeaseHeld(event, { status: 'pending', lockedAt: null })
-      eligibleTypes.splice(cursor, 1)
-      continue
-    }
-    cursor++
-    const result = await runHandler(event, handlers)
-    if (result === 'completed') processed++
-    else if (result === 'dead_letter') deadLettered++
-    else if (result === 'lease_lost') leaseLost++
-    else retried++
+    return { processed, retried, deadLettered, leaseLost, reaped }
+  } catch (error) {
+    logger.error('Outbox processing failed', {
+      phase,
+      durationMs: Date.now() - startedAt,
+      processed,
+      retried,
+      deadLettered,
+      leaseLost,
+      reaped,
+      error: describeError(error),
+    })
+    throw error
   }
-
-  return { processed, retried, deadLettered, leaseLost, reaped }
-}
-
-/**
- * Discover only queue metadata once per invocation. Indexed equality claims
- * then avoid filtering and sorting the entire backlog for every delivered row.
- * Event types are code-defined; the cap also bounds malformed or obsolete types.
- */
-async function findReadyEventTypes(): Promise<{ eventType: string }[]> {
-  return db
-    .select({ eventType: outboxEvent.eventType })
-    .from(outboxEvent)
-    .where(and(eq(outboxEvent.status, 'pending'), lte(outboxEvent.availableAt, new Date())))
-    .groupBy(outboxEvent.eventType)
-    .orderBy(sql`min(${outboxEvent.availableAt})`, asc(outboxEvent.eventType))
-    .limit(MAX_READY_EVENT_TYPES)
 }
 
 /**

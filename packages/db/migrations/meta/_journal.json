@@ -2493,6 +2493,13 @@
       "when": 1789672641125,
       "tag": "0356_connector_partition_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 357,
+      "version": "7",
+      "when": 1789677432855,
+      "tag": "0357_outbox_autovacuum",
+      "breakpoints": true
     }
   ]
 }
