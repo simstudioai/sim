@@ -67,6 +67,7 @@ export class XlsxParser implements FileParser {
   }
 
   async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
+    options.signal?.throwIfAborted()
     try {
       const bufferSize = buffer.length
       logger.info(
@@ -86,10 +87,14 @@ export class XlsxParser implements FileParser {
         ...SHEET_DISPLAY_READ_OPTIONS,
       })
 
-      return options.contentMode === 'complete'
-        ? this.processCompleteWorkbook(workbook, options)
-        : this.processWorkbook(workbook)
+      const result =
+        options.contentMode === 'complete'
+          ? this.processCompleteWorkbook(workbook, options)
+          : this.processWorkbook(workbook)
+      options.signal?.throwIfAborted()
+      return result
     } catch (error) {
+      options.signal?.throwIfAborted()
       logger.error('XLSX buffer parsing error:', error)
       if (isEncryptedOfficeParserError(error)) {
         throw new FileParserError(

@@ -60,6 +60,41 @@ describe('complete extraction for search', () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+  it('preserves cancellation before inspecting a spreadsheet buffer', async () => {
+    const reason = new Error('Cancelled by caller')
+    await expect(
+      new XlsxParser().parseBuffer(Buffer.from('invalid workbook'), {
+        contentMode: 'complete',
+        signal: AbortSignal.abort(reason),
+      })
+    ).rejects.toBe(reason)
+  })
+  it.each([1, 2])('preserves cancellation while extracting a %i-row spreadsheet', async (rows) => {
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([['first'], ['second']].slice(0, rows)),
+      'Data'
+    )
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+    const controller = new AbortController()
+    const reason = new Error('Cancelled during extraction')
+    const formatCell = XLSX.utils.format_cell
+    const format = vi.spyOn(XLSX.utils, 'format_cell').mockImplementationOnce((...args) => {
+      controller.abort(reason)
+      return formatCell(...args)
+    })
+    try {
+      await expect(
+        new XlsxParser().parseBuffer(buffer, {
+          contentMode: 'complete',
+          signal: controller.signal,
+        })
+      ).rejects.toBe(reason)
+    } finally {
+      format.mockRestore()
+    }
+  })
   it('marks a workbook with only whitespace as degraded in complete mode', async () => {
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(
