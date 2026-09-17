@@ -32,6 +32,7 @@ const {
   releasePendingChatStream,
   unregisterActiveStream,
   fetchGo,
+  buildChatTitleContext,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
   createRunSegment: vi.fn(),
@@ -49,6 +50,7 @@ const {
   releasePendingChatStream: vi.fn(),
   unregisterActiveStream: vi.fn(),
   fetchGo: vi.fn(),
+  buildChatTitleContext: vi.fn().mockResolvedValue(undefined),
 }))
 
 const BILLING_ATTRIBUTION = {
@@ -74,6 +76,8 @@ vi.mock('@/lib/mothership/request/session/controller-lease', async (original) =>
   ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
   assertChatStreamLease: vi.fn().mockResolvedValue(undefined),
 }))
+
+vi.mock('@/lib/mothership/chat/title-context', () => ({ buildChatTitleContext }))
 
 vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   runCopilotLifecycle,
@@ -399,6 +403,42 @@ describe('createSSEStream terminal error handling', () => {
       }
     }
   )
+
+  it('starts the agent while title metadata is pending and forwards recovered inventory', async () => {
+    let resolveContext!: (value: string) => void
+    buildChatTitleContext.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveContext = resolve
+        })
+    )
+    fetchGo.mockResolvedValueOnce(Response.json({ title: 'Finance planning' }))
+    const recoveredInventory = { workflows: [{ name: 'Invoice approval' }] }
+    const stream = createSSEStream({
+      requestPayload: { message: 'Plan', inventory: recoveredInventory },
+      userId: 'user-1',
+      workspaceId: '22222222-2222-4222-8222-222222222222',
+      chatId: '11111111-1111-4111-8111-111111111111',
+      streamId: 'stream-title',
+      executionId: 'exec-title',
+      runId: 'run-title',
+      currentChat: null,
+      message: 'Plan',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-title',
+      orchestrateOptions: { userId: 'user-1' },
+    })
+    await vi.waitFor(() => expect(buildChatTitleContext).toHaveBeenCalled())
+    expect(runCopilotLifecycle).toHaveBeenCalled()
+    expect(fetchGo).not.toHaveBeenCalled()
+    expect(buildChatTitleContext).toHaveBeenCalledWith(
+      expect.objectContaining({ inventory: recoveredInventory })
+    )
+    resolveContext('{"workspaceName":"Finance"}')
+    await vi.waitFor(() => expect(fetchGo).toHaveBeenCalled())
+    expect(JSON.parse(fetchGo.mock.calls[0][1].body).context).toBe('{"workspaceName":"Finance"}')
+    await drainStream(stream)
+  })
 
   it('finishes a pre-admission Stop as cancelled without calling the agent or title model', async () => {
     createRunSegment.mockResolvedValueOnce({ status: 'cancelled' })
