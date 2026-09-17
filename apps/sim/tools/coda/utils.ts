@@ -213,6 +213,15 @@ export const CODA_RETRY = {
   retryIdempotentOnly: true,
 } as const satisfies ToolRetryConfig
 
+/**
+ * Coda's PATCH endpoints set the supplied fields to fixed values, so repeating one is safe even
+ * though the executor does not treat PATCH as idempotent.
+ */
+export const CODA_FIELD_UPDATE_RETRY = {
+  ...CODA_RETRY,
+  retryIdempotentOnly: false,
+} as const satisfies ToolRetryConfig
+
 interface RawReference {
   id?: string
   name?: string

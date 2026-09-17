@@ -16,7 +16,7 @@ import { codaUpdateAclSettingsTool } from '@/tools/coda/update_acl_settings'
 import { codaUpdatePageTool } from '@/tools/coda/update_page'
 import { codaUpdateRowTool } from '@/tools/coda/update_row'
 import { codaUpsertRowsTool } from '@/tools/coda/upsert_rows'
-import { buildCodaUrl, CODA_RETRY } from '@/tools/coda/utils'
+import { buildCodaUrl, CODA_FIELD_UPDATE_RETRY, CODA_RETRY } from '@/tools/coda/utils'
 import { codaWhoamiTool } from '@/tools/coda/whoami'
 import { ErrorExtractorId, extractErrorMessageWithId } from '@/tools/error-extractors'
 
@@ -340,14 +340,16 @@ describe('Coda tool registration', () => {
   })
 
   it.each(allTools)(
-    '%s retries idempotent calls and authenticates with the Coda credential',
+    '%s retries safely repeatable calls and authenticates with the Coda credential',
     (_, tool) => {
       const config = tool as {
-        request: { retry?: unknown }
+        request: { method: unknown; retry?: unknown }
         oauth?: unknown
         params: Record<string, unknown>
       }
-      expect(config.request.retry).toBe(CODA_RETRY)
+      expect(config.request.retry).toBe(
+        config.request.method === 'PATCH' ? CODA_FIELD_UPDATE_RETRY : CODA_RETRY
+      )
       expect(config.oauth).toEqual({ required: true, provider: 'coda' })
       expect(config.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
     }

@@ -1,7 +1,7 @@
 import type { CodaDocIdResponse, CodaUpdateDocParams } from '@/tools/coda/types'
 import {
   buildCodaUrl,
-  CODA_RETRY,
+  CODA_FIELD_UPDATE_RETRY,
   codaAuthParams,
   codaDocPath,
   codaHeaders,
@@ -41,7 +41,7 @@ export const codaUpdateDocTool: ToolConfig<CodaUpdateDocParams, CodaDocIdRespons
   request: {
     url: (params) => buildCodaUrl(codaDocPath(params.docId)),
     method: 'PATCH',
-    retry: CODA_RETRY,
+    retry: CODA_FIELD_UPDATE_RETRY,
     headers: (params) => codaHeaders(params.accessToken, true),
     body: (params) => {
       const title = optionalTrimmed(params.title)

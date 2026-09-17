@@ -1,7 +1,7 @@
 import type { CodaFolderResponse, CodaUpdateFolderParams } from '@/tools/coda/types'
 import {
   buildCodaUrl,
-  CODA_RETRY,
+  CODA_FIELD_UPDATE_RETRY,
   codaAuthParams,
   codaHeaders,
   codaOAuth,
@@ -44,7 +44,7 @@ export const codaUpdateFolderTool: ToolConfig<CodaUpdateFolderParams, CodaFolder
   request: {
     url: (params) => buildCodaUrl(codaPath('folders', [params.folderId, 'folderId'])),
     method: 'PATCH',
-    retry: CODA_RETRY,
+    retry: CODA_FIELD_UPDATE_RETRY,
     headers: (params) => codaHeaders(params.accessToken, true),
     body: (params) => {
       const name = optionalTrimmed(params.name)

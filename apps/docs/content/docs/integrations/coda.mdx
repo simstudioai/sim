@@ -27,7 +27,7 @@ This integration uses a reusable Coda **API token** connection, not OAuth. In Co
 - **Pagination:** List operations return a `nextPageToken`. Pass it as **Page Token** to get the next page. When a Page Token is set, the original filters and limit are reused automatically. Coda can change page sizes at any time, so keep paging until no token comes back.
 - **Page content:** **Get Page Content** reads a page as plain-text lines, with element IDs you can target in **Update Page** or **Delete Page Content**. To delete content, enter element IDs, or turn on **Delete All Page Content** to clear the whole page. For the full page as Markdown or HTML, run **Export Page**, then call **Get Page Export Status** until `downloadLink` is present. The link expires shortly after it is issued.
 - **Permissions and plans:** Creating docs and pages or renaming a doc requires Doc Maker access in the workspace. Publishing needs a Coda maker profile. Hiding pages and custom domains need a paid Coda plan. Workspace members, role activity, and role changes need a workspace that belongs to an organization, and role changes need Admin access. Page analytics are only available for docs in Enterprise workspaces.
-- **Rate limits:** Coda limits requests per user, with tighter limits on writes and on listing docs. Sim automatically retries reads, updates, and deletes when Coda returns HTTP 429. Inserts and creates are not retried, so space out bulk writes.
+- **Rate limits:** Coda limits requests per user, with tighter limits on writes and on listing docs. Sim automatically retries reads, updates, and deletes when Coda returns HTTP 429 or a transient server error. Inserts and creates are not retried, so space out bulk writes.
 {/* MANUAL-CONTENT-END */}
 
 

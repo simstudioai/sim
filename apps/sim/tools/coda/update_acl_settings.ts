@@ -2,7 +2,7 @@ import type { CodaAclSettingsParams, CodaAclSettingsResponse } from '@/tools/cod
 import {
   ACL_SETTINGS_OUTPUTS,
   buildCodaUrl,
-  CODA_RETRY,
+  CODA_FIELD_UPDATE_RETRY,
   codaAuthParams,
   codaDocPath,
   codaHeaders,
@@ -54,7 +54,7 @@ export const codaUpdateAclSettingsTool: ToolConfig<CodaAclSettingsParams, CodaAc
     request: {
       url: (params) => buildCodaUrl(codaDocPath(params.docId, 'acl', 'settings')),
       method: 'PATCH',
-      retry: CODA_RETRY,
+      retry: CODA_FIELD_UPDATE_RETRY,
       headers: (params) => codaHeaders(params.accessToken, true),
       body: (params) => {
         const body: Record<string, boolean> = {}
