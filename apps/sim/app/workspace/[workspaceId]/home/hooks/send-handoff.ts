@@ -4,6 +4,7 @@
  * pure module-scope helpers moved verbatim out of use-chat.ts. State and claim rows are
  * TTL-bounded; every reader tolerates malformed or missing storage.
  */
+
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import {
@@ -11,6 +12,7 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
 import { STREAM_STORAGE_KEY } from '@/lib/mothership/constants'
+import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,
@@ -34,7 +36,7 @@ export interface QueuedSendHandoffState extends QueuedSendHandoffSeed {
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
-  assistantFast?: boolean
+  assistantSearchLevel?: AssistantSearchLevel
   requestedAt: number
   resolveAttempts?: number
 }
@@ -165,7 +167,18 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       return null
     }
 
-    if (parsed.assistantFast !== undefined && typeof parsed.assistantFast !== 'boolean') return null
+    const legacyFast = (parsed as { assistantFast?: unknown }).assistantFast
+    if (
+      parsed.assistantSearchLevel === undefined &&
+      legacyFast !== undefined &&
+      typeof legacyFast !== 'boolean'
+    )
+      return null
+    const rawLevel =
+      parsed.assistantSearchLevel ??
+      (legacyFast === true ? 'fast' : legacyFast === false ? 'adaptive' : undefined)
+    const searchLevel = AssistantSearchLevel.optional().safeParse(rawLevel)
+    if (!searchLevel.success) return null
     const assistantSearch = workspaceSearchFiltersSchema.safeParse(parsed.assistantSearch ?? {})
     if (!assistantSearch.success) return null
 
@@ -184,9 +197,11 @@ export function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
       ...(Array.isArray(parsed.contexts)
         ? { contexts: parsed.contexts.filter(isChatContext) }
         : {}),
-      ...(parsed.requestMode === 'assistant' ? { requestMode: 'assistant' } : {}),
+      ...(parsed.requestMode === 'assistant' || parsed.requestMode === 'agent'
+        ? { requestMode: parsed.requestMode }
+        : {}),
       ...(parsed.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
-      ...(parsed.assistantFast !== undefined ? { assistantFast: parsed.assistantFast } : {}),
+      ...(searchLevel.data !== undefined ? { assistantSearchLevel: searchLevel.data } : {}),
       requestedAt: parsed.requestedAt,
       ...(typeof parsed.resolveAttempts === 'number' &&
       Number.isFinite(parsed.resolveAttempts) &&

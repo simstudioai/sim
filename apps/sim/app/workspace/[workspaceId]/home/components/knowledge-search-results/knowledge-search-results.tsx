@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Chip, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
@@ -12,6 +12,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
+import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import {
@@ -21,12 +22,12 @@ import {
 import {
   resourceUrlKeys,
   searchFilterParsers,
+  searchFiltersFromParams,
   UPDATED_WINDOWS,
 } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useSearchIndex, useSearchSourceOverview } from '@/hooks/queries/kb/connectors'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
-const DAY_MS = 24 * 60 * 60 * 1000
 /** Every result without a connector is an upload; the filter names them so. */
 const UPLOAD_SOURCE = 'upload'
 
@@ -99,6 +100,7 @@ type KnowledgeSearchResultsProps = (
   topK?: number
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
+  onSearchChange?: (search: SearchResource) => void
 }
 
 /** A new query or access scope starts a fresh search and rolling-date anchor. */
@@ -109,6 +111,7 @@ export function KnowledgeSearchResults({
   filters: suppliedFilters,
   topK,
   onSummarize,
+  onSearchChange,
 }: KnowledgeSearchResultsProps) {
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
   const { data: session } = useSession()
@@ -121,6 +124,7 @@ export function KnowledgeSearchResults({
       suppliedFilters={suppliedFilters}
       topK={topK}
       onSummarize={onSummarize}
+      onSearchChange={onSearchChange}
     />
   )
 }
@@ -131,9 +135,17 @@ interface SearchResultsProps {
   scope: ResourceScope
   query: string
   onSummarize: KnowledgeSearchResultsProps['onSummarize']
+  onSearchChange: KnowledgeSearchResultsProps['onSearchChange']
 }
 
-function SearchResults({ scope, query, onSummarize, suppliedFilters, topK }: SearchResultsProps) {
+function SearchResults({
+  scope,
+  query,
+  onSummarize,
+  onSearchChange,
+  suppliedFilters,
+  topK,
+}: SearchResultsProps) {
   const [searchedAt] = useState(Date.now)
   const {
     data: index,
@@ -143,14 +155,15 @@ function SearchResults({ scope, query, onSummarize, suppliedFilters, topK }: Sea
     refetch: refetchIndex,
   } = useSearchIndex(scope)
   const [filters, setFilters] = useQueryStates(searchFilterParsers, resourceUrlKeys)
-  const window = UPDATED_WINDOWS.find((entry) => entry.id === filters.updated)
-  const pageFilters: WorkspaceSearchFilters = {
-    ...(filters.source ? { source: filters.source } : {}),
-    ...(window?.days
-      ? { modifiedAfter: new Date(searchedAt - window.days * DAY_MS).toISOString() }
-      : {}),
-  }
+  const pageFilters = useMemo(
+    () => searchFiltersFromParams(filters, searchedAt),
+    [filters.source, filters.updated, searchedAt]
+  )
   const searchFilters = suppliedFilters ?? pageFilters
+  const scopeId = scope.kind === 'organization' ? scope.organizationId : scope.workspaceId
+  useEffect(() => {
+    onSearchChange?.({ scope, query, filters: searchFilters, ...(topK ? { topK } : {}) })
+  }, [scope.kind, scopeId, query, searchFilters, topK, onSearchChange])
   const {
     data: search,
     isPending,

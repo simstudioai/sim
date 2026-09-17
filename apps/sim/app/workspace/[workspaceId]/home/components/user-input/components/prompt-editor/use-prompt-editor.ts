@@ -1009,11 +1009,16 @@ export function usePromptEditor({
   const prevSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
 
   useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+    let lastTextarea = textareaRef.current
     let last = { start: 0, end: 0 }
     const onSelectionChange = () => {
-      if (document.activeElement !== textarea) return
+      const textarea = textareaRef.current
+      if (!textarea || document.activeElement !== textarea) return
+      // Mode changes can replace the node without replacing the shared editor.
+      if (textarea !== lastTextarea) {
+        lastTextarea = textarea
+        last = { start: textarea.selectionStart, end: textarea.selectionEnd }
+      }
       prevSelectionRef.current = last
       last = { start: textarea.selectionStart ?? 0, end: textarea.selectionEnd ?? 0 }
     }

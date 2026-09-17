@@ -178,13 +178,16 @@ async function render(
     | 'showModeSelector'
     | 'onModeChange'
     | 'restoredContexts'
-    | 'assistantFast'
-    | 'onAssistantFastChange'
+    | 'allowNoAssistant'
+    | 'assistantSearchLevel'
+    | 'onAssistantSearchLevelChange'
   > = { isSending: false }
 ) {
   function Harness() {
     const [value, setValue] = useState(initialValue)
-    const [assistantFast, setAssistantFast] = useState(controls.assistantFast ?? false)
+    const [assistantSearchLevel, setAssistantSearchLevel] = useState(
+      controls.assistantSearchLevel ?? 'adaptive'
+    )
     const files = useFileAttachments({
       userId: 'user-a',
       organizationId: 'organization-a',
@@ -193,8 +196,11 @@ async function render(
     return (
       <Composer
         requestMode={requestMode}
-        assistantFast={assistantFast}
-        onAssistantFastChange={controls.onAssistantFastChange ?? setAssistantFast}
+        assistantSearchLevel={assistantSearchLevel}
+        allowNoAssistant={controls.allowNoAssistant}
+        onAssistantSearchLevelChange={
+          controls.onAssistantSearchLevelChange ?? setAssistantSearchLevel
+        }
         showModeSelector={controls.showModeSelector}
         onModeChange={controls.onModeChange}
         restoredContexts={controls.restoredContexts}
@@ -230,14 +236,18 @@ describe('organization voice composer', () => {
       const mic = container.querySelector<HTMLButtonElement>('button[aria-label="Voice input"]')!
       expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
       expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
-      expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Search Fast mode')
+      expect(mic.previousElementSibling?.getAttribute('aria-label')).toBe('Search level')
+      expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
       await act(async () => mic.click())
       expect(mocks.toggleListening).toHaveBeenCalledOnce()
       const speech = mocks.speech.mock.calls.at(-1)![0]
       expect(speech.organizationId).toBe('organization-a')
       await act(async () => speech.onTranscript('the'))
       await act(async () => speech.onTranscript('the release'))
-      expect(container.querySelector('textarea')!.value).toBe('Summarize the release')
+      expect(
+        container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+          .value
+      ).toBe('Summarize the release')
       expect(mocks.submit).not.toHaveBeenCalled()
       await act(async () => {
         container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
@@ -245,7 +255,10 @@ describe('organization voice composer', () => {
       expect(mocks.submit).toHaveBeenCalledWith('Summarize the release', [])
       expect(mocks.resetTranscript).toHaveBeenCalledOnce()
       await act(async () => mocks.speech.mock.calls.at(-1)![0].onTranscript('Next question'))
-      expect(container.querySelector('textarea')!.value).toBe('Next question')
+      expect(
+        container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+          .value
+      ).toBe('Next question')
     }
   )
 
@@ -276,7 +289,11 @@ async function paste(files: File[]) {
       types: [],
     },
   })
-  await act(async () => container.querySelector('textarea')!.dispatchEvent(event))
+  await act(async () =>
+    container
+      .querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+      .dispatchEvent(event)
+  )
   return event
 }
 
@@ -320,7 +337,11 @@ describe('organization image composer', () => {
     const image = new File(['image'], 'dropped.png', { type: 'image/png' })
     const drop = new Event('drop', { bubbles: true, cancelable: true })
     Object.defineProperty(drop, 'dataTransfer', { value: { files: fileList([image]) } })
-    await act(async () => container.querySelector('textarea')!.dispatchEvent(drop))
+    await act(async () =>
+      container
+        .querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+        .dispatchEvent(drop)
+    )
     expect(drop.defaultPrevented).toBe(true)
     expect(mocks.upload).toHaveBeenCalledWith(expect.objectContaining({ file: image }))
     expect(container.querySelector('img')?.getAttribute('alt')).toBe('dropped.png')
@@ -341,7 +362,7 @@ describe('organization image composer', () => {
     )
     await act(async () =>
       container
-        .querySelector('textarea')!
+        .querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
         .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     )
     expect(mocks.submit).not.toHaveBeenCalled()
@@ -459,7 +480,9 @@ it('keeps restored queued skills scoped when replacing a draft', async () => {
     )
   )
   await act(async () => restore())
-  expect(container.querySelector('textarea')!.value).toBe('\u2003review fix this')
+  expect(
+    container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.value
+  ).toBe('\u2003review fix this')
   await act(async () =>
     container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
   )
@@ -567,7 +590,7 @@ it('shows global built-ins once with no workspace label and submits no invented 
   ])
 })
 
-it('offers a text-only controlled mode picker after the staging input controls', async () => {
+it('offers an icon-only controlled mode picker before the staging input controls', async () => {
   const onModeChange = vi.fn()
   await render(true, 'Preserved draft', 'agent', {
     isSending: false,
@@ -575,18 +598,22 @@ it('offers a text-only controlled mode picker after the staging input controls',
     onModeChange,
   })
   const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
-  expect(mode.previousElementSibling?.getAttribute('aria-label')).toBe('Skills')
-  expect(mode.querySelector('svg')).toBeNull()
+  expect(mode.previousElementSibling).toBeNull()
+  expect(mode.nextElementSibling?.getAttribute('aria-label')).toBe('Add resources')
+  expect(mode.textContent).toBe('')
+  expect(mode.querySelector('svg')).not.toBeNull()
   await act(async () =>
     mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   )
   const search = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
     (item) => item.textContent === 'Search'
   )!
-  expect(search.querySelector('svg')).toBeNull()
+  expect(search.querySelector('svg')).not.toBeNull()
   await act(async () => search.click())
   expect(onModeChange).toHaveBeenCalledExactlyOnceWith('assistant')
-  expect(container.querySelector('textarea')!.value).toBe('Preserved draft')
+  expect(
+    container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.value
+  ).toBe('Preserved draft')
 })
 
 it('allows changing the next message mode while a response is streaming', async () => {
@@ -606,7 +633,9 @@ it('allows changing the next message mode while a response is streaming', async 
   )!
   await act(async () => search.click())
   expect(onModeChange).toHaveBeenCalledExactlyOnceWith('assistant')
-  expect(container.querySelector('textarea')!.value).toBe('Next question')
+  expect(
+    container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.value
+  ).toBe('Next question')
   expect(mocks.submit).not.toHaveBeenCalled()
 })
 
@@ -638,7 +667,7 @@ it('opens resources, attaches files, and inserts skills while streaming', async 
   await act(async () => research.click())
   await act(async () =>
     container
-      .querySelector('textarea')!
+      .querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
       .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   )
   expect(mocks.submit).toHaveBeenCalledWith(expect.stringContaining('/research'), [
@@ -665,7 +694,9 @@ it.each(['skill', 'file'] as const)(
     })
     if (kind === 'file')
       await paste([new File(['document'], 'note.pdf', { type: 'application/pdf' })])
-    const before = container.querySelector('textarea')!.value
+    const before = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+      '[aria-label="Ask Sim"]'
+    )!.value
     const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
     await act(async () =>
       mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
@@ -678,40 +709,113 @@ it.each(['skill', 'file'] as const)(
     expect(info).toHaveBeenCalledWith(
       'Remove resource and skill mentions and non-image attachments before switching to Search.'
     )
-    expect(container.querySelector('textarea')!.value).toBe(before)
+    expect(
+      container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+        .value
+    ).toBe(before)
   }
 )
 
-describe('Search Fast control', () => {
-  it('defaults off without a model picker and sits immediately before Send', async () => {
-    await render(true)
-    const fast = container.querySelector<HTMLButtonElement>('[aria-label="Search Fast mode"]')!
-    expect(fast.getAttribute('aria-pressed')).toBe('false')
-    expect(fast.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
-    expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
-    await act(async () => fast.click())
-    expect(fast.getAttribute('aria-pressed')).toBe('true')
+describe('Search levels', () => {
+  it('leaves Shift+Enter and composition to the editor, and submits multiline text on Enter', async () => {
+    await render(true, 'First line\nSecond line')
+    const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+    for (const options of [{ shiftKey: true }, { isComposing: true }]) {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        cancelable: true,
+        ...options,
+      })
+      await act(async () => input.dispatchEvent(event))
+      expect(event.defaultPrevented).toBe(false)
+      expect(mocks.submit).not.toHaveBeenCalled()
+    }
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expect(mocks.submit).toHaveBeenCalledWith('First line\nSecond line', [])
   })
 
-  it('can enable Search Fast while preserving the attached image', async () => {
-    await render(true)
-    await paste([new File(['image'], 'screenshot.png', { type: 'image/png' })])
-    const fast = container.querySelector<HTMLButtonElement>('[aria-label="Search Fast mode"]')!
-    expect(fast.disabled).toBe(false)
-    await act(async () => fast.click())
-    expect(fast.getAttribute('aria-pressed')).toBe('true')
-    expect(container.querySelector('img')?.getAttribute('alt')).toBe('screenshot.png')
+  it.each(['Fast', 'Adaptive', 'Max'])(
+    'selects %s without losing the draft or image',
+    async (label) => {
+      await render(true, 'Preserved question')
+      await paste([new File(['image'], 'screenshot.png', { type: 'image/png' })])
+      const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
+      expect(picker.textContent).toBe('Adaptive')
+      expect(picker.nextElementSibling?.getAttribute('aria-label')).toBe('Voice input')
+      await act(async () =>
+        picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      )
+      const option = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+        (item) => item.textContent?.startsWith(label)
+      )!
+      await act(async () => option.click())
+      expect(picker.textContent).toBe(label)
+      expect(
+        container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+          .value
+      ).toBe('Preserved question')
+      expect(container.querySelector('img')?.getAttribute('alt')).toBe('screenshot.png')
+      expect(mocks.submit).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps the Search editor between the left and right controls in one row', async () => {
+    await render(true, '', 'assistant', {
+      isSending: false,
+      showModeSelector: true,
+      onModeChange: vi.fn(),
+    })
+    const mode = container.querySelector('[aria-label="Conversation mode"]')!
+    const row = mode.parentElement!.parentElement!
+    expect(
+      row.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')
+    ).not.toBeNull()
+    expect(mode.nextElementSibling?.getAttribute('aria-label')).toBe('Attach images')
+    expect(row.querySelector('[aria-label="Search level"]')?.textContent).toBe('Adaptive')
   })
 })
 
-it('keeps Build Fast independent of Search Fast', async () => {
+it('keeps Build Fast independent of Search levels', async () => {
   useMothershipEffortStore.getState().setModel('gpt-6-astra')
   useMothershipEffortStore.getState().setFastMode(false)
   await render(true, 'Build', 'agent')
-  expect(container.querySelector('[aria-label="Search Fast mode"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Search level"]')).toBeNull()
   const fast = container.querySelector<HTMLButtonElement>('[aria-label="Fast mode"]')!
   await act(async () => fast.click())
   expect(useMothershipEffortStore.getState().modelSelection.fastMode).toBe(true)
   expect(container.querySelector('[aria-label="Model and reasoning effort"]')).not.toBeNull()
-  useMothershipEffortStore.getState().setFastMode(false)
+  await act(async () => useMothershipEffortStore.getState().setFastMode(false))
+})
+
+it.each([true, false])(
+  'only offers None before a conversation (allowed: %s)',
+  async (allowNoAssistant) => {
+    await render(true, '', 'assistant', { isSending: false, allowNoAssistant })
+    const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
+    await act(async () =>
+      picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    const options = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].map(
+      (item) => item.textContent
+    )
+    expect(options).toEqual(
+      allowNoAssistant ? ['None', 'Fast', 'Adaptive', 'Max'] : ['Fast', 'Adaptive', 'Max']
+    )
+  }
+)
+
+it('keeps attachments out of results-only search', async () => {
+  await render(true, 'Orion', 'assistant', {
+    isSending: false,
+    assistantSearchLevel: 'none',
+    allowNoAssistant: true,
+  })
+  expect(container.querySelector('[aria-label="Attach images"]')).toBeNull()
+  await paste([new File(['image'], 'test.png', { type: 'image/png' })])
+  expect(mocks.upload).not.toHaveBeenCalled()
+  expect(container.querySelector('[aria-label="Voice input"]')).not.toBeNull()
+  expect(container.querySelector('[aria-label="Search"]')).not.toBeNull()
 })

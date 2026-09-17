@@ -5,8 +5,8 @@ import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import OrganizationChatLoading from '@/app/o/[organizationId]/chat/[chatId]/loading'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
-import OrganizationSearchLoading from '@/app/o/[organizationId]/search/loading'
 
 export const metadata: Metadata = { title: 'Chat' }
 
@@ -29,7 +29,7 @@ export default async function OrganizationChatPage({
   if (chat.mode === 'assistant') {
     if (!context.searchAccess.memberScoped) redirect(WORKSPACE_SETTINGS_PATH)
     return (
-      <Suspense fallback={<OrganizationSearchLoading />}>
+      <Suspense fallback={<OrganizationChatLoading />}>
         <OrganizationHome
           requestMode='assistant'
           userName={session.user.name ?? undefined}
@@ -40,7 +40,7 @@ export default async function OrganizationChatPage({
   }
   if (!context.mothershipAvailable) redirect(WORKSPACE_SETTINGS_PATH)
   return (
-    <Suspense fallback={<OrganizationSearchLoading />}>
+    <Suspense fallback={<OrganizationChatLoading />}>
       <OrganizationHome
         userName={session.user.name ?? undefined}
         chatId={chatId}

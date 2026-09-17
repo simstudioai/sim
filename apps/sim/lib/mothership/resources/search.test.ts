@@ -11,6 +11,7 @@ import { mergeChatResource, sanitizeChatResources } from '@/lib/mothership/resou
 
 const context = {
   userId: 'reader',
+  requestMode: 'assistant' as const,
   organizationId: 'org',
   chatId: 'chat',
   toolCallId: 'call',
@@ -43,6 +44,14 @@ describe('Search resource addresses', () => {
     expect(mothershipResourceSchema.parse(resource)).toEqual(resource)
     expect(sanitizeChatResources([resource])).toEqual([resource])
   })
+  it.each(['agent', undefined] as const)(
+    'does not open a panel for Build mode (%s)',
+    (requestMode) => {
+      expect(
+        searchResourceFromToolResult({ query: 'policy' }, output, { ...context, requestMode })
+      ).toBeUndefined()
+    }
+  )
   it('does not publish failure or non-search results', () => {
     expect(searchResourceFromToolResult({}, { success: false }, context)).toBeUndefined()
     expect(searchResourceFromToolResult({}, { success: true }, context)).toBeUndefined()

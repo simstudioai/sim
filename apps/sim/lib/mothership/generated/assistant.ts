@@ -4,6 +4,9 @@
 import { z } from "zod";
 import { workspaceSearchFiltersSchema } from "./sim-assistant-tools.generated";
 
+export const AssistantSearchLevel = z.enum(["fast", "adaptive", "max"]);
+export type AssistantSearchLevel = z.infer<typeof AssistantSearchLevel>;
+
 export const AssistantSearch = workspaceSearchFiltersSchema;
 
 export type AssistantSearch = z.infer<typeof AssistantSearch>;
@@ -28,5 +31,6 @@ export const AssistantSettings = z.strictObject({
   mode: z.literal("assistant"),
   search: AssistantSearch.optional(),
   fast: z.boolean().optional(),
+  searchLevel: AssistantSearchLevel.optional(),
 });
 export type AssistantSettings = z.infer<typeof AssistantSettings>;

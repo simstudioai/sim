@@ -644,3 +644,41 @@ it('inserts a canonical built-in skill globally without inheriting a workspace',
     unmount()
   }
 })
+
+it('tracks selection contraction on a replacement textarea without remounting the editor', () => {
+  vi.useFakeTimers()
+  const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+  const replacement = document.createElement('textarea')
+  document.body.appendChild(replacement)
+  try {
+    act(() => {
+      result().setContexts([{ kind: 'table', tableId: 'table-1', label: 'Alpha' }])
+      result().setValue('@Alpha tail')
+    })
+    textarea.value = result().value
+    textarea.focus()
+    textarea.setSelectionRange(0, 0)
+    document.dispatchEvent(new Event('selectionchange'))
+
+    // Switching the host layout keeps the hook but replaces its textarea.
+    result().textareaRef.current = replacement
+    replacement.value = result().value
+    replacement.focus()
+    replacement.setSelectionRange(0, replacement.value.length)
+    document.dispatchEvent(new Event('selectionchange'))
+    replacement.setSelectionRange(2, replacement.value.length)
+    document.dispatchEvent(new Event('selectionchange'))
+    act(() => {
+      result().handleSelectAdjust()
+      vi.runOnlyPendingTimers()
+    })
+
+    // Shrinking the left edge releases the whole chip instead of expanding it.
+    expect(replacement.selectionStart).toBe('@Alpha '.length)
+    expect(replacement.selectionEnd).toBe('@Alpha tail'.length)
+  } finally {
+    unmount()
+    replacement.remove()
+    vi.useRealTimers()
+  }
+})

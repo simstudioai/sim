@@ -27,6 +27,7 @@ import {
 import type { AssistantImageContent } from '@/lib/mothership/chat/assistant-images'
 import { buildUploadedFileContext } from '@/lib/mothership/chat/upload-context'
 import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-inventory'
+import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import {
@@ -73,6 +74,7 @@ interface BuildPayloadParams {
   chatId?: string
   prefetch?: boolean
   implicitFeedback?: string
+  assistantSearchLevel?: AssistantSearchLevel
   assistantFast?: boolean
   assistantSearch?: WorkspaceSearchFilters
   workspaceContext?: string
@@ -454,6 +456,9 @@ export async function buildCopilotRequestPayload(
     ...(params.organizationId ? { organizationId: params.organizationId } : {}),
     userId,
     mode: isAssistant ? 'assistant' : 'agent',
+    ...(isAssistant && params.assistantSearchLevel !== undefined
+      ? { assistantSearchLevel: params.assistantSearchLevel }
+      : {}),
     ...(isAssistant && params.assistantFast !== undefined
       ? { assistantFast: params.assistantFast }
       : {}),

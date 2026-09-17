@@ -1238,40 +1238,43 @@ describe('useChat remount send recovery', () => {
         })
       )
       expect(getResult().messages.filter((message) => message.id === sentUser.id)).toHaveLength(1)
-      navigate('chat-other', { ...history, id: 'chat-other', messages: [] })
+      await act(async () => navigate('chat-other', { ...history, id: 'chat-other', messages: [] }))
       await waitFor(() => getResult().messages.length === 0)
       expect(getResult().messages.some((message) => message.id === sentUser.id)).toBe(false)
     }
   )
 
-  it('captures Search Fast independently for each queued turn and omits it from Build requests', async () => {
+  it('captures Search levels independently for each queued turn and omits it from Build requests', async () => {
     state.postBehavior = 'task'
     const { getResult } = renderUseChat({ organizationId: 'org-a' }, 'assistant')
     await act(async () => {
       void getResult().sendMessage('Fast search', undefined, undefined, {
         requestMode: 'assistant',
-        assistantFast: true,
+        assistantSearchLevel: 'fast',
       })
     })
     await waitFor(() => state.postBodies.length === 1)
     expect(state.postBodies[0]).toEqual(
-      expect.objectContaining({ mode: 'assistant', assistantFast: true })
+      expect.objectContaining({ mode: 'assistant', assistantSearchLevel: 'fast' })
     )
     expect(state.postBodies[0]).not.toHaveProperty('modelSelection')
     expect(state.postBodies[0]).not.toHaveProperty('effort')
     await act(async () => {
       void getResult().sendMessage('Astra search', undefined, undefined, {
         requestMode: 'assistant',
-        assistantFast: false,
+        assistantSearchLevel: 'adaptive',
       })
     })
     await act(async () => {
-      void getResult().sendMessage('Next Fast search', undefined, undefined, {
+      void getResult().sendMessage('Next Max search', undefined, undefined, {
         requestMode: 'assistant',
-        assistantFast: true,
+        assistantSearchLevel: 'max',
       })
     })
-    expect(allQueuedMessages().map((message) => message.assistantFast)).toEqual([false, true])
+    expect(allQueuedMessages().map((message) => message.assistantSearchLevel)).toEqual([
+      'adaptive',
+      'max',
+    ])
     await act(async () => {
       void getResult().sendNow(allQueuedMessages()[0].id)
     })
@@ -1279,7 +1282,7 @@ describe('useChat remount send recovery', () => {
     expect(state.postBodies[1]).toEqual(
       expect.objectContaining({ mode: 'assistant', message: 'Astra search' })
     )
-    expect(state.postBodies[1]).not.toHaveProperty('assistantFast')
+    expect(state.postBodies[1]).toHaveProperty('assistantSearchLevel', 'adaptive')
     expect(state.postBodies[1]).not.toHaveProperty('modelSelection')
     expect(state.postBodies[1]).not.toHaveProperty('effort')
     await act(async () => {
@@ -1289,8 +1292,8 @@ describe('useChat remount send recovery', () => {
     expect(state.postBodies[2]).toEqual(
       expect.objectContaining({
         mode: 'assistant',
-        assistantFast: true,
-        message: 'Next Fast search',
+        assistantSearchLevel: 'max',
+        message: 'Next Max search',
       })
     )
     expect(state.postBodies[2]).not.toHaveProperty('modelSelection')
@@ -1357,7 +1360,7 @@ describe('useChat remount send recovery', () => {
       void getResult().sendMessage('Default Astra search')
     })
     await waitFor(() => state.postBodies.length === 1)
-    expect(state.postBodies[0]).not.toHaveProperty('assistantFast')
+    expect(state.postBodies[0]).not.toHaveProperty('assistantSearchLevel')
     expect(state.postBodies[0]).not.toHaveProperty('modelSelection')
     expect(state.postBodies[0]).not.toHaveProperty('effort')
   })
@@ -1374,7 +1377,9 @@ describe('useChat remount send recovery', () => {
     vi.stubGlobal('fetch', fetch)
     const { getResult } = renderUseChat({ organizationId: 'org-a' }, 'assistant')
     await act(async () => {
-      await getResult().sendMessage('Find Orion', undefined, undefined, { assistantFast: true })
+      await getResult().sendMessage('Find Orion', undefined, undefined, {
+        assistantSearchLevel: 'fast',
+      })
     })
     expect(getResult().error).toBe('Fast Search is unavailable for this request')
     expect(getResult().isSending).toBe(false)
@@ -1397,11 +1402,11 @@ describe('useChat remount send recovery', () => {
     await act(async () => {
       void getResult().sendMessage('Build', undefined, undefined, {
         requestMode: 'agent',
-        assistantFast: true,
+        assistantSearchLevel: 'fast',
       })
     })
     await waitFor(() => state.postBodies.length === 1)
-    expect(state.postBodies[0]).not.toHaveProperty('assistantFast')
+    expect(state.postBodies[0]).not.toHaveProperty('assistantSearchLevel')
     expect(state.postBodies[0]).toHaveProperty('modelSelection')
     expect(state.postBodies[0]).toHaveProperty('effort')
   })

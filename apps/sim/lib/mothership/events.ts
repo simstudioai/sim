@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
+import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,
@@ -41,7 +42,7 @@ export interface MothershipSendMessageDetail {
   /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
-  assistantFast?: boolean
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 /**
@@ -60,7 +61,7 @@ export function sendMothershipMessage(
   resumeUserMessageId?: string,
   requestMode?: ChatRequestMode,
   assistantSearch?: WorkspaceSearchFilters,
-  assistantFast?: boolean
+  assistantSearchLevel?: AssistantSearchLevel
 ): boolean {
   const trimmed = message.trim()
   if (!trimmed && !fileAttachments?.length) {
@@ -74,7 +75,7 @@ export function sendMothershipMessage(
     ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
     ...(requestMode ? { requestMode } : {}),
     ...(assistantSearch ? { assistantSearch } : {}),
-    ...(assistantFast !== undefined ? { assistantFast } : {}),
+    ...(assistantSearchLevel !== undefined ? { assistantSearchLevel } : {}),
   })
   logger.info('Dispatched mothership message event', { messageLength: trimmed.length, consumed })
   return consumed

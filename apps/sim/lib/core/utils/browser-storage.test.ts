@@ -18,7 +18,7 @@ describe('MothershipHandoffStorage', () => {
       message: 'Find the policy',
       resumeUserMessageId: 'original-send',
       requestMode: 'assistant' as const,
-      assistantFast: true,
+      assistantSearchLevel: 'fast' as const,
     }
     expect(MothershipHandoffStorage.store(handoff, { organizationId: 'org-1' })).toBe(true)
     expect(MothershipHandoffStorage.consume('org-1')).toBeNull()
@@ -32,6 +32,41 @@ describe('MothershipHandoffStorage', () => {
 
   beforeEach(() => {
     localStorage.clear()
+  })
+
+  it.each(['fast', 'adaptive', 'max'] as const)('preserves %s on an immutable handoff', (level) => {
+    MothershipHandoffStorage.store(
+      { message: 'Search', requestMode: 'assistant', assistantSearchLevel: level },
+      WS
+    )
+    expect(MothershipHandoffStorage.consume(WS)).toMatchObject({ assistantSearchLevel: level })
+  })
+
+  it.each([
+    [true, 'fast'],
+    [false, 'adaptive'],
+  ] as const)('migrates a legacy Fast value %s only when reading', (assistantFast, level) => {
+    localStorage.setItem(
+      STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+      JSON.stringify({ workspaceId: WS, message: 'Search', timestamp: Date.now(), assistantFast })
+    )
+    const handoff = MothershipHandoffStorage.consume(WS)
+    expect(handoff).toMatchObject({ assistantSearchLevel: level })
+    expect(handoff).not.toHaveProperty('assistantFast')
+  })
+
+  it('rejects an invalid Search level rather than silently changing routing', () => {
+    localStorage.setItem(
+      STORAGE_KEYS.MOTHERSHIP_HANDOFF,
+      JSON.stringify({
+        workspaceId: WS,
+        message: 'Search',
+        timestamp: Date.now(),
+        assistantSearchLevel: 'unknown',
+        assistantFast: true,
+      })
+    )
+    expect(MothershipHandoffStorage.consume(WS)).toBeNull()
   })
 
   it('round-trips a handoff and trims the message, preserving contexts', () => {

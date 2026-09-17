@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { SearchLevel } from '@/app/o/[organizationId]/home/search-params'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 
 interface OrganizationChatModeState {
   modes: Record<string, ChatRequestMode>
-  assistantFast: Record<string, boolean>
-  setAssistantFast: (userId: string, organizationId: string, enabled: boolean) => void
+  assistantSearchLevels: Record<string, SearchLevel>
+  setAssistantSearchLevel: (userId: string, organizationId: string, level: SearchLevel) => void
   setMode: (userId: string, organizationId: string, mode: ChatRequestMode) => void
 }
 
@@ -14,17 +15,49 @@ export const useOrganizationChatModeStore = create<OrganizationChatModeState>()(
   persist(
     (set) => ({
       modes: {},
-      assistantFast: {},
-      setAssistantFast: (userId, organizationId, enabled) =>
+      assistantSearchLevels: {},
+      setAssistantSearchLevel: (userId, organizationId, level) =>
         set((state) => ({
-          assistantFast: { ...state.assistantFast, [`${userId}:${organizationId}`]: enabled },
+          assistantSearchLevels: {
+            ...state.assistantSearchLevels,
+            [`${userId}:${organizationId}`]: level,
+          },
         })),
       setMode: (userId, organizationId, mode) =>
         set((state) => ({ modes: { ...state.modes, [`${userId}:${organizationId}`]: mode } })),
     }),
     {
       name: 'organization-chat-mode',
-      partialize: (state) => ({ modes: state.modes, assistantFast: state.assistantFast }),
+      version: 1,
+      migrate: (persisted: unknown) => {
+        const modes: Record<string, ChatRequestMode> = {}
+        const assistantSearchLevels: Record<string, SearchLevel> = {}
+        if (typeof persisted !== 'object' || persisted === null)
+          return { modes, assistantSearchLevels }
+        if (
+          'modes' in persisted &&
+          typeof persisted.modes === 'object' &&
+          persisted.modes !== null
+        ) {
+          for (const [key, mode] of Object.entries(persisted.modes)) {
+            if (mode === 'agent' || mode === 'assistant') modes[key] = mode
+          }
+        }
+        if (
+          'assistantFast' in persisted &&
+          typeof persisted.assistantFast === 'object' &&
+          persisted.assistantFast !== null
+        ) {
+          for (const [key, fast] of Object.entries(persisted.assistantFast)) {
+            if (typeof fast === 'boolean') assistantSearchLevels[key] = fast ? 'fast' : 'adaptive'
+          }
+        }
+        return { modes, assistantSearchLevels }
+      },
+      partialize: (state) => ({
+        modes: state.modes,
+        assistantSearchLevels: state.assistantSearchLevels,
+      }),
     }
   )
 )

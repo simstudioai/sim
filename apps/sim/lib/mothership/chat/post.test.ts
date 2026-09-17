@@ -353,6 +353,28 @@ describe('handleUnifiedChatPost', () => {
     expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
   })
 
+  it.each(['fast', 'adaptive', 'max'])(
+    'forwards the server Search level %s',
+    async (assistantSearchLevel) => {
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Find the policy',
+            organizationId: 'org-1',
+            mode: 'assistant',
+            assistantSearchLevel,
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'assistant', assistantSearchLevel }),
+        expect.anything()
+      )
+    }
+  )
+
   it('forwards the closed Fast Search preset through payload construction', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/mothership/chat', {
@@ -374,6 +396,10 @@ describe('handleUnifiedChatPost', () => {
 
   it.each([
     { mode: 'agent', assistantFast: true },
+    { mode: 'agent', assistantSearchLevel: 'max' },
+    { mode: 'assistant', assistantSearchLevel: 'custom-provider' },
+    { mode: 'assistant', assistantSearchLevel: 'adaptive', assistantFast: false },
+    { mode: 'assistant', assistantSearchLevel: 'max', modelSelection: { model: 'gpt-6-astra' } },
     { mode: 'assistant', assistantFast: true, modelSelection: { model: 'gpt-6-astra' } },
   ])('refuses invalid Fast Search admission before creating a chat: %j', async (options) => {
     const response = await handleUnifiedChatPost(

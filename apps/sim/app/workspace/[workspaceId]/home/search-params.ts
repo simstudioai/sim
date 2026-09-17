@@ -1,4 +1,5 @@
 import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 
 /**
  * Co-located, typed URL query-param definition for the home/Chat surface.
@@ -42,3 +43,15 @@ export const searchFilterParsers = {
   source: parseAsString,
   updated: parseAsStringLiteral(UPDATED_WINDOW_IDS).withDefault('any'),
 } as const
+
+/** Resolve the shared source/recency controls once for a particular search. */
+export function searchFiltersFromParams(
+  params: { source: string | null; updated: (typeof UPDATED_WINDOWS)[number]['id'] },
+  searchedAt: number
+): WorkspaceSearchFilters {
+  const days = UPDATED_WINDOWS.find((entry) => entry.id === params.updated)?.days
+  return {
+    ...(params.source ? { source: params.source } : {}),
+    ...(days ? { modifiedAfter: new Date(searchedAt - days * 86_400_000).toISOString() } : {}),
+  }
+}

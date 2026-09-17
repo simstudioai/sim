@@ -1,18 +1,27 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import type { SearchResource } from '@/lib/mothership/generated/resources'
+import { createSearchResource } from '@/lib/mothership/resources/search'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
+import { SearchResultsView } from '@/app/o/[organizationId]/home/components/search-results-view'
+import {
+  organizationHomeParsers,
+  type SearchLevel,
+} from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { organizationSearchUrlKeys } from '@/app/o/[organizationId]/search/search-params'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
@@ -23,6 +32,7 @@ import {
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
+import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,
@@ -44,7 +54,7 @@ interface OrganizationHomeProps {
 /** Home chooses the next turn harness while keeping the current conversation intact. */
 export function OrganizationHome(props: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
-  if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
+  if (!(mothershipAvailable && canBuild) && !searchAccess.memberScoped) return null
   return <OrganizationHomeContent key={`${organization.id}:${props.chatId ?? 'new'}`} {...props} />
 }
 
@@ -53,33 +63,40 @@ function OrganizationHomeContent({
   chatId,
   requestMode: savedMode,
 }: OrganizationHomeProps) {
-  const { organization, searchAccess, canBuild } = useOrganizationContext()
+  const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
   const { data: session } = useSession()
   const userId = session?.user?.id
   const rememberedMode = useOrganizationChatModeStore(
     (state) => state.modes[`${userId}:${organization.id}`]
   )
-  const assistantFast = useOrganizationChatModeStore(
-    (state) => state.assistantFast?.[`${userId}:${organization.id}`] ?? false
+  const rememberedSearchLevel = useOrganizationChatModeStore(
+    (state) => state.assistantSearchLevels?.[`${userId}:${organization.id}`] ?? 'adaptive'
   )
-  const rememberAssistantFast = useOrganizationChatModeStore((state) => state.setAssistantFast)
-  const changeAssistantFast = useCallback(
-    (enabled: boolean) => {
-      if (userId) rememberAssistantFast(userId, organization.id, enabled)
-    },
-    [userId, organization.id, rememberAssistantFast]
+  const rememberAssistantSearchLevel = useOrganizationChatModeStore(
+    (state) => state.setAssistantSearchLevel
+  )
+  const [{ q, source, updated, searchLevel: urlSearchLevel }, setSearchParams] = useQueryStates(
+    organizationHomeParsers,
+    organizationSearchUrlKeys
   )
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const requestMode =
     selectedMode ??
+    (urlSearchLevel && searchAccess.memberScoped && !chatId ? 'assistant' : undefined) ??
     savedMode ??
-    (!canBuild
+    (!canBuild || !mothershipAvailable
       ? 'assistant'
       : rememberedMode === 'assistant' && searchAccess.memberScoped
         ? 'assistant'
         : 'agent')
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState(() =>
+    (urlSearchLevel ?? rememberedSearchLevel) === 'none' ? q : ''
+  )
+  const latestRawSearch = useRef<SearchResource | null>(null)
+  const rememberRawSearch = useCallback((search: SearchResource) => {
+    latestRawSearch.current = search
+  }, [])
   const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>([])
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
@@ -89,8 +106,72 @@ function OrganizationHomeContent({
     onResourceEvent: controller.onResourceEvent,
     activeResourceState: controller.activeResourceState,
   })
+  const hasChat = Boolean(chatId || chat.messages.length)
+  const selectedSearchLevel = !mothershipAvailable
+    ? 'none'
+    : (urlSearchLevel ?? rememberedSearchLevel)
+  const assistantSearchLevel =
+    hasChat && selectedSearchLevel === 'none' ? 'adaptive' : selectedSearchLevel
+  const resultsOnly = requestMode === 'assistant' && assistantSearchLevel === 'none' && !hasChat
+  const [previousQuery, setPreviousQuery] = useState(q)
+  if (previousQuery !== q) {
+    setPreviousQuery(q)
+    if (resultsOnly) setDraft(q)
+  }
   const panel = useChatResourcePanel(chat, controller)
   const addResource = panel.addResourceFromUser
+  /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
+  useEffect(() => {
+    if (hasChat || resultsOnly || !q.trim()) return
+    const resource = createSearchResource({
+      scope: { kind: 'organization', organizationId: organization.id },
+      query: q.trim(),
+      filters: searchFiltersFromParams({ source, updated }, Date.now()),
+    })
+    if (
+      controller.activeResourceParam !== resource.id ||
+      chat.resources.some((entry) => entry.id === resource.id)
+    )
+      return
+    addResource(resource)
+  }, [
+    hasChat,
+    resultsOnly,
+    q,
+    source,
+    updated,
+    organization.id,
+    controller.activeResourceParam,
+    chat.resources,
+    addResource,
+  ])
+  const showRawSearchInPanel = () => {
+    if (!q.trim()) return
+    const search =
+      latestRawSearch.current?.query === q.trim()
+        ? latestRawSearch.current
+        : {
+            scope: { kind: 'organization' as const, organizationId: organization.id },
+            query: q.trim(),
+          }
+    addResource(createSearchResource(search))
+  }
+  const changeAssistantSearchLevel = (level: SearchLevel) => {
+    if (level === 'none' && hasChat) return
+    if (resultsOnly && level !== 'none') {
+      showRawSearchInPanel()
+      setDraft('')
+    }
+    if (level === 'none') {
+      setDraft(q)
+      controller.setActiveResourceUrl(null)
+    }
+    if (userId) {
+      rememberAssistantSearchLevel(userId, organization.id, level)
+      rememberMode(userId, organization.id, 'assistant')
+    }
+    void setSearchParams({ searchLevel: level })
+  }
   const selectResource = useCallback(
     async (ref: WorkspaceResourceRef) => {
       if (!ref.workspaceId) {
@@ -139,7 +220,7 @@ function OrganizationHomeContent({
   }, [chat.resolvedChatId, chat.isSending, chat.isReconnecting, markRead])
 
   useEffect(() => {
-    if (chatId) return
+    if (chatId || resultsOnly) return
     const handoff = MothershipHandoffStorage.consume(
       { organizationId: organization.id },
       undefined,
@@ -152,15 +233,15 @@ function OrganizationHomeContent({
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
           : {}),
-        ...(requestMode === 'assistant'
+        ...(requestMode === 'assistant' && assistantSearchLevel !== 'none'
           ? {
-              assistantFast: handoff.assistantFast ?? assistantFast,
+              assistantSearchLevel: handoff.assistantSearchLevel ?? assistantSearchLevel,
             }
           : {}),
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [chatId, organization.id, requestMode, sendMessage, assistantFast])
+  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel, resultsOnly])
 
   const send = (
     message: string,
@@ -168,23 +249,37 @@ function OrganizationHomeContent({
     contexts?: ChatContext[],
     assistantSearch?: WorkspaceSearchFilters
   ) => {
-    if (requestMode === 'agent' && !canBuild) return
+    if ((requestMode === 'agent' && !canBuild) || resultsOnly) return
     setSelectedMode(requestMode)
     if (requestMode === 'agent') panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
       requestMode,
-      ...(requestMode === 'assistant' ? { assistantFast } : {}),
+      ...(requestMode === 'assistant' && assistantSearchLevel !== 'none'
+        ? { assistantSearchLevel }
+        : {}),
       ...(assistantSearch ? { assistantSearch } : {}),
     })
   }
   const changeMode = (mode: ChatRequestMode) => {
     if (!canBuild || !searchAccess.memberScoped || mode === requestMode) return
+    if (resultsOnly) {
+      showRawSearchInPanel()
+      setDraft('')
+    }
     setSelectedMode(mode)
+    void setSearchParams({ searchLevel: null })
     if (userId) rememberMode(userId, organization.id, mode)
   }
 
   const submit = (text: string, contexts?: ChatContext[]) => {
     const message = text.trim()
+    if (resultsOnly) {
+      if (message) {
+        setDraft(message)
+        void setSearchParams({ q: message })
+      }
+      return
+    }
     if (files.attachedFiles.some((file) => file.uploading)) return
     const attachments: FileAttachmentForApi[] = files.attachedFiles
       .filter((file) => file.key)
@@ -203,7 +298,6 @@ function OrganizationHomeContent({
     files.clearAttachedFiles()
   }
 
-  const hasChat = Boolean(chatId || chat.messages.length)
   const composer =
     requestMode === 'agent' && !canBuild ? (
       <div className='px-4 py-3 text-[var(--text-muted)] text-sm'>
@@ -217,14 +311,15 @@ function OrganizationHomeContent({
     ) : (
       <Composer
         requestMode={requestMode}
-        assistantFast={assistantFast}
-        onAssistantFastChange={changeAssistantFast}
-        showModeSelector={canBuild && searchAccess.memberScoped}
+        assistantSearchLevel={assistantSearchLevel}
+        allowNoAssistant={!hasChat}
+        onAssistantSearchLevelChange={mothershipAvailable ? changeAssistantSearchLevel : undefined}
+        showModeSelector={mothershipAvailable && canBuild && searchAccess.memberScoped}
         onModeChange={changeMode}
         value={draft}
         restoredContexts={restoredContexts}
         files={files}
-        isInitialView={!hasChat}
+        isInitialView={!hasChat && !(resultsOnly && q.trim())}
         isSending={chat.isSending || chat.isReconnecting}
         onChange={setDraft}
         onSubmit={submit}
@@ -233,6 +328,28 @@ function OrganizationHomeContent({
         }}
       />
     )
+
+  if (resultsOnly) {
+    return (
+      <SearchResultsView
+        composer={composer}
+        query={q}
+        onSearchChange={rememberRawSearch}
+        onSummarize={(message, filters) => {
+          if (!mothershipAvailable) {
+            toast.info('The assistant is unavailable for this organization.')
+            return
+          }
+          changeAssistantSearchLevel('adaptive')
+          void sendMessage(message, undefined, undefined, {
+            requestMode: 'assistant',
+            assistantSearchLevel: 'adaptive',
+            assistantSearch: filters,
+          })
+        }}
+      />
+    )
+  }
 
   const content = (
     <div className='flex h-full min-h-0 min-w-[240px] flex-1 flex-col bg-[var(--bg)]'>
@@ -258,7 +375,8 @@ function OrganizationHomeContent({
               const queuedMode = queued.requestMode ?? requestMode
               setSelectedMode(queuedMode)
               setDraft(queued.content)
-              if (queuedMode === 'assistant') changeAssistantFast(queued.assistantFast ?? false)
+              if (queuedMode === 'assistant')
+                changeAssistantSearchLevel(queued.assistantSearchLevel ?? 'adaptive')
               setRestoredContexts(queued.contexts ?? [])
               files.restoreAttachedFiles(
                 (queued.fileAttachments ?? []).map((file) => ({
@@ -289,7 +407,9 @@ function OrganizationHomeContent({
           {/* Asymmetric padding biases the group up so the full cluster (heading + input + steps) sits at the optical center */}
           <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
             <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
-              What should we get done{firstName ? `, ${firstName}` : ''}?
+              {requestMode === 'assistant'
+                ? `Search ${organization.name}`
+                : `What should we get done${firstName ? `, ${firstName}` : ''}?`}
             </h1>
             <div className='relative w-full max-w-chat'>
               {composer}

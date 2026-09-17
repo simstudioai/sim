@@ -29,6 +29,7 @@ describe('server tool adapter authority boundary', () => {
       { query: 'policy', topK: 4 },
       {
         userId: 'reader',
+        requestMode: 'assistant',
         organizationId: 'org',
         workflowId: '',
         chatId: 'chat',

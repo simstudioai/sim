@@ -2,6 +2,7 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
+import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 /**
  * Safe localStorage utilities with SSR support
  * Provides clean error handling and type safety for browser storage operations
@@ -355,7 +356,7 @@ export interface MothershipHandoff {
   /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
-  assistantFast?: boolean
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 type MothershipHandoffOwner = string | { organizationId: string }
@@ -416,7 +417,9 @@ export class MothershipHandoffStorage {
       ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
-      ...(handoff.assistantFast !== undefined ? { assistantFast: handoff.assistantFast } : {}),
+      ...(handoff.assistantSearchLevel !== undefined
+        ? { assistantSearchLevel: handoff.assistantSearchLevel }
+        : {}),
       workspaceId,
       organizationId,
       timestamp: Date.now(),
@@ -489,7 +492,18 @@ export class MothershipHandoffStorage {
       return null
     }
 
-    if (data.assistantFast !== undefined && typeof data.assistantFast !== 'boolean') return null
+    const legacyFast = (data as { assistantFast?: unknown }).assistantFast
+    if (
+      data.assistantSearchLevel === undefined &&
+      legacyFast !== undefined &&
+      typeof legacyFast !== 'boolean'
+    )
+      return null
+    const rawLevel =
+      data.assistantSearchLevel ??
+      (legacyFast === true ? 'fast' : legacyFast === false ? 'adaptive' : undefined)
+    const searchLevel = AssistantSearchLevel.optional().safeParse(rawLevel)
+    if (!searchLevel.success) return null
     const assistantSearch = workspaceSearchFiltersSchema.safeParse(data.assistantSearch ?? {})
     if (!assistantSearch.success) return null
 
@@ -500,7 +514,7 @@ export class MothershipHandoffStorage {
         ? { requestMode: data.requestMode }
         : {}),
       ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
-      ...(data.assistantFast !== undefined ? { assistantFast: data.assistantFast } : {}),
+      ...(searchLevel.data !== undefined ? { assistantSearchLevel: searchLevel.data } : {}),
       ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
         ? { fileAttachments: data.fileAttachments }
         : {}),
