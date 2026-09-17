@@ -7,10 +7,6 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
-import {
-  isDurableSecretProvenanceEnforced,
-  reportUnrecordedDurableProvenance,
-} from '@/lib/execution/durable-secret-provenance-enforcement'
 import { SecretProvenanceBudget } from '@/lib/execution/provenance-budget'
 import {
   PROVENANCE_MAX_ENTRIES,
@@ -833,16 +829,7 @@ export async function getTableSnapshotModelMountSafety(options: {
   }
 
   if (!counts || Number(counts.unsafeCount) > 0) return 'unsafe-provenance'
-  const unrecordedCount = Number(counts.unrecordedCount)
-  if (unrecordedCount > 0) {
-    if (isDurableSecretProvenanceEnforced('table-row')) return 'unsafe-provenance'
-    reportUnrecordedDurableProvenance({
-      surface: 'table-row',
-      cause: 'row-sidecar-not-exact',
-      affectedCount: unrecordedCount,
-      workspaceId: options.workspaceId,
-    })
-  }
+  if (Number(counts.unrecordedCount) > 0) return 'unsafe-provenance'
   return 'safe'
 }
 
@@ -939,7 +926,6 @@ export async function loadTableRowSecretProvenance(
   const currentById = new Map(currentRows.map((row) => [row.id, row]))
   const aggregator = createStoredEntryAggregator(scope)
 
-  let unrecordedRowCount = 0
   for (const rowId of rowIds) {
     const current = currentById.get(rowId)
     const crossing = crossingById.get(rowId)
@@ -953,16 +939,7 @@ export async function loadTableRowSecretProvenance(
       current.sidecarStatus !== 'exact' ||
       !current.sidecarIsCurrent
     ) {
-      /**
-       * One such row would otherwise void the whole page, and a page is what a `query_rows` block
-       * hands downstream — so a single row nobody recorded provenance for latched every run that
-       * read the table. Unenforced, the row contributes nothing, exactly like the legacy row above.
-       */
-      if (isDurableSecretProvenanceEnforced('table-row')) {
-        return incomplete('row-sidecar-not-exact')
-      }
-      unrecordedRowCount += 1
-      continue
+      return incomplete('row-sidecar-not-exact')
     }
     const parsed = normalizeStoredEntries(current.sidecarEntries)
     if (!parsed) return incomplete('row-sidecar-malformed')
@@ -970,16 +947,6 @@ export async function loadTableRowSecretProvenance(
       if (crossing.selectedColumnIds && !crossing.selectedColumnIds.has(entry.columnId)) continue
       if (!aggregator.add(entry)) return incomplete('row-provenance-budget-exceeded')
     }
-  }
-
-  if (unrecordedRowCount > 0) {
-    reportUnrecordedDurableProvenance({
-      surface: 'table-row',
-      cause: 'row-sidecar-not-exact',
-      affectedCount: unrecordedRowCount,
-      ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
-      actorUserId: scope.userId,
-    })
   }
 
   const entries = aggregator.build()

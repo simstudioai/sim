@@ -11,7 +11,6 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => {
-  process.env.DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES = 'workspace-file'
   return { root: '' }
 })
 vi.mock('@/lib/uploads/core/setup.server', () => ({
@@ -24,7 +23,6 @@ import { fileParseBodySchema } from '@/lib/api/contracts/storage-transfer'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import * as inputValidation from '@/lib/core/security/input-validation.server'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
-import { isDurableSecretProvenanceEnforced } from '@/lib/execution/durable-secret-provenance-enforcement'
 import { executeFileParserOperation } from '@/lib/internal/file/parser'
 import {
   createKnowledgeAclFixtureIds,
@@ -108,7 +106,6 @@ async function identityFor(file: UserFile): Promise<WorkspaceFileSecretProvenanc
 
 beforeAll(() => {
   fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-external-file-provenance-'))
-  expect(isDurableSecretProvenanceEnforced('workspace-file')).toBe(true)
 })
 beforeEach(() => {
   fetchSpy.mockReset()

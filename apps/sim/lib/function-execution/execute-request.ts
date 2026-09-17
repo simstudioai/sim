@@ -1052,7 +1052,6 @@ async function importRuntimeFileContributors(
       workspaceId: context.workspaceId,
       identity,
       registry: context.runtimeFileSecretTraceRegistry,
-      actorUserId: context.fileAccessUserId,
     })
     if (!imported) throw new Error('File secret provenance is unavailable for Function execution')
   }

@@ -67,9 +67,7 @@ export async function createMemoryToolResponse(
 
   const registry = new ResolvedSecretTraceRegistry([], scope)
   for (const item of provenance) {
-    await importDurableSecretProvenance(registry, item.provenance, item.data, 'memory', {
-      reportUnrecorded: false,
-    })
+    await importDurableSecretProvenance(registry, item.provenance, item.data)
   }
   const envelope = serializePrivateToolMetadataResponseEnvelope(
     body,

@@ -13,7 +13,6 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockEnforced,
   mockAssertActiveWorkspaceAccess,
   mockFetchWorkspaceFileBuffer,
   mockLoadActiveWorkspaceContext,
@@ -23,7 +22,6 @@ const {
   mockResolveWorkspaceFileReference,
   mockUpdateWorkspaceFileContent,
 } = vi.hoisted(() => ({
-  mockEnforced: vi.fn(() => false),
   mockAssertActiveWorkspaceAccess: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockLoadActiveWorkspaceContext: vi.fn(),
@@ -164,9 +162,7 @@ vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
-  isDurableSecretProvenanceEnforced: mockEnforced,
-  reportUnrecordedDurableProvenance: vi.fn(),
+vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
   reportDurableSecretProvenanceWrite: vi.fn(),
   reportDurableSecretProvenanceRefusal: vi.fn(),
 }))
@@ -259,7 +255,6 @@ describe('appended file provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockEnforced.mockReturnValue(false)
     dbChainMockFns.returning.mockResolvedValue([{ id: 'file-1' }])
     mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
     mockLoadActiveWorkspaceContext.mockResolvedValue({
@@ -366,35 +361,31 @@ describe('appended file provenance', () => {
       expect(persisted.contentUpdatedAt).toEqual(NEXT_CONTENT_UPDATED_AT)
       expect(persisted.entries).toHaveLength(expectedStatus === 'exact' && secret ? 1 : 0)
       expect(dbChainMockFns.set).toHaveBeenCalledWith({ secretProvenanceVersion: 1 })
-      for (const enforced of [false, true]) {
-        mockEnforced.mockReturnValue(enforced)
-        queueTableRows(workspaceFiles, [
-          joinedRow(persisted.status, persisted.entries, persisted.contentUpdatedAt),
-        ])
-        const registry = new ResolvedSecretTraceRegistry([], SCOPE)
-        const permitted = await importWorkspaceFileSecretProvenanceForModelView({
-          workspaceId: 'workspace-1',
-          identity: IDENTITY,
-          registry,
-          view: 'complete',
-          value: `before:${content}`,
+
+      queueTableRows(workspaceFiles, [
+        joinedRow(persisted.status, persisted.entries, persisted.contentUpdatedAt),
+      ])
+      const registry = new ResolvedSecretTraceRegistry([], SCOPE)
+      const permitted = await importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: 'workspace-1',
+        identity: IDENTITY,
+        registry,
+        view: 'complete',
+        value: `before:${content}`,
+      })
+      expect(permitted).toBe(expectedStatus === 'exact')
+      if (permitted) {
+        expect(projectResolvedSecretModelContent(`before:${content}`, registry)).toEqual({
+          safe: true,
+          value: secret ? 'before:{{TOKEN}}' : `before:${content}`,
         })
-        expect(permitted).toBe(
-          expectedStatus === 'exact' || (expectedStatus === 'unrecorded' && !enforced)
-        )
-        if (permitted) {
-          expect(projectResolvedSecretModelContent(`before:${content}`, registry)).toEqual({
-            safe: true,
-            value: secret ? 'before:{{TOKEN}}' : `before:${content}`,
-          })
-        }
-        queueTableRows(workspaceFiles, [
-          joinedRow(persisted.status, persisted.entries, persisted.contentUpdatedAt),
-        ])
-        expect(await isOpaqueWorkspaceFileEgressSafe('workspace-1', IDENTITY)).toBe(
-          (expectedStatus === 'exact' && !secret) || (expectedStatus === 'unrecorded' && !enforced)
-        )
       }
+      queueTableRows(workspaceFiles, [
+        joinedRow(persisted.status, persisted.entries, persisted.contentUpdatedAt),
+      ])
+      expect(await isOpaqueWorkspaceFileEgressSafe('workspace-1', IDENTITY)).toBe(
+        expectedStatus === 'exact' && !secret
+      )
     }
   )
 })
@@ -419,20 +410,14 @@ describe('execution-file content provenance', () => {
   })
 
   it.each([
-    { status: 'exact', version: 1, stale: false, enforced: false, complete: true },
-    { status: 'exact', version: 1, stale: false, enforced: true, complete: true },
-    { status: 'unrecorded', version: 1, stale: false, enforced: false, complete: true },
-    { status: 'unrecorded', version: 1, stale: false, enforced: true, complete: false },
-    { status: 'unknown', version: 1, stale: false, enforced: false, complete: false },
-    { status: 'unknown', version: 1, stale: false, enforced: true, complete: false },
-    { status: 'unknown', version: null, stale: false, enforced: false, complete: true },
-    { status: 'unknown', version: null, stale: false, enforced: true, complete: true },
-    { status: 'exact', version: 1, stale: true, enforced: false, complete: false },
-    { status: 'exact', version: 1, stale: true, enforced: true, complete: false },
+    { status: 'exact', version: 1, stale: false, complete: true },
+    { status: 'unrecorded', version: 1, stale: false, complete: false },
+    { status: 'unknown', version: 1, stale: false, complete: false },
+    { status: 'unknown', version: null, stale: false, complete: true },
+    { status: 'exact', version: 1, stale: true, complete: false },
   ])(
-    'reads $status version=$version stale=$stale with enforcement=$enforced',
-    async ({ status, version, stale, enforced, complete }) => {
-      mockEnforced.mockReturnValue(enforced)
+    'reads $status version=$version stale=$stale',
+    async ({ status, version, stale, complete }) => {
       queueTableRows(workspaceFiles, [
         {
           ...joinedRow(status),
@@ -450,7 +435,6 @@ describe('execution-file content provenance', () => {
   )
 
   it('retains exact secret-bearing execution lineage for downstream text projections', async () => {
-    mockEnforced.mockReturnValue(true)
     queueTableRows(workspaceFiles, [
       joinedRow('exact', [
         {

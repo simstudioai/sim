@@ -16,10 +16,6 @@ import {
   type DurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import {
-  isDurableSecretProvenanceEnforced,
-  reportUnrecordedDurableProvenance,
-} from '@/lib/execution/durable-secret-provenance-enforcement'
 import { memoryDelegationPolicy } from '@/lib/memory/application/authorization'
 import { memoryOperations } from '@/lib/memory/application/operations'
 import { lockMemoryConversationInTx } from '@/lib/memory/locks'
@@ -99,7 +95,6 @@ function memoryMessageError(data: unknown): string | null {
 
 async function loadReadProvenance(
   records: MemoryRecord[],
-  scope: MemoryLegacyProvenanceScope,
   signal?: AbortSignal
 ): Promise<MemoryReadProvenance[]> {
   if (records.length === 0) return []
@@ -113,8 +108,6 @@ async function loadReadProvenance(
 
   const result: MemoryReadProvenance[] = []
   const ids = [...recordsById.keys()]
-  const enforced = isDurableSecretProvenanceEnforced('memory')
-  let unrecordedCount = 0
 
   for (let index = 0; index < ids.length; index += PRIVATE_MEMORY_QUERY_CHUNK_SIZE) {
     signal?.throwIfAborted()
@@ -135,20 +128,9 @@ async function loadReadProvenance(
           status: sidecar?.status ?? null,
           entries: sidecar?.entries,
         })
-        if (provenance.status === 'unknown' && !enforced) unrecordedCount += 1
         result.push({ data: record.data, provenance })
       }
     }
-  }
-
-  if (unrecordedCount > 0) {
-    reportUnrecordedDurableProvenance({
-      surface: 'memory',
-      cause: 'durable-provenance-unknown',
-      affectedCount: unrecordedCount,
-      workspaceId: scope.workspaceId,
-      actorUserId: scope.userId,
-    })
   }
 
   return result
@@ -173,7 +155,7 @@ async function readResultProvenance(
       input.resolveBillingAttribution
     ))
   return {
-    readProvenance: await loadReadProvenance(records, provenanceScope, input.signal),
+    readProvenance: await loadReadProvenance(records, input.signal),
     provenanceScope,
   }
 }

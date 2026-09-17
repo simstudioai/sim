@@ -5,17 +5,12 @@ import { workspaceFileSecretProvenance, workspaceFiles } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnforced, mockReport, mockReportWrite, mockReportRefusal } = vi.hoisted(() => ({
-  mockIsEnforced: vi.fn(() => false),
-  mockReport: vi.fn(),
+const { mockReportWrite, mockReportRefusal } = vi.hoisted(() => ({
   mockReportWrite: vi.fn(),
   mockReportRefusal: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
-  DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge', 'workspace-file'],
-  isDurableSecretProvenanceEnforced: mockIsEnforced,
-  reportUnrecordedDurableProvenance: mockReport,
+vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => ({
   reportDurableSecretProvenanceWrite: mockReportWrite,
   reportDurableSecretProvenanceRefusal: mockReportRefusal,
 }))
@@ -77,27 +72,25 @@ describe('execution file sidecars at model boundaries', () => {
         status,
         entries,
       }
-      for (const enforced of [false, true]) {
-        mockIsEnforced.mockReturnValue(enforced)
-        queueTableRows(workspaceFiles, [row])
-        expect(await isModelSafeWorkspaceFileKey(key, { workspaceId: 'workspace-1' })).toBe(safe)
-        queueTableRows(workspaceFiles, [row])
-        expect(
-          await filterModelSafeWorkspaceFileAttachments([{ id: 'invented-id', key }], {
-            workspaceId: 'workspace-1',
-          })
-        ).toEqual(safe ? [{ id: 'invented-id', key }] : [])
-        queueTableRows(workspaceFiles, [row])
-        const bound = await getBoundWorkspaceFileSecretProvenance('workspace-1', {
-          fileId: 'canonical-id',
-          key,
-          context: 'execution',
-          contentUpdatedAt: CONTENT_UPDATED_AT,
+
+      queueTableRows(workspaceFiles, [row])
+      expect(await isModelSafeWorkspaceFileKey(key, { workspaceId: 'workspace-1' })).toBe(safe)
+      queueTableRows(workspaceFiles, [row])
+      expect(
+        await filterModelSafeWorkspaceFileAttachments([{ id: 'invented-id', key }], {
+          workspaceId: 'workspace-1',
         })
-        expect(bound.status).toBe(
-          version === null || (status === 'exact' && !stale) ? 'exact' : 'unknown'
-        )
-      }
+      ).toEqual(safe ? [{ id: 'invented-id', key }] : [])
+      queueTableRows(workspaceFiles, [row])
+      const bound = await getBoundWorkspaceFileSecretProvenance('workspace-1', {
+        fileId: 'canonical-id',
+        key,
+        context: 'execution',
+        contentUpdatedAt: CONTENT_UPDATED_AT,
+      })
+      expect(bound.status).toBe(
+        version === null || (status === 'exact' && !stale) ? 'exact' : 'unknown'
+      )
     }
   )
 })
@@ -106,7 +99,6 @@ describe('workspace file secret provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockIsEnforced.mockReturnValue(false)
     dbChainMockFns.returning.mockResolvedValue([{ id: 'tracked-file' }])
   })
 
@@ -501,7 +493,6 @@ describe('workspace file secret provenance', () => {
        * stored `unknown` above is dropped: a writer refused those bytes on purpose, which is a
        * different claim from nobody having recorded them, and no policy relaxes it.
        */
-      { id: 'unrecorded-id', key: 'unrecorded-key' },
       { id: 'pre-marker-sidecar-id', key: 'pre-marker-sidecar-key' },
       { id: 'legacy-id', key: 'legacy-key' },
       { id: 'inline-file' },
@@ -848,7 +839,7 @@ describe('workspace file secret provenance', () => {
    * Unrecorded says exactly what an untracked file says, and that one has always mounted. There is
    * nothing to import either way, so the mount proceeds and the workspace is told.
    */
-  it('mounts an unrecorded file without importing provenance for it', async () => {
+  it('refuses to mount an unrecorded tracked file', async () => {
     const registry = {
       importProvenance: vi.fn(),
       isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
@@ -869,9 +860,8 @@ describe('workspace file secret provenance', () => {
         identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
         registry,
       })
-    ).resolves.toBe(true)
+    ).resolves.toBe(false)
     expect(registry.importProvenance).not.toHaveBeenCalled()
-    expect(mockReport).toHaveBeenCalledWith(expect.objectContaining({ surface: 'workspace-file' }))
   })
 
   it('rejects tracked mounted-file provenance when no complete runtime registry can import it', async () => {
@@ -1608,79 +1598,7 @@ describe('workspace file secret provenance', () => {
     )
   })
 
-  /**
-   * The whole reason this surface was brought under the policy: a file that was never tracked
-   * already reads as safe two branches earlier, and an unrecorded one says exactly the same thing
-   * about its contents. Refusing only the second left files permanently unreadable for having
-   * tried to record provenance and failed.
-   */
-  it('reads an unrecorded file, as it already reads an untracked one', async () => {
-    queueTableRows(workspaceFiles, [
-      {
-        id: 'unrecorded-id',
-        key: 'unrecorded-key',
-        workspaceId: 'workspace-1',
-        context: 'workspace',
-        fileContentUpdatedAt: CONTENT_UPDATED_AT,
-        secretProvenanceVersion: 1,
-        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'unrecorded',
-        entries: [],
-      },
-    ])
-
-    await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(true)
-    expect(mockReport).toHaveBeenCalledWith(
-      expect.objectContaining({ surface: 'workspace-file', cause: 'durable-provenance-unknown' })
-    )
-  })
-
-  /** The audit row names who read past the absence when the caller can say; null otherwise. */
-  it('carries the actor into the unrecorded-read report when the caller supplies one', async () => {
-    queueTableRows(workspaceFiles, [
-      {
-        id: 'unrecorded-id',
-        key: 'unrecorded-key',
-        workspaceId: 'workspace-1',
-        context: 'workspace',
-        fileContentUpdatedAt: CONTENT_UPDATED_AT,
-        secretProvenanceVersion: 1,
-        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'unrecorded',
-        entries: [],
-      },
-    ])
-
-    await expect(
-      isModelSafeWorkspaceFileKey('unrecorded-key', { actorUserId: 'user-1' })
-    ).resolves.toBe(true)
-    expect(mockReport).toHaveBeenCalledWith(expect.objectContaining({ actorUserId: 'user-1' }))
-
-    mockReport.mockClear()
-    queueTableRows(workspaceFiles, [
-      {
-        id: 'unrecorded-id',
-        key: 'unrecorded-key',
-        workspaceId: 'workspace-1',
-        context: 'workspace',
-        fileContentUpdatedAt: CONTENT_UPDATED_AT,
-        secretProvenanceVersion: 1,
-        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
-        status: 'unrecorded',
-        entries: [],
-      },
-    ])
-    await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(true)
-    expect(mockReport).toHaveBeenCalledWith(expect.objectContaining({ actorUserId: null }))
-  })
-
-  /**
-   * The row has to be a recorded absence, not a refusal. A stored `unknown` is refused whatever the
-   * flag says, so asserting against one would pass with enforcement off and prove nothing about the
-   * switch this whole posture rests on.
-   */
-  it('refuses an unrecorded file again once the surface is closed', async () => {
-    mockIsEnforced.mockReturnValue(true)
+  it('refuses an unrecorded tracked file', async () => {
     queueTableRows(workspaceFiles, [
       {
         id: 'unrecorded-id',
@@ -1696,7 +1614,6 @@ describe('workspace file secret provenance', () => {
     ])
 
     await expect(isModelSafeWorkspaceFileKey('unrecorded-key')).resolves.toBe(false)
-    expect(mockReport).not.toHaveBeenCalled()
     expect(mockReportRefusal).toHaveBeenCalledWith({
       surface: 'workspace-file',
       cause: 'workspace-file-unrecorded-enforced',
@@ -1769,7 +1686,7 @@ describe('createWorkspaceFileSecretProvenanceFromRegistry write decision', () =>
 
   /**
    * A registry latched with nothing resolved is an absence, not a taint: no plaintext exists in
-   * the context to be in the bytes, so the file must stay readable under the unrecorded policy.
+   * the context to be in the bytes, so the writer records an absence instead of known taint.
    * Stamping taint here made one failed workflow run hard-refuse every file its chat later wrote.
    */
   it('classifies a latched registry holding no active entries as unrecorded', async () => {
