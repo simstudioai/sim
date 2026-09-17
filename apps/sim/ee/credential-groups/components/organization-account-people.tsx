@@ -1,7 +1,15 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { Avatar, AvatarFallback, Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn'
+import {
+  Avatar,
+  AvatarFallback,
+  Chip,
+  ChipConfirmModal,
+  ChipModalError,
+  OverflowText,
+  toast,
+} from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -16,10 +24,7 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { OrganizationAccountInviteModal } from '@/ee/credential-groups/components/organization-account-invite-modal'
-import {
-  getOrganizationPersonConnectionSummary,
-  OrganizationPersonConnections,
-} from '@/ee/credential-groups/components/organization-person-connections'
+import { OrganizationPersonConnections } from '@/ee/credential-groups/components/organization-person-connections'
 import {
   useOrganizationAccountPeople,
   useResendOrganizationAccountInvitation,
@@ -112,52 +117,52 @@ export function OrganizationAccountPeople({
               ) : (
                 <div className={RESOURCE_LIST_STACK}>
                   {enrollments.map((person) => (
-                    <div key={person.id} className='min-w-0 pb-2'>
-                      <SettingsResourceRow
-                        icon={
-                          <Avatar size='md' aria-hidden>
-                            <AvatarFallback>{person.email.charAt(0).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                        }
-                        iconVariant='custom'
-                        title={person.email}
-                        description={getOrganizationPersonConnectionSummary(person)}
-                        trailing={
-                          <RowActionsMenu
-                            label={`${person.email} actions`}
-                            actions={[
-                              {
-                                label: 'Resend',
-                                disabled: pending || requestDisabled || person.status === 'revoked',
-                                onSelect: () =>
-                                  resend.mutate(
-                                    {
-                                      organizationId,
-                                      enrollmentId: person.id,
-                                      ...(searchConnection
-                                        ? { optionId: searchConnection.optionId }
-                                        : {}),
-                                    },
-                                    { onSuccess: () => toast.success('Invitation sent') }
-                                  ),
+                    <SettingsResourceRow
+                      key={person.id}
+                      icon={
+                        <Avatar size='sm' aria-hidden>
+                          <AvatarFallback>{person.email.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                      }
+                      iconVariant='custom'
+                      title={
+                        <span className='flex min-w-0 items-center gap-3'>
+                          <OverflowText label={person.email} className='min-w-28 max-w-[240px]' />
+                          <OrganizationPersonConnections person={person} />
+                        </span>
+                      }
+                      trailing={
+                        <RowActionsMenu
+                          label={`${person.email} actions`}
+                          actions={[
+                            {
+                              label: 'Resend',
+                              disabled: pending || requestDisabled || person.status === 'revoked',
+                              onSelect: () =>
+                                resend.mutate(
+                                  {
+                                    organizationId,
+                                    enrollmentId: person.id,
+                                    ...(searchConnection
+                                      ? { optionId: searchConnection.optionId }
+                                      : {}),
+                                  },
+                                  { onSuccess: () => toast.success('Invitation sent') }
+                                ),
+                            },
+                            {
+                              label: searchConnection ? 'Revoke all account access' : 'Revoke',
+                              destructive: true,
+                              disabled: pending || person.status === 'revoked',
+                              onSelect: () => {
+                                revoke.reset()
+                                setRevokingPerson({ id: person.id, email: person.email })
                               },
-                              {
-                                label: searchConnection ? 'Revoke all account access' : 'Revoke',
-                                destructive: true,
-                                disabled: pending || person.status === 'revoked',
-                                onSelect: () => {
-                                  revoke.reset()
-                                  setRevokingPerson({ id: person.id, email: person.email })
-                                },
-                              },
-                            ]}
-                          />
-                        }
-                      />
-                      <div className='min-w-0 pl-[42px]'>
-                        <OrganizationPersonConnections person={person} />
-                      </div>
-                    </div>
+                            },
+                          ]}
+                        />
+                      }
+                    />
                   ))}
                 </div>
               )}

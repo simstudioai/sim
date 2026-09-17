@@ -115,7 +115,7 @@ it('keeps the compact People rows and resends from the actions menu', async () =
       </NuqsTestingAdapter>
     )
   )
-  expect(container.textContent).toContain('2 accounts connected')
+  expect(container.textContent).toContain('Gmail (2)')
   expect(container.textContent).not.toContain('Copy new link')
   expect(container.textContent).not.toContain('gmail: active')
   expect(container.textContent).not.toContain('People (1)')
@@ -126,7 +126,7 @@ it('keeps the compact People rows and resends from the actions menu', async () =
   )
 })
 
-it('counts active accounts and separates disconnected and reconnecting providers', async () => {
+it('shows only active OAuth and MCP accounts', async () => {
   mocks.people.mockReturnValue({
     data: {
       pages: [
@@ -153,19 +153,14 @@ it('counts active accounts and separates disconnected and reconnecting providers
   })
   await renderPeople()
 
-  expect(container.textContent).toContain('3 accounts connected')
-  const groups = Array.from(container.querySelectorAll('[role="group"]'))
-  expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
-    'Connected',
-    'Reconnect required',
-    'Disconnected',
-  ])
-  expect(groups[0]?.textContent).toContain('Gmail (2)')
-  expect(groups[0]?.textContent).toContain('Research workspace')
-  expect(groups[0]?.textContent).not.toContain('Calendar')
-  expect(groups[1]?.textContent).toContain('Google Drive')
-  expect(groups[2]?.textContent).toContain('Google Calendar (3)')
-  expect(groups[2]?.textContent).toContain('Archived workspace')
+  const group = container.querySelector('[aria-label="Connected accounts"]')
+  expect(group?.textContent).toContain('Gmail (2)')
+  expect(group?.textContent).toContain('Research workspace')
+  expect(container.textContent).not.toContain('Google Calendar')
+  expect(container.textContent).not.toContain('Google Drive')
+  expect(container.textContent).not.toContain('Archived workspace')
+  expect(container.textContent).not.toContain('Disconnected')
+  expect(container.textContent).not.toContain('Reconnect required')
 })
 
 it('hides stale connected badges after the person’s access is revoked', async () => {
@@ -173,7 +168,8 @@ it('hides stale connected badges after the person’s access is revoked', async 
   result.data.pages[0].enrollments[0].status = 'revoked'
   await renderPeople()
 
-  expect(container.textContent).toContain('Access revoked')
+  expect(container.textContent).toContain('person@example.com')
+  expect(container.textContent).not.toContain('Gmail')
   expect(container.textContent).not.toContain('accounts connected')
   expect(container.querySelector('[role="group"]')).toBeNull()
 })
@@ -450,12 +446,12 @@ it('keeps a failed revoke confirmation open for retry and blocks dismissal while
 })
 
 it.each([
-  ['invited', [], 'Not connected'],
-  ['completed', [{ provider: 'gmail', status: 'needs_reauth', count: 1 }], 'Reconnect required'],
-  ['revoked', [], 'Access revoked'],
+  ['invited', []],
+  ['completed', [{ provider: 'gmail', status: 'needs_reauth', count: 1 }]],
+  ['revoked', []],
 ])(
-  'preserves provider navigation and exposes an honest connection state: %s',
-  async (status, connections, label) => {
+  'preserves provider navigation and hides inactive account badges: %s',
+  async (status, connections) => {
     mocks.people.mockReturnValue({
       data: {
         pages: [
@@ -494,7 +490,8 @@ it.each([
       optionId: 'gmail-option',
     })
     expect(container.textContent).toContain('Gmail')
-    expect(container.textContent).toContain(label)
+    expect(container.textContent).toContain('person@example.com')
+    expect(container.querySelector('[aria-label="Connected accounts"]')).toBeNull()
     expect(container.textContent).not.toContain('No people invited')
   }
 )
