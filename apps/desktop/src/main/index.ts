@@ -743,7 +743,8 @@ function main(): void {
       },
       {
         getDirectory: () => desktopSettings.getPreferences().browserDownloadDirectory,
-      }
+      },
+      { origin: processOrigin, session: ensureAppSession() }
     )
     if (accountDataAvailable()) {
       await localFilesystem.initialize()

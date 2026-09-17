@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { Event, Rectangle, Session } from 'electron'
 import { app, BrowserWindow, dialog, nativeTheme, screen, systemPreferences } from 'electron'
+import { agentPermissionHandlers } from '@/main/browser-agent/registry'
 import { type ConfigStore, isSafeInternalPath, type WindowBounds } from '@/main/config'
 import { showShellDialog } from '@/main/dialogs'
 import { isAppOrigin, isAuthSurfacePath } from '@/main/navigation'
@@ -99,6 +100,11 @@ function originOf(raw: string): string {
  */
 export function setupPermissionHandlers(session: Session, getAppOrigin: () => string): void {
   session.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const browserPermissions = agentPermissionHandlers(webContents)
+    if (browserPermissions) {
+      browserPermissions.request(webContents, permission, callback, details)
+      return
+    }
     const requestingUrl = details.requestingUrl || webContents?.getURL() || ''
     const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
     if (!resolvePermission(permission, originOf(requestingUrl), getAppOrigin(), mediaTypes)) {
@@ -112,7 +118,10 @@ export function setupPermissionHandlers(session: Session, getAppOrigin: () => st
     callback(true)
   })
 
-  session.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
+  session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    const browserPermissions = agentPermissionHandlers(webContents)
+    if (browserPermissions)
+      return browserPermissions.check(webContents, permission, requestingOrigin, details)
     const mediaTypes = details.mediaType ? [details.mediaType] : undefined
     return resolvePermission(permission, originOf(requestingOrigin), getAppOrigin(), mediaTypes)
   })

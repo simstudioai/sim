@@ -18,9 +18,11 @@ import {
   Menu,
   shell,
   systemPreferences,
+  WebContentsView,
 } from 'electron'
 import { BASE_ZOOM_FACTOR, steppedZoomFactor } from '@/main/browser-agent/context-menu'
 import * as panel from '@/main/browser-agent/panel'
+import { agentAppOrigin, routeAgentNavigation } from '@/main/browser-agent/registry'
 import * as sessionModule from '@/main/browser-agent/session'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 
@@ -96,7 +98,8 @@ function freshSession(
   win: BrowserWindow | null | (() => BrowserWindow | null),
   eventOverrides: Partial<sessionModule.AgentSessionEvents> = {},
   browserPersistence?: sessionModule.BrowserSessionPersistence,
-  downloadSettings?: sessionModule.BrowserDownloadSettings
+  downloadSettings?: sessionModule.BrowserDownloadSettings,
+  appSession?: sessionModule.BrowserAppSession
 ): SessionModule {
   const mainWindowProvider = typeof win === 'function' ? win : () => win
   const session = sessionModule
@@ -114,7 +117,8 @@ function freshSession(
     },
     mainWindowProvider,
     browserPersistence,
-    downloadSettings
+    downloadSettings,
+    appSession
   )
   session.activateBrowserScope('chat-test')
   return session
@@ -4326,5 +4330,82 @@ describe('importAgentCookies', () => {
     )
 
     await expect(session.importAgentCookies([cookie('a')])).rejects.toThrow('Disk unavailable')
+  })
+})
+
+describe('first-party browser sessions', () => {
+  const origin = 'https://www.dev.sim.ai'
+  function initialize(persistence?: sessionModule.BrowserSessionPersistence) {
+    return freshSession(null, {}, persistence, undefined, {
+      origin,
+      session: new WebContentsView().webContents.session,
+    })
+  }
+
+  it('adopts the app session for a blank tab without changing its identity', () => {
+    const session = initialize()
+    const tab = session.addAutomationTab()
+    const original = tab.view.webContents
+    vi.mocked(original.getURL).mockReturnValue('about:blank')
+    const contents = session.tabForNavigation(original, `${origin}/home`, { agentOwned: true })
+    expect(contents).not.toBe(original)
+    expect(agentAppOrigin(contents)).toBe(origin)
+    expect(session.automationTab()?.id).toBe(tab.id)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(original.close).toHaveBeenCalledOnce()
+    expect(contents.session.setPermissionRequestHandler).not.toHaveBeenCalled()
+    expect(contents.session.webRequest.onBeforeRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps a populated tab and its history when crossing the session boundary', () => {
+    const session = initialize()
+    const tab = session.addAutomationTab(`${origin}/home`)
+    const original = tab.view.webContents
+    vi.mocked(original.getURL).mockReturnValue(`${origin}/home`)
+    const destination = session.tabForNavigation(original, 'https://example.com/', {
+      agentOwned: true,
+    })
+    expect(destination).not.toBe(original)
+    expect(agentAppOrigin(destination)).toBeUndefined()
+    expect(session.listTabs()).toHaveLength(2)
+    expect(original.close).not.toHaveBeenCalled()
+    expect(session.navigationTarget(original)).toBe(destination)
+    expect(session.automationTab()?.view.webContents).toBe(destination)
+    session.recordPageLoadFailure(original, {
+      kind: 'load-error',
+      code: -2,
+      description: 'ERR_FAILED',
+      url: 'https://example.com/',
+    })
+    expect(session.pageIssueForContents(original)).toBeUndefined()
+    expect(routeAgentNavigation(original, `${origin}/home`)).toBe(false)
+    expect(session.navigationTarget(original)).toBe(original)
+  })
+
+  it('does not replay cross-session form submissions as GET requests', () => {
+    const session = initialize()
+    const tab = session.addAutomationTab(`${origin}/home`)
+    const contents = tab.view.webContents
+    expect(routeAgentNavigation(contents, 'https://example.com/submit', 'POST')).toBe(true)
+    expect(session.listTabs()).toHaveLength(1)
+    expect(contents.loadURL).not.toHaveBeenCalled()
+    expect(routeAgentNavigation(contents, `${origin}/submit`, 'POST')).toBe(false)
+  })
+
+  it('restores Sim and external tabs into their respective sessions', () => {
+    const { persistence } = memoryBrowserPersistence({
+      'chat-test': {
+        v: 1,
+        tabs: [{ url: `${origin}/home` }, { url: 'https://example.com/' }],
+        activeIndex: 0,
+        downloads: [],
+      },
+    })
+    const session = initialize(persistence)
+    session.restoreBrowserSession()
+    const first = session.switchTab('1').view.webContents
+    const second = session.switchTab('2').view.webContents
+    expect(agentAppOrigin(first)).toBe(origin)
+    expect(agentAppOrigin(second)).toBeUndefined()
   })
 })

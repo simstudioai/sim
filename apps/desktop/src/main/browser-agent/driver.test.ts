@@ -278,6 +278,9 @@ describe('executeTool', () => {
       code: -102,
       description: 'ERR_CONNECTION_REFUSED',
     }
+    vi.mocked(tab.view.webContents.loadURL).mockImplementationOnce(async () => {
+      session.notePageLoadStarted(tab.view.webContents)
+    })
     vi.useFakeTimers()
     try {
       const result = driver.executeTool('chat-test', 'browser_reload', {})
@@ -1756,7 +1759,8 @@ describe('executeTool', () => {
     }
   )
 
-  it('merges cross-origin structure and routes its refs through production frame isolation', async () => {
+  const frameUrls = ['https://ogs.google.com/u/0/widget/app', 'about:srcdoc', 'about:blank']
+  it.each(frameUrls)('inspects and interacts with isolated frame %s', async (frameUrl) => {
     const win = new BrowserWindow()
     driver.initDriver(
       {
@@ -1846,8 +1850,8 @@ describe('executeTool', () => {
       detached: false,
       isDestroyed: vi.fn(() => false),
       name: 'google-apps',
-      origin: 'https://ogs.google.com',
-      url: 'https://ogs.google.com/u/0/widget/app',
+      origin: frameUrl.startsWith('about:') ? 'null' : 'https://ogs.google.com',
+      url: frameUrl,
       parent: mainFrame,
       executeJavaScript: vi.fn((expression: string) => {
         if (isPageCall(expression, 'collectSnapshot')) {
