@@ -20,9 +20,11 @@ Search joins the current file revision and resolved workspace/folder scope. A re
 
 For regular chunks, PostgreSQL checks the pattern with newline-aware semantics, then verifies individual logical lines. Long-line fragments use only necessary three-character literals as a conservative prefilter, including all required alternation branches. Two-code-point overlap preserves those literals at every boundary. PostgreSQL reconstructs the complete candidate line and evaluates the original regex, so anchors, word boundaries, repetitions, and arbitrarily long match spans retain line semantics. Fixed overlap alone is never treated as proof of a match. The supported regex grammar and minimum literal requirement are unchanged.
 
-Regular blocks are verified in batches of at most 16 (128 KiB of indexed text); long lines are reconstructed one at a time. Only bounded match-centered previews leave PostgreSQL: at most 201 rows to detect truncation, and at most 2 KiB per rendered result. A single search has a ten-second deadline. Transaction advisory locks admit at most two simultaneous searches per workspace and ten globally per database. Busy and timed-out searches fail explicitly; they never report an incomplete scan as an authoritative empty result. The reader uses the normal application database connection, so admission is coordinated on the same database as the index.
+Regular blocks are verified in batches of at most 16 (128 KiB of indexed text); long lines are reconstructed one at a time. Only bounded match-centered previews leave PostgreSQL: at most 201 rows to detect truncation, and at most 2 KiB per rendered result. A single search has a ten-second application deadline with per-statement guards. PostgreSQL 17 additionally enforces a total transaction timeout; PostgreSQL 16 uses the compatible idle-transaction guard. Transaction advisory locks admit at most two simultaneous searches per workspace and ten globally per database. Busy and timed-out searches fail explicitly; they never report an incomplete scan as an authoritative empty result. The reader uses the normal application database connection, so admission is coordinated on the same database as the index.
 
 Arbitrary regex cannot have a fixed latency guarantee. Common terms, broad alternatives, and punctuation-only literals may require scanning significant scoped text. Larger capacity decisions need representative query plans and workload measurements; neither a per-file byte cap nor a PostgreSQL row-count claim establishes a total corpus capacity.
+
+Build leases use PostgreSQL time for creation, validation, and retirement, so worker clock drift cannot expire a healthy attempt or delay reclaiming a retired build.
 
 ## Rollout and retirement
 
@@ -37,7 +39,7 @@ Rollback before retirement requires restoring the old trigger function as well a
 
 ## Verification
 
-Run unit tests in `apps/sim` with `bunx vitest run lib/workspace-files/search lib/file-parsers`. Run the PostgreSQL suites against a disposable local database through `KNOWLEDGE_ACL_TEST_DATABASE_URL` and `--mode integration`. `chunks.integration.ts` applies the actual trigger migrations in an isolated schema. It covers build fencing, revision changes, deletion, cleanup bounds, complete-line matching, UTF-8 boundaries, scope, and admission limits.
+Run unit tests in `apps/sim` with `bunx vitest run lib/workspace-files/search lib/file-parsers`. Run the PostgreSQL suites on both PostgreSQL 16 and 17 against a disposable local database through `KNOWLEDGE_ACL_TEST_DATABASE_URL` and `--mode integration`. `chunks.integration.ts` applies the actual trigger migrations in an isolated schema. It covers build fencing, revision changes, deletion, cleanup bounds, complete-line matching, UTF-8 boundaries, scope, and admission limits.
 
 Set `FILE_SEARCH_BENCHMARK_FILES` to change the synthetic file count (default 1,000, maximum 10,000). Set `FILE_SEARCH_BENCHMARK_OUTPUT` to an output path when running the chunk integration suite to record repeated end-to-end searches and `EXPLAIN (ANALYZE, BUFFERS)` plans on a synthetic multi-file corpus. The fixture is synthetic; it contains no production content.
 

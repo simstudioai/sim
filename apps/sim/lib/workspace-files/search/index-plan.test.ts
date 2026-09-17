@@ -35,6 +35,17 @@ describe('file search chunk packing', () => {
       expect(restored).toEqual(expected)
     }
   )
+  it.each([
+    ['', 1],
+    ['abc', 1],
+    ['abc\n', 1],
+    ['abc\r\n', 1],
+    ['\n', 1],
+    ['a\n\n', 2],
+    ['a\nb', 2],
+  ])('counts visible lines for %j', (text, expected) => {
+    expect(planFileSearchIndex({ text, partial: false }, signal).lineCount).toBe(expected)
+  })
   it('rejects incomplete extraction before producing any chunks', () => {
     expect(() => planFileSearchIndex({ text: 'prefix', partial: true }, signal)).toThrow(
       'incomplete_extraction'

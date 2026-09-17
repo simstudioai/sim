@@ -13,7 +13,6 @@ import {
 import {
   FILE_SEARCH_CANDIDATE_PAGE_SIZE,
   FILE_SEARCH_CANDIDATE_PROBE_SIZE,
-  FILE_SEARCH_LOCK_TIMEOUT_MS,
   FILE_SEARCH_MAX_PREVIEW_BYTES,
   FILE_SEARCH_MAX_RESULTS,
   FILE_SEARCH_QUERY_GLOBAL_CONCURRENCY,
@@ -26,8 +25,12 @@ import {
   type FileSearchMatchRange,
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
-import { buildMatchExpression } from '@/lib/workspace-files/search/sql-pattern'
+import {
+  buildLiteralMatchStart,
+  buildMatchExpression,
+} from '@/lib/workspace-files/search/sql-pattern'
 import { createFileSearchPreview } from '@/lib/workspace-files/search/text'
+import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 
 export interface WorkspaceFileSearchIndexStatus {
   readyFiles: number
@@ -178,13 +181,8 @@ async function readCandidateLines(
   const matchStart =
     pattern.mode === 'regex'
       ? regexOffsets.matchStart
-      : pattern.caseSensitive
-        ? sql`strpos(${content}, ${pattern.literalText})`
-        : sql`strpos(lower(${content}), lower(${pattern.literalText}))`
-  const matchEnd =
-    pattern.mode === 'regex'
-      ? regexOffsets.matchEnd
-      : sql`${matchStart} + char_length(${pattern.literalText})`
+      : buildLiteralMatchStart(content, pattern.literalText!, pattern.caseSensitive)
+  const matchEnd = regexOffsets.matchEnd
   const candidate = candidates[0]
   const blocks = sql.join(
     candidates.map(
@@ -243,12 +241,7 @@ export async function searchWorkspaceFileIndex({
     /** Metadata pages and line reads share one deadline and a consistent revision snapshot. */
     const { rows, coverageRows } = await db.transaction(
       async (tx) => {
-        await tx.execute(sql`
-        select
-          set_config('statement_timeout', ${`${FILE_SEARCH_STATEMENT_TIMEOUT_MS}ms`}, true),
-          set_config('transaction_timeout', ${`${FILE_SEARCH_STATEMENT_TIMEOUT_MS}ms`}, true),
-          set_config('lock_timeout', ${`${FILE_SEARCH_LOCK_TIMEOUT_MS}ms`}, true)
-      `)
+        await configureFileSearchTransaction(tx)
 
         /** Transaction-owned slots release on completion, cancellation, or connection loss. */
         for (const [scope, capacity] of [
@@ -385,7 +378,10 @@ export async function searchWorkspaceFileIndex({
       text: createFileSearchPreview(row.content, pattern, undefined, {
         prefixOmitted: row.prefixOmitted,
         suffixOmitted: row.suffixOmitted,
-        matchRange: toPreviewRange(row.content, row.matchStart, row.matchEnd),
+        matchRange:
+          pattern.mode === 'regex'
+            ? toPreviewRange(row.content, row.matchStart, row.matchEnd)
+            : undefined,
       }),
     }))
     signal?.throwIfAborted()

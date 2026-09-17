@@ -99,7 +99,7 @@ describe('complete-file indexing worker', () => {
     expect(rows).toBeLessThan(300)
     expect(mocks.publish).toHaveBeenCalledWith(
       expect.anything(),
-      { status: 'ready', chunkCount: rows, lineCount: 600001, indexedBytes: 2400000 },
+      { status: 'ready', chunkCount: rows, lineCount: 600000, indexedBytes: 2400000 },
       signal
     )
     expect(mocks.append.mock.invocationCallOrder.at(-1)).toBeLessThan(

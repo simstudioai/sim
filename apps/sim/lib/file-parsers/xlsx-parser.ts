@@ -62,7 +62,7 @@ export class XlsxParser implements FileParser {
 
     logger.info(`Parsing XLSX file: ${filePath}`)
 
-    const buffer = await readFile(filePath)
+    const buffer = await readFile(filePath, { signal: options.signal })
     return this.parseBuffer(buffer, options)
   }
 
@@ -154,7 +154,10 @@ export class XlsxParser implements FileParser {
         }
       }
     }
-    return { content: content.finish(), metadata: { rowCount, truncated: false } }
+    return {
+      content: content.finish(),
+      metadata: { rowCount, truncated: false, degraded: rowCount === 0 },
+    }
   }
 
   private processWorkbook(workbook: XLSX.WorkBook): FileParseResult {

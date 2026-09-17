@@ -43,6 +43,7 @@ export function planFileSearchIndex(
   const bytes = Buffer.from(extracted.text.replace(/\r(?=\n|$)/g, ''), 'utf8')
   let lineCount = 1
   for (const byte of bytes) if (byte === 10) lineCount++
+  if (bytes.at(-1) === 10) lineCount--
   return { bytes, lineCount, indexedBytes: bytes.length }
 }
 

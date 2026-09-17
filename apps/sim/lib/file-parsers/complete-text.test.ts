@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
@@ -38,6 +41,37 @@ describe('complete extraction for search', () => {
         signal: AbortSignal.abort(),
       })
     ).rejects.toThrow()
+  })
+  it.each([
+    ['csv', new CsvParser()],
+    ['xlsx', new XlsxParser()],
+  ] as const)('cancels %s file reads before parsing', async (extension, parser) => {
+    const dir = await mkdtemp(join(tmpdir(), 'parser-cancel-'))
+    const file = join(dir, `test.${extension}`)
+    try {
+      await writeFile(file, 'content')
+      await expect(
+        parser.parseFile(file, {
+          contentMode: 'complete',
+          signal: AbortSignal.abort(),
+        })
+      ).rejects.toMatchObject({ name: 'AbortError' })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+  it('marks a workbook with only whitespace as degraded in complete mode', async () => {
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([[' ', '\t']]),
+      'Searchable name'
+    )
+    const result = await new XlsxParser().parseBuffer(
+      XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }),
+      { contentMode: 'complete' }
+    )
+    expect(result.metadata).toMatchObject({ rowCount: 0, degraded: true, truncated: false })
   })
   it('reads sparse spreadsheet cells beyond both preview limits without expanding the rectangle', async () => {
     const sheet: XLSX.WorkSheet = {

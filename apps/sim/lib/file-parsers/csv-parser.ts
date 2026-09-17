@@ -39,7 +39,7 @@ export class CsvParser implements FileParser {
       throw new Error(`File not found: ${filePath}`)
     }
 
-    return this.parseBuffer(await readFile(filePath), options)
+    return this.parseBuffer(await readFile(filePath, { signal: options.signal }), options)
   }
 
   async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {

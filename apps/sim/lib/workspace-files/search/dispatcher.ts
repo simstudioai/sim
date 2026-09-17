@@ -48,6 +48,7 @@ import {
   markWorkspaceFileSearchIndexFailed,
   type WorkspaceFileSearchIndexPayload,
 } from '@/lib/workspace-files/search/indexing'
+import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 import type { workspaceFileSearchIndexTask } from '@/background/workspace-file-search-index'
 
 const logger = createLogger('WorkspaceFileSearchDispatcher')
@@ -73,20 +74,6 @@ async function runDispatchPhase<T>(phase: string, operation: () => Promise<T>): 
     })
     throw error
   }
-}
-
-/** Preparation must roll back before the worker's hard deadline. */
-async function configureDispatchTimeouts(tx: DbTransaction): Promise<void> {
-  await tx.execute(sql`
-    SELECT
-      set_config('statement_timeout', ${`${FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS}ms`}, true),
-      set_config('lock_timeout', ${`${FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS}ms`}, true),
-      set_config(
-        'transaction_timeout',
-        ${`${FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS}ms`},
-        true
-      )
-  `)
 }
 
 interface RevisionIdentity {
@@ -418,7 +405,13 @@ export async function prepareWorkspaceFileSearchDispatch(
 ): Promise<PreparedDispatch> {
   return runDispatchPhase('prepare-transaction', () =>
     db.transaction(async (tx) => {
-      await runDispatchPhase('configure-timeouts', () => configureDispatchTimeouts(tx))
+      await runDispatchPhase('configure-timeouts', () =>
+        configureFileSearchTransaction(tx, {
+          statementTimeout: FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS,
+          lockTimeout: FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS,
+          transactionTimeout: FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS,
+        })
+      )
       return runDispatchPhase('prepare', async () => {
         const [lock] = await tx.execute<{ acquired: boolean }>(
           sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${DISPATCH_LOCK_NAME}, 0)) AS acquired`

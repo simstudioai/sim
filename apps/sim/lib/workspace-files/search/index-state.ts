@@ -16,10 +16,9 @@ import {
   FILE_SEARCH_CLEANUP_MAX_BATCHES,
   FILE_SEARCH_INSERT_BATCH_BYTES,
   FILE_SEARCH_INSERT_BATCH_ROWS,
-  FILE_SEARCH_LOCK_TIMEOUT_MS,
-  FILE_SEARCH_STATEMENT_TIMEOUT_MS,
 } from '@/lib/workspace-files/search/constants'
 import type { FileSearchChunk } from '@/lib/workspace-files/search/index-plan'
+import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 
 export interface FileSearchRevision {
   workspaceId: string
@@ -37,12 +36,6 @@ function revisionFilter(revision: FileSearchRevision) {
     eq(workspaceFileSearchRevision.workspaceId, revision.workspaceId),
     eq(workspaceFileSearchRevision.sourceContentUpdatedAt, revision.sourceContentUpdatedAt)
   )
-}
-
-async function configure(tx: DbTransaction, timeout = FILE_SEARCH_STATEMENT_TIMEOUT_MS) {
-  await tx.execute(sql`SELECT set_config('statement_timeout', ${`${timeout}ms`}, true),
-    set_config('transaction_timeout', ${`${timeout}ms`}, true),
-    set_config('lock_timeout', ${`${FILE_SEARCH_LOCK_TIMEOUT_MS}ms`}, true)`)
 }
 
 async function lockCurrentFile(tx: DbTransaction, revision: FileSearchRevision): Promise<boolean> {
@@ -69,12 +62,12 @@ async function lockCurrentFile(tx: DbTransaction, revision: FileSearchRevision):
 /** Lock order is file, build, revision. Chunk batches need only the latter two locks. */
 async function lockBuild(tx: DbTransaction, build: FileSearchBuild): Promise<boolean> {
   const [lease] = await tx
-    .select({ expiresAt: workspaceFileSearchBuild.expiresAt })
+    .select({ live: sql<boolean>`${workspaceFileSearchBuild.expiresAt} > clock_timestamp()` })
     .from(workspaceFileSearchBuild)
     .where(eq(workspaceFileSearchBuild.id, build.id))
     .for('update')
     .limit(1)
-  if (!lease?.expiresAt || lease.expiresAt.getTime() <= Date.now()) return false
+  if (!lease?.live) return false
   const [state] = await tx
     .select({ fileId: workspaceFileSearchRevision.fileId })
     .from(workspaceFileSearchRevision)
@@ -96,7 +89,7 @@ export async function beginFileSearchBuild(
   dispatchToken?: string
 ): Promise<FileSearchBuild | null> {
   return db.transaction(async (tx) => {
-    await configure(tx)
+    await configureFileSearchTransaction(tx)
     if (!(await lockCurrentFile(tx, revision))) return null
     const [observed] = await tx
       .select({
@@ -111,7 +104,7 @@ export async function beginFileSearchBuild(
     if (observed?.buildId) {
       await tx
         .update(workspaceFileSearchBuild)
-        .set({ expiresAt: new Date() })
+        .set({ expiresAt: sql`clock_timestamp()` })
         .where(eq(workspaceFileSearchBuild.id, observed.buildId))
     }
     const [state] = await tx
@@ -124,9 +117,10 @@ export async function beginFileSearchBuild(
     if (dispatchToken && state.dispatchedAt?.toISOString() !== dispatchToken) return null
     const build = { ...revision, id: generateId() }
     const now = new Date()
-    await tx
-      .insert(workspaceFileSearchBuild)
-      .values({ ...build, expiresAt: new Date(now.getTime() + FILE_SEARCH_BUILD_LEASE_MS) })
+    await tx.insert(workspaceFileSearchBuild).values({
+      ...build,
+      expiresAt: sql`clock_timestamp() + ${FILE_SEARCH_BUILD_LEASE_MS} * interval '1 millisecond'`,
+    })
     await tx
       .update(workspaceFileSearchRevision)
       .set({
@@ -159,7 +153,7 @@ export async function appendFileSearchChunks(
     throw new Error('File search insert batch exceeds its budget')
   }
   return db.transaction(async (tx) => {
-    await configure(tx)
+    await configureFileSearchTransaction(tx)
     if (!(await lockBuild(tx, build))) return false
     signal.throwIfAborted()
     await tx
@@ -182,7 +176,7 @@ export async function publishFileSearchBuild(
   signal: AbortSignal
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
-    await configure(tx)
+    await configureFileSearchTransaction(tx)
     signal.throwIfAborted()
     if (!(await lockCurrentFile(tx, build)) || !(await lockBuild(tx, build))) return false
     if (publication.status === 'ready') {
@@ -197,7 +191,7 @@ export async function publishFileSearchBuild(
     }
     await tx
       .update(workspaceFileSearchBuild)
-      .set({ expiresAt: publication.status === 'ready' ? null : new Date() })
+      .set({ expiresAt: publication.status === 'ready' ? null : sql`clock_timestamp()` })
       .where(eq(workspaceFileSearchBuild.id, build.id))
     await tx
       .update(workspaceFileSearchRevision)
@@ -221,7 +215,7 @@ export async function failFileSearchRevision(
   dispatchToken?: string
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    await configure(tx)
+    await configureFileSearchTransaction(tx)
     if (!(await lockCurrentFile(tx, revision))) return
     const [state] = await tx
       .select()
@@ -237,7 +231,7 @@ export async function failFileSearchRevision(
     if (state.buildId)
       await tx
         .update(workspaceFileSearchBuild)
-        .set({ expiresAt: new Date() })
+        .set({ expiresAt: sql`clock_timestamp()` })
         .where(eq(workspaceFileSearchBuild.id, state.buildId))
     await tx
       .update(workspaceFileSearchRevision)
@@ -265,7 +259,9 @@ export async function cleanupFileSearchBuilds(): Promise<number> {
   let deleted = 0
   for (let batch = 0; batch < FILE_SEARCH_CLEANUP_MAX_BATCHES && Date.now() < deadline; batch++) {
     const result = await db.transaction(async (tx) => {
-      await configure(tx, Math.max(1, deadline - Date.now()))
+      await configureFileSearchTransaction(tx, {
+        statementTimeout: Math.max(1, deadline - Date.now()),
+      })
       const builds = await tx.execute<{
         id: string
       }>(sql`SELECT id FROM workspace_file_search_build

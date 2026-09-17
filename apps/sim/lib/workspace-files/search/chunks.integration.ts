@@ -3,9 +3,11 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { generateId } from '@sim/utils/id'
+import { sql } from 'drizzle-orm'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildLiteralMatchStart } from '@/lib/workspace-files/search/sql-pattern'
 
 const database = vi.hoisted(() => ({ current: undefined as PostgresJsDatabase | undefined }))
 vi.mock('@sim/db', () => ({
@@ -52,6 +54,14 @@ describe('chunked workspace file search on PostgreSQL', () => {
   const schema = `chunk_test_${generateId().replaceAll('-', '')}`
   const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
   if (!databaseUrl) throw new Error('Use a disposable local database')
+  const target = new URL(databaseUrl)
+  if (
+    !['postgres:', 'postgresql:'].includes(target.protocol) ||
+    !['localhost', '127.0.0.1'].includes(target.hostname) ||
+    (!target.pathname.startsWith('/sim_acl_test') && target.pathname !== '/sim_auth_scim')
+  ) {
+    throw new Error('File search tests require a disposable local integration database')
+  }
   const connection = postgres(
     databaseUrl,
     withUtcTimestamps({
@@ -184,6 +194,15 @@ describe('chunked workspace file search on PostgreSQL', () => {
     ).rejects.toThrow('incomplete')
     expect((await search('needle')).indexStatus.pendingFiles).toBe(1)
   })
+  it('uses the database clock for build leases when the worker clock is ahead', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60 * 60 * 1000)
+    try {
+      await index('needle')
+    } finally {
+      clock.mockRestore()
+    }
+    expect((await search('needle')).results).toHaveLength(1)
+  })
   it('excludes an incomplete file in full and reclaims its unpublished chunks', async () => {
     const build = (await beginFileSearchBuild(revision))!
     const plan = planFileSearchIndex({ text: 'needle', partial: false }, signal)
@@ -283,6 +302,19 @@ describe('chunked workspace file search on PostgreSQL', () => {
     expect(result.results.map((row) => row.lineNumber)).toEqual(expected)
     expect(result.results.every((row) => Buffer.byteLength(row.text) <= 2048)).toBe(true)
   })
+  it.each([
+    [`${'İ'.repeat(9000)}needle`, 'needle', 9001],
+    ['İneedle', 'i̇needle', 1],
+    ['🙂İİneedle', 'needle', 4],
+    ['İİneedle', 'missing', 0],
+  ])(
+    'locates literal previews in original characters under Unicode folding',
+    async (text, query, start) => {
+      const offset = buildLiteralMatchStart(sql`${text}::text COLLATE "und-x-icu"`, query, false)
+      const [row] = await database.current!.execute(sql`SELECT ${offset} AS start`)
+      expect(row.start).toBe(start)
+    }
+  )
   it('finds literals across Unicode fragment boundaries without duplicate lines', async () => {
     await index(`${'🙂'.repeat(2047)}🙂AbC${'x'.repeat(9000)}`)
     expect((await search('🙂AbC')).results.map((row) => row.lineNumber)).toEqual([1])

@@ -35,6 +35,11 @@ export interface FileParseOptions {
   signal?: AbortSignal
   /** Indexing callers require complete extraction; preview row limits must not discard content. */
   contentMode?: 'preview' | 'complete'
+  /**
+   * CSV/XLSX byte budget when contentMode is 'complete' (default 25 MiB).
+   * Exceeding it throws complexity_limit instead of returning a truncated prefix.
+   * Preview mode retains its own limits; other formats use their parser-specific budgets.
+   */
   maxTextBytes?: number
   /** Preserve textual markup in a canonical .txt artifact instead of interpreting it as HTML or RTF. */
   textMode?: 'literal'
