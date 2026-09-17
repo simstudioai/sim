@@ -17,6 +17,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
+import { readyEventTypesQuery } from '@/lib/core/outbox/queries'
 import {
   type OutboxHandler,
   processOutboxEvents,
@@ -26,6 +27,8 @@ import {
 interface QueryPlan {
   'Node Type': string
   'Index Name'?: string
+  'Shared Hit Blocks': number
+  'Shared Read Blocks': number
   Plans?: QueryPlan[]
 }
 
@@ -90,10 +93,10 @@ describe('outbox scheduling in PostgreSQL', () => {
   async function seedBacklog(
     eventType: string,
     count: number,
-    status: 'pending' | 'completed' | 'processing'
+    status: 'pending' | 'completed' | 'processing',
+    availableAt = new Date(Date.now() - 60_000)
   ) {
     const prefix = generateId()
-    const availableAt = new Date(Date.now() - 60_000)
     const createdAt = new Date(Date.now() - 24 * 60 * 60_000)
     const lockedAt = status === 'processing' ? new Date(Date.now() - 11 * 60_000) : null
     eventTypes.add(eventType)
@@ -109,6 +112,114 @@ describe('outbox scheduling in PostgreSQL', () => {
       `)
     }
   }
+
+  async function expectBoundedDiscovery(now: Date) {
+    const plans = await db.execute<{ 'QUERY PLAN': { Plan: QueryPlan }[] }>(sql`
+      EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${readyEventTypesQuery(now)}
+    `)
+    const plan = plans[0]['QUERY PLAN'][0].Plan
+    const nodes = planNodes(plan)
+    expect(nodes.some((node) => node['Node Type'] === 'Recursive Union')).toBe(true)
+    expect(nodes.some((node) => node['Node Type'] === 'Seq Scan')).toBe(false)
+    /** Buffer work, unlike wall-clock time, catches a backlog scan even on a warm local database. */
+    expect(plan['Shared Hit Blocks'] + plan['Shared Read Blocks']).toBeLessThan(1_000)
+  }
+
+  it('discovers an empty queue without returning a null type', async () => {
+    expect(await db.execute(readyEventTypesQuery(new Date()))).toEqual([])
+  })
+
+  it('uses earliest availability, inclusive deadlines, and deterministic type ties', async () => {
+    const now = new Date('2026-01-01T12:00:00.000Z')
+    const fixtures = [
+      { eventType: 'test.outbox.z-first', availableAt: new Date(now.getTime() - 1) },
+      { eventType: 'test.outbox.z-first', availableAt: new Date(now.getTime() + 60_000) },
+      { eventType: 'test.outbox.b-tie', availableAt: now },
+      { eventType: 'test.outbox.a-tie', availableAt: now },
+      { eventType: 'test.outbox.future', availableAt: new Date(now.getTime() + 1) },
+      { eventType: 'test.outbox.completed', availableAt: now, status: 'completed' },
+      { eventType: 'test.outbox.processing', availableAt: now, status: 'processing' },
+      { eventType: 'test.outbox.dead', availableAt: now, status: 'dead_letter' },
+    ]
+    for (const fixture of fixtures) eventTypes.add(fixture.eventType)
+    await db
+      .insert(outboxEvent)
+      .values(fixtures.map((row) => ({ id: generateId(), payload: {}, ...row })))
+
+    expect(await db.execute(readyEventTypesQuery(now))).toEqual([
+      { eventType: 'test.outbox.z-first' },
+      { eventType: 'test.outbox.a-tie' },
+      { eventType: 'test.outbox.b-tie' },
+    ])
+  })
+
+  it('caps ready types after ordering all heads, including types unknown to this worker', async () => {
+    const now = new Date()
+    const rows = Array.from({ length: 140 }, (_, index) => ({
+      id: generateId(),
+      eventType: `test.outbox.type-${String(index).padStart(3, '0')}`,
+      payload: {},
+      availableAt: new Date(now.getTime() - index - 1),
+    }))
+    for (const row of rows) eventTypes.add(row.eventType)
+    await db.insert(outboxEvent).values(rows)
+
+    expect(await db.execute(readyEventTypesQuery(now))).toEqual(
+      [...rows]
+        .reverse()
+        .slice(0, 128)
+        .map(({ eventType }) => ({ eventType }))
+    )
+  })
+
+  it('skips large future backlogs and more than 128 future types without hiding ready work', async () => {
+    const future = new Date(Date.now() + 48 * 60 * 60_000)
+    await seedBacklog('test.outbox.a-expiry', 100_000, 'pending', future)
+    const futureTypes = Array.from({ length: 130 }, (_, index) => ({
+      id: generateId(),
+      eventType: `test.outbox.future-${index}`,
+      payload: {},
+      availableAt: future,
+    }))
+    for (const row of futureTypes) eventTypes.add(row.eventType)
+    await db.insert(outboxEvent).values(futureTypes)
+    await enqueue('test.outbox.z-ready', 1)
+    await connection`VACUUM (ANALYZE) outbox_event`
+
+    const now = new Date()
+    expect(await db.execute(readyEventTypesQuery(now))).toEqual([
+      { eventType: 'test.outbox.z-ready' },
+    ])
+    await expectBoundedDiscovery(now)
+    expect(await processOutboxEvents({ 'test.outbox.z-ready': async () => {} })).toMatchObject({
+      processed: 1,
+    })
+    expect(await db.execute(readyEventTypesQuery(new Date()))).toEqual([])
+  }, 60_000)
+
+  it('retains bounded retries for a type missing during a rolling deployment', async () => {
+    const [event] = await enqueue('test.outbox.unknown', 1)
+
+    expect(await processOutboxEvents({})).toMatchObject({ retried: 1 })
+    const [pending] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, event.id))
+    expect(pending).toMatchObject({ status: 'pending', attempts: 1 })
+    expect(pending.availableAt.getTime()).toBeGreaterThan(Date.now())
+  })
+
+  it('lets claims skip a locked head without hiding other rows of that type', async () => {
+    const [locked, available] = await enqueue('test.outbox.locked', 2)
+    const delivered: string[] = []
+    await connection.begin(async (transaction) => {
+      await transaction`SELECT id FROM outbox_event WHERE id = ${locked.id} FOR UPDATE`
+      const result = await processOutboxEvents({
+        'test.outbox.locked': async (_payload, context) => {
+          delivered.push(context.eventId)
+        },
+      })
+      expect(result.processed).toBe(1)
+    })
+    expect(delivered).toEqual([available.id])
+  })
 
   it('serves newer event types before exhausting an older cleanup backlog', async () => {
     await enqueue('test.outbox.cleanup', 1_000)
@@ -191,7 +302,8 @@ describe('outbox scheduling in PostgreSQL', () => {
     await seedBacklog('test.outbox.cleanup', 100_000, 'pending')
     const [dispatch] = await enqueue('test.outbox.dispatch', 1)
     const [billing] = await enqueue('test.outbox.billing', 1)
-    await db.execute(sql`ANALYZE outbox_event`)
+    await connection`VACUUM (ANALYZE) outbox_event`
+    await expectBoundedDiscovery(new Date())
 
     const plans = await db.execute<{ 'QUERY PLAN': { Plan: QueryPlan }[] }>(sql`
       EXPLAIN (FORMAT JSON)
