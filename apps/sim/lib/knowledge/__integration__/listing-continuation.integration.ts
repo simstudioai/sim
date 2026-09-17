@@ -94,7 +94,10 @@ import {
 } from '@/lib/knowledge/connectors/member-sync-engine'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
-import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  SOURCE_CONTENT_ERROR,
+  SOURCE_PERMISSION_ERROR,
+} from '@/lib/knowledge/connectors/sync-limits'
 import { createContentSyncLease, createMemberSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import * as documentService from '@/lib/knowledge/documents/service'
@@ -240,11 +243,11 @@ describe('durable source and member cycles in PostgreSQL', () => {
       forceRehydrate: false,
       deadlineAt: Date.now() + 60_000,
       onPage: async (verified) => {
-        await persistDocumentAcls(
+        const write = await persistDocumentAcls(
           connectorId,
           new Map(verified.map((item) => [item.externalId, item.acl!]))
         )
-        return { permissionsIncomplete: false }
+        return { permissionsIncomplete: write.rejected > 0 }
       },
     })
     expect(getDocument.mock.calls.map(([id]) => id).sort()).toEqual([
@@ -277,6 +280,101 @@ describe('durable source and member cycles in PostgreSQL', () => {
       docsFailed: 1,
       docsDeleted: 0,
     })
+  })
+
+  it.each([
+    { description: 'a matching-hash body placeholder', storageKey: null, rejectAcl: false },
+    { description: 'an unusable source ACL', storageKey: 'kb/verified-body.txt', rejectAcl: true },
+  ])('clears stale permission evidence for $description', async ({ storageKey, rejectAcl }) => {
+    const connectorId = generateId()
+    const runId = generateId()
+    const externalId = 'permission-evidence'
+    const oldVerifiedAt = new Date(Date.now() - 25 * 60 * 60 * 1000)
+    const ownerAcl = [`u:${ids.aliceId}@fixture.test`]
+    await db.insert(knowledgeConnector).values({
+      id: connectorId,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorType: 'google_drive',
+      status: 'syncing',
+      syncLockToken: runId,
+      accessMode: 'admin',
+      sourceConfig: {},
+    })
+    await db.insert(document).values({
+      id: generateId(),
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorId,
+      externalId,
+      filename: externalId,
+      fileUrl: '',
+      storageKey,
+      fileSize: storageKey === null ? 0 : 10,
+      mimeType: 'text/plain',
+      contentHash: `hash-${externalId}`,
+      processingStatus: storageKey === null ? 'failed' : 'completed',
+      processingError: storageKey === null ? 'Unsupported source file type' : null,
+      acl: ownerAcl,
+      aclRequirements: [ownerAcl, ['d:fixture.test']],
+      aclVerifiedAt: oldVerifiedAt,
+      sourceSeenAt: oldVerifiedAt,
+    })
+    const listDocuments = vi.fn<ConnectorConfig['listDocuments']>(async () => ({
+      documents: [
+        {
+          ...sourceDoc(externalId),
+          content: '',
+          contentDeferred: true,
+          acl: rejectAcl ? ['invalid-principal'] : ownerAcl,
+        },
+      ],
+      hasMore: false,
+      permissionsOnly: true,
+      reconciliationSafe: false,
+    }))
+    const getDocument = vi.fn(async () => sourceDoc(externalId))
+    const [connector] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+    const pass = await runConnectorContentPass({
+      connectorId,
+      connector,
+      connectorConfig: { ...CONNECTOR_REGISTRY.google_drive, listDocuments },
+      sourceConfig: {},
+      syncContext: {},
+      kbOwner: { userId: ids.aliceId, workspaceId: ids.workspaceId },
+      billingAttribution: billing,
+      result: result(),
+      lease: createContentSyncLease(connectorId, runId),
+      leaseKind: 'content',
+      runId,
+      fingerprint: listingFingerprint({ source: 'permission-evidence' }),
+      documentAccess: 'admin',
+      getAccessToken: async () => 'fixture',
+      hydration: { getDocument },
+      forceRehydrate: false,
+      deadlineAt: Date.now() + 60_000,
+      onPage: async (verified) => {
+        const write = await persistDocumentAcls(
+          connectorId,
+          new Map(verified.map((item) => [item.externalId, item.acl!]))
+        )
+        return { permissionsIncomplete: write.rejected > 0 }
+      },
+    })
+    const [stored] = await db.select().from(document).where(eq(document.connectorId, connectorId))
+    expect(stored).toMatchObject({
+      acl: [],
+      aclRequirements: [],
+      aclVerifiedAt: null,
+      sourceSeenAt: oldVerifiedAt,
+      contentHash: `hash-${externalId}`,
+      storageKey,
+      deletedAt: null,
+    })
+    expect(getDocument).not.toHaveBeenCalled()
+    expect(pass.checkpoint.permissionFailures).toBe(rejectAcl)
+    if (rejectAcl) expect(pass.holdNotice).toBe(SOURCE_PERMISSION_ERROR)
   })
 
   it('preserves a permission-repaired document through the remaining content crawl and EOF reconciliation', async () => {
@@ -378,11 +476,11 @@ describe('durable source and member cycles in PostgreSQL', () => {
         forceRehydrate: false,
         deadlineAt: Date.now() + 60_000,
         onPage: async (verified) => {
-          await persistDocumentAcls(
+          const write = await persistDocumentAcls(
             connectorId,
             new Map(verified.map((item) => [item.externalId, item.acl!]))
           )
-          return { permissionsIncomplete: false }
+          return { permissionsIncomplete: write.rejected > 0 }
         },
       })
       return { pass, stats }
@@ -520,11 +618,11 @@ describe('durable source and member cycles in PostgreSQL', () => {
       forceRehydrate: false,
       deadlineAt: Date.now() + 60_000,
       onPage: async (verified) => {
-        await persistDocumentAcls(
+        const write = await persistDocumentAcls(
           connectorId,
           new Map(verified.map((item) => [item.externalId, item.acl!]))
         )
-        return { permissionsIncomplete: false }
+        return { permissionsIncomplete: write.rejected > 0 }
       },
     })
     expect(pass.complete).toBe(true)

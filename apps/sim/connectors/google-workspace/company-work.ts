@@ -7,6 +7,7 @@ export interface GoogleCompanyUserWork {
   cursor?: string
 }
 
+/** Seeds per-user provider cursors and adopts legacy crawls without losing the active continuation. */
 export interface GoogleCompanyCursorAdapter {
   seed: (user: GoogleCompanyUserWork['user']) => string
   /** Retains the exact active page when adopting the former single-user-at-a-time cursor. */

@@ -163,9 +163,14 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       if (page.permissionsOnly) {
         const changed = documents.filter((item) => {
           const prior = corpus.priorByExternalId.get(item.externalId)
-          return prior && (!prior.contentHash || prior.contentHash !== item.contentHash)
+          return (
+            prior &&
+            (!prior.contentHash ||
+              prior.contentHash !== item.contentHash ||
+              prior.storageKey === null)
+          )
         })
-        /** Revoke stale-body grants while retaining the content crawl's observation for EOF reconciliation. */
+        /** Revoke grants without matching stored content, retaining the content crawl's observation for EOF reconciliation. */
         if (changed.length)
           await withLease(async (tx) => {
             for (let offset = 0; offset < changed.length; offset += 500) {
