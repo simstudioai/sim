@@ -201,7 +201,7 @@ export function Composer({
       {showModeSelector && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <span className='inline-flex shrink-0'>
+            <span className={cn('inline-flex shrink-0', imagesOnly && '-mx-2')}>
               <ChipDropdown
                 variant='ghost'
                 iconOnly={imagesOnly}
