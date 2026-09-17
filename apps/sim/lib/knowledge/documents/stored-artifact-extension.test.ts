@@ -9,7 +9,13 @@
  * SharePoint PDFs with `Invalid PDF structure.` and silently double-wrapped
  * every spreadsheet, which "succeeded" because SheetJS accepts almost anything.
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const { mockDownload } = vi.hoisted(() => ({ mockDownload: vi.fn() }))
+
+vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
+
+import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { resolveStoredArtifactExtension } from '@/lib/knowledge/documents/parser-extension'
 
 const CONNECTOR_PDF_URL =
@@ -84,5 +90,57 @@ describe('resolveStoredArtifactExtension', () => {
 
   it('is case-insensitive', () => {
     expect(resolveStoredArtifactExtension('/api/files/serve/s3/kb%2F1-a-Report.PDF')).toBe('pdf')
+  })
+})
+
+describe('stored text document processing', () => {
+  const source = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Application shell</title>
+    <link rel="stylesheet" href="./app.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body><div id="root"></div></body>
+</html>`
+
+  it('indexes the source of an HTML shell stored as connector text', async () => {
+    mockDownload.mockResolvedValue(Buffer.from(source))
+
+    const result = await processDocument(
+      '/api/files/serve/s3/kb%2Ffixture-index.html.txt?context=knowledge-base',
+      'index.html',
+      'text/plain'
+    )
+
+    expect(result.chunks).toHaveLength(1)
+    expect(result.chunks[0].text).toContain('<script src="./app.js" defer></script>')
+    expect(result.chunks[0].text).toContain('<div id="root"></div>')
+    expect(result.metadata.characterCount).toBe(source.length)
+  })
+
+  it('keeps an actual HTML document on rendered-text extraction', async () => {
+    mockDownload.mockResolvedValue(Buffer.from(source))
+
+    await expect(
+      processDocument(
+        '/api/files/serve/s3/kb%2Ffixture-page.html?context=knowledge-base',
+        'page.html',
+        'text/html'
+      )
+    ).rejects.toMatchObject({ code: 'no_extractable_text' })
+  })
+
+  it('still rejects a stored text artifact containing only whitespace', async () => {
+    mockDownload.mockResolvedValue(Buffer.from(' \n\t '))
+
+    await expect(
+      processDocument(
+        '/api/files/serve/s3/kb%2Ffixture-blank.txt?context=knowledge-base',
+        'blank.txt',
+        'text/plain'
+      )
+    ).rejects.toMatchObject({ code: 'no_extractable_text' })
   })
 })

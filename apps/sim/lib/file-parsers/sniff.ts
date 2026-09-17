@@ -1,5 +1,6 @@
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { isEncryptedOoxmlContainer } from '@/lib/file-parsers/ooxml-encryption'
+import type { FileParseOptions } from '@/lib/file-parsers/types'
 import { decodeTextBuffer, detectBomlessUtf16 } from '@/lib/file-parsers/utils'
 import { isZipShaped } from '@/lib/file-parsers/zip-guard'
 
@@ -307,7 +308,18 @@ function invalidFormat(extension: string, kind: SniffedKind): FileParserError {
  * text (as CSV under a spreadsheet extension), and an OLE2 file under a modern
  * Word extension is the legacy `.doc` parser's job. Legacy `.ppt` has no reader.
  */
-export function reconcileParserRoute(extension: string, kind: SniffedKind): ParserRoute {
+export function reconcileParserRoute(
+  extension: string,
+  kind: SniffedKind,
+  options: Pick<FileParseOptions, 'textMode'> = {}
+): ParserRoute {
+  if (
+    extension === 'txt' &&
+    options.textMode === 'literal' &&
+    (kind === 'html' || kind === 'rtf')
+  ) {
+    return { extension }
+  }
   if (kind === 'rtf') {
     throw new FileParserError(
       'unsupported_type',

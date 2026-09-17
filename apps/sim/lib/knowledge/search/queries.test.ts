@@ -591,7 +591,7 @@ describe('live repository authorization follows ranked candidates', () => {
     rerankPages.length = 0
     keywordPages.length = 0
     dbChainMockFns.execute.mockImplementation(async (query) =>
-      render(query).sql.includes('CROSS JOIN LATERAL')
+      render(query).sql.includes('SELECT scoped_chunk.id')
         ? (probePages.shift() ?? [])
         : render(query).sql.includes('WITH visible_search_documents')
           ? (candidatePages.shift() ?? [])
@@ -630,6 +630,8 @@ describe('live repository authorization follows ranked candidates', () => {
       render(query).sql.includes('WITH visible_search_documents')
     )![0]
     expect(render(candidateQuery).sql).toContain('MATERIALIZED')
+    expect(render(candidateQuery).sql).toContain('CROSS JOIN LATERAL')
+    expect(render(candidateQuery).sql).toContain('LIMIT 1')
     expect(JSON.stringify(candidateQuery)).toContain('required_clause')
     expect(JSON.stringify(candidateQuery)).toContain('subvector')
     const rankQuery = dbChainMockFns.execute.mock.calls.find(([query]) =>
@@ -721,6 +723,8 @@ describe('live repository authorization follows ranked candidates', () => {
     )![0]
     expect(render(candidateQuery).sql).toContain('UNION ALL')
     expect(render(candidateQuery).sql).toContain('+ 0')
+    expect(render(candidateQuery).sql).toContain('filtered_scores AS MATERIALIZED')
+    expect(render(candidateQuery).sql).toContain('ORDER BY filtered_scores.distance + 0')
     expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain(
       'github_read_grant'
     )
