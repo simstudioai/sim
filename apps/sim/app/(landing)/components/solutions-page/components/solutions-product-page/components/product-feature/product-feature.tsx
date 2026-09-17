@@ -21,7 +21,9 @@ export function ProductFeature({ feature }: ProductFeatureProps) {
         className='pointer-events-none relative isolate h-[460px] select-none overflow-hidden [container-type:inline-size] max-sm:h-[380px] max-xl:h-[420px]'
       >
         <div className='relative z-0 size-full'>{feature.visual}</div>
-        <EdgeFade ground='canvas' edges={['right']} depth='preview' />
+        {feature.fadePreviewRight !== false && (
+          <EdgeFade ground='canvas' edges={['right']} depth='preview' />
+        )}
         <EdgeFade ground='canvas' edges={['bottom']} depth='stage' />
       </div>
       <div className='px-8 pt-5 pb-9 max-sm:px-0 max-sm:pt-2 max-sm:pb-7'>

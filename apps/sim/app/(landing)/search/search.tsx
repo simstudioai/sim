@@ -32,6 +32,7 @@ const SEARCH_CONFIG: SolutionsProductPageConfig = {
     },
     {
       id: 'find-content',
+      fadePreviewRight: false,
       allowPreviewHover: true,
       title: 'Find the file. Pick up the thread.',
       label: 'Search company content',

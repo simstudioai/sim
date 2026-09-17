@@ -41,7 +41,11 @@ export function MenuPreviewFrame({
       >
         {children}
       </div>
-      <EdgeFade ground={isHero ? 'canvas' : 'surface'} depth='preview' />
+      <EdgeFade
+        ground={isHero ? 'canvas' : 'surface'}
+        edges={layout === 'feature' ? ['bottom'] : undefined}
+        depth='preview'
+      />
     </div>
   )
 }
