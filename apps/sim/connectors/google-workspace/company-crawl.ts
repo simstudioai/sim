@@ -153,6 +153,7 @@ function userListingFailure(
         reasons.every((reason) => reason === 'failedPrecondition')
       : error.diagnostic.operation === 'calendar.events.list' &&
         error.status === 403 &&
+        reasons.length > 0 &&
         reasons.every((reason) => reason === 'forbidden')
   return isolated
     ? { operation: error.diagnostic.operation, status: error.status, reasons: [...reasons] }

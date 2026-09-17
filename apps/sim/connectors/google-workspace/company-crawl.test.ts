@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
+import { GoogleApiError, readGoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
   getGoogleWorkspaceDocument,
   InvalidGoogleWorkspaceCursor,
@@ -501,26 +501,37 @@ describe('Google Workspace per-user central crawl', () => {
     expect((await list(context(), undefined, CONFIG, 'google_calendar')).documents).toHaveLength(1)
   })
 
-  it.each([{ reasons: [] }, { reasons: ['forbidden'] }])(
-    'isolates Calendar list access failures without claiming a disabled service (%j)',
-    async ({ reasons }) => {
-      listUserDocuments.mockRejectedValueOnce(
-        new GoogleApiError('calendar.events.list', 403, reasons)
-      )
-      const first = await list(context(), undefined, CONFIG, 'google_calendar')
-      expect(first.listingFailures?.samples[0]).toEqual({
-        scope: 'alice@corp.com',
-        operation: 'calendar.events.list',
-        status: 403,
-        reasons,
-      })
-      const second = await list(context(), first.nextCursor, CONFIG, 'google_calendar')
-      expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
-      expect(second.reconciliationSafe).toBe(false)
+  it('isolates explicit Calendar list access failures without claiming a disabled service', async () => {
+    listUserDocuments.mockRejectedValueOnce(
+      new GoogleApiError('calendar.events.list', 403, ['forbidden'])
+    )
+    const first = await list(context(), undefined, CONFIG, 'google_calendar')
+    expect(first.listingFailures?.samples[0]).toEqual({
+      scope: 'alice@corp.com',
+      operation: 'calendar.events.list',
+      status: 403,
+      reasons: ['forbidden'],
+    })
+    const second = await list(context(), first.nextCursor, CONFIG, 'google_calendar')
+    expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
+    expect(second.reconciliationSafe).toBe(false)
+  })
+
+  it.each([{ error: { code: 403 } }, { error: { code: 403, errors: [], details: [] } }])(
+    'propagates a Calendar 403 without reason codes: %j',
+    async (body) => {
+      const error = await readGoogleApiError(json(body, 403), 'calendar.events.list')
+      listUserDocuments.mockRejectedValueOnce(error)
+      const ctx: Record<string, unknown> = context()
+
+      await expect(list(ctx, undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
+      expect(ctx.reconciliationUnsafe).toBeUndefined()
+      expect(listUserDocuments).toHaveBeenCalledOnce()
     }
   )
 
   it.each([
+    [403, []],
     [403, ['rateLimitExceeded']],
     [403, ['userRateLimitExceeded']],
     [403, ['quotaExceeded']],
