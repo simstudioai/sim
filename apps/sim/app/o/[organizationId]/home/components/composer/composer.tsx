@@ -12,17 +12,24 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { ArrowUp, Paperclip, Plus, Slash } from '@sim/emcn/icons'
+import { ArrowUp, Blimp, Paperclip, Plus, Search, Slash } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
+import { SearchLevelSelector } from '@/app/o/[organizationId]/home/components/composer/search-level-selector'
+import type { SearchLevel } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
+import {
+  SEND_BUTTON_ACTIVE,
+  SEND_BUTTON_BASE,
+  SEND_BUTTON_DISABLED,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
-import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
@@ -44,15 +51,11 @@ import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
-const SEND_BUTTON_BASE = 'size-[28px] rounded-full border-0 p-0 transition-colors'
-const SEND_BUTTON_ACTIVE =
-  'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
-const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
-
 interface ComposerProps {
   requestMode?: ChatRequestMode
-  assistantFast?: boolean
-  onAssistantFastChange?: (enabled: boolean) => void
+  assistantSearchLevel?: SearchLevel
+  allowNoAssistant?: boolean
+  onAssistantSearchLevelChange?: (level: SearchLevel) => void
   onModeChange?: (mode: ChatRequestMode) => void
   showModeSelector?: boolean
   value: string
@@ -74,8 +77,9 @@ interface ComposerProps {
 export function Composer({
   requestMode = 'assistant',
   onModeChange,
-  assistantFast = false,
-  onAssistantFastChange,
+  assistantSearchLevel = 'adaptive',
+  allowNoAssistant = false,
+  onAssistantSearchLevelChange,
   showModeSelector = false,
   value,
   files,
@@ -87,6 +91,7 @@ export function Composer({
   onStop,
 }: ComposerProps) {
   const imagesOnly = requestMode === 'assistant'
+  const resultsOnly = imagesOnly && assistantSearchLevel === 'none'
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -109,7 +114,7 @@ export function Composer({
     organizationId: organization.id,
     contextsEnabled: !imagesOnly,
     initialValue: value,
-    onPasteFiles: files.processFiles,
+    onPasteFiles: resultsOnly ? undefined : files.processFiles,
   })
   const { textareaRef } = editor
   const editorRef = useRef(editor)
@@ -154,19 +159,22 @@ export function Composer({
   const canSubmit =
     !files.attachedFiles.some((file) => file.uploading) &&
     (value.trim().length > 0 || files.attachedFiles.some((file) => file.key))
-  const animatedPlaceholder = useAnimatedPlaceholder(isInitialView && !imagesOnly)
+  const animatedPlaceholder = useAnimatedPlaceholder(
+    isInitialView && !value,
+    imagesOnly ? 'search' : 'build'
+  )
   const placeholder = isInitialView
-    ? imagesOnly
+    ? animatedPlaceholder
+    : resultsOnly
       ? 'Search your sources'
-      : animatedPlaceholder
-    : 'Send message to Sim'
+      : 'Send message to Sim'
 
   const submit = () => {
     if (!canSubmit) return
     voice.resetTranscript()
     const contexts = imagesOnly ? [] : editor.getActiveContexts()
     onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined)
-    editor.clear()
+    if (!resultsOnly) editor.clear()
   }
 
   const contextPicker = (kind: 'resources' | 'skills', icon: typeof Plus, label: string) => (
@@ -189,15 +197,166 @@ export function Composer({
     </Tooltip.Root>
   )
 
+  const promptEditor = (
+    <PromptEditor
+      editor={editor}
+      placeholder={placeholder}
+      aria-label='Ask Sim'
+      onSubmit={submit}
+      className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
+    />
+  )
+
+  const leadingControls = (
+    <>
+      {showModeSelector && (
+        <DropdownMenu>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <DropdownMenuTrigger asChild>
+                {imagesOnly ? (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    className='size-[16px] text-[var(--text-body)]'
+                    aria-label='Conversation mode'
+                    disabled={!onModeChange}
+                  >
+                    <Search className='size-[16px]' />
+                  </Button>
+                ) : (
+                  <Chip shape='round' aria-label='Conversation mode' disabled={!onModeChange}>
+                    <Blimp className='size-[16px] text-[var(--text-body)]' />
+                  </Chip>
+                )}
+              </DropdownMenuTrigger>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Select mode</Tooltip.Content>
+          </Tooltip.Root>
+          <DropdownMenuContent side='top' align='start'>
+            {(['assistant', 'agent'] as const).map((mode) => (
+              <DropdownMenuItem
+                key={mode}
+                role='menuitemradio'
+                aria-checked={mode === requestMode}
+                onSelect={() => {
+                  if (mode === requestMode) return
+                  if (
+                    mode === 'assistant' &&
+                    (editor.getActiveContexts().length > 0 ||
+                      files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
+                  ) {
+                    toast.info(
+                      'Remove resource and skill mentions and non-image attachments before switching to Search.'
+                    )
+                    return
+                  }
+                  onModeChange?.(mode)
+                }}
+              >
+                {mode === 'assistant' ? <Search /> : <Blimp />}
+                {mode === 'assistant' ? 'Search' : 'Build'}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      {imagesOnly && !showModeSelector && (
+        <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      )}
+      {!imagesOnly && contextPicker('resources', Plus, 'Add resources')}
+
+      {!resultsOnly && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            {imagesOnly ? (
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                onClick={files.handleFileSelect}
+                aria-label='Attach images'
+              >
+                <Plus className='size-[16px]' />
+              </Button>
+            ) : (
+              <Chip
+                shape='round'
+                leftIcon={Paperclip}
+                onClick={files.handleFileSelect}
+                aria-label='Attach file'
+              />
+            )}
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>
+            {imagesOnly ? 'Attach images' : 'Attach file'}
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
+      {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
+    </>
+  )
+  const voiceControl = voice.isSupported && (
+    <MicButton
+      audioLevelsRef={voice.audioLevelsRef}
+      isListening={voice.isListening}
+      onToggle={voice.toggleListening}
+    />
+  )
+  const searchLevelControl = imagesOnly && onAssistantSearchLevelChange && (
+    <SearchLevelSelector
+      value={assistantSearchLevel}
+      allowNone={allowNoAssistant}
+      onChange={(level) => {
+        if (level === 'none' && files.attachedFiles.length > 0) {
+          toast.info('Remove attachments before switching to results-only search.')
+          return
+        }
+        onAssistantSearchLevelChange(level)
+      }}
+    />
+  )
+  const submitControl = isSending ? (
+    <Button
+      type='button'
+      variant='ghost'
+      onClick={onStop}
+      aria-label='Stop generation'
+      className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
+    >
+      <svg
+        className='block size-[14px] fill-white dark:fill-black'
+        viewBox='0 0 24 24'
+        xmlns='http://www.w3.org/2000/svg'
+      >
+        <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
+      </svg>
+    </Button>
+  ) : (
+    <Button
+      type='button'
+      variant='ghost'
+      onClick={submit}
+      disabled={!canSubmit}
+      aria-label={resultsOnly ? 'Search' : 'Send'}
+      className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
+    >
+      <ArrowUp className='block size-[16px] text-white dark:text-black' />
+    </Button>
+  )
+
   return (
     <div
-      onDragEnter={files.handleDragEnter}
-      onDragLeave={files.handleDragLeave}
-      onDragOver={files.handleDragOver}
-      onDrop={files.handleDrop}
+      onDragEnter={resultsOnly ? undefined : files.handleDragEnter}
+      onDragLeave={resultsOnly ? undefined : files.handleDragLeave}
+      onDragOver={resultsOnly ? undefined : files.handleDragOver}
+      onDrop={resultsOnly ? undefined : files.handleDrop}
       className={cn(
-        'relative z-10 mx-auto w-full max-w-chat rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        isInitialView && 'shadow-ambient'
+        'relative z-10 mx-auto w-full max-w-chat',
+        !imagesOnly &&
+          'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        !imagesOnly && isInitialView && 'shadow-ambient'
       )}
     >
       <AttachedFilesList
@@ -205,124 +364,35 @@ export function Composer({
         onFileClick={files.handleFileClick}
         onRemoveFile={files.removeFile}
       />
-      <PromptEditor
-        editor={editor}
-        placeholder={placeholder}
-        aria-label='Ask Sim'
-        onSubmit={submit}
-        className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
-      />
+      {!imagesOnly && promptEditor}
 
-      <InputToolbar
-        showModelSelector={!imagesOnly}
-        leadingControls={
-          <>
-            {!imagesOnly && contextPicker('resources', Plus, 'Add resources')}
+      {imagesOnly ? (
+        <SearchInputBar
+          floating={isInitialView}
+          inputRef={textareaRef}
+          value={editor.value}
+          onChange={(text) => editor.setValue(text)}
+          onSubmit={submit}
+          onPaste={editor.handlePaste}
+          placeholder={placeholder}
+          aria-label='Ask Sim'
+          leadingControls={leadingControls}
+          trailingControls={
+            <>
+              {searchLevelControl}
+              {voiceControl}
+              {submitControl}
+            </>
+          }
+        />
+      ) : (
+        <InputToolbar
+          leadingControls={leadingControls}
+          voiceControl={voiceControl}
+          submitControl={submitControl}
+        />
+      )}
 
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Chip
-                  shape='round'
-                  leftIcon={Paperclip}
-                  onClick={files.handleFileSelect}
-                  aria-label={imagesOnly ? 'Attach images' : 'Attach file'}
-                />
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {imagesOnly ? 'Attach images' : 'Attach file'}
-              </Tooltip.Content>
-            </Tooltip.Root>
-            {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
-            {showModeSelector && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Chip aria-label='Conversation mode' disabled={!onModeChange}>
-                    {requestMode === 'assistant' ? 'Search' : 'Build'}
-                  </Chip>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side='top' align='start'>
-                  {(['assistant', 'agent'] as const).map((mode) => (
-                    <DropdownMenuItem
-                      key={mode}
-                      role='menuitemradio'
-                      aria-checked={mode === requestMode}
-                      onSelect={() => {
-                        if (mode === requestMode) return
-                        if (
-                          mode === 'assistant' &&
-                          (editor.getActiveContexts().length > 0 ||
-                            files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
-                        ) {
-                          toast.info(
-                            'Remove resource and skill mentions and non-image attachments before switching to Search.'
-                          )
-                          return
-                        }
-                        onModeChange?.(mode)
-                      }}
-                    >
-                      {mode === 'assistant' ? 'Search' : 'Build'}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </>
-        }
-        voiceControl={
-          voice.isSupported && (
-            <MicButton
-              audioLevelsRef={voice.audioLevelsRef}
-              isListening={voice.isListening}
-              onToggle={voice.toggleListening}
-            />
-          )
-        }
-        beforeSubmitControl={
-          imagesOnly &&
-          onAssistantFastChange && (
-            <FastModeToggle
-              enabled={assistantFast}
-              onChange={onAssistantFastChange}
-              label='Search Fast mode'
-              description='Faster and cheaper'
-            />
-          )
-        }
-        submitControl={
-          isSending ? (
-            <Button
-              type='button'
-              variant='ghost'
-              onClick={onStop}
-              aria-label='Stop generation'
-              className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
-            >
-              <svg
-                className='block size-[14px] fill-white dark:fill-black'
-                viewBox='0 0 24 24'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-              </svg>
-            </Button>
-          ) : (
-            <Button
-              type='button'
-              variant='ghost'
-              onClick={submit}
-              disabled={!canSubmit}
-              aria-label='Send'
-              className={cn(
-                SEND_BUTTON_BASE,
-                canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED
-              )}
-            >
-              <ArrowUp className='block size-[16px] text-white dark:text-black' />
-            </Button>
-          )
-        }
-      />
       <input
         ref={files.fileInputRef}
         type='file'

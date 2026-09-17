@@ -54,6 +54,7 @@ import {
 } from '@/lib/mothership/chat/sim-key-redaction'
 import { MOTHERSHIP_CHAT_API_PATH, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 import { sendMothershipMessage } from '@/lib/mothership/events'
+import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import {
   isTerminalStreamStatus,
   parsePersistedStreamEventEnvelopeJson,
@@ -183,7 +184,7 @@ export interface SendMessageOptions {
   /** Assistant searches the workspace and acts through the caller's connected accounts. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
-  assistantFast?: boolean
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 /**
@@ -209,7 +210,7 @@ interface StartSendMessageOptions {
   resumeUserMessageId?: string
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
-  assistantFast?: boolean
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 /** Stop must preserve send admission even when it precedes the first response byte. */
@@ -228,7 +229,7 @@ interface WithdrawnSend {
   userMessageId: string
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
-  assistantFast?: boolean
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 export interface UseChatReturn {
@@ -3128,7 +3129,7 @@ export function useChat(
       resumeUserMessageId?: string,
       requestMode?: ChatRequestMode,
       assistantSearch?: WorkspaceSearchFilters,
-      assistantFast?: boolean
+      assistantSearchLevel?: AssistantSearchLevel
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3151,7 +3152,7 @@ export function useChat(
         ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
         ...(requestMode ? { requestMode } : {}),
         ...(assistantSearch ? { assistantSearch } : {}),
-        ...(assistantFast !== undefined ? { assistantFast } : {}),
+        ...(assistantSearchLevel !== undefined ? { assistantSearchLevel } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3315,8 +3316,8 @@ export function useChat(
           ...(contexts ? { contexts } : {}),
           ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
           ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
-          ...(options?.assistantFast !== undefined
-            ? { assistantFast: options?.assistantFast }
+          ...(options?.assistantSearchLevel !== undefined
+            ? { assistantSearchLevel: options?.assistantSearchLevel }
             : {}),
           requestedAt: Date.now(),
         })
@@ -3597,8 +3598,8 @@ export function useChat(
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
             ...(options?.requestMode ? { mode: options.requestMode } : {}),
             ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
-            ...(options?.requestMode === 'assistant' && options.assistantFast
-              ? { assistantFast: true }
+            ...(options?.requestMode === 'assistant' && options.assistantSearchLevel
+              ? { assistantSearchLevel: options.assistantSearchLevel }
               : {}),
             ...(options?.requestMode !== 'assistant' && workflowIdRef.current
               ? { workflowId: workflowIdRef.current }
@@ -3845,7 +3846,7 @@ export function useChat(
           send.userMessageId,
           send.requestMode,
           send.assistantSearch,
-          send.assistantFast
+          send.assistantSearchLevel
         )
       ) {
         return
@@ -3858,7 +3859,9 @@ export function useChat(
           resumeUserMessageId: send.userMessageId,
           ...(send.requestMode ? { requestMode: send.requestMode } : {}),
           ...(send.assistantSearch ? { assistantSearch: send.assistantSearch } : {}),
-          ...(send.assistantFast !== undefined ? { assistantFast: send.assistantFast } : {}),
+          ...(send.assistantSearchLevel !== undefined
+            ? { assistantSearchLevel: send.assistantSearchLevel }
+            : {}),
         },
         organizationId ? { organizationId } : workspaceId!
       )
@@ -3890,7 +3893,7 @@ export function useChat(
             contexts,
             requestMode: options?.requestMode ?? existing.requestMode,
             assistantSearch: options?.assistantSearch ?? existing.assistantSearch,
-            assistantFast: options?.assistantFast ?? existing.assistantFast,
+            assistantSearchLevel: options?.assistantSearchLevel ?? existing.assistantSearchLevel,
           })
           queueStore.setEditing(activeChatKey, null)
           // Resume dispatch if it paused on this slot.
@@ -3927,7 +3930,7 @@ export function useChat(
             options?.resumeUserMessageId,
             options?.requestMode,
             options?.assistantSearch,
-            options?.assistantFast
+            options?.assistantSearchLevel
           )
         )
         if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
@@ -3951,7 +3954,9 @@ export function useChat(
         userMessageId: result.userMessageId,
         ...(options?.requestMode ? { requestMode: options.requestMode } : {}),
         ...(options?.assistantSearch ? { assistantSearch: options.assistantSearch } : {}),
-        ...(options?.assistantFast !== undefined ? { assistantFast: options?.assistantFast } : {}),
+        ...(options?.assistantSearchLevel !== undefined
+          ? { assistantSearchLevel: options?.assistantSearchLevel }
+          : {}),
       }
       if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
         handOffWithdrawnSend(withdrawn)
@@ -3968,7 +3973,7 @@ export function useChat(
             result.userMessageId,
             options?.requestMode,
             options?.assistantSearch,
-            options?.assistantFast
+            options?.assistantSearchLevel
           )
         )
     },
@@ -4171,7 +4176,9 @@ export function useChat(
       contexts: handoff.contexts,
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
-      ...(handoff.assistantFast !== undefined ? { assistantFast: handoff.assistantFast } : {}),
+      ...(handoff.assistantSearchLevel !== undefined
+        ? { assistantSearchLevel: handoff.assistantSearchLevel }
+        : {}),
       queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
@@ -4562,8 +4569,8 @@ export function useChat(
             contexts: dispatched.contexts,
             ...(dispatched.requestMode ? { requestMode: dispatched.requestMode } : {}),
             ...(dispatched.assistantSearch ? { assistantSearch: dispatched.assistantSearch } : {}),
-            ...(dispatched.assistantFast !== undefined
-              ? { assistantFast: dispatched.assistantFast }
+            ...(dispatched.assistantSearchLevel !== undefined
+              ? { assistantSearchLevel: dispatched.assistantSearchLevel }
               : {}),
             userMessageId: withdrawnUserMessageId,
           })
@@ -4609,8 +4616,8 @@ export function useChat(
               : {}),
             ...(liveMsg.requestMode ? { requestMode: liveMsg.requestMode } : {}),
             ...(liveMsg.assistantSearch ? { assistantSearch: liveMsg.assistantSearch } : {}),
-            ...(liveMsg.assistantFast !== undefined
-              ? { assistantFast: liveMsg.assistantFast }
+            ...(liveMsg.assistantSearchLevel !== undefined
+              ? { assistantSearchLevel: liveMsg.assistantSearchLevel }
               : {}),
           }
         )

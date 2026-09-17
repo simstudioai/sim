@@ -55,7 +55,7 @@ describe('scoped CLI service adapter', () => {
     boundary.provenance.mockReturnValue({ observeOutput: vi.fn() })
     boundary.sink.mockImplementation(async (_sink, _session, result) => result)
   })
-  it('publishes the same Search address through the Agent CLI service', async () => {
+  it('returns Build search evidence without publishing a resource panel', async () => {
     boundary.route.mockResolvedValue({
       success: true,
       data: {
@@ -68,24 +68,11 @@ describe('scoped CLI service adapter', () => {
       service('search_workspace', { query: 'policy', topK: 4 }),
       organization
     )
-    expect(result.resources).toEqual([
-      {
-        op: 'upsert',
-        searchResult: {
-          actorUserId: 'actor',
-          data: {
-            query: 'safe policy',
-            results: [],
-            retrieval: { status: 'complete', timedOutLegs: [] },
-          },
-        },
-        resource: expect.objectContaining({
-          type: 'search',
-          id: 'search:organization:org',
-          search: expect.objectContaining({ query: 'safe policy', topK: 4 }),
-        }),
-      },
-    ])
+    expect(result.resources).toBeUndefined()
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      success: true,
+      data: { query: 'safe policy' },
+    })
   })
 
   it.each(['list_workspaces', 'search_workspace', 'read_document', 'search_sources'] as const)(

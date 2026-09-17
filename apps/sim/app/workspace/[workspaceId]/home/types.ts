@@ -1,6 +1,7 @@
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { MothershipChat } from '@/lib/api/contracts/mothership-chats'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
@@ -35,7 +36,7 @@ export interface QueuedMessage {
   contexts?: ChatContext[]
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
-  assistantFast?: boolean
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 export const ToolCallStatus = {

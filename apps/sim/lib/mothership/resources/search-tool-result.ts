@@ -12,12 +12,13 @@ const successfulSearch = z.object({
   data: z.object({ query: z.string().trim().min(1).max(2000) }).passthrough(),
 })
 
-/** Project only an authorized successful search; the result carries its secret-safe query. */
+/** Search mode publishes successful retrievals to its panel; Build keeps them in the conversation. */
 export function searchResourceFromToolResult(
   params: unknown,
   output: unknown,
   context: ServerToolContext
 ) {
+  if (context.requestMode !== 'assistant') return undefined
   const result = successfulSearch.safeParse(output)
   if (!result.success) return undefined
   const scope = context.organizationId

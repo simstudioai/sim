@@ -339,6 +339,30 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
   })
 
   if (agentName === 'mothership') {
+    it.each([
+      ['error', 'Failed creating sign-in link'],
+      ['rejected', 'Failed creating sign-in link'],
+      ['success', 'Created sign-in link'],
+    ] as const)(
+      'renders a singleton %s action directly instead of a count disclosure',
+      (status, label) => {
+        render(
+          [
+            {
+              id: 'sign-in',
+              toolName: 'oauth_get_auth_link',
+              displayTitle: 'Creating sign-in link',
+              status,
+            },
+          ],
+          false
+        )
+        expect(header()?.textContent).toBe(label)
+        expect(container.textContent).not.toContain('1 tool call')
+        expect(container.querySelector('[aria-expanded]')).toBeNull()
+      }
+    )
+
     it('does not claim a merged activity completed when its unlabelled validation failed', () => {
       const activity = {
         id: 'review',
@@ -399,7 +423,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       expect(header()?.textContent).toBe(activity.completedTitle)
     })
 
-    it('closes the prior activity at normal text while keeping the trailing activity open', () => {
+    it('shows singleton actions separated by text directly without duplicating their group title', () => {
       const activity: ToolActivity = {
         id: 'research',
         title: 'Comparing files',
@@ -424,12 +448,12 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       renderActivity(true)
       expect(
         [...container.querySelectorAll('[role="status"]')].map((row) => row.textContent)
-      ).toEqual([activity.completedTitle, 'Read second'])
+      ).toEqual(['Read first', 'Read second'])
       expect(container.querySelector('[class*="shimmer"]')).toBeNull()
       renderActivity(false)
       expect(
         [...container.querySelectorAll('[role="status"]')].map((row) => row.textContent)
-      ).toEqual([activity.completedTitle, activity.completedTitle])
+      ).toEqual(['Read first', 'Read second'])
     })
   }
 })

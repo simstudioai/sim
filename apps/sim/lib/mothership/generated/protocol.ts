@@ -16,7 +16,7 @@
  */
 
 import { z } from "zod";
-import { AssistantImage, AssistantSearch } from "./assistant";
+import { AssistantImage, AssistantSearch, AssistantSearchLevel } from "./assistant";
 import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 1;
@@ -141,6 +141,7 @@ export const ChatPayloadSchema = z
     mode: z.enum(["agent", "assistant"]).optional(),
     assistantSearch: AssistantSearch.optional(),
     assistantFast: z.boolean().optional(),
+    assistantSearchLevel: AssistantSearchLevel.optional(),
     assistantImages: z.array(AssistantImage).max(5).optional(),
     /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
     workflowId: z.string().optional(),
@@ -178,6 +179,13 @@ export const ChatPayloadSchema = z
     inventory: WorkspaceInventorySchema.optional(),
   })
   .superRefine((value, ctx) => {
+    if (value.assistantSearchLevel !== undefined && value.mode !== "assistant")
+      ctx.addIssue({ code: "custom", message: "Search levels require Assistant mode" });
+    if (value.assistantSearchLevel && (value.modelSelection || value.assistantFast !== undefined))
+      ctx.addIssue({
+        code: "custom",
+        message: "Search level cannot include another model selection or Fast flag",
+      });
     if (value.assistantFast !== undefined && value.mode !== "assistant")
       ctx.addIssue({ code: "custom", message: "Fast Search requires Assistant mode" });
     if (value.assistantFast && value.modelSelection)
@@ -238,6 +246,7 @@ export interface ChatRequest extends StreamResponseReceipt {
   mode?: "agent" | "assistant" | undefined;
   assistantSearch?: AssistantSearch | undefined;
   assistantFast?: boolean | undefined;
+  assistantSearchLevel?: AssistantSearchLevel | undefined;
   assistantImages?: AssistantImage[] | undefined;
   /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
   workflowId?: string | undefined;

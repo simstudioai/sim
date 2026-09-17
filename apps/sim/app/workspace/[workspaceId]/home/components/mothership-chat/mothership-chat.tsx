@@ -377,6 +377,8 @@ export function MothershipChat({
   const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
+  /** The deferred list may still end in the previous turn when a new send starts. */
+  const streamingMessageId = isStreamActive ? messagesProp.at(-1)?.id : undefined
   /**
    * Defer the streamed message list so its re-render (virtualizer + rows) is
    * low-priority: React yields it to urgent interactions (dragging/panning the
@@ -795,9 +797,11 @@ export function MothershipChat({
   const scrolledForUserMsgRef = useRef<string | undefined>(undefined)
   useLayoutEffect(() => {
     if (!lastUserMessageId || scrolledForUserMsgRef.current === lastUserMessageId) return
+    if (isSending && initialScrollBlocked) return
     scrolledForUserMsgRef.current = lastUserMessageId
+    if (!isSending) return
     virtualizer.scrollToIndex(lastIndex, { align: 'end' })
-  }, [lastUserMessageId, lastIndex, virtualizer])
+  }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer])
 
   const virtualItems = virtualizer.getVirtualItems()
 
@@ -856,7 +860,7 @@ export function MothershipChat({
                       <AssistantMessageRow
                         message={msg}
                         prepareContentForCopy={prepareContentForCopy}
-                        isStreaming={isStreamActive && isLast}
+                        isStreaming={isLast && msg.id === streamingMessageId}
                         isLast={isLast}
                         precedingUserContent={precedingUserByIndex[index]?.content}
                         requestMode={precedingUserByIndex[index]?.requestMode}

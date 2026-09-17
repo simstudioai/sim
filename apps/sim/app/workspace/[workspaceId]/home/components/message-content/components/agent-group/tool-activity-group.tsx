@@ -137,21 +137,26 @@ export function ToolActivityGroup({
       renderStatus={(status) => (
         <ActivityStream
           activity={{
-            label: working
-              ? getActiveToolActivityTitle(
-                  `${generatingCall ? 'Working…' : status.label}${running.length > 1 ? ` + ${running.length - 1}` : ''}`,
-                  statusTool,
-                  tools
-                )
-              : complete
-                ? (completedLabel ?? getToolActivitySummary(tools))
-                : getActiveToolActivityTitle(status.label, statusTool, tools),
+            label:
+              tools.length === 1
+                ? generatingCall
+                  ? 'Working…'
+                  : status.label
+                : working
+                  ? getActiveToolActivityTitle(
+                      `${generatingCall ? 'Working…' : status.label}${running.length > 1 ? ` + ${running.length - 1}` : ''}`,
+                      statusTool,
+                      tools
+                    )
+                  : complete
+                    ? (completedLabel ?? getToolActivitySummary(tools))
+                    : getActiveToolActivityTitle(status.label, statusTool, tools),
             isActive: headerActive,
           }}
           activityKey={statusTool.id}
           attentionKey={attentionKey}
-          expandedLabel={groupedActivity?.title}
-          collapsible={tools.length > 1 || Boolean(groupedActivity) || isFailedTool(statusTool)}
+          expandedLabel={tools.length > 1 ? groupedActivity?.title : undefined}
+          collapsible={tools.length > 1}
           expanded={expanded}
           onToggle={() => setExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}

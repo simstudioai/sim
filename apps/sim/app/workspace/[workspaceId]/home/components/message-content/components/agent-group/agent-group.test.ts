@@ -222,13 +222,13 @@ describe('AgentGroup inline main activity', () => {
   })
 
   it.each([
-    ['success', 'Checked search requirements'],
-    ['error', '1 tool call'],
+    ['success', 'Searched'],
+    ['error', 'Failed searching'],
     ['cancelled', 'Stopped searching'],
     ['skipped', 'Skipped searching'],
     ['interrupted', 'Stopped searching'],
-    ['rejected', '1 tool call'],
-  ] as const)('uses an honest grouped activity label after %s', (status, expected) => {
+    ['rejected', 'Failed searching'],
+  ] as const)('shows the single call directly after %s', (status, expected) => {
     const item = tool(status)
     act(() =>
       root.render(
@@ -345,7 +345,7 @@ describe('AgentGroup inline main activity', () => {
       const params = { code: '1', activity: { id: 'check', completedTitle: 'Checked inputs' } }
       expect(render(params, 'executing')).toBe('Running checks')
       expect(render(params, 'success')).toBe('Ran checks')
-      expect(render(params, 'success', false)).toBe('Checked inputs')
+      expect(render(params, 'success', false)).toBe('Ran checks')
     }
   )
 
@@ -447,6 +447,11 @@ describe('AgentGroup inline main activity', () => {
           })
         )
       )
+      if (agentName === 'mothership') {
+        expect(container.textContent).toBe('Failed reading notes')
+        expect(container.querySelector('[aria-expanded]')).toBeNull()
+        return
+      }
       expect(container.textContent).not.toContain('Failed')
       expect(container.textContent).toContain('1 tool call')
       const disclosure = container.querySelector<HTMLElement>('[role="button"]')

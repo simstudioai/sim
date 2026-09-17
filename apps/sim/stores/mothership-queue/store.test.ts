@@ -104,6 +104,30 @@ describe('useMothershipQueueStore', () => {
       expect(useMothershipQueueStore.getState().queues['chat-A']).toBe(before)
     })
 
+    it('edits one captured Search level without changing adjacent queued turns', () => {
+      const store = useMothershipQueueStore.getState()
+      store.enqueue('chat-A', {
+        ...message('m1'),
+        requestMode: 'assistant',
+        assistantSearchLevel: 'fast',
+      })
+      store.enqueue('chat-A', {
+        ...message('m2'),
+        requestMode: 'assistant',
+        assistantSearchLevel: 'adaptive',
+      })
+      store.replaceAt('chat-A', 'm1', {
+        content: 'Edited',
+        requestMode: 'assistant',
+        assistantSearchLevel: 'max',
+      })
+      expect(
+        useMothershipQueueStore
+          .getState()
+          .queues['chat-A']?.map((item) => item.assistantSearchLevel)
+      ).toEqual(['max', 'adaptive'])
+    })
+
     it('editing preserves an unresolved Stop while replacing the prior request identity', () => {
       useMothershipQueueStore.getState().enqueue('chat-A', {
         id: 'm1',

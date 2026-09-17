@@ -56,6 +56,7 @@ import {
 } from '@/lib/mothership/chat/selection-context'
 import { COPILOT_REQUEST_MODES, MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
+import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import {
   type ChatRequest,
   type ModelSelection,
@@ -269,6 +270,7 @@ const ChatMessageSchema = z
     mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
     assistantSearch: workspaceSearchFiltersSchema.optional(),
     assistantFast: z.boolean().optional(),
+    assistantSearchLevel: AssistantSearchLevel.optional(),
     prefetch: z.boolean().optional(),
     createNewChat: z.boolean().optional().default(false),
     implicitFeedback: z.string().optional(),
@@ -316,6 +318,18 @@ const ChatMessageSchema = z
       .optional(),
   })
   .superRefine((body, ctx) => {
+    if (body.assistantSearchLevel !== undefined && body.mode !== 'assistant')
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Search levels require Assistant mode',
+        path: ['assistantSearchLevel'],
+      })
+    if (body.assistantSearchLevel && (body.modelSelection || body.assistantFast !== undefined))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Search level cannot include another model selection or Fast flag',
+        path: ['assistantSearchLevel'],
+      })
     if (body.assistantFast !== undefined && body.mode !== 'assistant')
       ctx.addIssue({
         code: 'custom',
@@ -373,6 +387,7 @@ type UnifiedChatBranch =
         commands?: string[]
         prefetch?: boolean
         implicitFeedback?: string
+        assistantSearchLevel?: AssistantSearchLevel
         assistantFast?: boolean
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
@@ -411,6 +426,7 @@ type UnifiedChatBranch =
         userPermission?: string
         userTimezone?: string
         userMetadata?: { name?: string; email?: string; timezone?: string }
+        assistantSearchLevel?: AssistantSearchLevel
         assistantFast?: boolean
         assistantSearch?: WorkspaceSearchFilters
         workspaceContext?: string
@@ -793,6 +809,7 @@ async function resolveBranch(params: {
             contexts: payloadParams.contexts,
             assistantSearch: payloadParams.assistantSearch,
             assistantFast: payloadParams.assistantFast,
+            assistantSearchLevel: payloadParams.assistantSearchLevel,
             mcpServerIds: payloadParams.mcpServerIds,
             fileAttachments: payloadParams.fileAttachments,
             commands: payloadParams.commands,
@@ -860,6 +877,7 @@ async function resolveBranch(params: {
           workspaceContext: payloadParams.workspaceContext,
           assistantSearch: payloadParams.assistantSearch,
           assistantFast: payloadParams.assistantFast,
+          assistantSearchLevel: payloadParams.assistantSearchLevel,
           mcpServerIds: payloadParams.mcpServerIds,
           fileAttachments: payloadParams.fileAttachments,
           chatId: payloadParams.chatId,
@@ -1330,6 +1348,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 contexts: turnContexts,
                 assistantSearch: body.mode === 'assistant' ? body.assistantSearch : undefined,
                 assistantFast: body.assistantFast,
+                assistantSearchLevel: body.assistantSearchLevel,
                 mcpServerIds,
                 fileAttachments,
                 userPermission: userPermission ?? undefined,
@@ -1364,6 +1383,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 fileAttachments,
                 assistantImages: assistantImages?.content,
                 assistantFast: body.assistantFast,
+                assistantSearchLevel: body.assistantSearchLevel,
                 workspaceContext,
                 userPermission: userPermission ?? undefined,
                 userTimezone: body.userTimezone,
