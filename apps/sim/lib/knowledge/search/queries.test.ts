@@ -316,20 +316,74 @@ describe('getStructuredTagFilters', () => {
   })
 })
 
-describe('KB block vector retrieval', () => {
+describe('workspace-scoped vector retrieval', () => {
+  const access = { kind: 'workspace' as const, tokens: WORKSPACE_ACCESS_TOKENS }
+  const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>()
   const params: SearchParams = {
     knowledgeBaseIds: ['kb-small'],
     topK: 2,
-    access: { kind: 'workspace', tokens: WORKSPACE_ACCESS_TOKENS },
+    access,
+    accessProvider: {
+      get: async () => access,
+      getForConnectors,
+      getForDocuments: async () => access,
+      liveSourceConnectorCondition: async () => null,
+    },
     queryVector: { vector: '[0.1,0.2]', dimensions: 1536, model: 'text-embedding-3-small' },
     distanceThreshold: 1,
   }
+  const probe = Array.from({ length: 400 }, (_, index) => ({ id: `probe-${index}` }))
+  const candidates = Array.from({ length: 400 }, (_, index) => ({
+    id: `candidate-${index}`,
+    initial_count: 400,
+  }))
+  const ranked = [
+    {
+      id: 'near',
+      documentId: 'near-doc',
+      connectorId: null,
+      liveAuthorizationSource: false,
+      distance: 0.1,
+    },
+    {
+      id: 'far',
+      documentId: 'far-doc',
+      connectorId: null,
+      liveAuthorizationSource: false,
+      distance: 0.2,
+    },
+  ]
+  let probeRows: Array<{ id: string }>
+  let failSettings: unknown
+  let failCandidates: unknown
 
-  beforeEach(() => resetDbChainMock())
+  beforeEach(() => {
+    resetDbChainMock()
+    getForConnectors.mockReset()
+    probeRows = probe
+    failSettings = undefined
+    failCandidates = undefined
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query).sql
+      if (statement.includes('SELECT scoped_chunk.id')) return probeRows
+      if (statement.includes('hnsw.iterative_scan')) {
+        if (failSettings) throw failSettings
+        return []
+      }
+      if (statement.includes('WITH visible_search_documents')) {
+        if (failCandidates) throw failCandidates
+        return candidates
+      }
+      if (statement.includes('WITH scored_search_candidates')) return ranked
+      return []
+    })
+  })
   afterEach(() => {
     vi.restoreAllMocks()
     vi.useRealTimers()
   })
+
+  const statements = () => dbChainMockFns.execute.mock.calls.map(([query]) => render(query))
 
   it.each([handleVectorOnlySearch, handleTagAndVectorSearch])(
     'does not acquire a connection or start SQL after the KB retrieval deadline',
@@ -347,67 +401,205 @@ describe('KB block vector retrieval', () => {
       expect(budget.timedOut).toBe(true)
       expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
       expect(dbChainMockFns.select).not.toHaveBeenCalled()
+      expect(dbChainMockFns.execute).not.toHaveBeenCalled()
     }
   )
 
-  it('ranks all candidates in a small KB exactly instead of traversing the shared vector index', async () => {
-    queueTableRows(schemaMock.embedding, [{ id: 'near' }, { id: 'far' }])
-    queueTableRows(schemaMock.embedding, [
-      { id: 'far', distance: 0.2 },
-      { id: 'near', distance: 0.1 },
-    ])
-    const rows = await handleVectorOnlySearch(params)
-    expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
-    expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
-    expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 201)
+  it('ranks an exhausted visible scope exactly and rechecks access before returning content', async () => {
+    probeRows = ranked
+    queueTableRows(schemaMock.embedding, ranked)
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
+    expect(statements()).toHaveLength(1)
+    expect(statements()[0].sql).not.toContain('<=>')
     expect(render(dbChainMockFns.orderBy.mock.calls[0][0]).sql).toContain('+ 0')
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[1][0],
-        (node) =>
-          node.type === 'inArray' &&
-          node.column === schemaMock.embedding.id &&
-          JSON.stringify(node.values) === JSON.stringify(['near', 'far'])
-      )
-    ).toBe(true)
+    for (const [condition] of dbChainMockFns.where.mock.calls) {
+      expect(
+        hasMockCondition(
+          condition,
+          (node) =>
+            node.type === 'inArray' &&
+            node.column === schemaMock.embedding.id &&
+            Array.isArray(node.values) &&
+            node.values.length === 2 &&
+            node.values.includes('near')
+        )
+      ).toBe(true)
+      expect(JSON.stringify(condition)).toContain('required_clause')
+      expect(JSON.stringify(condition)).toContain('aclVerifiedAt')
+    }
+    expect(getForConnectors).not.toHaveBeenCalled()
   })
 
-  it.each([1, 200, 201])(
-    'reports a %i-candidate SQL timeout as partial, not an empty complete result',
-    async (count) => {
-      queueTableRows(
-        schemaMock.embedding,
-        Array.from({ length: count }, (_, index) => ({ id: `candidate-${index}` }))
-      )
-      dbChainMockFns.orderBy
-        .mockImplementationOnce(dbChainMockFns.orderBy.getMockImplementation()!)
-        .mockRejectedValueOnce(new Error('Statement canceled', { cause: { code: '57014' } }))
-      const result = await retrieveKnowledgeSearch({
-        ...params,
-        query: 'fixture policy',
-        searchMode: 'vector',
+  it('uses compact candidates for a large KB and applies full workspace access before its limit', async () => {
+    queueTableRows(schemaMock.embedding, [...ranked].reverse())
+    expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['near', 'far'])
+    const candidate = statements().find((query) =>
+      query.sql.includes('WITH visible_search_documents')
+    )!
+    expect(candidate.sql).toContain('CROSS JOIN LATERAL')
+    expect(candidate.sql).toContain('LIMIT 1')
+    const serialized = JSON.stringify(candidate)
+    expect(serialized).toContain('subvector')
+    expect(serialized).toContain('required_clause')
+    expect(serialized).toContain('credential')
+    expect(serialized).toContain('aclVerifiedAt')
+    expect(serialized).toContain('accessRewritePending')
+    expect(serialized).toContain('organizationSearchIntegration')
+    expect(serialized).toContain(String(schemaMock.embeddingSearch.vector512))
+    expect(candidate.params).not.toContain(schemaMock.embedding.embedding)
+    const rerank = statements().find((query) =>
+      query.sql.includes('WITH scored_search_candidates')
+    )!
+    expect(rerank.sql).toContain('MATERIALIZED')
+    expect(JSON.stringify(rerank)).toContain(String(schemaMock.embedding.embedding))
+    expect(JSON.stringify(rerank)).toContain('candidate-399')
+    expect(JSON.stringify(rerank)).not.toContain('probe-399')
+    expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('keeps workspace-authorized sources eligible when hydration needs another page', async () => {
+    const initial = ranked.map((row) => ({
+      ...row,
+      connectorId: 'workspace-source',
+      liveAuthorizationSource: true,
+    }))
+    const next = { ...initial[1], id: 'next', distance: 0.3 }
+    queueTableRows(schemaMock.embedding, initial)
+    queueTableRows(schemaMock.embedding, [initial[0]])
+    queueTableRows(schemaMock.embedding, [next])
+    queueTableRows(schemaMock.embedding, [next])
+    const rows = await handleVectorOnlySearch({
+      ...params,
+      filters: { documentIds: ['near-doc', 'far-doc'] },
+    })
+    expect(rows.map((row) => row.id)).toEqual(['near', 'next'])
+    expect(dbChainMockFns.offset.mock.calls.map(([offset]) => offset)).toEqual([0, 2])
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls)).not.toContain('workspace-source')
+    expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('does not turn a broad tag filter into exhaustive full-vector ranking', async () => {
+    queueTableRows(schemaMock.embedding, probe)
+    queueTableRows(schemaMock.embedding, ranked)
+    const rows = await handleTagAndVectorSearch({
+      ...params,
+      structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' }],
+    })
+    expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
+    expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
+    const candidate = statements().find((query) =>
+      query.sql.includes('WITH visible_search_documents')
+    )!
+    expect(JSON.stringify(candidate)).toContain('common')
+    expect(JSON.stringify(candidate)).toContain(String(schemaMock.embedding.tag1))
+    expect(JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])).toContain('common')
+    expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('ranks all selected KBs together instead of capping how many results one KB can contribute', async () => {
+    const knowledgeBaseIds = ['kb-1', 'kb-2', 'kb-3', 'kb-4', 'kb-5']
+    queueTableRows(
+      schemaMock.embedding,
+      ranked.map((row) => ({ ...row, knowledgeBaseId: 'kb-1' }))
+    )
+    const rows = await handleVectorOnlySearch({ ...params, knowledgeBaseIds })
+    expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
+    expect(rows.every((row) => row.knowledgeBaseId === 'kb-1')).toBe(true)
+    const candidateQueries = statements().filter((query) =>
+      query.sql.includes('WITH visible_search_documents')
+    )
+    expect(candidateQueries).toHaveLength(1)
+    for (const id of knowledgeBaseIds) expect(JSON.stringify(candidateQueries[0])).toContain(id)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+  })
+
+  it.each(['vector.probe', 'vector.candidate_search', 'vector.rerank', 'vector.sql'] as const)(
+    'reports a %s timeout as partial, not a complete empty search',
+    async (failedStage) => {
+      const query = SearchBudget.prototype.query
+      vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
+        this: SearchBudget,
+        stage: SearchStage,
+        run: (executor: SearchExecutor) => PromiseLike<T>
+      ) {
+        if (stage === failedStage)
+          return Promise.reject(new Error('Statement canceled', { cause: { code: '57014' } }))
+        return query.call(this, stage, run) as Promise<T>
       })
-      expect(result).toEqual({
+      expect(
+        await retrieveKnowledgeSearch({ ...params, query: 'fixture policy', searchMode: 'vector' })
+      ).toEqual({
         rows: [],
         retrieval: { status: 'partial', timedOutLegs: ['vector'] },
       })
-      const usesAnn = dbChainMockFns.execute.mock.calls.some(([statement]) =>
-        render(statement).sql.includes('hnsw.iterative_scan')
-      )
-      expect(usesAnn).toBe(count > 200)
     }
   )
 
-  it('does not convert an unexpected ranking error into partial retrieval', async () => {
-    queueTableRows(schemaMock.embedding, [{ id: 'candidate' }])
-    const failure = new Error('Connection lost', { cause: { code: '08006' } })
-    dbChainMockFns.orderBy
-      .mockImplementationOnce(dbChainMockFns.orderBy.getMockImplementation()!)
-      .mockRejectedValueOnce(failure)
+  it('shares the remaining deadline across candidate selection, reranking and hydration', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+    const query = SearchBudget.prototype.query
+    vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(async function <T>(
+      this: SearchBudget,
+      stage: SearchStage,
+      run: (executor: SearchExecutor) => PromiseLike<T>
+    ) {
+      const result = await (query.bind(this) as SearchBudget['query'])(stage, run)
+      if (stage === 'vector.probe') vi.spyOn(performance, 'now').mockReturnValue(30)
+      if (stage === 'vector.candidate_search') vi.spyOn(performance, 'now').mockReturnValue(60)
+      if (stage === 'vector.rerank') vi.spyOn(performance, 'now').mockReturnValue(80)
+      return result
+    })
+    queueTableRows(schemaMock.embedding, ranked)
+    await handleVectorOnlySearch({ ...params, budget: new SearchBudget('vector', 100) })
+    expect(
+      statements()
+        .filter((query) => query.sql.includes('statement_timeout'))
+        .map((query) => query.params[0])
+    ).toEqual(['100', '70', '70', '40', '20'])
+  })
+
+  it('does not convert an unexpected candidate failure into partial retrieval', async () => {
+    failCandidates = new Error('Connection lost', { cause: { code: '08006' } })
     await expect(
       retrieveKnowledgeSearch({ ...params, query: 'fixture policy', searchMode: 'vector' })
-    ).rejects.toBe(failure)
+    ).rejects.toBe(failCandidates)
+  })
+
+  it('does not treat a missing query object as unsupported scan settings', async () => {
+    failCandidates = new Error('Query object is missing', { cause: { code: '42704' } })
+    await expect(handleVectorOnlySearch(params)).rejects.toBe(failCandidates)
+    failCandidates = undefined
+    queueTableRows(schemaMock.embedding, ranked)
+    await handleVectorOnlySearch(params)
+    expect(statements().filter((query) => query.sql.includes('hnsw.iterative_scan'))).toHaveLength(
+      2
+    )
+  })
+
+  it('retries unsupported settings after cooldown without changing the candidate query', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(0))
+    failSettings = new Error('Failed settings query', { cause: { code: '42704' } })
+    queueTableRows(schemaMock.embedding, ranked)
+    await handleVectorOnlySearch(params)
+    queueTableRows(schemaMock.embedding, ranked)
+    await handleVectorOnlySearch(params)
+    expect(statements().filter((query) => query.sql.includes('hnsw.iterative_scan'))).toHaveLength(
+      1
+    )
+    const queries = statements().filter((query) =>
+      query.sql.includes('WITH visible_search_documents')
+    )
+    expect(queries).toHaveLength(2)
+    expect(JSON.stringify(queries[0])).toBe(JSON.stringify(queries[1]))
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1)
+    failSettings = undefined
+    queueTableRows(schemaMock.embedding, ranked)
+    await handleVectorOnlySearch(params)
+    expect(statements().filter((query) => query.sql.includes('hnsw.iterative_scan'))).toHaveLength(
+      2
+    )
   })
 
   it('reports incomplete retrieval for 18 expired pool waiters without starting their SQL later', async () => {
@@ -452,200 +644,6 @@ describe('KB block vector retrieval', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(dbChainMockFns.execute).not.toHaveBeenCalled()
   })
-
-  it.each([1, 201])(
-    'shares the remaining SQL budget between the probe and %i-candidate ranking',
-    async (count) => {
-      vi.spyOn(performance, 'now').mockReturnValue(0)
-      queueTableRows(
-        schemaMock.embedding,
-        Array.from({ length: count }, (_, index) => ({ id: `candidate-${index}` }))
-      )
-      const query = SearchBudget.prototype.query
-      vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(async function <T>(
-        this: SearchBudget,
-        stage: SearchStage,
-        run: (executor: SearchExecutor) => PromiseLike<T>
-      ) {
-        const runQuery: SearchBudget['query'] = query.bind(this)
-        const result = await runQuery(stage, run)
-        if (stage === 'vector.probe') vi.spyOn(performance, 'now').mockReturnValue(30)
-        return result
-      })
-      await handleVectorOnlySearch({ ...params, budget: new SearchBudget('vector', 100) })
-      const timeouts = dbChainMockFns.execute.mock.calls
-        .map(([statement]) => render(statement))
-        .filter((statement) => statement.sql.includes('statement_timeout'))
-        .map((statement) => statement.params[0])
-      expect(timeouts).toEqual(count === 1 ? ['100', '70'] : ['100', '70', '70'])
-    }
-  )
-})
-
-describe('vector scan settings', () => {
-  const largeProbe = Array.from({ length: 201 }, (_, index) => ({ id: `probe-${index}` }))
-  const params: SearchParams = {
-    knowledgeBaseIds: ['kb-small'],
-    topK: 2,
-    access: { kind: 'workspace', tokens: WORKSPACE_ACCESS_TOKENS },
-    queryVector: { vector: '[0.1,0.2]', dimensions: 1536, model: 'text-embedding-3-small' },
-    distanceThreshold: 0.8,
-  }
-
-  beforeEach(() => {
-    resetDbChainMock()
-    queueTableRows(schemaMock.embedding, largeProbe)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('tunes an overflowing KB scope without limiting ANN to the probe prefix', async () => {
-    queueTableRows(schemaMock.embedding, [
-      { id: 'far', distance: 0.2 },
-      { id: 'near', distance: 0.1 },
-    ])
-    const rows = await handleVectorOnlySearch(params)
-    expect(rows.map((row) => row.id)).toEqual(['near', 'far'])
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.execute).toHaveBeenCalledOnce()
-    expect(render(dbChainMockFns.execute.mock.calls[0][0])).toEqual({
-      sql: "SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ?, true)",
-      params: ['20000'],
-    })
-    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.select.mock.invocationCallOrder[1]
-    )
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[1][0],
-        (node) =>
-          node.type === 'inArray' &&
-          node.column === schemaMock.embedding.knowledgeBaseId &&
-          Array.isArray(node.values) &&
-          node.values.includes('kb-small')
-      )
-    ).toBe(true)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[1][0],
-        (node) => node.type === 'inArray' && node.column === schemaMock.embedding.id
-      )
-    ).toBe(false)
-    expect(Object.keys(dbChainMockFns.select.mock.calls[1][0])).toEqual(['id', 'distance'])
-    const ranked = dbChainMockFns.from.mock.calls[2][0]
-    expect(dbChainMockFns.select.mock.calls[2][0].distance).toBe(ranked.distance)
-    expect(dbChainMockFns.innerJoin).toHaveBeenCalledWith(
-      schemaMock.embedding,
-      expect.objectContaining({
-        type: 'eq',
-        left: schemaMock.embedding.id,
-        right: ranked.id,
-      })
-    )
-    expect(dbChainMockFns.orderBy).toHaveBeenLastCalledWith(ranked.distance)
-    expect(dbChainMockFns.limit.mock.invocationCallOrder[1]).toBeLessThan(
-      dbChainMockFns.select.mock.invocationCallOrder[2]
-    )
-  })
-
-  it('tunes each KB leg and trims their sorted merge', async () => {
-    const knowledgeBaseIds = ['kb-1', 'kb-2', 'kb-3', 'kb-4', 'kb-5']
-    for (let index = 0; index < knowledgeBaseIds.length; index++) {
-      if (index > 0) queueTableRows(schemaMock.embedding, largeProbe)
-      queueTableRows(schemaMock.embedding, [{ id: `row-${index}`, distance: (5 - index) / 10 }])
-    }
-    const rows = await handleVectorOnlySearch({ ...params, knowledgeBaseIds })
-    expect(rows.map((row) => row.id)).toEqual(['row-4', 'row-3'])
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(5)
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(5)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(15)
-    for (const kbId of knowledgeBaseIds)
-      expect(
-        dbChainMockFns.where.mock.calls.some(([condition]) =>
-          hasMockCondition(
-            condition,
-            (node) =>
-              node.type === 'eq' &&
-              node.left === schemaMock.embedding.knowledgeBaseId &&
-              node.right === kbId
-          )
-        )
-      ).toBe(true)
-  })
-
-  it('tunes tag vector queries while keeping tag-only reads outside a vector transaction', async () => {
-    const filtered: SearchParams = {
-      ...params,
-      structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'release' }],
-    }
-    queueTableRows(schemaMock.embedding, [
-      { id: 'far', distance: 0.2 },
-      { id: 'near', distance: 0.1 },
-    ])
-    expect((await handleTagAndVectorSearch(filtered)).map((row) => row.id)).toEqual(['near', 'far'])
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
-    expect(
-      hasMockCondition(dbChainMockFns.where.mock.calls[0][0], (node) => {
-        if (typeof node.toSQL !== 'function') return false
-        const condition = render(node)
-        return (
-          condition.sql === 'LOWER(?) = LOWER(?)' &&
-          condition.params[0] === schemaMock.embedding.tag1 &&
-          condition.params[1] === 'release'
-        )
-      })
-    ).toBe(true)
-    resetDbChainMock()
-    await handleTagOnlySearch(filtered)
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
-  })
-
-  it('retries unsupported settings after the cooldown without changing the query on fallback', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(0))
-    dbChainMockFns.execute.mockRejectedValueOnce(
-      new Error('Failed settings query', { cause: { code: '42704' } })
-    )
-    queueTableRows(schemaMock.embedding, [{ id: 'fallback', distance: 0.1 }])
-    expect((await handleVectorOnlySearch(params)).map((row) => row.id)).toEqual(['fallback'])
-    expect(dbChainMockFns.execute).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
-    await handleVectorOnlySearch(params)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
-    await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1)
-    queueTableRows(schemaMock.embedding, largeProbe)
-    await handleVectorOnlySearch(params)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
-  })
-
-  it('propagates an unrelated settings failure without ranking or disabling later tuning', async () => {
-    const failure = { code: '08006', message: 'Connection lost' }
-    dbChainMockFns.execute.mockRejectedValueOnce(failure)
-    await expect(handleVectorOnlySearch(params)).rejects.toBe(failure)
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
-    queueTableRows(schemaMock.embedding, largeProbe)
-    await handleVectorOnlySearch(params)
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not retry a query 42704 or classify it as unsupported scan settings', async () => {
-    const failure = { code: '42704', message: 'Query object is missing' }
-    dbChainMockFns.orderBy
-      .mockImplementationOnce(dbChainMockFns.orderBy.getMockImplementation()!)
-      .mockRejectedValueOnce(failure)
-    await expect(handleVectorOnlySearch(params)).rejects.toBe(failure)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
-    queueTableRows(schemaMock.embedding, largeProbe)
-    await handleVectorOnlySearch(params)
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
-  })
 })
 
 describe('workspace search filters before ranking', () => {
@@ -663,8 +661,8 @@ describe('workspace search filters before ranking', () => {
   }
   beforeEach(() => resetDbChainMock())
 
-  function expectScopeOnEveryQuery(skipIdentityProbe = false) {
-    const queries = dbChainMockFns.where.mock.calls.slice(skipIdentityProbe ? 1 : 0)
+  function expectScopeOnEveryQuery() {
+    const queries = dbChainMockFns.where.mock.calls
     expect(queries.length).toBeGreaterThan(0)
     for (const [condition] of queries) {
       expect(
@@ -699,15 +697,14 @@ describe('workspace search filters before ranking', () => {
   it.each([handleVectorOnlySearch, handleTagOnlySearch, handleTagAndVectorSearch])(
     'applies the full document scope to vector and tag searches',
     async (search) => {
-      const hasIdentityProbe = search !== handleTagOnlySearch
-      if (hasIdentityProbe) queueTableRows(schemaMock.embedding, [{ id: 'candidate' }])
+      queueTableRows(schemaMock.embedding, [{ id: 'candidate' }])
       await search({
         ...params,
         structuredFilters: [
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'launch' },
         ],
       })
-      expectScopeOnEveryQuery(hasIdentityProbe)
+      expectScopeOnEveryQuery()
     }
   )
 
@@ -996,6 +993,8 @@ describe('live repository authorization follows ranked candidates', () => {
     '%s ranks identifiers before verification and loads content under the full predicate',
     async (mode) => {
       const candidates = [candidate('selected', 'allowed-source')]
+      if (mode === 'vector' || mode === 'tag-vector')
+        queueTableRows(schemaMock.embedding, candidates)
       if (mode === 'keyword') keywordPages.push(candidates)
       else queueTableRows(schemaMock.embedding, candidates)
       queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
@@ -1020,7 +1019,9 @@ describe('live repository authorization follows ranked candidates', () => {
         expect(ranking).not.toContain('<=>')
         expect(ranking).not.toContain('"content"')
       } else {
-        expect(Object.keys(dbChainMockFns.select.mock.calls[0][0]).sort()).toEqual(
+        expect(
+          Object.keys(dbChainMockFns.select.mock.calls[mode === 'tags' ? 0 : 1][0]).sort()
+        ).toEqual(
           [
             'id',
             'documentId',
@@ -1062,6 +1063,8 @@ describe('live repository authorization follows ranked candidates', () => {
     async (mode) => {
       getForConnectors.mockResolvedValue(identity)
       const candidates = [{ ...candidate('gmail', 'gmail-source'), installationSource: false }]
+      if (mode === 'vector' || mode === 'tag-vector')
+        queueTableRows(schemaMock.embedding, candidates)
       if (mode === 'keyword') keywordPages.push(candidates)
       else queueTableRows(schemaMock.embedding, candidates)
       const hydrated = [{ id: 'gmail', content: 'current permitted content' }]
@@ -1091,7 +1094,9 @@ describe('live repository authorization follows ranked candidates', () => {
       const hydration = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)![0])
       expect(hydration).toContain('acl')
       expect(hydration).toContain('knowledgeConnectorMember')
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(mode === 'keyword' ? 1 : 2)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(
+        mode === 'keyword' ? 1 : mode === 'tags' ? 2 : 3
+      )
     }
   )
 

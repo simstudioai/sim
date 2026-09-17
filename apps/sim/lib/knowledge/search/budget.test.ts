@@ -14,7 +14,7 @@ describe('search SQL deadline', () => {
       now = 101
       return ['candidate']
     })
-    await budget.query('vector.ann', run)
+    await budget.query('vector.candidate_search', run)
     await expect(budget.query('vector.exact', run)).rejects.toBeInstanceOf(SearchDeadlineError)
     expect(run).toHaveBeenCalledTimes(1)
   })

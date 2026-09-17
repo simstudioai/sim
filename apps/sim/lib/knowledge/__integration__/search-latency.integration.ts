@@ -1,5 +1,6 @@
 /** Real Assistant tool, application authorization, PostgreSQL/pgvector, and result processing. */
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   copilotChats,
@@ -8,6 +9,7 @@ import {
   document,
   embedding,
   knowledgeBase,
+  knowledgeBaseTagDefinitions,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -39,6 +41,7 @@ import {
   seedKnowledgeAclFixture,
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { type KnowledgeSearchTagFilter, searchKnowledge } from '@/lib/knowledge/application/search'
 import {
   SearchBudget,
   SearchDeadlineError,
@@ -124,7 +127,7 @@ const report: Record<string, unknown> = {
     dimensions,
     candidateDimensions,
     chunksPerDocument,
-    sql: 'Captured from the real Assistant tool; no hand-written search query',
+    sql: 'Captured from real search application adapters; no hand-written retrieval query',
     providers:
       'Embedding and source-permission HTTP responses are controlled; internal search and authorization code is real',
     vectors:
@@ -197,16 +200,21 @@ function explainNodes(node: ExplainNode): ExplainNode[] {
 }
 
 /** Broad ranking must stop the ordered ANN scan instead of sorting every accessible chunk. */
-function assertIndexedCandidates(plan: ExplainNode, candidateLimit: number) {
+function assertIndexedCandidates(
+  plan: ExplainNode,
+  candidateLimit: number,
+  width = candidateDimensions
+) {
+  const indexName =
+    width === 1536
+      ? 'embedding_search_cosine_hnsw_idx'
+      : `embedding_search_${width}_cosine_hnsw_idx`
   const nodes = explainNodes(plan)
   const initial = nodes.find((node) => node['Subplan Name'] === 'CTE initial_candidates')
   expect(initial).toBeDefined()
   const candidateNodes = explainNodes(initial!)
   expect(
-    candidateNodes.some(
-      (node) =>
-        node['Index Name'] === 'embedding_search_512_cosine_hnsw_idx' && node['Actual Loops'] > 0
-    )
+    candidateNodes.some((node) => node['Index Name'] === indexName && node['Actual Loops'] > 0)
   ).toBe(true)
   expect(candidateNodes.some((node) => node['Node Type'] === 'Sort')).toBe(false)
   expect(
@@ -272,7 +280,7 @@ async function prepareOrganizationSample(label: string) {
 
 const diagnosticSchema = z
   .object({
-    surface: z.enum(['dashboard', 'copilot']),
+    surface: z.enum(['dashboard', 'copilot', 'workflow', 'api']),
     outcome: z.enum(['success', 'partial']),
     elapsedMs: z.number(),
     vectorBudgetMs: z.number().positive(),
@@ -301,7 +309,12 @@ const resultSchema = z.object({
   success: z.literal(true),
   data: z.object({
     results: z.array(
-      z.object({ documentId: z.string(), content: z.string(), knowledgeBaseId: z.string() })
+      z.object({
+        documentId: z.string(),
+        content: z.string(),
+        knowledgeBaseId: z.string(),
+        embeddingId: z.string().optional(),
+      })
     ),
   }),
 })
@@ -366,6 +379,29 @@ async function searchDashboard(
   } finally {
     authenticate.mockRestore()
   }
+}
+
+async function searchWorkspaceKb(
+  query = 'Orion deployment',
+  options: { principal?: Principal; tagFilters?: KnowledgeSearchTagFilter[] } = {}
+) {
+  const result = await searchKnowledge.execute({
+    principal: options.principal ?? {
+      kind: 'workspace_api_key',
+      workspaceId: ids.workspaceId,
+      keyId: 'fixture-search-key',
+    },
+    input: {
+      workspaceId: ids.workspaceId,
+      knowledgeBaseIds: [ids.knowledgeBaseId],
+      query,
+      topK: 15,
+      searchMode: 'vector',
+      surface: 'workflow',
+      tagFilters: options.tagFilters,
+    },
+  })
+  return resultSchema.parse({ success: true, data: result })
 }
 
 /** Allow either index or filtered plans, but require successful retrieval within the real surface budget. */
@@ -478,10 +514,12 @@ async function sample(
     })
     saveReport()
     if (query.query.includes('WITH visible_search_documents')) {
-      expect(query.query).toContain('"embedding_search"."vector_512"')
-      expect(diagnostics.vectorCandidateDimensions).toBe(candidateDimensions)
+      const width = diagnostics.vectorCandidateDimensions!
+      expect(query.query).toContain(
+        `"embedding_search"."${width === 1536 ? 'vector' : `vector_${width}`}"`
+      )
       expect(diagnostics.vectorCandidateLimit).toBeGreaterThan(0)
-      assertIndexedCandidates(parsedPlan[0].Plan, diagnostics.vectorCandidateLimit!)
+      assertIndexedCandidates(parsedPlan[0].Plan, diagnostics.vectorCandidateLimit!, width)
     }
     if (query.query.includes('WITH visible_keyword_documents')) {
       assertScalarKeywordSorts(parsedPlan[0].Plan)
@@ -495,7 +533,7 @@ async function sample(
   return { result, plans, diagnostics }
 }
 
-describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpus', () => {
+describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpus', () => {
   beforeAll(async () => {
     if (
       [chunkCount, unrelatedChunkCount].some(
@@ -526,7 +564,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
         .object({
           input: z.array(z.string()).length(1),
           encoding_format: z.literal('base64'),
-          model: z.literal('text-embedding-3-small'),
+          model: z.enum(['text-embedding-3-small', 'text-embedding-ada-002']),
         })
         .parse(JSON.parse(String(init?.body)))
       embeddingCalls += body.input.length
@@ -1199,6 +1237,182 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
     for (const result of results) expect(result.data.results).toHaveLength(15)
     expect(completed).toHaveLength(2)
     for (const diagnostics of completed) expectCompleteVectorSearch(diagnostics)
+  }, 180_000)
+
+  it('uses compact indexed ranking for workspace KBs with stale estimates and private neighbors', async () => {
+    const originalAcl = `u:${ids.aliceId}@fixture.test`
+    await db.execute(sql`ALTER TABLE document SET (autovacuum_enabled = false)`)
+    try {
+      /** Analyze a narrow scope, then grow it without updating the planner's ACL histogram. */
+      await db.execute(sql`UPDATE document SET acl = CASE WHEN external_id::int % 10 = 1
+        THEN ARRAY['pub'] ELSE ARRAY[${originalAcl}] END
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId}`)
+      await db.execute(sql`ANALYZE document`)
+      await db.execute(sql`UPDATE document SET acl = CASE WHEN external_id::int % 5 <> 0
+        THEN ARRAY['pub'] ELSE ARRAY[${originalAcl}] END
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId}`)
+      for (const topic of [0, 11, 23]) {
+        const label = `workspace-kb.topic.${topic}`
+        await prepareOrganizationSample(label)
+        const { result, plans, diagnostics } = await sample(label, () =>
+          searchWorkspaceKb(`Topic ${topic} deployment`)
+        )
+        expectCompleteVectorSearch(diagnostics)
+        expect(diagnostics.accessScopeKind).toBe('workspace')
+        expect(diagnostics.vectorRanking).toBe('candidate-rerank')
+        expect(result.data.results).toHaveLength(15)
+        expect(plans.some((plan) => plan.kind === 'vector')).toBe(true)
+        for (const row of result.data.results) {
+          expect(row.knowledgeBaseId).toBe(ids.knowledgeBaseId)
+          expect(Number(row.documentId.split('-doc-')[1]) % 5).not.toBe(0)
+        }
+        const expected = await db.execute<{ id: string }>(sql`
+          SELECT embedding.id FROM embedding JOIN document ON document.id = embedding.document_id
+          WHERE embedding.knowledge_base_id = ${ids.knowledgeBaseId} AND embedding.enabled
+            AND document.acl = ARRAY['pub']::text[]
+          ORDER BY (embedding.embedding <=> ${JSON.stringify(topicVector(topic))}::vector) + 0, embedding.id
+          LIMIT 15
+        `)
+        const expectedIds = new Set(expected.map(({ id }) => id))
+        const recall =
+          result.data.results.filter((row) => expectedIds.has(row.embeddingId!)).length /
+          expected.length
+        expect(recall).toBeGreaterThanOrEqual(0.95)
+        report[`${label}.recall`] = { neighbors: expected.length, recall }
+        saveReport()
+      }
+      await db
+        .update(knowledgeBase)
+        .set({ embeddingModel: 'text-embedding-ada-002' })
+        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+      const fullWidth = await sample('workspace-kb.full-width', () => searchWorkspaceKb())
+      expectCompleteVectorSearch(fullWidth.diagnostics)
+      expect(fullWidth.diagnostics.vectorCandidateDimensions).toBe(dimensions)
+      expect(fullWidth.result.data.results).toHaveLength(15)
+      await db
+        .update(knowledgeBase)
+        .set({ embeddingModel: 'text-embedding-3-small' })
+        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+
+      const workflowId = generateId()
+      const scheduled: Principal = {
+        kind: 'delegated',
+        serviceId: 'executor',
+        workspaceId: ids.workspaceId,
+        delegationId: generateId(),
+        audience: 'sim:knowledge',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+        delegationContext: {
+          kind: 'workflow_execution',
+          workflowId,
+          principal: {
+            kind: 'system',
+            serviceId: 'schedule',
+            workspaceId: ids.workspaceId,
+            workflowId,
+          },
+          currentWorkflow: { workflowId, mode: 'deployment', deploymentVersionId: generateId() },
+        },
+      }
+      const scheduledResult = await sample('workspace-kb.scheduled', () =>
+        searchWorkspaceKb('Orion deployment', { principal: scheduled })
+      )
+      expectCompleteVectorSearch(scheduledResult.diagnostics)
+      expect(scheduledResult.diagnostics.accessScopeKind).toBe('workspace')
+      expect(scheduledResult.result.data.results).toHaveLength(15)
+
+      for (const concurrency of [2, 8]) {
+        const label = `workspace-kb.concurrent.${concurrency}`
+        await prepareOrganizationSample(label)
+        diagnosticLog?.mockClear()
+        const started = performance.now()
+        const results = await Promise.all(
+          Array.from({ length: concurrency }, (_, index) =>
+            searchWorkspaceKb(`Topic ${index * 3} deployment`)
+          )
+        )
+        const completed = diagnosticLog!.mock.calls
+          .filter(([message]) => message === 'Knowledge search completed')
+          .map(([, metadata]) => diagnosticSchema.parse(metadata))
+        report[label] = {
+          milliseconds: performance.now() - started,
+          resultCounts: results.map((result) => result.data.results.length),
+          diagnostics: completed,
+        }
+        saveReport()
+        expect(completed).toHaveLength(concurrency)
+        for (const result of results) expect(result.data.results).toHaveLength(15)
+        for (const diagnostics of completed) expectCompleteVectorSearch(diagnostics)
+      }
+
+      await db.insert(knowledgeBaseTagDefinitions).values({
+        id: generateId(),
+        knowledgeBaseId: ids.knowledgeBaseId,
+        tagSlot: 'tag1',
+        displayName: 'Fixture group',
+      })
+      await db.execute(sql`UPDATE embedding SET tag1 = 'selected' WHERE knowledge_base_id = ${ids.knowledgeBaseId}
+        AND document_id IN (SELECT id FROM document WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND external_id::int < 600)`)
+      const tagged = await sample('workspace-kb.tagged', () =>
+        searchWorkspaceKb('Orion deployment', {
+          tagFilters: [{ tagName: 'Fixture group', operator: 'eq', value: 'selected' }],
+        })
+      )
+      expectCompleteVectorSearch(tagged.diagnostics)
+      expect(tagged.diagnostics.vectorRanking).toBe('candidate-rerank')
+      expect(tagged.result.data.results).toHaveLength(15)
+      for (const row of tagged.result.data.results) {
+        const ordinal = Number(row.documentId.split('-doc-')[1])
+        expect(ordinal).toBeLessThan(600)
+        expect(ordinal % 5).not.toBe(0)
+      }
+      const expectedTagged = await db.execute<{ id: string }>(sql`
+        SELECT embedding.id FROM embedding JOIN document ON document.id = embedding.document_id
+        WHERE embedding.knowledge_base_id = ${ids.knowledgeBaseId} AND embedding.enabled
+          AND document.acl = ARRAY['pub']::text[] AND embedding.tag1 = 'selected'
+        ORDER BY (embedding.embedding <=> ${JSON.stringify(queryVector)}::vector) + 0, embedding.id LIMIT 15
+      `)
+      const taggedIds = new Set(expectedTagged.map(({ id }) => id))
+      const taggedRecall =
+        tagged.result.data.results.filter((row) => taggedIds.has(row.embeddingId!)).length /
+        expectedTagged.length
+      expect(taggedRecall).toBeGreaterThanOrEqual(0.95)
+      report['workspace-kb.tagged.recall'] = {
+        neighbors: expectedTagged.length,
+        recall: taggedRecall,
+      }
+      saveReport()
+
+      /** Workspace credentials cannot keep reading a source after its access rewrite begins. */
+      await db
+        .update(knowledgeConnector)
+        .set({ accessRewritePending: true })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      const denied = await sample('workspace-kb.revoked', () => searchWorkspaceKb())
+      expectCompleteVectorSearch(denied.diagnostics)
+      expect(denied.result.data.results).toEqual([])
+    } finally {
+      await db
+        .delete(knowledgeBaseTagDefinitions)
+        .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, ids.knowledgeBaseId))
+      await db.execute(
+        sql`UPDATE embedding SET tag1 = NULL WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND tag1 = 'selected'`
+      )
+      await db
+        .update(knowledgeBase)
+        .set({ embeddingModel: 'text-embedding-3-small' })
+        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+      await db
+        .update(knowledgeConnector)
+        .set({ accessRewritePending: false })
+        .where(eq(knowledgeConnector.id, ids.connectorId))
+      await db.execute(
+        sql`UPDATE document SET acl = ARRAY[${originalAcl}] WHERE knowledge_base_id = ${ids.knowledgeBaseId}`
+      )
+      await db.execute(sql`ALTER TABLE document RESET (autovacuum_enabled)`)
+      await db.execute(sql`ANALYZE document`)
+    }
   }, 180_000)
 
   it('checks live reader access on every search, including after revocation', async () => {
