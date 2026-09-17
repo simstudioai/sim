@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { booleanQueryFlagSchema, noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  noInputSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,

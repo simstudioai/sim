@@ -406,7 +406,12 @@ export function Table({
     defaultView,
     activeView,
     pending: viewSelectionPending,
-  } = resolveTableViewSelection(views, activeViewId, embedded ? initialViewId : undefined, viewsFetching)
+  } = resolveTableViewSelection(
+    views,
+    activeViewId,
+    embedded ? initialViewId : undefined,
+    viewsFetching
+  )
   const activeViewConfig = useMemo(
     () => resolveTableViewConfig(tableData?.metadata, activeView?.config ?? null),
     [tableData?.metadata, activeView?.config]

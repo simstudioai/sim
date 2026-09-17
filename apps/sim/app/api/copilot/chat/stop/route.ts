@@ -4,8 +4,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStopContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import {
   normalizeMessage,
   type PersistedMessage,

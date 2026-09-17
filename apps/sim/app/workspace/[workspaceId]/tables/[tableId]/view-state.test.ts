@@ -107,7 +107,12 @@ describe('resolveTableViewSelection', () => {
     expect(stale.pending).toBe(true)
     expect(stale.activeView).toBeNull()
 
-    const refreshed = resolveTableViewSelection([DEFAULT_VIEW, created], created.id, undefined, false)
+    const refreshed = resolveTableViewSelection(
+      [DEFAULT_VIEW, created],
+      created.id,
+      undefined,
+      false
+    )
     expect(refreshed.pending).toBe(false)
     expect(refreshed.activeView).toBe(created)
 

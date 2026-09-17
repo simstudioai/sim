@@ -16,7 +16,7 @@ import {
   TableViews,
   UserTable,
 } from '@/lib/mothership/generated/tool-catalog-v1'
-import type { MothershipResource, MothershipResourceType, MothershipResourceUpdate } from './types'
+import type { MothershipResourceType, MothershipResourceUpdate } from './types'
 
 type ChatResource = MothershipResourceUpdate
 type ResourceType = MothershipResourceType

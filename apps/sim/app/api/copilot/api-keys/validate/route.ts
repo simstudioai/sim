@@ -23,6 +23,8 @@ import {
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   authorizeCopilotChatCallback,
@@ -48,8 +50,6 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
 import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
-import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
 
 const logger = createLogger('CopilotApiKeysValidate')
 

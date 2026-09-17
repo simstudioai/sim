@@ -11,6 +11,7 @@ import {
   internalOrchestrationErrorPolicy,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   MothershipStreamV1CompletionStatus,
@@ -35,7 +36,6 @@ import {
   SSE_RESPONSE_HEADERS,
 } from '@/lib/mothership/request/session'
 import { toReplayEnvelope, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
-import { encodeSSEComment } from '@/lib/core/utils/sse'
 
 export const maxDuration = 3600
 

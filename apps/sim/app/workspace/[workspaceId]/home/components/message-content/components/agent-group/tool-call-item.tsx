@@ -11,7 +11,10 @@ import {
 import { getReadTargetBlock } from '@/lib/mothership/tools/client/read-block'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/mothership/tools/tool-display'
+import {
+  getToolStatusDisplayTitle,
+  getWaitCountdownTitle,
+} from '@/lib/mothership/tools/tool-display'
 import { ToolPermissionCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-permission-card'
 import {
   BrowserTakeoverQuestion,

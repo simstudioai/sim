@@ -14,7 +14,6 @@ import {
   selectReconnectReplayState,
 } from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
 import {
-  panelForExecutingClientTool,
   selectDeletedWorkflowResources,
   shouldActivateResourceEvent,
   shouldQueueOutgoingMessage,

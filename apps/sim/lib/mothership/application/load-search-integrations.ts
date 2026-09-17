@@ -1,10 +1,10 @@
+import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
+import { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
-import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
-import { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
 
 const MAX_INVENTORY_PAGES = 100
 const MAX_INVENTORY_BYTES = 256 * 1024

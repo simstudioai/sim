@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
-import type { Command } from 'commander'
 import {
   assertWorkspaceOperationOutcome,
   readWorkspaceOperation,

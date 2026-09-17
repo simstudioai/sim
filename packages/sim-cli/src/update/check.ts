@@ -12,10 +12,10 @@
 
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { cliVersion } from '#sim-cli/version'
 import { readJsonFile, writeJsonFile } from '../config/json-file'
 import { updateCachePath } from '../config/paths'
 import { childProcessEnv, isCi, isEnabled, proxyExecArgv } from '../environment'
-import { cliVersion } from '#sim-cli/version'
 
 /** How long a cached check suppresses another request. */
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000

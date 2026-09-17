@@ -37,6 +37,7 @@ import {
   executeKeywordSearch,
   forgetProjectionFilled,
   forgetSearchReach,
+  fuseByReciprocalRank,
   getStructuredTagFilters,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -50,7 +51,6 @@ import {
   VECTOR_PROBE_DOCUMENT_LIMIT,
   vectorCandidatePoolLimit,
   visibleDocumentsQuery,
-  fuseByReciprocalRank,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { forgetIndexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'

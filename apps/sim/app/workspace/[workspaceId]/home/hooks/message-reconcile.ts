@@ -19,8 +19,8 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
+import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
-import type { ContentBlock, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { isZeroStreamCursor } from './stream-protocol'
 
 export function toRawPersistedContentBlock(block: ContentBlock): PersistedContentBlock | null {

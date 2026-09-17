@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
-import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { prefetchUserProfile } from '@/lib/users/prefetch-user-profile'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'

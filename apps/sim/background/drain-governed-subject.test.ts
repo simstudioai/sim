@@ -62,6 +62,8 @@ vi.mock('@/lib/table/rows/secret-provenance', () => ({
     exportProvenance = mocks.exportProvenance
   },
 }))
+vi.mock('@/lib/workflows/executor/execute-workflow', () => ({ executeWorkflow: vi.fn() }))
+
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
 
 /**

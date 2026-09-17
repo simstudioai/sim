@@ -5,8 +5,8 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { handleUnifiedChatPost } from '@/lib/mothership/chat/post'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { handleUnifiedChatPost } from '@/lib/mothership/chat/post'
 import { validateShimEnvelope } from '@/lib/mothership/request/http'
 import { GET as copilotChatGet } from '@/app/api/copilot/chat/queries'
 

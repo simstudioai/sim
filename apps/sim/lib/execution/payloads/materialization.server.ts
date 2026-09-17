@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { getExecutionKeyParts } from '@/lib/execution/payloads/access-keys'
 import {
   getLargeValueMaterializationError,
   isGrantedLargeValueKey,
@@ -199,25 +200,6 @@ function normalizeRange(buffer: Buffer, options: ReadUserFileContentOptions): Bu
   const requestedLength = options.length === undefined ? maxLength : Math.floor(options.length)
   const length = Math.max(0, Math.min(requestedLength, maxLength))
   return buffer.subarray(offset, offset + length)
-}
-
-function getExecutionKeyParts(key: string):
-  | {
-      workspaceId: string
-      workflowId: string
-      executionId: string
-    }
-  | undefined {
-  const parts = key.split('/')
-  if (parts[0] !== 'execution' || parts.length < 5) {
-    return undefined
-  }
-
-  return {
-    workspaceId: parts[1],
-    workflowId: parts[2],
-    executionId: parts[3],
-  }
 }
 
 export class ExecutionFileAccessError extends Error {

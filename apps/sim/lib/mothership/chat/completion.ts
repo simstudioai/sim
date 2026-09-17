@@ -139,15 +139,8 @@ export function buildOnError(params: {
   userId?: string
   requestMode?: 'assistant' | 'agent'
 }) {
-  const {
-    chatId,
-    userMessageId,
-    requestId,
-    workspaceId,
-    organizationId,
-    userId,
-    runController,
-  } = params
+  const { chatId, userMessageId, requestId, workspaceId, organizationId, userId, runController } =
+    params
   const notifyChatStatus = params.notifyChatStatus ?? params.notifyWorkspaceStatus ?? false
 
   return async (error: Error, result?: OrchestratorResult) => {

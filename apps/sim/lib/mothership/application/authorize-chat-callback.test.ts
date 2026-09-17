@@ -4,11 +4,11 @@ import type {
   AccountBillingDecision,
   BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   authorizeCopilotChatCallback,
   checkCopilotContinuationBilling,
 } from '@/lib/mothership/application/authorize-chat-callback'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),

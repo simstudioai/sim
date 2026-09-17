@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SimApiError } from '../http/client'
 import { cliVersion } from '#sim-cli/version'
+import { SimApiError } from '../http/client'
 import {
   COMMAND_EVENT,
   type CommandEventProperties,
