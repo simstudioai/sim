@@ -1,18 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import {
-  Button,
-  Chip,
-  cn,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Tooltip,
-  toast,
-} from '@sim/emcn'
-import { ArrowUp, Blimp, Paperclip, Plus, Search, Slash } from '@sim/emcn/icons'
+import { useEffect, useRef, useState } from 'react'
+import { Button, Chip, ChipDropdown, cn, Tooltip, toast } from '@sim/emcn'
+import { ArrowUp, Paperclip, Plus, Search, Slash } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
@@ -51,10 +41,14 @@ import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
+const CONVERSATION_MODES = [
+  { value: 'assistant', label: 'Search' },
+  { value: 'agent', label: 'Build' },
+] as const
+
 interface ComposerProps {
   requestMode?: ChatRequestMode
   assistantSearchLevel?: SearchLevel
-  allowNoAssistant?: boolean
   onAssistantSearchLevelChange?: (level: SearchLevel) => void
   onModeChange?: (mode: ChatRequestMode) => void
   showModeSelector?: boolean
@@ -78,7 +72,6 @@ export function Composer({
   requestMode = 'assistant',
   onModeChange,
   assistantSearchLevel = 'adaptive',
-  allowNoAssistant = false,
   onAssistantSearchLevelChange,
   showModeSelector = false,
   value,
@@ -91,7 +84,7 @@ export function Composer({
   onStop,
 }: ComposerProps) {
   const imagesOnly = requestMode === 'assistant'
-  const resultsOnly = imagesOnly && assistantSearchLevel === 'none'
+  const [modeSelectorOpen, setModeSelectorOpen] = useState(false)
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -114,7 +107,7 @@ export function Composer({
     organizationId: organization.id,
     contextsEnabled: !imagesOnly,
     initialValue: value,
-    onPasteFiles: resultsOnly ? undefined : files.processFiles,
+    onPasteFiles: files.processFiles,
   })
   const { textareaRef } = editor
   const editorRef = useRef(editor)
@@ -163,18 +156,14 @@ export function Composer({
     isInitialView && !value,
     imagesOnly ? 'search' : 'build'
   )
-  const placeholder = isInitialView
-    ? animatedPlaceholder
-    : resultsOnly
-      ? 'Search your sources'
-      : 'Send message to Sim'
+  const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
 
   const submit = () => {
     if (!canSubmit) return
     voice.resetTranscript()
     const contexts = imagesOnly ? [] : editor.getActiveContexts()
     onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined)
-    if (!resultsOnly) editor.clear()
+    editor.clear()
   }
 
   const contextPicker = (kind: 'resources' | 'skills', icon: typeof Plus, label: string) => (
@@ -210,38 +199,23 @@ export function Composer({
   const leadingControls = (
     <>
       {showModeSelector && (
-        <DropdownMenu>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <DropdownMenuTrigger asChild>
-                {imagesOnly ? (
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    className='size-[16px] text-[var(--text-body)]'
-                    aria-label='Conversation mode'
-                    disabled={!onModeChange}
-                  >
-                    <Search className='size-[16px]' />
-                  </Button>
-                ) : (
-                  <Chip shape='round' aria-label='Conversation mode' disabled={!onModeChange}>
-                    <Blimp className='size-[16px] text-[var(--text-body)]' />
-                  </Chip>
-                )}
-              </DropdownMenuTrigger>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Select mode</Tooltip.Content>
-          </Tooltip.Root>
-          <DropdownMenuContent side='top' align='start'>
-            {(['assistant', 'agent'] as const).map((mode) => (
-              <DropdownMenuItem
-                key={mode}
-                role='menuitemradio'
-                aria-checked={mode === requestMode}
-                onSelect={() => {
-                  if (mode === requestMode) return
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <span className='inline-flex shrink-0'>
+              <ChipDropdown
+                variant='ghost'
+                iconOnly={imagesOnly}
+                leftIcon={imagesOnly ? Search : undefined}
+                aria-label='Conversation mode'
+                options={CONVERSATION_MODES}
+                value={requestMode}
+                disabled={!onModeChange}
+                align='start'
+                matchTriggerWidth={false}
+                showSelectedCheck={false}
+                onOpenChange={setModeSelectorOpen}
+                onChange={(mode) => {
+                  if ((mode !== 'assistant' && mode !== 'agent') || mode === requestMode) return
                   if (
                     mode === 'assistant' &&
                     (editor.getActiveContexts().length > 0 ||
@@ -254,44 +228,28 @@ export function Composer({
                   }
                   onModeChange?.(mode)
                 }}
-              >
-                {mode === 'assistant' ? <Search /> : <Blimp />}
-                {mode === 'assistant' ? 'Search' : 'Build'}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              />
+            </span>
+          </Tooltip.Trigger>
+          {!modeSelectorOpen && <Tooltip.Content side='top'>Select mode</Tooltip.Content>}
+        </Tooltip.Root>
       )}
       {imagesOnly && !showModeSelector && (
         <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
       )}
       {!imagesOnly && contextPicker('resources', Plus, 'Add resources')}
 
-      {!resultsOnly && (
+      {!imagesOnly && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            {imagesOnly ? (
-              <Button
-                type='button'
-                variant='ghost'
-                size='icon'
-                onClick={files.handleFileSelect}
-                aria-label='Attach images'
-              >
-                <Plus className='size-[16px]' />
-              </Button>
-            ) : (
-              <Chip
-                shape='round'
-                leftIcon={Paperclip}
-                onClick={files.handleFileSelect}
-                aria-label='Attach file'
-              />
-            )}
+            <Chip
+              shape='round'
+              leftIcon={Paperclip}
+              onClick={files.handleFileSelect}
+              aria-label='Attach file'
+            />
           </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            {imagesOnly ? 'Attach images' : 'Attach file'}
-          </Tooltip.Content>
+          <Tooltip.Content side='top'>Attach file</Tooltip.Content>
         </Tooltip.Root>
       )}
       {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
@@ -305,17 +263,7 @@ export function Composer({
     />
   )
   const searchLevelControl = imagesOnly && onAssistantSearchLevelChange && (
-    <SearchLevelSelector
-      value={assistantSearchLevel}
-      allowNone={allowNoAssistant}
-      onChange={(level) => {
-        if (level === 'none' && files.attachedFiles.length > 0) {
-          toast.info('Remove attachments before switching to results-only search.')
-          return
-        }
-        onAssistantSearchLevelChange(level)
-      }}
-    />
+    <SearchLevelSelector value={assistantSearchLevel} onChange={onAssistantSearchLevelChange} />
   )
   const submitControl = isSending ? (
     <Button
@@ -339,7 +287,7 @@ export function Composer({
       variant='ghost'
       onClick={submit}
       disabled={!canSubmit}
-      aria-label={resultsOnly ? 'Search' : 'Send'}
+      aria-label='Send'
       className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
     >
       <ArrowUp className='block size-[16px] text-white dark:text-black' />
@@ -348,10 +296,10 @@ export function Composer({
 
   return (
     <div
-      onDragEnter={resultsOnly ? undefined : files.handleDragEnter}
-      onDragLeave={resultsOnly ? undefined : files.handleDragLeave}
-      onDragOver={resultsOnly ? undefined : files.handleDragOver}
-      onDrop={resultsOnly ? undefined : files.handleDrop}
+      onDragEnter={files.handleDragEnter}
+      onDragLeave={files.handleDragLeave}
+      onDragOver={files.handleDragOver}
+      onDrop={files.handleDrop}
       className={cn(
         'relative z-10 mx-auto w-full max-w-chat',
         !imagesOnly &&
@@ -377,13 +325,9 @@ export function Composer({
           placeholder={placeholder}
           aria-label='Ask Sim'
           leadingControls={leadingControls}
-          trailingControls={
-            <>
-              {searchLevelControl}
-              {voiceControl}
-              {submitControl}
-            </>
-          }
+          selectionControl={searchLevelControl}
+          voiceControl={voiceControl}
+          submitControl={submitControl}
         />
       ) : (
         <InputToolbar

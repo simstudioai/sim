@@ -15,10 +15,10 @@ interface SearchResultsViewProps {
   composer: ReactNode
   query: string
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
-  onSearchChange: (search: SearchResource) => void
+  onSearchChange?: (search: SearchResource) => void
 }
 
-/** The original results-only layout, hosted by Home's None search level. */
+/** Standalone Search uses the original centered field and docked results layout. */
 export function SearchResultsView({
   composer,
   query,

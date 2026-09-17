@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -11,11 +11,9 @@ import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
-import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
-import { SearchResultsView } from '@/app/o/[organizationId]/home/components/search-results-view'
 import {
   organizationHomeParsers,
   type SearchLevel,
@@ -26,6 +24,7 @@ import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
+import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import {
   useChatResourcePanel,
@@ -51,10 +50,18 @@ interface OrganizationHomeProps {
   requestMode?: ChatRequestMode
 }
 
+const subscribeToClient = () => () => {}
+const clientSnapshot = () => true
+const serverSnapshot = () => false
+
 /** Home chooses the next turn harness while keeping the current conversation intact. */
 export function OrganizationHome(props: OrganizationHomeProps) {
   const { organization, searchAccess, canBuild, mothershipAvailable } = useOrganizationContext()
-  if (!(mothershipAvailable && canBuild) && !searchAccess.memberScoped) return null
+  const { data: session } = useSession()
+  const isClient = useSyncExternalStore(subscribeToClient, clientSnapshot, serverSnapshot)
+  if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
+  /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */
+  if (!isClient || !session?.user?.id) return <HomeFallback />
   return <OrganizationHomeContent key={`${organization.id}:${props.chatId ?? 'new'}`} {...props} />
 }
 
@@ -90,13 +97,7 @@ function OrganizationHomeContent({
       : rememberedMode === 'assistant' && searchAccess.memberScoped
         ? 'assistant'
         : 'agent')
-  const [draft, setDraft] = useState(() =>
-    (urlSearchLevel ?? rememberedSearchLevel) === 'none' ? q : ''
-  )
-  const latestRawSearch = useRef<SearchResource | null>(null)
-  const rememberRawSearch = useCallback((search: SearchResource) => {
-    latestRawSearch.current = search
-  }, [])
+  const [draft, setDraft] = useState('')
   const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>([])
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
@@ -107,22 +108,12 @@ function OrganizationHomeContent({
     activeResourceState: controller.activeResourceState,
   })
   const hasChat = Boolean(chatId || chat.messages.length)
-  const selectedSearchLevel = !mothershipAvailable
-    ? 'none'
-    : (urlSearchLevel ?? rememberedSearchLevel)
-  const assistantSearchLevel =
-    hasChat && selectedSearchLevel === 'none' ? 'adaptive' : selectedSearchLevel
-  const resultsOnly = requestMode === 'assistant' && assistantSearchLevel === 'none' && !hasChat
-  const [previousQuery, setPreviousQuery] = useState(q)
-  if (previousQuery !== q) {
-    setPreviousQuery(q)
-    if (resultsOnly) setDraft(q)
-  }
+  const assistantSearchLevel = urlSearchLevel ?? rememberedSearchLevel
   const panel = useChatResourcePanel(chat, controller)
   const addResource = panel.addResourceFromUser
   /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
   useEffect(() => {
-    if (hasChat || resultsOnly || !q.trim()) return
+    if (hasChat || !q.trim()) return
     const resource = createSearchResource({
       scope: { kind: 'organization', organizationId: organization.id },
       query: q.trim(),
@@ -136,7 +127,6 @@ function OrganizationHomeContent({
     addResource(resource)
   }, [
     hasChat,
-    resultsOnly,
     q,
     source,
     updated,
@@ -145,27 +135,7 @@ function OrganizationHomeContent({
     chat.resources,
     addResource,
   ])
-  const showRawSearchInPanel = () => {
-    if (!q.trim()) return
-    const search =
-      latestRawSearch.current?.query === q.trim()
-        ? latestRawSearch.current
-        : {
-            scope: { kind: 'organization' as const, organizationId: organization.id },
-            query: q.trim(),
-          }
-    addResource(createSearchResource(search))
-  }
   const changeAssistantSearchLevel = (level: SearchLevel) => {
-    if (level === 'none' && hasChat) return
-    if (resultsOnly && level !== 'none') {
-      showRawSearchInPanel()
-      setDraft('')
-    }
-    if (level === 'none') {
-      setDraft(q)
-      controller.setActiveResourceUrl(null)
-    }
     if (userId) {
       rememberAssistantSearchLevel(userId, organization.id, level)
       rememberMode(userId, organization.id, 'assistant')
@@ -220,7 +190,7 @@ function OrganizationHomeContent({
   }, [chat.resolvedChatId, chat.isSending, chat.isReconnecting, markRead])
 
   useEffect(() => {
-    if (chatId || resultsOnly) return
+    if (chatId) return
     const handoff = MothershipHandoffStorage.consume(
       { organizationId: organization.id },
       undefined,
@@ -233,7 +203,7 @@ function OrganizationHomeContent({
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
           : {}),
-        ...(requestMode === 'assistant' && assistantSearchLevel !== 'none'
+        ...(requestMode === 'assistant'
           ? {
               assistantSearchLevel: handoff.assistantSearchLevel ?? assistantSearchLevel,
             }
@@ -241,7 +211,7 @@ function OrganizationHomeContent({
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel, resultsOnly])
+  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel])
 
   const send = (
     message: string,
@@ -249,23 +219,17 @@ function OrganizationHomeContent({
     contexts?: ChatContext[],
     assistantSearch?: WorkspaceSearchFilters
   ) => {
-    if ((requestMode === 'agent' && !canBuild) || resultsOnly) return
+    if (requestMode === 'agent' && !canBuild) return
     setSelectedMode(requestMode)
     if (requestMode === 'agent') panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
       requestMode,
-      ...(requestMode === 'assistant' && assistantSearchLevel !== 'none'
-        ? { assistantSearchLevel }
-        : {}),
+      ...(requestMode === 'assistant' ? { assistantSearchLevel } : {}),
       ...(assistantSearch ? { assistantSearch } : {}),
     })
   }
   const changeMode = (mode: ChatRequestMode) => {
     if (!canBuild || !searchAccess.memberScoped || mode === requestMode) return
-    if (resultsOnly) {
-      showRawSearchInPanel()
-      setDraft('')
-    }
     setSelectedMode(mode)
     void setSearchParams({ searchLevel: null })
     if (userId) rememberMode(userId, organization.id, mode)
@@ -273,13 +237,6 @@ function OrganizationHomeContent({
 
   const submit = (text: string, contexts?: ChatContext[]) => {
     const message = text.trim()
-    if (resultsOnly) {
-      if (message) {
-        setDraft(message)
-        void setSearchParams({ q: message })
-      }
-      return
-    }
     if (files.attachedFiles.some((file) => file.uploading)) return
     const attachments: FileAttachmentForApi[] = files.attachedFiles
       .filter((file) => file.key)
@@ -312,14 +269,13 @@ function OrganizationHomeContent({
       <Composer
         requestMode={requestMode}
         assistantSearchLevel={assistantSearchLevel}
-        allowNoAssistant={!hasChat}
-        onAssistantSearchLevelChange={mothershipAvailable ? changeAssistantSearchLevel : undefined}
+        onAssistantSearchLevelChange={changeAssistantSearchLevel}
         showModeSelector={mothershipAvailable && canBuild && searchAccess.memberScoped}
         onModeChange={changeMode}
         value={draft}
         restoredContexts={restoredContexts}
         files={files}
-        isInitialView={!hasChat && !(resultsOnly && q.trim())}
+        isInitialView={!hasChat}
         isSending={chat.isSending || chat.isReconnecting}
         onChange={setDraft}
         onSubmit={submit}
@@ -328,28 +284,6 @@ function OrganizationHomeContent({
         }}
       />
     )
-
-  if (resultsOnly) {
-    return (
-      <SearchResultsView
-        composer={composer}
-        query={q}
-        onSearchChange={rememberRawSearch}
-        onSummarize={(message, filters) => {
-          if (!mothershipAvailable) {
-            toast.info('The assistant is unavailable for this organization.')
-            return
-          }
-          changeAssistantSearchLevel('adaptive')
-          void sendMessage(message, undefined, undefined, {
-            requestMode: 'assistant',
-            assistantSearchLevel: 'adaptive',
-            assistantSearch: filters,
-          })
-        }}
-      />
-    )
-  }
 
   const content = (
     <div className='flex h-full min-h-0 min-w-[240px] flex-1 flex-col bg-[var(--bg)]'>

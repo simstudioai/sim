@@ -10,10 +10,7 @@ let root: Root | null = null
 let container: HTMLDivElement | null = null
 
 function mount(
-  props: Pick<
-    ChipDropdownProps,
-    'fullWidth' | 'variant' | 'aria-required' | 'aria-invalid' | 'aria-describedby'
-  > = {}
+  props: Partial<Extract<ChipDropdownProps, { multiple?: false }>> = {}
 ): HTMLButtonElement {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
@@ -43,6 +40,28 @@ afterEach(() => {
 })
 
 describe('ChipDropdown', () => {
+  it('keeps an icon trigger accessible with a chevron and text-only menu options', () => {
+    const Icon = ({ className }: { className?: string }) => <svg className={className} />
+    const trigger = mount({
+      iconOnly: true,
+      leftIcon: Icon,
+      'aria-label': undefined,
+      options: [{ value: 'workflow', label: 'Workflow' }],
+      showSelectedCheck: false,
+    })
+    expect(trigger.textContent).toBe('')
+    expect(trigger.getAttribute('aria-label')).toBe('Workflow')
+    expect(trigger.querySelectorAll('svg')).toHaveLength(2)
+    act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    const item = document.querySelector('[role="menuitem"]')!
+    expect(item.textContent).toBe('Workflow')
+    expect(item.querySelectorAll('svg')).toHaveLength(0)
+  })
+
+  it('retains the text trigger when an icon-only selection has no icon', () => {
+    expect(mount({ iconOnly: true }).textContent).toBe('Workflow')
+  })
+
   it('fills its container when fullWidth is enabled', () => {
     expect(mount({ fullWidth: true }).className).toContain('w-full')
   })

@@ -3,12 +3,14 @@ import { act, type ComponentProps, type ReactNode } from 'react'
 import { toast } from '@sim/emcn'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthorizedApp, AuthorizedAppsPage } from '@/lib/api/contracts/user'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(),
+  session: vi.fn(),
   push: vi.fn(),
   resourcePanel: vi.fn(),
   chat: vi.fn(),
@@ -23,12 +25,8 @@ const mocks = vi.hoisted(() => ({
   fetchNextPage: vi.fn(),
   upload: vi.fn(),
   addResource: vi.fn(),
-  rawSearch: vi.fn(),
   selectResource: vi.fn(),
   activeResource: null as string | null,
-}))
-vi.mock('@/app/o/[organizationId]/home/components/search-results-view', () => ({
-  SearchResultsView: mocks.rawSearch,
 }))
 vi.mock('@/blocks/integration-matcher', () => ({ mentionifyIntegrations: (text: string) => text }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push }) }))
@@ -50,7 +48,7 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () 
   ChatResourcePanel: mocks.resourcePanel,
 }))
 vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'reader' } } }),
+  useSession: mocks.session,
 }))
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/lib/core/utils/browser-storage', () => ({
@@ -86,6 +84,7 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.activeResource = null
+  mocks.session.mockReturnValue({ data: { user: { id: 'reader' } } })
   useOrganizationChatModeStore.setState({ modes: {}, assistantSearchLevels: {} })
   mocks.resourcePanel.mockImplementation(({ children }: { children: ReactNode }) => children)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -113,14 +112,7 @@ beforeEach(() => {
     isChatHistoryPending: true,
     sendMessage: mocks.send,
   })
-  mocks.rawSearch.mockImplementation(
-    ({ composer, query }: { composer: ReactNode; query: string }) => (
-      <div>
-        Raw results: {query}
-        {composer}
-      </div>
-    )
-  )
+
   mocks.composer.mockReturnValue(<div>Question composer</div>)
   mocks.renderer.mockReturnValue(<div>Chat history</div>)
   container = document.createElement('div')
@@ -142,6 +134,26 @@ function renderHome(element: ReactNode, searchParams = '') {
 function composerProps(): ComponentProps<typeof Composer> {
   return mocks.composer.mock.lastCall![0]
 }
+
+it('does not server-render a default composer before the saved browser mode is available', () => {
+  useOrganizationChatModeStore.getState().setMode('reader', 'organization-a', 'assistant')
+  const html = renderToString(<OrganizationHome />)
+  expect(html).not.toContain('Question composer')
+  expect(mocks.composer).not.toHaveBeenCalled()
+})
+
+it('waits for the user before first rendering their saved mode and level', async () => {
+  useOrganizationChatModeStore.getState().setMode('reader', 'organization-a', 'assistant')
+  useOrganizationChatModeStore.getState().setAssistantSearchLevel('reader', 'organization-a', 'max')
+  mocks.session.mockReturnValue({ data: null, isPending: true })
+  await act(async () => renderHome(<OrganizationHome />))
+  expect(mocks.composer).not.toHaveBeenCalled()
+  expect(mocks.chat).not.toHaveBeenCalled()
+  mocks.session.mockReturnValue({ data: { user: { id: 'reader' } } })
+  await act(async () => renderHome(<OrganizationHome />))
+  expect(mocks.composer.mock.calls.every(([props]) => props.requestMode === 'assistant')).toBe(true)
+  expect(composerProps().assistantSearchLevel).toBe('max')
+})
 
 function hasCompletedMcpStep() {
   const link = container.querySelector('a[href="/o/organization-a/settings/search-mcp"]')
@@ -817,57 +829,6 @@ it('shows rejected Search requests through the existing error toast', async () =
   await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
   expect(error).toHaveBeenCalledWith('Fast Search is unavailable for this request')
   error.mockRestore()
-})
-
-describe('None search level', () => {
-  it('runs results-only searches without creating a chat or sending a model request', async () => {
-    await act(async () => renderHome(<OrganizationHome />, '?searchLevel=none'))
-    expect(composerProps().assistantSearchLevel).toBe('none')
-    expect(composerProps().allowNoAssistant).toBe(true)
-    expect(container.textContent).not.toContain('Get started')
-    await act(async () => composerProps().onSubmit('  Orion  '))
-    expect(mocks.rawSearch.mock.lastCall![0].query).toBe('Orion')
-    expect(composerProps().value).toBe('Orion')
-    expect(mocks.send).not.toHaveBeenCalled()
-    expect(mocks.renderer).not.toHaveBeenCalled()
-  })
-  it('moves the existing query and exact filters to the panel when an assistant is selected', async () => {
-    await act(async () => renderHome(<OrganizationHome />, '?searchLevel=none&q=Orion'))
-    const search = {
-      scope: { kind: 'organization', organizationId: 'organization-a' },
-      query: 'Orion',
-      filters: { source: 'slack', modifiedAfter: '2026-09-09T00:00:00.000Z' },
-    }
-    mocks.rawSearch.mock.lastCall![0].onSearchChange(search)
-    await act(async () => composerProps().onAssistantSearchLevelChange?.('max'))
-    expect(mocks.addResource).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'search', search })
-    )
-    expect(composerProps().value).toBe('')
-    expect(composerProps().assistantSearchLevel).toBe('max')
-    expect(container.textContent).toContain('Search Acme')
-    expect(mocks.send).not.toHaveBeenCalled()
-    expect(mocks.renderer).not.toHaveBeenCalled()
-    await act(async () => composerProps().onSubmit('Explain the findings'))
-    expect(mocks.send).toHaveBeenCalledWith('Explain the findings', undefined, undefined, {
-      requestMode: 'assistant',
-      assistantSearchLevel: 'max',
-    })
-  })
-  it('never offers or accepts None once a conversation has started', async () => {
-    mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
-    useOrganizationChatModeStore
-      .getState()
-      .setAssistantSearchLevel('reader', 'organization-a', 'none')
-    await act(async () =>
-      renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />, '?searchLevel=none')
-    )
-    expect(composerProps().assistantSearchLevel).toBe('adaptive')
-    expect(composerProps().allowNoAssistant).toBe(false)
-    await act(async () => composerProps().onAssistantSearchLevelChange?.('none'))
-    expect(composerProps().assistantSearchLevel).toBe('adaptive')
-    expect(mocks.rawSearch).not.toHaveBeenCalled()
-  })
 })
 
 it('restores an explicitly selected search panel on empty Home without reusing the query as a draft', async () => {
