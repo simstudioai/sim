@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { mothershipInboxWebhook, outboxEvent, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, gt, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   deferOutboxHandler,
@@ -99,8 +99,27 @@ export function enqueueInboxCleanup(
 }
 
 /** Attempts committed cleanup immediately, leaving failures to the durable retry worker. */
-export async function processInboxCleanupNow(eventId: string): Promise<void> {
+export async function processInboxCleanupNow(
+  eventId: string,
+  options: { expedite?: boolean } = {}
+): Promise<void> {
   try {
+    if (options.expedite) {
+      const now = new Date()
+      /** Only release the activation grace delay; preserve claimed work and retry backoff. */
+      await db
+        .update(outboxEvent)
+        .set({ availableAt: now })
+        .where(
+          and(
+            eq(outboxEvent.id, eventId),
+            eq(outboxEvent.eventType, INBOX_CLEANUP_EVENT),
+            eq(outboxEvent.status, 'pending'),
+            gt(outboxEvent.availableAt, now),
+            sql`${outboxEvent.payload}->>'cleanupStarted' IS DISTINCT FROM 'true'`
+          )
+        )
+    }
     await processOutboxEventById(eventId, inboxCleanupOutboxHandlers)
   } catch (error) {
     logger.warn('Inbox cleanup remains queued', { eventId, error })

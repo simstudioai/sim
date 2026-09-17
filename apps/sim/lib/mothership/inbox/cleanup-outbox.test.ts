@@ -4,8 +4,9 @@
 
 import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
+import * as outboxService from '@/lib/core/outbox/service'
 
 const mocks = vi.hoisted(() => ({
   getInbox: vi.fn(),
@@ -18,6 +19,7 @@ import {
   cancelInboxCleanup,
   type InboxCleanupPayload,
   inboxCleanupOutboxHandlers,
+  processInboxCleanupNow,
 } from '@/lib/mothership/inbox/cleanup-outbox'
 
 const cleanup = inboxCleanupOutboxHandlers['inbox.resources.cleanup']
@@ -188,5 +190,42 @@ describe('durable inbox cleanup', () => {
     expect(context.checkpointPayload).not.toHaveBeenCalledWith(
       expect.objectContaining({ deletionPollsRemaining: expect.any(Number) })
     )
+  })
+})
+
+describe('immediate rollback processing', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('makes failed activation rollback due before asking the outbox to claim it', async () => {
+    const process = vi.spyOn(outboxService, 'processOutboxEventById').mockResolvedValue('completed')
+    const before = Date.now()
+    await processInboxCleanupNow('rollback-event', { expedite: true })
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.outboxEvent)
+    const scheduled = dbChainMockFns.set.mock.calls[0][0].availableAt
+    expect(scheduled.getTime()).toBeGreaterThanOrEqual(before)
+    expect(scheduled.getTime()).toBeLessThanOrEqual(Date.now())
+    expect(process).toHaveBeenCalledWith('rollback-event', inboxCleanupOutboxHandlers)
+    expect(dbChainMockFns.set.mock.invocationCallOrder[0]).toBeLessThan(
+      process.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('leaves the durable fallback intact if the database cannot expedite rollback', async () => {
+    const process = vi.spyOn(outboxService, 'processOutboxEventById').mockResolvedValue('completed')
+    dbChainMockFns.update.mockImplementationOnce(() => {
+      throw new Error('Database unavailable')
+    })
+    await expect(
+      processInboxCleanupNow('rollback-event', { expedite: true })
+    ).resolves.toBeUndefined()
+    expect(process).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('does not change availability for ordinary cleanup or retries', async () => {
+    const process = vi.spyOn(outboxService, 'processOutboxEventById').mockResolvedValue('pending')
+    await processInboxCleanupNow('cleanup-event')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(process).toHaveBeenCalledWith('cleanup-event', inboxCleanupOutboxHandlers)
   })
 })

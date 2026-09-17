@@ -195,7 +195,7 @@ describe('inbox lifecycle failure safety', () => {
       },
       expect.any(Date)
     )
-    expect(mocks.process).toHaveBeenCalledWith('cleanup-event')
+    expect(mocks.process).toHaveBeenCalledWith('cleanup-event', { expedite: true })
   })
 
   it('directly rolls back uninstalled resources if rollback cannot be recorded', async () => {

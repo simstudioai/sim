@@ -167,7 +167,7 @@ async function installInbox(
         .where(eq(workspace.id, workspaceId))
     })
   } catch (error) {
-    await processInboxCleanupNow(rollbackEventId)
+    await processInboxCleanupNow(rollbackEventId, { expedite: true })
     throw error
   }
   if (cleanupEventId) await processInboxCleanupNow(cleanupEventId)
