@@ -74,6 +74,23 @@ describe('TabStrip interactions', () => {
     )
   })
 
+  it('owns tabs in visual order without making close buttons children of the tablist', () => {
+    const onClose = vi.fn()
+    mount(renderStrip(tabs, vi.fn(), onClose))
+    const list = container?.querySelector('[role="tablist"]')
+    const ownedIds = list?.getAttribute('aria-owns')?.split(' ')
+    expect(ownedIds).toEqual(tabs.map((tab) => tabButton(tab.id).id))
+    for (const id of ownedIds ?? []) {
+      expect(document.getElementById(id)?.getAttribute('role')).toBe('tab')
+    }
+    const close = container?.querySelector<HTMLButtonElement>('[aria-label="Close Two"]')
+    expect(close?.closest('[role="tablist"], [aria-hidden="true"]')).toBeNull()
+    expect(tabButton('two').getAttribute('aria-keyshortcuts')).toBe('Delete')
+    expect(tabButton('pinned').hasAttribute('aria-keyshortcuts')).toBe(false)
+    act(() => close?.click())
+    expect(onClose).toHaveBeenCalledWith('two')
+  })
+
   it('cycles, jumps, and closes from the keyboard', () => {
     const onSelect = vi.fn()
     const onClose = vi.fn()
@@ -100,6 +117,7 @@ describe('TabStrip interactions', () => {
       )
     })
     expect(onClose).toHaveBeenCalledWith('two')
+    expect(document.activeElement).toBe(tabButton('one'))
   })
 
   it('identifies pointer selection separately from keyboard navigation', () => {

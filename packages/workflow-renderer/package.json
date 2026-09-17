@@ -32,6 +32,14 @@
     "./formatted-text": {
       "types": "./src/formatted-text.tsx",
       "default": "./src/formatted-text.tsx"
+    },
+    "./workflow-type": {
+      "types": "./src/workflow-type.tsx",
+      "default": "./src/workflow-type.tsx"
+    },
+    "./tile-icon-color": {
+      "types": "./src/lib/tile-icon-color.ts",
+      "default": "./src/lib/tile-icon-color.ts"
     }
   },
   "scripts": {

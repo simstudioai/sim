@@ -8,6 +8,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -322,6 +323,7 @@ export function tabDropIndex(
 }
 
 interface TabProps {
+  buttonId: string
   tab: TabStripItem
   variant: TabStripVariant
   /**
@@ -350,6 +352,7 @@ interface TabProps {
 
 const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
   {
+    buttonId,
     tab,
     variant,
     showDivider,
@@ -420,11 +423,13 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button
+            id={buttonId}
             type='button'
             variant='subtle'
             size='sm'
             role='tab'
             aria-selected={Boolean(tab.active)}
+            aria-keyshortcuts={closeable ? 'Delete' : undefined}
             aria-label={tab.pinned ? tab.title : undefined}
             data-tab-strip-button={tab.id}
             tabIndex={focusable ? 0 : -1}
@@ -502,6 +507,9 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
  * contains. Callers map their own state onto {@link TabStripItem} and supply
  * the icon, which is why a favicon and a spinning shell indicator can share
  * one component.
+ *
+ * The tablist owns only tabs so adjacent close buttons remain separate
+ * accessible controls while sharing each tab's visual geometry.
  */
 export function TabStrip({
   tabs,
@@ -519,6 +527,7 @@ export function TabStrip({
   variant = 'attached',
   className,
 }: TabStripProps) {
+  const stripId = useId()
   const atLimit = maxTabs !== undefined && tabs.length >= maxTabs
   const stripRef = useRef<HTMLDivElement>(null)
   const scrollNodeRef = useRef<HTMLDivElement>(null)
@@ -773,6 +782,8 @@ export function TabStrip({
         case 'Delete':
           if (onClose && !tabs[index].pinned) {
             event.preventDefault()
+            const nextTab = tabs[index + 1] ?? tabs[index - 1]
+            if (nextTab) focusTab(nextTab.id)
             onClose(id)
           }
           return
@@ -801,6 +812,7 @@ export function TabStrip({
     return (
       <Tab
         key={tab.id}
+        buttonId={`${stripId}-${encodeURIComponent(tab.id)}`}
         tab={tab}
         variant={variant}
         showDivider={variant === 'floating' && isBareTab(tab) && isBareTab(previous)}
@@ -862,9 +874,17 @@ export function TabStrip({
         was a tab strip you could scroll vertically by exactly one pixel. Pulling the whole
         row down instead keeps the tabs flush inside it, so there is nothing to scroll.
       */}
+      {tabs.length > 0 && (
+        <div
+          role='tablist'
+          aria-label='Tabs'
+          aria-owns={[...pinnedTabs, ...regularTabs]
+            .map((tab) => `${stripId}-${encodeURIComponent(tab.id)}`)
+            .join(' ')}
+          className='sr-only'
+        />
+      )}
       <div
-        role='tablist'
-        aria-label='Tabs'
         className={cn(
           'flex min-w-0 shrink gap-0.5',
           variant === 'attached' ? '-mb-px items-end' : 'items-center gap-2'

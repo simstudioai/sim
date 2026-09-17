@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChipTag, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
 import { Ban, Lock, Repeat, Split } from '@sim/emcn/icons'
+import { getWorkflowTypeAccent } from '@sim/workflow-renderer/workflow-type'
 import {
   Handle,
   Position,
@@ -25,7 +26,6 @@ import {
   type WorkflowBorderCursorHandle,
   type WorkflowBorderPort,
 } from '../workflow-block/workflow-block-border'
-import { getWorkflowTypeAccent } from '../workflow-block/workflow-block-view'
 
 /** Data attached to loop/parallel container nodes. */
 export interface SubflowNodeData extends Record<string, unknown> {

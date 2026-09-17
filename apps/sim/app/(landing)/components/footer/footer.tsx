@@ -119,7 +119,7 @@ const SOCIAL_LINKS: FooterItem[] = [
   { label: 'X (Twitter)', href: 'https://x.com/simdotai', external: true },
   {
     label: 'LinkedIn',
-    href: 'https://www.linkedin.com/company/simstudioai/',
+    href: 'https://www.linkedin.com/company/simdotai/',
     external: true,
   },
   {

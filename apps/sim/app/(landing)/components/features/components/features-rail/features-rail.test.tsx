@@ -4,7 +4,7 @@
 import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FeaturesRail,
   foldScrollLeft,
@@ -74,6 +74,7 @@ afterEach(() => {
   root = null
   host?.remove()
   host = null
+  vi.unstubAllGlobals()
 })
 
 function mount(strict = false): HTMLElement {
@@ -106,6 +107,34 @@ describe('foldScrollLeft', () => {
 })
 
 describe('FeaturesRail', () => {
+  it('waits until the rail approaches the viewport before adding the loop copies', () => {
+    let notify: IntersectionObserverCallback | undefined
+    const disconnect = vi.fn()
+    const observe = vi.fn()
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          notify = callback
+        }
+        observe = observe
+        disconnect = disconnect
+      }
+    )
+    const rail = mount()
+    expect(observe).toHaveBeenCalledWith(rail)
+    expect(rail.children).toHaveLength(3)
+    const observer = {} as IntersectionObserver
+    act(() => notify?.([{ isIntersecting: false } as IntersectionObserverEntry], observer))
+    expect(rail.children).toHaveLength(3)
+    act(() => notify?.([{ isIntersecting: true } as IntersectionObserverEntry], observer))
+    expect(rail.children).toHaveLength(9)
+    expect(rail.scrollLeft).toBe(SET)
+    expect(disconnect).toHaveBeenCalledOnce()
+    act(() => notify?.([{ isIntersecting: false } as IntersectionObserverEntry], observer))
+    expect(rail.children).toHaveLength(9)
+  })
+
   it('server-renders the finite rail once, with the scroll chrome', () => {
     const html = renderToStaticMarkup(
       <FeaturesRail label='Core Sim features'>{cards()}</FeaturesRail>
