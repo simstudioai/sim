@@ -35,6 +35,7 @@ import {
 } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingPayload,
+  resolveDocumentProcessingLane,
   shouldRefundDocumentProcessingPredecessor,
 } from '@/lib/knowledge/documents/processing-payload'
 import { scheduleDocumentProcessingProviderContinuation } from '@/lib/knowledge/documents/processing-provider-continuation'
@@ -100,6 +101,7 @@ function parsePayload(payload: unknown): KnowledgeDocumentProcessingOutboxPayloa
     documentId: requireNonEmptyString(record.documentId, 'documentId'),
     processingOptions: parseProcessingOptions(record.processingOptions),
     billingAttribution: assertBillingAttributionSnapshot(record.billingAttribution),
+    processingLane: resolveDocumentProcessingLane(record.processingLane),
   }
 }
 
@@ -144,6 +146,7 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
     payload.processingOptions,
     context.eventId,
     payload.billingAttribution,
+    payload.processingLane,
     undefined,
     { signal: context.signal, deadlineAt: context.deadlineAt }
   )

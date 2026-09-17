@@ -3,10 +3,46 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+/**
+ * Which shared processing queue a document's indexing pass is admitted through.
+ *
+ * `interactive` is work a person is waiting on — a direct upload, an upload
+ * session, a retry click, including a retry of a connector-owned document.
+ * `backfill` is connector-driven bulk ingestion, which is throughput-shaped
+ * rather than latency-shaped and is always reclaimable by the next sync's
+ * stuck-document sweep.
+ *
+ * The lanes exist because both used to share one queue: a single connector sync
+ * holding every slot left every other tenant's uploads waiting behind it.
+ *
+ * Unrelated to the `bulk` flag in `@/lib/embeddings/client`, which separates
+ * document indexing from query-time embedding. A person's upload is
+ * `interactive` here and `bulk` there, in the same request.
+ */
+export type DocumentProcessingLane = 'interactive' | 'backfill'
+
+/**
+ * Reads a lane off an untrusted payload, where only an explicit `interactive`
+ * stamp earns the interactive lane.
+ *
+ * Never throws, and never widens. Payloads written before the lanes existed
+ * carry no lane, and a rolling deploy can hand this version a payload stamped
+ * by a newer one; rejecting either would fail the run into its retry budget for
+ * the length of a rollout. Everything unrecognized reads as backfill, so an
+ * unlabeled pass cannot claim capacity it was not admitted against.
+ *
+ * Only payload parsers need this. A dispatch site names its lane as a required
+ * argument, so omitting one there is a compile error, not a silent downgrade.
+ */
+export function resolveDocumentProcessingLane(value: unknown): DocumentProcessingLane {
+  return value === 'interactive' ? 'interactive' : 'backfill'
+}
 
 export interface DocumentProcessingPayloadBase {
   knowledgeBaseId: string
   documentId: string
+  /** Required so a new dispatch site cannot silently inherit interactive capacity. */
+  processingLane: DocumentProcessingLane
   docData: {
     filename: string
     fileUrl: string
@@ -371,6 +407,7 @@ export function assertDocumentProcessingPayload(value: unknown): DocumentProcess
   return {
     knowledgeBaseId: value.knowledgeBaseId,
     documentId: value.documentId,
+    processingLane: resolveDocumentProcessingLane(value.processingLane),
     docData: {
       filename: docData.filename,
       fileUrl: docData.fileUrl,

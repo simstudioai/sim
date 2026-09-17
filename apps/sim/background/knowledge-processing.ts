@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { task } from '@trigger.dev/sdk'
+import { queue, task } from '@trigger.dev/sdk'
 import { env, envNumber } from '@/lib/core/config/env'
 import {
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
@@ -13,6 +13,10 @@ import {
   isPermanentDocumentProcessingError,
   isUsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
+import {
+  BACKFILL_PROCESSING_QUEUE_NAME,
+  INTERACTIVE_PROCESSING_QUEUE_NAME,
+} from '@/lib/knowledge/documents/processing-lane'
 import {
   assertDocumentProcessingBillingContext,
   assertDocumentProcessingPayload,
@@ -205,6 +209,34 @@ export async function runDocumentProcessing(
   }
 }
 
+/**
+ * Both lanes are keyed by tenant at dispatch, so `concurrencyLimit` is the
+ * ceiling one tenant may hold in that lane, not a ceiling for the fleet. The
+ * shared bound is the Trigger.dev environment concurrency limit, which is where
+ * a global ceiling belongs; observed peak there is ~97 across every task.
+ *
+ * Both default to the limit the single shared queue carried, which is what
+ * keeps this split from ever draining slower than the queue it replaces: the
+ * busiest case it has to beat is one tenant alone, and one tenant alone still
+ * gets the same slots it used to get for backfill plus a separate allowance for
+ * work someone is waiting on. Any second tenant is pure gain, because under the
+ * shared queue it got whatever the first one left.
+ *
+ * Splitting the two into separate variables is for operating them, not for
+ * sizing them: backfill is the one to lower when the environment ceiling is the
+ * binding constraint, and lowering it must not slow down a person's upload.
+ */
+export const interactiveProcessingQueue = queue({
+  name: INTERACTIVE_PROCESSING_QUEUE_NAME,
+  concurrencyLimit: envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20),
+})
+
+/** Referenced by no dispatch site: named per trigger, declared here so the deploy registers it. */
+export const backfillProcessingQueue = queue({
+  name: BACKFILL_PROCESSING_QUEUE_NAME,
+  concurrencyLimit: envNumber(env.KB_CONFIG_BACKFILL_CONCURRENCY_LIMIT, 20),
+})
+
 export const processDocument = task({
   id: 'knowledge-process-document',
   maxDuration: envNumber(env.KB_CONFIG_MAX_DURATION, 600),
@@ -227,10 +259,12 @@ export const processDocument = task({
      */
     outOfMemory: { machine: 'large-2x' },
   },
-  queue: {
-    concurrencyLimit: envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20),
-    name: 'document-processing-queue',
-  },
+  /**
+   * The lane every dispatch names explicitly. Declared here as well so a
+   * trigger that somehow omits the option still lands on a registered queue
+   * rather than waiting in `PENDING_VERSION` for one that does not exist.
+   */
+  queue: interactiveProcessingQueue,
   run: (payload: DocumentProcessingPayload, { ctx }) =>
     runDocumentProcessing(payload, ctx.attempt.number),
 })

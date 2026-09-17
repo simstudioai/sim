@@ -383,6 +383,7 @@ describe('processDocOps dispatch buffering', () => {
       {},
       expect.any(String),
       input.billingAttribution,
+      'backfill',
       { connectorId: 'connector', stillHeld: input.lease.stillHeld }
     )
     expect(input.state.result).toMatchObject({ docsAdded: 1, docsUpdated: 1 })
@@ -405,6 +406,7 @@ describe('processDocOps dispatch buffering', () => {
       {},
       expect.any(String),
       input.billingAttribution,
+      'backfill',
       { connectorId: 'connector', stillHeld: input.lease.stillHeld }
     )
     expect(input.state.result.processingDispatch).toEqual({ requested: 3, accepted: 0, failed: 0 })
