@@ -63,6 +63,7 @@ import {
 } from '@/lib/slack-search/app-configuration'
 
 const logger = createLogger('OAuthCredentialService')
+const OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
 
 export interface CredentialTokenResolutionOptions {
   /**
@@ -858,6 +859,19 @@ interface CoalescedRefreshOptions {
 }
 
 /**
+ * Leave time for request preparation and transit, including when reusing another worker's token.
+ * Instagram instead uses its age-gated long-lived token refresh policy.
+ */
+function isOAuthAccessTokenExpiring(
+  expiresAt: Date | null | undefined,
+  providerId: string,
+  now = new Date()
+): boolean {
+  const refreshWindowMs = isInstagramProvider(providerId) ? 0 : OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS
+  return expiresAt != null && expiresAt.getTime() <= now.getTime() + refreshWindowMs
+}
+
+/**
  * Slack lock budgets sized past `TOKEN_REFRESH_TIMEOUT_MS` (15s) in
  * lib/oauth/oauth.ts: installation-keyed locks make every sibling row's request
  * a follower of one refresh, so the TTL covers the provider call plus generous
@@ -932,7 +946,7 @@ async function performCoalescedRefresh({
             if (
               freshest.accessToken &&
               freshest.accessTokenExpiresAt &&
-              freshest.accessTokenExpiresAt > new Date()
+              !isOAuthAccessTokenExpiring(freshest.accessTokenExpiresAt, providerId)
             ) {
               await fanOutSlackTokenChain(
                 slackTeamId,
@@ -1039,7 +1053,7 @@ async function performCoalescedRefresh({
           if (
             row?.accessToken &&
             row.accessTokenExpiresAt &&
-            row.accessTokenExpiresAt > new Date()
+            !isOAuthAccessTokenExpiring(row.accessTokenExpiresAt, providerId)
           ) {
             logger.info('Got fresh access token from coalesced refresh', logContext)
             return row.accessToken
@@ -1092,8 +1106,6 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 
   const credential = connections[0]
 
-  // Determine whether we should refresh: missing/expired token, or Instagram
-  // long-lived token nearing expiry (Meta cannot refresh after expiry).
   const now = new Date()
   const tokenExpiry = credential.accessTokenExpiresAt
   if (!credential.refreshToken && tokenExpiry && tokenExpiry <= now) {
@@ -1101,7 +1113,8 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     return null
   }
   const accessTokenNeedsRefresh =
-    !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
+    !!credential.refreshToken &&
+    (!credential.accessToken || isOAuthAccessTokenExpiring(tokenExpiry, providerId, now))
   const instagramNeedsProactiveRefresh =
     !!credential.refreshToken &&
     isInstagramProvider(providerId) &&
@@ -1178,7 +1191,6 @@ export async function resolveCredentialTokenBundle(
     return null
   }
 
-  // Decide if we should refresh: token missing OR expired
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
   const now = new Date()
@@ -1188,10 +1200,10 @@ export async function resolveCredentialTokenBundle(
     return null
   }
 
-  // Check if access token needs refresh (missing or expired)
   const accessTokenNeedsRefresh =
     !!credential.refreshToken &&
-    (!credential.accessToken || (accessTokenExpiresAt && accessTokenExpiresAt <= now))
+    (!credential.accessToken ||
+      isOAuthAccessTokenExpiring(accessTokenExpiresAt, credential.providerId, now))
 
   // Check if we should proactively refresh to prevent refresh token expiry
   // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
@@ -1292,7 +1304,6 @@ export async function refreshTokenIfNeeded(
 ): Promise<{ accessToken: string; refreshed: boolean }> {
   const resolvedCredentialId = credential.resolvedCredentialId ?? credentialId
 
-  // Decide if we should refresh: token missing OR expired
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
   const now = new Date()
@@ -1301,10 +1312,10 @@ export async function refreshTokenIfNeeded(
     throw new Error('OAuth access token expired and cannot be refreshed; reconnect the account')
   }
 
-  // Check if access token needs refresh (missing or expired)
   const accessTokenNeedsRefresh =
     !!credential.refreshToken &&
-    (!credential.accessToken || (accessTokenExpiresAt && accessTokenExpiresAt <= now))
+    (!credential.accessToken ||
+      isOAuthAccessTokenExpiring(accessTokenExpiresAt, credential.providerId, now))
 
   // Check if we should proactively refresh to prevent refresh token expiry
   // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
