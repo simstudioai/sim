@@ -18,6 +18,7 @@ export interface GoogleWorkspaceUser {
   email: string
   customerId: string
   active: boolean
+  isMailboxSetup?: boolean
 }
 
 export interface GoogleWorkspaceUserPage {
@@ -58,7 +59,8 @@ function parseUser(value: unknown): GoogleWorkspaceUser {
     !emailSchema.safeParse(value.primaryEmail).success ||
     typeof value.suspended !== 'boolean' ||
     (value.archived !== undefined && typeof value.archived !== 'boolean') ||
-    (value.isGuestUser !== undefined && typeof value.isGuestUser !== 'boolean')
+    (value.isGuestUser !== undefined && typeof value.isGuestUser !== 'boolean') ||
+    (value.isMailboxSetup !== undefined && typeof value.isMailboxSetup !== 'boolean')
   ) {
     throw new Error('Google Workspace returned malformed user metadata')
   }
@@ -67,6 +69,7 @@ function parseUser(value: unknown): GoogleWorkspaceUser {
     email: normalizeEmail(value.primaryEmail),
     customerId: value.customerId,
     active: !value.suspended && value.archived !== true && value.isGuestUser !== true,
+    ...(typeof value.isMailboxSetup === 'boolean' && { isMailboxSetup: value.isMailboxSetup }),
   }
 }
 
@@ -80,7 +83,7 @@ async function readDirectoryJson(response: Response): Promise<unknown> {
   }
 }
 
-const USER_FIELDS = 'id,primaryEmail,customerId,suspended,archived,isGuestUser'
+const USER_FIELDS = 'id,primaryEmail,customerId,suspended,archived,isGuestUser,isMailboxSetup'
 
 /** One provider page only; the connector checkpoint advances through the directory. */
 export async function listGoogleWorkspaceUsers(

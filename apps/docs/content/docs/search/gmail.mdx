@@ -133,7 +133,7 @@ Search schedules syncs hourly. The first sync lists every thread in scope and ca
 
 **Member accounts:** later syncs use each mailbox's Gmail change history, unless the configuration has a search filter. A full relisting runs about weekly, or sooner if Gmail no longer retains the saved history.
 
-**Service account:** each sync revisits the selected active mailboxes and resumes unfinished listings. A failed mailbox read leaves the crawl incomplete; it does not cause existing indexed mail to be deleted from Search.
+**Service account:** each sync revisits the selected active mailboxes and resumes unfinished listings. If Google reports that a user's mailbox is not set up or returns a mailbox `failedPrecondition`, Sim records a warning and continues with the remaining users. The crawl stays incomplete and retries affected users on the next scheduled crawl; existing indexed mail is not deleted because a mailbox could not be read. Credential, delegation, and Directory failures still stop the crawl.
 
 Updates, removals, and access refresh in the background. Empty mailboxes and filters with no matches complete normally with zero documents. Threads exceeding indexing size limits are skipped and reconsidered when they change.
 
@@ -149,7 +149,7 @@ An individual thread failure does not mean the whole mailbox failed. Sim retries
 | Reconnect | Click **Reconnect** and authorize the same account again. |
 | Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
 | Directory or delegation error | Check both central crawl scopes, the service-account key, and the Directory administrator's user-read privileges. A normal OAuth account cannot replace the central service account. |
-| Gmail access fails for a selected user | Verify delegation is authorized and [Gmail is enabled](https://knowledge.workspace.google.com/admin/gmail/control-gmail-access-for-your-organizations-users) for that primary Workspace account. Set **Users** to accounts with Gmail enabled; leaving it blank includes all active users and can stop sync on a service-access error. Aliases and external accounts cannot be selected. |
+| Gmail access fails for a selected user | Verify delegation is authorized and [Gmail is enabled](https://knowledge.workspace.google.com/admin/gmail/control-gmail-access-for-your-organizations-users) for that primary Workspace account. Check the affected users in **Sync history**. Set **Users** to accounts with Gmail enabled if some active users should not be crawled. Aliases and external accounts cannot be selected. |
 | A central source indexes mail but a teammate sees no results | Confirm their verified Sim email is the mailbox's primary email and they belong to the Sim organization. Administrators do not receive other people's mailbox access. |
 
 ## Self-hosted operator setup

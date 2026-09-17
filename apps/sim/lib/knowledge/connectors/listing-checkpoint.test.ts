@@ -262,8 +262,120 @@ describe('durable connector listing checkpoints', () => {
   })
 
   it('resumes older checkpoints without inventing permission failures', () => {
-    const legacy = omit(checkpoint(), ['permissionFailures'])
-    expect(readListingCheckpoint(legacy, fingerprint)).toMatchObject({ permissionFailures: false })
+    const legacy = omit(checkpoint(), ['permissionFailures', 'listingFailures'])
+    expect(readListingCheckpoint(legacy, fingerprint)).toMatchObject({
+      permissionFailures: false,
+      listingFailures: null,
+    })
+  })
+
+  it('persists partial-scope failures across workers and holds deletion reconciliation at EOF', async () => {
+    const failures = {
+      count: 1,
+      samples: [
+        {
+          scope: 'user@example.com',
+          operation: 'gmail.threads.list',
+          status: 400,
+          reasons: ['failedPrecondition'],
+        },
+      ],
+    }
+    const first = fixture()
+    first.listDocuments.mockResolvedValueOnce({
+      documents: [],
+      currentCursor: 'user-1',
+      nextCursor: 'user-2',
+      hasMore: true,
+      listingFailures: failures,
+    })
+    await runResumableListing({ ...first.input, maxPages: 1 })
+    const resumed = fixture(readListingCheckpoint(first.saved(), fingerprint)!)
+    resumed.listDocuments.mockResolvedValueOnce({ documents: [doc], hasMore: false })
+    expect(await runResumableListing(resumed.input)).toMatchObject({
+      complete: true,
+      unsafe: true,
+      listedCount: 1,
+      listingFailures: failures,
+    })
+  })
+
+  it('does not double-count a replayed cumulative failure snapshot', async () => {
+    const failures = {
+      count: 2,
+      samples: [
+        { scope: 'user@example.com', operation: 'calendar.events.list', status: 403, reasons: [] },
+      ],
+    }
+    const f = fixture({ ...checkpoint(), cursor: 'user-1', listingFailures: failures })
+    f.listDocuments.mockResolvedValueOnce({
+      documents: [],
+      currentCursor: 'user-1',
+      nextCursor: 'user-2',
+      hasMore: true,
+      listingFailures: failures,
+    })
+    expect(await runResumableListing({ ...f.input, maxPages: 1 })).toMatchObject({
+      listingFailures: failures,
+      unsafe: true,
+    })
+    expect(f.saved().listingFailures?.count).toBe(2)
+  })
+
+  it('clears failed-user evidence only when restarting the entire listing generation', async () => {
+    const failures = {
+      count: 1,
+      samples: [
+        {
+          scope: 'user@example.com',
+          operation: 'gmail.threads.list',
+          status: 400,
+          reasons: ['failedPrecondition'],
+        },
+      ],
+    }
+    const f = fixture({
+      ...checkpoint(),
+      cursor: 'expired',
+      unsafe: true,
+      listingFailures: failures,
+    })
+    const expired = new Error('cursor expired')
+    f.listDocuments
+      .mockRejectedValueOnce(expired)
+      .mockResolvedValueOnce({ documents: [doc], hasMore: false })
+    const result = await runResumableListing({
+      ...f.input,
+      connectorConfig: {
+        listDocuments: f.listDocuments,
+        isListingCursorInvalidError: (error) => error === expired,
+      },
+    })
+    expect(result).toMatchObject({ complete: true, unsafe: false, listingFailures: null })
+    expect(result.generationId).not.toBe('cycle-1')
+  })
+
+  it('rejects unbounded or malformed failure evidence before processing a page', async () => {
+    const f = fixture()
+    const sample = {
+      scope: 'user@example.com',
+      operation: 'gmail.threads.list',
+      status: 400,
+      reasons: ['failedPrecondition'],
+    }
+    f.listDocuments.mockResolvedValueOnce({
+      documents: [doc],
+      hasMore: false,
+      listingFailures: { count: 11, samples: Array(11).fill(sample) },
+    })
+    await expect(runResumableListing(f.input)).rejects.toThrow()
+    expect(f.processPage).not.toHaveBeenCalled()
+    expect(
+      readListingCheckpoint(
+        { ...checkpoint(), listingFailures: { count: -1, samples: [] } },
+        fingerprint
+      )
+    ).toBeNull()
   })
 
   it('rejects checkpoints from a changed configuration or malformed serialized value', () => {

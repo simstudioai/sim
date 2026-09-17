@@ -29,6 +29,12 @@ const deploymentGatedIntegrationTypes = new Set(
 const integrationTypesByOAuthServiceId = new Map<string, readonly string[]>()
 /** Search authorization shares GitHub's integration policy while its workflow tools retain PAT auth. */
 integrationTypesByOAuthServiceId.set('github-repositories', ['github_v2'])
+/** Coda's stored API-token credential is available without a deployment OAuth client. */
+const tokenCredentialIntegrationTypes = new Map([['coda', 'coda']])
+for (const [serviceId, integrationType] of tokenCredentialIntegrationTypes) {
+  integrationTypesByOAuthServiceId.set(serviceId, [integrationType])
+}
+const tokenCredentialTypes = new Set(tokenCredentialIntegrationTypes.values())
 const previewServiceAccountProvidersByIntegrationType = new Map<string, string>()
 for (const integration of INTEGRATION_METADATA) {
   if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue
@@ -144,7 +150,7 @@ export function resolveIntegrationAvailability(
       name: integration.name,
       state: 'ready',
       oauthAvailable: false,
-      serviceAccountAvailable: false,
+      serviceAccountAvailable: tokenCredentialTypes.has(integration.type),
       missingFields: [],
     }
   })

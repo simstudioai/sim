@@ -49,7 +49,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'calcom-service-account': ['cal-com'],
   'claude-platform-service-account': [],
   'clickup-service-account': ['clickup'],
-  'coda-service-account': [],
+  'coda-service-account': ['coda'],
   'github-app-installation': ['github'],
   'google-service-account': [
     'gmail',

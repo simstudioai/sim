@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { listDomainGroups, openGoogleDirectory } from '@/connectors/google-drive/directory'
+import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
 
 const mockFetch = vi.fn()
 
@@ -233,6 +234,61 @@ describe('the membership a directory reports', () => {
       diagnostic: { operation: 'directory.members.list', reasons: ['forbidden'] },
     })
   })
+
+  it.each([
+    { status: 403, reason: 'forbidden' },
+    { status: 404, reason: 'notFound' },
+  ])(
+    'classifies inaccessible external nested groups explicitly: $status $reason',
+    async ({ status, reason }) => {
+      directory({ 'eng@corp.com': [USER('alice@corp.com'), NESTED('restricted@external.com')] })
+      const healthy = mockFetch.getMockImplementation()!
+      mockFetch.mockImplementation(async (url: string) => {
+        if (
+          decodeURIComponent(new URL(url).pathname).includes('/restricted@external.com/members')
+        ) {
+          return jsonResponse(
+            { error: { errors: [{ reason }], message: 'private detail' } },
+            status
+          )
+        }
+        return healthy(url)
+      })
+      const failure = await membersOf(GROUP).catch((error: unknown) => error)
+      expect(failure).toBeInstanceOf(ConnectorDirectoryGroupAccessError)
+      expect(failure).toMatchObject({
+        cause: { status, diagnostic: { operation: 'directory.members.list', reasons: [reason] } },
+      })
+      expect(String(failure)).not.toContain('private detail')
+    }
+  )
+
+  it.each([
+    { email: 'restricted@corp.io', status: 403, reasons: ['forbidden'] },
+    { email: 'restricted@external.com', status: 403, reasons: [] },
+    { email: 'restricted@external.com', status: 403, reasons: ['forbidden', 'unknownReason'] },
+    {
+      email: 'restricted@external.com',
+      status: 403,
+      reasons: ['forbidden', 'insufficientPermissions'],
+    },
+    { email: 'restricted@external.com', status: 401, reasons: ['authError'] },
+  ])(
+    'does not classify uncertain or customer-owned failures as external access failures: $email $status $reasons',
+    async ({ email, status, reasons }) => {
+      directory({ 'eng@corp.com': [NESTED(email)] })
+      const healthy = mockFetch.getMockImplementation()!
+      mockFetch.mockImplementation(async (url: string) => {
+        if (decodeURIComponent(new URL(url).pathname).includes(`/${email}/members`)) {
+          return jsonResponse({ error: { errors: reasons.map((reason) => ({ reason })) } }, status)
+        }
+        return healthy(url)
+      })
+      const failure = await membersOf(GROUP).catch((error: unknown) => error)
+      expect(failure).not.toBeInstanceOf(ConnectorDirectoryGroupAccessError)
+      expect(failure).toMatchObject({ status })
+    }
+  )
 
   /** A directory that hiccups must not cost a group its membership; transient errors are retried. */
   it('retries a transient directory error before giving up', async () => {

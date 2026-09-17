@@ -6,7 +6,7 @@ import {
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
 import {
-  readGoogleErrorReasons,
+  readGoogleErrorDetails,
   safeGoogleErrorReasons,
 } from '@/connectors/google-workspace/api-errors'
 import {
@@ -104,8 +104,14 @@ export class GoogleDriveApiError extends ConnectorSourceError {
   readonly reasons: readonly string[]
   readonly kind: GoogleDriveErrorKind
   readonly rateLimited: boolean
+  readonly reasonsComplete: boolean
 
-  constructor(status: number, normalizedReasons: readonly string[], operation = 'drive.request') {
+  constructor(
+    status: number,
+    normalizedReasons: readonly string[],
+    operation = 'drive.request',
+    reasonsComplete = true
+  ) {
     const diagnosticReasons = safeGoogleErrorReasons(normalizedReasons).slice(
       0,
       GOOGLE_ERROR_REASON_MAX_COUNT
@@ -123,6 +129,8 @@ export class GoogleDriveApiError extends ConnectorSourceError {
     this.kind = kind
     this.rateLimited =
       status === 429 || normalizedReasons.some((reason) => RATE_LIMIT_REASONS.has(reason))
+    this.reasonsComplete =
+      reasonsComplete && normalizedReasons.every((reason) => diagnosticReasons.includes(reason))
   }
 }
 
@@ -135,7 +143,8 @@ export async function readGoogleDriveApiError(
   response: Response,
   operation = 'drive.request'
 ): Promise<GoogleDriveApiError> {
-  return new GoogleDriveApiError(response.status, await readGoogleErrorReasons(response), operation)
+  const details = await readGoogleErrorDetails(response)
+  return new GoogleDriveApiError(response.status, details.reasons, operation, details.complete)
 }
 
 /**

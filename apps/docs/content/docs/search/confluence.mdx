@@ -142,7 +142,7 @@ In **Sync history**, **Continuing** means a healthy listing needs another batch.
 | Space picker is empty or fails | Check the domain, account's space access, and `read:space:confluence` scope. Manual space keys are also supported. |
 | Service-account validation fails | Check token expiry, site, Confluence app access, and the full scope list above, including `read:confluence-user`. |
 | Content syncs but Search is empty | Connect your personal Confluence identity. Check permission/directory sync errors and group-read scopes. |
-| **Some permissions could not be verified** | Open the source's **Sync history**. Check the service account's space, page, and directory access. If access is correct and the warning persists, ask your operator to inspect the connector run's permission errors. Do not broaden sharing to clear the warning. |
+| **Permission verification incomplete** | Open the source's **Sync history**. Check the service account's space, page, and directory access. If access is correct and the warning persists, ask your operator to inspect the connector run's permission errors, including incomplete or repeated permission pages. Documents without verified access stay hidden; do not broaden sharing to clear the warning. |
 | A new page, blog post, or label is missing | Confluence search can take time to update. Once the content appears in Confluence search with the selected label, sync again. |
 | A restricted page is missing | Both your account and the crawling account need access to the page and its ancestors. |
 | Embedded content is missing | Index the referenced page separately; remote macro output is excluded. |

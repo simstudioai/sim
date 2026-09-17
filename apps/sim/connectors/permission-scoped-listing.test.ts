@@ -41,6 +41,7 @@ describe('permission-scoped connector listings', () => {
   it('offers Search only for reviewed source and permission capabilities', () => {
     const search = Object.values(CONNECTOR_META_REGISTRY).filter((meta) => meta.search)
     expect(search.map((meta) => meta.id).sort()).toEqual([
+      'coda',
       'confluence',
       'github',
       'gitlab',

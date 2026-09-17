@@ -91,5 +91,5 @@ export const USAGE_TAB_EMPTY_COPY: Record<UsageBreakdownDimension, string> = {
 export const COLLAPSED_ROW_COUNT = ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT
 export const EXPANDED_ROW_COUNT = ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT
 
-export const DEFAULT_USAGE_PRESET = 'current-period' as const
+export const DEFAULT_USAGE_PRESET = '30d' as const
 export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB

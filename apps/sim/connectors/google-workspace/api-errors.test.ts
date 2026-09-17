@@ -39,6 +39,7 @@ describe('Google API diagnostics', () => {
   it('omits unknown reason tokens even when they look like machine codes', async () => {
     const error = await readGoogleApiError(failure(403, RESPONSE_SECRET), OPERATION)
     expect(error.diagnostic?.reasons).toEqual([])
+    expect(error.reasonsComplete).toBe(false)
     expect(JSON.stringify(error)).not.toContain(RESPONSE_SECRET)
   })
 
@@ -70,8 +71,57 @@ describe('Google API diagnostics', () => {
       const error = await readGoogleApiError(new Response(body, { status: 400 }), OPERATION)
       expect(error.status).toBe(400)
       expect(error.diagnostic?.reasons).toEqual([])
+      expect(error.reasonsComplete).toBe(false)
     }
   )
+
+  it('distinguishes a valid reasonless envelope from stripped or malformed reasons', async () => {
+    const absent = await readGoogleApiError(
+      Response.json({ error: { code: 403, message: RESPONSE_SECRET } }, { status: 403 }),
+      'calendar.events.list'
+    )
+    expect(absent.reasonsComplete).toBe(true)
+    expect(absent.diagnostic?.reasons).toEqual([])
+    const malformed = await readGoogleApiError(
+      Response.json({ error: { errors: [{ reason: 123 }] } }, { status: 403 }),
+      'calendar.events.list'
+    )
+    expect(malformed.reasonsComplete).toBe(false)
+    const mixed = await readGoogleApiError(
+      Response.json(
+        { error: { errors: [{ reason: 'forbidden' }, { reason: RESPONSE_SECRET }] } },
+        { status: 403 }
+      ),
+      'calendar.events.list'
+    )
+    expect(mixed.diagnostic?.reasons).toEqual(['forbidden'])
+    expect(mixed.reasonsComplete).toBe(false)
+    expect(JSON.stringify([absent, malformed, mixed])).not.toContain(RESPONSE_SECRET)
+  })
+
+  it.each([{ error: [] }, { error: {} }, { error: { code: 401 } }])(
+    'does not classify a malformed or inconsistent reasonless envelope as complete: %j',
+    async (payload) => {
+      const error = await readGoogleApiError(
+        Response.json(payload, { status: 403 }),
+        'calendar.events.list'
+      )
+      expect(error.reasonsComplete).toBe(false)
+    }
+  )
+
+  it('retains recognized diagnostics when another part of the envelope is malformed', async () => {
+    const error = await readGoogleApiError(
+      Response.json(
+        { error: { errors: [{ reason: 'forbidden' }], details: RESPONSE_SECRET } },
+        { status: 403 }
+      ),
+      'calendar.events.list'
+    )
+    expect(error.diagnostic?.reasons).toEqual(['forbidden'])
+    expect(error.reasonsComplete).toBe(false)
+    expect(JSON.stringify(error)).not.toContain(RESPONSE_SECRET)
+  })
 })
 
 describe('Google API retries', () => {

@@ -16,6 +16,7 @@ import {
   fetchGoogleDriveWithRetry,
   GoogleDriveApiError,
 } from '@/connectors/google-drive/google-drive-errors'
+import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
 import type {
   ConnectorDirectory,
   ConnectorDirectoryGroup,
@@ -249,7 +250,28 @@ async function listGroupMembers(
       return
     }
 
-    for (const member of await membersOf(groupId)) {
+    let members: RawMember[]
+    try {
+      members = await membersOf(groupId)
+    } catch (error) {
+      const groupDomain = emailDomain(groupId)
+      if (
+        depth > 0 &&
+        groupDomain &&
+        !customerDomains.includes(groupDomain) &&
+        error instanceof GoogleDriveApiError &&
+        error.reasonsComplete &&
+        ((error.status === 403 && error.reasons.length === 1 && error.reasons[0] === 'forbidden') ||
+          (error.status === 404 && error.reasons.length === 1 && error.reasons[0] === 'notFound'))
+      ) {
+        throw new ConnectorDirectoryGroupAccessError('An external nested group cannot be read', {
+          cause: error,
+        })
+      }
+      throw error
+    }
+
+    for (const member of members) {
       if (member.status && member.status.toUpperCase() !== 'ACTIVE') continue
       const type = member.type?.toUpperCase()
 

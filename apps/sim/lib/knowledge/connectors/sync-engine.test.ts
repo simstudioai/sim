@@ -2142,6 +2142,78 @@ describe('completeSuccessfulSync', () => {
     resetDbChainMock()
   })
 
+  it.each([false, true])(
+    'preserves directory and listing notices without blocking healthy content watermarks: listing failure %s',
+    async (hasListingFailure) => {
+      const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+      queueTableRows(schemaMock.document, [{ count: 4 }])
+      dbChainMockFns.returning
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'log-1' }])
+        .mockResolvedValueOnce([{ id: 'c-1' }])
+      const directoryNotice =
+        'Directory refresh incomplete: 1 group membership could not be verified.'
+      const contentNotice = 'Unlisted documents were kept.'
+
+      await expect(
+        completeSuccessfulSync(
+          'c-1',
+          'kb-1',
+          'log-1',
+          60,
+          { ...RESULT, docsFailed: 0 },
+          contentNotice,
+          {
+            complete: true,
+            checkpoint: {
+              unsafe: hasListingFailure,
+              startedAt: '2026-09-04T00:00:00Z',
+              listedCount: 4,
+              listingFailures: hasListingFailure
+                ? {
+                    count: 1,
+                    samples: [
+                      {
+                        scope: 'unavailable@example.com',
+                        operation: 'gmail.threads.list',
+                        status: 400,
+                        reasons: ['failedPrecondition'],
+                      },
+                    ],
+                  }
+                : null,
+            },
+          },
+          directoryNotice
+        )
+      ).resolves.toBe(true)
+
+      const logUpdate = dbChainMockFns.set.mock.calls.find(
+        ([value]) => value.status === 'partial'
+      )?.[0]
+      const connectorUpdate = dbChainMockFns.set.mock.calls.find(
+        ([value]) => value.status === 'active'
+      )?.[0]
+      expect(logUpdate.errorMessage).toContain(directoryNotice)
+      expect(logUpdate.errorMessage).toContain(contentNotice)
+      expect(connectorUpdate.lastSyncError).toBe(logUpdate.errorMessage)
+      expect(connectorUpdate.listingCheckpoint).toBeNull()
+      expect(connectorUpdate.consecutiveFailures).toBe(0)
+      expect(connectorUpdate.nextSyncAt.getTime()).toBeGreaterThan(Date.now() + 50 * 60_000)
+      if (hasListingFailure) {
+        expect(connectorUpdate).not.toHaveProperty('lastSyncAt')
+        expect(logUpdate.errorMessage).toContain(
+          'unavailable@example.com (gmail.threads.list, HTTP 400, failedPrecondition)'
+        )
+        expect(logUpdate.errorMessage).toContain('next scheduled sync')
+      } else {
+        expect(connectorUpdate.lastSyncAt).toEqual(new Date('2026-09-04T00:00:00Z'))
+      }
+    }
+  )
+
   it('commits the completed log and connector state in one guarded transaction', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
 

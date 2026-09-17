@@ -6,6 +6,7 @@ import { bitbucketConnectorMeta } from '@/connectors/bitbucket/meta'
 import { boxConnectorMeta } from '@/connectors/box/meta'
 import { circlebackConnectorMeta } from '@/connectors/circleback/meta'
 import { clickupConnectorMeta } from '@/connectors/clickup/meta'
+import { codaConnectorMeta } from '@/connectors/coda/meta'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { databricksConnectorMeta } from '@/connectors/databricks/meta'
 import { discordConnectorMeta } from '@/connectors/discord/meta'
@@ -81,6 +82,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   box: boxConnectorMeta,
   circleback: circlebackConnectorMeta,
   clickup: clickupConnectorMeta,
+  coda: codaConnectorMeta,
   confluence: confluenceConnectorMeta,
   databricks: databricksConnectorMeta,
   discord: discordConnectorMeta,

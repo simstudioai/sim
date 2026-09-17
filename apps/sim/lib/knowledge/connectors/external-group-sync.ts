@@ -32,7 +32,10 @@ import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connec
 import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import { ConnectorDirectoryError } from '@/connectors/source-error'
+import {
+  ConnectorDirectoryError,
+  ConnectorDirectoryGroupAccessError,
+} from '@/connectors/source-error'
 import type {
   ConnectorConfig,
   ConnectorDirectory,
@@ -45,6 +48,44 @@ const logger = createLogger('ExternalGroupSync')
 /** Member rows written per statement while replacing a group's membership. */
 const MEMBER_WRITE_BATCH_SIZE = 500
 export const DIRECTORY_ERROR_PREFIX = 'Directory refresh failed: '
+export const DIRECTORY_WARNING_PREFIX = 'Directory refresh incomplete: '
+
+export type DirectoryRefreshResult =
+  | { status: 'refreshed' | 'skipped' }
+  | { status: 'partial'; notice: string }
+
+/** Directory workers replace only their notice, preserving content-sync diagnostics. */
+export function replaceDirectorySyncNotice(previous: string | null, notice: string | null) {
+  const contentNotices = (previous ?? '')
+    .split('\n')
+    .filter(
+      (line) =>
+        line &&
+        !line.startsWith(DIRECTORY_ERROR_PREFIX) &&
+        !line.startsWith(DIRECTORY_WARNING_PREFIX)
+    )
+  return [notice, ...contentNotices].filter(Boolean).join('\n') || null
+}
+
+export function hasDirectorySyncNotice(notice: string | null | undefined): boolean {
+  return (notice ?? '')
+    .split('\n')
+    .some(
+      (line) => line.startsWith(DIRECTORY_ERROR_PREFIX) || line.startsWith(DIRECTORY_WARNING_PREFIX)
+    )
+}
+
+/** A skipped lease has not established that an earlier directory failure recovered. */
+export function directorySyncNotice(notice: string | null | undefined): string | null {
+  return (
+    (notice ?? '')
+      .split('\n')
+      .find(
+        (line) =>
+          line.startsWith(DIRECTORY_ERROR_PREFIX) || line.startsWith(DIRECTORY_WARNING_PREFIX)
+      ) ?? null
+  )
+}
 
 interface DirectorySyncResult {
   /** Groups whose membership was replaced from a complete enumeration. */
@@ -55,6 +96,8 @@ interface DirectorySyncResult {
   pruned: number
   /** The directory is already complete and fresh, or another worker holds its lease. */
   skipped: boolean
+  /** Retained groups whose provider identified inaccessible external membership. */
+  inaccessible: number
   error?: Error
 }
 
@@ -166,7 +209,7 @@ export async function syncExternalDirectoryGroups(input: {
   const owner = resourceScopeFields(resourceScopeFromOwner(input))
   const { providerId, tenantId } = directory
   const lease = await claimDirectory({ ...owner, providerId, tenantId }, Boolean(input.force))
-  if (!lease) return { refreshed: 0, keptStale: 0, pruned: 0, skipped: true }
+  if (!lease) return { refreshed: 0, keptStale: 0, pruned: 0, skipped: true, inaccessible: 0 }
 
   try {
     const groups = await directory.listGroups()
@@ -178,7 +221,9 @@ export async function syncExternalDirectoryGroups(input: {
     })
     let refreshed = 0
     let keptStale = 0
+    let inaccessible = 0
     let firstError: Error | undefined
+    let blockingError: Error | undefined
     for (const group of groups) {
       const groupId = await withDirectoryLease(lease, (tx) =>
         upsertGroup({ ...owner, providerId, tenantId, group }, tx)
@@ -189,6 +234,8 @@ export async function syncExternalDirectoryGroups(input: {
       } catch (error) {
         if (isRateLimitError(error)) throw error
         keptStale += 1
+        if (error instanceof ConnectorDirectoryGroupAccessError) inaccessible += 1
+        else blockingError ??= toError(error)
         firstError ??= toError(error)
         const diagnostic = getConnectorFailureDiagnostic(error)
         logger.warn('Keeping last-known-good membership for a group that failed to enumerate', {
@@ -202,7 +249,7 @@ export async function syncExternalDirectoryGroups(input: {
       }
       if (!membership.complete) {
         keptStale += 1
-        firstError ??= new Error('A group membership listing was incomplete')
+        blockingError ??= new Error('A group membership listing was incomplete')
         continue
       }
       await withDirectoryLease(lease, (tx) =>
@@ -225,12 +272,14 @@ export async function syncExternalDirectoryGroups(input: {
         })
         .where(directoryIdentity(lease))
     })
+    const error = blockingError ?? firstError
     return {
       refreshed,
       keptStale,
       pruned,
       skipped: false,
-      ...(firstError && { error: firstError }),
+      inaccessible,
+      ...(error && { error }),
     }
   } finally {
     await db
@@ -336,8 +385,8 @@ async function pruneRemovedGroups(lease: DirectoryLease, keep: readonly string[]
  *
  * It is rate-limited on its own clock rather than the connector's, so a
  * frequently-syncing connector does not re-read the whole directory every run.
- * Failures retain the last confirmed membership and propagate to the caller's
- * sync status and retry policy.
+ * Inaccessible external groups retain their previous membership and report a
+ * partial refresh; other failures propagate to the caller's retry policy.
  */
 export async function refreshMirroredDirectory(input: {
   workspaceId?: string
@@ -347,9 +396,9 @@ export async function refreshMirroredDirectory(input: {
   syncContext: Record<string, unknown>
   accessToken: string
   force?: boolean
-}): Promise<'refreshed' | 'skipped'> {
+}): Promise<DirectoryRefreshResult> {
   const { workspaceId, connectorConfig } = input
-  if (!connectorConfig.openDirectory) return 'skipped'
+  if (!connectorConfig.openDirectory) return { status: 'skipped' }
 
   try {
     const directory = await connectorConfig.openDirectory(
@@ -362,7 +411,7 @@ export async function refreshMirroredDirectory(input: {
         workspaceId,
         connector: connectorConfig.id,
       })
-      return 'skipped'
+      return { status: 'skipped' }
     }
     const result = await syncExternalDirectoryGroups({
       ...resourceScopeFields(resourceScopeFromOwner(input)),
@@ -370,6 +419,16 @@ export async function refreshMirroredDirectory(input: {
       force: input.force,
     })
     if (result.keptStale > 0) {
+      if (result.refreshed > 0 && result.inaccessible === result.keptStale) {
+        const notice = `${DIRECTORY_WARNING_PREFIX}${result.keptStale} group memberships could not be verified. Previously verified access expires normally; unverified memberships grant no access. Other groups continue to sync.`
+        logger.warn('Directory refreshed with inaccessible external groups', {
+          workspaceId,
+          tenantId: directory.tenantId,
+          refreshed: result.refreshed,
+          keptStale: result.keptStale,
+        })
+        return { status: 'partial', notice }
+      }
       throw new Error(`${result.keptStale} group memberships could not be refreshed`, {
         cause: result.error,
       })
@@ -379,7 +438,7 @@ export async function refreshMirroredDirectory(input: {
       tenantId: directory.tenantId,
       ...result,
     })
-    return result.skipped ? 'skipped' : 'refreshed'
+    return { status: result.skipped ? 'skipped' : 'refreshed' }
   } catch (error) {
     const diagnostic = getConnectorFailureDiagnostic(error)
     logger.error('Directory refresh failed; serving last-known-good group membership', {
@@ -394,7 +453,7 @@ export async function refreshMirroredDirectory(input: {
   }
 }
 
-type ConnectorDirectoryRefreshOutcome = 'refreshed' | 'skipped' | 'unusable'
+type ConnectorDirectoryRefreshOutcome = 'refreshed' | 'skipped' | 'partial' | 'unusable'
 
 /**
  * Refreshes the directory one admin-mode connector mirrors, from its row.
@@ -501,19 +560,24 @@ export async function refreshConnectorDirectory(
           sourceConfig,
           syncContext,
           accessToken: token.accessToken,
-          force: connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX),
+          force: hasDirectorySyncNotice(connector.lastSyncError),
         })
-        if (
-          outcome === 'refreshed' &&
-          connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX)
+        if (outcome.status === 'partial') {
+          await recordError(replaceDirectorySyncNotice(connector.lastSyncError, outcome.notice))
+        } else if (
+          outcome.status === 'refreshed' &&
+          hasDirectorySyncNotice(connector.lastSyncError)
         ) {
-          await recordError(null)
+          await recordError(replaceDirectorySyncNotice(connector.lastSyncError, null))
         }
-        return outcome
+        return outcome.status
       } catch (error) {
         const diagnostic = getConnectorFailureDiagnostic(error)
         await recordError(
-          diagnostic ? `${DIRECTORY_ERROR_PREFIX}${diagnostic.message}` : getErrorMessage(error)
+          replaceDirectorySyncNotice(
+            connector.lastSyncError,
+            diagnostic ? `${DIRECTORY_ERROR_PREFIX}${diagnostic.message}` : getErrorMessage(error)
+          )
         )
         throw error
       }

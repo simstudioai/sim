@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
+import { SOURCE_PERMISSION_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import type { ConnectorActionsOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 
 const mocks = vi.hoisted(() => ({
@@ -255,6 +256,75 @@ describe('organization source detail navigation', () => {
     expect(container.textContent).not.toContain(
       'Review the connection settings and try syncing again.'
     )
+  })
+
+  it.each(['active', 'pending', 'syncing'] as const)(
+    'keeps the safe permission warning visible while a source is %s',
+    async (status) => {
+      mocks.detail.mockReturnValue({
+        data: { ...connector, accessMode: 'admin', status, lastSyncError: SOURCE_PERMISSION_ERROR },
+      })
+      await render()
+      expect(container.textContent).toContain('Permission verification incomplete')
+      expect(container.textContent).toContain(SOURCE_PERMISSION_ERROR)
+      expect(container.textContent).not.toContain(
+        'Review the connection settings and try syncing again.'
+      )
+    }
+  )
+
+  it.each(['idle', 'pending', 'running'] as const)(
+    'preserves a connector permission warning alongside a member error while %s',
+    async (memberSyncStatus) => {
+      mocks.detail.mockReturnValue({
+        data: {
+          ...connector,
+          accessMode: 'members',
+          memberSyncStatus,
+          lastSyncError: SOURCE_PERMISSION_ERROR,
+          lastMemberSyncError: 'Private member error details',
+        },
+      })
+      await render()
+      expect(container.textContent).toContain('Permission verification incomplete')
+      expect(container.textContent).toContain(SOURCE_PERMISSION_ERROR)
+      expect(container.textContent).not.toContain('Private member error details')
+    }
+  )
+
+  it.each(['active', 'pending', 'syncing'] as const)(
+    'keeps permission warnings visible alongside other sync notices while %s',
+    async (status) => {
+      mocks.detail.mockReturnValue({
+        data: {
+          ...connector,
+          accessMode: 'admin',
+          status,
+          lastSyncError: [
+            'Directory refresh incomplete: Private directory details',
+            'Source listing failed for 1 account. Private account details',
+            SOURCE_PERMISSION_ERROR,
+          ].join('\n'),
+        },
+      })
+      await render()
+      expect(container.textContent).toContain('Permission verification incomplete')
+      expect(container.textContent).toContain(SOURCE_PERMISSION_ERROR)
+      expect(container.textContent).not.toContain('Private directory details')
+      expect(container.textContent).not.toContain('Private account details')
+      expect(container.textContent).not.toContain(
+        'Review the connection settings and try syncing again.'
+      )
+    }
+  )
+
+  it('does not classify a provider message containing the permission text as its own notice', async () => {
+    mocks.detail.mockReturnValue({
+      data: { ...connector, lastSyncError: `Provider message: ${SOURCE_PERMISSION_ERROR}` },
+    })
+    await render()
+    expect(container.textContent).toContain('Some connection updates are incomplete')
+    expect(container.textContent).not.toContain('Permission verification incomplete')
   })
 
   it.each(['', '?view=settings', '?view=history'])(

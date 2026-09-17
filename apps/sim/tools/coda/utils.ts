@@ -16,6 +16,7 @@ import type { OutputProperty, ToolConfig, ToolRetryConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const CODA_API_BASE = 'https://coda.io/apis/v1'
+const CODA_ADMIN_API_BASE = 'https://coda.io/apis/admin/v1'
 
 type QueryValue = string | number | boolean | null | undefined
 
@@ -25,8 +26,12 @@ type QueryValue = string | number | boolean | null | undefined
  * already encodes the original query, and Coda rejects any other parameter sent with it
  * (for example `limit` on pages, or `useColumnNames` on rows), so only the token is sent.
  */
-export function buildCodaUrl(path: string, query?: Record<string, QueryValue>): string {
-  const url = new URL(`${CODA_API_BASE}${path}`)
+export function buildCodaUrl(
+  path: string,
+  query?: Record<string, QueryValue>,
+  api: 'public' | 'admin' = 'public'
+): string {
+  const url = new URL(`${api === 'admin' ? CODA_ADMIN_API_BASE : CODA_API_BASE}${path}`)
   const pageToken = query?.pageToken
   const effectiveQuery =
     typeof pageToken === 'string' && pageToken.trim() !== '' ? { pageToken } : (query ?? {})

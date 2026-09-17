@@ -340,15 +340,75 @@ describe('Google Calendar company crawl', () => {
     expect(next.documents[0].acl).toEqual([`u:${BOB.email}`])
   })
 
-  it.each([401, 403])(
-    'propagates provider HTTP %s without completing a user’s listing',
-    async (status) => {
-      fetchMock.mockResolvedValue(response({ error: { code: status } }, status))
+  it.each([
+    { status: 401, reason: 'authError' },
+    { status: 403, reason: 'insufficientPermissions' },
+    { status: 403, reason: 'SERVICE_DISABLED' },
+  ])(
+    'propagates provider authorization failures without completing a listing: $reason',
+    async ({ status, reason }) => {
+      fetchMock.mockResolvedValue(response({ error: { errors: [{ reason }] } }, status))
       await expect(
         googleCalendarConnector.listDocuments('directory-token', {}, undefined, context())
       ).rejects.toThrow()
     }
   )
+
+  it.each([{ error: { code: 403 } }, { error: { code: 403, errors: [], details: [] } }])(
+    'propagates an unclassified list access denial and retains its diagnostic: %j',
+    async (body) => {
+      fetchMock.mockResolvedValueOnce(response(body, 403))
+      const syncContext = context()
+      await expect(
+        googleCalendarConnector.listDocuments('directory-token', {}, undefined, syncContext)
+      ).rejects.toMatchObject({
+        status: 403,
+        diagnostic: { operation: 'calendar.events.list', reasons: [] },
+      })
+      expect(fetchMock).toHaveBeenCalledOnce()
+      expect(syncContext.getDelegatedAccessToken.mock.calls).toEqual([[ALICE.email]])
+    }
+  )
+
+  it('continues another user after an explicit forbidden denial and retains its diagnostic', async () => {
+    fetchMock.mockResolvedValueOnce(
+      response({ error: { code: 403, errors: [{ reason: 'forbidden' }] } }, 403)
+    )
+    const first = await googleCalendarConnector.listDocuments(
+      'directory-token',
+      {},
+      undefined,
+      context()
+    )
+    expect(first).toMatchObject({
+      documents: [],
+      hasMore: true,
+      reconciliationSafe: false,
+      listingFailures: {
+        count: 1,
+        samples: [
+          {
+            scope: ALICE.email,
+            operation: 'calendar.events.list',
+            status: 403,
+            reasons: ['forbidden'],
+          },
+        ],
+      },
+    })
+    const second = await googleCalendarConnector.listDocuments(
+      'directory-token',
+      {},
+      first.nextCursor,
+      context()
+    )
+    expect(second.documents[0].acl).toEqual([`u:${BOB.email}`])
+    expect(second).toMatchObject({
+      hasMore: false,
+      reconciliationSafe: false,
+      listingFailures: first.listingFailures,
+    })
+  })
 
   it('skips a user who became inactive before their page and never delegates to them', async () => {
     mockGetUser.mockResolvedValueOnce({ ...ALICE, active: false })
