@@ -53,8 +53,12 @@ function schemaViolations(
   path: string,
   violations: string[]
 ): void {
-  if (value === null || value === undefined) {
-    if (!schema.optional) violations.push(`${path}: required but ${value}`)
+  if (value === null) {
+    if (!schema.nullable) violations.push(`${path}: null but not declared nullable`)
+    return
+  }
+  if (value === undefined) {
+    if (!schema.optional) violations.push(`${path}: missing but not declared optional`)
     return
   }
   switch (schema.type) {

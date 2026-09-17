@@ -8,7 +8,7 @@ import {
   codaAuthParams,
   codaHeaders,
   codaOAuth,
-  optionalTrimmed,
+  requiredTrimmed,
 } from '@/tools/coda/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
@@ -45,7 +45,7 @@ export const codaResolveBrowserLinkTool: ToolConfig<
   request: {
     url: (params) =>
       buildCodaUrl('/resolveBrowserLink', {
-        url: optionalTrimmed(params.url),
+        url: requiredTrimmed(params.url, 'url'),
         degradeGracefully: params.degradeGracefully,
       }),
     method: 'GET',
@@ -76,7 +76,7 @@ export const codaResolveBrowserLinkTool: ToolConfig<
     browserLink: {
       type: 'string',
       description: 'Canonical browser link to the resource',
-      optional: true,
+      nullable: true,
     },
     resource: {
       type: 'object',
@@ -87,7 +87,7 @@ export const codaResolveBrowserLinkTool: ToolConfig<
           description: 'Resource type (doc, page, table, row, column, formula, control, etc.)',
         },
         id: { type: 'string', description: 'Resource ID' },
-        name: { type: 'string', description: 'Resource name', optional: true },
+        name: { type: 'string', description: 'Resource name', nullable: true },
         href: { type: 'string', description: 'API link to the resource' },
       },
     },

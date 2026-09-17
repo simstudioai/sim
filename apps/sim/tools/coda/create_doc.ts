@@ -165,7 +165,7 @@ export const codaCreateDocTool: ToolConfig<CodaCreateDocParams, CodaCreateDocRes
     requestId: {
       type: 'string',
       description: 'Coda request ID for the doc creation',
-      optional: true,
+      nullable: true,
     },
   },
 }

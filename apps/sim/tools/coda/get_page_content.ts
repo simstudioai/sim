@@ -93,14 +93,14 @@ export const codaGetPageContentTool: ToolConfig<
             type: 'string',
             description:
               'Line style (paragraph, h1, h2, h3, bulletedList, numberedList, checkboxList, collapsibleList, blockQuote, pullQuote, code)',
-            optional: true,
+            nullable: true,
           },
-          format: { type: 'string', description: 'Content format (plainText)', optional: true },
-          content: { type: 'string', description: 'Element text', optional: true },
+          format: { type: 'string', description: 'Content format (plainText)', nullable: true },
+          content: { type: 'string', description: 'Element text', nullable: true },
           lineLevel: {
             type: 'number',
             description: 'Indentation level for paragraphs, quotes, and list items',
-            optional: true,
+            nullable: true,
           },
         },
       },

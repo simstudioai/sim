@@ -38,8 +38,8 @@ export async function validateCodaServiceAccount(
   )
   await throwForProviderResponse(res, 'whoami')
 
-  const body = await parseProviderJson<CodaWhoamiResponse>(res, 'whoami')
-  if (!body.loginId) {
+  const body = await parseProviderJson<CodaWhoamiResponse | null>(res, 'whoami')
+  if (typeof body?.loginId !== 'string' || !body.loginId.trim()) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'whoami',
       reason: 'missing loginId in response',

@@ -88,10 +88,10 @@ describe('validateCodaServiceAccount', () => {
   })
 
   it('rejects a success body without a login id', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(200, { name: 'Jane' }))
-
-    const error = await validateCodaServiceAccount({ apiToken: 'coda-token' }).catch((e) => e)
-
-    expect(error.code).toBe('provider_unavailable')
+    for (const body of [{ name: 'Jane' }, null, { loginId: '  ' }]) {
+      mockFetch.mockResolvedValueOnce(jsonResponse(200, body))
+      const error = await validateCodaServiceAccount({ apiToken: 'coda-token' }).catch((e) => e)
+      expect(error.code).toBe('provider_unavailable')
+    }
   })
 })

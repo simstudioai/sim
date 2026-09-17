@@ -79,12 +79,12 @@ export const codaGetPageExportStatusTool: ToolConfig<
     downloadLink: {
       type: 'string',
       description: 'Short-lived download link for the exported file, once complete',
-      optional: true,
+      nullable: true,
     },
     exportError: {
       type: 'string',
       description: 'Error message if the export failed',
-      optional: true,
+      nullable: true,
     },
   },
 }

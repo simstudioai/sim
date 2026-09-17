@@ -12,6 +12,7 @@ import { codaDeleteRowsTool } from '@/tools/coda/delete_rows'
 import { codaListDocsTool } from '@/tools/coda/list_docs'
 import { codaListRowsTool } from '@/tools/coda/list_rows'
 import { codaPublishDocTool } from '@/tools/coda/publish_doc'
+import { codaResolveBrowserLinkTool } from '@/tools/coda/resolve_browser_link'
 import { codaUpdateAclSettingsTool } from '@/tools/coda/update_acl_settings'
 import { codaUpdatePageTool } from '@/tools/coda/update_page'
 import { codaUpdateRowTool } from '@/tools/coda/update_row'
@@ -19,8 +20,27 @@ import { codaUpsertRowsTool } from '@/tools/coda/upsert_rows'
 import { buildCodaUrl, CODA_FIELD_UPDATE_RETRY, CODA_RETRY } from '@/tools/coda/utils'
 import { codaWhoamiTool } from '@/tools/coda/whoami'
 import { ErrorExtractorId, extractErrorMessageWithId } from '@/tools/error-extractors'
+import type { OutputProperty } from '@/tools/types'
 
 const table = { accessToken: 'token', docId: 'AbCDeFGH', tableId: 'grid-pqRst-U' }
+
+/** Lists output paths a tool returned as null whose schema does not declare `nullable`. */
+function findUndeclaredNulls(
+  value: unknown,
+  properties: Record<string, OutputProperty> | undefined,
+  path: string
+): string[] {
+  if (!properties || value === null || typeof value !== 'object') return []
+  return Object.entries(properties).flatMap(([key, schema]) => {
+    const child = (value as Record<string, unknown>)[key]
+    const childPath = `${path}.${key}`
+    if (child === null) return schema.nullable ? [] : [childPath]
+    if (Array.isArray(child)) {
+      return child.flatMap((item) => findUndeclaredNulls(item, schema.items?.properties, childPath))
+    }
+    return findUndeclaredNulls(child, schema.properties, childPath)
+  })
+}
 
 function resolveUrl<P>(url: string | ((params: P) => string), params: P): string {
   return typeof url === 'function' ? url(params) : url
@@ -44,6 +64,12 @@ describe('Coda request URLs', () => {
     expect(() => resolveUrl(codaListRowsTool.request.url, { ...table, tableId: '..' })).toThrow(
       'path traversal'
     )
+  })
+
+  it('rejects a blank browser link instead of sending no url', () => {
+    expect(() =>
+      resolveUrl(codaResolveBrowserLinkTool.request.url, { accessToken: 'token', url: '   ' })
+    ).toThrow('url is required')
   })
 
   it('builds list docs URLs without a doc path', () => {
@@ -82,6 +108,26 @@ describe('Coda row bodies', () => {
     expect(codaUpsertRowsTool.request.body!({ ...table, rows: [{ cells }] })).toEqual({
       rows: [{ cells }],
     })
+  })
+
+  it('maps a column named cells instead of reading it as the cells wrapper', () => {
+    expect(
+      codaUpdateRowTool.request.body!({
+        ...table,
+        rowId: 'i-1',
+        cells: { cells: 'x', Status: 'Done' },
+      })
+    ).toEqual({
+      row: {
+        cells: [
+          { column: 'cells', value: 'x' },
+          { column: 'Status', value: 'Done' },
+        ],
+      },
+    })
+    expect(
+      codaUpdateRowTool.request.body!({ ...table, rowId: 'i-1', cells: { cells: 'x' } })
+    ).toEqual({ row: { cells: [{ column: 'cells', value: 'x' }] } })
   })
 
   it('rejects an empty upsert', () => {
@@ -338,6 +384,27 @@ describe('Coda tool registration', () => {
   it('exposes all 60 tools through the barrel', () => {
     expect(allTools).toHaveLength(60)
   })
+
+  it.each(allTools)(
+    '%s declares every output it can return as null as nullable',
+    async (_, tool) => {
+      const config = tool as {
+        outputs: Record<string, OutputProperty>
+        transformResponse: (response: Response, params: object) => Promise<{ output: unknown }>
+      }
+      const sparseBody = {
+        items: [{ doc: {}, page: {}, metrics: [{}] }],
+        customDocDomains: [{}],
+        resource: {},
+        id: 'x',
+      }
+      const { output } = await config.transformResponse(
+        new Response(JSON.stringify(sparseBody)),
+        table
+      )
+      expect(findUndeclaredNulls(output, config.outputs, '')).toEqual([])
+    }
+  )
 
   it.each(allTools)(
     '%s retries safely repeatable calls and authenticates with the Coda credential',

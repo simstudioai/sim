@@ -105,6 +105,16 @@ export function optionalTrimmed(value: unknown): string | undefined {
   return trimmed || undefined
 }
 
+/**
+ * Trims a required string param, throwing when it is blank. The executor's required check
+ * accepts whitespace, which would otherwise drop the value from the query string.
+ */
+export function requiredTrimmed(value: unknown, paramName: string): string {
+  const trimmed = optionalTrimmed(value)
+  if (!trimmed) throw new Error(`${paramName} is required`)
+  return trimmed
+}
+
 interface CellEdit {
   column: string
   value: unknown
@@ -125,21 +135,20 @@ function isCellArray(value: unknown): value is CellEdit[] {
 
 /**
  * Converts a row given either as Coda cells (`[{ column, value }]`), a `{ cells: [...] }`
- * object, or a plain `{ columnIdOrName: value }` map into Coda's cell-edit array.
+ * object, or a plain `{ columnIdOrName: value }` map into Coda's cell-edit array. An object
+ * is only read as the `cells` wrapper when that is its sole key and holds cell edits, so a
+ * column named `cells` still maps normally.
  */
 export function toCodaCells(row: unknown, paramName: string): CellEdit[] {
   if (isCellArray(row)) return row
   if (row === null || typeof row !== 'object' || Array.isArray(row)) {
     throw new Error(`${paramName} must be an object mapping columns to values`)
   }
-  const cells = (row as { cells?: unknown }).cells
-  if (cells !== undefined) {
-    if (!isCellArray(cells)) {
-      throw new Error(`${paramName}.cells must be an array of { column, value } objects`)
-    }
-    return cells
+  const entries = Object.entries(row)
+  if (entries.length === 1 && entries[0][0] === 'cells' && isCellArray(entries[0][1])) {
+    return entries[0][1]
   }
-  return Object.entries(row).map(([column, value]) => ({ column, value }))
+  return entries.map(([column, value]) => ({ column, value }))
 }
 
 /** Builds Coda's `PageCreateContent` union from flat tool params, or undefined when absent. */
@@ -635,7 +644,7 @@ export function mapPermission(permission: RawCodaPermission): CodaPermission {
 export const NEXT_PAGE_TOKEN_OUTPUT = {
   type: 'string',
   description: 'Token to pass as pageToken to fetch the next page of results',
-  optional: true,
+  nullable: true,
 } as const satisfies OutputProperty
 
 export const REQUEST_ID_OUTPUT = {
@@ -645,40 +654,40 @@ export const REQUEST_ID_OUTPUT = {
 } as const satisfies OutputProperty
 
 export const ICON_PROPERTIES = {
-  name: { type: 'string', description: 'Icon name', optional: true },
-  type: { type: 'string', description: 'Icon MIME type', optional: true },
-  browserLink: { type: 'string', description: 'Link to the icon image', optional: true },
+  name: { type: 'string', description: 'Icon name', nullable: true },
+  type: { type: 'string', description: 'Icon MIME type', nullable: true },
+  browserLink: { type: 'string', description: 'Link to the icon image', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 const PERSON_PROPERTIES = {
-  name: { type: 'string', description: 'Full name', optional: true },
-  email: { type: 'string', description: 'Email address', optional: true },
+  name: { type: 'string', description: 'Full name', nullable: true },
+  email: { type: 'string', description: 'Email address', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 const PAGE_REF_PROPERTIES = {
   id: { type: 'string', description: 'Page ID' },
-  name: { type: 'string', description: 'Page name', optional: true },
-  href: { type: 'string', description: 'API link to the page', optional: true },
-  browserLink: { type: 'string', description: 'Browser link to the page', optional: true },
+  name: { type: 'string', description: 'Page name', nullable: true },
+  href: { type: 'string', description: 'API link to the page', nullable: true },
+  browserLink: { type: 'string', description: 'Browser link to the page', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 const TABLE_REF_PROPERTIES = {
   id: { type: 'string', description: 'Table ID' },
-  name: { type: 'string', description: 'Table name', optional: true },
-  tableType: { type: 'string', description: 'Table type (table or view)', optional: true },
-  href: { type: 'string', description: 'API link to the table', optional: true },
-  browserLink: { type: 'string', description: 'Browser link to the table', optional: true },
+  name: { type: 'string', description: 'Table name', nullable: true },
+  tableType: { type: 'string', description: 'Table type (table or view)', nullable: true },
+  href: { type: 'string', description: 'API link to the table', nullable: true },
+  browserLink: { type: 'string', description: 'Browser link to the table', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export const WORKSPACE_REF_PROPERTIES = {
   id: { type: 'string', description: 'Workspace ID' },
-  name: { type: 'string', description: 'Workspace name', optional: true },
+  name: { type: 'string', description: 'Workspace name', nullable: true },
   organizationId: {
     type: 'string',
     description: 'Organization bound to the workspace',
-    optional: true,
+    nullable: true,
   },
-  browserLink: { type: 'string', description: 'Browser link to the workspace', optional: true },
+  browserLink: { type: 'string', description: 'Browser link to the workspace', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export const DOC_PROPERTIES = {
@@ -686,76 +695,76 @@ export const DOC_PROPERTIES = {
   name: { type: 'string', description: 'Doc name' },
   href: { type: 'string', description: 'API link to the doc' },
   browserLink: { type: 'string', description: 'Browser link to the doc' },
-  icon: { type: 'object', description: 'Doc icon', optional: true, properties: ICON_PROPERTIES },
-  owner: { type: 'string', description: 'Email address of the doc owner', optional: true },
-  ownerName: { type: 'string', description: 'Name of the doc owner', optional: true },
-  createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
-  updatedAt: { type: 'string', description: 'Last modified timestamp', optional: true },
+  icon: { type: 'object', description: 'Doc icon', nullable: true, properties: ICON_PROPERTIES },
+  owner: { type: 'string', description: 'Email address of the doc owner', nullable: true },
+  ownerName: { type: 'string', description: 'Name of the doc owner', nullable: true },
+  createdAt: { type: 'string', description: 'Creation timestamp', nullable: true },
+  updatedAt: { type: 'string', description: 'Last modified timestamp', nullable: true },
   workspace: {
     type: 'object',
     description: 'Workspace containing the doc',
-    optional: true,
+    nullable: true,
     properties: WORKSPACE_REF_PROPERTIES,
   },
   folder: {
     type: 'object',
     description: 'Folder containing the doc',
-    optional: true,
+    nullable: true,
     properties: {
       id: { type: 'string', description: 'Folder ID' },
-      name: { type: 'string', description: 'Folder name', optional: true },
-      browserLink: { type: 'string', description: 'Browser link to the folder', optional: true },
+      name: { type: 'string', description: 'Folder name', nullable: true },
+      browserLink: { type: 'string', description: 'Browser link to the folder', nullable: true },
     },
   },
   sourceDoc: {
     type: 'object',
     description: 'Doc this doc was copied from',
-    optional: true,
+    nullable: true,
     properties: {
       id: { type: 'string', description: 'Source doc ID' },
-      href: { type: 'string', description: 'API link to the source doc', optional: true },
+      href: { type: 'string', description: 'API link to the source doc', nullable: true },
       browserLink: {
         type: 'string',
         description: 'Browser link to the source doc',
-        optional: true,
+        nullable: true,
       },
     },
   },
   docSize: {
     type: 'object',
     description: 'Size of the doc',
-    optional: true,
+    nullable: true,
     properties: {
-      totalRowCount: { type: 'number', description: 'Rows across all tables', optional: true },
-      tableAndViewCount: { type: 'number', description: 'Tables and views', optional: true },
-      baseTableCount: { type: 'number', description: 'Base tables', optional: true },
-      pageCount: { type: 'number', description: 'Pages', optional: true },
+      totalRowCount: { type: 'number', description: 'Rows across all tables', nullable: true },
+      tableAndViewCount: { type: 'number', description: 'Tables and views', nullable: true },
+      baseTableCount: { type: 'number', description: 'Base tables', nullable: true },
+      pageCount: { type: 'number', description: 'Pages', nullable: true },
       overApiSizeLimit: {
         type: 'boolean',
         description: 'Whether the doc is over the API size limit',
-        optional: true,
+        nullable: true,
       },
     },
   },
   published: {
     type: 'object',
     description: 'Publishing settings, when the doc is published',
-    optional: true,
+    nullable: true,
     properties: {
-      description: { type: 'string', description: 'Published description', optional: true },
-      browserLink: { type: 'string', description: 'Published doc link', optional: true },
-      imageLink: { type: 'string', description: 'Cover image link', optional: true },
+      description: { type: 'string', description: 'Published description', nullable: true },
+      browserLink: { type: 'string', description: 'Published doc link', nullable: true },
+      imageLink: { type: 'string', description: 'Cover image link', nullable: true },
       discoverable: {
         type: 'boolean',
         description: 'Whether the doc is discoverable',
-        optional: true,
+        nullable: true,
       },
       earnCredit: {
         type: 'boolean',
         description: 'Whether viewers must sign in so the owner earns credit',
-        optional: true,
+        nullable: true,
       },
-      mode: { type: 'string', description: 'Interaction mode (view, play, edit)', optional: true },
+      mode: { type: 'string', description: 'Interaction mode (view, play, edit)', nullable: true },
       categories: {
         type: 'array',
         description: 'Category names',
@@ -768,36 +777,36 @@ export const DOC_PROPERTIES = {
 export const PAGE_PROPERTIES = {
   id: { type: 'string', description: 'Page ID' },
   name: { type: 'string', description: 'Page name' },
-  subtitle: { type: 'string', description: 'Page subtitle', optional: true },
+  subtitle: { type: 'string', description: 'Page subtitle', nullable: true },
   href: { type: 'string', description: 'API link to the page' },
   browserLink: { type: 'string', description: 'Browser link to the page' },
   contentType: {
     type: 'string',
     description: 'Page type (canvas, embed, or syncPage)',
-    optional: true,
+    nullable: true,
   },
-  isHidden: { type: 'boolean', description: 'Whether the page is hidden', optional: true },
+  isHidden: { type: 'boolean', description: 'Whether the page is hidden', nullable: true },
   isEffectivelyHidden: {
     type: 'boolean',
     description: 'Whether the page or any parent is hidden',
-    optional: true,
+    nullable: true,
   },
-  icon: { type: 'object', description: 'Page icon', optional: true, properties: ICON_PROPERTIES },
+  icon: { type: 'object', description: 'Page icon', nullable: true, properties: ICON_PROPERTIES },
   image: {
     type: 'object',
     description: 'Cover image',
-    optional: true,
+    nullable: true,
     properties: {
-      browserLink: { type: 'string', description: 'Image link', optional: true },
-      type: { type: 'string', description: 'Image MIME type', optional: true },
-      width: { type: 'number', description: 'Width in pixels', optional: true },
-      height: { type: 'number', description: 'Height in pixels', optional: true },
+      browserLink: { type: 'string', description: 'Image link', nullable: true },
+      type: { type: 'string', description: 'Image MIME type', nullable: true },
+      width: { type: 'number', description: 'Width in pixels', nullable: true },
+      height: { type: 'number', description: 'Height in pixels', nullable: true },
     },
   },
   parent: {
     type: 'object',
     description: 'Parent page',
-    optional: true,
+    nullable: true,
     properties: PAGE_REF_PROPERTIES,
   },
   children: {
@@ -810,18 +819,18 @@ export const PAGE_PROPERTIES = {
     description: 'Page authors',
     items: { type: 'object', properties: PERSON_PROPERTIES },
   },
-  createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
+  createdAt: { type: 'string', description: 'Creation timestamp', nullable: true },
   createdBy: {
     type: 'object',
     description: 'Page creator',
-    optional: true,
+    nullable: true,
     properties: PERSON_PROPERTIES,
   },
-  updatedAt: { type: 'string', description: 'Last content update timestamp', optional: true },
+  updatedAt: { type: 'string', description: 'Last content update timestamp', nullable: true },
   updatedBy: {
     type: 'object',
     description: 'Last editor of the page',
-    optional: true,
+    nullable: true,
     properties: PERSON_PROPERTIES,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -832,14 +841,14 @@ export const TABLE_REFERENCE_PROPERTIES = {
   tableType: {
     type: 'string',
     description: 'Table type (table, view, or database)',
-    optional: true,
+    nullable: true,
   },
   href: { type: 'string', description: 'API link to the table' },
   browserLink: { type: 'string', description: 'Browser link to the table' },
   parent: {
     type: 'object',
     description: 'Page containing the table',
-    optional: true,
+    nullable: true,
     properties: PAGE_REF_PROPERTIES,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -849,73 +858,73 @@ export const TABLE_PROPERTIES = {
   parentTable: {
     type: 'object',
     description: 'Base table, when this is a view',
-    optional: true,
+    nullable: true,
     properties: TABLE_REF_PROPERTIES,
   },
-  displayColumnId: { type: 'string', description: 'Display column ID', optional: true },
-  rowCount: { type: 'number', description: 'Total number of rows', optional: true },
+  displayColumnId: { type: 'string', description: 'Display column ID', nullable: true },
+  rowCount: { type: 'number', description: 'Total number of rows', nullable: true },
   sorts: {
     type: 'array',
     description: 'Sorts applied to the table',
     items: {
       type: 'object',
       properties: {
-        columnId: { type: 'string', description: 'Sorted column ID', optional: true },
-        direction: { type: 'string', description: 'ascending or descending', optional: true },
+        columnId: { type: 'string', description: 'Sorted column ID', nullable: true },
+        direction: { type: 'string', description: 'ascending or descending', nullable: true },
       },
     },
   },
   layout: {
     type: 'string',
     description: 'Layout (default, card, calendar, detail, form, ganttChart, etc.)',
-    optional: true,
+    nullable: true,
   },
   filter: {
     type: 'object',
     description: 'Details about the table filter formula, if any',
-    optional: true,
+    nullable: true,
     properties: {
       valid: {
         type: 'boolean',
         description: 'Whether the filter formula is valid',
-        optional: true,
+        nullable: true,
       },
       isVolatile: {
         type: 'boolean',
         description: 'Whether results can differ by context or user',
-        optional: true,
+        nullable: true,
       },
-      hasUserFormula: { type: 'boolean', description: 'Uses User()', optional: true },
-      hasTodayFormula: { type: 'boolean', description: 'Uses Today()', optional: true },
-      hasNowFormula: { type: 'boolean', description: 'Uses Now()', optional: true },
+      hasUserFormula: { type: 'boolean', description: 'Uses User()', nullable: true },
+      hasTodayFormula: { type: 'boolean', description: 'Uses Today()', nullable: true },
+      hasNowFormula: { type: 'boolean', description: 'Uses Now()', nullable: true },
     },
   },
-  createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
-  updatedAt: { type: 'string', description: 'Last modified timestamp', optional: true },
+  createdAt: { type: 'string', description: 'Creation timestamp', nullable: true },
+  updatedAt: { type: 'string', description: 'Last modified timestamp', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
 export const COLUMN_PROPERTIES = {
   id: { type: 'string', description: 'Column ID' },
   name: { type: 'string', description: 'Column name' },
   href: { type: 'string', description: 'API link to the column' },
-  display: { type: 'boolean', description: 'Whether this is the display column', optional: true },
+  display: { type: 'boolean', description: 'Whether this is the display column', nullable: true },
   calculated: {
     type: 'boolean',
     description: 'Whether the column has a formula',
-    optional: true,
+    nullable: true,
   },
-  formula: { type: 'string', description: 'Column formula', optional: true },
-  defaultValue: { type: 'string', description: 'Default value formula', optional: true },
+  formula: { type: 'string', description: 'Column formula', nullable: true },
+  defaultValue: { type: 'string', description: 'Default value formula', nullable: true },
   format: {
     type: 'json',
     description:
       'Column format: always type (text, number, date, select, lookup, button, etc.) and isArray, plus type-specific settings such as precision, currencyCode, dateFormat, options, or the referenced table',
-    optional: true,
+    nullable: true,
   },
   parentTable: {
     type: 'object',
     description: 'Table containing the column (returned by Get Column)',
-    optional: true,
+    nullable: true,
     properties: TABLE_REF_PROPERTIES,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -923,11 +932,11 @@ export const COLUMN_PROPERTIES = {
 export const ROW_PROPERTIES = {
   id: { type: 'string', description: 'Row ID' },
   name: { type: 'string', description: 'Row display name' },
-  index: { type: 'number', description: 'Index of the row in the table', optional: true },
+  index: { type: 'number', description: 'Index of the row in the table', nullable: true },
   href: { type: 'string', description: 'API link to the row' },
   browserLink: { type: 'string', description: 'Browser link to the row' },
-  createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
-  updatedAt: { type: 'string', description: 'Last modified timestamp', optional: true },
+  createdAt: { type: 'string', description: 'Creation timestamp', nullable: true },
+  updatedAt: { type: 'string', description: 'Last modified timestamp', nullable: true },
   values: {
     type: 'json',
     description: 'Cell values keyed by column ID (or column name when useColumnNames is set)',
@@ -935,7 +944,7 @@ export const ROW_PROPERTIES = {
   parentTable: {
     type: 'object',
     description: 'Table containing the row (returned by Get Row)',
-    optional: true,
+    nullable: true,
     properties: TABLE_REF_PROPERTIES,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -947,51 +956,39 @@ export const NAMED_REFERENCE_PROPERTIES = {
   parent: {
     type: 'object',
     description: 'Page containing the item',
-    optional: true,
+    nullable: true,
     properties: PAGE_REF_PROPERTIES,
   },
 } as const satisfies Record<string, OutputProperty>
 
 export const FOLDER_PROPERTIES = {
   id: { type: 'string', description: 'Folder ID' },
-  name: { type: 'string', description: 'Folder name' },
-  browserLink: { type: 'string', description: 'Browser link to the folder' },
-  description: { type: 'string', description: 'Folder description', optional: true },
+  name: { type: 'string', description: 'Folder name', nullable: true },
+  browserLink: { type: 'string', description: 'Browser link to the folder', nullable: true },
+  description: { type: 'string', description: 'Folder description', nullable: true },
   icon: {
     type: 'object',
     description: 'Folder icon',
-    optional: true,
+    nullable: true,
     properties: ICON_PROPERTIES,
   },
-  iconColor: { type: 'string', description: 'Folder icon color', optional: true },
-  createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
+  iconColor: { type: 'string', description: 'Folder icon color', nullable: true },
+  createdAt: { type: 'string', description: 'Creation timestamp', nullable: true },
   canEdit: {
     type: 'boolean',
     description: 'Whether the folder settings can be edited',
-    optional: true,
+    nullable: true,
   },
   workspace: {
     type: 'object',
     description: 'Workspace containing the folder',
-    optional: true,
+    nullable: true,
     properties: WORKSPACE_REF_PROPERTIES,
   },
 } as const satisfies Record<string, OutputProperty>
 
-/** Subfolders you cannot access are returned with only `id` and `visibility`, and never carry an icon. */
-export const FOLDER_CHILD_PROPERTIES = {
-  ...omit(FOLDER_PROPERTIES, ['icon']),
-  name: {
-    type: 'string',
-    description: 'Folder name (absent for restricted subfolders)',
-    optional: true,
-  },
-  browserLink: {
-    type: 'string',
-    description: 'Browser link to the folder (absent for restricted subfolders)',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>
+/** Subfolders you cannot access carry only `id` and `visibility`, so their other fields are null. */
+export const FOLDER_CHILD_PROPERTIES = omit(FOLDER_PROPERTIES, ['icon'])
 
 export const PERMISSION_PROPERTIES = {
   id: { type: 'string', description: 'Permission ID' },
@@ -1003,21 +1000,21 @@ export const PERMISSION_PROPERTIES = {
       type: {
         type: 'string',
         description: 'Principal type (email, group, domain, workspace, anyone, internalAccess)',
-        optional: true,
+        nullable: true,
       },
-      email: { type: 'string', description: 'Email of an email principal', optional: true },
-      groupId: { type: 'string', description: 'Group ID of a group principal', optional: true },
-      groupName: { type: 'string', description: 'Name of a group principal', optional: true },
-      domain: { type: 'string', description: 'Domain of a domain principal', optional: true },
+      email: { type: 'string', description: 'Email of an email principal', nullable: true },
+      groupId: { type: 'string', description: 'Group ID of a group principal', nullable: true },
+      groupName: { type: 'string', description: 'Name of a group principal', nullable: true },
+      domain: { type: 'string', description: 'Domain of a domain principal', nullable: true },
       workspaceId: {
         type: 'string',
         description: 'Workspace ID of a workspace principal',
-        optional: true,
+        nullable: true,
       },
       internalAccessType: {
         type: 'string',
         description: 'Internal access type (e.g., support)',
-        optional: true,
+        nullable: true,
       },
     },
   },

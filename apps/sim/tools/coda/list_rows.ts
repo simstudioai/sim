@@ -117,7 +117,7 @@ export const codaListRowsTool: ToolConfig<CodaListRowsParams, CodaListRowsRespon
     nextSyncToken: {
       type: 'string',
       description: 'Token to pass as syncToken later to fetch only rows changed after this call',
-      optional: true,
+      nullable: true,
     },
   },
 }

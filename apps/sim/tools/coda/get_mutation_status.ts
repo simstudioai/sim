@@ -49,7 +49,7 @@ export const codaGetMutationStatusTool: ToolConfig<
     warning: {
       type: 'string',
       description: 'Warning if the change completed with caveats',
-      optional: true,
+      nullable: true,
     },
   },
 }

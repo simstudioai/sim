@@ -77,7 +77,7 @@ export const codaSearchPrincipalsTool: ToolConfig<
         properties: {
           name: { type: 'string', description: 'User name' },
           loginId: { type: 'string', description: 'User email address' },
-          pictureLink: { type: 'string', description: 'Avatar link', optional: true },
+          pictureLink: { type: 'string', description: 'Avatar link', nullable: true },
         },
       },
     },

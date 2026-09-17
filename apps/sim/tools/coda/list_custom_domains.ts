@@ -76,7 +76,7 @@ export const codaListCustomDomainsTool: ToolConfig<CodaDocParams, CodaListCustom
           lastVerifiedTimestamp: {
             type: 'string',
             description: 'When the DNS settings were last checked',
-            optional: true,
+            nullable: true,
           },
         },
       },

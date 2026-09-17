@@ -59,11 +59,12 @@ export const codaGetControlTool: ToolConfig<CodaGetControlParams, CodaControlRes
           type: 'string',
           description:
             'Control type (aiBlock, button, checkbox, datePicker, dateRangePicker, dateTimePicker, lookup, multiselect, select, scale, slider, reaction, textbox, timePicker)',
-          optional: true,
+          nullable: true,
         },
         value: {
           type: 'json',
           description: 'Current value (string, number, boolean, or array of these)',
+          nullable: true,
         },
       },
     },

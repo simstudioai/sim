@@ -55,6 +55,7 @@ export const codaGetFormulaTool: ToolConfig<CodaGetFormulaParams, CodaFormulaRes
         value: {
           type: 'json',
           description: 'Computed value (string, number, boolean, or array of these)',
+          nullable: true,
         },
       },
     },

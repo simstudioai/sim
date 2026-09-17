@@ -56,17 +56,17 @@ export const codaWhoamiTool: ToolConfig<CodaAuthParams, CodaWhoamiResponse> = {
   outputs: {
     name: { type: 'string', description: 'Name of the user' },
     loginId: { type: 'string', description: 'Email address of the user' },
-    pictureLink: { type: 'string', description: 'Link to the user avatar', optional: true },
+    pictureLink: { type: 'string', description: 'Link to the user avatar', nullable: true },
     scoped: {
       type: 'boolean',
       description: 'Whether the token is restricted to specific docs or tables',
-      optional: true,
+      nullable: true,
     },
-    tokenName: { type: 'string', description: 'Name of the API token', optional: true },
+    tokenName: { type: 'string', description: 'Name of the API token', nullable: true },
     workspace: {
       type: 'object',
       description: 'Default workspace of the user',
-      optional: true,
+      nullable: true,
       properties: WORKSPACE_REF_PROPERTIES,
     },
   },

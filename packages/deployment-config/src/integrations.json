@@ -5554,7 +5554,7 @@
         },
         {
           "name": "Get Sharing Metadata",
-          "description": "Check whether the connected user can share or copy a Coda doc, and share it with the workspace or organization"
+          "description": "Check whether the connected user can share or copy a Coda doc, and whether they can share it with the workspace or organization"
         },
         {
           "name": "Get Sharing Settings",

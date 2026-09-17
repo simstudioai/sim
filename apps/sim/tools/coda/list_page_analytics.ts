@@ -126,7 +126,7 @@ export const codaListPageAnalyticsTool: ToolConfig<
               icon: {
                 type: 'object',
                 description: 'Page icon',
-                optional: true,
+                nullable: true,
                 properties: ICON_PROPERTIES,
               },
             },
@@ -137,32 +137,36 @@ export const codaListPageAnalyticsTool: ToolConfig<
             items: {
               type: 'object',
               properties: {
-                date: { type: 'string', description: 'Date of the data (YYYY-MM-DD)' },
-                views: { type: 'number', description: 'Page views that day', optional: true },
+                date: {
+                  type: 'string',
+                  description: 'Date of the data (YYYY-MM-DD)',
+                  nullable: true,
+                },
+                views: { type: 'number', description: 'Page views that day', nullable: true },
                 sessions: {
                   type: 'number',
                   description: 'Unique browsers that viewed the page',
-                  optional: true,
+                  nullable: true,
                 },
                 users: {
                   type: 'number',
                   description: 'Unique Coda users that viewed the page',
-                  optional: true,
+                  nullable: true,
                 },
                 averageSecondsViewed: {
                   type: 'number',
                   description: 'Average seconds the page was viewed',
-                  optional: true,
+                  nullable: true,
                 },
                 medianSecondsViewed: {
                   type: 'number',
                   description: 'Median seconds the page was viewed',
-                  optional: true,
+                  nullable: true,
                 },
                 tabs: {
                   type: 'number',
                   description: 'Unique tabs that opened the doc',
-                  optional: true,
+                  nullable: true,
                 },
               },
             },
