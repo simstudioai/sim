@@ -536,10 +536,7 @@ async function selectAuthorizedSearchResults(input: {
   hydrate: (ids: string[], access: KnowledgeAccessScope) => Promise<SearchResult[]>
 }): Promise<SearchResult[]> {
   const deadline = Date.now() + AUTHORIZED_SEARCH_BUDGET_MS
-  const pageSize = Math.min(
-    AUTHORIZED_SEARCH_PAGE_SIZE,
-    input.accessProvider ? Math.max(input.topK, 20) : input.topK
-  )
+  const pageSize = Math.min(AUTHORIZED_SEARCH_PAGE_SIZE, Math.max(input.topK, 20))
   const results = new Map<string, SearchResult>()
   const excludedSources = new Set<string>()
   const considered = new Set<string>()

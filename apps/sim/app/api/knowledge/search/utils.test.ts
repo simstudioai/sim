@@ -235,7 +235,7 @@ describe('Knowledge Search Utils', () => {
       expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
       expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 400)
       expect(dbChainMockFns.select.mock.calls[1][0]).toHaveProperty('distance')
-      expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(20)
     })
 
     it('should throw error when no filters provided', async () => {

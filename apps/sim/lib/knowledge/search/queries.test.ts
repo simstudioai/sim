@@ -459,8 +459,10 @@ describe('workspace-scoped vector retrieval', () => {
   })
 
   it('keeps workspace-authorized sources eligible when hydration needs another page', async () => {
-    const initial = ranked.map((row) => ({
-      ...row,
+    const initial = Array.from({ length: 20 }, (_, index) => ({
+      ...ranked[0],
+      id: `initial-${index}`,
+      distance: index / 100,
       connectorId: 'workspace-source',
       liveAuthorizationSource: true,
     }))
@@ -473,9 +475,35 @@ describe('workspace-scoped vector retrieval', () => {
       ...params,
       filters: { documentIds: ['near-doc', 'far-doc'] },
     })
-    expect(rows.map((row) => row.id)).toEqual(['near', 'next'])
-    expect(dbChainMockFns.offset.mock.calls.map(([offset]) => offset)).toEqual([0, 2])
+    expect(rows.map((row) => row.id)).toEqual(['initial-0', 'next'])
+    expect(dbChainMockFns.offset.mock.calls.map(([offset]) => offset)).toEqual([0, 20])
     expect(JSON.stringify(dbChainMockFns.where.mock.calls)).not.toContain('workspace-source')
+    expect(getForConnectors).not.toHaveBeenCalled()
+  })
+
+  it('fills a single result from the same candidate page when its nearest row loses access', async () => {
+    const execute = dbChainMockFns.execute.getMockImplementation()!
+    dbChainMockFns.execute.mockImplementation(async (query) => {
+      const statement = render(query)
+      if (statement.sql.includes('WITH scored_search_candidates')) {
+        const limit = Number(statement.params.at(-2))
+        const offset = Number(statement.params.at(-1))
+        const page = ranked.slice(offset, offset + limit)
+        queueTableRows(
+          schemaMock.embedding,
+          page.filter((row) => row.id !== 'near')
+        )
+        return page
+      }
+      return execute(query)
+    })
+
+    const rows = await handleVectorOnlySearch({ ...params, topK: 1 })
+
+    expect(rows.map((row) => row.id)).toEqual(['far'])
+    expect(
+      statements().filter((query) => query.sql.includes('WITH visible_search_documents'))
+    ).toHaveLength(1)
     expect(getForConnectors).not.toHaveBeenCalled()
   })
 
