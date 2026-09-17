@@ -18,6 +18,7 @@ import { slackSearchOutboxHandlers } from '@/lib/knowledge/application/slack-sea
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
+import { inboxCleanupOutboxHandlers } from '@/lib/mothership/inbox/cleanup-outbox'
 import { organizationResourceCleanupOutboxHandlers } from '@/lib/organizations/resource-cleanup'
 import { permissionAccessRequestOutboxHandlers } from '@/lib/permission-access-requests/notifications'
 import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
@@ -42,6 +43,7 @@ const handlers = {
   ...directGrantOutboxHandlers,
   ...knowledgeDocumentProcessingOutboxHandlers,
   ...organizationResourceCleanupOutboxHandlers,
+  ...inboxCleanupOutboxHandlers,
   ...permissionAccessRequestOutboxHandlers,
   ...workspaceFileLiveDocOutboxHandlers,
   ...workspaceFileStorageCleanupOutboxHandlers,

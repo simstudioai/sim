@@ -1,0 +1,231 @@
+/**
+ * @vitest-environment node
+ */
+
+import { db } from '@sim/db'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { OutboxEventContext } from '@/lib/core/outbox/service'
+import * as outboxService from '@/lib/core/outbox/service'
+
+const mocks = vi.hoisted(() => ({
+  getInbox: vi.fn(),
+  deleteInbox: vi.fn(),
+  deleteWebhook: vi.fn(),
+}))
+vi.mock('@/lib/mothership/inbox/agentmail-client', () => mocks)
+
+import {
+  cancelInboxCleanup,
+  type InboxCleanupPayload,
+  inboxCleanupOutboxHandlers,
+  processInboxCleanupNow,
+} from '@/lib/mothership/inbox/cleanup-outbox'
+
+const cleanup = inboxCleanupOutboxHandlers['inbox.resources.cleanup']
+const payload = {
+  inboxId: 'old@example.com',
+  inboxCreatedAt: '2025-01-01T00:00:00Z',
+  webhookId: 'old-hook',
+}
+let context: OutboxEventContext
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  resetDbChainMock()
+  mocks.getInbox.mockResolvedValue({
+    inbox_id: payload.inboxId,
+    created_at: payload.inboxCreatedAt,
+  })
+  mocks.deleteInbox.mockResolvedValue(true)
+  mocks.deleteWebhook.mockResolvedValue(true)
+  context = {
+    eventId: 'event-1',
+    eventType: 'inbox.resources.cleanup',
+    attempts: 0,
+    maxAttempts: 10,
+    signal: new AbortController().signal,
+    checkpointPayload: vi.fn().mockResolvedValue(undefined),
+  }
+})
+
+describe('durable inbox cleanup', () => {
+  it('refuses resources still referenced by an active configuration', async () => {
+    queueTableRows(schemaMock.mothershipInboxWebhook, [{ id: 'active-hook' }])
+    await expect(cleanup(payload, context)).rejects.toThrow('still in use')
+    expect(mocks.deleteWebhook).not.toHaveBeenCalled()
+    expect(mocks.deleteInbox).not.toHaveBeenCalled()
+  })
+
+  it('refuses an inbox still referenced by a workspace', async () => {
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
+    await expect(cleanup({ ...payload, webhookId: null }, context)).rejects.toThrow('still in use')
+    expect(mocks.deleteInbox).not.toHaveBeenCalled()
+  })
+
+  it('surfaces provider failures for the outbox retry policy', async () => {
+    mocks.deleteWebhook.mockRejectedValueOnce(new Error('Service unavailable'))
+    await expect(cleanup(payload, context)).rejects.toThrow('Service unavailable')
+    expect(mocks.deleteInbox).not.toHaveBeenCalled()
+  })
+
+  it('checkpoints accepted deletion and polls on retry instead of deleting again', async () => {
+    mocks.deleteInbox.mockResolvedValueOnce(false)
+    await expect(cleanup(payload, context)).resolves.toMatchObject({ outcome: 'deferred' })
+    expect(context.checkpointPayload).toHaveBeenCalledWith({ inboxDeleteAccepted: true })
+    await expect(
+      cleanup({ ...payload, inboxDeleteAccepted: true }, context)
+    ).resolves.toMatchObject({ outcome: 'deferred' })
+    expect(mocks.deleteInbox).toHaveBeenCalledTimes(1)
+    mocks.getInbox.mockResolvedValueOnce(null)
+    await expect(
+      cleanup({ ...payload, inboxDeleteAccepted: true }, context)
+    ).resolves.toBeUndefined()
+  })
+
+  it('does not delete a new inbox that reused the retired address', async () => {
+    mocks.getInbox.mockResolvedValueOnce({
+      inbox_id: payload.inboxId,
+      created_at: '2025-02-01T00:00:00Z',
+    })
+    await expect(cleanup(payload, context)).resolves.toBeUndefined()
+    expect(mocks.deleteInbox).not.toHaveBeenCalled()
+  })
+
+  it('completes already-absent resources without issuing another inbox delete', async () => {
+    mocks.getInbox.mockResolvedValueOnce(null)
+    await expect(cleanup(payload, context)).resolves.toBeUndefined()
+    expect(mocks.deleteInbox).not.toHaveBeenCalled()
+  })
+
+  it('does not lose asynchronous webhook deletion', async () => {
+    mocks.deleteWebhook.mockResolvedValueOnce(false)
+    await expect(cleanup(payload, context)).resolves.toMatchObject({ outcome: 'deferred' })
+    expect(mocks.deleteInbox).not.toHaveBeenCalled()
+  })
+
+  it('honors cancellation before provider side effects', async () => {
+    context.signal = AbortSignal.abort()
+    await expect(cleanup(payload, context)).rejects.toThrow()
+    expect(mocks.deleteWebhook).not.toHaveBeenCalled()
+  })
+
+  it('requires a creation timestamp before deleting an address', async () => {
+    await expect(cleanup({ ...payload, inboxCreatedAt: null }, context)).rejects.toThrow()
+    expect(mocks.deleteWebhook).not.toHaveBeenCalled()
+    expect(mocks.deleteInbox).not.toHaveBeenCalled()
+  })
+
+  it('records that cleanup started before deleting resources so a retry cannot be activated', async () => {
+    await cleanup(payload, context)
+    expect(context.checkpointPayload).toHaveBeenCalledWith({ cleanupStarted: true })
+    expect(vi.mocked(context.checkpointPayload).mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.deleteWebhook.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does not delete anything if the cleanup lease cannot checkpoint its start', async () => {
+    vi.mocked(context.checkpointPayload).mockRejectedValueOnce(new Error('Lease lost'))
+    await expect(cleanup(payload, context)).rejects.toThrow('Lease lost')
+    expect(mocks.deleteWebhook).not.toHaveBeenCalled()
+    expect(mocks.deleteInbox).not.toHaveBeenCalled()
+  })
+
+  it('refuses activation when rollback is no longer cancelable', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    await expect(cancelInboxCleanup(db, 'event-1')).rejects.toThrow('Inbox setup expired')
+  })
+
+  it.each(['webhook', 'inbox'])(
+    'allows more than ten expected %s polls without spending failure attempts',
+    async (resource) => {
+      const pending: InboxCleanupPayload = { ...payload }
+      vi.mocked(context.checkpointPayload).mockImplementation(async (patch) => {
+        Object.assign(pending, patch)
+      })
+      if (resource === 'webhook') mocks.deleteWebhook.mockResolvedValue(false)
+      else mocks.deleteInbox.mockResolvedValue(false)
+
+      for (let poll = 0; poll < 11; poll++) {
+        await expect(cleanup(pending, context)).resolves.toMatchObject({
+          outcome: 'deferred',
+          consumeAttempt: false,
+          minimumBackoffMs: 30_000,
+        })
+      }
+      expect(pending.deletionPollsRemaining).toBe(109)
+      mocks.deleteWebhook.mockResolvedValue(true)
+      mocks.getInbox.mockResolvedValueOnce(null)
+      await expect(cleanup(pending, context)).resolves.toBeUndefined()
+    }
+  )
+
+  it.each(['webhook', 'inbox'])(
+    'bounds perpetual %s polling and returns to the failure budget',
+    async (resource) => {
+      const pending: InboxCleanupPayload = { ...payload, deletionPollsRemaining: 1 }
+      vi.mocked(context.checkpointPayload).mockImplementation(async (patch) => {
+        Object.assign(pending, patch)
+      })
+      if (resource === 'webhook') mocks.deleteWebhook.mockResolvedValue(false)
+      else mocks.deleteInbox.mockResolvedValue(false)
+
+      await expect(cleanup(pending, context)).resolves.toMatchObject({ consumeAttempt: false })
+      expect(pending.deletionPollsRemaining).toBe(0)
+      const exhausted = await cleanup(pending, context)
+      expect(exhausted).toMatchObject({
+        outcome: 'deferred',
+        reason: expect.stringContaining('exhausted'),
+      })
+      expect(exhausted).not.toHaveProperty('consumeAttempt', false)
+      expect(pending.deletionPollsRemaining).toBe(0)
+    }
+  )
+
+  it('continues charging actual provider failures to the outbox error budget', async () => {
+    mocks.deleteWebhook.mockRejectedValueOnce(new Error('Connection failed'))
+    await expect(cleanup({ ...payload, deletionPollsRemaining: 100 }, context)).rejects.toThrow(
+      'Connection failed'
+    )
+    expect(context.checkpointPayload).not.toHaveBeenCalledWith(
+      expect.objectContaining({ deletionPollsRemaining: expect.any(Number) })
+    )
+  })
+})
+
+describe('immediate rollback processing', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('makes failed activation rollback due before asking the outbox to claim it', async () => {
+    const process = vi.spyOn(outboxService, 'processOutboxEventById').mockResolvedValue('completed')
+    const before = Date.now()
+    await processInboxCleanupNow('rollback-event', { expedite: true })
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.outboxEvent)
+    const scheduled = dbChainMockFns.set.mock.calls[0][0].availableAt
+    expect(scheduled.getTime()).toBeGreaterThanOrEqual(before)
+    expect(scheduled.getTime()).toBeLessThanOrEqual(Date.now())
+    expect(process).toHaveBeenCalledWith('rollback-event', inboxCleanupOutboxHandlers)
+    expect(dbChainMockFns.set.mock.invocationCallOrder[0]).toBeLessThan(
+      process.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('leaves the durable fallback intact if the database cannot expedite rollback', async () => {
+    const process = vi.spyOn(outboxService, 'processOutboxEventById').mockResolvedValue('completed')
+    dbChainMockFns.update.mockImplementationOnce(() => {
+      throw new Error('Database unavailable')
+    })
+    await expect(
+      processInboxCleanupNow('rollback-event', { expedite: true })
+    ).resolves.toBeUndefined()
+    expect(process).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('does not change availability for ordinary cleanup or retries', async () => {
+    const process = vi.spyOn(outboxService, 'processOutboxEventById').mockResolvedValue('pending')
+    await processInboxCleanupNow('cleanup-event')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(process).toHaveBeenCalledWith('cleanup-event', inboxCleanupOutboxHandlers)
+  })
+})
