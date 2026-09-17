@@ -256,7 +256,7 @@ If you prefer not to use Docker. **All commands run from the repository root unl
 
    For ad-hoc schema iteration during development you can also use `bun run db:push` from `packages/db`, but `db:migrate` is the canonical command for staging and production. `db:push` reconciles directly to the current schema without running versioned migration guards. For disposable local/dev databases, `bun run db:push --force` accepts Drizzle's data-loss prompts, including column drops.
 
-   `db:push` treats added and removed columns, tables, and other schema objects as separate creations and deletions. It never infers a rename. For an intentional rename during local development, run `bun run db:push --interactive-renames` in a terminal and select the old object in Drizzle's chooser. This flag does not approve data loss; `--force` controls that separately. Staging and production changes still use reviewed versioned migrations with expand/contract deployment steps.
+   `db:push` treats added and removed columns, tables, and other schema objects as separate creations and deletions. It never infers a rename. For an intentional rename during local development, run `bun run db:push --interactive-renames` in a terminal and select the old object in Drizzle's chooser. This flag does not approve data loss; `--force` controls that separately. After schema reconciliation succeeds, the wrapper reconciles credential policies and OAuth providers, then backfills search vectors. A failure stops subsequent steps. Staging and production changes still use reviewed versioned migrations with expand/contract deployment steps.
 
 4. **Run the Development Servers:**
 
