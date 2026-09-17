@@ -2486,6 +2486,13 @@
       "when": 1789600824946,
       "tag": "0355_mothership_revamp",
       "breakpoints": true
+    },
+    {
+      "idx": 356,
+      "version": "7",
+      "when": 1789613904637,
+      "tag": "0356_member_sync_partial_status",
+      "breakpoints": true
     }
   ]
 }
