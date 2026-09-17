@@ -1,3 +1,4 @@
+import { escapeRegExp } from '@/executor/constants'
 import { transformTable } from '@/tools/shared/table'
 import type { TableRow } from '@/tools/types'
 
@@ -82,6 +83,31 @@ export const getDefaultHeaders = (
 }
 
 /**
+ * A path parameter key must start like a JavaScript identifier, the way `:name` placeholders are
+ * defined by path-to-regexp. That excludes an empty key and one starting with a digit or `/`, the
+ * shapes that matched the scheme separator or a port; the rest of the key is left as callers use it.
+ */
+const PATH_PARAM_KEY = /^[A-Za-z_$][^\s/?#]*$/
+
+/**
+ * Replaces the first `:key` placeholder for each path parameter with its URL-encoded value.
+ *
+ * A placeholder ends where an identifier would, so `:id` never matches inside `:idx`. A plain
+ * string replace let an empty key strip the scheme's colon (`https://` became `https//`), a
+ * numeric key rewrite a port, and `:id` match inside `:idx`.
+ */
+function substitutePathParams(url: string, pathParams: Record<string, string>): string {
+  let substituted = url
+  for (const [key, value] of Object.entries(pathParams)) {
+    if (!PATH_PARAM_KEY.test(key)) continue
+    substituted = substituted.replace(new RegExp(`:${escapeRegExp(key)}(?![\\w$])`), () =>
+      encodeURIComponent(value)
+    )
+  }
+  return substituted
+}
+
+/**
  * Processes a URL with path parameters and query parameters
  * @param url Base URL to process
  * @param pathParams Path parameters to replace in the URL
@@ -98,9 +124,7 @@ export const processUrl = (
   }
 
   if (pathParams) {
-    Object.entries(pathParams).forEach(([key, value]) => {
-      url = url.replace(`:${key}`, encodeURIComponent(value))
-    })
+    url = substitutePathParams(url, pathParams)
   }
 
   if (queryParams) {
