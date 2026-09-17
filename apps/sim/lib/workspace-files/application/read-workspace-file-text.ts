@@ -1,7 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { isSupportedFileType } from '@/lib/file-parsers'
+import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
 import {
   type ActiveWorkspaceFileContext,
   fetchWorkspaceFileBuffer,
@@ -18,7 +20,8 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
-import { countLines, detectLineEnding } from '@/lib/workspace-files/edit-content'
+import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
+import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 
 export interface ReadWorkspaceFileTextInput {
   fileId: string
@@ -118,7 +121,12 @@ async function executeReadWorkspaceFileText({
   const metadata = parsed.metadata ?? {}
 
   const truncated = metadata.truncated === true
-  const { text, lineRange } = sliceTextLines(parsed.content, input.offset, input.limit, truncated)
+  const { text, lineRange } = sliceFileTextLines(
+    parsed.content,
+    input.offset,
+    input.limit,
+    truncated
+  )
 
   return {
     file,
@@ -131,63 +139,6 @@ async function executeReadWorkspaceFileText({
   }
 }
 
-/**
- * Narrows extracted text to a line window.
- *
- * `totalLines` travels with it because without it a caller cannot tell a file
- * that ended from a window that stopped early, and would either stop reading
- * too soon or keep asking for lines that do not exist. Lines are counted the
- * way {@link countLines} counts them, so the numbers here name the same lines
- * that search reports and that an insert will accept.
- *
- * `totalLinesExact` is false when the parser stopped early: the count then
- * describes only the part that was extracted, and reporting it as the file's
- * end would tell a caller it had read everything. The separate flag is what
- * keeps `totalLines` useful in the ordinary case without lying in this one.
- *
- * The window is rejoined with the line ending the text already used, so a
- * ranged read of a CRLF file stays usable verbatim as exact search text for an edit.
- */
-function sliceTextLines(
-  text: string,
-  offset: number | undefined,
-  limit: number | undefined,
-  truncatedExtraction: boolean
-): {
-  text: string
-  lineRange?: {
-    offset: number
-    lineCount: number
-    totalLines: number
-    totalLinesExact: boolean
-  }
-} {
-  if (offset === undefined && limit === undefined) return { text }
-
-  const totalLines = countLines(text)
-  const eol = detectLineEnding(text)
-  const lines = text.split(/\r\n|\n/).slice(0, totalLines)
-  const start = Math.max((offset ?? 1) - 1, 0)
-  const window = lines.slice(start, limit === undefined ? undefined : start + limit)
-
-  return {
-    text: window.join(eol),
-    lineRange: {
-      offset: start + 1,
-      lineCount: window.length,
-      totalLines,
-      totalLinesExact: !truncatedExtraction,
-    },
-  }
-}
-
-/**
- * Extracts a workspace file's text.
- *
- * Runs on `files.read_content` unchanged: extracting text reads exactly the
- * bytes that operation already authorizes, and turning them into text grants
- * no further reach. No audit is projected, matching the existing content read.
- */
 /**
  * Turns stored bytes into text without ever answering `500`.
  *
@@ -208,8 +159,16 @@ async function parseFileText(content: Buffer, extension: string, fileName: strin
     return { content: '', metadata: {} }
   }
   try {
-    return await parseBuffer(content, extension)
+    return await parseWorkspaceFileText(content, extension, {
+      maxTextBytes: MAX_TEXT_EXTRACTION_BYTES,
+    })
   } catch (error) {
+    if (isPayloadSizeLimitError(error) || getFileParserErrorCode(error) === 'complexity_limit') {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `"${fileName}" exceeds complete text extraction limits`
+      )
+    }
     throw new OrchestrationError(
       'conflict',
       `"${fileName}" could not be read as text: ${getErrorMessage(error, 'the stored bytes could not be parsed')}`
@@ -217,6 +176,13 @@ async function parseFileText(content: Buffer, extension: string, fileName: strin
   }
 }
 
+/**
+ * Extracts a workspace file's text.
+ *
+ * Runs on `files.read_content` unchanged: extracting text reads exactly the
+ * bytes that operation already authorizes, and turning them into text grants
+ * no further reach. No audit is projected, matching the existing content read.
+ */
 export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
   resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),

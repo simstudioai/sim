@@ -3,8 +3,14 @@
  */
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as XLSX from 'xlsx'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { CsvParser } from '@/lib/file-parsers/csv-parser'
+import { FileParserError } from '@/lib/file-parsers/errors'
+import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
 import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
+import { extractIndexText } from '@/lib/workspace-files/search/extract'
 
 const {
   mockAssertActiveWorkspaceAccess,
@@ -1062,6 +1068,78 @@ describe('file manage operations', () => {
       key: 'workspace/workspace-1/new.txt',
       url: '/api/files/serve/new-file',
     })
+  })
+
+  it.each(['csv', 'xlsx'])('reads the same late %s line that search indexed', async (extension) => {
+    let buffer: Buffer
+    if (extension === 'csv') {
+      buffer = Buffer.from(`name,name\n${'first,second\n'.repeat(1001)}tail,needle\n`)
+    } else {
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(
+        workbook,
+        {
+          A1: { t: 's', v: 'header' },
+          ZZ1001: { t: 's', v: 'tail needle' },
+          '!ref': 'A1:ZZ1001',
+        },
+        'Data'
+      )
+      buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+    }
+    const parser = extension === 'csv' ? new CsvParser() : new XlsxParser()
+    const parse = (
+      bytes: Buffer,
+      _extension: string,
+      options?: import('@/lib/file-parsers/types').FileParseOptions
+    ) => parser.parseBuffer(bytes, options)
+    vi.mocked(isSupportedFileType).mockReturnValueOnce(true).mockReturnValueOnce(true)
+    vi.mocked(parseBuffer).mockImplementationOnce(parse).mockImplementationOnce(parse)
+    const indexed = await extractIndexText(
+      { kind: 'stored', buffer },
+      `data.${extension}`,
+      new AbortController().signal
+    )
+    const lines = indexed!.text.split('\n')
+    const lineNumber = lines.findIndex((line) => line.includes('needle')) + 1
+    expect(lineNumber).toBeGreaterThan(0)
+    mockGetWorkspaceFile.mockResolvedValueOnce({
+      ...workspaceFile('file-1'),
+      name: `data.${extension}`,
+    })
+    mockDownloadServableFileFromStorage.mockResolvedValueOnce({ buffer })
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'content',
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        offset: lineNumber,
+        limit: 1,
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      data: {
+        contents: [lines[lineNumber - 1]],
+        lineRanges: [{ offset: lineNumber, lineCount: 1, totalLinesExact: true }],
+      },
+    })
+  })
+  it('does not bypass complete extraction limits with a raw-text fallback', async () => {
+    vi.mocked(isSupportedFileType).mockReturnValueOnce(true)
+    vi.mocked(parseBuffer).mockRejectedValueOnce(
+      new FileParserError('complexity_limit', 'too large')
+    )
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'content',
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        offset: 1,
+        limit: 1,
+      })
+    )
+    expect(response.status).toBe(413)
   })
 
   it('returns a scoped, deduplicated union of exact canonical file provenance', async () => {

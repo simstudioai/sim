@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { resolveServableDoc } from '@/lib/copilot/tools/server/files/doc-compile'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { isSupportedFileType } from '@/lib/file-parsers'
 import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
 import {
   fetchWorkspaceFileBuffer,
@@ -15,6 +15,7 @@ import {
   FILE_SEARCH_MAX_SOURCE_BYTES,
 } from '@/lib/workspace-files/search/constants'
 import { FileSearchExclusionError } from '@/lib/workspace-files/search/index-plan'
+import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 
 const logger = createLogger('WorkspaceFileSearchExtract')
 
@@ -101,17 +102,17 @@ export async function extractIndexText(
   const extension = getFileExtension(fileName)
   if (bytes.kind !== 'source' && extension && isSupportedFileType(extension)) {
     try {
-      const parsed = await parseBuffer(buffer, extension, {
+      const parsed = await parseWorkspaceFileText(buffer, extension, {
         signal,
-        pdfTextMode: 'complete',
-        contentMode: 'complete',
         maxTextBytes: FILE_SEARCH_MAX_EXTRACTED_BYTES,
       })
       if (parsed.metadata?.degraded) return null
       return boundText(parsed.content ?? '', parsed.metadata?.truncated === true)
     } catch (error) {
       signal.throwIfAborted()
-      if (isPayloadSizeLimitError(error) || error instanceof FileSearchExclusionError) throw error
+      if (isPayloadSizeLimitError(error))
+        throw new FileSearchExclusionError('extracted_text_too_large')
+      if (error instanceof FileSearchExclusionError) throw error
       if (getFileParserErrorCode(error) === 'complexity_limit')
         throw new FileSearchExclusionError('incomplete_extraction')
       const plainText = isPlainText(buffer)

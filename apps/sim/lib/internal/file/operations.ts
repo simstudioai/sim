@@ -27,7 +27,8 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
-import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { isSupportedFileType } from '@/lib/file-parsers'
+import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
 import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import { collectFolderDepths } from '@/lib/folders/subtree'
@@ -93,7 +94,6 @@ import {
 } from '@/lib/workspace-files/application/workspace-file-folders'
 import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
 import type { WorkspaceFileContentEdit } from '@/lib/workspace-files/edit-content'
-import { countLines, detectLineEnding } from '@/lib/workspace-files/edit-content'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
 import {
@@ -101,6 +101,8 @@ import {
   MAX_ZIP_DOWNLOAD_FILES,
 } from '@/lib/workspace-files/limits'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
+import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
+import { type FileTextLineRange, sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import type { UserFile } from '@/executor/types'
 import {
@@ -375,48 +377,6 @@ interface ArchiveEntry {
 
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
 
-/** What a caller needs to tell a file that ended from a window that ran out. */
-interface FileContentLineRange {
-  offset: number
-  lineCount: number
-  totalLines: number
-  /** False when extraction was truncated, so `totalLines` is not the file's end. */
-  totalLinesExact: boolean
-}
-
-/**
- * Narrows extracted text to a line window.
- *
- * Reported alongside the text rather than inferred from it: without
- * `totalLines` a caller cannot distinguish a file that ended from a window
- * that stopped early, which is the same absent-versus-unknown confusion the
- * search index carries.
- */
-function sliceTextLines(
-  text: string,
-  offset: number | undefined,
-  limit: number | undefined,
-  truncatedExtraction: boolean
-): { text: string; range?: FileContentLineRange } {
-  if (offset === undefined && limit === undefined) return { text }
-
-  /* Counted the same way insert accepts them; see {@link countLines}. */
-  const effective = text.split(/\r\n|\n/).slice(0, countLines(text))
-  const start = Math.max((offset ?? 1) - 1, 0)
-  const window = effective.slice(start, limit === undefined ? undefined : start + limit)
-
-  return {
-    /* Rejoined with the text's own ending, so the window stays usable verbatim as an edit's search text. */
-    text: window.join(detectLineEnding(text)),
-    range: {
-      offset: start + 1,
-      lineCount: window.length,
-      totalLines: effective.length,
-      totalLinesExact: !truncatedExtraction,
-    },
-  }
-}
-
 /**
  * Download a stored file and extract its text content. Parseable types (PDF, DOCX,
  * CSV, etc.) go through the shared file-parsers; other UTF-8 files are returned as
@@ -452,7 +412,10 @@ const extractUserFileTextContent = async (
   const extension = getFileExtension(userFile.name)
   if (extension && isSupportedFileType(extension)) {
     try {
-      const result = await parseBuffer(buffer, extension)
+      const result = await parseWorkspaceFileText(buffer, extension, {
+        maxTextBytes: MAX_GET_CONTENT_FILE_BYTES,
+        signal: context.signal,
+      })
       if (result.metadata?.degraded === true) {
         /** Scraped or placeholder output is a failure, not the file's content. */
         throw new Error(result.metadata.warning ?? 'Parser returned degraded output')
@@ -463,6 +426,14 @@ const extractUserFileTextContent = async (
         contributingFiles,
       }
     } catch (error) {
+      context.signal?.throwIfAborted()
+      if (isPayloadSizeLimitError(error)) throw error
+      if (getFileParserErrorCode(error) === 'complexity_limit') {
+        throw new OrchestrationError(
+          'payload_too_large',
+          'File exceeds complete text extraction limits'
+        )
+      }
       logger.warn('Falling back to raw text after parser failure', {
         name: userFile.name,
         error: getErrorMessage(error, 'Unknown error'),
@@ -1191,7 +1162,7 @@ export async function executeFileManageOperation(
         const provenanceSources: FileContentProvenanceSource[] = [...sources]
 
         const contents: string[] = []
-        const lineRanges: FileContentLineRange[] = []
+        const lineRanges: FileTextLineRange[] = []
         let totalBytes = 0
         for (const source of sources) {
           signal?.throwIfAborted()
@@ -1215,7 +1186,7 @@ export async function executeFileManageOperation(
             )
             for (const renderedSource of renderedSources) provenanceSources.push(renderedSource)
           }
-          const { text: content, range } = sliceTextLines(
+          const { text: content, lineRange: range } = sliceFileTextLines(
             extracted.text,
             body.offset,
             body.limit,

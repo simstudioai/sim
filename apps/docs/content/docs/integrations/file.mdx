@@ -55,7 +55,7 @@ Read workspace file objects from selected files, canonical workspace file IDs, o
 
 ### File Get Content
 
-Extract the text content of workspace files selected directly, identified by canonical file ID, or collected from one or more workspace folders.
+Extract workspace file text using the same parser mode as File Search. Use the returned fileId and offset/limit to read the matching line and surrounding context. For documents and spreadsheets, line numbers refer to extracted text, not page numbers or worksheet row numbers.
 
 #### Input
 
@@ -390,4 +390,6 @@ Existing parser safeguards also apply to complete extraction. PDFs allow at most
 Updates are indexed asynchronously. `pendingFiles` and `failedFiles` indicate revisions that are not yet searchable; a new revision becomes searchable only when its full index is ready. An empty result proves absence only within the searched scope when `complete` is true and `skippedFiles` is zero.
 
 Regex is evaluated against complete logical lines, including long lines, and cannot span line breaks. Returned lines may use a shortened preview. The result limit (up to 200 lines) and a 10-second query deadline limit an individual request, not the amount of text indexed. An expensive query fails explicitly instead of returning an apparently complete subset; narrow its literal text or folder scope and retry.
+
+Search returns one result per matching logical line with `fileId`, 1-based `lineNumber`, and `text` (a bounded preview for long lines). An Agent can use **Search** to locate content, then **Get Content** with the returned `fileId`, `offset` near `lineNumber`, and a small `limit` to read surrounding context. These operations use the same complete-text parser mode. Line numbers for documents and spreadsheets refer to extracted text, not page numbers or worksheet row numbers. Re-run search if the file changes between calls.
 {/* MANUAL-CONTENT-END */}

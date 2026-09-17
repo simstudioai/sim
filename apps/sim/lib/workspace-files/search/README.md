@@ -26,6 +26,10 @@ Arbitrary regex cannot have a fixed latency guarantee. Common terms, broad alter
 
 Build leases use PostgreSQL time for creation, validation, and retirement, so worker clock drift cannot expire a healthy attempt or delay reclaiming a retired build.
 
+## Agent search and read
+
+Search results retain `fileId`, 1-based `lineNumber`, and bounded `text` previews. File Get Content and the v2 text reader use the same complete-text parser configuration, so CSV duplicate headers and late spreadsheet cells do not shift or disappear behind preview limits. An agent can request `fileId`, `offset`, and `limit` for surrounding text. These are extracted-text lines, not PDF page or worksheet row numbers; a file edit between calls requires a new search. Ranged reads count lines in place and materialize only the selected window rather than building an array entry for every line.
+
 ## Rollout and retirement
 
 1. Deploy the additive migration and new application/Trigger worker versions. Legacy index tables remain readable for the old deployment. The file trigger queues current revisions in the new table; this cutover intentionally allows temporary search unavailability while the new index builds.

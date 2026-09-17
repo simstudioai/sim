@@ -3,6 +3,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { FileParserError } from '@/lib/file-parsers/errors'
 
 const mocks = vi.hoisted(() => ({
   getFile: vi.fn(),
@@ -124,6 +125,29 @@ describe('readWorkspaceFileText', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
   })
 
+  it('uses the complete text representation before selecting a line window', async () => {
+    mocks.parseBuffer.mockResolvedValueOnce({ content: 'header\ntail needle\n', metadata: {} })
+    const result = await readWorkspaceFileText.execute({
+      principal: principals[0],
+      input: input({ offset: 2, limit: 1 }),
+    })
+    expect(mocks.parseBuffer).toHaveBeenCalledWith(expect.any(Buffer), 'txt', {
+      contentMode: 'complete',
+      pdfTextMode: 'complete',
+      maxTextBytes: 25 * 1024 * 1024,
+      signal: undefined,
+    })
+    expect(result.text).toBe('tail needle')
+    expect(result.lineRange).toMatchObject({ offset: 2, lineCount: 1, totalLines: 2 })
+  })
+  it('reports complete extraction complexity limits as payload limits', async () => {
+    mocks.parseBuffer.mockRejectedValueOnce(
+      new FileParserError('complexity_limit', 'expanded text budget')
+    )
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+  })
   it('denies a principal below the read role', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
 

@@ -187,7 +187,7 @@ describe('extractIndexText', () => {
         'data.json',
         new AbortController().signal
       )
-    ).rejects.toSatisfy(isPayloadSizeLimitError)
+    ).rejects.toMatchObject({ reason: 'extracted_text_too_large' })
   })
 
   it('rethrows the abort instead of falling back once the run is aborted', async () => {
