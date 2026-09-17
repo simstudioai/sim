@@ -34,7 +34,7 @@ describe('organization Search preferences', () => {
   })
 
   it('persists all search levels independently from Build mode', async () => {
-    for (const level of ['none', 'fast', 'adaptive', 'max'] as const) {
+    for (const level of ['fast', 'adaptive', 'max'] as const) {
       useOrganizationChatModeStore.getState().setAssistantSearchLevel('user', level, level)
     }
     useOrganizationChatModeStore.getState().setMode('user', 'max', 'agent')
@@ -43,11 +43,39 @@ describe('organization Search preferences', () => {
     localStorage.setItem('organization-chat-mode', persisted)
     await useOrganizationChatModeStore.persist.rehydrate()
     expect(useOrganizationChatModeStore.getState().assistantSearchLevels).toEqual({
-      'user:none': 'none',
       'user:fast': 'fast',
       'user:adaptive': 'adaptive',
       'user:max': 'max',
     })
     expect(useOrganizationChatModeStore.getState().modes['user:max']).toBe('agent')
+  })
+})
+
+it('migrates saved None to Auto while preserving assistant levels and modes', async () => {
+  localStorage.setItem(
+    'organization-chat-mode',
+    JSON.stringify({
+      version: 1,
+      state: {
+        modes: { 'a:org': 'assistant', 'b:org': 'agent' },
+        assistantSearchLevels: {
+          'a:org': 'none',
+          'b:org': 'max',
+          'c:org': 'fast',
+          'd:org': 'adaptive',
+        },
+      },
+    })
+  )
+  await useOrganizationChatModeStore.persist.rehydrate()
+  expect(useOrganizationChatModeStore.getState().assistantSearchLevels).toEqual({
+    'a:org': 'adaptive',
+    'b:org': 'max',
+    'c:org': 'fast',
+    'd:org': 'adaptive',
+  })
+  expect(useOrganizationChatModeStore.getState().modes).toEqual({
+    'a:org': 'assistant',
+    'b:org': 'agent',
   })
 })

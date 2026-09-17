@@ -178,7 +178,6 @@ async function render(
     | 'showModeSelector'
     | 'onModeChange'
     | 'restoredContexts'
-    | 'allowNoAssistant'
     | 'assistantSearchLevel'
     | 'onAssistantSearchLevelChange'
   > = { isSending: false }
@@ -197,7 +196,6 @@ async function render(
       <Composer
         requestMode={requestMode}
         assistantSearchLevel={assistantSearchLevel}
-        allowNoAssistant={controls.allowNoAssistant}
         onAssistantSearchLevelChange={
           controls.onAssistantSearchLevelChange ?? setAssistantSearchLevel
         }
@@ -237,7 +235,7 @@ describe('organization voice composer', () => {
       expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
       expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
       expect(mic.previousElementSibling?.getAttribute('aria-label')).toBe('Search level')
-      expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
+      expect(mic.parentElement?.nextElementSibling?.getAttribute('aria-label')).toBe('Send')
       await act(async () => mic.click())
       expect(mocks.toggleListening).toHaveBeenCalledOnce()
       const speech = mocks.speech.mock.calls.at(-1)![0]
@@ -372,19 +370,12 @@ describe('organization image composer', () => {
     )
   })
 
-  it('uses the picker and lets an attachment be removed before sending', async () => {
+  it('lets a pasted attachment be removed before sending without an attachment button', async () => {
     await render(true, '')
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
-    const click = vi.spyOn(input, 'click')
-    await act(async () =>
-      container.querySelector<HTMLButtonElement>('button[aria-label="Attach images"]')!.click()
-    )
-    expect(click).toHaveBeenCalledOnce()
+    expect(container.querySelector('[aria-label="Attach images"]')).toBeNull()
     expect(input.accept).toContain('image/png')
-    Object.defineProperty(input, 'files', {
-      value: fileList([new File(['image'], 'screenshot.png', { type: 'image/png' })]),
-    })
-    await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
+    await paste([new File(['image'], 'screenshot.png', { type: 'image/png' })])
     await act(async () =>
       container
         .querySelector<HTMLButtonElement>('button[aria-label="Remove screenshot.png"]')!
@@ -505,7 +496,7 @@ it.each([true, false])(
     expect(container.querySelector('[aria-label="Model and reasoning effort"]')).toBeNull()
     expect(container.querySelector('[aria-label="Fast mode"]')).toBeNull()
     expect(Boolean(container.querySelector('[aria-label="Conversation mode"]'))).toBe(canChoose)
-    expect(container.querySelector('[aria-label="Attach images"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Attach images"]')).toBeNull()
   }
 )
 
@@ -590,7 +581,7 @@ it('shows global built-ins once with no workspace label and submits no invented 
   ])
 })
 
-it('offers an icon-only controlled mode picker before the staging input controls', async () => {
+it('shows Build with a chevron in the shared chip and text-only modes in its menu', async () => {
   const onModeChange = vi.fn()
   await render(true, 'Preserved draft', 'agent', {
     isSending: false,
@@ -598,17 +589,18 @@ it('offers an icon-only controlled mode picker before the staging input controls
     onModeChange,
   })
   const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
-  expect(mode.previousElementSibling).toBeNull()
-  expect(mode.nextElementSibling?.getAttribute('aria-label')).toBe('Add resources')
-  expect(mode.textContent).toBe('')
-  expect(mode.querySelector('svg')).not.toBeNull()
+  expect(mode.parentElement?.previousElementSibling).toBeNull()
+  expect(mode.parentElement?.nextElementSibling?.getAttribute('aria-label')).toBe('Add resources')
+  expect(mode.textContent).toBe('Build')
+  expect(mode.querySelectorAll('svg')).toHaveLength(1)
   await act(async () =>
     mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   )
-  const search = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+  const search = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
     (item) => item.textContent === 'Search'
   )!
-  expect(search.querySelector('svg')).not.toBeNull()
+  expect(search.querySelector('svg')).toBeNull()
+  expect(document.querySelector('[role="tooltip"]')).toBeNull()
   await act(async () => search.click())
   expect(onModeChange).toHaveBeenCalledExactlyOnceWith('assistant')
   expect(
@@ -628,7 +620,7 @@ it('allows changing the next message mode while a response is streaming', async 
   await act(async () =>
     mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   )
-  const search = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+  const search = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
     (item) => item.textContent === 'Search'
   )!
   await act(async () => search.click())
@@ -701,7 +693,7 @@ it.each(['skill', 'file'] as const)(
     await act(async () =>
       mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     )
-    const search = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+    const search = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
       (item) => item.textContent === 'Search'
     )!
     await act(async () => search.click())
@@ -769,11 +761,13 @@ describe('Search levels', () => {
       onModeChange: vi.fn(),
     })
     const mode = container.querySelector('[aria-label="Conversation mode"]')!
-    const row = mode.parentElement!.parentElement!
+    const row = mode.parentElement!.parentElement!.parentElement!
     expect(
       row.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')
     ).not.toBeNull()
-    expect(mode.nextElementSibling?.getAttribute('aria-label')).toBe('Attach images')
+    expect(mode.textContent).toBe('')
+    expect(mode.querySelectorAll('svg')).toHaveLength(2)
+    expect(mode.parentElement?.nextElementSibling).toBeNull()
     expect(row.querySelector('[aria-label="Search level"]')?.textContent).toBe('Auto')
   })
 })
@@ -790,32 +784,15 @@ it('keeps Build Fast independent of Search levels', async () => {
   await act(async () => useMothershipEffortStore.getState().setFastMode(false))
 })
 
-it.each([true, false])(
-  'only offers None before a conversation (allowed: %s)',
-  async (allowNoAssistant) => {
-    await render(true, '', 'assistant', { isSending: false, allowNoAssistant })
-    const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
-    await act(async () =>
-      picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    )
-    const options = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].map(
+it('offers only Fast, Auto, and Max search levels', async () => {
+  await render(true, '', 'assistant', { isSending: false })
+  const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
+  await act(async () =>
+    picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+  expect(
+    [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].map(
       (item) => item.textContent
     )
-    expect(options).toEqual(
-      allowNoAssistant ? ['None', 'Fast', 'Auto', 'Max'] : ['Fast', 'Auto', 'Max']
-    )
-  }
-)
-
-it('keeps attachments out of results-only search', async () => {
-  await render(true, 'Orion', 'assistant', {
-    isSending: false,
-    assistantSearchLevel: 'none',
-    allowNoAssistant: true,
-  })
-  expect(container.querySelector('[aria-label="Attach images"]')).toBeNull()
-  await paste([new File(['image'], 'test.png', { type: 'image/png' })])
-  expect(mocks.upload).not.toHaveBeenCalled()
-  expect(container.querySelector('[aria-label="Voice input"]')).not.toBeNull()
-  expect(container.querySelector('[aria-label="Search"]')).not.toBeNull()
+  ).toEqual(['Fast', 'Auto', 'Max'])
 })

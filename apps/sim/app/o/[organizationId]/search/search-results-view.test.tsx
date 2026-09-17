@@ -58,7 +58,7 @@ vi.mock(
   })
 )
 
-import { SearchResultsView } from '@/app/o/[organizationId]/home/components/search-results-view'
+import { SearchResultsView } from '@/app/o/[organizationId]/search/search-results-view'
 
 const scope: ResourceScope = { kind: 'organization', organizationId: 'organization-a' }
 let root: Root

@@ -94,6 +94,7 @@ describe('organization settings navigation', () => {
     expect(resolveOrganizationSettingsSection('skills')).toBeNull()
     expect(buildOrganizationNavItems('org', true, true).map(({ id }) => id)).toEqual([
       'home',
+      'search',
       'integrations',
     ])
   })
@@ -180,7 +181,7 @@ describe('organization settings navigation', () => {
 it('keeps Home independent of Search availability without exposing Search links', () => {
   expect(buildOrganizationNavItems('org', false, true).map(({ id }) => id)).toEqual(['home'])
   expect(buildOrganizationNavItems('org', true, false).map(({ id }) => id)).toEqual([
-    'home',
+    'search',
     'integrations',
   ])
 })

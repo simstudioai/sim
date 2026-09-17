@@ -7,6 +7,7 @@ import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/use
 interface InputToolbarProps {
   leadingControls: ReactNode
   showModelSelector?: boolean
+  selectionControl?: ReactNode
   voiceControl?: ReactNode
   beforeSubmitControl?: ReactNode
   submitControl?: ReactNode
@@ -21,6 +22,7 @@ interface InputToolbarProps {
 export function InputToolbar({
   leadingControls,
   showModelSelector = true,
+  selectionControl,
   voiceControl,
   beforeSubmitControl,
   submitControl,
@@ -41,8 +43,8 @@ export function InputToolbar({
       <div
         ref={leadingRef}
         className={cn(
-          'flex h-[30px] items-center',
-          editor ? 'col-start-1 gap-3' : 'gap-1',
+          'flex h-[30px] items-center gap-1',
+          editor && 'col-start-1',
           editor && (expanded ? 'row-start-2' : 'row-start-1')
         )}
       >
@@ -65,8 +67,12 @@ export function InputToolbar({
       >
         {trailingControls ?? (
           <>
-            {showModelSelector && <ModelSelector />}
-            {voiceControl}
+            {(selectionControl || showModelSelector || voiceControl) && (
+              <div className='flex items-center'>
+                {selectionControl ?? (showModelSelector && <ModelSelector />)}
+                {voiceControl}
+              </div>
+            )}
             {beforeSubmitControl}
             {submitControl}
           </>

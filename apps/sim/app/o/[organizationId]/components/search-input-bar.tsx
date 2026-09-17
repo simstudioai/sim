@@ -21,7 +21,9 @@ interface SearchInputBarProps {
   placeholder?: string
   'aria-label'?: string
   leadingControls?: ReactNode
-  trailingControls: ReactNode
+  selectionControl?: ReactNode
+  voiceControl?: ReactNode
+  submitControl: ReactNode
   floating?: boolean
 }
 
@@ -35,7 +37,9 @@ export function SearchInputBar({
   onPaste,
   placeholder = 'Search your sources',
   'aria-label': ariaLabel = 'Search your sources',
-  trailingControls,
+  selectionControl,
+  voiceControl,
+  submitControl,
   floating = false,
 }: SearchInputBarProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -84,7 +88,10 @@ export function SearchInputBar({
         leadingControls={
           leadingControls ?? <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
         }
-        trailingControls={trailingControls}
+        showModelSelector={false}
+        selectionControl={selectionControl}
+        voiceControl={voiceControl}
+        submitControl={submitControl}
         expanded={expanded}
         editor={
           <GrowingTextarea

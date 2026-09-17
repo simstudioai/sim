@@ -81,6 +81,8 @@ interface ChipDropdownBaseProps extends Omit<VariantProps<typeof chipVariants>, 
   contentClassName?: string
   /** Disables the trigger. */
   disabled?: boolean
+  /** Reports menu visibility so adjacent UI can dismiss transient affordances. */
+  onOpenChange?: (open: boolean) => void
   /** Optional icon rendered before the label (mirrors `Chip`'s `leftIcon`). */
   leftIcon?: ChipIcon
   /** Forwarded class for the trigger button. */
@@ -107,6 +109,8 @@ interface ChipDropdownBaseProps extends Omit<VariantProps<typeof chipVariants>, 
  */
 interface ChipDropdownSingleProps extends ChipDropdownBaseProps {
   multiple?: false
+  /** Show `leftIcon` with the chevron instead of the selected label. */
+  iconOnly?: boolean
   /** Currently selected value. */
   value?: string
   /** Called when the user picks a different option from the menu. */
@@ -191,6 +195,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       matchTriggerWidth = true,
       contentClassName,
       disabled,
+      onOpenChange,
       leftIcon: LeftIcon,
       className,
       variant = 'filled',
@@ -237,6 +242,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
     const isInverse = variant === 'primary' || variant === 'destructive'
     const hasTriggerBorder = !isGhost && !isInverse
 
+    const selectedOption = options.find((option) => option.value === selectedValues[0])
     let displayLabel: ReactNode
     if (isMultiple) {
       displayLabel =
@@ -246,12 +252,12 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             ? (options.find((option) => option.value === selectedValues[0])?.label ?? allLabel)
             : `${selectedValues.length} selected`
     } else {
-      const selected = options.find((option) => option.value === selectedValues[0])
-      displayLabel = selected?.label ?? placeholder ?? 'Select...'
+      displayLabel = selectedOption?.label ?? placeholder ?? 'Select...'
     }
     const isPlaceholder = !isMultiple && selectedValues.length === 0
 
     const iconClass = cn('size-[16px] shrink-0', !isInverse && 'text-[var(--text-icon)]')
+    const iconOnly = !isMultiple && props.iconOnly === true && Boolean(LeftIcon)
     /**
      * The chevron glyph stays at its conventional subtle size, but is rendered
      * inside a `size-[16px]` slot so its bounding box matches `leftIcon`'s. The
@@ -328,15 +334,12 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
     return (
       <DropdownMenu
         modal={insideModal}
-        {...(isMultiple
-          ? {
-              open,
-              onOpenChange: (next: boolean) => {
-                setOpen(next)
-                if (!next) setSearch('')
-              },
-            }
-          : {})}
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setSearch('')
+          onOpenChange?.(next)
+        }}
       >
         <DropdownMenuTrigger asChild disabled={disabled}>
           <button
@@ -344,16 +347,23 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
             id={id}
             type='button'
             disabled={disabled}
-            aria-label={ariaLabel}
+            aria-label={
+              ariaLabel ?? (iconOnly && typeof displayLabel === 'string' ? displayLabel : undefined)
+            }
             aria-labelledby={ariaLabelledBy}
             className={cn(
-              chipVariants({ variant: isGhost ? 'default' : variant, shape, active, fullWidth }),
+              chipVariants({
+                variant: isGhost ? 'default' : variant,
+                shape: iconOnly ? 'round' : shape,
+                active,
+                fullWidth,
+              }),
               hasTriggerBorder && TRIGGER_BORDER_CLASS,
               className
             )}
           >
             {LeftIcon ? <LeftIcon className={iconClass} /> : null}
-            {renderLabel(displayLabel)}
+            {!iconOnly && renderLabel(displayLabel)}
             <span aria-hidden className={chevronSlotClass}>
               <ChevronDown className='size-[14px]' />
             </span>

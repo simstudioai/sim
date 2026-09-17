@@ -28,7 +28,7 @@ export const useOrganizationChatModeStore = create<OrganizationChatModeState>()(
     }),
     {
       name: 'organization-chat-mode',
-      version: 1,
+      version: 2,
       migrate: (persisted: unknown) => {
         const modes: Record<string, ChatRequestMode> = {}
         const assistantSearchLevels: Record<string, SearchLevel> = {}
@@ -44,6 +44,16 @@ export const useOrganizationChatModeStore = create<OrganizationChatModeState>()(
           }
         }
         if (
+          'assistantSearchLevels' in persisted &&
+          typeof persisted.assistantSearchLevels === 'object' &&
+          persisted.assistantSearchLevels !== null
+        ) {
+          for (const [key, level] of Object.entries(persisted.assistantSearchLevels)) {
+            if (level === 'fast' || level === 'adaptive' || level === 'max')
+              assistantSearchLevels[key] = level
+            else if (level === 'none') assistantSearchLevels[key] = 'adaptive'
+          }
+        } else if (
           'assistantFast' in persisted &&
           typeof persisted.assistantFast === 'object' &&
           persisted.assistantFast !== null

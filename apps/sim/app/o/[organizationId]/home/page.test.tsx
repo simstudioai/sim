@@ -18,6 +18,9 @@ vi.mock('@/lib/mothership/chat/lifecycle', () => ({ getAccessibleCopilotChatAuth
 vi.mock('@/app/o/[organizationId]/integrations/integrations', () => ({
   OrganizationIntegrations: () => <div>Integrations</div>,
 }))
+vi.mock('@/app/o/[organizationId]/search/search', () => ({
+  OrganizationSearch: () => <div>Standalone Search</div>,
+}))
 vi.mock('@/app/o/[organizationId]/home/organization-home', () => ({
   OrganizationHome: ({ requestMode }: { requestMode?: string }) => (
     <div data-request-mode={requestMode}>Organization Assistant</div>
@@ -151,13 +154,14 @@ describe('organization Search page gates', () => {
   })
 })
 
-it('redirects legacy Search links into None with the same query and filters', async () => {
+it('renders standalone Search independently of assistant availability', async () => {
   authMockFns.mockGetSession.mockResolvedValue(session)
-  mocks.context.mockResolvedValue({ searchAccess: { memberScoped: true } })
-  await expect(
-    OrganizationSearchPage({
-      params,
-      searchParams: Promise.resolve({ q: 'Orion', source: 'slack', updated: '7d' }),
-    })
-  ).rejects.toThrow('redirect:/o/org-1/home?q=Orion&source=slack&updated=7d&searchLevel=none')
+  mocks.context.mockResolvedValue({
+    mothershipAvailable: false,
+    searchAccess: { memberScoped: true },
+  })
+  expect(renderToStaticMarkup(await OrganizationSearchPage({ params }))).toContain(
+    'Standalone Search'
+  )
+  await expect(OrganizationHomePage({ params })).rejects.toThrow('redirect:/o/org-1/search')
 })

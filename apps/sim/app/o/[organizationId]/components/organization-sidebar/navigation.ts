@@ -1,8 +1,8 @@
-import { Home, Integration } from '@sim/emcn/icons'
+import { Home, Integration, Search } from '@sim/emcn/icons'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SidebarNavItemData } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 
-type OrganizationNavRoute = 'home' | 'integrations'
+type OrganizationNavRoute = 'home' | 'search' | 'integrations'
 
 interface OrganizationNavEntry {
   id: string
@@ -17,6 +17,7 @@ interface OrganizationNavEntry {
  */
 const ORGANIZATION_NAV_ENTRIES: readonly OrganizationNavEntry[] = [
   { id: 'home', label: 'Home', icon: Home, route: 'home' },
+  { id: 'search', label: 'Search', icon: Search, route: 'search' },
   { id: 'integrations', label: 'Integrations', icon: Integration, route: 'integrations' },
 ]
 
@@ -27,7 +28,7 @@ export function buildOrganizationNavItems(
 ): SidebarNavItemData[] {
   const routes = organizationRoutes(organizationId)
   return ORGANIZATION_NAV_ENTRIES.filter(({ route }) =>
-    route === 'home' ? mothershipAvailable || searchAvailable : searchAvailable
+    route === 'home' ? mothershipAvailable : searchAvailable
   ).map(({ route, ...entry }) => ({
     ...entry,
     href: routes[route],
