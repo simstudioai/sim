@@ -4700,6 +4700,15 @@ export type GetSelectorBody = {
     | 'clickup.spaces'
     | 'clickup.folders'
     | 'clickup.lists'
+    | 'coda.docs'
+    | 'coda.pages'
+    | 'coda.tables'
+    | 'coda.columns'
+    | 'coda.rows'
+    | 'coda.formulas'
+    | 'coda.controls'
+    | 'coda.folders'
+    | 'coda.permissions'
     | 'confluence.spaces'
     | 'confluence.spacesById'
     | 'confluence.pages'
@@ -6751,6 +6760,15 @@ export type ListSelectorBody = {
     | 'clickup.spaces'
     | 'clickup.folders'
     | 'clickup.lists'
+    | 'coda.docs'
+    | 'coda.pages'
+    | 'coda.tables'
+    | 'coda.columns'
+    | 'coda.rows'
+    | 'coda.formulas'
+    | 'coda.controls'
+    | 'coda.folders'
+    | 'coda.permissions'
     | 'confluence.spaces'
     | 'confluence.spacesById'
     | 'confluence.pages'
@@ -13289,6 +13307,15 @@ export const V2_OPERATIONS = {
           'clickup.spaces',
           'clickup.folders',
           'clickup.lists',
+          'coda.docs',
+          'coda.pages',
+          'coda.tables',
+          'coda.columns',
+          'coda.rows',
+          'coda.formulas',
+          'coda.controls',
+          'coda.folders',
+          'coda.permissions',
           'confluence.spaces',
           'confluence.spacesById',
           'confluence.pages',
@@ -14823,6 +14850,15 @@ export const V2_OPERATIONS = {
           'clickup.spaces',
           'clickup.folders',
           'clickup.lists',
+          'coda.docs',
+          'coda.pages',
+          'coda.tables',
+          'coda.columns',
+          'coda.rows',
+          'coda.formulas',
+          'coda.controls',
+          'coda.folders',
+          'coda.permissions',
           'confluence.spaces',
           'confluence.spacesById',
           'confluence.pages',

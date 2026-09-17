@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-11",
+  "updatedAt": "2026-09-17",
   "integrations": [
     {
       "type": "onepassword",
@@ -5477,6 +5477,265 @@
       "category": "tools",
       "integrationType": "observability",
       "tags": ["cloud", "monitoring"]
+    },
+    {
+      "type": "coda",
+      "slug": "coda",
+      "name": "Coda",
+      "description": "Read and write Coda docs, pages, tables, and rows",
+      "longDescription": "Integrate Coda (Superhuman Docs) into your workflow with a reusable API-token credential. Create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.",
+      "bgColor": "#FFFFFF",
+      "iconName": "CodaIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/coda",
+      "operations": [
+        {
+          "name": "List Docs",
+          "description": "List Coda docs the user has opened, most recently used first, filtered by search, owner, publishing, stars, workspace, folder, or source doc"
+        },
+        {
+          "name": "Get Doc",
+          "description": "Get metadata for a Coda doc, including its owner, workspace, folder, size, and publishing settings"
+        },
+        {
+          "name": "Create Doc",
+          "description": "Create a Coda doc, optionally copying an existing doc and setting up its first page with Markdown, HTML, an embed, or a sync page. Requires Doc Maker access in the workspace."
+        },
+        {
+          "name": "Update Doc",
+          "description": "Rename a Coda doc or change its icon. Renaming requires Doc Maker access in the workspace."
+        },
+        {
+          "name": "Delete Doc",
+          "description": "Delete a Coda doc"
+        },
+        {
+          "name": "Publish Doc",
+          "description": "Publish a Coda doc or update its publishing settings: URL slug, discoverability, categories, and interaction mode. The doc owner needs a Coda maker profile."
+        },
+        {
+          "name": "Unpublish Doc",
+          "description": "Unpublish a Coda doc"
+        },
+        {
+          "name": "List Doc Categories",
+          "description": "List the categories that can be applied to a published Coda doc"
+        },
+        {
+          "name": "List Custom Domains",
+          "description": "List the custom domains connected to a published Coda doc and their setup status"
+        },
+        {
+          "name": "Add Custom Domain",
+          "description": "Connect a custom domain to a published Coda doc. Requires a Coda plan with custom domains."
+        },
+        {
+          "name": "Delete Custom Domain",
+          "description": "Remove a custom domain from a published Coda doc"
+        },
+        {
+          "name": "Get Custom Domain Provider",
+          "description": "Look up the DNS provider (GoDaddy, Namecheap, Hover, Network Solutions, Google Domains, or Other) of a custom domain"
+        },
+        {
+          "name": "List Permissions",
+          "description": "List who a Coda doc is shared with and their access levels"
+        },
+        {
+          "name": "Share Doc",
+          "description": "Share a Coda doc with a user, group, domain, workspace, or anyone with the link. Sharing with an email sends a notification unless suppressed."
+        },
+        {
+          "name": "Remove Permission",
+          "description": "Revoke a sharing permission on a Coda doc"
+        },
+        {
+          "name": "Search Users and Groups",
+          "description": "Search for users and groups a Coda doc can be shared with (up to 20 of each). Returns nothing without a query."
+        },
+        {
+          "name": "Get Sharing Metadata",
+          "description": "Check whether the connected user can share or copy a Coda doc, and share it with the workspace or organization"
+        },
+        {
+          "name": "Get Sharing Settings",
+          "description": "Get the sharing settings of a Coda doc"
+        },
+        {
+          "name": "Update Sharing Settings",
+          "description": "Update who can change permissions, copy, or request edit access on a Coda doc; unset settings are left unchanged"
+        },
+        {
+          "name": "List Pages",
+          "description": "List the pages in a Coda doc, including their hierarchy"
+        },
+        {
+          "name": "Get Page",
+          "description": "Get metadata for a page in a Coda doc"
+        },
+        {
+          "name": "Create Page",
+          "description": "Create a page in a Coda doc, optionally as a subpage, with Markdown or HTML content, a full-page embed, or a sync page from another doc. The page is created asynchronously. Requires Doc Maker access."
+        },
+        {
+          "name": "Update Page",
+          "description": "Update a Coda page: rename it, change its subtitle, icon, cover, or visibility, and append, prepend, or replace content with Markdown or HTML. Applied asynchronously."
+        },
+        {
+          "name": "Delete Page",
+          "description": "Delete a page from a Coda doc. Applied asynchronously."
+        },
+        {
+          "name": "Get Page Content",
+          "description": "Read the content of a Coda canvas page as plain-text lines with their styles (headings, paragraphs, lists, quotes, code) and element IDs"
+        },
+        {
+          "name": "Delete Page Content",
+          "description": "Delete specific content elements from a Coda page, or all of its content when no element IDs are given. Applied asynchronously."
+        },
+        {
+          "name": "Export Page",
+          "description": "Start exporting a Coda page as HTML or Markdown. Poll Get Page Export Status with the returned export ID for the download link."
+        },
+        {
+          "name": "Get Page Export Status",
+          "description": "Check a Coda page export and get its download link once complete. Download links expire shortly after they are issued."
+        },
+        {
+          "name": "List Tables",
+          "description": "List the tables and views in a Coda doc"
+        },
+        {
+          "name": "Get Table",
+          "description": "Get details about a table or view in a Coda doc, including its row count, sorts, layout, and filter"
+        },
+        {
+          "name": "List Columns",
+          "description": "List the columns of a Coda table with their IDs, formats, and formulas. Use column IDs when reading and writing rows."
+        },
+        {
+          "name": "Get Column",
+          "description": "Get details about a column in a Coda table, including its full format settings"
+        },
+        {
+          "name": "List Rows",
+          "description": "List rows in a Coda table or view, optionally filtered by a column value, sorted, or limited to rows changed since a sync token"
+        },
+        {
+          "name": "Get Row",
+          "description": "Get a single row from a Coda table, including all of its cell values"
+        },
+        {
+          "name": "Insert or Upsert Rows",
+          "description": "Insert rows into a Coda base table, or update matching rows when key columns are given. Only works on base tables, not views. Applied asynchronously."
+        },
+        {
+          "name": "Update Row",
+          "description": "Update cell values in a row of a Coda table. Applied asynchronously."
+        },
+        {
+          "name": "Delete Row",
+          "description": "Delete a row from a Coda table or view. Applied asynchronously."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete multiple rows from a Coda table or view by ID. Applied asynchronously."
+        },
+        {
+          "name": "Push Button",
+          "description": "Push a button column on a row of a Coda table, running its action. The button can perform any action in the doc."
+        },
+        {
+          "name": "List Formulas",
+          "description": "List the named formulas in a Coda doc"
+        },
+        {
+          "name": "Get Formula",
+          "description": "Get the current computed value of a named formula in a Coda doc"
+        },
+        {
+          "name": "List Controls",
+          "description": "List the controls (sliders, selects, checkboxes, date pickers, buttons, etc.) in a Coda doc"
+        },
+        {
+          "name": "Get Control",
+          "description": "Get the type and current value of a control in a Coda doc"
+        },
+        {
+          "name": "Trigger Automation",
+          "description": "Trigger a webhook-invoked automation in a Coda doc, optionally passing a JSON payload the automation can read"
+        },
+        {
+          "name": "List Folders",
+          "description": "List the Coda folders the user can access, optionally within one workspace"
+        },
+        {
+          "name": "Get Folder",
+          "description": "Get details about a Coda folder"
+        },
+        {
+          "name": "Create Folder",
+          "description": "Create a folder in a Coda workspace"
+        },
+        {
+          "name": "Update Folder",
+          "description": "Rename a Coda folder or change its description. Coda can return the folder as it was before the change; read it again to confirm."
+        },
+        {
+          "name": "Delete Folder",
+          "description": "Delete an empty Coda folder (it must contain no docs)"
+        },
+        {
+          "name": "List Subfolders",
+          "description": "List the direct subfolders of a Coda folder. Subfolders you cannot access but manage the parent of are returned with only an ID and restricted visibility."
+        },
+        {
+          "name": "List Workspace Members",
+          "description": "List the members of a Coda workspace with their roles and doc activity, requesting user first. The workspace must belong to an organization."
+        },
+        {
+          "name": "Change User Role",
+          "description": "Change the workspace role of a Coda user. Requires Admin access in a workspace that belongs to an organization."
+        },
+        {
+          "name": "List Workspace Role Activity",
+          "description": "Get monthly counts of active and inactive Admins, Doc Makers, and Editors in a workspace. The workspace must belong to an organization."
+        },
+        {
+          "name": "List Doc Analytics",
+          "description": "Get per-day or cumulative analytics (views, copies, likes, sessions by device, AI credits) for Coda docs"
+        },
+        {
+          "name": "List Page Analytics",
+          "description": "Get daily analytics (views, sessions, users, time viewed) for each page of a Coda doc. Only available for docs in Enterprise workspaces."
+        },
+        {
+          "name": "Get Doc Analytics Summary",
+          "description": "Get the total number of sessions across the Coda docs the user can access"
+        },
+        {
+          "name": "Get Analytics Last Updated",
+          "description": "Get the dates (Pacific time) Coda analytics were last refreshed, to know how current analytics data is"
+        },
+        {
+          "name": "Resolve Browser Link",
+          "description": "Resolve a Coda browser URL (doc, page, table, row, etc.) into its resource type and ID for use in other Coda operations"
+        },
+        {
+          "name": "Get Mutation Status",
+          "description": "Check whether a queued Coda change (row, page, publish, or automation request) has been applied. Status is kept for about a day."
+        },
+        {
+          "name": "Get Current User",
+          "description": "Get the user and default workspace behind the connected Coda API token"
+        }
+      ],
+      "operationCount": 60,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["note-taking", "knowledge-base", "spreadsheet", "project-management", "automation"]
     },
     {
       "type": "codepipeline",

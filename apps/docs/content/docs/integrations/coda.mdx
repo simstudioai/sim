@@ -1,0 +1,1534 @@
+---
+title: Coda
+description: Read and write Coda docs, pages, tables, and rows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="coda"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Coda](https://coda.io/) (now Superhuman Docs) combines documents, tables, and automations in one doc. The Coda block lets your agents read and write that doc: create and publish docs, write pages in Markdown or HTML, read and update table rows, push row buttons, read formulas and controls, trigger automations, and manage sharing, folders, and analytics.
+
+## Authentication
+
+This integration uses a reusable Coda **API token** connection, not OAuth. In Coda, open **Account settings → API settings** and generate a token. A token can be unrestricted, or limited to specific docs or tables with read or read-and-write access; a restricted token can only reach what it was granted. Create a Coda connection from the block's **Coda Account** field. Sim checks the token once against Coda, stores it encrypted, and reuses the same connection across Coda blocks. You can replace or revoke it from credential settings.
+
+## Working with Coda data
+
+- **Pickers:** After you pick an account, the **Doc**, **Page**, **Table**, **Row**, **Column**, **Formula**, **Control**, **Folder**, and **Permission** fields list what that token can reach. Switch a field to advanced mode to enter an ID, or pass one from an earlier block. IDs are safer than names, because users can rename things in the doc.
+- **Links to IDs:** **Resolve Browser Link** turns a Coda URL someone pasted into the resource type and ID the other operations need.
+- **Changes apply in the background:** Row, page, publishing, and automation writes return a `requestId` right away and are applied a few seconds later. Check that a change finished with **Get Mutation Status**. Data you read can also lag a few seconds behind edits made in the browser.
+- **Rows:** Pass rows as objects that map column IDs or names to values, for example `[{"Name": "Apple", "Price": 1.25}]`. Set **Upsert Key Columns** to update matching rows instead of adding duplicates. Inserts only work on base tables, not views. Turn on **Use Column Names** when reading rows to get values keyed by column name.
+- **Incremental reads:** **List Rows** returns a `nextSyncToken`. Pass it back later as **Sync Token** to get only rows that changed since then.
+- **Pagination:** List operations return a `nextPageToken`. Pass it as **Page Token** to get the next page. When a Page Token is set, the original filters and limit are reused automatically. Coda can change page sizes at any time, so keep paging until no token comes back.
+- **Page content:** **Get Page Content** reads a page as plain-text lines, with element IDs you can target in **Update Page** or **Delete Page Content**. To delete content, enter element IDs, or turn on **Delete All Page Content** to clear the whole page. For the full page as Markdown or HTML, run **Export Page**, then call **Get Page Export Status** until `downloadLink` is present. The link expires shortly after it is issued.
+- **Permissions and plans:** Creating docs and pages or renaming a doc requires Doc Maker access in the workspace. Publishing needs a Coda maker profile. Hiding pages and custom domains need a paid Coda plan. Workspace members, role activity, and role changes need a workspace that belongs to an organization, and role changes need Admin access. Page analytics are only available for docs in Enterprise workspaces.
+- **Rate limits:** Coda limits requests per user, with tighter limits on writes and on listing docs. Sim automatically retries reads, updates, and deletes when Coda returns HTTP 429. Inserts and creates are not retried, so space out bulk writes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Coda (Superhuman Docs) into your workflow with a reusable API-token credential. Create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.
+
+
+
+## Actions
+
+### Coda Add Custom Domain
+
+Connect a custom domain to a published Coda doc. Requires a Coda plan with custom domains.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `customDocDomain` | string | Yes | The custom domain \(e.g., "docs.example.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docId` | string | ID of the doc |
+| `customDocDomain` | string | The custom domain that was added |
+
+### Coda Share Doc
+
+Share a Coda doc with a user, group, domain, workspace, or anyone with the link. Sharing with an email sends a notification unless suppressed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `access` | string | Yes | Access level to grant: "readonly", "comment", or "write" |
+| `principalType` | string | Yes | Who to share with: "email", "group", "domain", "workspace", or "anyone" |
+| `principal` | string | No | Email address, group ID, domain, or workspace ID matching principalType. Not used for "anyone". |
+| `suppressEmail` | boolean | No | Do not send a sharing notification email |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docId` | string | ID of the shared doc |
+| `access` | string | Access level granted |
+| `principalType` | string | Type of principal the doc was shared with |
+
+### Coda Change User Role
+
+Change the workspace role of a Coda user. Requires Admin access in a workspace that belongs to an organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(e.g., "ws-1Ab234"\) |
+| `email` | string | Yes | Email address of the workspace member |
+| `newRole` | string | Yes | New role: "Admin", "DocMaker", or "Editor" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | Email address of the member |
+| `newRole` | string | Role assigned |
+| `roleChangedAt` | string | When the role change took effect |
+
+### Coda Create Doc
+
+Create a Coda doc, optionally copying an existing doc and setting up its first page with Markdown, HTML, an embed, or a sync page. Requires Doc Maker access in the workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `title` | string | No | Title of the new doc \(defaults to "Untitled"\) |
+| `sourceDoc` | string | No | ID of an existing doc to copy |
+| `timezone` | string | No | Timezone for the new doc \(e.g., "America/Los_Angeles"\) |
+| `folderId` | string | No | ID of the folder to create the doc in \(defaults to "My docs"\) |
+| `pageName` | string | No | Name of the initial page |
+| `pageSubtitle` | string | No | Subtitle of the initial page |
+| `iconName` | string | No | Icon name for the initial page \(e.g., "rocket"\) |
+| `imageUrl` | string | No | Cover image URL for the initial page |
+| `pageType` | string | No | Initial page content type: "canvas" \(default\), "embed", or "syncPage" |
+| `contentFormat` | string | No | Canvas content format: "markdown" \(default\) or "html" |
+| `content` | string | No | Canvas content for the initial page in the chosen format |
+| `embedUrl` | string | No | URL to embed as a full page \(pageType "embed"\) |
+| `renderMethod` | string | No | Embed render method: "standard" or "compatibility" |
+| `sourceDocId` | string | No | Doc to sync from \(pageType "syncPage"\) |
+| `sourcePageId` | string | No | Page to sync \(pageType "syncPage" with syncMode "page"\) |
+| `syncMode` | string | No | Sync page mode: "page" \(default\) or "document" |
+| `includeSubpages` | boolean | No | Include subpages in a single-page sync page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `doc` | object | The created doc |
+| `requestId` | string | Coda request ID for the doc creation |
+
+### Coda Create Folder
+
+Create a folder in a Coda workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the folder |
+| `workspaceId` | string | Yes | ID of the workspace \(e.g., "ws-1Ab234"\) |
+| `description` | string | No | Description of the folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The created folder |
+
+### Coda Create Page
+
+Create a page in a Coda doc, optionally as a subpage, with Markdown or HTML content, a full-page embed, or a sync page from another doc. The page is created asynchronously. Requires Doc Maker access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `name` | string | No | Name of the page |
+| `subtitle` | string | No | Subtitle of the page |
+| `iconName` | string | No | Name of the page icon \(e.g., "rocket"\) |
+| `imageUrl` | string | No | URL of a cover image for the page |
+| `parentPageId` | string | No | ID of the parent page, to create this page as a subpage |
+| `pageType` | string | No | Page content type: "canvas" \(default\), "embed", or "syncPage" |
+| `contentFormat` | string | No | Canvas content format: "markdown" \(default\) or "html" |
+| `content` | string | No | Canvas page content in the chosen format |
+| `embedUrl` | string | No | URL to embed as a full page \(pageType "embed"\) |
+| `renderMethod` | string | No | Embed render method: "standard" or "compatibility" |
+| `sourceDocId` | string | No | Doc to sync from \(pageType "syncPage"\) |
+| `sourcePageId` | string | No | Page to sync \(pageType "syncPage" with syncMode "page"\) |
+| `syncMode` | string | No | Sync page mode: "page" \(default\) or "document" |
+| `includeSubpages` | boolean | No | Include subpages in a single-page sync page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pageId` | string | ID of the created page |
+
+### Coda Delete Custom Domain
+
+Remove a custom domain from a published Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `customDocDomain` | string | Yes | The custom domain \(e.g., "docs.example.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docId` | string | ID of the doc |
+| `customDocDomain` | string | The custom domain that was removed |
+
+### Coda Delete Doc
+
+Delete a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docId` | string | ID of the deleted doc |
+
+### Coda Delete Folder
+
+Delete an empty Coda folder (it must contain no docs)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | ID of the folder \(e.g., "fl-1Ab234"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folderId` | string | ID of the deleted folder |
+
+### Coda Delete Page
+
+Delete a page from a Coda doc. Applied asynchronously.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `pageId` | string | Yes | ID or name of the page \(IDs are recommended, e.g., "canvas-IjkLmnO"; names containing "/" are not supported\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pageId` | string | ID of the deleted page |
+
+### Coda Delete Page Content
+
+Delete specific content elements from a Coda page, or all of its content when no element IDs are given. Applied asynchronously.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `pageId` | string | Yes | ID or name of the page \(IDs are recommended, e.g., "canvas-IjkLmnO"; names containing "/" are not supported\) |
+| `elementIds` | json | No | Element IDs to delete \(from Get Page Content\), as an array or comma-separated list |
+| `deleteAll` | boolean | No | Set to true, with no element IDs, to delete all content from the page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pageId` | string | ID of the page whose content was deleted |
+
+### Coda Remove Permission
+
+Revoke a sharing permission on a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `permissionId` | string | Yes | ID of the permission to remove \(from List Permissions\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docId` | string | ID of the doc |
+| `permissionId` | string | ID of the removed permission |
+
+### Coda Delete Row
+
+Delete a row from a Coda table or view. Applied asynchronously.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `rowId` | string | Yes | ID or name of the row \(IDs are recommended, e.g., "i-tuVwxYz"; names containing "/" are not supported\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rowId` | string | ID of the deleted row |
+
+### Coda Delete Rows
+
+Delete multiple rows from a Coda table or view by ID. Applied asynchronously.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `rowIds` | json | Yes | Row IDs to delete, as an array or comma-separated list \(e.g., \["i-bCdeFgh", "i-CdEfgHi"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rowIds` | array | IDs of the rows queued for deletion |
+
+### Coda Export Page
+
+Start exporting a Coda page as HTML or Markdown. Poll Get Page Export Status with the returned export ID for the download link.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `pageId` | string | Yes | ID or name of the page \(IDs are recommended, e.g., "canvas-IjkLmnO"; names containing "/" are not supported\) |
+| `outputFormat` | string | Yes | Export format: "markdown" or "html" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exportId` | string | ID of the export request |
+| `status` | string | Export status \(inProgress, failed, complete\) |
+| `href` | string | API link that reports the export status |
+
+### Coda Get Sharing Settings
+
+Get the sharing settings of a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docs` | json | Docs \(id, name, href, browserLink, icon, owner, ownerName, createdAt, updatedAt, workspace, folder, sourceDoc, docSize, published\) |
+| `doc` | json | Doc \(id, name, href, browserLink, icon, owner, ownerName, createdAt, updatedAt, workspace \{id, name, organizationId\}, folder \{id, name\}, sourceDoc, docSize \{totalRowCount, tableAndViewCount, baseTableCount, pageCount, overApiSizeLimit\}, published \{description, browserLink, discoverable, mode, categories\}\) |
+| `docId` | string | ID of the affected doc |
+| `categories` | json | Doc category names |
+| `requestId` | string | Request ID of a queued change, for Get Mutation Status |
+| `customDomains` | json | Custom domains \(customDocDomain, hasCertificate, hasDnsDocId, setupStatus, domainStatus, lastVerifiedTimestamp\) |
+| `customDocDomain` | string | Custom domain |
+| `provider` | string | DNS provider of a custom domain |
+| `permissions` | json | Permissions \(id, access, principal \{type, email, groupId, groupName, domain, workspaceId\}\) |
+| `access` | string | Access level granted |
+| `principalType` | string | Type of principal the doc was shared with |
+| `permissionId` | string | ID of the removed permission |
+| `users` | json | Matching users \(name, loginId, pictureLink\) |
+| `groups` | json | Matching groups \(groupId, groupName\) |
+| `canShare` | boolean | Whether the user can share the doc |
+| `canShareWithWorkspace` | boolean | Whether the user can share with the workspace |
+| `canShareWithOrg` | boolean | Whether the user can share with the org |
+| `canCopy` | boolean | Whether the user can copy the doc |
+| `allowEditorsToChangePermissions` | boolean | Whether editors can change permissions |
+| `allowCopying` | boolean | Whether viewers can copy the doc |
+| `allowViewersToRequestEditing` | boolean | Whether viewers can request editing |
+| `pages` | json | Pages \(id, name, subtitle, browserLink, contentType, isHidden, icon, image, parent, children, authors, createdAt, updatedAt\) |
+| `page` | json | Page \(id, name, subtitle, href, browserLink, contentType, isHidden, isEffectivelyHidden, icon, image, parent, children, authors, createdAt, createdBy, updatedAt, updatedBy\) |
+| `pageId` | string | ID of the created, updated, or deleted page |
+| `items` | json | Page content lines \(id, type, style, format, content, lineLevel\), or analytics items \(doc or page plus daily metrics\) |
+| `exportId` | string | Page export ID |
+| `status` | string | Page export status \(inProgress, failed, complete\) |
+| `href` | string | API link reporting the page export status |
+| `downloadLink` | string | Download link of a completed page export |
+| `exportError` | string | Error message of a failed page export |
+| `tables` | json | Tables and views \(id, name, tableType, href, browserLink, parent\) |
+| `table` | json | Table \(id, name, tableType, browserLink, parent, parentTable, displayColumnId, rowCount, sorts, layout, filter, createdAt, updatedAt\) |
+| `columns` | json | Columns \(id, name, display, calculated, formula, defaultValue, format\) |
+| `column` | json | Column \(id, name, display, calculated, formula, defaultValue, format, parentTable\) |
+| `rows` | json | Rows \(id, name, index, browserLink, createdAt, updatedAt, values\) |
+| `row` | json | Row \(id, name, index, browserLink, createdAt, updatedAt, values, parentTable\) |
+| `nextSyncToken` | string | Token for reading only rows changed later |
+| `addedRowIds` | json | IDs of rows that will be added |
+| `rowId` | string | ID of the affected row |
+| `rowIds` | json | IDs of rows queued for deletion |
+| `columnId` | string | ID of the pushed button column |
+| `formulas` | json | Named formulas \(id, name, href, parent\) |
+| `formula` | json | Formula \(id, name, href, parent, value\) |
+| `controls` | json | Controls \(id, name, href, parent\) |
+| `control` | json | Control \(id, name, href, parent, controlType, value\) |
+| `folders` | json | Folders \(id, name, browserLink, description, icon, iconColor, createdAt, canEdit, workspace\) |
+| `folder` | json | Folder \(id, name, browserLink, description, icon, iconColor, createdAt, canEdit, workspace\) |
+| `folderId` | string | ID of the deleted folder |
+| `children` | json | Subfolders \(id, name, browserLink, visibility, workspace, ...\) |
+| `members` | json | Workspace members \(email, name, role, registeredAt, roleChangedAt, lastActiveAt, ownedDocs, totalDocs, ...\) |
+| `email` | string | Email of the member whose role changed |
+| `newRole` | string | Role assigned |
+| `roleChangedAt` | string | When the role change took effect |
+| `roleActivity` | json | Monthly role counts \(month, activeAdminCount, activeDocMakerCount, activeEditorCount, inactive counts\) |
+| `totalSessions` | number | Total sessions across matching docs |
+| `docAnalyticsLastUpdated` | string | Date doc analytics last updated |
+| `packAnalyticsLastUpdated` | string | Date Pack analytics last updated |
+| `packFormulaAnalyticsLastUpdated` | string | Date Pack formula analytics last updated |
+| `browserLink` | string | Canonical browser link of a resolved resource |
+| `resource` | json | Resolved resource \(type, id, name, href\) |
+| `completed` | boolean | Whether a queued change was applied |
+| `warning` | string | Warning for a change that completed with caveats |
+| `name` | string | Name of the token owner |
+| `loginId` | string | Email of the token owner |
+| `pictureLink` | string | Avatar link of the token owner |
+| `scoped` | boolean | Whether the token is restricted |
+| `tokenName` | string | Name of the API token |
+| `workspace` | json | Default workspace of the token owner \(id, name, organizationId, browserLink\) |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Coda Get Analytics Last Updated
+
+Get the dates (Pacific time) Coda analytics were last refreshed, to know how current analytics data is
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docAnalyticsLastUpdated` | string | Date doc analytics last updated |
+| `packAnalyticsLastUpdated` | string | Date Pack analytics last updated |
+| `packFormulaAnalyticsLastUpdated` | string | Date Pack formula analytics last updated |
+
+### Coda Get Column
+
+Get details about a column in a Coda table, including its full format settings
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `columnId` | string | Yes | ID or name of the column \(IDs are recommended, e.g., "c-tuVwxYz"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `column` | object | Column details |
+
+### Coda Get Control
+
+Get the type and current value of a control in a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `controlId` | string | Yes | ID or name of the control \(IDs are recommended, e.g., "ctrl-cDefGhij"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `control` | object | Control details |
+|   ↳ `controlType` | string | Control type \(aiBlock, button, checkbox, datePicker, dateRangePicker, dateTimePicker, lookup, multiselect, select, scale, slider, reaction, textbox, timePicker\) |
+|   ↳ `value` | json | Current value \(string, number, boolean, or array of these\) |
+
+### Coda Get Custom Domain Provider
+
+Look up the DNS provider (GoDaddy, Namecheap, Hover, Network Solutions, Google Domains, or Other) of a custom domain
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customDocDomain` | string | Yes | The custom domain \(e.g., "docs.example.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customDocDomain` | string | The custom domain |
+| `provider` | string | DNS provider of the domain |
+
+### Coda Get Doc
+
+Get metadata for a Coda doc, including its owner, workspace, folder, size, and publishing settings
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `doc` | object | Doc metadata |
+
+### Coda Get Doc Analytics Summary
+
+Get the total number of sessions across the Coda docs the user can access
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `isPublished` | boolean | No | Only include published docs |
+| `sinceDate` | string | No | Only include activity on or after this date \(YYYY-MM-DD\) |
+| `untilDate` | string | No | Only include activity on or before this date \(YYYY-MM-DD\) |
+| `workspaceId` | string | No | Only include docs in this workspace |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalSessions` | number | Total sessions across all matching docs |
+
+### Coda Get Folder
+
+Get details about a Coda folder
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | ID of the folder \(e.g., "fl-1Ab234"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | Folder details |
+
+### Coda Get Formula
+
+Get the current computed value of a named formula in a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `formulaId` | string | Yes | ID or name of the formula \(IDs are recommended, e.g., "f-fgHijkLm"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formula` | object | Formula details |
+|   ↳ `value` | json | Computed value \(string, number, boolean, or array of these\) |
+
+### Coda Get Mutation Status
+
+Check whether a queued Coda change (row, page, publish, or automation request) has been applied. Status is kept for about a day.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `requestId` | string | Yes | Request ID returned by a Coda write operation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `completed` | boolean | Whether the change has been applied |
+| `warning` | string | Warning if the change completed with caveats |
+
+### Coda Get Page
+
+Get metadata for a page in a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `pageId` | string | Yes | ID or name of the page \(IDs are recommended, e.g., "canvas-IjkLmnO"; names containing "/" are not supported\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Page metadata |
+
+### Coda Get Page Content
+
+Read the content of a Coda canvas page as plain-text lines with their styles (headings, paragraphs, lists, quotes, code) and element IDs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `pageId` | string | Yes | ID or name of the page \(IDs are recommended, e.g., "canvas-IjkLmnO"; names containing "/" are not supported\) |
+| `limit` | number | No | Maximum number of content items to return \(1-500, default 50\) |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Content elements on the page, in order |
+|   ↳ `id` | string | Element ID, usable with Update Page and Delete Page Content |
+|   ↳ `type` | string | Element type \(line\) |
+|   ↳ `style` | string | Line style \(paragraph, h1, h2, h3, bulletedList, numberedList, checkboxList, collapsibleList, blockQuote, pullQuote, code\) |
+|   ↳ `format` | string | Content format \(plainText\) |
+|   ↳ `content` | string | Element text |
+|   ↳ `lineLevel` | number | Indentation level for paragraphs, quotes, and list items |
+
+### Coda Get Page Export Status
+
+Check a Coda page export and get its download link once complete. Download links expire shortly after they are issued.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `pageId` | string | Yes | ID or name of the page \(IDs are recommended, e.g., "canvas-IjkLmnO"; names containing "/" are not supported\) |
+| `exportId` | string | Yes | Export ID returned by Export Page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exportId` | string | ID of the export request |
+| `status` | string | Export status \(inProgress, failed, complete\) |
+| `href` | string | API link that reports the export status |
+| `downloadLink` | string | Short-lived download link for the exported file, once complete |
+| `exportError` | string | Error message if the export failed |
+
+### Coda Get Row
+
+Get a single row from a Coda table, including all of its cell values
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `rowId` | string | Yes | ID or name of the row \(IDs are recommended, e.g., "i-tuVwxYz"; names containing "/" are not supported\) |
+| `useColumnNames` | boolean | No | Key cell values by column name instead of column ID |
+| `valueFormat` | string | No | Cell value format: "simple" \(default\), "simpleWithArrays", or "rich" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `row` | object | Row details and values |
+
+### Coda Get Sharing Metadata
+
+Check whether the connected user can share or copy a Coda doc, and share it with the workspace or organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canShare` | boolean | Whether the user can share the doc |
+| `canShareWithWorkspace` | boolean | Whether the user can share the doc with the workspace |
+| `canShareWithOrg` | boolean | Whether the user can share the doc with the organization |
+| `canCopy` | boolean | Whether the user can copy the doc |
+
+### Coda Get Table
+
+Get details about a table or view in a Coda doc, including its row count, sorts, layout, and filter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `useUpdatedTableLayouts` | boolean | No | Report detail and form layouts as "detail" and "form" instead of "masterDetail" for both |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `table` | object | Table details |
+
+### Coda List Doc Categories
+
+List the categories that can be applied to a published Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `categories` | array | Category names usable when publishing a doc |
+
+### Coda List Columns
+
+List the columns of a Coda table with their IDs, formats, and formulas. Use column IDs when reading and writing rows.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `visibleOnly` | boolean | No | Only return visible columns \(applies to base tables, not views\) |
+| `limit` | number | No | Maximum number of columns to return \(1-100, default 25\) |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `columns` | array | Columns in the table |
+
+### Coda List Controls
+
+List the controls (sliders, selects, checkboxes, date pickers, buttons, etc.) in a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `sortBy` | string | No | Sort order; "name" sorts alphabetically |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `controls` | array | Controls in the doc |
+
+### Coda List Custom Domains
+
+List the custom domains connected to a published Coda doc and their setup status
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customDomains` | array | Custom domains for the published doc |
+|   ↳ `customDocDomain` | string | The custom domain |
+|   ↳ `hasCertificate` | boolean | Whether the domain has a certificate |
+|   ↳ `hasDnsDocId` | boolean | Whether the domain DNS points back to this doc |
+|   ↳ `setupStatus` | string | Setup status \(pending, succeeded, failed\) |
+|   ↳ `domainStatus` | string | connected or notConnected |
+|   ↳ `lastVerifiedTimestamp` | string | When the DNS settings were last checked |
+
+### Coda List Doc Analytics
+
+Get per-day or cumulative analytics (views, copies, likes, sessions by device, AI credits) for Coda docs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docIds` | json | No | Doc IDs to fetch analytics for, as an array or comma-separated list |
+| `workspaceId` | string | No | Only include docs in this workspace |
+| `query` | string | No | Search term used to filter docs |
+| `isPublished` | boolean | No | Only include published docs |
+| `sinceDate` | string | No | Only include activity on or after this date \(YYYY-MM-DD\) |
+| `untilDate` | string | No | Only include activity on or before this date \(YYYY-MM-DD\) |
+| `scale` | string | No | Aggregation: "daily" \(default\) or "cumulative" |
+| `orderBy` | string | No | Sort field: date, docId, title, createdAt, publishedAt, likes, copies, views, sessionsDesktop, sessionsMobile, sessionsOther, totalSessions, or an aiCredits field |
+| `direction` | string | No | Sort direction: "ascending" or "descending" |
+| `limit` | number | No | Maximum number of results to return \(1-5000, default 1000\) |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Analytics per doc |
+|   ↳ `doc` | object | Doc the metrics belong to |
+|   ↳ `metrics` | array | Metrics per date |
+|     ↳ `date` | string | Date of the data \(YYYY-MM-DD\) |
+|     ↳ `views` | number | Doc views |
+|     ↳ `copies` | number | Doc copies |
+|     ↳ `likes` | number | Doc likes |
+|     ↳ `sessionsMobile` | number | Unique mobile visitors |
+|     ↳ `sessionsDesktop` | number | Unique desktop visitors |
+|     ↳ `sessionsOther` | number | Unique visitors on other devices |
+|     ↳ `totalSessions` | number | Sessions across all devices |
+|     ↳ `aiCreditsChat` | number | AI credits used by chat |
+|     ↳ `aiCreditsBlock` | number | AI credits used by AI blocks |
+|     ↳ `aiCreditsColumn` | number | AI credits used by AI columns |
+|     ↳ `aiCreditsAssistant` | number | AI credits used by the assistant |
+|     ↳ `aiCreditsReviewer` | number | AI credits used by the reviewer |
+|     ↳ `aiCredits` | number | Total AI credits used |
+
+### Coda List Docs
+
+List Coda docs the user has opened, most recently used first, filtered by search, owner, publishing, stars, workspace, folder, or source doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Search term used to filter docs |
+| `isOwner` | boolean | No | Only return docs owned by the user |
+| `isPublished` | boolean | No | Only return published docs |
+| `isStarred` | boolean | No | true returns only starred docs; false returns only unstarred docs |
+| `inGallery` | boolean | No | Only return docs visible in the gallery |
+| `sourceDoc` | string | No | Only return docs copied from this doc ID |
+| `workspaceId` | string | No | Only return docs in this workspace \(e.g., "ws-1Ab234"\) |
+| `folderId` | string | No | Only return docs in this folder \(e.g., "fl-1Ab234"\) |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docs` | array | Docs matching the filters |
+
+### Coda List Subfolders
+
+List the direct subfolders of a Coda folder. Subfolders you cannot access but manage the parent of are returned with only an ID and restricted visibility.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | ID of the folder \(e.g., "fl-1Ab234"\) |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `children` | array | Direct subfolders |
+|   ↳ `visibility` | string | visible, or restricted when only the ID is returned because you cannot access the subfolder |
+
+### Coda List Folders
+
+List the Coda folders the user can access, optionally within one workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | No | Only return folders in this workspace \(e.g., "ws-1Ab234"\) |
+| `isStarred` | boolean | No | true returns only starred folders; false returns only unstarred folders |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | array | Folders the user can access |
+
+### Coda List Formulas
+
+List the named formulas in a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `sortBy` | string | No | Sort order; "name" sorts alphabetically |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formulas` | array | Named formulas in the doc |
+
+### Coda List Page Analytics
+
+Get daily analytics (views, sessions, users, time viewed) for each page of a Coda doc. Only available for docs in Enterprise workspaces.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `sinceDate` | string | No | Only include activity on or after this date \(YYYY-MM-DD\) |
+| `untilDate` | string | No | Only include activity on or before this date \(YYYY-MM-DD\) |
+| `limit` | number | No | Maximum number of results to return \(1-5000, default 1000\) |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Analytics per page |
+|   ↳ `page` | object | Page the metrics belong to |
+|   ↳ `metrics` | array | Metrics per date |
+|     ↳ `date` | string | Date of the data \(YYYY-MM-DD\) |
+|     ↳ `views` | number | Page views that day |
+|     ↳ `sessions` | number | Unique browsers that viewed the page |
+|     ↳ `users` | number | Unique Coda users that viewed the page |
+|     ↳ `averageSecondsViewed` | number | Average seconds the page was viewed |
+|     ↳ `medianSecondsViewed` | number | Median seconds the page was viewed |
+|     ↳ `tabs` | number | Unique tabs that opened the doc |
+
+### Coda List Pages
+
+List the pages in a Coda doc, including their hierarchy
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pages` | array | Pages in the doc |
+
+### Coda List Permissions
+
+List who a Coda doc is shared with and their access levels
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `permissions` | array | Permissions granted on the doc |
+
+### Coda List Rows
+
+List rows in a Coda table or view, optionally filtered by a column value, sorted, or limited to rows changed since a sync token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `query` | string | No | Filter as &lt;column_id_or_name&gt;:&lt;JSON value&gt;. Quote column names and string values, e.g., c-tuVwxYz:"Apple" or "Status":"Done" |
+| `sortBy` | string | No | Sort order: "createdAt" \(default\), "updatedAt", or "natural" \(view order; implies visibleOnly\) |
+| `useColumnNames` | boolean | No | Key cell values by column name instead of column ID |
+| `valueFormat` | string | No | Cell value format: "simple" \(default\), "simpleWithArrays", or "rich" |
+| `visibleOnly` | boolean | No | Only return visible rows and columns |
+| `syncToken` | string | No | nextSyncToken from a previous call, to return only rows changed since then |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rows` | array | Rows in the table |
+| `nextSyncToken` | string | Token to pass as syncToken later to fetch only rows changed after this call |
+
+### Coda List Tables
+
+List the tables and views in a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableTypes` | json | No | Table types to include, as an array or comma-separated list of "table", "view", "database" \(defaults to all\) |
+| `sortBy` | string | No | Sort order; "name" sorts alphabetically |
+| `limit` | number | No | Maximum number of results to return per page |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | Tables and views in the doc |
+
+### Coda List Workspace Members
+
+List the members of a Coda workspace with their roles and doc activity, requesting user first. The workspace must belong to an organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(e.g., "ws-1Ab234"\) |
+| `includedRoles` | json | No | Only return members with these roles, as an array or comma-separated list of "Admin", "DocMaker", "Editor" |
+| `pageToken` | string | No | Page token from a previous response to fetch the next page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | Workspace members |
+|   ↳ `email` | string | Email address |
+|   ↳ `name` | string | Name |
+|   ↳ `role` | string | Workspace role \(Admin, DocMaker, Editor\) |
+|   ↳ `pictureUrl` | string | Avatar link |
+|   ↳ `registeredAt` | string | When the user joined the workspace |
+|   ↳ `roleChangedAt` | string | When the role last changed |
+|   ↳ `lastActiveAt` | string | Date the user last acted in any workspace |
+|   ↳ `ownedDocs` | number | Docs the user owns in this workspace |
+|   ↳ `docsLastActiveAt` | string | Date anyone last accessed a doc the user owns |
+|   ↳ `docCollaboratorCount` | number | Collaborators on docs the user owns in the last 90 days |
+|   ↳ `totalDocs` | number | Docs the user owns, manages, or added pages to in the last 90 days |
+|   ↳ `totalDocsLastActiveAt` | string | Date anyone last accessed a doc the user owns or contributed to |
+|   ↳ `totalDocCollaboratorsLast90Days` | number | Unique viewers of docs the user owns, manages, or added pages to |
+
+### Coda List Workspace Role Activity
+
+Get monthly counts of active and inactive Admins, Doc Makers, and Editors in a workspace. The workspace must belong to an organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceId` | string | Yes | ID of the workspace \(e.g., "ws-1Ab234"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `roleActivity` | array | Role counts per month |
+|   ↳ `month` | string | Month of the data \(YYYY-MM-DD\) |
+|   ↳ `activeAdminCount` | number | Active Admins |
+|   ↳ `activeDocMakerCount` | number | Active Doc Makers |
+|   ↳ `activeEditorCount` | number | Active Editors |
+|   ↳ `inactiveAdminCount` | number | Inactive Admins |
+|   ↳ `inactiveDocMakerCount` | number | Inactive Doc Makers |
+|   ↳ `inactiveEditorCount` | number | Inactive Editors |
+
+### Coda Publish Doc
+
+Publish a Coda doc or update its publishing settings: URL slug, discoverability, categories, and interaction mode. The doc owner needs a Coda maker profile.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `slug` | string | No | URL slug for the published doc \(e.g., "my-doc"\) |
+| `discoverable` | boolean | No | Whether the published doc is discoverable in the gallery |
+| `categoryNames` | json | No | Category names to apply, as an array or comma-separated list \(see List Doc Categories\) |
+| `mode` | string | No | Interaction mode for viewers: "view", "play", or "edit" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docs` | json | Docs \(id, name, href, browserLink, icon, owner, ownerName, createdAt, updatedAt, workspace, folder, sourceDoc, docSize, published\) |
+| `doc` | json | Doc \(id, name, href, browserLink, icon, owner, ownerName, createdAt, updatedAt, workspace \{id, name, organizationId\}, folder \{id, name\}, sourceDoc, docSize \{totalRowCount, tableAndViewCount, baseTableCount, pageCount, overApiSizeLimit\}, published \{description, browserLink, discoverable, mode, categories\}\) |
+| `docId` | string | ID of the affected doc |
+| `categories` | json | Doc category names |
+| `requestId` | string | Request ID of a queued change, for Get Mutation Status |
+| `customDomains` | json | Custom domains \(customDocDomain, hasCertificate, hasDnsDocId, setupStatus, domainStatus, lastVerifiedTimestamp\) |
+| `customDocDomain` | string | Custom domain |
+| `provider` | string | DNS provider of a custom domain |
+| `permissions` | json | Permissions \(id, access, principal \{type, email, groupId, groupName, domain, workspaceId\}\) |
+| `access` | string | Access level granted |
+| `principalType` | string | Type of principal the doc was shared with |
+| `permissionId` | string | ID of the removed permission |
+| `users` | json | Matching users \(name, loginId, pictureLink\) |
+| `groups` | json | Matching groups \(groupId, groupName\) |
+| `canShare` | boolean | Whether the user can share the doc |
+| `canShareWithWorkspace` | boolean | Whether the user can share with the workspace |
+| `canShareWithOrg` | boolean | Whether the user can share with the org |
+| `canCopy` | boolean | Whether the user can copy the doc |
+| `allowEditorsToChangePermissions` | boolean | Whether editors can change permissions |
+| `allowCopying` | boolean | Whether viewers can copy the doc |
+| `allowViewersToRequestEditing` | boolean | Whether viewers can request editing |
+| `pages` | json | Pages \(id, name, subtitle, browserLink, contentType, isHidden, icon, image, parent, children, authors, createdAt, updatedAt\) |
+| `page` | json | Page \(id, name, subtitle, href, browserLink, contentType, isHidden, isEffectivelyHidden, icon, image, parent, children, authors, createdAt, createdBy, updatedAt, updatedBy\) |
+| `pageId` | string | ID of the created, updated, or deleted page |
+| `items` | json | Page content lines \(id, type, style, format, content, lineLevel\), or analytics items \(doc or page plus daily metrics\) |
+| `exportId` | string | Page export ID |
+| `status` | string | Page export status \(inProgress, failed, complete\) |
+| `href` | string | API link reporting the page export status |
+| `downloadLink` | string | Download link of a completed page export |
+| `exportError` | string | Error message of a failed page export |
+| `tables` | json | Tables and views \(id, name, tableType, href, browserLink, parent\) |
+| `table` | json | Table \(id, name, tableType, browserLink, parent, parentTable, displayColumnId, rowCount, sorts, layout, filter, createdAt, updatedAt\) |
+| `columns` | json | Columns \(id, name, display, calculated, formula, defaultValue, format\) |
+| `column` | json | Column \(id, name, display, calculated, formula, defaultValue, format, parentTable\) |
+| `rows` | json | Rows \(id, name, index, browserLink, createdAt, updatedAt, values\) |
+| `row` | json | Row \(id, name, index, browserLink, createdAt, updatedAt, values, parentTable\) |
+| `nextSyncToken` | string | Token for reading only rows changed later |
+| `addedRowIds` | json | IDs of rows that will be added |
+| `rowId` | string | ID of the affected row |
+| `rowIds` | json | IDs of rows queued for deletion |
+| `columnId` | string | ID of the pushed button column |
+| `formulas` | json | Named formulas \(id, name, href, parent\) |
+| `formula` | json | Formula \(id, name, href, parent, value\) |
+| `controls` | json | Controls \(id, name, href, parent\) |
+| `control` | json | Control \(id, name, href, parent, controlType, value\) |
+| `folders` | json | Folders \(id, name, browserLink, description, icon, iconColor, createdAt, canEdit, workspace\) |
+| `folder` | json | Folder \(id, name, browserLink, description, icon, iconColor, createdAt, canEdit, workspace\) |
+| `folderId` | string | ID of the deleted folder |
+| `children` | json | Subfolders \(id, name, browserLink, visibility, workspace, ...\) |
+| `members` | json | Workspace members \(email, name, role, registeredAt, roleChangedAt, lastActiveAt, ownedDocs, totalDocs, ...\) |
+| `email` | string | Email of the member whose role changed |
+| `newRole` | string | Role assigned |
+| `roleChangedAt` | string | When the role change took effect |
+| `roleActivity` | json | Monthly role counts \(month, activeAdminCount, activeDocMakerCount, activeEditorCount, inactive counts\) |
+| `totalSessions` | number | Total sessions across matching docs |
+| `docAnalyticsLastUpdated` | string | Date doc analytics last updated |
+| `packAnalyticsLastUpdated` | string | Date Pack analytics last updated |
+| `packFormulaAnalyticsLastUpdated` | string | Date Pack formula analytics last updated |
+| `browserLink` | string | Canonical browser link of a resolved resource |
+| `resource` | json | Resolved resource \(type, id, name, href\) |
+| `completed` | boolean | Whether a queued change was applied |
+| `warning` | string | Warning for a change that completed with caveats |
+| `name` | string | Name of the token owner |
+| `loginId` | string | Email of the token owner |
+| `pictureLink` | string | Avatar link of the token owner |
+| `scoped` | boolean | Whether the token is restricted |
+| `tokenName` | string | Name of the API token |
+| `workspace` | json | Default workspace of the token owner \(id, name, organizationId, browserLink\) |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Coda Push Button
+
+Push a button column on a row of a Coda table, running its action. The button can perform any action in the doc.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `rowId` | string | Yes | ID or name of the row \(IDs are recommended, e.g., "i-tuVwxYz"; names containing "/" are not supported\) |
+| `columnId` | string | Yes | ID or name of the button column \(e.g., "c-tuVwxYz"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rowId` | string | ID of the row containing the button |
+| `columnId` | string | ID of the button column |
+
+### Coda Resolve Browser Link
+
+Resolve a Coda browser URL (doc, page, table, row, etc.) into its resource type and ID for use in other Coda operations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | Coda browser link, e.g., https://coda.io/d/_dAbCDeFGH/Launch-Status_sumnO |
+| `degradeGracefully` | boolean | No | If the linked object was deleted, resolve the nearest existing parent \(up to the doc\) instead of failing |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `browserLink` | string | Canonical browser link to the resource |
+| `resource` | object | The resolved resource |
+|   ↳ `type` | string | Resource type \(doc, page, table, row, column, formula, control, etc.\) |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `href` | string | API link to the resource |
+
+### Coda Search Principals
+
+Search for users and groups a Coda doc can be shared with (up to 20 of each). Returns nothing without a query.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `query` | string | No | Name or email to search for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Matching users |
+|   ↳ `name` | string | User name |
+|   ↳ `loginId` | string | User email address |
+|   ↳ `pictureLink` | string | Avatar link |
+| `groups` | array | Matching groups |
+|   ↳ `groupId` | string | Group ID |
+|   ↳ `groupName` | string | Group name |
+
+### Coda Trigger Automation
+
+Trigger a webhook-invoked automation in a Coda doc, optionally passing a JSON payload the automation can read
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `ruleId` | string | Yes | ID of the automation rule \(e.g., "grid-auto-b3Jmey6jBS"\) |
+| `payload` | json | No | JSON object passed to the automation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docs` | json | Docs \(id, name, href, browserLink, icon, owner, ownerName, createdAt, updatedAt, workspace, folder, sourceDoc, docSize, published\) |
+| `doc` | json | Doc \(id, name, href, browserLink, icon, owner, ownerName, createdAt, updatedAt, workspace \{id, name, organizationId\}, folder \{id, name\}, sourceDoc, docSize \{totalRowCount, tableAndViewCount, baseTableCount, pageCount, overApiSizeLimit\}, published \{description, browserLink, discoverable, mode, categories\}\) |
+| `docId` | string | ID of the affected doc |
+| `categories` | json | Doc category names |
+| `requestId` | string | Request ID of a queued change, for Get Mutation Status |
+| `customDomains` | json | Custom domains \(customDocDomain, hasCertificate, hasDnsDocId, setupStatus, domainStatus, lastVerifiedTimestamp\) |
+| `customDocDomain` | string | Custom domain |
+| `provider` | string | DNS provider of a custom domain |
+| `permissions` | json | Permissions \(id, access, principal \{type, email, groupId, groupName, domain, workspaceId\}\) |
+| `access` | string | Access level granted |
+| `principalType` | string | Type of principal the doc was shared with |
+| `permissionId` | string | ID of the removed permission |
+| `users` | json | Matching users \(name, loginId, pictureLink\) |
+| `groups` | json | Matching groups \(groupId, groupName\) |
+| `canShare` | boolean | Whether the user can share the doc |
+| `canShareWithWorkspace` | boolean | Whether the user can share with the workspace |
+| `canShareWithOrg` | boolean | Whether the user can share with the org |
+| `canCopy` | boolean | Whether the user can copy the doc |
+| `allowEditorsToChangePermissions` | boolean | Whether editors can change permissions |
+| `allowCopying` | boolean | Whether viewers can copy the doc |
+| `allowViewersToRequestEditing` | boolean | Whether viewers can request editing |
+| `pages` | json | Pages \(id, name, subtitle, browserLink, contentType, isHidden, icon, image, parent, children, authors, createdAt, updatedAt\) |
+| `page` | json | Page \(id, name, subtitle, href, browserLink, contentType, isHidden, isEffectivelyHidden, icon, image, parent, children, authors, createdAt, createdBy, updatedAt, updatedBy\) |
+| `pageId` | string | ID of the created, updated, or deleted page |
+| `items` | json | Page content lines \(id, type, style, format, content, lineLevel\), or analytics items \(doc or page plus daily metrics\) |
+| `exportId` | string | Page export ID |
+| `status` | string | Page export status \(inProgress, failed, complete\) |
+| `href` | string | API link reporting the page export status |
+| `downloadLink` | string | Download link of a completed page export |
+| `exportError` | string | Error message of a failed page export |
+| `tables` | json | Tables and views \(id, name, tableType, href, browserLink, parent\) |
+| `table` | json | Table \(id, name, tableType, browserLink, parent, parentTable, displayColumnId, rowCount, sorts, layout, filter, createdAt, updatedAt\) |
+| `columns` | json | Columns \(id, name, display, calculated, formula, defaultValue, format\) |
+| `column` | json | Column \(id, name, display, calculated, formula, defaultValue, format, parentTable\) |
+| `rows` | json | Rows \(id, name, index, browserLink, createdAt, updatedAt, values\) |
+| `row` | json | Row \(id, name, index, browserLink, createdAt, updatedAt, values, parentTable\) |
+| `nextSyncToken` | string | Token for reading only rows changed later |
+| `addedRowIds` | json | IDs of rows that will be added |
+| `rowId` | string | ID of the affected row |
+| `rowIds` | json | IDs of rows queued for deletion |
+| `columnId` | string | ID of the pushed button column |
+| `formulas` | json | Named formulas \(id, name, href, parent\) |
+| `formula` | json | Formula \(id, name, href, parent, value\) |
+| `controls` | json | Controls \(id, name, href, parent\) |
+| `control` | json | Control \(id, name, href, parent, controlType, value\) |
+| `folders` | json | Folders \(id, name, browserLink, description, icon, iconColor, createdAt, canEdit, workspace\) |
+| `folder` | json | Folder \(id, name, browserLink, description, icon, iconColor, createdAt, canEdit, workspace\) |
+| `folderId` | string | ID of the deleted folder |
+| `children` | json | Subfolders \(id, name, browserLink, visibility, workspace, ...\) |
+| `members` | json | Workspace members \(email, name, role, registeredAt, roleChangedAt, lastActiveAt, ownedDocs, totalDocs, ...\) |
+| `email` | string | Email of the member whose role changed |
+| `newRole` | string | Role assigned |
+| `roleChangedAt` | string | When the role change took effect |
+| `roleActivity` | json | Monthly role counts \(month, activeAdminCount, activeDocMakerCount, activeEditorCount, inactive counts\) |
+| `totalSessions` | number | Total sessions across matching docs |
+| `docAnalyticsLastUpdated` | string | Date doc analytics last updated |
+| `packAnalyticsLastUpdated` | string | Date Pack analytics last updated |
+| `packFormulaAnalyticsLastUpdated` | string | Date Pack formula analytics last updated |
+| `browserLink` | string | Canonical browser link of a resolved resource |
+| `resource` | json | Resolved resource \(type, id, name, href\) |
+| `completed` | boolean | Whether a queued change was applied |
+| `warning` | string | Warning for a change that completed with caveats |
+| `name` | string | Name of the token owner |
+| `loginId` | string | Email of the token owner |
+| `pictureLink` | string | Avatar link of the token owner |
+| `scoped` | boolean | Whether the token is restricted |
+| `tokenName` | string | Name of the API token |
+| `workspace` | json | Default workspace of the token owner \(id, name, organizationId, browserLink\) |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Coda Unpublish Doc
+
+Unpublish a Coda doc
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docId` | string | ID of the unpublished doc |
+
+### Coda Update Sharing Settings
+
+Update who can change permissions, copy, or request edit access on a Coda doc; unset settings are left unchanged
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `allowEditorsToChangePermissions` | boolean | No | Allow editors to change doc permissions |
+| `allowCopying` | boolean | No | Allow viewers to copy the doc |
+| `allowViewersToRequestEditing` | boolean | No | Allow viewers to request edit access |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docs` | json | Docs \(id, name, href, browserLink, icon, owner, ownerName, createdAt, updatedAt, workspace, folder, sourceDoc, docSize, published\) |
+| `doc` | json | Doc \(id, name, href, browserLink, icon, owner, ownerName, createdAt, updatedAt, workspace \{id, name, organizationId\}, folder \{id, name\}, sourceDoc, docSize \{totalRowCount, tableAndViewCount, baseTableCount, pageCount, overApiSizeLimit\}, published \{description, browserLink, discoverable, mode, categories\}\) |
+| `docId` | string | ID of the affected doc |
+| `categories` | json | Doc category names |
+| `requestId` | string | Request ID of a queued change, for Get Mutation Status |
+| `customDomains` | json | Custom domains \(customDocDomain, hasCertificate, hasDnsDocId, setupStatus, domainStatus, lastVerifiedTimestamp\) |
+| `customDocDomain` | string | Custom domain |
+| `provider` | string | DNS provider of a custom domain |
+| `permissions` | json | Permissions \(id, access, principal \{type, email, groupId, groupName, domain, workspaceId\}\) |
+| `access` | string | Access level granted |
+| `principalType` | string | Type of principal the doc was shared with |
+| `permissionId` | string | ID of the removed permission |
+| `users` | json | Matching users \(name, loginId, pictureLink\) |
+| `groups` | json | Matching groups \(groupId, groupName\) |
+| `canShare` | boolean | Whether the user can share the doc |
+| `canShareWithWorkspace` | boolean | Whether the user can share with the workspace |
+| `canShareWithOrg` | boolean | Whether the user can share with the org |
+| `canCopy` | boolean | Whether the user can copy the doc |
+| `allowEditorsToChangePermissions` | boolean | Whether editors can change permissions |
+| `allowCopying` | boolean | Whether viewers can copy the doc |
+| `allowViewersToRequestEditing` | boolean | Whether viewers can request editing |
+| `pages` | json | Pages \(id, name, subtitle, browserLink, contentType, isHidden, icon, image, parent, children, authors, createdAt, updatedAt\) |
+| `page` | json | Page \(id, name, subtitle, href, browserLink, contentType, isHidden, isEffectivelyHidden, icon, image, parent, children, authors, createdAt, createdBy, updatedAt, updatedBy\) |
+| `pageId` | string | ID of the created, updated, or deleted page |
+| `items` | json | Page content lines \(id, type, style, format, content, lineLevel\), or analytics items \(doc or page plus daily metrics\) |
+| `exportId` | string | Page export ID |
+| `status` | string | Page export status \(inProgress, failed, complete\) |
+| `href` | string | API link reporting the page export status |
+| `downloadLink` | string | Download link of a completed page export |
+| `exportError` | string | Error message of a failed page export |
+| `tables` | json | Tables and views \(id, name, tableType, href, browserLink, parent\) |
+| `table` | json | Table \(id, name, tableType, browserLink, parent, parentTable, displayColumnId, rowCount, sorts, layout, filter, createdAt, updatedAt\) |
+| `columns` | json | Columns \(id, name, display, calculated, formula, defaultValue, format\) |
+| `column` | json | Column \(id, name, display, calculated, formula, defaultValue, format, parentTable\) |
+| `rows` | json | Rows \(id, name, index, browserLink, createdAt, updatedAt, values\) |
+| `row` | json | Row \(id, name, index, browserLink, createdAt, updatedAt, values, parentTable\) |
+| `nextSyncToken` | string | Token for reading only rows changed later |
+| `addedRowIds` | json | IDs of rows that will be added |
+| `rowId` | string | ID of the affected row |
+| `rowIds` | json | IDs of rows queued for deletion |
+| `columnId` | string | ID of the pushed button column |
+| `formulas` | json | Named formulas \(id, name, href, parent\) |
+| `formula` | json | Formula \(id, name, href, parent, value\) |
+| `controls` | json | Controls \(id, name, href, parent\) |
+| `control` | json | Control \(id, name, href, parent, controlType, value\) |
+| `folders` | json | Folders \(id, name, browserLink, description, icon, iconColor, createdAt, canEdit, workspace\) |
+| `folder` | json | Folder \(id, name, browserLink, description, icon, iconColor, createdAt, canEdit, workspace\) |
+| `folderId` | string | ID of the deleted folder |
+| `children` | json | Subfolders \(id, name, browserLink, visibility, workspace, ...\) |
+| `members` | json | Workspace members \(email, name, role, registeredAt, roleChangedAt, lastActiveAt, ownedDocs, totalDocs, ...\) |
+| `email` | string | Email of the member whose role changed |
+| `newRole` | string | Role assigned |
+| `roleChangedAt` | string | When the role change took effect |
+| `roleActivity` | json | Monthly role counts \(month, activeAdminCount, activeDocMakerCount, activeEditorCount, inactive counts\) |
+| `totalSessions` | number | Total sessions across matching docs |
+| `docAnalyticsLastUpdated` | string | Date doc analytics last updated |
+| `packAnalyticsLastUpdated` | string | Date Pack analytics last updated |
+| `packFormulaAnalyticsLastUpdated` | string | Date Pack formula analytics last updated |
+| `browserLink` | string | Canonical browser link of a resolved resource |
+| `resource` | json | Resolved resource \(type, id, name, href\) |
+| `completed` | boolean | Whether a queued change was applied |
+| `warning` | string | Warning for a change that completed with caveats |
+| `name` | string | Name of the token owner |
+| `loginId` | string | Email of the token owner |
+| `pictureLink` | string | Avatar link of the token owner |
+| `scoped` | boolean | Whether the token is restricted |
+| `tokenName` | string | Name of the API token |
+| `workspace` | json | Default workspace of the token owner \(id, name, organizationId, browserLink\) |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Coda Update Doc
+
+Rename a Coda doc or change its icon. Renaming requires Doc Maker access in the workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `title` | string | No | New title of the doc |
+| `iconName` | string | No | Name of the icon to use \(e.g., "rocket"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `docId` | string | ID of the updated doc |
+
+### Coda Update Folder
+
+Rename a Coda folder or change its description. Coda can return the folder as it was before the change; read it again to confirm.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | ID of the folder \(e.g., "fl-1Ab234"\) |
+| `name` | string | No | New name of the folder |
+| `description` | string | No | New description of the folder |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folder` | object | The updated folder |
+
+### Coda Update Page
+
+Update a Coda page: rename it, change its subtitle, icon, cover, or visibility, and append, prepend, or replace content with Markdown or HTML. Applied asynchronously.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `pageId` | string | Yes | ID or name of the page \(IDs are recommended, e.g., "canvas-IjkLmnO"; names containing "/" are not supported\) |
+| `name` | string | No | New name of the page |
+| `subtitle` | string | No | New subtitle of the page |
+| `iconName` | string | No | Name of the page icon \(e.g., "rocket"\) |
+| `imageUrl` | string | No | URL of a cover image for the page |
+| `isHidden` | boolean | No | Whether the page is hidden \(requires a paid Coda plan; ignored for pages that cannot be hidden\) |
+| `insertionMode` | string | No | How to apply content: "append", "prepend", or "replace". Required when content is provided. |
+| `elementId` | string | No | Page element to insert relative to or replace \(e.g., "cl-lzqh0Q0poT"\); omit to apply to the whole page |
+| `contentFormat` | string | No | Content format: "markdown" \(default\) or "html" |
+| `content` | string | No | Content to add to the page in the chosen format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pageId` | string | ID of the updated page |
+
+### Coda Update Row
+
+Update cell values in a row of a Coda table. Applied asynchronously.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `rowId` | string | Yes | ID or name of the row \(IDs are recommended, e.g., "i-tuVwxYz"; names containing "/" are not supported\) |
+| `cells` | json | Yes | Object mapping column IDs \(or names\) to new values, e.g., \{"c-tuVwxYz": "Done"\}, or Coda cells \[\{"column": "c-tuVwxYz", "value": "Done"\}\] |
+| `disableParsing` | boolean | No | Store values exactly as given without parsing them |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `rowId` | string | ID of the updated row |
+
+### Coda Insert or Upsert Rows
+
+Insert rows into a Coda base table, or update matching rows when key columns are given. Only works on base tables, not views. Applied asynchronously.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `docId` | string | Yes | ID of the doc \(e.g., "AbCDeFGH"\) |
+| `tableId` | string | Yes | ID or name of the table or view \(IDs are recommended, e.g., "grid-pqRst-U"; names containing "/" are not supported\) |
+| `rows` | json | Yes | Array of rows. Each row maps column IDs \(or names\) to values, e.g., \[\{"c-tuVwxYz": "Apple", "c-bCdeFgh": 12\}\], or uses Coda cells \[\{"cells": \[\{"column": "c-tuVwxYz", "value": "Apple"\}\]\}\] |
+| `keyColumns` | json | No | Column IDs \(or names\) to match existing rows on, as an array or comma-separated list. Matching rows are updated instead of inserted. |
+| `disableParsing` | boolean | No | Store values exactly as given without parsing them |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `addedRowIds` | array | IDs of rows that will be added \(only returned when no key columns are set\) |
+
+### Coda Get Current User
+
+Get the user and default workspace behind the connected Coda API token
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the user |
+| `loginId` | string | Email address of the user |
+| `pictureLink` | string | Link to the user avatar |
+| `scoped` | boolean | Whether the token is restricted to specific docs or tables |
+| `tokenName` | string | Name of the API token |
+| `workspace` | object | Default workspace of the user |
+
+
