@@ -15,7 +15,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   createKnowledgeAclFixtureIds,
@@ -289,6 +289,8 @@ describe('organization operational overview with real SQL', () => {
       connectorId: gmailId,
       status: 'partial',
       membersIncomplete: 1,
+      docsFailed: 0,
+      processingDispatchFailed: 0,
       completedAt: new Date(),
     })
     expect(await provider('gmail')).toMatchObject({
@@ -312,7 +314,7 @@ describe('organization operational overview with real SQL', () => {
     expect(await provider('gmail')).toMatchObject({ status: 'needs_attention' })
     await db
       .update(knowledgeConnector)
-      .set({ nextMemberSyncAt: new Date() })
+      .set({ nextMemberSyncAt: sql`statement_timestamp() - interval '1 second'` })
       .where(eq(knowledgeConnector.id, gmailId))
     expect(await provider('gmail')).toMatchObject({
       status: 'active',
@@ -327,6 +329,8 @@ describe('organization operational overview with real SQL', () => {
       id: generateId(),
       connectorId: gmailId,
       status: 'completed',
+      docsFailed: 0,
+      processingDispatchFailed: 0,
       startedAt: new Date(Date.now() + 1000),
       completedAt: new Date(),
     })
