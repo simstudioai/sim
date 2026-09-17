@@ -109,6 +109,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/cloudformation.mdx',
   'integrations/cloudtrail.mdx',
   'integrations/cloudwatch.mdx',
+  'integrations/coda.mdx',
   'integrations/codepipeline.mdx',
   'integrations/confluence.mdx',
   'integrations/context_dev.mdx',

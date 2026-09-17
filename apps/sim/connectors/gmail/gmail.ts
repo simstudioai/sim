@@ -4,6 +4,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { getGmailMailboxEmail, getGmailProfile, gmailThreadUrl } from '@/connectors/gmail/mailbox'
 import { DEFAULT_MAX_THREADS, gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { fetchGoogleApiWithRetry, GoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
@@ -621,10 +622,12 @@ async function resolveLabelNames(
  * Creates a lightweight document stub from a thread list entry.
  * Uses metadata-based contentHash for change detection without downloading content.
  */
-function threadToStub(
+async function threadToStub(
   thread: GmailThread,
+  accessToken: string,
   syncContext?: Record<string, unknown>
-): ExternalDocument {
+): Promise<ExternalDocument> {
+  const mailboxEmail = await getGmailMailboxEmail(accessToken, syncContext)
   return {
     externalId: memberDocumentId(thread.id, syncContext),
     title: thread.snippet || 'Untitled Thread',
@@ -632,21 +635,12 @@ function threadToStub(
     contentDeferred: true,
     estimatedBytes: CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
     mimeType: 'text/plain',
-    sourceUrl: threadUrl(thread.id),
+    sourceUrl: gmailThreadUrl(thread.id, mailboxEmail),
     /** Rehydrate older rows that omitted separately stored message bodies. */
     contentHash: `gmail:${thread.id}:${thread.historyId}:body-v2`,
     skippedRetryPolicy: 'source-change',
     metadata: {},
   }
-}
-
-/**
- * Deep link to a thread. `#all` is used rather than `#inbox` because a synced
- * thread may be archived or live only under a user label, where an `#inbox`
- * fragment resolves to nothing.
- */
-function threadUrl(threadId: string): string {
-  return `https://mail.google.com/mail/u/0/#all/${threadId}`
 }
 
 /** A feed position: the mailbox history id the next read starts from, mid-page when paging. */
@@ -780,22 +774,7 @@ const gmailMailboxConnector: ConnectorConfig = {
     if (syncContext?.mirrorsSourceAcls === true) {
       throw new Error('Company-wide Gmail indexing uses complete mailbox listings')
     }
-    const response = await fetchGoogleApiWithRetry(
-      'gmail.users.getProfile',
-      `${GMAIL_API_BASE}/profile?fields=historyId`,
-      {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-      }
-    )
-    const data: unknown = await response.json()
-    if (
-      !isPlainRecord(data) ||
-      typeof data.historyId !== 'string' ||
-      !/^\d+$/.test(data.historyId)
-    ) {
-      throw new Error('Gmail returned malformed profile metadata')
-    }
+    const data = await getGmailProfile(accessToken, syncContext)
     return JSON.stringify({ historyId: data.historyId })
   },
 
@@ -813,7 +792,7 @@ const gmailMailboxConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor: string,
-    syncContext?: Record<string, unknown>
+    syncContext: Record<string, unknown> = {}
   ): Promise<ExternalChangeList> => {
     if (syncContext?.mirrorsSourceAcls === true) {
       throw new Error('Company-wide Gmail indexing uses complete mailbox listings')
@@ -854,7 +833,11 @@ const gmailMailboxConnector: ConnectorConfig = {
         const externalId = memberDocumentId(threadId, syncContext)
         const thread = await fetchThread(accessToken, threadId, 'metadata')
         if (!thread || !threadInScope(thread, scope)) return { kind: 'removed', externalId }
-        return { kind: 'upsert', externalId, document: threadToStub(thread, syncContext) }
+        return {
+          kind: 'upsert',
+          externalId,
+          document: await threadToStub(thread, accessToken, syncContext),
+        }
       }
     )
 
@@ -873,7 +856,7 @@ const gmailMailboxConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    syncContext?: Record<string, unknown>
+    syncContext: Record<string, unknown> = {}
   ): Promise<ExternalDocumentList> => {
     const signal = syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined
     signal?.throwIfAborted()
@@ -962,7 +945,7 @@ const gmailMailboxConnector: ConnectorConfig = {
       const metadata = thread.historyId
         ? thread
         : await fetchThread(accessToken, thread.id, 'minimal', signal)
-      return metadata ? threadToStub(metadata, syncContext) : null
+      return metadata ? threadToStub(metadata, accessToken, syncContext) : null
     })
     const documents = stubs.filter((stub): stub is ExternalDocument => stub !== null)
 
@@ -1002,7 +985,7 @@ const gmailMailboxConnector: ConnectorConfig = {
     accessToken: string,
     _sourceConfig: Record<string, unknown>,
     externalId: string,
-    syncContext?: Record<string, unknown>
+    syncContext: Record<string, unknown> = {}
   ): Promise<ExternalDocument | null> => {
     const signal = syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined
     signal?.throwIfAborted()
@@ -1028,7 +1011,7 @@ const gmailMailboxConnector: ConnectorConfig = {
         }
         return {
           ...markSkipped(
-            threadToStub(after, syncContext),
+            await threadToStub(after, accessToken, syncContext),
             sizeLimitSkipReason(MAX_THREAD_RESPONSE_BYTES)
           ),
           skippedExistingDisposition: 'replace',
@@ -1043,7 +1026,10 @@ const gmailMailboxConnector: ConnectorConfig = {
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) {
         return {
-          ...markSkipped(threadToStub(thread, syncContext), sizeLimitSkipReason(error.limitBytes)),
+          ...markSkipped(
+            await threadToStub(thread, accessToken, syncContext),
+            sizeLimitSkipReason(error.limitBytes)
+          ),
           skippedExistingDisposition: 'replace',
         }
       }
@@ -1056,7 +1042,7 @@ const gmailMailboxConnector: ConnectorConfig = {
     metadata.labels = await resolveLabelNames(accessToken, labelIds, syncContext)
 
     return {
-      ...threadToStub(thread, syncContext),
+      ...(await threadToStub(thread, accessToken, syncContext)),
       title: subject,
       content,
       contentDeferred: false,

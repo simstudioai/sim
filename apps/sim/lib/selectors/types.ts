@@ -16,6 +16,7 @@ export const selectorContextKeys = [
   'driveId',
   'excludeWorkflowId',
   'baseId',
+  'docId',
   'datasetId',
   'serviceDeskId',
   'impersonateUserEmail',

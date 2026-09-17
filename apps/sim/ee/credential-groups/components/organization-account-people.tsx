@@ -1,15 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import {
-  Avatar,
-  AvatarFallback,
-  Chip,
-  ChipConfirmModal,
-  ChipModalError,
-  OverflowText,
-  toast,
-} from '@sim/emcn'
+import { Avatar, AvatarFallback, Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -120,17 +112,15 @@ export function OrganizationAccountPeople({
                     <SettingsResourceRow
                       key={person.id}
                       icon={
-                        <Avatar size='sm' aria-hidden>
-                          <AvatarFallback>{person.email.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
+                        <div className='self-start'>
+                          <Avatar size='sm' aria-hidden>
+                            <AvatarFallback>{person.email.charAt(0).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                        </div>
                       }
                       iconVariant='custom'
-                      title={
-                        <span className='flex min-w-0 items-center gap-3'>
-                          <OverflowText label={person.email} className='min-w-28 max-w-[240px]' />
-                          <OrganizationPersonConnections person={person} />
-                        </span>
-                      }
+                      title={person.email}
+                      description={<OrganizationPersonConnections person={person} />}
                       trailing={
                         <RowActionsMenu
                           label={`${person.email} actions`}

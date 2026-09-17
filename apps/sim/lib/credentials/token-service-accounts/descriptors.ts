@@ -81,6 +81,7 @@ export const PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'pipedrive-service-account'
 export const CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID =
   'claude-platform-service-account' as const
 export const SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID = 'snowflake-service-account' as const
+export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -109,6 +110,7 @@ export type TokenServiceAccountProviderId =
   | typeof PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   TokenServiceAccountProviderId,
@@ -406,6 +408,23 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
+  },
+  [CODA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CODA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Coda',
+    tokenNoun: 'API token',
+    connectNoun: 'API token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste a Coda API token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/coda',
+    helpText:
+      'Create a token under Account settings → API settings. A token restricted to specific docs or tables can only read and write those.',
   },
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,

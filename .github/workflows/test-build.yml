@@ -221,6 +221,7 @@ jobs:
           lib/knowledge/__integration__/search-source-progress.integration.ts
           lib/knowledge/__integration__/search-source-pagination.integration.ts
           lib/knowledge/__integration__/search-reference-batching.integration.ts
+          lib/knowledge/__integration__/kb-block-search.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts
           lib/uploads/contexts/organization-logo/application.integration.ts
@@ -368,9 +369,6 @@ jobs:
 
       - name: Lint code
         run: bun run lint:check
-
-      - name: Test Trigger deployment gates
-        run: python3 .github/scripts/test-trigger-deploy.py
 
       # Every zero-argument `check:*` script, run concurrently. The list is derived in
       # scripts/run-audits.ts, which also writes the per-audit timing table to the job

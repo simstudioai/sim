@@ -56,6 +56,7 @@ const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'
 const MIN_VECTOR_RERANK_CANDIDATES = 400
 const MAX_VECTOR_RERANK_CANDIDATES = 1600
 const VECTOR_RERANK_OVERSAMPLING = 8
+const MAX_EXACT_KB_VECTOR_CANDIDATES = 200
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
@@ -777,38 +778,89 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
       sql`${distance} < ${distanceThreshold}`,
     ])
   }
-  const vectorLeg = (executor: SearchExecutor, kbScope: SQL | undefined, limit: number) =>
-    selectRankedVectorResults(
-      executor,
-      distance,
-      [
-        kbScope,
-        ...getVisibilityConditions(access, params.filters),
-        sql`${distance} < ${distanceThreshold}`,
-      ],
-      limit
-    )
-
   /**
    * A relaxed-order iterative scan may hand rows back slightly out of distance
    * order, so both paths re-sort in memory before trimming to `topK`.
    */
   if (strategy.useParallel) {
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
-    const allResults = await withVectorScanSettings(async (executor) => {
-      const parallelResults = await Promise.all(
-        knowledgeBaseIds.map((kbId) =>
-          vectorLeg(executor, eq(embedding.knowledgeBaseId, kbId), parallelLimit)
-        )
+    const allResults: SearchResult[] = []
+    /** Keep one active KB leg per request so multi-base searches cannot monopolize the pool. */
+    for (const kbId of knowledgeBaseIds) {
+      allResults.push(
+        ...(await selectScopedVectorResults(
+          params,
+          distance,
+          eq(embedding.knowledgeBaseId, kbId),
+          parallelLimit
+        ))
       )
-      return parallelResults.flat()
-    })
+      if (params.budget?.timedOut) break
+    }
     return allResults.sort((a, b) => a.distance - b.distance).slice(0, topK)
   }
-  const rows = await withVectorScanSettings((executor) =>
-    vectorLeg(executor, inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
+  const rows = await selectScopedVectorResults(
+    params,
+    distance,
+    inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+    topK
   )
   return rows.sort((a, b) => a.distance - b.distance)
+}
+
+/**
+ * KB runs without a human subject still need bounded small-scope ranking. Probe only chunk
+ * identities, then reapply every access and visibility predicate before ranking and hydration.
+ * An overflowing probe selects ANN over the whole scope, never a truncated candidate prefix.
+ */
+async function selectScopedVectorResults(
+  params: SearchParams,
+  distance: SQL<number>,
+  kbScope: SQL | undefined,
+  limit: number,
+  tagConditions: (SQL | undefined)[] = []
+): Promise<SearchResult[]> {
+  try {
+    const probe = await runSearchQuery(params.budget, 'vector.probe', (executor) =>
+      executor
+        .select({ id: embedding.id })
+        .from(embedding)
+        .where(and(kbScope, eq(embedding.enabled, true), ...tagConditions))
+        .limit(MAX_EXACT_KB_VECTOR_CANDIDATES + 1)
+    )
+    if (probe.length === 0) return []
+    const conditions = [
+      kbScope,
+      ...getVisibilityConditions(params.access, params.filters),
+      ...tagConditions,
+      sql`${distance} < ${params.distanceThreshold}`,
+    ]
+    if (probe.length <= MAX_EXACT_KB_VECTOR_CANDIDATES) {
+      annotateSearchDiagnostics({ vectorRanking: 'exact' })
+      return await runSearchQuery(params.budget, 'vector.exact', (executor) =>
+        selectRankedVectorResults(
+          executor,
+          distance,
+          [
+            ...conditions,
+            inArray(
+              embedding.id,
+              probe.map((candidate) => candidate.id)
+            ),
+          ],
+          limit,
+          true
+        )
+      )
+    }
+    return await withVectorScanSettings(
+      (executor) => selectRankedVectorResults(executor, distance, conditions, limit),
+      params.budget
+    )
+  } catch (error) {
+    if (!params.budget?.isTimeout(error)) throw error
+    return []
+  }
 }
 
 /**
@@ -1023,14 +1075,15 @@ function selectRankedVectorResults(
   executor: SearchExecutor,
   distance: SQL<number>,
   conditions: (SQL | undefined)[],
-  limit: number
+  limit: number,
+  exact = false
 ) {
   const ranked = executor
     .select({ id: embedding.id, distance: distance.as('distance') })
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
     .where(and(...conditions))
-    .orderBy(distance)
+    .orderBy(exact ? sql`(${distance}) + 0` : distance)
     .limit(limit)
     .as('ranked_embeddings')
 
@@ -1317,18 +1370,12 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
       sql`${distance} < ${distanceThreshold}`,
     ])
   }
-  const rows = await withVectorScanSettings((executor) =>
-    selectRankedVectorResults(
-      executor,
-      distance,
-      [
-        inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
-        ...getVisibilityConditions(access, params.filters),
-        ...tagFilterConditions,
-        sql`${distance} < ${distanceThreshold}`,
-      ],
-      topK
-    )
+  const rows = await selectScopedVectorResults(
+    params,
+    distance,
+    inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+    topK,
+    tagFilterConditions
   )
   return rows.sort((a, b) => a.distance - b.distance)
 }

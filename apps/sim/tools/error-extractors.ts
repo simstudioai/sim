@@ -50,6 +50,41 @@ interface ErrorExtractorConfig {
   redactData?: (errorInfo?: ErrorInfo) => unknown
 }
 
+const CODA_MAX_VALIDATION_MESSAGES = 5
+
+/**
+ * Flattens Coda's validation detail (`validationErrors` or nested schema `issues`) into
+ * `path: message` strings. Only Coda's own path and message text is used, never the
+ * submitted values.
+ */
+function collectCodaValidationMessages(detail: unknown): string[] {
+  const messages = new Set<string>()
+  const visit = (issue: unknown) => {
+    if (messages.size >= CODA_MAX_VALIDATION_MESSAGES || !issue || typeof issue !== 'object') return
+    const record = issue as { path?: unknown; message?: unknown; errors?: unknown }
+    if (Array.isArray(record.errors) && record.errors.length > 0) {
+      for (const branch of record.errors) {
+        if (Array.isArray(branch)) branch.forEach(visit)
+        else visit(branch)
+      }
+      return
+    }
+    if (typeof record.message !== 'string' || !record.message) return
+    const path = Array.isArray(record.path)
+      ? record.path.filter((part) => typeof part === 'string' || typeof part === 'number').join('.')
+      : typeof record.path === 'string'
+        ? record.path
+        : ''
+    messages.add(path ? `${path}: ${record.message}` : record.message)
+  }
+  if (detail && typeof detail === 'object') {
+    const { validationErrors, issues } = detail as { validationErrors?: unknown; issues?: unknown }
+    if (Array.isArray(validationErrors)) validationErrors.forEach(visit)
+    if (Array.isArray(issues)) issues.forEach(visit)
+  }
+  return [...messages]
+}
+
 const PITCHBOOK_UNAUTHORIZED_MESSAGE =
   'PitchBook rejected the API key. Check that the key is active and has API access.'
 
@@ -233,6 +268,23 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     description: 'Standard message field in error response',
     examples: ['Notion', 'Discord', 'GitHub', 'Twilio', 'Slack'],
     extract: (errorInfo) => errorInfo?.data?.message,
+  },
+  {
+    id: 'coda-errors',
+    description:
+      'Coda (Superhuman Docs) API errors: the `message` field, or the field-level validation issues under `codaDetail` when the message is only the generic HTTP status text',
+    examples: ['Coda'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      const generic = !message || message === data.statusMessage
+      if (!generic) return message
+      const details = collectCodaValidationMessages(data.codaDetail)
+      const status = message || (typeof data.statusMessage === 'string' ? data.statusMessage : '')
+      if (details.length > 0) return `${status || 'Invalid request'}: ${details.join('; ')}`
+      return status || undefined
+    },
   },
   {
     id: 'harmonic-errors',
@@ -618,6 +670,7 @@ export const ErrorExtractorId = {
   TELEGRAM_DESCRIPTION: 'telegram-description',
   STANDARD_MESSAGE: 'standard-message',
   HARMONIC_ERRORS: 'harmonic-errors',
+  CODA_ERRORS: 'coda-errors',
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',

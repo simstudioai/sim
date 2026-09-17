@@ -212,6 +212,10 @@ describe('Knowledge Search Utils', () => {
   describe('handleTagAndVectorSearch', () => {
     it('returns only bounded ranked rows without first materializing every matching tag ID', async () => {
       resetDbChainMock()
+      queueTableRows(
+        schemaMock.embedding,
+        Array.from({ length: 201 }, (_, index) => ({ id: `candidate-${index}` }))
+      )
       queueTableRows(schemaMock.embedding, [makeResult('second', 0.2), makeResult('first', 0.1)])
 
       const results = await handleTagAndVectorSearch({
@@ -226,9 +230,11 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((row) => row.id)).toEqual(['first', 'second'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
       expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
-      expect(dbChainMockFns.select.mock.calls[0][0]).toHaveProperty('distance')
+      expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
+      expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 201)
+      expect(dbChainMockFns.select.mock.calls[1][0]).toHaveProperty('distance')
       expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
     })
 
@@ -536,6 +542,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('runs a single retrieval leg in vector mode', async () => {
+      queueTableRows(schemaMock.embedding, [{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
 
       const results = await executeKnowledgeSearch({
@@ -548,20 +555,19 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id)).toEqual(['vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
       expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
     })
 
     it('runs both legs and fuses them in hybrid mode', async () => {
       /**
-       * Chains dequeue in creation order. Hybrid legs over-fetch past the
-       * plain scan's candidate pool, so the vector leg opens its transaction
-       * and applies the scan settings before selecting: the keyword ranking
-       * pass is built first, then the vector select, then hydration.
+       * Chains dequeue in creation order: keyword ranking, the budgeted vector
+       * probe, keyword hydration, then vector ranking and hydration in one query.
        */
       queueTableRows(schemaMock.embedding, [{ id: 'keyword-hit', keywordRank: 0.9 }])
-      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
+      queueTableRows(schemaMock.embedding, [{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [makeResult('keyword-hit')])
+      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
 
       const results = await executeKnowledgeSearch({
         knowledgeBaseIds: ['kb-123'],
@@ -573,39 +579,31 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id).sort()).toEqual(['keyword-hit', 'vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(4)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(5)
     })
 
-    it('falls back to vector results when the keyword leg fails', async () => {
+    it('propagates unexpected keyword errors after the vector leg finishes', async () => {
       /** The failing ranking chain is still built first and takes the first queued set. */
       queueTableRows(schemaMock.embedding, [{ id: 'never-ranked', keywordRank: 0 }])
+      queueTableRows(schemaMock.embedding, [{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
 
-      /**
-       * Both legs share one `orderBy` spy, so target the keyword leg by its
-       * ranking expression. Calling the untouched spy first captures the
-       * sentinel that tells the mock to build its normal chain, which the
-       * vector leg still needs.
-       */
-      const chainDefault = dbChainMockFns.orderBy()
-      dbChainMockFns.orderBy.mockImplementation((fragment: unknown) => {
-        const text = (fragment as { strings?: string[] })?.strings?.join('') ?? ''
-        if (text.includes('ts_rank_cd')) {
-          throw new Error('tsquery blew up')
-        }
-        return chainDefault
+      const failure = new Error('tsquery failed')
+      dbChainMockFns.orderBy.mockImplementationOnce(() => {
+        throw failure
       })
 
-      const results = await executeKnowledgeSearch({
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        searchMode: 'hybrid',
-        query: 'PROJ-1234',
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
-      })
-
-      expect(results.map((r) => r.id)).toEqual(['vector-hit'])
+      await expect(
+        executeKnowledgeSearch({
+          knowledgeBaseIds: ['kb-123'],
+          access: WORKSPACE_ACCESS_SCOPE,
+          topK: 10,
+          searchMode: 'hybrid',
+          query: 'PROJ-1234',
+          queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+        })
+      ).rejects.toBe(failure)
+      expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
     })
 
     it('skips both query legs when only tag filters are provided', async () => {
