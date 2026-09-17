@@ -7,7 +7,7 @@ import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-
 import { AuthShell } from '@/app/(auth)/components'
 
 export const metadata: Metadata = {
-  title: 'Sim Search installed',
+  title: 'Sim Search in Slack',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
 }
@@ -25,8 +25,8 @@ export default async function SlackInstallPage({ params }: SlackInstallPageProps
   return (
     <AuthShell>
       <div className='flex flex-col gap-5'>
-        <h1 className='text-2xl'>Sim Search is installed in Slack</h1>
-        <p className='text-[var(--text-secondary)] text-sm'>
+        <h1 className='text-2xl'>Sim Search in Slack</h1>
+        <p className='text-[var(--text-muted)] text-sm'>
           To start searching, an admin can connect this workspace later from Settings → Sim Search
           in Slack in their Sim organization.
         </p>

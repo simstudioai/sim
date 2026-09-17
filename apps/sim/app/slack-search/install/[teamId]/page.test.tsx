@@ -29,11 +29,12 @@ beforeEach(() => {
   authMockFns.mockGetSession.mockResolvedValue(null)
 })
 describe('Slack-initiated install entry', () => {
-  it('confirms installation without requiring sign-in or an organization selection', async () => {
+  it('shows setup guidance without asserting installation or requiring sign-in', async () => {
     const markup = renderToStaticMarkup(
       await SlackInstallPage({ params: Promise.resolve({ teamId: 'T1' }) })
     )
-    expect(markup).toContain('Sim Search is installed in Slack')
+    expect(markup).toContain('Sim Search in Slack')
+    expect(markup).not.toContain('is installed')
     expect(markup).toContain('https://slack.com/app_redirect?app=A1&amp;team=T1')
     expect(markup).toContain('href="/home"')
     expect(markup).not.toContain('/login')
