@@ -72,13 +72,20 @@ async function runDispatchPhase<T>(phase: string, operation: () => Promise<T>): 
   }
 }
 
-/** Transaction-local guards also cover claim release; a stalled query must roll back before retry. */
+/** Preparation must roll back before retry; PostgreSQL 16 falls back to an idle transaction guard. */
 async function configureDispatchTimeouts(tx: DbTransaction): Promise<void> {
   await tx.execute(sql`
     SELECT
       set_config('statement_timeout', ${`${FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS}ms`}, true),
       set_config('lock_timeout', ${`${FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS}ms`}, true),
-      set_config('transaction_timeout', ${`${FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS}ms`}, true)
+      set_config(
+        case when current_setting('transaction_timeout', true) is null
+          then 'idle_in_transaction_session_timeout'
+          else 'transaction_timeout'
+        end,
+        ${`${FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS}ms`},
+        true
+      )
   `)
 }
 
@@ -311,7 +318,7 @@ async function claimQueuedWorkspaceJobs(
   const rows = await tx.execute<{
     workspaceId: string
     fileId: string
-    sourceContentUpdatedAt: Date
+    sourceContentUpdatedAt: string
   }>(sql`
     WITH selected_workspace(workspace_id) AS (
       VALUES ${workspaceValues}
@@ -370,7 +377,7 @@ async function claimQueuedWorkspaceJobs(
     RETURNING
       search_index.workspace_id AS "workspaceId",
       search_index.file_id AS "fileId",
-      search_index.source_content_updated_at AS "sourceContentUpdatedAt"
+      search_index.source_content_updated_at AT TIME ZONE 'UTC' AS "sourceContentUpdatedAt"
   `)
 
   const remainingForWorkspace = tx
@@ -484,7 +491,6 @@ async function releaseDispatchClaims(payloads: readonly WorkspaceFileSearchIndex
   }))
   await runDispatchPhase('release-claims', () =>
     db.transaction(async (tx) => {
-      await configureDispatchTimeouts(tx)
       const filter = revisionFilter(rows)
       if (filter) {
         await tx
@@ -555,11 +561,21 @@ export async function dispatchWorkspaceFileSearchIndexJobs(): Promise<WorkspaceF
       lockAcquired: prepared.lockAcquired,
     }
   } catch (error) {
-    await releaseDispatchClaims(prepared.payloads)
     logger.error('Failed to dispatch workspace file search indexing batch', {
       files: prepared.payloads.length,
-      error: getErrorMessage(error),
+      error: truncate(getErrorMessage(error).split('\nparams: ')[0], 500),
     })
+    try {
+      await releaseDispatchClaims(prepared.payloads)
+    } catch (releaseError) {
+      throw new AggregateError(
+        [error, releaseError],
+        'File search enqueue and claim release failed',
+        {
+          cause: error,
+        }
+      )
+    }
     throw error
   }
 }

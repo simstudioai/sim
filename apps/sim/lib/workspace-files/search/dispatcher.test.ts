@@ -90,9 +90,10 @@ describe('workspace file search dispatch deadlines', () => {
     expect(guards).toContain('10000ms')
     expect(guards).toContain("set_config('lock_timeout', ")
     expect(guards).toContain('2000ms')
-    expect(guards).toContain("set_config('transaction_timeout', ")
+    expect(guards).toContain("current_setting('transaction_timeout', true) is null")
+    expect(guards).toContain("then 'idle_in_transaction_session_timeout'")
+    expect(guards).toContain("else 'transaction_timeout'")
     expect(guards).toContain('20000ms')
-    expect(guards.match(/, true\)/g)).toHaveLength(3)
     expect(JSON.stringify(dbChainMockFns.execute.mock.calls[1][0])).toContain(
       'pg_try_advisory_xact_lock'
     )
@@ -139,31 +140,49 @@ describe('workspace file search dispatch deadlines', () => {
     })
   })
 
-  it('also bounds releasing committed claims when batch submission fails', async () => {
-    queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
-    queueTableRows(workspaceFileSearchIndex, [])
-    queueTableRows(workspaceFileSearchIndex, [{ active: 0 }])
-    queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
-    dbChainMockFns.execute
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ acquired: true }])
-      .mockResolvedValueOnce([
-        {
-          workspaceId: 'workspace-1',
-          fileId: 'file-1',
-          sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
-        },
-      ])
-    const error = new Error('Trigger unavailable')
-    mocks.batchTrigger.mockRejectedValueOnce(error)
+  it.each([false, true])(
+    'preserves enqueue failures when claim release fails: %s',
+    async (releaseFails) => {
+      queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
+      queueTableRows(workspaceFileSearchIndex, [])
+      queueTableRows(workspaceFileSearchIndex, [{ active: 0 }])
+      queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
+      dbChainMockFns.execute
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ acquired: true }])
+        .mockResolvedValueOnce([
+          {
+            workspaceId: 'workspace-1',
+            fileId: 'file-1',
+            sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
+          },
+        ])
+      const error = new Error('Trigger unavailable')
+      const releaseError = new Error('claim release unavailable')
+      mocks.batchTrigger.mockRejectedValueOnce(error)
+      if (releaseFails) {
+        dbChainMockFns.transaction
+          .mockImplementationOnce(async (callback) => callback(dbChainMock.db))
+          .mockRejectedValueOnce(releaseError)
+      }
 
-    await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(error)
+      if (releaseFails) {
+        await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toMatchObject({
+          errors: [error, releaseError],
+          cause: error,
+        })
+      } else {
+        await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(error)
+        expect(dbChainMockFns.set).toHaveBeenCalledWith(
+          expect.objectContaining({ dispatchedAt: null })
+        )
+      }
 
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
-    const guards = dbChainMockFns.execute.mock.calls.filter(([query]) =>
-      JSON.stringify(query).includes('statement_timeout')
-    )
-    expect(guards).toHaveLength(2)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ dispatchedAt: null }))
-  })
+      expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
+      const guards = dbChainMockFns.execute.mock.calls.filter(([query]) =>
+        JSON.stringify(query).includes('statement_timeout')
+      )
+      expect(guards).toHaveLength(1)
+    }
+  )
 })
