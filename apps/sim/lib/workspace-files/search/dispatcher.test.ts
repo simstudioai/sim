@@ -1,9 +1,43 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import {
+  workspaceFileSearchBackfill,
+  workspaceFileSearchDispatchQueue,
+  workspaceFileSearchIndex,
+} from '@sim/db/schema'
+import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  batchTrigger: vi.fn(),
+  info: vi.fn(),
+  error: vi.fn(),
+}))
+
+vi.mock('@sim/db/schema', async () => ({
+  ...(await import('@sim/testing/mocks/schema.mock')).schemaMock,
+  workspaceFileSearchBackfill: { id: 'backfill.id' },
+  workspaceFileSearchDispatchQueue: {
+    workspaceId: 'queue.workspaceId',
+    lastDispatchedAt: 'queue.lastDispatchedAt',
+    enqueuedAt: 'queue.enqueuedAt',
+  },
+}))
+
+vi.mock('@sim/logger', () => ({ createLogger: () => ({ info: mocks.info, error: mocks.error }) }))
+vi.mock('@trigger.dev/sdk', () => ({ tasks: { batchTrigger: mocks.batchTrigger } }))
+vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
+vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
+vi.mock('@/lib/workspace-files/search/indexing', () => ({
+  indexWorkspaceFileForSearch: vi.fn(),
+  markWorkspaceFileSearchIndexFailed: vi.fn(),
+}))
+
 import {
   buildWorkspaceFileSearchTriggerItems,
+  dispatchWorkspaceFileSearchIndexJobs,
+  prepareWorkspaceFileSearchDispatch,
   shouldUseWorkspaceFileSearchTrigger,
 } from '@/lib/workspace-files/search/dispatcher'
 
@@ -32,5 +66,104 @@ describe('workspace file search dispatch policy', () => {
         },
       },
     ])
+  })
+})
+
+describe('workspace file search dispatch deadlines', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('sets local database deadlines before taking the advisory lock', async () => {
+    dbChainMockFns.execute.mockResolvedValueOnce([]).mockResolvedValueOnce([{ acquired: false }])
+
+    await expect(prepareWorkspaceFileSearchDispatch()).resolves.toEqual({
+      payloads: [],
+      backfilledFiles: 0,
+      reapedClaims: 0,
+      lockAcquired: false,
+    })
+
+    const guards = JSON.stringify(dbChainMockFns.execute.mock.calls[0][0])
+    expect(guards).toContain("set_config('statement_timeout', ")
+    expect(guards).toContain('10000ms')
+    expect(guards).toContain("set_config('lock_timeout', ")
+    expect(guards).toContain('2000ms')
+    expect(guards).toContain("set_config('transaction_timeout', ")
+    expect(guards).toContain('20000ms')
+    expect(guards.match(/, true\)/g)).toHaveLength(3)
+    expect(JSON.stringify(dbChainMockFns.execute.mock.calls[1][0])).toContain(
+      'pg_try_advisory_xact_lock'
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it.each(['57014', '55P03', '25P04'])(
+    'propagates SQLSTATE %s without enqueuing an uncommitted claim',
+    async (code) => {
+      const error = new Error('Failed query\nparams: sensitive-value', {
+        cause: Object.assign(new Error('database timeout'), { code }),
+      })
+      dbChainMockFns.execute.mockResolvedValueOnce([]).mockResolvedValueOnce([{ acquired: true }])
+      dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(error)
+
+      await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(error)
+
+      expect(mocks.batchTrigger).not.toHaveBeenCalled()
+      expect(mocks.error).toHaveBeenCalledWith('Workspace file search dispatch phase failed', {
+        phase: 'backfill',
+        durationMs: expect.any(Number),
+        code,
+        error: 'Failed query',
+      })
+      expect(JSON.stringify(mocks.error.mock.calls)).not.toContain('sensitive-value')
+    }
+  )
+
+  it('reports a transaction failure even after the transaction callback finishes', async () => {
+    const error = Object.assign(new Error('commit failed'), { code: '08006' })
+    dbChainMockFns.execute.mockResolvedValueOnce([]).mockResolvedValueOnce([{ acquired: false }])
+    dbChainMockFns.transaction.mockImplementationOnce(async (callback) => {
+      await callback(dbChainMock.db)
+      throw error
+    })
+
+    await expect(prepareWorkspaceFileSearchDispatch()).rejects.toBe(error)
+
+    expect(mocks.error).toHaveBeenCalledWith('Workspace file search dispatch phase failed', {
+      phase: 'prepare-transaction',
+      durationMs: expect.any(Number),
+      code: '08006',
+      error: 'commit failed',
+    })
+  })
+
+  it('also bounds releasing committed claims when batch submission fails', async () => {
+    queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
+    queueTableRows(workspaceFileSearchIndex, [])
+    queueTableRows(workspaceFileSearchIndex, [{ active: 0 }])
+    queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
+    dbChainMockFns.execute
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ acquired: true }])
+      .mockResolvedValueOnce([
+        {
+          workspaceId: 'workspace-1',
+          fileId: 'file-1',
+          sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
+        },
+      ])
+    const error = new Error('Trigger unavailable')
+    mocks.batchTrigger.mockRejectedValueOnce(error)
+
+    await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(error)
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
+    const guards = dbChainMockFns.execute.mock.calls.filter(([query]) =>
+      JSON.stringify(query).includes('statement_timeout')
+    )
+    expect(guards).toHaveLength(2)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ dispatchedAt: null }))
   })
 })
