@@ -74,6 +74,106 @@ beforeEach(() => {
   mocks.listServers.mockResolvedValue({ servers: [{ id: 'mcp-abc' }] })
 })
 describe('integration catalog projection', () => {
+  it.each(['google_calendar', 'google-calendar', 'Google Calendar', ' GOOGLE-CALENDAR '])(
+    'resolves the registered Calendar service name %s without changing the operation',
+    (service) => {
+      const calendar = {
+        name: 'google_calendar_list_v2',
+        service: 'google_calendar',
+        description: 'List calendar events',
+        input_schema: { type: 'object', properties: { calendarId: { type: 'string' } } },
+      }
+      expect(projectIntegrationCatalog([calendar], { ...input, service, query: 'events' })).toEqual(
+        projectIntegrationCatalog([calendar], {
+          ...input,
+          service: 'google_calendar',
+          query: 'events',
+        })
+      )
+      expect(
+        projectIntegrationCatalog([calendar], { ...input, service, query: 'events' }).operations
+      ).toHaveLength(1)
+    }
+  )
+
+  it.each([
+    ['google-email', 'gmail'],
+    ['github-repositories', 'github'],
+    ['Microsoft Teams', 'microsoft_teams'],
+    ['microsoft-excel', 'microsoft_excel'],
+    ['Cal.com', 'calcom'],
+    ['Zoho Desk', 'zoho_desk'],
+    ['salesforce-sandbox', 'salesforce'],
+  ])('resolves metadata-backed alias %s to %s', (alias, service) => {
+    const tool = { ...tools[0]!, name: `${service}_read`, service }
+    expect(
+      projectIntegrationCatalog([tool], { ...input, service: alias }).operations.map(
+        (operation) => operation.toolId
+      )
+    ).toEqual([tool.name])
+  })
+
+  it('keeps specific service filters narrow and shared credential families scoped to supplied tools', () => {
+    const authorized = ['google_drive', 'google_slides', 'gmail', 'slack'].map((service) => ({
+      ...tools[0]!,
+      name: `${service}_read`,
+      service,
+    }))
+    for (const service of ['google_drive', 'google-drive', 'Google Drive']) {
+      expect(
+        projectIntegrationCatalog(authorized, { ...input, service }).operations.map(
+          (operation) => operation.service
+        )
+      ).toEqual(['google_drive'])
+    }
+    expect(
+      projectIntegrationCatalog(authorized, {
+        ...input,
+        service: 'google-service-account',
+      }).operations.map((operation) => operation.service)
+    ).toEqual(['gmail', 'google_drive', 'google_slides'])
+    expect(
+      projectIntegrationCatalog(
+        authorized.filter((tool) => tool.service === 'google_slides'),
+        {
+          ...input,
+          service: 'google-drive',
+        }
+      ).operations
+    ).toEqual([])
+  })
+
+  it('derives new provider bindings from callable tools before public metadata is published', () => {
+    const preview = {
+      ...tools[0]!,
+      name: 'preview_service_read',
+      service: 'preview_service',
+      oauth: { required: true, provider: 'preview-service-provider' },
+    }
+    expect(
+      projectIntegrationCatalog([preview, ...tools], {
+        ...input,
+        service: 'preview-service-provider',
+      }).operations.map((operation) => operation.toolId)
+    ).toEqual([preview.name])
+  })
+
+  it('distinguishes an unrecognized filter from valid empty results without revealing other tools', () => {
+    expect(() => projectIntegrationCatalog(tools, { ...input, service: 'gogle-calndar' })).toThrow(
+      'Unknown integration service'
+    )
+    expect(
+      projectIntegrationCatalog(tools, { ...input, service: 'Google Calendar' }).operations
+    ).toEqual([])
+    expect(
+      projectIntegrationCatalog(tools, { ...input, service: 'gmail', query: 'nonexistent' })
+        .operations
+    ).toEqual([])
+    expect(
+      projectIntegrationCatalog(tools, { ...input, service: 'mcp:unselected-server' }).operations
+    ).toEqual([])
+  })
+
   it('omits schemas from broad listings and treats zero as an explicit full listing', () => {
     expect(projectIntegrationCatalog(tools, { ...input, limit: 1 })).toEqual({
       total: 2,
@@ -102,6 +202,27 @@ describe('integration catalog projection', () => {
   })
 })
 describe('catalog authorization', () => {
+  it.each(['assistant', 'agent'] as const)(
+    'resolves provider aliases after the existing %s authorization and catalog projection',
+    async (mode) => {
+      queueChat(mode)
+      const result = await readIntegrationCatalog.execute({
+        principal: principal(),
+        input: { ...input, mode, service: 'google-email', query: 'email' },
+      })
+      expect(result.operations.map((operation) => operation.toolId)).toEqual(['gmail_send'])
+      expect(mocks.build).toHaveBeenCalledWith(
+        'actor',
+        {
+          schemaSurface: 'copilot',
+          personalAccountsOnly: mode === 'assistant',
+          organizationId: 'org-1',
+        },
+        undefined
+      )
+    }
+  )
+
   it('preserves assistant personal-account and organization-approval projection and excludes MCP', async () => {
     queueChat()
     await readIntegrationCatalog.execute({

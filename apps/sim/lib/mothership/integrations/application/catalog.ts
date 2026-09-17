@@ -6,9 +6,12 @@ import {
   resolvePrincipalExecutionActorUserId,
   resolvePrincipalSubjectUserId,
 } from '@sim/auth/principal'
+import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
+import { stripVersionSuffix } from '@sim/utils/string'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
   createExecutorPrincipalFromExecutionContext,
   resolveExecutorOriginSubject,
@@ -46,10 +49,10 @@ export function projectIntegrationCatalog(
 ): IntegrationCatalogResponse {
   const normalized = input.query?.trim().toLowerCase() ?? ''
   const terms = normalized.split(/[^a-z0-9]+/).filter(Boolean)
-  const service = input.service?.trim().toLowerCase()
+  const services = resolveServiceFilter(tools, input.service)
   const matches = tools.flatMap((tool) => {
     if (input.toolId && tool.name !== input.toolId) return []
-    if (service && tool.service?.toLowerCase() !== service) return []
+    if (services && (!tool.service || !services.has(tool.service.toLowerCase()))) return []
     const name = tool.name.toLowerCase()
     const description = tool.description.toLowerCase()
     let score = 0
@@ -78,6 +81,47 @@ export function projectIntegrationCatalog(
       ...(input.toolId || normalized ? { inputSchema: tool.input_schema } : {}),
     })),
   }
+}
+
+/** Specific service identities win over credential families; resolution never adds callable tools. */
+function resolveServiceFilter(
+  tools: ToolSchema[],
+  service: string | undefined
+): ReadonlySet<string> | undefined {
+  const normalized = service?.trim().toLowerCase()
+  if (!normalized) return undefined
+  if (
+    normalized.startsWith('mcp:') ||
+    tools.some((tool) => tool.service?.toLowerCase() === normalized)
+  ) {
+    return new Set([normalized])
+  }
+
+  const named = INTEGRATION_METADATA.filter((integration) =>
+    [
+      integration.type,
+      stripVersionSuffix(integration.type),
+      integration.slug,
+      integration.name,
+    ].some((name) => name.toLowerCase() === normalized)
+  )
+  const integrations = named.length ? named : getIntegrationsForCredentialProvider(normalized)
+  const services = new Set(
+    integrations.map((integration) => stripVersionSuffix(integration.type).toLowerCase())
+  )
+  /** Callable preview integrations may not yet appear in the public metadata. */
+  if (!named.length) {
+    for (const tool of tools) {
+      if (tool.service && tool.oauth?.provider.toLowerCase() === normalized) {
+        services.add(tool.service.toLowerCase())
+      }
+    }
+  }
+  if (services.size) return services
+  throw new OrchestrationError(
+    'validation',
+    'Unknown integration service. Use a service ID, name, or credential provider from discovery, or retry without the service filter.'
+  )
 }
 
 /** Catalog access rechecks current grants; worker state carries scope and provenance, never schemas. */
