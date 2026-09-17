@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Chip, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
@@ -94,6 +94,8 @@ type KnowledgeSearchResultsProps = (
   | { scope: ResourceScope; workspaceId?: never }
 ) & {
   query: string
+  /** Lets the page dock its header after this query has displayed results. */
+  renderLayout?: (results: ReactNode, hasDisplayedResults: boolean) => ReactNode
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
 }
@@ -104,6 +106,7 @@ export function KnowledgeSearchResults({
   scope: suppliedScope,
   query,
   onSummarize,
+  renderLayout,
 }: KnowledgeSearchResultsProps) {
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
   const { data: session } = useSession()
@@ -114,6 +117,7 @@ export function KnowledgeSearchResults({
       scope={scope}
       query={trimmed}
       onSummarize={onSummarize}
+      renderLayout={renderLayout}
     />
   )
 }
@@ -122,9 +126,11 @@ interface SearchResultsProps {
   scope: ResourceScope
   query: string
   onSummarize: KnowledgeSearchResultsProps['onSummarize']
+  renderLayout: KnowledgeSearchResultsProps['renderLayout']
 }
 
-function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
+function SearchResults({ scope, query, onSummarize, renderLayout }: SearchResultsProps) {
+  const [hasDisplayedResults, setHasDisplayedResults] = useState(false)
   const [searchedAt] = useState(Date.now)
   const {
     data: index,
@@ -168,28 +174,28 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
   const partial = search?.retrieval.status === 'partial'
   const documentCount = documents.length === 1 ? '1 document' : `${documents.length} documents`
 
-  if (noSources) {
-    return (
-      <div className='flex items-center gap-2 px-2 py-2'>
-        <p className='text-[var(--text-muted)] text-caption'>No sources are set up yet.</p>
-        <ChipLink
-          href={
-            scope.kind === 'organization'
-              ? `/o/${scope.organizationId}/integrations`
-              : `/workspace/${scope.workspaceId}/knowledge`
-          }
-        >
-          View sources
-        </ChipLink>
-      </div>
-    )
-  }
   const indexingNote =
     indexing.length > 0
       ? `Still indexing ${indexing.join(', ')}; results grow as documents land.`
       : null
 
-  return (
+  const showResults = !noSources && !failed && !basesPending && documents.length > 0
+  if (showResults && !hasDisplayedResults) setHasDisplayedResults(true)
+
+  const content = noSources ? (
+    <div className='flex items-center gap-2 px-2 py-2'>
+      <p className='text-[var(--text-muted)] text-caption'>No sources are set up yet.</p>
+      <ChipLink
+        href={
+          scope.kind === 'organization'
+            ? `/o/${scope.organizationId}/integrations`
+            : `/workspace/${scope.workspaceId}/knowledge`
+        }
+      >
+        View sources
+      </ChipLink>
+    </div>
+  ) : (
     <div className='flex flex-col'>
       <div className='flex items-center gap-2 px-2 py-2'>
         <div className='min-w-0 flex-1'>
@@ -201,14 +207,14 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
                 ? 'Search couldn’t run.'
                 : partial
                   ? documents.length === 0
-                    ? 'Search didn’t finish.'
+                    ? 'Search timed out.'
                     : `${documentCount} · some results may be missing.`
                   : documents.length === 0
                     ? 'Search found no results.'
                     : `${documentCount} · searched as you`}
             </p>
           )}
-          {indexingNote && !failed && (
+          {indexingNote && !failed && !partial && (
             <p className='text-[var(--text-muted)] text-caption'>{indexingNote}</p>
           )}
         </div>
@@ -259,7 +265,7 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
           </Chip>
         ))}
       </div>
-      {!failed && !basesPending && documents.length > 0 && (
+      {showResults && (
         <div
           role='region'
           aria-label='Search results'
@@ -290,4 +296,5 @@ function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
       )}
     </div>
   )
+  return renderLayout ? renderLayout(content, hasDisplayedResults || showResults) : content
 }
