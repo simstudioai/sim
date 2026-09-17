@@ -35,6 +35,22 @@ async function effectsFor(path: string, method: string, data: unknown = {}, stat
 
 describe('confirmed CLI resource effects', () => {
   it.each([
+    ['secrets/API_KEY', 'PUT', 'secrets'],
+    ['secrets/API_KEY', 'DELETE', 'secrets'],
+    ['credentials/connections', 'POST', 'credentials'],
+    ['credentials/id', 'PATCH', 'credentials'],
+    ['custom-tools', 'POST', 'custom-tools'],
+    ['mcp-servers/id', 'DELETE', 'mcp'],
+    ['sandboxes/id', 'PATCH', 'sandboxes'],
+  ])('refreshes settings only after a successful %s mutation', async (path, method, section) => {
+    expect(await effectsFor(path, method)).toEqual([
+      { op: 'refresh', resource: { type: 'settings', scope: 'workspace', id: section } },
+    ])
+    expect(await effectsFor(path, method, {}, 403)).toEqual([])
+    expect(await effectsFor(path, 'GET')).toEqual([])
+  })
+
+  it.each([
     ['/', 'Report (final).md', 'files/Report%20(final).md'],
     ['/A%2FB/100%25', 'notes.md', 'files/A%2FB/100%25/notes.md'],
   ])(

@@ -55,6 +55,27 @@ describe('scoped CLI service adapter', () => {
     boundary.provenance.mockReturnValue({ observeOutput: vi.fn() })
     boundary.sink.mockImplementation(async (_sink, _session, result) => result)
   })
+  it.each(['approve', 'setup'])('refreshes organization sources after %s', async (action) => {
+    const result = await executeAgentCliService(service('search_sources', { action }), organization)
+    expect(result.resources).toEqual([
+      {
+        op: 'refresh',
+        resource: {
+          type: 'settings',
+          scope: 'organization',
+          organizationId: 'org',
+          id: 'integrations',
+        },
+      },
+    ])
+    boundary.route.mockResolvedValue({ success: false, error: 'Denied' })
+    const failure = await executeAgentCliService(
+      service('search_sources', { action }),
+      organization
+    )
+    expect(failure.resources).toBeUndefined()
+  })
+
   it('returns Build search evidence without publishing a resource panel', async () => {
     boundary.route.mockResolvedValue({
       success: true,
@@ -384,4 +405,31 @@ describe('scoped CLI service adapter', () => {
     )
     expect(boundary.sink).toHaveBeenCalledTimes(1)
   })
+})
+
+it('preserves settings refresh effects through redirected output and suppresses failures', async () => {
+  const resources = [
+    { op: 'refresh', resource: { type: 'settings', scope: 'account', id: 'preferences' } },
+  ]
+  boundary.route.mockResolvedValue({ status: 'updated', resources })
+  const request = {
+    ...service('settings', {
+      scope: 'account',
+      section: 'preferences',
+      action: 'update',
+      changes: { theme: 'light' },
+    }),
+    sink: { path: '/tmp/result.json' },
+  }
+  const result = await executeAgentCliService(request, organization)
+  expect(result.resources).toEqual(resources)
+  expect(boundary.sink).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    expect.objectContaining({ resources }),
+    undefined,
+    expect.anything()
+  )
+  boundary.route.mockResolvedValue({ success: false, error: 'Denied', resources })
+  expect((await executeAgentCliService(request, organization)).resources).toBeUndefined()
 })

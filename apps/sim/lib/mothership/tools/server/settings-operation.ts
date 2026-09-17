@@ -3,15 +3,18 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { SettingsContext } from '@/lib/mothership/application/settings-context'
 
 export interface SettingsOperation {
+  effect: 'read' | 'write'
   inputSchema: z.ZodType
   execute(context: SettingsContext, input: Record<string, unknown>): Promise<unknown>
 }
 
 export function settingsOperation<S extends z.ZodType>(
+  effect: SettingsOperation['effect'],
   schema: S,
   execute: (context: SettingsContext, input: z.output<S>) => Promise<unknown>
 ): SettingsOperation {
   return {
+    effect,
     inputSchema: schema,
     execute: (context, input) => execute(context, parseSettingsArguments(schema, input)),
   }

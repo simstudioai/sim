@@ -117,13 +117,14 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
   'workspace/byok': workspaceByokSettingsActions,
   'organization/byok': organizationByokSettingsActions,
   'organization/search-slack': {
-    configure: settingsOperation(slackSearchSettingsPatchSchema, (context, input) =>
+    configure: settingsOperation('write', slackSearchSettingsPatchSchema, (context, input) =>
       configureSlackSearchInstallation.execute({
         principal: context.principal,
         input: { ...input, organizationId: settingsOrganizationId(context) },
       })
     ),
     remove: settingsOperation(
+      'write',
       z.strictObject({ installationId: z.string().min(1).max(200) }),
       (context, input) =>
         removeSlackSearchInstallation.execute({
@@ -133,13 +134,14 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
     ),
   },
   'workspace/teammates': {
-    list_invitations: settingsOperation(z.strictObject({}), (context) =>
+    list_invitations: settingsOperation('read', z.strictObject({}), (context) =>
       listWorkspaceInvitations.execute({
         principal: context.principal,
         input: { workspaceId: settingsWorkspaceId(context) },
       })
     ),
     invite: settingsOperation(
+      'write',
       z.strictObject({
         emails: batchWorkspaceInvitationBodySchema.shape.emails,
         permission: batchWorkspaceInvitationBodySchema.shape.permission,
@@ -152,6 +154,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
     resend_invitation: settingsOperation(
+      'write',
       z.strictObject({ invitationId: z.string().min(1).max(200) }),
       (context, input) =>
         resendWorkspaceInvitation.execute({
@@ -160,6 +163,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
     cancel_invitation: settingsOperation(
+      'write',
       z.strictObject({ invitationId: z.string().min(1).max(200) }),
       (context, input) =>
         cancelWorkspaceInvitation.execute({
@@ -168,6 +172,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
     remove: settingsOperation(
+      'write',
       z.strictObject({ userId: z.string().min(1).max(200) }),
       (context, input) =>
         removeWorkspaceMember.execute({
@@ -176,6 +181,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
     set_permissions: settingsOperation(
+      'write',
       updateWorkspacePermissionsBodySchema.strict(),
       (context, input) =>
         updateWorkspacePermissions.execute({
@@ -186,15 +192,19 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
   },
   'organization/connected-accounts': connectedAccountSettingsActions,
   'organization/data-drains': {
-    get: settingsOperation(z.strictObject({ drainId: z.string().min(1) }), async (context, input) =>
-      projectDataDrainForTool(
-        await getDataDrain.execute({
-          principal: context.principal,
-          input: { ...input, organizationId: settingsOrganizationId(context) },
-        })
-      )
+    get: settingsOperation(
+      'read',
+      z.strictObject({ drainId: z.string().min(1) }),
+      async (context, input) =>
+        projectDataDrainForTool(
+          await getDataDrain.execute({
+            principal: context.principal,
+            input: { ...input, organizationId: settingsOrganizationId(context) },
+          })
+        )
     ),
     update: settingsOperation(
+      'write',
       z.strictObject({ drainId: z.string().min(1), changes: dataDrainToolPatchSchema }),
       async (context, { drainId, changes }) =>
         projectDataDrainForTool(
@@ -205,6 +215,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         )
     ),
     delete: settingsOperation(
+      'write',
       z.strictObject({ drainId: z.string().min(1) }),
       async (context, input) => ({
         deleted: (
@@ -216,6 +227,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       })
     ),
     runs: settingsOperation(
+      'read',
       z.strictObject({
         drainId: z.string().min(1),
         limit: z.number().int().min(1).max(200).default(25),
@@ -229,6 +241,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         ).map(projectDataDrainRunForTool)
     ),
     run: settingsOperation(
+      'write',
       z.strictObject({ drainId: z.string().min(1) }),
       async (context, input) => ({
         status: 'queued',
@@ -241,6 +254,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       })
     ),
     test: settingsOperation(
+      'read',
       z.strictObject({ drainId: z.string().min(1) }),
       async (context, input) => {
         const result = await testDataDrain.execute({
@@ -257,8 +271,9 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
     ),
   },
   'organization/access-control': {
-    list_groups: settingsOperation(settingsPageSchema, readSettingsGroups),
+    list_groups: settingsOperation('read', settingsPageSchema, readSettingsGroups),
     list_group_workspaces: settingsOperation(
+      'read',
       settingsPageSchema.extend({ groupId: z.string().min(1).max(200) }),
       async (context, input) => {
         const result = await getPermissionGroup.execute({
@@ -273,6 +288,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       }
     ),
     get_group: settingsOperation(
+      'read',
       z.strictObject({ groupId: z.string().min(1) }),
       async (context, input) => {
         const result = await getPermissionGroup.execute({
@@ -291,13 +307,17 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         }
       }
     ),
-    create_group: settingsOperation(createPermissionGroupBodySchema.strict(), (context, settings) =>
-      createPermissionGroup.execute({
-        principal: context.principal,
-        input: { settings, organizationId: settingsOrganizationId(context) },
-      })
+    create_group: settingsOperation(
+      'write',
+      createPermissionGroupBodySchema.strict(),
+      (context, settings) =>
+        createPermissionGroup.execute({
+          principal: context.principal,
+          input: { settings, organizationId: settingsOrganizationId(context) },
+        })
     ),
     update_group: settingsOperation(
+      'write',
       z.strictObject({
         groupId: z.string().min(1),
         settings: updatePermissionGroupBodySchema.strict(),
@@ -309,6 +329,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
     delete_group: settingsOperation(
+      'write',
       z.strictObject({ groupId: z.string().min(1) }),
       async (context, input) => ({
         success: (
@@ -319,7 +340,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         ).success,
       })
     ),
-    list_workspaces: settingsOperation(settingsPageSchema, async (context, input) => {
+    list_workspaces: settingsOperation('read', settingsPageSchema, async (context, input) => {
       const result = await listPermissionGroupWorkspaces.execute({
         principal: context.principal,
         input: { organizationId: settingsOrganizationId(context) },
@@ -327,6 +348,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       return settingsPage(result.workspaces.map(projectSettingsWorkspace), input, (row) => row.id)
     }),
     list_members: settingsOperation(
+      'read',
       settingsPageSchema.extend({ groupId: z.string().min(1).max(200) }),
       async (context, input) => {
         const result = await listPermissionGroupMembers.execute({
@@ -337,6 +359,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       }
     ),
     add_member: settingsOperation(
+      'write',
       addPermissionGroupMemberBodySchema.extend({ groupId: z.string().min(1) }).strict(),
       async (context, input) => ({
         member: (
@@ -348,6 +371,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
       })
     ),
     remove_member: settingsOperation(
+      'write',
       z.strictObject({ groupId: z.string().min(1), memberId: z.string().min(1) }),
       async (context, input) => ({
         success: (
@@ -360,16 +384,19 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
     ),
   },
   'organization/members': {
-    list_page: settingsOperation(settingsPageSchema, readSettingsRoster),
+    list_page: settingsOperation('read', settingsPageSchema, readSettingsRoster),
     list_member_workspaces: settingsOperation(
+      'read',
       settingsPageSchema.extend({ userId: z.string().min(1).max(200) }),
       readSettingsRosterAccess
     ),
     list_invitation_workspaces: settingsOperation(
+      'read',
       settingsPageSchema.extend({ invitationId: z.string().min(1).max(200) }),
       readSettingsRosterAccess
     ),
     resend_invitation: settingsOperation(
+      'write',
       z.strictObject({ invitationId: z.string().min(1) }),
       (context, input) =>
         resendInvitation.execute({
@@ -378,6 +405,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
     cancel_invitation: settingsOperation(
+      'write',
       z.strictObject({ invitationId: z.string().min(1) }),
       (context, input) =>
         cancelInvitation.execute({
@@ -385,13 +413,17 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
           input: { ...input, organizationId: settingsOrganizationId(context) },
         })
     ),
-    remove: settingsOperation(z.strictObject({ userId: z.string().min(1) }), (context, input) =>
-      removeOrganizationMember.execute({
-        principal: context.principal,
-        input: { ...input, organizationId: settingsOrganizationId(context) },
-      })
+    remove: settingsOperation(
+      'write',
+      z.strictObject({ userId: z.string().min(1) }),
+      (context, input) =>
+        removeOrganizationMember.execute({
+          principal: context.principal,
+          input: { ...input, organizationId: settingsOrganizationId(context) },
+        })
     ),
     invite: settingsOperation(
+      'write',
       z.strictObject({
         emails: batchWorkspaceInvitationBodySchema.shape.emails,
         membership: invitationMembershipSchema.extract(['admin', 'member']).default('member'),
@@ -403,6 +435,7 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
         })
     ),
     set_role: settingsOperation(
+      'write',
       updateOrganizationMemberRoleBodySchema.extend({ userId: z.string().min(1) }).strict(),
       (context, input) =>
         updateOrganizationMemberRole.execute({
@@ -412,23 +445,32 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
     ),
   },
   'organization/usage': {
-    summary: settingsOperation(organizationUsageSummaryQuerySchema.strict(), (context, input) =>
-      getOrganizationUsageSummary.execute({
-        principal: context.principal,
-        input: { ...dates(input), organizationId: settingsOrganizationId(context) },
-      })
+    summary: settingsOperation(
+      'read',
+      organizationUsageSummaryQuerySchema.strict(),
+      (context, input) =>
+        getOrganizationUsageSummary.execute({
+          principal: context.principal,
+          input: { ...dates(input), organizationId: settingsOrganizationId(context) },
+        })
     ),
-    breakdown: settingsOperation(organizationUsageBreakdownQuerySchema.strict(), (context, input) =>
-      getOrganizationUsageBreakdown.execute({
-        principal: context.principal,
-        input: { ...dates(input), organizationId: settingsOrganizationId(context) },
-      })
+    breakdown: settingsOperation(
+      'read',
+      organizationUsageBreakdownQuerySchema.strict(),
+      (context, input) =>
+        getOrganizationUsageBreakdown.execute({
+          principal: context.principal,
+          input: { ...dates(input), organizationId: settingsOrganizationId(context) },
+        })
     ),
-    events: settingsOperation(organizationUsageEventsQuerySchema.strict(), (context, input) =>
-      listOrganizationUsageEvents.execute({
-        principal: context.principal,
-        input: { ...dates(input), organizationId: settingsOrganizationId(context) },
-      })
+    events: settingsOperation(
+      'read',
+      organizationUsageEventsQuerySchema.strict(),
+      (context, input) =>
+        listOrganizationUsageEvents.execute({
+          principal: context.principal,
+          input: { ...dates(input), organizationId: settingsOrganizationId(context) },
+        })
     ),
   },
 }

@@ -13,6 +13,7 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
+import { ResourceChanges } from '@/lib/mothership/generated/resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { routeExecution } from '@/lib/mothership/tools/server/router'
 
@@ -140,10 +141,28 @@ export async function executeAgentCliService(
         : 'message' in output && typeof output.message === 'string'
           ? output.message
           : 'Service operation failed')
+    const resources =
+      !failure && output !== null && typeof output === 'object' && 'resources' in output
+        ? ResourceChanges.parse(output.resources)
+        : []
+    if (
+      !failure &&
+      invocation.kind === 'service' &&
+      invocation.name === 'search_sources' &&
+      (input.action === 'approve' || input.action === 'setup') &&
+      organizationId
+    ) {
+      const effect = {
+        op: 'refresh',
+        resource: { type: 'settings', scope: 'organization', organizationId, id: 'integrations' },
+      } as const
+      resources.push(effect)
+    }
     const result: AgentCliRawResult = {
       exitCode: failure ? 1 : 0,
       stdout: invocation.kind === 'stdout' ? invocation.stdout : JSON.stringify(output ?? null),
       stderr: message || '',
+      ...(resources?.length ? { resources } : {}),
     }
     const files = sessionKey
       ? createWorkbenchFileProvenance({ ...target, organizationId, sessionKey })

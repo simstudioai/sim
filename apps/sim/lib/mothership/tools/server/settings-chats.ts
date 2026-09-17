@@ -28,10 +28,11 @@ export async function readArchivedSettingsChats(context: SettingsContext, limit 
 }
 
 export const archivedChatSettingsActions = {
-  list_chats: settingsOperation(archivedChatListInputSchema, (context, { limit }) =>
+  list_chats: settingsOperation('read', archivedChatListInputSchema, (context, { limit }) =>
     readArchivedSettingsChats(context, limit)
   ),
   restore_chat: settingsOperation(
+    'write',
     z.strictObject({ chatId: z.string().min(1).max(200) }),
     async (context, input) => {
       const result = await restoreMothershipChat.execute({

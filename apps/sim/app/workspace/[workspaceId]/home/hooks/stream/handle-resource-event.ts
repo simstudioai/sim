@@ -18,6 +18,7 @@ import {
   hasRenderableFilePreviewContent,
   shouldReplaceSession,
 } from '@/app/workspace/[workspaceId]/home/hooks/preview'
+import { refreshSettings } from '@/app/workspace/[workspaceId]/home/hooks/stream/refresh-settings'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import type {
   MothershipResource,
@@ -56,6 +57,22 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
+  if (payload.resource.type === 'settings') {
+    const settings = payload.resource
+    if (
+      settings.scope === 'organization' &&
+      (!settings.organizationId || settings.organizationId !== ctx.deps.organizationId)
+    )
+      return
+    if (
+      settings.scope === 'workspace' &&
+      (!settings.workspaceId || (chatWorkspaceId && settings.workspaceId !== chatWorkspaceId))
+    )
+      return
+    refreshSettings(queryClient, settings)
+    if (settings.scope !== 'account' || settings.id === 'profile') ctx.deps.refreshRoute?.()
+    return
+  }
   if (payload.resource.type === 'search') {
     if (payload.op === 'refresh' || payload.op === 'clear_view') return
     const search = payload.resource.search

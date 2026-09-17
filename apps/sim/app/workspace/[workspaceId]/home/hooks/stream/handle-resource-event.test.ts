@@ -7,8 +7,12 @@ import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 const mocks = vi.hoisted(() => ({
   invalidateResourceQueries: vi.fn(),
+  refreshGeneralSettings: vi.fn(),
   removeWorkflowFromActiveCache: vi.fn(),
   notifyWorkflowExternalUpdate: vi.fn(),
+}))
+vi.mock('@/hooks/queries/general-settings', () => ({
+  refreshGeneralSettings: mocks.refreshGeneralSettings,
 }))
 vi.mock('@/lib/workflows/external-update', () => ({
   notifyWorkflowExternalUpdate: mocks.notifyWorkflowExternalUpdate,
@@ -586,4 +590,45 @@ it('seeds only fresh matching search effects and never seeds replayed or foreign
   expect(deps.queryClient.setQueryData).not.toHaveBeenCalled()
   handleResourceEvent({ deps: { ...deps, organizationId: 'other' } } as StreamLoopContext, event)
   expect(deps.queryClient.setQueryData).not.toHaveBeenCalled()
+})
+
+it.each([undefined, 'ws-1'])(
+  'refreshes account preferences in either chat scope (%s) without panel effects',
+  (workspaceId) => {
+    const refreshRoute = vi.fn()
+    const deps = makeStreamLoopDeps({
+      workspaceId,
+      organizationId: workspaceId ? undefined : 'org',
+      refreshRoute,
+    })
+    handleResourceEvent({ deps } as StreamLoopContext, {
+      ...removeEvent('file', 'unused'),
+      payload: {
+        op: 'refresh',
+        replay: true,
+        resource: { type: 'settings', scope: 'account', id: 'preferences' },
+      },
+    })
+    expect(mocks.refreshGeneralSettings).toHaveBeenCalledWith(deps.queryClient)
+    expect(deps.addResource).not.toHaveBeenCalled()
+    expect(deps.setResources).not.toHaveBeenCalled()
+    expect(refreshRoute).not.toHaveBeenCalled()
+  }
+)
+
+it('refreshes organization policy and its server layout only within the owning organization', () => {
+  const refreshRoute = vi.fn()
+  const deps = makeStreamLoopDeps({ workspaceId: undefined, organizationId: 'org', refreshRoute })
+  for (const organizationId of ['other', 'org']) {
+    handleResourceEvent({ deps } as StreamLoopContext, {
+      ...removeEvent('file', 'unused'),
+      payload: {
+        op: 'refresh',
+        resource: { type: 'settings', scope: 'organization', organizationId, id: 'access-control' },
+      },
+    })
+  }
+  expect(refreshRoute).toHaveBeenCalledOnce()
+  expect(deps.queryClient.invalidateQueries).toHaveBeenCalledOnce()
+  expect(deps.addResource).not.toHaveBeenCalled()
 })

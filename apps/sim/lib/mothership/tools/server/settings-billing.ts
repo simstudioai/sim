@@ -37,8 +37,8 @@ export async function readSettingsUsageLimit(
 }
 
 export const usageLimitSettingsActions = {
-  get_spending_limit: settingsOperation(readSchema, readSettingsUsageLimit),
-  set_spending_limit: settingsOperation(updateSchema, (context, input) =>
+  get_spending_limit: settingsOperation('read', readSchema, readSettingsUsageLimit),
+  set_spending_limit: settingsOperation('write', updateSchema, (context, input) =>
     updateUsageLimit.execute({
       principal: context.principal,
       input: { ...input, ...usageTarget(context) },
@@ -48,13 +48,14 @@ export const usageLimitSettingsActions = {
 
 const memberInput = z.strictObject({ userId: z.string().min(1).max(200) })
 export const memberUsageLimitSettingsActions = {
-  get_member_limit: settingsOperation(memberInput, (context, input) =>
+  get_member_limit: settingsOperation('read', memberInput, (context, input) =>
     readMemberUsageLimit.execute({
       principal: context.principal,
       input: { ...input, organizationId: settingsOrganizationId(context) },
     })
   ),
   set_member_limit: settingsOperation(
+    'write',
     memberInput.extend({
       creditLimit: memberCreditLimitUpdateSchema.shape.creditLimit.describe(
         'Whole credits, not dollars. Null clears the member limit.'

@@ -31,6 +31,7 @@ import {
   resolveSettingsContext,
   type SettingsContext,
 } from '@/lib/mothership/application/settings-context'
+import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { inboxSettingsPatchSchema } from '@/lib/mothership/inbox/settings-input'
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
 import { readSettingsUsageLimit } from '@/lib/mothership/tools/server/settings-billing'
@@ -335,6 +336,21 @@ async function describeSection(context: SettingsContext, section: SettingsSectio
   }
 }
 
+function settingsRefresh(context: SettingsContext, section: string): ResourceChange[] {
+  return [
+    {
+      op: 'refresh',
+      resource: {
+        type: 'settings',
+        scope: context.scope,
+        id: section,
+        ...(context.scope === 'workspace' ? { workspaceId: settingsWorkspaceId(context) } : {}),
+        ...(context.scope === 'organization' ? organizationInput(context) : {}),
+      },
+    },
+  ]
+}
+
 export const settingsServerTool: BaseServerTool<MothershipSettingsInput> = {
   name: 'settings',
   inputSchema: mothershipSettingsInputSchema,
@@ -393,6 +409,9 @@ export const settingsServerTool: BaseServerTool<MothershipSettingsInput> = {
         section: input.section,
         operation: input.operation,
         result: await operation.execute(target, input.input),
+        ...(operation.effect === 'write'
+          ? { resources: settingsRefresh(target, input.section) }
+          : {}),
       }
     }
     if (input.action === 'get')
@@ -422,6 +441,7 @@ export const settingsServerTool: BaseServerTool<MothershipSettingsInput> = {
       section: input.section,
       status: 'updated',
       value: await adapter.update(target, input.changes),
+      resources: settingsRefresh(target, input.section),
     }
   },
 }

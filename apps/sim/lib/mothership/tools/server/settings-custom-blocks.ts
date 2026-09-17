@@ -17,6 +17,7 @@ import {
 const blockInput = z.strictObject({ id: z.string().min(1).max(200) })
 export const customBlockSettingsActions = {
   publish: settingsOperation(
+    'write',
     publishCustomBlockBodySchema.omit({ workspaceId: true }).strict(),
     (context, input) =>
       publishCustomBlockSettings.execute({
@@ -25,6 +26,7 @@ export const customBlockSettingsActions = {
       })
   ),
   update: settingsOperation(
+    'write',
     blockInput.extend({ patch: updateCustomBlockBodySchema.strict() }),
     (context, input) =>
       updateCustomBlockSettings.execute({
@@ -32,13 +34,13 @@ export const customBlockSettingsActions = {
         input: { ...input, workspaceId: settingsWorkspaceId(context) },
       })
   ),
-  delete: settingsOperation(blockInput, (context, input) =>
+  delete: settingsOperation('write', blockInput, (context, input) =>
     deleteCustomBlockSettings.execute({
       principal: context.principal,
       input: { ...input, workspaceId: settingsWorkspaceId(context) },
     })
   ),
-  usages: settingsOperation(blockInput, (context, input) =>
+  usages: settingsOperation('read', blockInput, (context, input) =>
     readCustomBlockUsages.execute({
       principal: context.principal,
       input: { ...input, workspaceId: settingsWorkspaceId(context) },
