@@ -3,7 +3,7 @@ import { act, type MouseEvent, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
-import type { ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import type { ResourceRow } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 const mocks = vi.hoisted(() => ({

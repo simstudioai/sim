@@ -27,18 +27,18 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { withCellValueFilter } from '@/lib/table/query-builder/cell-filter'
 import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 import {
-  type BreadcrumbItem,
-  type ColumnOption,
-  Resource,
-  type SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
-import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
   folderedResourceListHref,
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
+import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  ColumnOption,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'

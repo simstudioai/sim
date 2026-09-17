@@ -1,5 +1,5 @@
 import type { ApplicationOperation } from '@/lib/core/application'
-import { assertOperationCapability } from '@/lib/core/application'
+import { assertOperationCapability } from '@/lib/core/application/operation'
 
 export interface UserAccountOperation<Id extends string = string> extends ApplicationOperation<Id> {
   readonly principalKinds: readonly ('session' | 'delegated' | 'organization_delegated')[]

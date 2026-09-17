@@ -4,6 +4,7 @@ import { mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { getErrorMessage } from '@sim/utils/errors'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -47,7 +48,7 @@ beforeEach(async () => {
       })
       return { ...result, exitCode: 0 }
     } catch (error) {
-      return { exitCode: 1, stderr: error instanceof Error ? error.message : 'failed' }
+      return { exitCode: 1, stderr: getErrorMessage(error, 'failed') }
     }
   })
   mocks.size.mockImplementation(async () => (await stat(staged)).size)

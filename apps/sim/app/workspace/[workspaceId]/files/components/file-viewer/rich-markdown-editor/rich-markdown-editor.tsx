@@ -25,7 +25,7 @@ import {
 } from '@/lib/mothership/chat/selection-context'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { FindBar } from '@/app/workspace/[workspaceId]/components'
+import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { FileSaveConflict } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-save-conflict'
 import { PreviewLoadingFrame } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import {

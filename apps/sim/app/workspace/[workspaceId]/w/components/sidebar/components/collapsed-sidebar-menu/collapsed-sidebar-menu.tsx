@@ -17,7 +17,7 @@ import {
 } from '@sim/emcn'
 import { MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/conversation-list-item'
 import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
 import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
 import {

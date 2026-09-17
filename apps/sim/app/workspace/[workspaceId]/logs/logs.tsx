@@ -53,20 +53,22 @@ import {
 } from '@/lib/logs/search-suggestions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import type { ResourceAction } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import type {
   FilterTag,
-  ResourceAction,
-  ResourceColumn,
-  ResourceRow,
   SearchConfig,
   SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
+import type {
+  ResourceColumn,
+  ResourceRow,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
 import {
-  isResourceListEmpty,
   Resource,
   type ResourceTableHandle,
-} from '@/app/workspace/[workspaceId]/components'
-import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
 import {
   SnapshotBoundary,
   SnapshotModalFallback,

@@ -5,7 +5,7 @@ import { Download } from '@sim/emcn/icons'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
-} from '@/app/workspace/[workspaceId]/components'
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
 
 const COLUMNS = [
   { id: 'workflow', header: 'Workflow' },

@@ -1,5 +1,5 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { TASK_DELEGATION_AUDIENCE } from '@/lib/mothership/tasks/application/context'
 
 const taskPrincipalPolicy = {

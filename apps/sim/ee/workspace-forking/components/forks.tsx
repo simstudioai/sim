@@ -10,8 +10,8 @@ import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { ForkLineageChildApi, ForkLineageNodeApi } from '@/lib/api/contracts/workspace-fork'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   forkIdParam,
