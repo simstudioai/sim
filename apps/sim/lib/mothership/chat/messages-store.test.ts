@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   appendCopilotChatMessages,
   persistCopilotChatTurn,
-  replaceCopilotChatMessages,
 } from '@/lib/mothership/chat/messages-store'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 

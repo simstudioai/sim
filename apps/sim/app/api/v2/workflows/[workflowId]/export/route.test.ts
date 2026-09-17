@@ -48,7 +48,11 @@ describe('/api/v2/workflows/[workflowId]/export route definition', () => {
     })
     expect(
       mapInput({ params: { workflowId: 'workflow-1' }, query: { includeWorkspaceBindings: true } })
-    ).toEqual({ workflowId: 'workflow-1', includeReferences: false, includeWorkspaceBindings: true })
+    ).toEqual({
+      workflowId: 'workflow-1',
+      includeReferences: false,
+      includeWorkspaceBindings: true,
+    })
     expect(
       mapInput({
         params: { workflowId: 'workflow-1' },

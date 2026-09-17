@@ -13,7 +13,10 @@ import {
   authorizeOrganizationChat,
   authorizeOrganizationChatCancellation,
 } from '@/lib/mothership/chat/organization-chats'
-import { type PersistedMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
+import {
+  type PersistedMessage,
+  stripToolResultOutput,
+} from '@/lib/mothership/chat/persisted-message'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,

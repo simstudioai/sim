@@ -1,10 +1,10 @@
-import { printLine } from '#sim-cli/output/io'
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { getErrorMessage } from '@sim/utils/errors'
-import { styles } from '#sim-cli/output/presentation'
 import { Command, Option } from 'commander'
+import { printLine } from '#sim-cli/output/io'
+import { styles } from '#sim-cli/output/presentation'
 import { buildApprovalUrl, createAuthRequest, pollForKey } from '../auth/device-flow'
 import {
   discoverOAuthProvider,
@@ -1052,7 +1052,10 @@ const PROFILE_COLUMNS: Column<ProfileRow>[] = [
   { header: 'profile', value: (row) => safeOneLine(row.name) },
   { header: 'key', value: (row) => (row.error ? text(null) : row.hasKey ? 'yes' : 'no') },
   { header: 'auth', value: (row) => (row.authProfile ? safeOneLine(row.authProfile) : text(null)) },
-  { header: 'error', value: (row) => (row.error ? styles().red(safeOneLine(row.error)) : text(null)) },
+  {
+    header: 'error',
+    value: (row) => (row.error ? styles().red(safeOneLine(row.error)) : text(null)),
+  },
 ]
 
 /**

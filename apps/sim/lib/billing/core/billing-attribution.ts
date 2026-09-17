@@ -22,6 +22,7 @@ import type { BillingContext, BillingEntity } from '@/lib/billing/core/usage-log
 import { parseWorkflowExecutionTimeoutSeconds } from '@/lib/billing/execution-timeout-defaults'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
@@ -32,7 +33,6 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
   type CopilotBillingProtocol,
 } from '@/lib/mothership/generated/billing-protocol-v1'
-import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 
 export {
   BILLING_ACCOUNT_DECISION_HEADER,

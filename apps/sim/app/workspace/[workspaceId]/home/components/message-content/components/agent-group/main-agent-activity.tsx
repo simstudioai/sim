@@ -1,5 +1,5 @@
-import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { type ComponentType, Fragment, type ReactNode } from 'react'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { ToolActivityGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'

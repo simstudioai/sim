@@ -380,9 +380,18 @@ describe('Memory', () => {
       await expect(
         assertUserFileContentAccess(file, { ...context, workspaceId: 'workspace-2' })
       ).rejects.toThrow('File is not available')
-      await expect(
-        assertUserFileContentAccess(file, { ...context, workflowId: 'workflow-2' })
-      ).rejects.toThrow('File is not available')
+      const otherWorkflow = { ...context, workflowId: 'workflow-2', fileKeys: undefined }
+      queueTableRows(schemaMock.memory, [
+        { data: [{ role: 'user', content: 'File', files: [file] }] },
+      ])
+      await memoryService.fetchMemoryMessages(otherWorkflow, {
+        memoryType: 'conversation',
+        conversationId: 'conversation-1',
+      })
+      expect(otherWorkflow.fileKeys).toBeUndefined()
+      await expect(assertUserFileContentAccess(file, otherWorkflow)).rejects.toThrow(
+        'File is not available'
+      )
     })
 
     it('bounds historical file loading even when the messages contain no text', async () => {

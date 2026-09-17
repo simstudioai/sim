@@ -1491,7 +1491,10 @@ describe('connection shape validation', () => {
     )
 
     expect(validationErrors).toEqual([])
-    expect(state.edges.map((edge: { sourceHandle?: string }) => edge.sourceHandle).sort()).toEqual(['error', 'source'])
+    expect(state.edges.map((edge: { sourceHandle?: string }) => edge.sourceHandle).sort()).toEqual([
+      'error',
+      'source',
+    ])
     expect(skippedItems).toEqual([
       expect.objectContaining({
         type: 'invalid_source_handle',

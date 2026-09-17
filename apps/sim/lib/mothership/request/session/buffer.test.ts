@@ -4,12 +4,12 @@
 
 import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { createEvent } from '@/lib/mothership/request/session/event'
-import { getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
 
 type StoredEnvelope = {
   score: number
@@ -163,15 +163,18 @@ describe('mothership-stream-outbox', () => {
     const envelope = await makeEnvelope('owned event')
     const lease = { key: 'chat-lock', value: 'current-controller' }
     await mockRedis.set(lease.key, lease.value)
-    await expect(appendEvents([envelope], { streamId: 'stream-1', userId: 'user-1' }, lease))
-      .resolves.toEqual({ persisted: true })
+    await expect(
+      appendEvents([envelope], { streamId: 'stream-1', userId: 'user-1' }, lease)
+    ).resolves.toEqual({ persisted: true })
     const replacement = { ...envelope, seq: 2, cursor: '2' }
     await mockRedis.set(lease.key, 'replacement-controller')
-    await expect(appendEvents([replacement], { streamId: 'stream-1', userId: 'user-1' }, lease))
-      .rejects.toThrow('Stream controller no longer owns this chat')
+    await expect(
+      appendEvents([replacement], { streamId: 'stream-1', userId: 'user-1' }, lease)
+    ).rejects.toThrow('Stream controller no longer owns this chat')
     expect(await mockRedis.get('mothership_stream:stream-1:seq')).toBe('1')
-    expect(await mockRedis.zrangebyscore('mothership_stream:stream-1:events', 0, '+inf'))
-      .toHaveLength(1)
+    expect(
+      await mockRedis.zrangebyscore('mothership_stream:stream-1:events', 0, '+inf')
+    ).toHaveLength(1)
   })
 
   it('still enforces byte budgets for the current controller', async () => {
@@ -179,10 +182,12 @@ describe('mothership-stream-outbox', () => {
     const lease = { key: 'chat-lock', value: 'current-controller' }
     await mockRedis.set(lease.key, lease.value)
     mockRedis.budgetRefusal = [0, 'user_redis_bytes', 128 * 1024 * 1024]
-    await expect(appendEvents([envelope], { streamId: 'stream-1', userId: 'user-1' }, lease))
-      .resolves.toMatchObject({ persisted: false, refusal: { resource: 'user_redis_bytes' } })
-    expect(await mockRedis.zrangebyscore('mothership_stream:stream-1:events', 0, '+inf'))
-      .toHaveLength(0)
+    await expect(
+      appendEvents([envelope], { streamId: 'stream-1', userId: 'user-1' }, lease)
+    ).resolves.toMatchObject({ persisted: false, refusal: { resource: 'user_redis_bytes' } })
+    expect(
+      await mockRedis.zrangebyscore('mothership_stream:stream-1:events', 0, '+inf')
+    ).toHaveLength(0)
   })
 
   it('replays envelopes after a given cursor', async () => {

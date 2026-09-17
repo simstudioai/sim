@@ -1,6 +1,6 @@
+import { Command } from 'commander'
 import { printLine } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
-import { Command } from 'commander'
 import {
   configPath,
   OUTPUT_FORMATS,

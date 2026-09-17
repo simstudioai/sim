@@ -1,11 +1,11 @@
+import { workspaceAccountsSettingsDelegationPolicy } from '@/lib/credential-groups/application/authorization'
+import { getWorkspaceAccountsSettings } from '@/lib/credential-groups/application/manage-groups'
+import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   type TrustedCopilotExecutionContext,
 } from '@/lib/mothership/auth/application-delegation'
-import { workspaceAccountsSettingsDelegationPolicy } from '@/lib/credential-groups/application/authorization'
-import { getWorkspaceAccountsSettings } from '@/lib/credential-groups/application/manage-groups'
-import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 
 const executeWorkspaceAccountsUseCase = createCopilotApplicationAdapter({
   domain: 'connected accounts',

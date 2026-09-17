@@ -18,13 +18,13 @@ import { buildTagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
 import { SearchBudget } from '@/lib/knowledge/search/budget'
 import {
   executeKeywordSearch,
+  fuseByReciprocalRank,
   getStructuredTagFilters,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
   handleVectorOnlySearch,
   retrieveKnowledgeSearch,
   type SearchParams,
-  fuseByReciprocalRank,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { RRF_K } from '@/lib/knowledge/search/recency'

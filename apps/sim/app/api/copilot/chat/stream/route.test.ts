@@ -3,25 +3,21 @@
  */
 
 import { authMockFns } from '@sim/testing'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 
-const {
-  getLatestRunForStream,
-  readEvents,
-  readFilePreviewSessions,
-  checkForReplayGap,
-} = vi.hoisted(() => ({
-  getLatestRunForStream: vi.fn(),
-  readEvents: vi.fn(),
-  readFilePreviewSessions: vi.fn(),
-  checkForReplayGap: vi.fn(),
-}))
+const { getLatestRunForStream, readEvents, readFilePreviewSessions, checkForReplayGap } =
+  vi.hoisted(() => ({
+    getLatestRunForStream: vi.fn(),
+    readEvents: vi.fn(),
+    readFilePreviewSessions: vi.fn(),
+    checkForReplayGap: vi.fn(),
+  }))
 
 vi.mock('@/lib/mothership/request/application/recover-stream', () => ({
   readChatStream: { execute: getLatestRunForStream },

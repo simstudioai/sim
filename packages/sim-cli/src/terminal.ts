@@ -1,6 +1,6 @@
-import { styles } from '#sim-cli/output/presentation'
 import type { Command } from 'commander'
 import { dump } from 'js-yaml'
+import { styles } from '#sim-cli/output/presentation'
 import { CliUpdateError } from '#sim-cli/update/install'
 import { ProfileConfigError } from './config/index'
 import { clientFrom } from './context'

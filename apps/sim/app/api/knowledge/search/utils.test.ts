@@ -740,7 +740,7 @@ describe('Knowledge Search Utils', () => {
       })
 
       await expect(generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
-        'OPENAI_API_KEY is not configured'
+        'Semantic retrieval is unavailable because its embedding provider is not configured.'
       )
     })
 

@@ -166,7 +166,10 @@ describe('desktop title-bar surface audit', () => {
     // (KnowledgeBase et al) whose header bars reserve the lane. It inherits the
     // variable, so without this reset those bars gain the inset while sitting nowhere
     // near the traffic lights.
-    expect(mothershipView).toContain('[--workspace-content-title-bar-inset:0px]')
+    expect(mothershipView).toContain('<ChatPanelContent')
+    expect(read('../workspace/[workspaceId]/home/components/chat-panel-layout.tsx')).toContain(
+      '[--workspace-content-title-bar-inset:0px]'
+    )
   })
 
   it('reserves that lane in every top-of-pane header bar', () => {

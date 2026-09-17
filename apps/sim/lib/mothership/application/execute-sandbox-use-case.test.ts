@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { executeCopilotSandboxUseCase } from '@/lib/mothership/application/execute-sandbox-use-case'
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
+import { executeCopilotSandboxUseCase } from '@/lib/mothership/application/execute-sandbox-use-case'
 import { sandboxOperations } from '@/lib/sandboxes/application/operations'
 
 const trustedContext = {

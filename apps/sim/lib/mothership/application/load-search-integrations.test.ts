@@ -15,8 +15,8 @@ vi.mock('@/lib/knowledge/application/personal-search-integrations', () => ({
   listPersonalSearchIntegrations: { execute: listIntegrations },
 }))
 
-import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import type { listPersonalSearchIntegrations } from '@/lib/knowledge/application/personal-search-integrations'
+import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 
 type InventoryPage = Awaited<ReturnType<typeof listPersonalSearchIntegrations.execute>>
 

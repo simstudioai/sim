@@ -85,7 +85,12 @@ describe('StreamWriter', () => {
   it('does not deliver unreplayable events when an owned controller exhausts its byte budget', async () => {
     appendEvents.mockResolvedValueOnce({
       persisted: false,
-      refusal: { resource: 'owner_redis_bytes', currentBytes: 32, limitBytes: 32, attemptedBytes: 1 },
+      refusal: {
+        resource: 'owner_redis_bytes',
+        currentBytes: 32,
+        limitBytes: 32,
+        attemptedBytes: 1,
+      },
     })
     const writer = new StreamWriter({
       streamId: 'stream-1',
@@ -95,8 +100,9 @@ describe('StreamWriter', () => {
     })
     const controller = { enqueue: vi.fn(), close: vi.fn() }
     writer.attach(controller as unknown as ReadableStreamDefaultController)
-    await expect(writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'unsaved' } }))
-      .rejects.toThrow('Stream replay byte budget exhausted')
+    await expect(
+      writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'unsaved' } })
+    ).rejects.toThrow('Stream replay byte budget exhausted')
     expect(controller.enqueue).not.toHaveBeenCalled()
     expect(writer.persistenceStopped).toBe(true)
     await expect(writer.close()).rejects.toThrow('Stream replay byte budget exhausted')

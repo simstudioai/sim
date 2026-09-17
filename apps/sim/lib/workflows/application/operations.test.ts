@@ -137,7 +137,7 @@ describe('workflow operation registry', () => {
     expect(workflowOperations.applyOperations.principalKinds).not.toContain('workspace_api_key')
   })
 
-  it('reserves manual execution for personal keys with write access', () => {
+  it('reserves manual execution for user credentials and Copilot with write access', () => {
     for (const operation of [
       workflowOperations.executeManual,
       workflowOperations.executeManualFromBlock,
@@ -145,7 +145,8 @@ describe('workflow operation registry', () => {
       expect(operation).toMatchObject({
         minimumRole: 'write',
         workspaceApiKey: 'deny',
-        principalKinds: ['personal_api_key', 'oauth_access_token'],
+        principalKinds: ['personal_api_key', 'oauth_access_token', 'delegated'],
+        delegatedServices: ['copilot'],
       })
       expect(operation.id).toMatch(/^workflows\.manual\.execute/)
     }

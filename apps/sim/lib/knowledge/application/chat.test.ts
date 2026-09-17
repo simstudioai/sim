@@ -271,9 +271,12 @@ describe('organization Search Assistant chat', () => {
   })
 
   it('rechecks OAuth restrictions after the run', async () => {
-    mocks.config.mockResolvedValueOnce(null).mockResolvedValueOnce({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      disableOAuthAppAccess: true,
+    mocks.lifecycle.mockImplementationOnce(async () => {
+      mocks.config.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableOAuthAppAccess: true,
+      })
+      return createResult()
     })
     await expect(execute()).rejects.toThrow('OAuth app access')
     expect(mocks.persist).not.toHaveBeenCalled()

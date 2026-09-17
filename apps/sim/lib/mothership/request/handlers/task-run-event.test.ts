@@ -31,16 +31,27 @@ describe('background task run events', () => {
       { interactive: false, timeout: 1000 }
     )
     expect(ctx.contentBlocks).toHaveLength(1)
-    expect(ctx.contentBlocks[0]).toMatchObject({ type: 'task', task: { taskId: 't-1', status: 'pending' } })
+    expect(ctx.contentBlocks[0]).toMatchObject({
+      type: 'task',
+      task: { taskId: 't-1', status: 'pending' },
+    })
     await handleRunEvent(
       {
         type: MothershipStreamV1EventType.run,
-        payload: { kind: 'task_delivered', taskId: 't-1', status: 'completed', summary: 'Timer elapsed' },
+        payload: {
+          kind: 'task_delivered',
+          taskId: 't-1',
+          status: 'completed',
+          summary: 'Timer elapsed',
+        },
       } as StreamEvent,
       ctx,
       {} as never,
       { interactive: false, timeout: 1000 }
     )
-    expect(ctx.contentBlocks[0]).toMatchObject({ type: 'task', task: { status: 'completed', summary: 'Timer elapsed' } })
+    expect(ctx.contentBlocks[0]).toMatchObject({
+      type: 'task',
+      task: { status: 'completed', summary: 'Timer elapsed' },
+    })
   })
 })

@@ -1,4 +1,11 @@
 import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type { OperationUseCase } from '@/lib/core/application'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
+import {
+  type KnowledgeOperation,
+  knowledgeOperations,
+} from '@/lib/knowledge/application/operations'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
 import {
@@ -11,13 +18,6 @@ import {
   requireTrustedOrganizationCopilotContext,
 } from '@/lib/mothership/auth/application-delegation'
 import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organization-chats'
-import type { OperationUseCase } from '@/lib/core/application'
-import type { ResourceScope } from '@/lib/core/resource-scope'
-import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
-import {
-  type KnowledgeOperation,
-  knowledgeOperations,
-} from '@/lib/knowledge/application/operations'
 
 export type CopilotKnowledgeDelegationContext = CopilotExecutionContext
 

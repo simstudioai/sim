@@ -4,6 +4,9 @@ import { createLogger } from '@sim/logger'
 import { and, eq, like, ne, notLike, or, sql } from 'drizzle-orm'
 import { escapeLikePattern } from '@/lib/api/list-query'
 import { DOCS_EMBEDDING_DIMENSIONS } from '@/lib/chunkers/constants'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { DEFAULT_EMBEDDING_MODEL } from '@/lib/knowledge/embedding-models'
+import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import {
   docsPathForSourceDocument,
   isDocsDir,
@@ -11,9 +14,6 @@ import {
   normalizeDocsPath,
 } from '@/lib/mothership/docs/docs-corpus'
 import { docsSourceCandidates, UNMOUNTED_DOCS_SECTIONS } from '@/lib/mothership/docs/docs-path'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DEFAULT_EMBEDDING_MODEL } from '@/lib/knowledge/embedding-models'
-import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 const logger = createLogger('DocsSearch')
 
