@@ -4,6 +4,7 @@ import {
   ConnectorDirectoryError,
   ConnectorSourceError,
   type ConnectorSourceFailureCategory,
+  type ConnectorSourceReasonState,
 } from '@/connectors/source-error'
 
 export interface ConnectorFailureDiagnostic {
@@ -13,6 +14,7 @@ export interface ConnectorFailureDiagnostic {
   code?: string
   operation?: string
   reasons?: readonly string[]
+  reasonState?: ConnectorSourceReasonState
   phase?: 'directory'
 }
 

@@ -305,6 +305,7 @@ export interface ContentPassOutcome {
     startedAt: string
     listedCount: number
     incrementalSince?: string | null
+    resumeAt?: string | null
   }
 }
 
@@ -371,7 +372,7 @@ export async function completeSuccessfulSync(
         .select({ id: knowledgeBase.id })
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-        .for('update')
+        .for('share')
       if (!lockedKnowledgeBase) throw new SyncCompletionOwnershipLost()
 
       const [lockedConnector] = await tx
@@ -447,7 +448,11 @@ export async function completeSuccessfulSync(
           ...buildSyncSuccessUpdate(
             now,
             actualDocCount,
-            contentPass && !contentPass.complete ? now : calculateNextSyncTime(syncIntervalMinutes),
+            contentPass && !contentPass.complete
+              ? contentPass.checkpoint.resumeAt
+                ? new Date(contentPass.checkpoint.resumeAt)
+                : now
+              : calculateNextSyncTime(syncIntervalMinutes),
             completionNotice,
             result.docsFailed === 0 && (!contentPass || !isContentPassIncomplete(contentPass))
           ),

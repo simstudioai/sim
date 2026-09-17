@@ -3422,7 +3422,7 @@ describe('executeSync terminal exits under a lost lock', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: 'active', consecutiveFailures: 0 })
     )
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
   })
 
   it.each(['checkpoint', 'batch'] as const)(

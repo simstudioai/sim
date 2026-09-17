@@ -3,8 +3,49 @@ import { describe, expect, it } from 'vitest'
 import { assertOcrSourceSupported } from '@/lib/knowledge/documents/ocr-source-validation'
 
 const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64')
+const LFS_POINTER = `version https://git-lfs.github.com/spec/v1\noid sha256:${'a'.repeat(64)}\nsize 9566\n`
 
 describe('OCR source preflight', () => {
+  it.each(['image/png', 'image/jpeg', 'image/gif', 'application/pdf'])(
+    'reports missing Git LFS content for %s without classifying it as a provider failure',
+    (mimeType) => {
+      expect(() => assertOcrSourceSupported(Buffer.from(LFS_POINTER), mimeType)).toThrow(
+        expect.objectContaining({
+          name: 'PermanentDocumentProcessingError',
+          code: 'invalid_file',
+          message: expect.stringContaining('Git LFS pointer'),
+        })
+      )
+    }
+  )
+  it('recognizes a pointer exported with Windows line endings', () => {
+    expect(() =>
+      assertOcrSourceSupported(Buffer.from(LFS_POINTER.replaceAll('\n', '\r\n')), 'image/png')
+    ).toThrow(expect.objectContaining({ code: 'invalid_file' }))
+  })
+  it('preserves small images and files containing a pointer as text', () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=',
+      'base64'
+    )
+    expect(png.length).toBeLessThan(Buffer.byteLength(LFS_POINTER))
+    expect(() => assertOcrSourceSupported(png, 'image/png')).not.toThrow()
+    expect(() => assertOcrSourceSupported(Buffer.from(LFS_POINTER), 'text/plain')).not.toThrow()
+    expect(() =>
+      assertOcrSourceSupported(Buffer.concat([png, Buffer.from(LFS_POINTER)]), 'image/png')
+    ).not.toThrow()
+  })
+  it('requires a complete pointer rather than matching a version URL alone', () => {
+    for (const content of [
+      'version https://git-lfs.github.com/spec/v1\n',
+      LFS_POINTER.replace('sha256:', 'sha1:'),
+      LFS_POINTER.replace('9566', 'unknown'),
+      `${LFS_POINTER}additional content`,
+      `${LFS_POINTER}${'x'.repeat(1024)}`,
+    ]) {
+      expect(() => assertOcrSourceSupported(Buffer.from(content), 'image/png')).not.toThrow()
+    }
+  })
   it('accepts static GIFs without decoding their pixels', () => {
     expect(() => assertOcrSourceSupported(GIF, 'image/gif')).not.toThrow()
   })

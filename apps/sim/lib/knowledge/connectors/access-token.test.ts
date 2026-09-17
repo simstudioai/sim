@@ -343,6 +343,44 @@ describe('delegated connector access', () => {
     expect(JSON.stringify(syncContextForToken(token!))).toBe('{}')
   })
 
+  it('forwards cancellation to both the directory token and delegated user token', async () => {
+    const controller = new AbortController()
+    const token = await resolveConnectorAccessToken({
+      auth: delegationAuth,
+      accessMode: 'admin',
+      connector: credentialConnector('service-credential'),
+      userId: 'actor',
+      requestId: 'request',
+      sourceConfig: { adminEmail: 'admin@example.com' },
+      signal: controller.signal,
+    })
+    expect(mockResolveTokenBundle).toHaveBeenCalledWith(
+      'service-credential',
+      'actor',
+      'request',
+      delegationAuth.adminServiceAccountScopes,
+      'admin@example.com',
+      { signal: controller.signal }
+    )
+    await token?.getDelegatedAccessToken?.('employee@example.com')
+    expect(mockGetServiceAccountToken).toHaveBeenCalledWith(
+      'service-credential',
+      [driveScope],
+      'employee@example.com',
+      { signal: controller.signal }
+    )
+    const child = new AbortController()
+    await token?.getDelegatedAccessToken?.('second@example.com', child.signal)
+    const combined = mockGetServiceAccountToken.mock.lastCall?.[3].signal as AbortSignal
+    expect(combined.aborted).toBe(false)
+    child.abort()
+    expect(combined.aborted).toBe(true)
+    const reason = new DOMException('Caller cancelled', 'AbortError')
+    controller.abort(reason)
+    await expect(token?.getDelegatedAccessToken?.('employee@example.com')).rejects.toBe(reason)
+    expect(mockGetServiceAccountToken).toHaveBeenCalledTimes(2)
+  })
+
   it.each([
     null,
     { credentialType: 'oauth', credentialId: 'service-credential', providerId: 'google-drive' },

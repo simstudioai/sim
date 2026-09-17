@@ -2486,6 +2486,13 @@
       "when": 1789609714073,
       "tag": "0355_workflow_activity_covering_index",
       "breakpoints": true
+    },
+    {
+      "idx": 356,
+      "version": "7",
+      "when": 1789668694580,
+      "tag": "0356_google_company_user_progress",
+      "breakpoints": true
     }
   ]
 }

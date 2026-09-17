@@ -6,6 +6,7 @@ import path from 'node:path'
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   member,
@@ -340,8 +341,8 @@ describe('independent recovery of retained connector documents', () => {
             return resolve(id)
           })
         try {
-          expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
           expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+          expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
         } finally {
           spy.mockRestore()
         }
@@ -383,6 +384,89 @@ describe('independent recovery of retained connector documents', () => {
       expect(await eventsFor(healthy)).toHaveLength(1)
     }
   )
+
+  it('recovers another document while an index transaction holds the same KB foreign-key lock', async () => {
+    const ids = await seed()
+    const file = await failedFile(ids)
+    const indexedId = generateId()
+    await db.insert(document).values({
+      id: indexedId,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      filename: 'Concurrent index.txt',
+      fileUrl: 'data:text/plain,fixture',
+      fileSize: 7,
+      mimeType: 'text/plain',
+      processingStatus: 'completed',
+    })
+    let release!: () => void
+    let acquired!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve
+    })
+    const indexing = db.transaction(async (tx) => {
+      await tx.insert(embedding).values({
+        id: generateId(),
+        knowledgeBaseId: ids.knowledgeBaseId,
+        documentId: indexedId,
+        chunkIndex: 0,
+        chunkHash: 'fixture',
+        content: 'fixture',
+        contentLength: 7,
+        tokenCount: 1,
+        startOffset: 0,
+        endOffset: 7,
+        embedding: [1, ...Array<number>(1535).fill(0)],
+      })
+      acquired()
+      await released
+    })
+    await locked
+    try {
+      expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+      expect(await eventsFor(ids)).toHaveLength(1)
+      const [admitted] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(admitted.processingAttempts).toBe(2)
+    } finally {
+      release()
+      await indexing
+    }
+  })
+
+  it('does not claim work while a KB soft deletion is committing', async () => {
+    const ids = await seed()
+    const file = await failedFile(ids)
+    let release!: () => void
+    let acquired!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve
+    })
+    const deletion = db.transaction(async (tx) => {
+      await tx
+        .update(knowledgeBase)
+        .set({ deletedAt: new Date() })
+        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+      acquired()
+      await released
+    })
+    await locked
+    try {
+      expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
+    } finally {
+      release()
+      await deletion
+    }
+    expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
+    expect(await eventsFor(ids)).toHaveLength(0)
+    const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(original.processingAttempts).toBe(1)
+    expect(original.processingQueueToken).toBe('old-fixture-generation')
+  })
 
   it('replays the additive migration and leaves the concurrent recovery index valid', async () => {
     const migration = readFileSync(

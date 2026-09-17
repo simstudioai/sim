@@ -5698,6 +5698,60 @@ export const knowledgeConnector = pgTable(
   })
 )
 
+/** Bounded independent Google Workspace user continuations, committed with their owning listing checkpoint. */
+export const knowledgeConnectorGoogleUser = pgTable(
+  'knowledge_connector_google_user',
+  {
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    generationId: text('generation_id').notNull(),
+    email: text('email').notNull(),
+    customerId: text('customer_id').notNull(),
+    cursor: text('cursor'),
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    retryAt: timestamp('retry_at').notNull().defaultNow(),
+    lastServedAt: timestamp('last_served_at'),
+    failure: jsonb('failure').$type<Record<string, unknown>>(),
+    permissionCursor: text('permission_cursor'),
+    permissionAttempts: integer('permission_attempts').notNull().default(0),
+    permissionRetryAt: timestamp('permission_retry_at').notNull(),
+    permissionLastServedAt: timestamp('permission_last_served_at'),
+    permissionStartedAt: timestamp('permission_started_at'),
+    permissionFailure: jsonb('permission_failure').$type<Record<string, unknown>>(),
+  },
+  (table) => ({
+    pk: primaryKey({ name: 'kcgu_pk', columns: [table.connectorId, table.userId] }),
+    contentDueIdx: index('kcgu_content_due_idx').on(
+      table.connectorId,
+      table.generationId,
+      table.status,
+      table.retryAt,
+      table.lastServedAt
+    ),
+    permissionDueIdx: index('kcgu_permission_due_idx').on(
+      table.connectorId,
+      table.generationId,
+      table.permissionRetryAt,
+      table.permissionLastServedAt
+    ),
+    statusCheck: check(
+      'kcgu_status_check',
+      sql`${table.status} IN ('pending', 'complete', 'blocked')`
+    ),
+    cursorCheck: check(
+      'kcgu_cursor_check',
+      sql`(${table.cursor} IS NULL OR octet_length(${table.cursor}) <= 393216) AND (${table.permissionCursor} IS NULL OR octet_length(${table.permissionCursor}) <= 393216)`
+    ),
+    attemptsCheck: check(
+      'kcgu_attempts_check',
+      sql`${table.attempts} >= 0 AND ${table.permissionAttempts} >= 0`
+    ),
+  })
+)
+
 /** Private provider configuration; metadata reads never materialize the larger normalized payload. */
 export const knowledgeConnectorPermissionSnapshot = pgTable(
   'knowledge_connector_permission_snapshot',

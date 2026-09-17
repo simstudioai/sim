@@ -2,7 +2,10 @@
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
-import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
+import {
+  GoogleDriveApiError,
+  readGoogleDriveApiError,
+} from '@/connectors/google-drive/google-drive-errors'
 import { ConnectorDirectoryError } from '@/connectors/source-error'
 
 describe('connector failure diagnostics', () => {
@@ -112,6 +115,24 @@ describe('connector failure diagnostics', () => {
       phase: 'directory',
       message: expect.stringContaining('Directory permission sync failed'),
     })
+  })
+
+  it('preserves safe reason completeness through a wrapped Directory error', async () => {
+    const cause = await readGoogleDriveApiError(
+      Response.json({ error: { errors: [{ reason: 'private-unknown-reason' }] } }, { status: 403 }),
+      'directory.members.list'
+    )
+    const diagnostic = getConnectorFailureDiagnostic(
+      new ConnectorDirectoryError('private group', { cause })
+    )
+    expect(diagnostic).toMatchObject({
+      phase: 'directory',
+      status: 403,
+      operation: 'directory.members.list',
+      reasons: [],
+      reasonState: 'filtered',
+    })
+    expect(JSON.stringify(diagnostic)).not.toContain('private')
   })
 
   it('does not infer status or permanence from a free-form message', () => {

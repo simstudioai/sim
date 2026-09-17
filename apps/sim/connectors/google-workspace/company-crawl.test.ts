@@ -349,6 +349,7 @@ describe('Google Workspace per-user central crawl', () => {
     }
     const calls = listUserDocuments.mock.calls.length
     await expect(list(ctx2, first.currentCursor)).rejects.toThrow()
+    expect(ctx2.getDelegatedAccessToken).toHaveBeenCalledWith('alice@corp.com', controller2.signal)
     expect(listUserDocuments).toHaveBeenCalledTimes(calls)
   })
 

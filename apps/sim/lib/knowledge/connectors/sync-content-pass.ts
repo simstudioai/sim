@@ -3,7 +3,18 @@ import { document, knowledgeConnector } from '@sim/db/schema'
 import { and, asc, eq, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { DbOrTx } from '@/lib/db/types'
-import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  type ConnectorAccessMode,
+  effectiveConnectorSyncIntervalMinutes,
+} from '@/lib/knowledge/connectors/access-modes'
+import {
+  createGoogleCompanyScheduler,
+  isGoogleCompanySource,
+} from '@/lib/knowledge/connectors/google-company-scheduler'
+import {
+  commitGoogleCompanyWork,
+  googleCompanyWorkStore,
+} from '@/lib/knowledge/connectors/google-company-store'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
@@ -33,6 +44,7 @@ import {
   resolveReconciliationDeleteCap,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
+import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import type { ConnectorConfig, ExternalDocument, SyncResult } from '@/connectors/types'
 
 interface ContentPassInput {
@@ -42,6 +54,7 @@ interface ContentPassInput {
     connectorType: string
     listingCheckpoint?: unknown
     lastSyncDocCount?: number | null
+    syncIntervalMinutes?: number
   }
   connectorConfig: ConnectorConfig
   sourceConfig: Record<string, unknown>
@@ -102,8 +115,33 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     })
   }
   let hydratedCount = 0
+  const syncIntervalMinutes = effectiveConnectorSyncIntervalMinutes(
+    input.documentAccess,
+    input.connector.syncIntervalMinutes ?? SIM_SEARCH_SYNC_INTERVAL_MINUTES
+  )
+  const companyStore = () =>
+    googleCompanyWorkStore(
+      input.connectorId,
+      String(input.syncContext.syncRunId),
+      syncIntervalMinutes > 0
+    )
+  const company = isGoogleCompanySource(input.connector.connectorType, input.syncContext)
+    ? createGoogleCompanyScheduler({
+        provider: input.connector.connectorType,
+        listDocuments: input.connectorConfig.listDocuments,
+        isListingCursorInvalidError: input.connectorConfig.isListingCursorInvalidError,
+        syncIntervalMinutes,
+        store: {
+          get: (...args) => companyStore().get(...args),
+          next: (...args) => companyStore().next(...args),
+          remaining: () => companyStore().remaining(),
+        },
+      })
+    : undefined
   checkpoint = await runResumableListing({
-    connectorConfig: input.connectorConfig,
+    connectorConfig: company
+      ? { ...input.connectorConfig, listDocuments: company.listDocuments }
+      : input.connectorConfig,
     sourceConfig: input.sourceConfig,
     syncContext: input.syncContext,
     checkpoint,
@@ -111,14 +149,50 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     beforePage: input.lease.beatIfDue,
     getGenerationStartedAt: () => withLease(readGenerationStartedAt),
     getAccessToken: input.getAccessToken,
-    processPage: async (documents, cycle) => {
+    processPage: async (documents, cycle, page) => {
+      const corpus = await loadPageCorpus(
+        input.connectorId,
+        documents.map((item) => item.externalId)
+      )
+      if (page.permissionsOnly)
+        documents = documents.filter((item) => corpus.priorByExternalId.has(item.externalId))
       const externalIds = documents.map((item) => item.externalId)
-      const corpus = await loadPageCorpus(input.connectorId, externalIds)
+      if (page.permissionsOnly) {
+        const changed = documents.filter((item) => {
+          const prior = corpus.priorByExternalId.get(item.externalId)
+          return prior && (!prior.contentHash || prior.contentHash !== item.contentHash)
+        })
+        /** A fresh grant must not publish an old body after the source document changed. */
+        if (changed.length)
+          await withLease(async (tx) => {
+            for (let offset = 0; offset < changed.length; offset += 500) {
+              await tx
+                .update(document)
+                .set({ acl: [], aclRequirements: [], aclVerifiedAt: null, sourceSeenAt: null })
+                .where(
+                  and(
+                    eq(document.connectorId, input.connectorId),
+                    inArray(
+                      document.externalId,
+                      changed.slice(offset, offset + 500).map((item) => item.externalId)
+                    ),
+                    isNull(document.archivedAt)
+                  )
+                )
+            }
+          })
+      }
       const state = createSyncRunState(input.result)
       const startedAt = new Date(cycle.startedAt)
       const remaining = documents.filter((item) => {
         const prior = corpus.priorByExternalId.get(item.externalId)
-        if (!prior?.sourceSeenAt || prior.sourceSeenAt < startedAt) return true
+        if (page.permissionsOnly) return prior?.contentHash !== item.contentHash
+        if (
+          !prior?.sourceSeenAt ||
+          prior.sourceSeenAt < startedAt ||
+          (company && prior.contentHash !== null && prior.contentHash !== item.contentHash)
+        )
+          return true
         /** A crash after persisting a failed batch must not erase its failure evidence. */
         if (prior.contentHash === null && !corpus.excludedExternalIds.has(item.externalId)) {
           cycle.contentFailures = true
@@ -142,6 +216,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
           })
           cycle.contentFailures = true
         }
+        if (page.permissionsOnly) return
         const attemptedIds = attempted.map((item) => item.externalId)
         await withLease(async (tx) => {
           for (let offset = 0; offset < attemptedIds.length; offset += 500) {
@@ -161,7 +236,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       const pendingOps = classifyListing({
         externalDocs: remaining,
         corpus,
-        forceRehydrate: cycle.forceRehydrate,
+        forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
         state,
       })
       const pendingIds = new Set(pendingOps.map((op) => op.extDoc.externalId))
@@ -171,15 +246,32 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         corpus,
         state,
         pendingOps,
-        forceRehydrate: cycle.forceRehydrate,
+        forceRehydrate: !page.permissionsOnly && cycle.forceRehydrate,
         onBatchComplete: async (attempted) => {
           hydratedCount += attempted.filter((item) => item.contentDeferred).length
           await persistAttempted(attempted)
         },
       })
       if (!finished) return false
-      const pageOutcome = await input.onPage?.(documents, startedAt)
+      const permissionCorpus = page.permissionsOnly
+        ? await loadPageCorpus(input.connectorId, externalIds)
+        : undefined
+      const verifiedDocuments = documents.filter((item) => {
+        if (!permissionCorpus) return true
+        if (state.failedExternalIds.has(item.externalId)) return false
+        const stored = permissionCorpus.priorByExternalId.get(item.externalId)
+        return Boolean(
+          stored?.contentHash &&
+            stored.contentHash === item.contentHash &&
+            stored.storageKey !== null
+        )
+      })
+      const pageOutcome = await input.onPage?.(
+        verifiedDocuments,
+        page.permissionsOnly ? (company?.permissionStartedAt() ?? startedAt) : startedAt
+      )
       if (pageOutcome?.permissionsIncomplete) cycle.permissionFailures = true
+      if (page.permissionsOnly) return
       await withLease(async (tx) => {
         const verified = externalIds.filter((id) => !state.failedExternalIds.has(id))
         for (let offset = 0; offset < verified.length; offset += 500) {
@@ -197,13 +289,24 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         }
       })
     },
-    saveCheckpoint: (next) =>
-      withLease((tx) =>
-        tx
+    saveCheckpoint: async (next) => {
+      await withLease(async (tx) => {
+        const changes = company?.changesFor(next.cursor)
+        if (changes)
+          await commitGoogleCompanyWork(
+            tx,
+            input.connectorId,
+            next.generationId,
+            changes,
+            new Date(next.startedAt)
+          )
+        await tx
           .update(knowledgeConnector)
           .set({ listingCheckpoint: next })
           .where(input.lease.stillHeld())
-      ).then(() => undefined),
+      })
+      company?.didCommit(next.cursor)
+    },
   })
   const reconciliation = checkpoint.complete
     ? await reconcileCompletedListing(input, checkpoint, withLease)

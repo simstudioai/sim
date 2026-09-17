@@ -22,7 +22,16 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const fixture = vi.hoisted(() => ({ storageRoot: '', list: vi.fn(), get: vi.fn() }))
+const fixture = vi.hoisted(() => ({
+  storageRoot: '',
+  list: vi.fn(),
+  get: vi.fn(),
+  directory: vi.fn(),
+}))
+vi.mock('@/connectors/google-workspace/users', async (original) => ({
+  ...(await original<typeof import('@/connectors/google-workspace/users')>()),
+  listGoogleWorkspaceUsers: fixture.directory,
+}))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixture.storageRoot
@@ -69,7 +78,10 @@ import {
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
-import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
+import {
+  beginListingCheckpoint,
+  listingFingerprint,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
 import * as memberAccess from '@/lib/knowledge/connectors/member-access'
 import {
   materializeDocumentAcls,
@@ -83,7 +95,7 @@ import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { createContentSyncLease, createMemberSyncLease } from '@/lib/knowledge/connectors/sync-lock'
-import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
+import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import * as documentService from '@/lib/knowledge/documents/service'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
@@ -149,6 +161,216 @@ describe('durable source and member cycles in PostgreSQL', () => {
       }
     })
   }
+
+  it('refreshes verified existing permissions while repairing changed bodies, without indexing discoveries or reconciling absence', async () => {
+    const connectorId = generateId()
+    const runId = generateId()
+    await db.insert(knowledgeConnector).values({
+      id: connectorId,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorType: 'google_drive',
+      status: 'syncing',
+      syncLockToken: runId,
+      accessMode: 'admin',
+      sourceConfig: {},
+    })
+    const oldVerifiedAt = new Date(Date.now() - 25 * 60 * 60 * 1000)
+    const ownerAcl = [`u:${ids.aliceId}@fixture.test`]
+    const stored = ['unchanged', 'changed', 'failed', 'absent'].map((id) => ({
+      id: generateId(),
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorId,
+      externalId: `refresh-${id}`,
+      filename: id,
+      fileUrl: '',
+      storageKey: `kb/refresh-old-${id}.txt`,
+      fileSize: 10,
+      mimeType: 'text/plain',
+      contentHash: id === 'unchanged' ? 'hash-refresh-unchanged' : 'old-body',
+      processingStatus: 'completed',
+      acl: ownerAcl,
+      aclVerifiedAt: oldVerifiedAt,
+      sourceSeenAt: oldVerifiedAt,
+    }))
+    await db.insert(document).values(stored)
+    const documents = ['unchanged', 'changed', 'failed', 'new'].map((id) => ({
+      ...sourceDoc(`refresh-${id}`),
+      content: '',
+      contentDeferred: true,
+      acl: ownerAcl,
+    }))
+    const listDocuments = vi.fn(async () => ({
+      documents,
+      hasMore: false,
+      permissionsOnly: true,
+      reconciliationSafe: false,
+    }))
+    const getDocument = vi.fn(async (externalId: string) => {
+      if (externalId === 'refresh-failed') throw new Error('User document unavailable')
+      const [duringHydration] = await db
+        .select({ acl: document.acl })
+        .from(document)
+        .where(and(eq(document.connectorId, connectorId), eq(document.externalId, externalId)))
+      expect(duringHydration.acl).toEqual([])
+      return sourceDoc(externalId)
+    })
+    const [connector] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+    const syncResult = result()
+    const lease = createContentSyncLease(connectorId, runId)
+    const pass = await runConnectorContentPass({
+      connectorId,
+      connector,
+      connectorConfig: { ...CONNECTOR_REGISTRY.google_drive, listDocuments },
+      sourceConfig: {},
+      syncContext: {},
+      kbOwner: { userId: ids.aliceId, workspaceId: ids.workspaceId },
+      billingAttribution: billing,
+      result: syncResult,
+      lease,
+      leaseKind: 'content',
+      runId,
+      fingerprint: listingFingerprint({ source: 'permission-refresh' }),
+      documentAccess: 'admin',
+      getAccessToken: async () => 'fixture',
+      hydration: { getDocument },
+      forceRehydrate: false,
+      deadlineAt: Date.now() + 60_000,
+      onPage: async (verified) => {
+        await persistDocumentAcls(
+          connectorId,
+          new Map(verified.map((item) => [item.externalId, item.acl!]))
+        )
+        return { permissionsIncomplete: false }
+      },
+    })
+    expect(getDocument.mock.calls.map(([id]) => id).sort()).toEqual([
+      'refresh-changed',
+      'refresh-failed',
+    ])
+    const rows = await db.select().from(document).where(eq(document.connectorId, connectorId))
+    expect(rows).toHaveLength(4)
+    expect(rows.every((row) => row.deletedAt === null)).toBe(true)
+    const unchanged = rows.find((row) => row.externalId === 'refresh-unchanged')!
+    expect(unchanged.aclVerifiedAt!.getTime()).toBeGreaterThan(oldVerifiedAt.getTime())
+    expect(unchanged.sourceSeenAt).toEqual(oldVerifiedAt)
+    const changed = rows.find((row) => row.externalId === 'refresh-changed')!
+    expect(changed.contentHash).toBe('hash-refresh-changed')
+    expect(changed.acl).toEqual(ownerAcl)
+    expect(changed.aclVerifiedAt!.getTime()).toBeGreaterThan(oldVerifiedAt.getTime())
+    const failed = rows.find((row) => row.externalId === 'refresh-failed')!
+    expect(failed.acl).toEqual([])
+    expect(failed.aclVerifiedAt).toBeNull()
+    expect(failed.processingStatus).toBe('failed')
+    expect(rows.find((row) => row.externalId === 'refresh-absent')!.aclVerifiedAt).toEqual(
+      oldVerifiedAt
+    )
+    expect(pass.checkpoint.listedCount).toBe(0)
+    expect(syncResult).toMatchObject({
+      docsAdded: 0,
+      docsUpdated: 1,
+      docsFailed: 1,
+      docsDeleted: 0,
+    })
+  })
+
+  it('repairs a changed Google document already seen in an unfinished company generation', async () => {
+    const connectorId = generateId()
+    const runId = generateId()
+    const fingerprint = listingFingerprint({ source: 'google-content-rescan' })
+    const checkpoint = beginListingCheckpoint({
+      fingerprint,
+      generationId: 'rescan-generation',
+      startedAt: new Date(Date.now() - 13 * 60 * 60 * 1000),
+    })
+    await db.insert(knowledgeConnector).values({
+      id: connectorId,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorType: 'google_drive',
+      status: 'syncing',
+      syncLockToken: runId,
+      accessMode: 'admin',
+      sourceConfig: {},
+      listingCheckpoint: checkpoint,
+    })
+    await db.insert(document).values({
+      id: generateId(),
+      knowledgeBaseId: ids.knowledgeBaseId,
+      connectorId,
+      externalId: 'rescan-changed',
+      filename: 'Rescan',
+      fileUrl: '',
+      storageKey: 'kb/rescan-old.txt',
+      fileSize: 10,
+      mimeType: 'text/plain',
+      contentHash: 'old-body',
+      sourceSeenAt: new Date(checkpoint.startedAt),
+      processingStatus: 'completed',
+      acl: [],
+    })
+    fixture.directory.mockResolvedValue({
+      users: [
+        {
+          id: 'google-user',
+          email: 'google-user@fixture.test',
+          customerId: 'customer',
+          active: true,
+        },
+      ],
+    })
+    const listed = {
+      ...sourceDoc('rescan-changed'),
+      content: '',
+      contentDeferred: true,
+      acl: ['u:google-user@fixture.test'],
+    }
+    const listDocuments = vi.fn(async () => ({ documents: [listed], hasMore: false }))
+    const getDocument = vi.fn(async () => sourceDoc('rescan-changed'))
+    const [connector] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+    const syncResult = result()
+    const pass = await runConnectorContentPass({
+      connectorId,
+      connector,
+      connectorConfig: { ...CONNECTOR_REGISTRY.google_drive, listDocuments },
+      sourceConfig: {},
+      syncContext: {
+        mirrorsSourceAcls: true,
+        getDelegatedAccessToken: async () => 'fixture-user-token',
+      },
+      kbOwner: { userId: ids.aliceId, workspaceId: ids.workspaceId },
+      billingAttribution: billing,
+      result: syncResult,
+      lease: createContentSyncLease(connectorId, runId),
+      leaseKind: 'content',
+      runId,
+      fingerprint,
+      documentAccess: 'admin',
+      getAccessToken: async () => 'fixture-directory-token',
+      hydration: { getDocument },
+      forceRehydrate: false,
+      deadlineAt: Date.now() + 60_000,
+      onPage: async (verified) => {
+        await persistDocumentAcls(
+          connectorId,
+          new Map(verified.map((item) => [item.externalId, item.acl!]))
+        )
+        return { permissionsIncomplete: false }
+      },
+    })
+    expect(pass.complete).toBe(true)
+    expect(getDocument).toHaveBeenCalledOnce()
+    expect(syncResult.docsUpdated).toBe(1)
+    const [stored] = await db.select().from(document).where(eq(document.connectorId, connectorId))
+    expect(stored.contentHash).toBe('hash-rescan-changed')
+    expect(stored.aclVerifiedAt!.getTime()).toBeGreaterThan(
+      new Date(checkpoint.startedAt).getTime()
+    )
+  })
 
   it('reconciles NULL and microsecond timestamp ties across ACL, soft-delete, and hard-delete pages', async () => {
     const connectorId = generateId()

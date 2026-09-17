@@ -3,6 +3,7 @@ import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-mode
 import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
 import type { OAuthService } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import type { ConnectorSourceReasonState } from '@/connectors/source-error'
 
 /**
  * Authentication configuration for a connector.
@@ -190,6 +191,7 @@ export interface ExternalListingFailures {
     operation: string
     status?: number
     reasons: string[]
+    reasonState?: ConnectorSourceReasonState
   }[]
 }
 
@@ -207,7 +209,11 @@ export interface ExternalDocumentList {
    */
   reconciliationSafe?: boolean
   /** Cumulative, bounded failure evidence for this listing generation; replay must not add it twice. */
-  listingFailures?: ExternalListingFailures
+  listingFailures?: ExternalListingFailures | null
+  /** Refreshes existing permissions and repairs changed stored bodies, without discovering new content or reconciling absence. */
+  permissionsOnly?: boolean
+  /** A durable user-work queue can yield until the next bounded retry becomes due. */
+  resumeAt?: string
 }
 
 /**

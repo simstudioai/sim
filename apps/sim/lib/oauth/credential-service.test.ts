@@ -80,6 +80,7 @@ import {
   getServiceAccountToken,
   refreshTokenIfNeeded,
   resolveCredentialTokenBundle,
+  resolveServiceAccountToken,
   ServiceAccountTokenError,
 } from '@/lib/oauth/credential-service'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -414,6 +415,7 @@ describe('Google service-account token minting', () => {
       redirect: 'error',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: expect.any(URLSearchParams),
+      signal: expect.any(AbortSignal),
     })
     const body = fetchMock.mock.calls[0][1]?.body
     expect(body).toBeInstanceOf(URLSearchParams)
@@ -455,6 +457,23 @@ describe('Google service-account token minting', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('preserves cancellation through the service-account resolver registry', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('Caller cancelled', 'AbortError')
+    controller.abort(reason)
+    await expect(
+      resolveServiceAccountToken(
+        'credential-1',
+        GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+        [driveScope],
+        'member@example.com',
+        { signal: controller.signal }
+      )
+    ).rejects.toBe(reason)
+    expect(mocks.decryptSecret).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('retains the Google error code for actionable setup failures', async () => {
     queueTableRows(credential, [row])
     fetchMock.mockResolvedValueOnce(
@@ -474,6 +493,13 @@ describe('Google service-account token minting', () => {
       errorCode: 'unauthorized_client',
       errorDescription: RAW_PROVIDER_ERROR,
     })
+    expect(mocks.logger.error).toHaveBeenCalledWith('Service account token exchange failed', {
+      status: 401,
+      subject: 'admin@example.com',
+      scopes: [driveScope],
+      errorCode: 'unauthorized_client',
+    })
+    expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain(RAW_PROVIDER_ERROR)
   })
 
   it('keeps token errors private for selectors', async () => {
@@ -503,11 +529,11 @@ describe('Google service-account token minting', () => {
     '{"error_description":""}',
   ])('handles malformed provider errors without losing the HTTP status: %s', async (body) => {
     queueTableRows(credential, [row])
-    fetchMock.mockResolvedValueOnce(new Response(body, { status: 503 }))
+    fetchMock.mockResolvedValueOnce(new Response(body, { status: 400 }))
     await expect(getServiceAccountToken('credential-1', [driveScope])).rejects.toMatchObject({
-      statusCode: 503,
+      statusCode: 400,
       errorCode: undefined,
-      errorDescription: 'Token exchange failed: 503',
+      errorDescription: 'Token exchange failed: 400',
     })
   })
 
@@ -524,5 +550,48 @@ describe('Google service-account token minting', () => {
       errorCode: 'invalid_grant',
       errorDescription: 'Invalid account credentials.',
     })
+  })
+
+  it('returns the existing typed error after bounded transient retries and keeps selectors private', async () => {
+    queueTableRows(credential, [row])
+    fetchMock.mockImplementation(async () =>
+      Response.json(
+        {
+          error: 'temporarily_unavailable',
+          error_description: RAW_PROVIDER_ERROR,
+        },
+        { status: 503 }
+      )
+    )
+    const request = getServiceAccountToken('credential-1', [driveScope], 'private@example.com', {
+      privacyMode: 'selector',
+    })
+    const checked = expect(request).rejects.toMatchObject({
+      name: 'ServiceAccountTokenError',
+      statusCode: 503,
+      errorCode: undefined,
+      errorDescription: 'Token exchange failed: 503',
+    })
+    await vi.runAllTimersAsync()
+    await checked
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    const logs = JSON.stringify([
+      ...mocks.logger.info.mock.calls,
+      ...mocks.logger.warn.mock.calls,
+      ...mocks.logger.error.mock.calls,
+    ])
+    expect(logs).not.toContain(RAW_PROVIDER_ERROR)
+    expect(logs).not.toContain('private@example.com')
+    expect(logs).not.toContain('crawler@qa-project.iam.gserviceaccount.com')
+  })
+
+  it('retains the HTTP status when an error payload exceeds the response limit', async () => {
+    queueTableRows(credential, [row])
+    fetchMock.mockResolvedValueOnce(new Response('x'.repeat(100_000), { status: 400 }))
+    await expect(getServiceAccountToken('credential-1', [driveScope])).rejects.toMatchObject({
+      statusCode: 400,
+      errorDescription: 'Token exchange failed: 400',
+    })
+    expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain('xxxx')
   })
 })

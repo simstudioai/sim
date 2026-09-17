@@ -1392,7 +1392,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         .select({ id: knowledgeBase.id })
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-        .for('update')
+        .for('share')
       if (!activeKnowledgeBase) throw new SyncLockLostException(connectorId)
 
       const [heldSyncLock] = await tx
