@@ -21,6 +21,8 @@ export interface ProviderIdentity {
 const BULK_LANE_SHARE = 0.9
 
 interface ProviderAdmissionInput extends ProviderIdentity {
+  /** True only for platform-owned credentials resolved on hosted Sim. Does not change bucket identity. */
+  isHostedCredential?: boolean
   inputTokens?: number
   signal?: AbortSignal
   maxWaitMs: number
@@ -35,7 +37,19 @@ interface ProviderAdmissionInput extends ProviderIdentity {
  * race for a handful of slots while the token budget sits unused.
  */
 const EMBEDDING_REQUEST_BURST = 64
+const HOSTED_RERANK_REQUEST_BURST = 16
 const DEFAULT_REQUEST_BURST = 2
+
+function hostedRerankRequestsPerMinute(): number {
+  const configured =
+    env.KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE ?? env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE
+  if (configured === undefined) return 600
+  const requestsPerMinute = Number(configured)
+  if (!Number.isFinite(requestsPerMinute) || requestsPerMinute < 1) {
+    throw new Error('Hosted rerank requests per minute must be finite and at least 1')
+  }
+  return requestsPerMinute
+}
 
 /** A local admission wait expired; the document scheduler may retry the work later. */
 export class ProviderAdmissionTimeoutError extends Error {
@@ -59,12 +73,16 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
   input.signal?.throwIfAborted()
   const deadlineAt = Date.now() + input.maxWaitMs
   const key = providerKey(input)
+  const isHostedRerank =
+    input.operation === 'rerank' && input.providerId === 'cohere' && input.isHostedCredential
   const requestsPerMinute =
     input.operation === 'embedding'
       ? envNumber(env.KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE, 600, { min: 1 })
       : input.operation === 'ocr'
         ? envNumber(env.KB_CONFIG_OCR_REQUESTS_PER_MINUTE, 60, { min: 1 })
-        : envNumber(env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE, 60, { min: 1 })
+        : isHostedRerank
+          ? hostedRerankRequestsPerMinute()
+          : envNumber(env.KB_CONFIG_RERANK_REQUESTS_PER_MINUTE, 60, { min: 1 })
   const tokenBudget =
     input.operation === 'embedding' && input.inputTokens
       ? {
@@ -77,7 +95,11 @@ export async function waitForProviderAdmission(input: ProviderAdmissionInput): P
     throw new Error('Embedding request exceeds the configured per-credential token budget')
   }
   const requestBurst = Math.min(
-    input.operation === 'embedding' ? EMBEDDING_REQUEST_BURST : DEFAULT_REQUEST_BURST,
+    input.operation === 'embedding'
+      ? EMBEDDING_REQUEST_BURST
+      : isHostedRerank
+        ? HOSTED_RERANK_REQUEST_BURST
+        : DEFAULT_REQUEST_BURST,
     requestsPerMinute
   )
   const reservations: TokenBucketReservation[] = []

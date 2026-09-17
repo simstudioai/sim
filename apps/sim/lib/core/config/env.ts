@@ -471,7 +471,10 @@ export const env = createEnv({
     KB_CONFIG_MISTRAL_OCR_MAX_CONCURRENT:    z.number().int().positive().max(64).optional().default(2),
     /** JSON map from API-key SHA-256 fingerprints to organization IDs; keys in one org share capacity. */
     MISTRAL_OCR_QUOTA_GROUPS:               z.string().optional(),
-    KB_CONFIG_RERANK_REQUESTS_PER_MINUTE:    z.number().positive().optional().default(60),
+    /** Explicit override for all rerank credentials; otherwise defaults to 60, or 600 for hosted Cohere. */
+    KB_CONFIG_RERANK_REQUESTS_PER_MINUTE:    z.number().positive().optional(),
+    /** Overrides the shared rerank setting only for Sim-hosted Cohere credentials. */
+    KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE: z.number().positive().optional(),
     KB_CONFIG_DOCUMENT_CONCURRENCY:        z.number().optional().default(4),       // Concurrent documents in the in-process (non-Trigger) path
     KB_CONFIG_BATCH_SIZE:                  z.number().optional().default(2000),    // Chunks to process per embedding batch
     KB_CONFIG_DOCUMENT_BATCH_SIZE:         z.number().optional().default(10),      // Documents per batch in the in-process (non-Trigger) path
