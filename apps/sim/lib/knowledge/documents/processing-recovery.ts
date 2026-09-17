@@ -42,18 +42,20 @@ async function recoverStoredDocuments(
   signal: AbortSignal
 ): Promise<number> {
   let recovered = 0
-  const attemptedKnowledgeBases = new Set<string>()
+  const blockedKnowledgeBases = new Set<string>()
+  const attemptedConnectors = new Set<string>()
   for (let batch = 0; batch < MAX_RECOVERY_CANDIDATE_BATCHES; batch++) {
     if (recovered >= DOCUMENT_RECOVERY_BATCH_SIZE || Date.now() >= deadlineAt) break
-    const ownersBefore = attemptedKnowledgeBases.size
+    const connectorsBefore = attemptedConnectors.size
     recovered += await recoverStoredDocumentBatch(
       now,
       deadlineAt,
       signal,
-      attemptedKnowledgeBases,
+      blockedKnowledgeBases,
+      attemptedConnectors,
       DOCUMENT_RECOVERY_BATCH_SIZE - recovered
     )
-    if (attemptedKnowledgeBases.size === ownersBefore) break
+    if (attemptedConnectors.size === connectorsBefore) break
   }
   return recovered
 }
@@ -62,7 +64,8 @@ async function recoverStoredDocumentBatch(
   now: Date,
   deadlineAt: number,
   signal: AbortSignal,
-  attemptedKnowledgeBases: Set<string>,
+  blockedKnowledgeBases: Set<string>,
+  attemptedConnectors: Set<string>,
   limit: number
 ): Promise<number> {
   /** Discovery does not claim work. Ownership is rechecked under lifecycle locks below. */
@@ -76,7 +79,7 @@ async function recoverStoredDocumentBatch(
       .select({
         id: document.id,
         knowledgeBaseId: document.knowledgeBaseId,
-        connectorId: document.connectorId,
+        connectorId: knowledgeConnector.id,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
       })
@@ -86,8 +89,11 @@ async function recoverStoredDocumentBatch(
       .where(
         and(
           documentProcessingRecoveryCondition(now),
-          attemptedKnowledgeBases.size > 0
-            ? notInArray(document.knowledgeBaseId, [...attemptedKnowledgeBases])
+          blockedKnowledgeBases.size > 0
+            ? notInArray(document.knowledgeBaseId, [...blockedKnowledgeBases])
+            : undefined,
+          attemptedConnectors.size > 0
+            ? notInArray(document.connectorId, [...attemptedConnectors])
             : undefined,
           isNull(knowledgeBase.deletedAt),
           isNull(knowledgeConnector.deletedAt),
@@ -110,8 +116,10 @@ async function recoverStoredDocumentBatch(
   }
   for (const [knowledgeBaseId, group] of groups) {
     if (Date.now() >= deadlineAt) break
-    attemptedKnowledgeBases.add(knowledgeBaseId)
+    const connectorIds = [...new Set(group.map((row) => row.connectorId))]
+    for (const connectorId of connectorIds) attemptedConnectors.add(connectorId)
     const owner = group[0]
+    let ownerVerified = false
     try {
       signal.throwIfAborted()
       const attribution = owner.organizationId
@@ -139,16 +147,18 @@ async function recoverStoredDocumentBatch(
           .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
           .for('share', { skipLocked: true })
         signal.throwIfAborted()
-        if (!kb) return 0
+        if (!kb) {
+          blockedKnowledgeBases.add(knowledgeBaseId)
+          return 0
+        }
         assertBillingAttributionOwner(attribution, kb)
+        ownerVerified = true
         const connectors = await tx
           .select({ id: knowledgeConnector.id })
           .from(knowledgeConnector)
           .where(
             and(
-              inArray(knowledgeConnector.id, [
-                ...new Set(group.flatMap((row) => (row.connectorId ? [row.connectorId] : []))),
-              ]),
+              inArray(knowledgeConnector.id, connectorIds),
               eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
               inArray(knowledgeConnector.status, RECOVERABLE_CONNECTOR_STATUSES),
               isNull(knowledgeConnector.archivedAt),
@@ -231,6 +241,7 @@ async function recoverStoredDocumentBatch(
       })
     } catch (error) {
       signal.throwIfAborted()
+      if (!ownerVerified) blockedKnowledgeBases.add(knowledgeBaseId)
       logger.error('Stored document recovery admission failed', {
         knowledgeBaseId,
         diagnostic: getConnectorFailureDiagnostic(error),

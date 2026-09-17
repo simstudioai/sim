@@ -23,6 +23,27 @@ describe('OCR source preflight', () => {
       assertOcrSourceSupported(Buffer.from(LFS_POINTER.replaceAll('\n', '\r\n')), 'image/png')
     ).toThrow(expect.objectContaining({ code: 'invalid_file' }))
   })
+  it.each(['\n', '\r\n'])('recognizes extension records with %j line endings', (newline) => {
+    const pointer = LFS_POINTER.replace(
+      'oid sha256:',
+      `ext-0-compress sha256:${'b'.repeat(64)}\next-1-encrypt sha256:${'c'.repeat(64)}\noid sha256:`
+    ).replaceAll('\n', newline)
+    expect(() => assertOcrSourceSupported(Buffer.from(pointer), 'image/png')).toThrow(
+      expect.objectContaining({
+        code: 'invalid_file',
+        message: expect.stringContaining('Git LFS pointer'),
+      })
+    )
+    expect(() =>
+      assertOcrSourceSupported(Buffer.from(`${pointer}arbitrary trailing content`), 'image/png')
+    ).not.toThrow()
+    expect(() =>
+      assertOcrSourceSupported(
+        Buffer.from(pointer.replace('ext-0-compress sha256:', 'ext-0-compress sha1:')),
+        'image/png'
+      )
+    ).not.toThrow()
+  })
   it('preserves small images and files containing a pointer as text', () => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=',

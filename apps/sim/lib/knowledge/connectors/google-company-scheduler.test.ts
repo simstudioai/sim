@@ -46,6 +46,8 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
   let served = 0
   const rows = new Map<string, FakeWork>()
   const key = (id: string, kind: GoogleCompanyWorkKind) => `${id}:${kind}`
+  const incomplete = (row: FakeWork) =>
+    row.kind === 'content' ? !row.complete : Boolean(row.cursor || row.failure)
   const store: GoogleCompanyWorkStore = {
     get: async (id, kind) => rows.get(key(id, kind)) ?? null,
     next: async (kind, now) =>
@@ -56,17 +58,21 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
             row.retryAt <= now &&
             (kind !== 'content' ||
               !row.complete ||
-              (syncIntervalMinutes > 0 &&
-                [...rows.values()].some((item) => item.kind === 'content' && !item.complete))) &&
+              (syncIntervalMinutes > 0 && [...rows.values()].some(incomplete))) &&
             (kind === 'content' || (rows.get(key(row.user.id, 'content'))?.served ?? 0) > 0)
         )
         .sort((a, b) => a.served - b.served || a.user.id.localeCompare(b.user.id))[0] ?? null,
     remaining: async () => {
-      const remaining = [...rows.values()].filter((row) => row.kind === 'content' && !row.complete)
+      const remaining = [...rows.values()].filter(incomplete)
+      const retryable = [...rows.values()].filter(
+        (row) => incomplete(row) || (row.kind === 'content' && syncIntervalMinutes > 0)
+      )
       const failed = [...rows.values()].filter((row) => row.failure)
       return {
-        count: remaining.length,
-        retryAt: remaining.sort((a, b) => +a.retryAt - +b.retryAt)[0]?.retryAt ?? null,
+        count: new Set(remaining.map((row) => row.user.id)).size,
+        retryAt: remaining.length
+          ? (retryable.sort((a, b) => +a.retryAt - +b.retryAt)[0]?.retryAt ?? null)
+          : null,
         ...(failed.length
           ? {
               failures: {
@@ -265,18 +271,18 @@ describe('durable Google company user scheduling', () => {
     expect(f.saved().resumeAt).toBe('2026-09-17T00:05:00.000Z')
   })
 
-  it('adopts a production cursor without resetting the active provider page', async () => {
+  it('adopts a legacy cursor without resetting the active provider page', async () => {
     mocks.directory.mockResolvedValue({ users: [user('a'), user('z')] })
     const f = fixture()
     const legacy = `google-workspace:v1:${Buffer.from(JSON.stringify({ provider: 'google_calendar', users: [user('a')], providerCursor: 'existing-page-91', nextUsersPageToken: 'old-directory' })).toString('base64url')}`
-    f.setSaved({ ...f.saved(), cursor: legacy, listedCount: 6224 })
+    f.setSaved({ ...f.saved(), cursor: legacy, listedCount: 10 })
     await f.step(3)
     expect(f.list.mock.calls[0]?.[2]).toContain('google-workspace:v1:')
     const resume = JSON.parse(
       Buffer.from(f.list.mock.calls[0]![2]!.split(':v1:')[1], 'base64url').toString()
     )
     expect(resume.providerCursor).toBe('existing-page-91')
-    expect(f.saved().listedCount).toBe(6225)
+    expect(f.saved().listedCount).toBe(11)
     expect(mocks.directory.mock.calls[0]?.[1]).toBeUndefined()
   })
 
@@ -426,6 +432,46 @@ describe('durable Google company user scheduling', () => {
     await f.step(2)
     expect(f.rows.get('a:content')?.retryAt).toEqual(new Date('2026-09-17T00:15:00Z'))
   })
+
+  it.each([0, 60])(
+    'waits for deferred permissions at cadence %i, then reaches EOF without waiting for periodic refresh',
+    async (cadence) => {
+      mocks.directory.mockResolvedValue({ users: [user('a')] })
+      const f = fixture('google_calendar', cadence)
+      await f.step(2)
+      const content = structuredClone(f.rows.get('a:content'))
+      const permission = f.rows.get('a:permissions')!
+      permission.cursor = 'permission-page-2'
+      permission.retryAt = new Date('2026-09-17T00:00:00Z')
+      f.list.mockRejectedValueOnce(new GoogleApiError('calendar.events.list', 403, [], false))
+      await f.step(2)
+      expect(f.saved()).toMatchObject({
+        generationId: 'generation',
+        complete: false,
+        resumeAt: '2026-09-17T00:05:00.000Z',
+        listingFailures: { count: 1 },
+      })
+      expect(permission.cursor).toBe('permission-page-2')
+      const callsBeforeRetry = f.list.mock.calls.length
+      f.restart()
+      await f.step()
+      expect(f.list).toHaveBeenCalledTimes(callsBeforeRetry)
+      expect(f.saved().complete).toBe(false)
+      f.advance(5 * 60_000)
+      f.restart()
+      await f.step(2)
+      expect(f.list.mock.calls.at(-1)?.[2]).toBe('permission-page-2')
+      expect(f.rows.get('a:content')).toEqual(content)
+      expect(f.saved()).toMatchObject({
+        generationId: 'generation',
+        complete: true,
+        resumeAt: null,
+        listingFailures: null,
+      })
+      expect(permission.retryAt).toEqual(new Date('2026-09-17T12:05:00Z'))
+      expect(mocks.directory).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it('keeps completed manual users complete while unfinished work and permission refresh continue', async () => {
     mocks.directory.mockResolvedValue({ users: [user('a'), user('b')] })

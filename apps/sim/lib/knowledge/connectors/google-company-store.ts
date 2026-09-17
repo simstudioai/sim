@@ -32,6 +32,12 @@ export function googleCompanyWorkStore(
   rescanCompleted = true
 ): GoogleCompanyWorkStore {
   const scope = and(eq(work.connectorId, connectorId), eq(work.generationId, generationId))
+  const contentIncomplete = ne(work.status, 'complete')
+  const permissionsIncomplete = or(
+    isNotNull(work.permissionCursor),
+    isNotNull(work.permissionFailure)
+  )
+  const incomplete = or(contentIncomplete, permissionsIncomplete)
   return {
     async get(userId, kind) {
       const [row] = await db
@@ -43,13 +49,12 @@ export function googleCompanyWorkStore(
     },
     async next(kind, now) {
       /** A completed sweep must reach EOF instead of starting another overdue user sweep. */
-      const incomplete = ne(work.status, 'complete')
       const contentEligible = rescanCompleted
         ? or(
-            incomplete,
+            contentIncomplete,
             exists(db.select({ id: work.userId }).from(work).where(and(scope, incomplete)))
           )
-        : incomplete
+        : contentIncomplete
       const [row] = await db
         .select()
         .from(work)
@@ -71,13 +76,12 @@ export function googleCompanyWorkStore(
     async remaining() {
       const [counts] = await db
         .select({
-          count: sql<number>`count(*) FILTER (WHERE ${work.status} <> 'complete')::int`,
+          count: sql<number>`count(*) FILTER (WHERE ${incomplete})::int`,
           failures: sql<number>`count(*) FILTER (WHERE ${work.failure} IS NOT NULL OR ${work.permissionFailure} IS NOT NULL)::int`,
-          retryAt: rescanCompleted
-            ? sql<string | null>`min(${work.retryAt})::text`
-            : sql<
-                string | null
-              >`min(${work.retryAt}) FILTER (WHERE ${work.status} <> 'complete')::text`,
+          retryAt: sql<Date | null>`LEAST(
+            min(${work.retryAt}) FILTER (WHERE ${rescanCompleted ? sql`true` : contentIncomplete}),
+            min(${work.permissionRetryAt}) FILTER (WHERE ${permissionsIncomplete})
+          )`.mapWith(work.retryAt),
         })
         .from(work)
         .where(scope)
@@ -91,7 +95,7 @@ export function googleCompanyWorkStore(
         : []
       return {
         count: counts?.count ?? 0,
-        retryAt: counts?.retryAt ? new Date(counts.retryAt) : null,
+        retryAt: counts?.count ? counts.retryAt : null,
         ...(counts?.failures
           ? {
               failures: listingFailuresSchema.parse({
@@ -129,6 +133,7 @@ export async function commitGoogleCompanyWork(
           permissionRetryAt: new Date(generationStartedAt.getTime() + PERMISSION_REFRESH_MS),
         }))
       )
+      /** Content restarts must not postpone the earlier deadline for refreshing stored permissions. */
       .onConflictDoUpdate({
         target: [work.connectorId, work.userId],
         set: {

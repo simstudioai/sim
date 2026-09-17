@@ -3,7 +3,7 @@ import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/docu
 /** Canonical Git LFS pointers are text records smaller than 1 KiB, not the referenced binary. */
 const GIT_LFS_POINTER_MAX_BYTES = 1024
 const GIT_LFS_POINTER_PATTERN =
-  /^version https:\/\/git-lfs\.github\.com\/spec\/v1\r?\noid sha256:[a-f0-9]{64}\r?\nsize [0-9]+\r?\n$/
+  /^version https:\/\/git-lfs\.github\.com\/spec\/v1\r?\n(?:ext-[0-9]+-[a-z0-9.-]+ sha256:[a-f0-9]{64}\r?\n)*oid sha256:[a-f0-9]{64}\r?\nsize [0-9]+\r?\n$/
 
 function invalidSource(message: string): never {
   throw new PermanentDocumentProcessingError('invalid_file', message)

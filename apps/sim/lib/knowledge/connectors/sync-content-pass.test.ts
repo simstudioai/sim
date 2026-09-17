@@ -654,8 +654,8 @@ describe('permission refresh through the shared content pass', () => {
       acl: [],
       aclRequirements: [],
       aclVerifiedAt: null,
-      sourceSeenAt: null,
     })
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'sourceSeenAt' in value)).toBe(false)
     expect(result.docsUpdated).toBe(1)
     expect(mocks.onPage).toHaveBeenCalledWith(
       [expect.objectContaining({ contentHash: current.contentHash })],
@@ -679,8 +679,8 @@ describe('permission refresh through the shared content pass', () => {
       acl: [],
       aclRequirements: [],
       aclVerifiedAt: null,
-      sourceSeenAt: null,
     })
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'sourceSeenAt' in value)).toBe(false)
     expect(mocks.onPage).toHaveBeenCalledWith([], expect.any(Date))
   })
 })

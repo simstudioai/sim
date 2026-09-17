@@ -385,6 +385,93 @@ describe('independent recovery of retained connector documents', () => {
     }
   )
 
+  it('recovers a sibling connector when the oldest candidate batch belongs to a locked connector', async () => {
+    const blocked = await seed()
+    const file = await failedFile(blocked)
+    const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+    await db.insert(document).values(
+      Array.from({ length: DOCUMENT_RECOVERY_BATCH_SIZE - 1 }, () => ({
+        ...original,
+        id: generateId(),
+        externalId: generateId(),
+        secretProvenanceVersion: null,
+      }))
+    )
+    const healthy = { ...blocked, connectorId: generateId(), lockId: generateId() }
+    await db.insert(knowledgeConnector).values({
+      id: healthy.connectorId,
+      knowledgeBaseId: healthy.knowledgeBaseId,
+      connectorType: 'google_drive',
+      sourceConfig: {},
+      accessMode: 'admin',
+      status: 'syncing',
+      syncLockToken: healthy.lockId,
+    })
+    const healthyFile = await failedFile(healthy)
+    await db
+      .update(document)
+      .set({ uploadedAt: new Date(original.uploadedAt.getTime() + 1) })
+      .where(eq(document.id, healthyFile.documentId))
+
+    let release!: () => void
+    let acquired!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve
+    })
+    const holder = db.transaction(async (tx) => {
+      await tx
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, blocked.knowledgeBaseId))
+        .for('share')
+      await tx
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, blocked.connectorId))
+        .for('update')
+      acquired()
+      await released
+    })
+    await locked
+    try {
+      expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+      const events = await eventsFor(blocked)
+      expect(events).toHaveLength(1)
+      expect(events[0].payload).toMatchObject({ documentId: healthyFile.documentId })
+      const [admitted] = await db
+        .select()
+        .from(document)
+        .where(eq(document.id, healthyFile.documentId))
+      expect(admitted.processingAttempts).toBe(2)
+      expect(admitted.processingQueueToken).toBe(events[0].id)
+      const untouched = await db
+        .select()
+        .from(document)
+        .where(eq(document.connectorId, blocked.connectorId))
+      expect(untouched).toHaveLength(DOCUMENT_RECOVERY_BATCH_SIZE)
+      for (const row of untouched) {
+        expect(row).toMatchObject({
+          processingStatus: original.processingStatus,
+          processingAttempts: original.processingAttempts,
+          processingQueueToken: original.processingQueueToken,
+          processingQueuedAt: original.processingQueuedAt,
+          processingError: original.processingError,
+          processingRecoveryAfter: original.processingRecoveryAfter,
+        })
+      }
+    } finally {
+      release()
+      await holder
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'paused' })
+        .where(inArray(knowledgeConnector.id, [blocked.connectorId, healthy.connectorId]))
+    }
+  })
+
   it('recovers another document while an index transaction holds the same KB foreign-key lock', async () => {
     const ids = await seed()
     const file = await failedFile(ids)

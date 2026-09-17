@@ -7,9 +7,10 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
-import { eq, inArray } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { and, eq, inArray } from 'drizzle-orm'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import type { GoogleCompanyWorkUpdate } from '@/lib/knowledge/connectors/google-company-scheduler'
 import {
   commitGoogleCompanyWork,
   googleCompanyWorkStore,
@@ -35,7 +36,7 @@ describe('Google company user checkpoint storage', () => {
     startedAt: generationStartedAt,
   })
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     owner = await seedKnowledgeAclFixture(undefined, { connectorType: 'google_drive' })
     await db.transaction(async (tx) => {
       await commitGoogleCompanyWork(
@@ -51,12 +52,13 @@ describe('Google company user checkpoint storage', () => {
         .where(eq(knowledgeConnector.id, owner.connectorId))
     })
   })
-  afterAll(async () => {
+  afterEach(async () => {
+    vi.unstubAllEnvs()
     await db.delete(workspace).where(eq(workspace.id, owner.workspaceId))
     await db.delete(organization).where(eq(organization.id, owner.organizationId))
     await db.delete(user).where(inArray(user.id, [owner.aliceId, owner.bobId]))
-    await db.$client.end()
   })
+  afterAll(() => db.$client.end())
 
   it('rolls back user progress and the owning checkpoint together', async () => {
     const store = googleCompanyWorkStore(owner.connectorId, generationId)
@@ -214,6 +216,23 @@ describe('Google company user checkpoint storage', () => {
       generationId,
       {
         update: {
+          userId: 'first',
+          kind: 'content',
+          cursor: 'blocked-user-page',
+          completed: false,
+          retryAt: new Date(Date.now() + 60 * 60_000),
+          attempts: 1,
+          failure: { scope: first.user.email, operation: 'drive.files.list', reasons: [] },
+        },
+      },
+      generationStartedAt
+    )
+    await commitGoogleCompanyWork(
+      db,
+      owner.connectorId,
+      generationId,
+      {
+        update: {
           userId: 'second',
           kind: 'content',
           cursor: null,
@@ -252,7 +271,80 @@ describe('Google company user checkpoint storage', () => {
     expect((await automatic.remaining()).count).toBe(0)
   })
 
-  it('resets both provider continuations on a new configuration generation and cascades on connector deletion', async () => {
+  it.each(['continuation', 'failure'] as const)(
+    'retains a deferred permission %s after all content completes without keeping future refreshes open',
+    async (pending) => {
+      vi.stubEnv('TZ', 'Pacific/Honolulu')
+      const now = new Date()
+      const retryAt = new Date(now.getTime() + 30 * 60_000)
+      const nextPeriodicRefresh = new Date(now.getTime() + 12 * 60 * 60_000)
+      const update = (
+        userId: string,
+        kind: GoogleCompanyWorkUpdate['kind'],
+        changes: Partial<GoogleCompanyWorkUpdate> = {}
+      ) =>
+        commitGoogleCompanyWork(
+          db,
+          owner.connectorId,
+          generationId,
+          {
+            update: {
+              userId,
+              kind,
+              cursor: null,
+              completed: true,
+              retryAt: nextPeriodicRefresh,
+              attempts: 0,
+              failure: null,
+              permissionStartedAt: null,
+              ...changes,
+            },
+          },
+          generationStartedAt
+        )
+      for (const userId of ['first', 'second']) {
+        await update(userId, 'permissions')
+        await update(userId, 'content', { retryAt: new Date(now.getTime() - 60_000) })
+      }
+      await update('first', 'permissions', {
+        cursor: pending === 'continuation' ? 'permission-page-9' : null,
+        completed: false,
+        retryAt,
+        attempts: pending === 'failure' ? 1 : 0,
+        failure:
+          pending === 'failure'
+            ? {
+                scope: first.user.email,
+                operation: 'drive.files.list',
+                status: 403,
+                reasons: [],
+              }
+            : null,
+      })
+      const automatic = googleCompanyWorkStore(owner.connectorId, generationId)
+      const manual = googleCompanyWorkStore(owner.connectorId, generationId, false)
+      expect(await manual.remaining()).toMatchObject({ count: 1, retryAt })
+      expect(await manual.next('content', now)).toBeNull()
+      expect(await automatic.next('content', now)).not.toBeNull()
+      expect(await automatic.next('permissions', now)).toBeNull()
+      expect((await automatic.next('permissions', retryAt))?.user.id).toBe('first')
+      for (const userId of ['first', 'second']) {
+        await update(userId, 'content', { retryAt: new Date(now.getTime() + 2 * 60 * 60_000) })
+      }
+      expect(await automatic.remaining()).toMatchObject({ count: 1, retryAt })
+      await update('first', 'permissions')
+      expect(await automatic.remaining()).toEqual({ count: 0, retryAt: null })
+      expect(await manual.remaining()).toEqual({ count: 0, retryAt: null })
+      expect(await automatic.next('content', new Date(now.getTime() + 3 * 60 * 60_000))).toBeNull()
+    }
+  )
+
+  it('resets both provider continuations while preserving due permissions, and cascades on connector deletion', async () => {
+    const permissionDueAt = new Date(Date.now() - 60_000)
+    await db
+      .update(knowledgeConnectorGoogleUser)
+      .set({ permissionRetryAt: permissionDueAt })
+      .where(eq(knowledgeConnectorGoogleUser.connectorId, owner.connectorId))
     await db.transaction(async (tx) => {
       await commitGoogleCompanyWork(
         tx,
@@ -285,6 +377,16 @@ describe('Google company user checkpoint storage', () => {
       cursor: undefined,
       permissionStartedAt: undefined,
     })
+    const [progress] = await db
+      .select({ permissionRetryAt: knowledgeConnectorGoogleUser.permissionRetryAt })
+      .from(knowledgeConnectorGoogleUser)
+      .where(
+        and(
+          eq(knowledgeConnectorGoogleUser.connectorId, owner.connectorId),
+          eq(knowledgeConnectorGoogleUser.userId, 'first')
+        )
+      )
+    expect(progress.permissionRetryAt).toEqual(permissionDueAt)
     await db.delete(knowledgeConnector).where(eq(knowledgeConnector.id, owner.connectorId))
     expect(
       await db

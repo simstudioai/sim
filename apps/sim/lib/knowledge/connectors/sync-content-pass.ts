@@ -162,13 +162,13 @@ export async function runConnectorContentPass(input: ContentPassInput) {
           const prior = corpus.priorByExternalId.get(item.externalId)
           return prior && (!prior.contentHash || prior.contentHash !== item.contentHash)
         })
-        /** A fresh grant must not publish an old body after the source document changed. */
+        /** Revoke stale-body grants while retaining the content crawl's observation for EOF reconciliation. */
         if (changed.length)
           await withLease(async (tx) => {
             for (let offset = 0; offset < changed.length; offset += 500) {
               await tx
                 .update(document)
-                .set({ acl: [], aclRequirements: [], aclVerifiedAt: null, sourceSeenAt: null })
+                .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
                 .where(
                   and(
                     eq(document.connectorId, input.connectorId),
