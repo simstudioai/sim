@@ -318,6 +318,15 @@ describe('organization source detail navigation', () => {
     }
   )
 
+  it('does not classify a provider message containing the permission text as its own notice', async () => {
+    mocks.detail.mockReturnValue({
+      data: { ...connector, lastSyncError: `Provider message: ${SOURCE_PERMISSION_ERROR}` },
+    })
+    await render()
+    expect(container.textContent).toContain('Some connection updates are incomplete')
+    expect(container.textContent).not.toContain('Permission verification incomplete')
+  })
+
   it.each(['', '?view=settings', '?view=history'])(
     'shows integration deactivation independently of source sync state at %s',
     async (searchParams) => {

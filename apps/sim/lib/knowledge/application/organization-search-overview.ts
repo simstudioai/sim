@@ -213,7 +213,7 @@ export const readOrganizationSearchOverview = defineAuthorizedKnowledgeUseCase({
         ))`,
           hasAccountError: sql<boolean>`bool_or(NOT ${paused} AND ${knowledgeConnector.accessMode} = 'members' AND ${hasMemberError})`,
           hasDocumentError: sql<boolean>`bool_or(NOT ${paused} AND ${hasDocumentsInState(failedDocumentCondition())})`,
-          hasPermissionError: sql<boolean>`bool_or(NOT ${paused} AND ${knowledgeConnector.lastSyncError} = ${SOURCE_PERMISSION_ERROR})`,
+          hasPermissionError: sql<boolean>`bool_or(NOT ${paused} AND ${SOURCE_PERMISSION_ERROR} = ANY(string_to_array(${knowledgeConnector.lastSyncError}, ${'\n'})))`,
           hasIndexing: sql<boolean>`bool_or(NOT ${paused}
             AND (${knowledgeConnector.accessMode} <> 'members' OR ${hasActiveMembers} OR ${knowledgeConnector.credentialId} IS NOT NULL)
             AND (
