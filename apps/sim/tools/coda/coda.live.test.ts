@@ -27,17 +27,46 @@ import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 import type { SelectorContext, SelectorRequest } from '@/lib/selectors/types'
 import { CodaBlock } from '@/blocks/blocks/coda'
 import { executeTool } from '@/tools'
+import type * as codaTools from '@/tools/coda'
 import { tools as toolRegistry } from '@/tools/registry'
-import type { OutputProperty } from '@/tools/types'
+import type { OutputProperty, ToolConfig, ToolResponse } from '@/tools/types'
 
 const LIVE = process.env.CODA_LIVE === '1' && Boolean(process.env.CODA_API_TOKEN)
 const token = process.env.CODA_API_TOKEN ?? ''
 const shareEmail = process.env.CODA_LIVE_SHARE_EMAIL
 const TIMEOUT = 300_000
 
-interface RunResult {
+type CamelCase<S extends string> = S extends `${infer Head}_${infer Tail}`
+  ? `${Head}${Capitalize<CamelCase<Tail>>}`
+  : S
+
+/** Block operation ids, derived from the Coda tool barrel (`codaGetPageTool` → `get_page`). */
+type CodaOperation = {
+  [K in keyof typeof codaTools]: K extends `coda${infer Name}Tool` ? Name : never
+}[keyof typeof codaTools] extends infer Name
+  ? Name extends string
+    ? SnakeCase<Uncapitalize<Name>>
+    : never
+  : never
+
+type SnakeCase<S extends string> = S extends `${infer Head}${infer Tail}`
+  ? Head extends Lowercase<Head>
+    ? `${Head}${SnakeCase<Tail>}`
+    : `_${Lowercase<Head>}${SnakeCase<Tail>}`
+  : S
+
+/** The declared output of the tool behind a block operation. */
+type OperationOutput<Op extends CodaOperation> =
+  (typeof codaTools)[`coda${Capitalize<CamelCase<Op>>}Tool` &
+    keyof typeof codaTools] extends ToolConfig<never, infer Response extends ToolResponse>
+    ? Response['output']
+    : never
+
+type OperationValues<Op extends CodaOperation> = { operation: Op } & Record<string, unknown>
+
+interface RunResult<Op extends CodaOperation> {
   success: boolean
-  output: Record<string, any>
+  output: OperationOutput<Op>
   error?: string
 }
 
@@ -120,7 +149,7 @@ function objectViolations(
  * values are merged with `tools.config.params`, and the selected tool runs through
  * `executeTool` with the credential's resolved access token.
  */
-async function run(values: Record<string, unknown>): Promise<RunResult> {
+async function run<Op extends CodaOperation>(values: OperationValues<Op>): Promise<RunResult<Op>> {
   const config = CodaBlock.tools.config!
   const toolId = config.tool!(values) as string
   const mapped = config.params ? config.params(values) : {}
@@ -128,7 +157,7 @@ async function run(values: Record<string, unknown>): Promise<RunResult> {
     ...values,
     ...mapped,
     accessToken: token,
-  })) as RunResult
+  })) as RunResult<Op>
   if (result.success) {
     const tool = toolRegistry[toolId]
     const violations: string[] = []
@@ -139,7 +168,9 @@ async function run(values: Record<string, unknown>): Promise<RunResult> {
   return result
 }
 
-async function runOk(values: Record<string, unknown>): Promise<Record<string, any>> {
+async function runOk<Op extends CodaOperation>(
+  values: OperationValues<Op>
+): Promise<OperationOutput<Op>> {
   const result = await run(values)
   expect(result.error, `${values.operation} failed`).toBeUndefined()
   expect(result.success).toBe(true)
@@ -163,6 +194,12 @@ async function waitForDocReady(docId: string) {
     await sleep(2_000)
   }
   throw new Error(`doc ${docId} never became accessible`)
+}
+
+/** Asserts a value the test depends on is present and narrows it. */
+function present<T>(value: T | null | undefined, label: string): T {
+  if (value === null || value === undefined) throw new Error(`expected ${label}`)
+  return value
 }
 
 async function waitFor<T>(label: string, probe: () => Promise<T | undefined>): Promise<T> {
@@ -249,7 +286,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
     'reads the account, categories, and folders',
     async () => {
       const me = await runOk({ operation: 'whoami' })
-      state.workspaceId = me.workspace.id
+      state.workspaceId = present(me.workspace, 'default workspace').id
       state.loginId = me.loginId
       const categories = await runOk({ operation: 'list_categories' })
       expect(categories.categories.length).toBeGreaterThan(0)
@@ -337,7 +374,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         starred: 'any',
         limit: '5',
       })
-      expect(listed.docs.map((d: { id: string }) => d.id)).toContain(state.docId)
+      expect(listed.docs.map((d) => d.id)).toContain(state.docId)
       await runOk({ operation: 'list_docs', sourceDoc: state.docId, inGallery: false })
     },
     TIMEOUT
@@ -442,7 +479,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
       }
 
       const pages = await runOk({ operation: 'list_pages', docId: state.docId, limit: '50' })
-      expect(pages.pages.map((p: { id: string }) => p.id)).toContain(state.subPageId)
+      expect(pages.pages.map((p) => p.id)).toContain(state.subPageId)
       const child = await runOk({
         operation: 'get_page',
         docId: state.docId,
@@ -488,11 +525,10 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         pageId: state.subPageId,
         limit: '100',
       })
-      expect(
-        content.items.some((i: { content: string }) => i.content === 'Appended paragraph')
-      ).toBe(true)
-      const target = content.items.find(
-        (i: { content: string }) => i.content === 'Appended paragraph'
+      expect(content.items.some((i) => i.content === 'Appended paragraph')).toBe(true)
+      const target = present(
+        content.items.find((i) => i.content === 'Appended paragraph'),
+        'appended paragraph'
       )
 
       const replaced = await runOk({
@@ -510,10 +546,10 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         docId: state.docId,
         pageId: state.subPageId,
       })
-      const replacedItem = afterReplace.items.find(
-        (i: { content: string }) => i.content === 'Replaced paragraph'
+      const replacedItem = present(
+        afterReplace.items.find((i) => i.content === 'Replaced paragraph'),
+        'replaced paragraph'
       )
-      expect(replacedItem).toBeTruthy()
 
       const guard = await run({
         operation: 'delete_page_content',
@@ -547,7 +583,9 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         return status.status === 'complete' || status.status === 'failed' ? status : undefined
       })
       expect(finished.status).toBe('complete')
-      const markdown = await (await fetch(finished.downloadLink)).text()
+      const markdown = await (
+        await fetch(present(finished.downloadLink, 'export download link'))
+      ).text()
       log('export markdown', markdown)
       expect(markdown).toContain('Tasks')
 
@@ -579,7 +617,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         listSortBy: 'name',
       })
       const allTables = await runOk({ operation: 'list_tables', docId: state.docId })
-      expect(allTables.tables.map((t: { id: string }) => t.id)).toContain(state.tableId)
+      expect(allTables.tables.map((t) => t.id)).toContain(state.tableId)
       await runOk({
         operation: 'get_table',
         docId: state.docId,
@@ -592,8 +630,8 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         tableId: state.tableId,
         visibleOnly: true,
       })
-      state.nameColumnId = columns.columns.find((c: { name: string }) => c.name === 'Name')?.id
-      state.statusColumnId = columns.columns.find((c: { name: string }) => c.name === 'Status')?.id
+      state.nameColumnId = columns.columns.find((c) => c.name === 'Name')?.id
+      state.statusColumnId = columns.columns.find((c) => c.name === 'Status')?.id
       expect(state.nameColumnId && state.statusColumnId).toBeTruthy()
       await runOk({
         operation: 'get_column',
@@ -644,12 +682,13 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         valueFormat: 'simpleWithArrays',
         limit: '50',
       })
-      const alpha = rows.rows.find(
-        (r: { values: Record<string, unknown> }) => r.values.Name === 'Alpha'
+      const alpha = present(
+        rows.rows.find((r) => r.values.Name === 'Alpha'),
+        'Alpha row'
       )
-      expect(alpha?.values.Status).toBe('Done')
+      expect(alpha.values.Status).toBe('Done')
       expect(rows.nextSyncToken).toBeTruthy()
-      state.rowIds = rows.rows.map((r: { id: string }) => r.id)
+      state.rowIds = rows.rows.map((r) => r.id)
 
       const filtered = await runOk({
         operation: 'list_rows',
@@ -817,9 +856,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
             docId: state.docId,
             limit: '20',
           })
-          return listed.permissions.find(
-            (p: { principal: { email?: string } }) => p.principal.email === shareEmail
-          )
+          return listed.permissions.find((p) => p.principal.email === shareEmail)
         })
         expect(permissions.access).toBe('comment')
         state.permissionId = permissions.id
@@ -840,9 +877,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         })
         await waitFor('permission removal', async () => {
           const listed = await runOk({ operation: 'list_permissions', docId: state.docId })
-          return listed.permissions.some((p: { id: string }) => p.id === state.permissionId)
-            ? undefined
-            : true
+          return listed.permissions.some((p) => p.id === state.permissionId) ? undefined : true
         })
       }
       const bad = await run({
@@ -961,7 +996,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
       await waitForDocReady(state.copyDocId!)
 
       const copies = await runOk({ operation: 'list_docs', sourceDoc: 'BynGmkjg07' })
-      expect(copies.docs.map((d: { id: string }) => d.id)).toContain(state.copyDocId)
+      expect(copies.docs.map((d) => d.id)).toContain(state.copyDocId)
 
       const formulas = await runOk({
         operation: 'list_formulas',
@@ -1010,7 +1045,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         tableTypes: 'view',
       })
       expect(views.tables.length).toBeGreaterThan(0)
-      expect(views.tables.every((t: { tableType: string }) => t.tableType === 'view')).toBe(true)
+      expect(views.tables.every((t) => t.tableType === 'view')).toBe(true)
       const view = await runOk({
         operation: 'get_table',
         docId: state.copyDocId,
@@ -1030,7 +1065,10 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         docId: state.copyDocId,
         tableTypes: 'table',
       })
-      const calendarTable = calendar.tables.find((t: { name: string }) => t.name === 'My Calendar')
+      const calendarTable = present(
+        calendar.tables.find((t) => t.name === 'My Calendar'),
+        'My Calendar table'
+      )
       const richRows = await runOk({
         operation: 'list_rows',
         docId: state.copyDocId,
@@ -1045,18 +1083,20 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         docId: state.copyDocId,
         tableId: 'My Calendar',
       })
-      expect(
-        calendarColumns.columns.some((c: { format: { type: string } }) => c.format.type === 'date')
-      ).toBe(true)
+      expect(calendarColumns.columns.some((c) => c.format?.type === 'date')).toBe(true)
 
-      const tasks = calendar.tables.find((t: { name: string }) => t.name === 'Tasks')
+      const tasks = present(
+        calendar.tables.find((t) => t.name === 'Tasks'),
+        'Tasks table'
+      )
       const taskColumns = await runOk({
         operation: 'list_columns',
         docId: state.copyDocId,
         tableId: tasks.id,
       })
-      const buttonColumn = taskColumns.columns.find(
-        (c: { format: { type: string } }) => c.format.type === 'button'
+      const buttonColumn = present(
+        taskColumns.columns.find((c) => c.format?.type === 'button'),
+        'button column'
       )
       const buttonDetail = await runOk({
         operation: 'get_column',
@@ -1064,7 +1104,7 @@ describe.skipIf(!LIVE).sequential('coda live end-to-end', () => {
         tableId: tasks.id,
         columnId: buttonColumn.id,
       })
-      expect(buttonDetail.column.format.type).toBe('button')
+      expect(buttonDetail.column.format?.type).toBe('button')
       const taskRows = await runOk({
         operation: 'list_rows',
         docId: state.copyDocId,
