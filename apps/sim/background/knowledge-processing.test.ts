@@ -34,7 +34,8 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
 }))
 
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
+import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { EMBEDDING_QUOTA_CIRCUIT_TTL_MS } from '@/lib/embeddings/quota-circuit'
 import {
   OcrRequestRejectedError,

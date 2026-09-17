@@ -5,7 +5,8 @@ import {
   ProviderAdmissionTimeoutError,
 } from '@/lib/core/rate-limiter/provider-admission'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
+import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import {
   OcrRequestRejectedError,
   PermanentDocumentProcessingError,

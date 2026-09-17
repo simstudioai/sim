@@ -85,8 +85,9 @@ import {
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
 } from '@/lib/embeddings'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
 import * as embeddingClient from '@/lib/embeddings/client'
-import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import {
   PermanentDocumentProcessingError,
