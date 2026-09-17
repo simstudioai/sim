@@ -97,7 +97,9 @@ async function persistValue(
     return fileInfo.key
   } catch (error) {
     if (context.requireDurable) {
-      throw new Error(`Failed to persist large execution value: ${toError(error).message}`)
+      throw new Error(`Failed to persist large execution value: ${toError(error).message}`, {
+        cause: error,
+      })
     }
     logger.warn('Failed to persist large execution value, keeping in memory only', {
       id,

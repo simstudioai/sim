@@ -248,6 +248,20 @@ describe('large execution payload store', () => {
     ).rejects.toThrow('Failed to persist large execution value: storage down')
   })
 
+  it('preserves the database cause when metadata persistence fails after an upload', async () => {
+    const cause = new Error('permission denied for table workspace_files')
+    const error = new Error('Failed query', { cause })
+    mockUploadFile.mockRejectedValueOnce(error)
+    await expect(
+      storeLargeValue({}, '{}', 2, {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        requireDurable: true,
+      })
+    ).rejects.toMatchObject({ cause: error })
+  })
+
   it('materializes object-storage refs through the server helper', async () => {
     mockDownloadFile.mockResolvedValueOnce(Buffer.from(JSON.stringify({ ok: true }), 'utf8'))
 

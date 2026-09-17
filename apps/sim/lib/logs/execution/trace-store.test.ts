@@ -51,6 +51,43 @@ beforeEach(() => {
 })
 
 describe('execution data storage', () => {
+  it('propagates the original storage failure for strict backfills', async () => {
+    const cause = new Error('column "size_bytes" does not exist')
+    const error = new Error('Failed query', { cause })
+    storeLargeValueMock.mockRejectedValueOnce(error)
+
+    await expect(
+      externalizeExecutionData({ traceSpans: [] }, CONTEXT, { throwOnError: true })
+    ).rejects.toBe(error)
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing ownership before strict backfills write anything', async () => {
+    await expect(
+      externalizeExecutionData(
+        { traceSpans: [] },
+        { ...CONTEXT, userId: '' },
+        { throwOnError: true }
+      )
+    ).rejects.toThrow('Trace storage requires workspaceId, workflowId, and userId')
+    expect(storeLargeValueMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves inline completion data and logs the underlying database error', async () => {
+    const data = { traceSpans: [] }
+    storeLargeValueMock.mockRejectedValueOnce(
+      new Error('Failed query\nparams: private-payload', {
+        cause: new Error('permission denied for table workspace_files'),
+      })
+    )
+    await expect(externalizeExecutionData(data, CONTEXT)).resolves.toBe(data)
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.any(String), {
+      executionId: CONTEXT.executionId,
+      error: expect.objectContaining({ message: 'permission denied for table workspace_files' }),
+    })
+    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('private-payload')
+  })
+
   it('keeps the trusted Copilot binding when an externalized payload is unavailable', async () => {
     const correlation = { copilotToolCallId: 'tool-call-1' }
     const ref = {
