@@ -114,6 +114,11 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
         Response.json({ error: { code: 401, message: 'Invalid Credentials' } }, { status: 401 })
       )
     }
+    if (url.pathname === '/gmail/v1/users/me/profile') {
+      return Promise.resolve(
+        Response.json({ emailAddress: `mailbox-${member}@example.com`, historyId: '900' })
+      )
+    }
     if (url.pathname === '/gmail/v1/users/me/labels') {
       return Promise.resolve(
         Response.json({ labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }] })
@@ -411,7 +416,12 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
       expect(new Set(own.map((row) => row.externalId))).toEqual(
         new Set([`member:${member.id}:shared-thread-id`, `member:${member.id}:private-${index}`])
       )
-      for (const row of own) expect(row.acl).toEqual([member.subjectToken])
+      for (const row of own) {
+        expect(row.acl).toEqual([member.subjectToken])
+        expect(new URL(row.sourceUrl!).searchParams.get('Email')).toBe(
+          `mailbox-${index}@example.com`
+        )
+      }
       const observations = await db
         .select()
         .from(knowledgeDocumentObservation)
@@ -424,6 +434,11 @@ describe('Gmail member ingestion and ACLs in PostgreSQL (provider fixtures)', ()
         expect(new Set(results.map((row) => row.documentId))).toEqual(
           new Set(own.map((row) => row.id))
         )
+        for (const result of results) {
+          expect(new URL(result.sourceUrl!).searchParams.get('Email')).toBe(
+            `mailbox-${index}@example.com`
+          )
+        }
         expect(results.map((row) => row.content).join('\n')).toContain(
           index === 0 ? 'Alice private reply' : 'Bob private reply'
         )
