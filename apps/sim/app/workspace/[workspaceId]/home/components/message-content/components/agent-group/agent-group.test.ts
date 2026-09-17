@@ -162,10 +162,10 @@ describe('AgentGroup inline main activity', () => {
   it.each([
     ['executing', 'Reading notes'],
     ['success', 'Read notes'],
-    ['error', 'Failed reading notes'],
+    ['error', 'Reading notes'],
     ['cancelled', 'Stopped reading notes'],
     ['skipped', 'Skipped reading notes'],
-    ['rejected', 'Failed reading notes'],
+    ['rejected', 'Reading notes'],
     ['interrupted', 'Stopped reading notes'],
   ] as const)('renders a single %s tool once without a disclosure', (status, expected) => {
     act(() =>
