@@ -38,8 +38,9 @@ describe('db:push policy and process boundaries', () => {
   it('sets create/drop only on the Drizzle child and forwards force independently', async () => {
     vi.stubEnv('SIM_DB_PUSH_RENAME_MODE', undefined)
     expect(await runPush(['--force'])).toBe(0)
-    expect(spawn).toHaveBeenCalledTimes(5)
-    expect(spawn.mock.calls[0][0]).toEqual([
+    expect(spawn).toHaveBeenCalledTimes(6)
+    expect(spawn.mock.calls[0][0]).toContain('./scripts/prepare-push.ts')
+    expect(spawn.mock.calls[1][0]).toEqual([
       'bunx',
       '--no-install',
       'drizzle-kit',
@@ -47,9 +48,16 @@ describe('db:push policy and process boundaries', () => {
       '--config=./drizzle.config.ts',
       '--force',
     ])
-    expect(spawn.mock.calls[0][1].env?.SIM_DB_PUSH_RENAME_MODE).toBe('create')
+    expect(spawn.mock.calls[1][1].env?.SIM_DB_PUSH_RENAME_MODE).toBe('create')
     expect(process.env.SIM_DB_PUSH_RENAME_MODE).toBeUndefined()
-    for (const [, options] of spawn.mock.calls.slice(1)) expect(options.env).toBeUndefined()
+    for (const [, options] of [spawn.mock.calls[0], ...spawn.mock.calls.slice(2)])
+      expect(options.env).toBeUndefined()
+  })
+
+  it('does not start Drizzle when compatibility preparation fails', async () => {
+    spawn.mockReturnValueOnce({ exited: Promise.resolve(44) })
+    expect(await runPush(['--force'])).toBe(44)
+    expect(spawn).toHaveBeenCalledTimes(1)
   })
 
   it('rebuilds projections after a schema push', async () => {
@@ -66,9 +74,10 @@ describe('db:push policy and process boundaries', () => {
   })
 
   it('stops reconciliation when Drizzle fails', async () => {
+    spawn.mockReturnValueOnce({ exited: Promise.resolve(0) })
     spawn.mockReturnValueOnce({ exited: Promise.resolve(42) })
     expect(await runPush(['--force'])).toBe(42)
-    expect(spawn).toHaveBeenCalledTimes(1)
+    expect(spawn).toHaveBeenCalledTimes(2)
   })
 
   it('stops after the first failed reconciliation', async () => {

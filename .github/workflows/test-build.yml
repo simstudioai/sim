@@ -83,6 +83,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
+      - name: Verify direct schema push compatibility
+        working-directory: packages/db
+        env:
+          DB_PUSH_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: bunx vitest run scripts/push.postgres.test.ts
+
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
         run: |

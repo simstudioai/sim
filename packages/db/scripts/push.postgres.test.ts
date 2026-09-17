@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { prepareForcedPush } from '@sim/db/scripts/prepare-push'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -54,7 +55,7 @@ describe.skipIf(!databaseUrl)('patched Drizzle push against PostgreSQL', () => {
   async function schema(source: string) {
     await writeFile(
       join(directory, 'schema.ts'),
-      `import { pgTable, pgSchema, pgEnum, text, integer, boolean, check } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
+      `import { pgTable, pgSchema, pgEnum, text, integer, bigint, boolean, check } from ${JSON.stringify(import.meta.resolve('drizzle-orm/pg-core'))}
 import { sql } from ${JSON.stringify(import.meta.resolve('drizzle-orm'))}
 ${source}`
     )
@@ -89,6 +90,58 @@ ${source}`
   newEnabled: boolean('new_enabled').notNull().default(false),
 })`)
   }
+
+  it('retires the legacy size bridge without losing bigint or unbackfilled values', async () => {
+    await sql`CREATE TABLE workspace_files (id text PRIMARY KEY, size integer NOT NULL, size_bytes bigint)`
+    await sql`INSERT INTO workspace_files VALUES ('legacy', 123, NULL), ('large', 2147483647, 5000000000)`
+    await sql.unsafe(
+      await readFile(
+        new URL('../migrations/0308_workspace_file_size_cutover.sql', import.meta.url),
+        'utf8'
+      )
+    )
+    await prepareForcedPush(sql)
+    await prepareForcedPush(sql)
+    await schema(`export const files = pgTable('workspace_files', {
+      id: text('id').primaryKey(), sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    })`)
+    const result = push()
+    expect(result.status, result.stdout + result.stderr).toBe(0)
+    expect(await sql`SELECT id, size_bytes::text FROM workspace_files ORDER BY id`).toEqual([
+      { id: 'large', size_bytes: '5000000000' },
+      { id: 'legacy', size_bytes: '123' },
+    ])
+    expect(
+      await sql`SELECT to_regprocedure('sync_workspace_file_size_columns()') AS bridge`
+    ).toEqual([{ bridge: null }])
+  }, 30_000)
+
+  it('rolls back preparation instead of cascading unknown dependencies', async () => {
+    await sql`CREATE TABLE workspace_files (id text PRIMARY KEY, size integer NOT NULL, size_bytes bigint)`
+    await sql`INSERT INTO workspace_files VALUES ('legacy', 123, NULL)`
+    await sql.unsafe(
+      await readFile(
+        new URL('../migrations/0308_workspace_file_size_cutover.sql', import.meta.url),
+        'utf8'
+      )
+    )
+    await sql`CREATE VIEW retained_sizes AS SELECT size FROM workspace_files`
+    await expect(prepareForcedPush(sql)).rejects.toThrow('depend')
+    expect(await sql`SELECT size, size_bytes FROM workspace_files`).toEqual([
+      { size: 123, size_bytes: null },
+    ])
+    expect(
+      await sql`SELECT tgname FROM pg_trigger WHERE tgrelid = 'workspace_files'::regclass AND NOT tgisinternal`
+    ).toEqual([{ tgname: 'workspace_files_sync_size_columns' }])
+  })
+
+  it('prepares both fresh databases and legacy schemas without the new column', async () => {
+    await prepareForcedPush(sql)
+    await sql`CREATE TABLE workspace_files (id text PRIMARY KEY, size integer NOT NULL)`
+    await sql`INSERT INTO workspace_files VALUES ('legacy', 456)`
+    await prepareForcedPush(sql)
+    expect(await sql`SELECT * FROM workspace_files`).toEqual([{ id: 'legacy', size_bytes: '456' }])
+  })
 
   it('initializes a fresh database', async () => {
     await schema(`export const records = pgTable('records', {
