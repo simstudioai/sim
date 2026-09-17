@@ -49,6 +49,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { createOrganizationCredential } from '@/lib/credentials/application/organization-credentials'
+import { assertCodaLiveFixture } from '@/lib/knowledge/__integration__/coda-live-fixture'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
@@ -168,12 +169,7 @@ describe
         codaDocPath(fixture.docId),
         z.object({ name: z.string(), owner: z.string().email() })
       )
-      if (
-        source.name !== `Sim Coda connector verification ${fixture.marker}` ||
-        source.owner === secondEmail
-      ) {
-        throw new Error('Refusing to change sharing on a non-fixture document')
-      }
+      assertCodaLiveFixture(source, fixture.marker, secondEmail!)
       fixtureValidated = true
       await revokeShare()
       await waitForAcl(false)

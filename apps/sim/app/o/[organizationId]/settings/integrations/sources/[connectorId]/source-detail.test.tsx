@@ -292,6 +292,33 @@ describe('organization source detail navigation', () => {
     }
   )
 
+  it.each(['active', 'pending', 'syncing'] as const)(
+    'preserves the permission warning among composed notices while %s',
+    async (status) => {
+      mocks.detail.mockReturnValue({
+        data: {
+          ...connector,
+          status,
+          lastSyncError: `Directory refresh incomplete: private details\n${SOURCE_PERMISSION_ERROR}\nSource listing failed for a private account`,
+        },
+      })
+      await render()
+      expect(container.textContent).toContain('Permission verification incomplete')
+      expect(container.textContent).toContain(SOURCE_PERMISSION_ERROR)
+      expect(container.textContent).not.toContain('private')
+      expect(container.textContent).not.toContain('Review the connection settings')
+    }
+  )
+
+  it('does not classify a provider message containing the permission text as its own notice', async () => {
+    mocks.detail.mockReturnValue({
+      data: { ...connector, lastSyncError: `Provider message: ${SOURCE_PERMISSION_ERROR}` },
+    })
+    await render()
+    expect(container.textContent).toContain('Some connection updates are incomplete')
+    expect(container.textContent).not.toContain('Permission verification incomplete')
+  })
+
   it.each(['', '?view=settings', '?view=history'])(
     'shows integration deactivation independently of source sync state at %s',
     async (searchParams) => {
