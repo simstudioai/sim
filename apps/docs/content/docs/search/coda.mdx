@@ -1,0 +1,66 @@
+---
+title: Coda
+description: Index Coda pages and tables with each teammate's source permissions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+An organization admin connects a Coda API token. Sim indexes the selected documents and matches their sharing permissions to teammates' verified Sim email addresses. Teammates do not need a personal OAuth connection for this source.
+
+## Set up the source
+
+1. In Coda, open **Account settings → API connections** and generate an API token for the account that will index your documents. Coda's current app may be labeled **Superhuman Docs**. The account must be able to read the documents and their sharing permissions.
+2. In Sim, open **Settings → Sources → Add source → Coda**. Add or select a Coda service account credential and paste the API token when prompted.
+3. Select **Documents**, or use the switch beside that field to enter **Document IDs**, separated by commas. In a Coda URL such as `https://coda.io/d/_dAbCDeFGH`, the document ID is `AbCDeFGH`. Select up to 100 documents per source. The picker shows documents the token owner can access and has opened; use IDs for other Enterprise organization documents.
+4. Leave **Enterprise organization ID** empty for ordinary token-based access. For organization-wide access, use an Enterprise organization administrator's token and enter the organization ID returned by Coda's [Admin API](https://coda.io/developers/apis/admin/v1).
+5. Select **Connect & Sync**. Open the source's **Documents** and **Sync history** to check its progress.
+
+API tokens do not refresh automatically. When rotating a token, add the replacement credential, update the source, and verify a sync before revoking the old token. Indexing only reads Coda content; a broadly authorized token may allow other operations in Coda.
+
+## Document selection and content
+
+Explicit document IDs provide the clearest sync scope and include accessible documents the token owner has not opened. If IDs are empty, ordinary discovery includes only accessible documents the token owner has previously opened. Enterprise discovery uses the organization's document list.
+
+Discovery pages can change order while syncing. Sim therefore does not delete existing indexed content solely because it disappears from a discovery listing. Use explicit document IDs when reliable deletion reconciliation is required. Discovery runs may report incomplete reconciliation; this does not mean their returned content failed to index.
+
+| Connection | Indexed content |
+| --- | --- |
+| Ordinary API token | Visible canvas page text and base tables, including all listed columns and rows. Hidden pages, embedded pages, synced pages, and duplicate table views are excluded. |
+| Enterprise organization | Page content returned by the Admin API's `LossyPlainText` format. Tables are represented only to the extent included in that export; they are not separately read through the public table API. |
+
+Comments, attachments, images, and arbitrary embedded applications are not extracted. The connector stops with an error rather than indexing truncated content when a provider response, document, or pagination limit is exceeded. If the Enterprise API omits a document revision timestamp, Sim refreshes that document on each crawl.
+
+Document edits invalidate the pages and tables within that document. A full resync also refreshes rendered content whose dependencies may have changed without changing the document revision. This costs more API calls and processing than a regular sync. Ordinary unchanged documents retain their indexed content while their permissions are refreshed.
+
+## How teammate access works
+
+| Coda permission | Ordinary token | Enterprise organization |
+| --- | --- | --- |
+| Owner or direct email share | Matches the verified Sim email | Matches active users in the organization directory |
+| Group share | Excluded | Resolves group members through the Admin API |
+| Workspace share | Excluded | Resolves that Coda workspace's members |
+| Domain share | Excluded | Matches active organization-directory users in that exact domain |
+| Anyone with the link | Does not grant Search access | Does not grant Search access |
+
+Enterprise mode excludes deactivated or deleted organization users. Directly shared external guests absent from the organization directory are also excluded. A guest explicitly returned in a group's or workspace's membership can receive that group's or workspace's access, unless the organization directory marks them inactive.
+
+Ordinary token mode cannot independently check organization-level Coda account deactivation. Manage the person's Sim membership as well, or use Enterprise directory synchronization when that check is required.
+
+Unknown permission types never become broad access. Sim admin status does not override Coda permissions, and a workspace API key does not inherit an individual's Coda access. A source created in **workspace access** mode inside an ordinary knowledge base intentionally shares its indexed content with that workspace; organization Search requires source permissions.
+
+<Callout type="info">
+Permission changes take effect after synchronization. Each sync reads sharing again, including for unchanged content. If sharing or directory data cannot be completely verified, the connector fails closed through Sim's permission-sync handling. A verified Sim email must match the address Coda reports; aliases are not inferred.
+</Callout>
+
+## Troubleshooting
+
+| Problem | What to check |
+| --- | --- |
+| No documents found | Open the documents as the token owner or enter their IDs explicitly. |
+| Enterprise setup fails | Confirm the account is an Enterprise organization administrator and the organization ID is correct. An ordinary workspace admin token is insufficient. |
+| Content exists but a teammate cannot search it | Check the verified Sim email, Coda share, selected scope, and sync history. Ordinary mode cannot resolve group, domain, or workspace-only shares. |
+| Cross-domain sharing is prohibited | Coda's organization policy blocks that share. Use a permitted test account or an existing workspace that permits the intended share. |
+| New document temporarily unavailable | Coda may return `409` while initializing its API snapshot. The connector retries; retry the sync if initialization takes longer. |
+| Oversized or malformed response | The sync preserves its failure state instead of treating a partial response as complete. Narrow the scope or contact your operator. |
+
+The connector uses Coda's [public API](https://coda.io/developers/apis/v1) and optional [Enterprise Admin API](https://coda.io/developers/apis/admin/v1). It needs no additional OAuth app configuration on self-hosted Sim.

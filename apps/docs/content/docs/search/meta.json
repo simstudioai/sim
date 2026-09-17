@@ -3,6 +3,7 @@
   "pages": [
     "connect-your-account",
     "mcp",
+    "coda",
     "confluence",
     "github",
     "gitlab",
