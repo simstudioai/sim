@@ -171,6 +171,17 @@ describe('syncExternalDirectoryGroups', () => {
     await syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir })
 
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+    const memberReadIndex = dbChainMockFns.from.mock.calls.findIndex(
+      ([table]) => table === schemaMock.knowledgeExternalGroupMember
+    )
+    expect(memberReadIndex).toBeGreaterThanOrEqual(0)
+    /**
+     * Ordering is the property, not the presence: a lock taken after the read
+     * leaves exactly the stale-snapshot race it exists to close.
+     */
+    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.from.mock.invocationCallOrder[memberReadIndex]
+    )
   })
 
   it('writes only the difference when membership changed', async () => {
