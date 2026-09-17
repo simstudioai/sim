@@ -21,7 +21,7 @@ import {
   type Integration,
   resolveCredentialDisplay,
 } from '@/lib/integrations'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components'
+import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'

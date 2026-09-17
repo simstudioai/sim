@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application'
-import { assertOperationCapability } from '@/lib/core/application'
+import { assertOperationCapability } from '@/lib/core/application/operation'
 
 export type OrganizationBillingSummaryPrincipal = Extract<
   Principal,

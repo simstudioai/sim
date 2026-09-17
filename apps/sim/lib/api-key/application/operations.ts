@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import type { ApplicationOperation } from '@/lib/core/application'
-import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 export type OrganizationByokPrincipal = Extract<
   Principal,

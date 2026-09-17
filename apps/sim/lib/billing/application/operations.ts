@@ -1,10 +1,10 @@
 import type { Principal } from '@sim/auth/principal'
-import { defineWorkspaceOperation } from '@/lib/core/application'
 import type { ApplicationOperation } from '@/lib/core/application/operation'
 import {
   assertOperationCapability,
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 export type BillingReadPrincipal = Extract<
   Principal,

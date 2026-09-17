@@ -3,7 +3,7 @@
 import { Chip, ChipLink } from '@sim/emcn'
 import { ArrowLeft, Compass, Home } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
-import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
+import { ErrorShell } from '@/app/workspace/[workspaceId]/components/error'
 
 export default function WorkspaceNotFound() {
   const router = useRouter()
