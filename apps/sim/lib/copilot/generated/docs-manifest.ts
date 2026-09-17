@@ -418,6 +418,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'platform/workspaces.mdx',
   'quick-reference.mdx',
   'search.mdx',
+  'search/coda.mdx',
   'search/confluence.mdx',
   'search/connect-your-account.mdx',
   'search/github.mdx',

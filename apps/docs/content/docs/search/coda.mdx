@@ -1,0 +1,66 @@
+---
+title: Coda
+description: Connect Coda documents while preserving each teammate's access
+---
+
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Image } from '@/components/ui/image'
+
+An organization admin connects Coda once. Teammates search using their verified Sim email address; they do not need a personal Coda connection. Their email must match the address Coda reports.
+
+## Connect Coda
+
+<Steps>
+<Step>
+
+### Create an API token
+
+Sign in to Coda with a dedicated integration account that can read the documents and their sharing permissions. Open **Account settings → API connections → Generate API token**, name the token, and copy it. Coda's current app may be labeled **Superhuman Docs**.
+
+Use a standard REST API token. Do not select the MCP restriction.
+
+<Image className="mx-auto h-auto w-full max-w-2xl" src="/static/search/coda-api-token.jpg" alt="Coda API connections with the Generate new token dialog" width={1280} height={720} />
+
+</Step>
+<Step>
+
+### Add the source
+
+In Sim, open **Settings → Sources → Add source → Coda**. Add or select a Coda service account credential and enter the token when prompted.
+
+| Field | What to enter |
+|---|---|
+| Documents | Select documents, or switch to **Document IDs** and enter up to 100 IDs separated by commas. For `https://coda.io/d/_dAbCDeFGH`, the ID is `AbCDeFGH`. |
+| Enterprise organization ID | Leave blank for ordinary access. For organization-wide indexing, enter the ID from Coda's [List organizations API](https://coda.io/developers/apis/admin/v1#operation/listOrganizations) and use an Enterprise organization administrator's token. Workspace admin access alone is insufficient. |
+
+The picker shows accessible documents the token owner has opened. Use IDs for other accessible documents. With no selection, Sim discovers the token owner's opened documents, or the organization's documents in Enterprise mode. Use explicit IDs when deleted documents must reliably be removed from the index; discovery listings alone are not authoritative for deletion.
+
+</Step>
+<Step>
+
+### Sync and verify
+
+Select **Connect & Sync**. Open the source's **Documents** and **Sync history** to check indexing. Content and permission changes appear after synchronization.
+
+To rotate the token, add the replacement credential, update the source, and verify a sync before revoking the old token.
+
+</Step>
+</Steps>
+
+## Content and access
+
+Ordinary connections index visible canvas text and base-table rows. Enterprise connections index the Admin API's plaintext page exports; tables are included only as represented in those exports. Attachments, comments, images, and remote embeds are not extracted.
+
+| Permission | Ordinary connection | Enterprise connection |
+|---|---|---|
+| Owner or direct email share | Matching verified Sim email | Matching active organization user |
+| Group, workspace, or domain share | Not expanded | Resolved through the Admin API |
+| Anyone with the link | Does not grant Search access | Does not grant Search access |
+
+Enterprise mode excludes deactivated and deleted users. Direct-share guests absent from the organization directory are excluded; guests explicitly listed in a group or workspace may receive that membership's access. Ordinary connections cannot check Coda organization deactivation, so manage departing users' Sim membership too.
+
+Sim refreshes permissions even when content is unchanged. Unverified permissions never become broad access, and Sim admin status does not override Coda sharing. For setup failures or missing results, check the token's access, Enterprise admin role if applicable, the teammate's verified email, and **Sync history**.
+
+In a regular knowledge base, **Workspace access** intentionally shares all indexed content with that Sim workspace and does not use the Enterprise organization ID. The permissions above apply to organization Search and **Admin access** sources.
+
+See Coda's [public API](https://coda.io/developers/apis/v1) and [Enterprise Admin API](https://coda.io/developers/apis/admin/v1).

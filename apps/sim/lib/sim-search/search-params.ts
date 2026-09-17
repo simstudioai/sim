@@ -1,6 +1,7 @@
 import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 const SEARCH_SETUP_SOURCES = [
+  'coda',
   'confluence',
   'github',
   'gitlab',

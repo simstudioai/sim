@@ -17,6 +17,7 @@ vi.mock('@/lib/integrations/availability.server', () => ({
   isOAuthServiceDeploymentAvailable: vi.fn(() => true),
 }))
 
+import { resolveIntegrationAvailability } from '@/lib/integrations/availability'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 
 const SERVICES: readonly OAuthServiceMetadata[] = [
@@ -69,6 +70,41 @@ describe('integration credential visibility', () => {
         serviceAccountAvailable: true,
       }),
     ])
+  })
+
+  it('exposes Coda token credentials without OAuth while honoring integration policy and visibility', () => {
+    const catalog = resolveIntegrationAvailability({})
+    expect(catalog.find((entry) => entry.type === 'coda')).toMatchObject({
+      state: 'ready',
+      oauthAvailable: false,
+      serviceAccountAvailable: true,
+    })
+    getIntegrationAvailabilityMock.mockReturnValue(catalog)
+    const service: OAuthServiceMetadata = {
+      serviceId: 'coda',
+      providerId: 'coda',
+      serviceAccountProviderId: 'coda-service-account',
+      authType: 'service_account',
+      name: 'Coda',
+      description: 'Coda token',
+      baseProvider: 'coda',
+    }
+    const identity = { providerId: 'coda-service-account', type: 'service_account' } as const
+    const visibility = (allowed: ReadonlySet<string> | null, disabled: boolean) =>
+      createIntegrationCredentialVisibility({
+        allowedIntegrationTypes: allowed,
+        oauthServices: [service],
+        blockVisibility: {
+          revealed: new Set(),
+          previewTagged: new Set(),
+          disabled: new Set(disabled ? ['coda'] : []),
+        },
+      })
+    expect(visibility(new Set(['coda']), false).isCredentialVisible(identity)).toBe(true)
+    expect(visibility(new Set(['slack_v2']), false).isCredentialVisible(identity)).toBe(false)
+    expect(visibility(null, true).isCredentialVisible(identity)).toBe(false)
+    getBlockMock.mockReturnValue({ type: 'coda', preview: true })
+    expect(visibility(null, false).isCredentialVisible(identity)).toBe(false)
   })
 
   it('applies the integration allowlist to OAuth and service-account credentials', () => {
