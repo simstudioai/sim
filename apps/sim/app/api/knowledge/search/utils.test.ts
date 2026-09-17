@@ -217,6 +217,7 @@ describe('Knowledge Search Utils', () => {
         Array.from({ length: 201 }, (_, index) => ({ id: `candidate-${index}` }))
       )
       queueTableRows(schemaMock.embedding, [makeResult('second', 0.2), makeResult('first', 0.1)])
+      queueTableRows(schemaMock.embedding, [makeResult('second', 0.2), makeResult('first', 0.1)])
 
       const results = await handleTagAndVectorSearch({
         knowledgeBaseIds: ['kb-1', 'kb-2'],
@@ -231,9 +232,8 @@ describe('Knowledge Search Utils', () => {
 
       expect(results.map((row) => row.id)).toEqual(['first', 'second'])
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
-      expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
       expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
-      expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 201)
+      expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 400)
       expect(dbChainMockFns.select.mock.calls[1][0]).toHaveProperty('distance')
       expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
     })
@@ -463,11 +463,7 @@ describe('Knowledge Search Utils', () => {
         queryVector: JSON.stringify([0.1, 0.2, 0.3]),
       })
 
-      /**
-       * A single global LIMIT would let the lexically strongest base consume
-       * every slot, so an exact-token hit in a smaller base never reaches
-       * fusion. The vector leg already fans out here; both legs must match.
-       */
+      /** Keyword retrieval preserves its existing per-base lexical candidate selection. */
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(knowledgeBaseIds.length)
     })
 
@@ -542,6 +538,7 @@ describe('Knowledge Search Utils', () => {
     })
 
     it('runs a single retrieval leg in vector mode', async () => {
+      dbChainMockFns.execute.mockResolvedValue([{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
 
@@ -551,22 +548,22 @@ describe('Knowledge Search Utils', () => {
         topK: 10,
         searchMode: 'vector',
         query: 'PROJ-1234',
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+        queryVector: { vector: JSON.stringify(TEST_EMBEDDING), dimensions: 1536 },
       })
 
       expect(results.map((r) => r.id)).toEqual(['vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
-      expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
     })
 
     it('runs both legs and fuses them in hybrid mode', async () => {
       /**
-       * Chains dequeue in creation order: keyword ranking, the budgeted vector
-       * probe, keyword hydration, then vector ranking and hydration in one query.
+       * The raw vector probe does not consume a table chain. Keyword ranking and
+       * hydration complete before vector exact ranking and content hydration.
        */
+      dbChainMockFns.execute.mockResolvedValue([{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [{ id: 'keyword-hit', keywordRank: 0.9 }])
-      queueTableRows(schemaMock.embedding, [{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [makeResult('keyword-hit')])
+      queueTableRows(schemaMock.embedding, [{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
 
       const results = await executeKnowledgeSearch({
@@ -575,15 +572,16 @@ describe('Knowledge Search Utils', () => {
         topK: 10,
         searchMode: 'hybrid',
         query: 'PROJ-1234',
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+        queryVector: { vector: JSON.stringify(TEST_EMBEDDING), dimensions: 1536 },
       })
 
       expect(results.map((r) => r.id).sort()).toEqual(['keyword-hit', 'vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(5)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(4)
     })
 
     it('propagates unexpected keyword errors after the vector leg finishes', async () => {
       /** The failing ranking chain is still built first and takes the first queued set. */
+      dbChainMockFns.execute.mockResolvedValue([{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [{ id: 'never-ranked', keywordRank: 0 }])
       queueTableRows(schemaMock.embedding, [{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
@@ -600,10 +598,10 @@ describe('Knowledge Search Utils', () => {
           topK: 10,
           searchMode: 'hybrid',
           query: 'PROJ-1234',
-          queryVector: JSON.stringify([0.1, 0.2, 0.3]),
+          queryVector: { vector: JSON.stringify(TEST_EMBEDDING), dimensions: 1536 },
         })
       ).rejects.toBe(failure)
-      expect(dbChainMockFns.as).toHaveBeenCalledWith('ranked_embeddings')
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
     })
 
     it('skips both query legs when only tag filters are provided', async () => {

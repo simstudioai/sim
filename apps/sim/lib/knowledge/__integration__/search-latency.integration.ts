@@ -1,4 +1,4 @@
-/** Real Assistant tool, application authorization, PostgreSQL/pgvector, and result processing. */
+/** Real search adapters, application authorization, PostgreSQL/pgvector, and result processing. */
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -9,7 +9,6 @@ import {
   document,
   embedding,
   knowledgeBase,
-  knowledgeBaseTagDefinitions,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -103,6 +102,8 @@ function readFixtureReport(file: string) {
 const reused = reuseFile ? readFixtureReport(reuseFile) : undefined
 const ids = reused?.fixture ?? createKnowledgeAclFixtureIds()
 const unrelated = reused?.unrelatedFixture ?? createKnowledgeAclFixtureIds()
+const fullWidthFixture = createKnowledgeAclFixtureIds()
+const fullWidthChunkCount = 5000
 const organizationChatId = generateId()
 function topicVector(topic = 0) {
   const vector = Array.from({ length: dimensions }, (_, index) =>
@@ -124,6 +125,7 @@ const report: Record<string, unknown> = {
     fixtureVersion: 2,
     chunkCount,
     unrelatedChunkCount,
+    fullWidthChunkCount,
     dimensions,
     candidateDimensions,
     chunksPerDocument,
@@ -133,7 +135,7 @@ const report: Record<string, unknown> = {
     vectors:
       'Normalized 512-dimensional topic/noise geometry with permuted copies across 1536 dimensions; verifies prefix candidate ranking, not semantic embedding quality',
     cache: evictSharedBuffers
-      ? 'Organization samples evict PostgreSQL shared buffers before each request; operating-system cache is not cleared'
+      ? 'Selected workspace and organization samples evict PostgreSQL shared buffers; operating-system cache is not cleared'
       : 'First and repeated samples; no claim of a cold operating-system cache',
     layout: reused
       ? 'Reused fixture; physical layout is inherited from its original report'
@@ -383,17 +385,22 @@ async function searchDashboard(
 
 async function searchWorkspaceKb(
   query = 'Orion deployment',
-  options: { principal?: Principal; tagFilters?: KnowledgeSearchTagFilter[] } = {}
+  options: {
+    principal?: Principal
+    tagFilters?: KnowledgeSearchTagFilter[]
+    fixture?: typeof ids
+  } = {}
 ) {
+  const fixture = options.fixture ?? ids
   const result = await searchKnowledge.execute({
     principal: options.principal ?? {
       kind: 'workspace_api_key',
-      workspaceId: ids.workspaceId,
+      workspaceId: fixture.workspaceId,
       keyId: 'fixture-search-key',
     },
     input: {
-      workspaceId: ids.workspaceId,
-      knowledgeBaseIds: [ids.knowledgeBaseId],
+      workspaceId: fixture.workspaceId,
+      knowledgeBaseIds: [fixture.knowledgeBaseId],
       query,
       topK: 15,
       searchMode: 'vector',
@@ -683,6 +690,32 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
       logger.info('Synthetic corpora loaded', { chunkCount, unrelatedChunkCount })
       for (const index of indexes) await db.execute(sql.raw(index.indexdef))
     }
+    /** A non-shortenable model must populate its own full-width projection through the write trigger. */
+    await seedKnowledgeAclFixture(fullWidthFixture, { connectorType: 'google_drive' })
+    await db
+      .update(knowledgeBase)
+      .set({ embeddingModel: 'text-embedding-ada-002' })
+      .where(eq(knowledgeBase.id, fullWidthFixture.knowledgeBaseId))
+    await db.execute(sql`
+      WITH source AS MATERIALIZED (
+        SELECT id, content, embedding FROM embedding
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId} ORDER BY id LIMIT ${fullWidthChunkCount}
+      ), documents AS (
+        INSERT INTO document
+          (id, knowledge_base_id, connector_id, external_id, filename, file_url, file_size,
+            mime_type, processing_status, acl, acl_verified_at)
+        SELECT ${fullWidthFixture.workspaceId} || '-doc-' || id, ${fullWidthFixture.knowledgeBaseId},
+          ${fullWidthFixture.connectorId}, id, 'Full-width deployment guide',
+          'https://fixture.invalid/full-width', 12000, 'text/plain', 'completed',
+          ARRAY['pub']::text[], statement_timestamp() FROM source RETURNING id
+      ) INSERT INTO embedding
+        (id, knowledge_base_id, document_id, chunk_index, chunk_hash, content, content_length,
+          token_count, start_offset, end_offset, embedding)
+      SELECT ${fullWidthFixture.workspaceId} || '-chunk-' || source.id,
+        ${fullWidthFixture.knowledgeBaseId}, documents.id, 0, source.id, source.content,
+        3000, 750, 0, 3000, source.embedding
+      FROM source JOIN documents ON documents.id = ${fullWidthFixture.workspaceId} || '-doc-' || source.id
+    `)
     await db.execute(sql`ANALYZE document`)
     await db.execute(sql`ANALYZE embedding`)
     await db.execute(sql`ANALYZE embedding_search`)
@@ -710,9 +743,12 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     db.$client.options.debug = previousDebug
     vi.unstubAllGlobals()
     saveReport()
-    for (const fixture of process.env.KNOWLEDGE_SEARCH_PERFORMANCE_KEEP_DATABASE === 'true'
-      ? []
-      : [ids, unrelated]) {
+    for (const fixture of [
+      fullWidthFixture,
+      ...(process.env.KNOWLEDGE_SEARCH_PERFORMANCE_KEEP_DATABASE === 'true'
+        ? []
+        : [ids, unrelated]),
+    ]) {
       await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
       await db.delete(organization).where(eq(organization.id, fixture.organizationId))
       await db.delete(user).where(eq(user.id, fixture.aliceId))
@@ -1281,18 +1317,12 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         report[`${label}.recall`] = { neighbors: expected.length, recall }
         saveReport()
       }
-      await db
-        .update(knowledgeBase)
-        .set({ embeddingModel: 'text-embedding-ada-002' })
-        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-      const fullWidth = await sample('workspace-kb.full-width', () => searchWorkspaceKb())
+      const fullWidth = await sample('workspace-kb.full-width', () =>
+        searchWorkspaceKb('Orion deployment', { fixture: fullWidthFixture })
+      )
       expectCompleteVectorSearch(fullWidth.diagnostics)
       expect(fullWidth.diagnostics.vectorCandidateDimensions).toBe(dimensions)
       expect(fullWidth.result.data.results).toHaveLength(15)
-      await db
-        .update(knowledgeBase)
-        .set({ embeddingModel: 'text-embedding-3-small' })
-        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
 
       const workflowId = generateId()
       const scheduled: Principal = {
@@ -1346,17 +1376,11 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         for (const diagnostics of completed) expectCompleteVectorSearch(diagnostics)
       }
 
-      await db.insert(knowledgeBaseTagDefinitions).values({
-        id: generateId(),
-        knowledgeBaseId: ids.knowledgeBaseId,
-        tagSlot: 'tag1',
-        displayName: 'Fixture group',
-      })
       await db.execute(sql`UPDATE embedding SET tag1 = 'selected' WHERE knowledge_base_id = ${ids.knowledgeBaseId}
         AND document_id IN (SELECT id FROM document WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND external_id::int < 600)`)
       const tagged = await sample('workspace-kb.tagged', () =>
         searchWorkspaceKb('Orion deployment', {
-          tagFilters: [{ tagName: 'Fixture group', operator: 'eq', value: 'selected' }],
+          tagFilters: [{ tagName: 'Fixture', operator: 'eq', value: 'selected' }],
         })
       )
       expectCompleteVectorSearch(tagged.diagnostics)
@@ -1393,16 +1417,9 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
       expectCompleteVectorSearch(denied.diagnostics)
       expect(denied.result.data.results).toEqual([])
     } finally {
-      await db
-        .delete(knowledgeBaseTagDefinitions)
-        .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, ids.knowledgeBaseId))
       await db.execute(
         sql`UPDATE embedding SET tag1 = NULL WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND tag1 = 'selected'`
       )
-      await db
-        .update(knowledgeBase)
-        .set({ embeddingModel: 'text-embedding-3-small' })
-        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
       await db
         .update(knowledgeConnector)
         .set({ accessRewritePending: false })
