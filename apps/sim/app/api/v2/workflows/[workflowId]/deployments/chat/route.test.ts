@@ -4,6 +4,8 @@
 import {
   MockV2ApiKeyUnauthenticatedError,
   resetDbChainMock,
+  resetEnvMock,
+  setEnv,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -11,7 +13,7 @@ import {
   v2RouteMocks,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
 const mocks = vi.hoisted(() => ({
@@ -149,6 +151,7 @@ function uniqueViolation(constraint: string) {
 const validBody = { identifier: 'support', title: 'Support chat' }
 
 describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
+  afterEach(resetEnvMock)
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -250,6 +253,16 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
   })
 
   describe('PUT', () => {
+    it('returns the configured www chat URL to CLI callers on deploy and read', async () => {
+      setEnv({ NEXT_PUBLIC_APP_URL: 'https://www.dev.sim.ai' })
+      mocks.getLiveChatDeployment.mockResolvedValueOnce(null).mockResolvedValue(chatRow())
+
+      for (const response of [await put(validBody), await get()]) {
+        expect(response.status).toBe(200)
+        expect((await response.json()).data.url).toBe('https://www.dev.sim.ai/chat/support')
+      }
+    })
+
     it('creates the chat when the workflow publishes none', async () => {
       mocks.getLiveChatDeployment.mockResolvedValueOnce(null).mockResolvedValue(chatRow())
 
