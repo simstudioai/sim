@@ -61,6 +61,11 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       workspace_id text PRIMARY KEY, enqueued_at timestamp NOT NULL,
       updated_at timestamp NOT NULL, last_dispatched_at timestamp
     )`
+    await connection`CREATE INDEX ON workspace_file_search_index
+      (workspace_id, updated_at, file_id, source_content_updated_at)
+      WHERE status = 'pending' AND dispatched_at IS NULL`
+    await connection`CREATE INDEX ON workspace_file_search_index (workspace_id, dispatched_at)
+      WHERE status = 'pending' AND dispatched_at IS NOT NULL`
     await connection`INSERT INTO workspace_file_search_backfill (id, updated_at)
       VALUES ('workspace-file-search-v1', '2026-09-16 00:00:00')`
     database.current = drizzle(connection)
@@ -91,6 +96,71 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       expect(row.acquired).toBe(true)
     })
   }
+
+  async function seedQueue(workspaceId: string, queued: number, active = 0) {
+    await connection`UPDATE workspace_file_search_backfill SET completed_at = now()`
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+      SELECT ${workspaceId} || '-' || lpad(n::text, 6, '0'), ${workspaceId}, 'workspace', '2026-09-16'
+      FROM generate_series(1, ${queued + active}) n`
+    await connection`INSERT INTO workspace_file_search_index
+      (file_id, workspace_id, source_content_updated_at, status, updated_at, dispatched_at)
+      SELECT id, workspace_id, content_updated_at, 'pending', '2026-09-16',
+        CASE WHEN row_number() OVER (ORDER BY id DESC) <= ${active} THEN now() ELSE NULL END
+      FROM workspace_files WHERE workspace_id = ${workspaceId}`
+    await connection`INSERT INTO workspace_file_search_dispatch_queue
+      (workspace_id, enqueued_at, updated_at) VALUES (${workspaceId}, now(), now())`
+  }
+
+  it('skips a locked candidate without losing it or exceeding workspace capacity', async () => {
+    await seedQueue('workspace-1', 3, 1)
+    await connection.begin(async (tx) => {
+      await tx`SELECT file_id FROM workspace_file_search_index
+        WHERE file_id = 'workspace-1-000001' FOR UPDATE`
+      const results = await Promise.all([
+        prepareWorkspaceFileSearchDispatch(),
+        prepareWorkspaceFileSearchDispatch(),
+      ])
+      expect(results.flatMap((result) => result.payloads).map((payload) => payload.fileId)).toEqual(
+        ['workspace-1-000002']
+      )
+      const [locked] = await tx`SELECT dispatched_at FROM workspace_file_search_index
+        WHERE file_id = 'workspace-1-000001'`
+      expect(locked.dispatched_at).toBeNull()
+    })
+    expect((await prepareWorkspaceFileSearchDispatch()).payloads).toEqual([])
+    await connection`UPDATE workspace_file_search_index SET status = 'ready'
+      WHERE file_id = 'workspace-1-000002'`
+    const retry = await prepareWorkspaceFileSearchDispatch()
+    expect(retry.payloads.map((payload) => payload.fileId)).toEqual(['workspace-1-000001'])
+  })
+
+  it('claims only available slots from a large backlog and preserves current-file eligibility', async () => {
+    await seedQueue('workspace-1', 10_000, 1)
+    await seedQueue('workspace-2', 3)
+    await connection`UPDATE workspace_files SET deleted_at = now() WHERE id = 'workspace-1-000001'`
+    await connection`UPDATE workspace_files SET content_updated_at = '2026-09-17'
+      WHERE id = 'workspace-1-000002'`
+    await connection`UPDATE workspace_files SET context = 'execution' WHERE id = 'workspace-1-000003'`
+    const result = await prepareWorkspaceFileSearchDispatch()
+    expect(result.payloads.map((payload) => payload.fileId).sort()).toEqual([
+      'workspace-1-000004',
+      'workspace-2-000001',
+      'workspace-2-000002',
+    ])
+    expect((await prepareWorkspaceFileSearchDispatch()).payloads).toEqual([])
+  })
+
+  it('honors the remaining global capacity across workspace probes', async () => {
+    await seedQueue('workspace-1', 3)
+    await seedQueue('workspace-2', 3)
+    await seedQueue('workspace-active', 0, 99)
+    const result = await prepareWorkspaceFileSearchDispatch()
+    expect(result.payloads).toHaveLength(1)
+    expect((await prepareWorkspaceFileSearchDispatch()).payloads).toEqual([])
+    const [row] = await connection`SELECT count(*)::int AS active FROM workspace_file_search_index
+      WHERE status = 'pending' AND dispatched_at IS NOT NULL`
+    expect(row.active).toBe(100)
+  })
 
   it('fails on a locked backfill row and releases the dispatcher lock', async () => {
     let release = () => {}
