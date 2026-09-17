@@ -208,6 +208,58 @@ describe('createSSEStream terminal error handling', () => {
     vi.unstubAllGlobals()
   })
 
+  it('durably records the exact billing admission under the current controller before dispatch', async () => {
+    const chatId = '11111111-1111-4111-8111-111111111111'
+    const streamId = '22222222-2222-4222-8222-222222222222'
+    const admission = {
+      billingRequestId: '33333333-3333-4333-8333-333333333333',
+      serializedAttribution: 'original-payer',
+      headers: {},
+    }
+    updateRunStatus.mockResolvedValue({ status: 'active' })
+    runCopilotLifecycle.mockImplementation(async (_payload, options) => {
+      await options.onBillingAdmission(admission)
+      expect(updateRunStatus).toHaveBeenCalledWith(
+        'run-1',
+        'active',
+        {
+          requestContext: expect.objectContaining({
+            recovery: expect.objectContaining({
+              billingAdmission: {
+                billingRequestId: admission.billingRequestId,
+                serializedAttribution: admission.serializedAttribution,
+              },
+            }),
+          }),
+        },
+        `${streamId}\ncontroller`
+      )
+      return { success: true, content: '', contentBlocks: [], toolCalls: [] }
+    })
+    await drainStream(
+      createSSEStream({
+        requestPayload: {
+          message: 'hello',
+          userId: 'user-1',
+          messageId: streamId,
+          chatId,
+          workspaceId: '44444444-4444-4444-8444-444444444444',
+        },
+        userId: 'user-1',
+        chatId,
+        streamId,
+        executionId: 'exec-1',
+        runId: 'run-1',
+        currentChat: null,
+        message: 'hello',
+        titleModel: 'gpt-5.4',
+        requestId: 'req-1',
+        orchestrateOptions: { userId: 'user-1', interactive: true },
+      })
+    )
+    expect(runCopilotLifecycle).toHaveBeenCalledOnce()
+  })
+
   it.each(['returned', 'thrown'])(
     'retains an error verdict after a detached sink (%s failure)',
     async (kind) => {

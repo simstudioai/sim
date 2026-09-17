@@ -12,7 +12,7 @@ import {
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { createRunSegment } from '@/lib/mothership/async-runs/repository'
+import { createRunSegment, updateRunStatus } from '@/lib/mothership/async-runs/repository'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   MothershipStreamV1EventType,
@@ -238,6 +238,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           await assertControllerOwnership()
           if (!orchestrateOptions.recovery) await clearFilePreviewSessions(streamId)
 
+          const savedRequestContext = {
+            ...(params.admittedRun?.requestContext ?? {}),
+            requestId,
+            controllerToken: lease?.value,
+            recovery: streamRecoveryConfig(orchestrateOptions, requestPayload),
+          }
           try {
             if (chatId && !orchestrateOptions.recovery) {
               const run =
@@ -257,11 +263,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                   model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
                   provider:
                     typeof requestPayload.provider === 'string' ? requestPayload.provider : null,
-                  requestContext: {
-                    requestId,
-                    controllerToken: lease?.value,
-                    recovery: streamRecoveryConfig(orchestrateOptions, requestPayload),
-                  },
+                  requestContext: savedRequestContext,
                 }))
               if (run.status === 'cancelled') {
                 outcome = RequestTraceV1Outcome.cancelled
@@ -325,6 +327,28 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               otelContext,
               abortSignal: abortController.signal,
               assertControllerOwnership,
+              onBillingAdmission: async (admission) => {
+                if (!chatId || !savedRequestContext.recovery) return
+                await assertControllerOwnership()
+                const updated = await updateRunStatus(
+                  runId,
+                  'active',
+                  {
+                    requestContext: {
+                      ...savedRequestContext,
+                      recovery: {
+                        ...savedRequestContext.recovery,
+                        billingAdmission: {
+                          billingRequestId: admission.billingRequestId,
+                          serializedAttribution: admission.serializedAttribution,
+                        },
+                      },
+                    },
+                  },
+                  lease?.value
+                )
+                if (!updated) throw new Error('Run no longer owns billing admission')
+              },
               onEvent: async (event) => {
                 try {
                   await publisher.publish(event)

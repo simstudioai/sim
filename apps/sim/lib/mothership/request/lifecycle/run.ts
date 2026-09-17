@@ -44,6 +44,10 @@ import {
   restoreProviderToolCallId,
 } from '@/lib/mothership/request/go/tool-call-identity'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import {
+  authorizeLifecycleContinuation,
+  restoreBillingAdmission,
+} from '@/lib/mothership/request/lifecycle/admission'
 import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
@@ -211,6 +215,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   goRoute?: string
   /** Reattach this existing run; goRoute still identifies the original interaction surface. */
   recovery?: {
+    billingAdmission?: { billingRequestId: string; serializedAttribution: string }
     streamId: string
     events: readonly StreamEvent[]
     userTimezone?: string
@@ -222,6 +227,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   onGoTraceId?: (goTraceId: string) => void
   executionContext?: ExecutionContext
   billingAttribution?: BillingAttributionSnapshot
+  onBillingAdmission?: (admission: AttributedBillingRequestEnvelope) => Promise<void>
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   environmentContext?: CopilotEnvironmentContext
   userPermission?: PermissionType
@@ -432,7 +438,18 @@ export async function runCopilotLifecycle(
     ) {
       throw new Error('Billing attribution is required for hosted Copilot execution')
     }
-    let hostedBillingRequest: AttributedBillingRequestEnvelope | undefined
+    const restoredAdmission = options.recovery?.billingAdmission
+      ? restoreBillingAdmission(options.recovery.billingAdmission, {
+          userId,
+          workspaceId,
+          organizationId,
+        })
+      : undefined
+    if (options.recovery && isHosted && !restoredAdmission)
+      throw new Error('Hosted recovery is missing its original billing admission')
+    if (restoredAdmission) execContext.billingAttribution = restoredAdmission.attribution
+    let hostedBillingRequest: AttributedBillingRequestEnvelope | undefined =
+      restoredAdmission?.envelope
     if (execContext.billingAttribution) {
       const billingAttribution = assertBillingAttributionSnapshot(execContext.billingAttribution)
       if (
@@ -444,7 +461,7 @@ export async function runCopilotLifecycle(
         throw new Error('Copilot billing attribution does not match its actor and workspace')
       }
       execContext.billingAttribution = billingAttribution
-      if (isHosted) {
+      if (isHosted && !hostedBillingRequest) {
         hostedBillingRequest = createAttributedBillingRequestEnvelope(billingAttribution)
       }
     }
@@ -477,7 +494,7 @@ export async function runCopilotLifecycle(
       // dispatched, and the shared verdict assembly below runs exactly as after a
       // mid-stream billing break.
       const admission =
-        isHosted && execContext.billingAttribution
+        isHosted && !isContinuation && execContext.billingAttribution
           ? await checkAttributedUsageLimits(
               assertBillingAttributionSnapshot(execContext.billingAttribution)
             )
@@ -488,6 +505,8 @@ export async function runCopilotLifecycle(
       } else if (admission.isExceeded) {
         await handleBillingLimitResponse(execContext.userId, context, execContext, lifecycleOptions)
       } else {
+        if (!isContinuation && hostedBillingRequest)
+          await lifecycleOptions.onBillingAdmission?.(hostedBillingRequest)
         await ensureModelEgressRegistry(execContext, lifecycleOptions)
         const modelSafeRequestPayload = await prepareInitialCopilotAttachmentsForModel(
           requestPayload,
@@ -815,6 +834,7 @@ async function runResumeLegWithRetry(
   for (;;) {
     options.abortSignal?.throwIfAborted()
     const errorsBeforeAttempt = leg.errors.length
+    await authorizeLifecycleContinuation(execContext)
     try {
       await runStreamLoop(
         url,
@@ -1047,8 +1067,8 @@ async function runCheckpointLoop(
 
   /**
    * The initial turn needs its workspace for pooled and member spend admission.
-   * Resumes authenticate again, then Go rechecks current access using the
-   * checkpoint's original scope and payer without repeating spend admission.
+   * Resumes recheck current access using the original scope and payer without
+   * repeating spend admission. The same rule applies to both worker backends.
    */
   if (
     initialRoute !== '/api/tools/resume' &&
@@ -1082,6 +1102,7 @@ async function runCheckpointLoop(
       break
     }
     const isResume = route === '/api/tools/resume'
+    if (isResume || options.recovery) await authorizeLifecycleContinuation(execContext)
 
     // Enterprise BYOK rides EVERY leg, resume included: a resume that lands on a dead
     // run becomes a continuation with no closure holding the key. Re-resolved per leg so

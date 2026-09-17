@@ -8,11 +8,13 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
+import { restoreBillingAdmission } from '@/lib/mothership/request/lifecycle/admission'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
@@ -93,11 +95,25 @@ export const readChatStream = defineAuthorizedChatUseCase({
         await releasePendingChatStream(chatId, run.streamId, lease)
         return (await getLatestRunForStream(run.streamId, userId)) ?? run
       }
+      if (isHosted && !config.data.billingAdmission)
+        throw new OrchestrationError(
+          'forbidden',
+          'Hosted recovery is missing its original billing admission'
+        )
+      const restoredAdmission = config.data.billingAdmission
+        ? restoreBillingAdmission(config.data.billingAdmission, {
+            userId,
+            workspaceId,
+            organizationId,
+          })
+        : undefined
       const [events, billingAttribution, userPermission] = await Promise.all([
         readEvents(run.streamId, '0'),
-        organizationId
-          ? resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
-          : resolveBillingAttribution({ actorUserId: userId, workspaceId: workspaceId! }),
+        restoredAdmission
+          ? Promise.resolve(restoredAdmission.attribution)
+          : organizationId
+            ? resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
+            : resolveBillingAttribution({ actorUserId: userId, workspaceId: workspaceId! }),
         workspaceId
           ? getUserEntityPermissions(userId, 'workspace', workspaceId)
           : Promise.resolve(undefined),

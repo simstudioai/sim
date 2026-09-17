@@ -14,6 +14,7 @@ const { mockRead, mockWrite, mockRunEmbeddedCli, mockMint } = vi.hoisted(() => (
 }))
 
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
+  SESSION_SANDBOX_HOME: '/home/user',
   readSessionSandboxFile: mockRead,
   writeSessionSandboxFile: mockWrite,
   resolveSessionPath: (path: string) => (path.startsWith('/') ? path : `/home/user/${path}`),

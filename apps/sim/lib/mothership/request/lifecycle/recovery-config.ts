@@ -3,6 +3,13 @@ import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 
+export const BillingAdmissionSchema = z
+  .object({
+    billingRequestId: z.uuid(),
+    serializedAttribution: z.string().min(1).max(32768),
+  })
+  .strict()
+
 /** Start intent excludes transport credentials and receipts; takeover resolves those afresh. */
 export const DurableChatRequestSchema = ChatPayloadSchema.safeExtend({
   messageId: z.uuid(),
@@ -13,6 +20,7 @@ export const DurableChatRequestSchema = ChatPayloadSchema.safeExtend({
 export const StreamRecoveryConfigSchema = z
   .object({
     kind: z.literal('interactive_stream'),
+    billingAdmission: BillingAdmissionSchema.optional(),
     request: DurableChatRequestSchema,
     goRoute: z.enum(['/api/mothership', '/api/copilot']),
     clientToolPickupExpected: z.boolean(),

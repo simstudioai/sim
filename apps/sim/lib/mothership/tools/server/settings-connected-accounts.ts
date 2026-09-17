@@ -138,7 +138,7 @@ export const connectedAccountSettingsActions = {
         principal: context.principal,
         input: { ...input, organizationId: settingsOrganizationId(context) },
       })
-      return { revision: result.revision, workspaceIds: result.workspaceIds }
+      return { revision: result.revision, grants: result.grants }
     }
   ),
   set_indexing: settingsOperation(

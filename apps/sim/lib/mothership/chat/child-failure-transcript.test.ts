@@ -221,7 +221,8 @@ describe('child failure transcript boundaries', () => {
         error: failure,
       })
     )
-    expect(markup).toContain('Inspect report — Failed')
+    expect(markup).toContain('Inspect report')
+    expect(markup).not.toContain('Inspect report — Failed')
     expect(markup).toContain(failure)
     expect(markup).not.toContain('<button')
     const sibling = renderToStaticMarkup(

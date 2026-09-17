@@ -221,7 +221,8 @@ describe('tool result size diagnostics', () => {
         'chat',
         onEvent,
         expect.any(Function),
-        workspaceId
+        workspaceId,
+        'actor'
       )
     }
   )

@@ -11,6 +11,12 @@ import type { ExecutionContext, StreamingContext } from '@/lib/mothership/reques
 import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+const continuationAuth = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
+  authorizeCopilotChatCallback: continuationAuth,
+  checkCopilotContinuationBilling: vi.fn().mockResolvedValue({ blocked: false }),
+}))
+
 afterAll(resetEnvironmentUtilsMock)
 
 const {
@@ -141,7 +147,8 @@ vi.mock('@/lib/mothership/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
+vi.mock('@/lib/billing/core/billing-attribution', async (original) => ({
+  ...(await original<typeof import('@/lib/billing/core/billing-attribution')>()),
   /**
    * Faithful envelope replica: real protocol constant, real UUID request id, real
    * URI-encoded serialization — the hosted-header tests below assert all three.
@@ -208,6 +215,7 @@ describe('runCopilotLifecycle', () => {
     vi.clearAllMocks()
     mockCreateRunSegment.mockResolvedValue({ status: 'active' })
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    continuationAuth.mockResolvedValue(undefined)
     mockEnv.COPILOT_API_KEY = undefined
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
     setEnvFlags({
@@ -2099,6 +2107,53 @@ describe('runCopilotLifecycle', () => {
         billingAttribution
       )
     }
+  })
+
+  it('cold recovery preserves billing identity and does not read spend again', async () => {
+    const attribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'original-owner',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+      payerSubscription: null,
+    }
+    setEnvFlags({ isHosted: true })
+    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true })
+    const billingRequestId = generateId()
+    const onBillingAdmission = vi.fn()
+    await runCopilotLifecycle(
+      { mode: 'assistant', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        runId: 'run-1',
+        billingAttribution: { ...attribution, billedAccountUserId: 'new-owner' },
+        recovery: {
+          streamId: 'message-1',
+          events: [],
+          billingAdmission: {
+            billingRequestId,
+            serializedAttribution: encodeURIComponent(JSON.stringify(attribution)),
+          },
+        },
+        onBillingAdmission,
+      }
+    )
+    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+    expect(onBillingAdmission).not.toHaveBeenCalled()
+    expect(continuationAuth).toHaveBeenCalled()
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    expect(mockRunStreamLoop.mock.calls[0][1].headers['x-sim-billing-request-id']).toBe(
+      billingRequestId
+    )
+    expect(
+      JSON.parse(
+        decodeURIComponent(mockRunStreamLoop.mock.calls[0][1].headers['x-sim-billing-attribution'])
+      )
+    ).toEqual(attribution)
   })
 
   it('refuses dispatch at admission when hosted usage limits are exceeded', async () => {
