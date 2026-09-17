@@ -57,35 +57,55 @@ export function safeGoogleErrorReasons(reasons: readonly string[]): string[] {
   return [...new Set(reasons.filter((reason) => SAFE_REASONS.has(reason)))]
 }
 
-/** Reads the bounded Google envelope without retaining provider messages or request data. */
-export async function readGoogleErrorReasons(response: Response): Promise<string[]> {
+/** Distinguishes a reasonless envelope from one whose reason codes cannot safely be interpreted. */
+export async function readGoogleErrorDetails(
+  response: Response
+): Promise<{ reasons: string[]; complete: boolean }> {
+  const unreadable = { reasons: [], complete: false }
   const body = await readBodyWithLimit(response, ERROR_BODY_MAX_BYTES).catch(() => null)
-  if (!body) return []
+  if (!body) return unreadable
   try {
     const payload: unknown = JSON.parse(body.toString('utf8'))
-    if (!payload || typeof payload !== 'object' || !('error' in payload)) return []
+    if (!payload || typeof payload !== 'object' || !('error' in payload)) return unreadable
     const error = payload.error
-    if (!error || typeof error !== 'object') return []
+    if (!error || typeof error !== 'object' || Array.isArray(error)) return unreadable
+    const envelopeValid =
+      (!('errors' in error) || Array.isArray(error.errors)) &&
+      (!('details' in error) || Array.isArray(error.details))
     const entries = [
       ...('errors' in error && Array.isArray(error.errors) ? error.errors : []),
       ...('details' in error && Array.isArray(error.details) ? error.details : []),
     ]
-    return safeGoogleErrorReasons(
-      entries.flatMap((entry: unknown) =>
-        entry && typeof entry === 'object' && 'reason' in entry && typeof entry.reason === 'string'
-          ? [entry.reason]
-          : []
-      )
+    const reasons = entries.flatMap((entry: unknown) =>
+      entry && typeof entry === 'object' && 'reason' in entry && typeof entry.reason === 'string'
+        ? [entry.reason]
+        : []
     )
+    const safeReasons = safeGoogleErrorReasons(reasons)
+    return {
+      reasons: safeReasons,
+      complete:
+        envelopeValid &&
+        (entries.length > 0 || ('code' in error && error.code === response.status)) &&
+        reasons.length === entries.length &&
+        reasons.every((reason) => SAFE_REASONS.has(reason)) &&
+        safeReasons.length <= MAX_REASONS,
+    }
   } catch {
-    return []
+    return unreadable
   }
 }
 
 export class GoogleApiError extends ConnectorSourceError {
   readonly rateLimited: boolean
+  readonly reasonsComplete: boolean
   retryAfterMs?: number
-  constructor(operation: string, status: number, reasons: readonly string[]) {
+  constructor(
+    operation: string,
+    status: number,
+    reasons: readonly string[],
+    reasonsComplete = true
+  ) {
     const safeReasons = safeGoogleErrorReasons(reasons)
     const suffix = safeReasons.length ? ` (${safeReasons.join(', ')})` : ''
     const category =
@@ -105,6 +125,10 @@ export class GoogleApiError extends ConnectorSourceError {
       reasons: safeReasons.slice(0, MAX_REASONS),
     })
     this.name = 'GoogleApiError'
+    this.reasonsComplete =
+      reasonsComplete &&
+      reasons.every((reason) => SAFE_REASONS.has(reason)) &&
+      safeReasons.length <= MAX_REASONS
     this.rateLimited =
       status === 429 || safeReasons.some((reason) => RATE_LIMIT_REASONS.has(reason))
   }
@@ -114,7 +138,8 @@ export async function readGoogleApiError(
   response: Response,
   operation: string
 ): Promise<GoogleApiError> {
-  return new GoogleApiError(operation, response.status, await readGoogleErrorReasons(response))
+  const details = await readGoogleErrorDetails(response)
+  return new GoogleApiError(operation, response.status, details.reasons, details.complete)
 }
 
 /** Preserves Google diagnostics when the shared transport retries a transient HTTP response. */

@@ -329,7 +329,8 @@ const TIMEOUTS = {
 } as const
 
 const LARGE_DOC_CONFIG = {
-  MAX_CHUNKS_PER_BATCH: 500,
+  /** Each chunk also updates search projections and indexes inside the same statement. */
+  MAX_CHUNKS_PER_BATCH: 100,
   MAX_EMBEDDING_BATCH: Math.min(
     envNumber(env.KB_CONFIG_BATCH_SIZE, 2000, { min: 1, integer: true }),
     getEmbeddingAggregateItemLimit(MAX_KB_EMBEDDING_DIMENSIONS)

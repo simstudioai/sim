@@ -805,6 +805,110 @@ describe('processDocumentAsync write guards', () => {
     ).toBe(false)
   })
 
+  it('writes every chunk in bounded batches before completing the document', async () => {
+    armProviderSource()
+    const chunks = Array.from({ length: 205 }, (_, index) => ({
+      text: `Chunk ${index}`,
+      metadata: { startIndex: index * 10, endIndex: index * 10 + 9 },
+    }))
+    mockProcessDocument.mockResolvedValueOnce({
+      chunks,
+      metadata: { chunkCount: chunks.length, tokenCount: 615, characterCount: 2050 },
+    })
+    mockGenerateEmbeddings.mockResolvedValueOnce({
+      embeddings: chunks.map((_, index) => [index / chunks.length]),
+      billableTokens: 0,
+      modelName: 'text-embedding-3-small',
+      pricingId: 'text-embedding-3-small',
+    })
+
+    await processDocumentAsync(
+      'knowledge-base-1',
+      'document-1',
+      {
+        filename: 'a.txt',
+        fileUrl: 'https://example.com/a.txt',
+        fileSize: 2050,
+        mimeType: 'text/plain',
+      },
+      {},
+      BILLING_ATTRIBUTION
+    )
+
+    const batches = dbChainMockFns.values.mock.calls
+      .map(([value]) => value)
+      .filter((value) => Array.isArray(value) && value[0]?.documentId === 'document-1')
+    expect(batches.map((batch) => batch.length)).toEqual([100, 100, 5])
+    expect(batches.flat().map((record) => record.chunkIndex)).toEqual(
+      chunks.map((_, index) => index)
+    )
+    expect(batches.flat().map((record) => record.content)).toEqual(
+      chunks.map((chunk) => chunk.text)
+    )
+    expect(batches.flat().map((record) => record.embedding)).toEqual(
+      chunks.map((_, index) => [index / chunks.length])
+    )
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    expect(guardForStatusWrite('completed')).toBeDefined()
+    const completionIndex = dbChainMockFns.set.mock.calls.findIndex(
+      ([value]) => value.processingStatus === 'completed'
+    )
+    expect(dbChainMockFns.set.mock.invocationCallOrder[completionIndex]).toBeGreaterThan(
+      Math.max(...dbChainMockFns.values.mock.invocationCallOrder)
+    )
+  })
+
+  it('aborts the document transaction when a later embedding batch fails', async () => {
+    armProviderSource()
+    const chunks = Array.from({ length: 205 }, (_, index) => ({
+      text: `Chunk ${index}`,
+      metadata: { startIndex: index * 10, endIndex: index * 10 + 9 },
+    }))
+    mockProcessDocument.mockResolvedValueOnce({
+      chunks,
+      metadata: { chunkCount: chunks.length, tokenCount: 615, characterCount: 2050 },
+    })
+    mockGenerateEmbeddings.mockResolvedValueOnce({
+      embeddings: chunks.map(() => [0.1]),
+      billableTokens: 0,
+      modelName: 'text-embedding-3-small',
+      pricingId: 'text-embedding-3-small',
+    })
+    const databaseError = new DrizzleQueryError(
+      'insert private SQL',
+      ['private content'],
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    )
+    dbChainMockFns.values.mockResolvedValueOnce([]).mockRejectedValueOnce(databaseError)
+
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'a.txt',
+          fileUrl: 'https://example.com/a.txt',
+          fileSize: 2050,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
+    ).rejects.toBe(databaseError)
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+    await expect(dbChainMockFns.transaction.mock.results[0].value).rejects.toBe(databaseError)
+    expect(dbChainMockFns.values).toHaveBeenCalledTimes(2)
+    expect(mockLogError).toHaveBeenCalledWith(
+      '[document-1] Failed to insert embedding batch',
+      expect.objectContaining({ batchNumber: 2, batchSize: 100, totalChunks: 205 })
+    )
+    expect(
+      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'completed')
+    ).toBe(false)
+    expect(guardForStatusWrite('failed')).toBeDefined()
+  })
+
   it('accepts a legacy queuedAt-only payload only while the row has no token', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])

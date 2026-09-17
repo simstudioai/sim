@@ -409,6 +409,69 @@ describe('company-wide Gmail indexing', () => {
     ).rejects.toThrow('403')
   })
 
+  it('continues after Gmail failedPrecondition with the later mailbox owner ACL intact', async () => {
+    fetchProvider.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (
+        new URL(url).pathname.endsWith('/threads') &&
+        new Headers(init?.headers).get('Authorization')?.includes(ALICE.email)
+      ) {
+        return Response.json(
+          {
+            error: {
+              message: 'private provider response',
+              errors: [{ reason: 'failedPrecondition' }],
+            },
+          },
+          { status: 400 }
+        )
+      }
+      return providerResponse(url, init)
+    })
+    const first = await gmailConnector.listDocuments(
+      'directory-token',
+      CONFIG,
+      undefined,
+      centralContext()
+    )
+    expect(first).toMatchObject({
+      documents: [],
+      reconciliationSafe: false,
+      listingFailures: {
+        count: 1,
+        samples: [
+          {
+            scope: ALICE.email,
+            operation: 'gmail.threads.list',
+            status: 400,
+            reasons: ['failedPrecondition'],
+          },
+        ],
+      },
+    })
+    expect(JSON.stringify(first)).not.toContain('private provider response')
+    const ctx = centralContext()
+    const second = await gmailConnector.listDocuments(
+      'directory-token',
+      CONFIG,
+      first.nextCursor,
+      ctx
+    )
+    expect(second).toMatchObject({
+      hasMore: false,
+      reconciliationSafe: false,
+      listingFailures: first.listingFailures,
+    })
+    expect(second.documents[0].acl).toEqual([`u:${BOB.email}`])
+    const hydrated = await gmailConnector.getDocument(
+      'directory-token',
+      CONFIG,
+      second.documents[0].externalId,
+      ctx
+    )
+    expect(hydrated?.acl).toEqual([`u:${BOB.email}`])
+    expect(hydrated?.content).toContain('Bob private body')
+  })
+
   it('invalidates previous hydration authority when the next mailbox fails', async () => {
     const context = centralContext()
     const first = await gmailConnector.listDocuments('directory-token', CONFIG, undefined, context)

@@ -5,6 +5,7 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
+import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
 import type { ConnectorDirectory } from '@/connectors/types'
 
 const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory, mockAvailability } =
@@ -36,6 +37,9 @@ vi.mock('@/connectors/registry.server', () => ({
 }))
 
 import {
+  DIRECTORY_ERROR_PREFIX,
+  DIRECTORY_WARNING_PREFIX,
+  directorySyncNotice,
   refreshConnectorDirectory,
   refreshMirroredDirectory,
   syncExternalDirectoryGroups,
@@ -147,6 +151,30 @@ describe('syncExternalDirectoryGroups', () => {
     )
     expect(dir.listGroupMembers).toHaveBeenCalledOnce()
     expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
+  })
+
+  it('does not change memberships or directory freshness after losing its lease', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'lease' }]).mockResolvedValueOnce([])
+    await expect(
+      syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: directory() })
+    ).rejects.toThrow('Directory sync lease expired or was replaced')
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastCompleteSyncAt' in value)).toBe(
+      false
+    )
+  })
+
+  it('propagates storage failures without pruning or refreshing memberships', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(new Error('Storage write failed'))
+    await expect(
+      syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: directory() })
+    ).rejects.toThrow('Storage write failed')
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastCompleteSyncAt' in value)).toBe(
+      false
+    )
   })
 
   /**
@@ -301,6 +329,99 @@ describe('refreshConnectorDirectory', () => {
     expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
   })
 
+  it('reports inaccessible external groups as partial without refreshing their access', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      connectorRow({ lastSyncError: 'Content failed' }),
+    ])
+    const providerError = new GoogleDriveApiError(403, ['forbidden'], 'directory.members.list')
+    mockOpenDirectory.mockResolvedValue(
+      directory({
+        listGroupMembers: vi.fn(async (group) => {
+          if (group.id === 'all@corp.com') {
+            throw new ConnectorDirectoryGroupAccessError('External group denied', {
+              cause: providerError,
+            })
+          }
+          return { group, memberTokens: ['u:alice@corp.com'], complete: true }
+        }),
+      })
+    )
+
+    await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('partial')
+    const notice = dbChainMockFns.set.mock.calls.find(([value]) => 'lastSyncError' in value)?.[0]
+    expect(notice.lastSyncError).toContain(`${DIRECTORY_WARNING_PREFIX}1 group memberships`)
+    expect(notice.lastSyncError).toContain('\nContent failed')
+    expect(dbChainMockFns.set.mock.calls.filter(([value]) => 'lastSyncedAt' in value)).toHaveLength(
+      1
+    )
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastCompleteSyncAt' in value)).toBe(
+      false
+    )
+    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps unknown failures blocking even when other group memberships refreshed', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
+    mockOpenDirectory.mockResolvedValue(
+      directory({
+        listGroupMembers: vi.fn(async (group) => {
+          if (group.id === 'all@corp.com') throw new Error('Connection closed')
+          return { group, memberTokens: ['u:alice@corp.com'], complete: true }
+        }),
+      })
+    )
+    await expect(refreshConnectorDirectory('connector-1', 'req-1')).rejects.toThrow(
+      '1 group memberships could not be refreshed'
+    )
+  })
+
+  it('keeps a directory with no successful memberships blocking', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
+    mockOpenDirectory.mockResolvedValue(
+      directory({
+        listGroupMembers: vi.fn().mockRejectedValue(
+          new ConnectorDirectoryGroupAccessError('External group denied', {
+            cause: new GoogleDriveApiError(403, ['forbidden'], 'directory.members.list'),
+          })
+        ),
+      })
+    )
+    await expect(refreshConnectorDirectory('connector-1', 'req-1')).rejects.toThrow(
+      '2 group memberships could not be refreshed'
+    )
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
+  })
+
+  it('reports a blocking error when an inaccessible external group failed first', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
+    mockOpenDirectory.mockResolvedValue(
+      directory({
+        listGroupMembers: vi.fn(async (group) => {
+          if (group.id === 'eng@corp.com') {
+            throw new ConnectorDirectoryGroupAccessError('External group denied', {
+              cause: new GoogleDriveApiError(403, ['forbidden'], 'directory.members.list'),
+            })
+          }
+          throw new GoogleDriveApiError(500, ['backendError'], 'directory.members.list')
+        }),
+      })
+    )
+    const failure = await refreshConnectorDirectory('connector-1', 'req-1').catch(
+      (error: unknown) => error
+    )
+    expect(getConnectorFailureDiagnostic(failure)).toMatchObject({
+      status: 500,
+      operation: 'directory.members.list',
+      reasons: ['backendError'],
+      phase: 'directory',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ lastSyncError: expect.stringContaining('HTTP 500') })
+    )
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
+  })
+
   it('clears a previous directory error after a successful refresh', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       connectorRow({ lastSyncError: 'Directory refresh failed: 403' }),
@@ -311,6 +432,35 @@ describe('refreshConnectorDirectory', () => {
       expect.objectContaining({ lastSyncError: null })
     )
   })
+
+  it('clears only the recovered directory warning while preserving other diagnostics', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      connectorRow({
+        lastSyncError: `${DIRECTORY_WARNING_PREFIX}1 group memberships could not be verified\nContent failed`,
+      }),
+    ])
+    mockOpenDirectory.mockResolvedValue(directory({ listGroups: vi.fn().mockResolvedValue([]) }))
+    await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('refreshed')
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ lastSyncError: 'Content failed' })
+    )
+  })
+
+  it.each([DIRECTORY_WARNING_PREFIX, DIRECTORY_ERROR_PREFIX])(
+    'preserves the previous directory notice when another refresh owns the lease: %s',
+    async (prefix) => {
+      const warning = `${prefix}1 group memberships could not be verified`
+      queueTableRows(schemaMock.knowledgeConnector, [
+        connectorRow({ lastSyncError: `${warning}\nContent failed` }),
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      mockOpenDirectory.mockResolvedValue(directory())
+      await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')
+      expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncError' in value)).toBe(false)
+      expect(directorySyncNotice(`${warning}\nContent failed`)).toBe(warning)
+      expect(directorySyncNotice('Content failed')).toBeNull()
+    }
+  )
 
   it('preserves provider retry metadata through the directory failure cause', async () => {
     const { getRetryAfterMs, isRateLimitError } = await import('@/lib/knowledge/documents/utils')

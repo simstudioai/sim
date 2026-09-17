@@ -33,7 +33,9 @@ import {
 } from '@/lib/knowledge/connectors/access-token'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
-  DIRECTORY_ERROR_PREFIX,
+  type DirectoryRefreshResult,
+  directorySyncNotice,
+  hasDirectorySyncNotice,
   refreshMirroredDirectory,
 } from '@/lib/knowledge/connectors/external-group-sync'
 import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
@@ -86,6 +88,7 @@ import type {
   ConnectorAuthConfig,
   ConnectorConfig,
   ExternalDocument,
+  ExternalListingFailures,
   SyncResult,
 } from '@/connectors/types'
 
@@ -298,6 +301,7 @@ export interface ContentPassOutcome {
     unsafe: boolean
     contentFailures?: boolean
     permissionFailures?: boolean
+    listingFailures?: ExternalListingFailures | null
     startedAt: string
     listedCount: number
     incrementalSince?: string | null
@@ -315,7 +319,8 @@ export function isContentPassIncomplete(
   return (
     !contentPass.complete ||
     contentPass.checkpoint.contentFailures === true ||
-    contentPass.checkpoint.permissionFailures === true
+    contentPass.checkpoint.permissionFailures === true ||
+    (contentPass.checkpoint.listingFailures?.count ?? 0) > 0
   )
 }
 
@@ -333,14 +338,33 @@ export async function completeSuccessfulSync(
   syncIntervalMinutes: number,
   result: SyncResult,
   reconciliationHoldNotice: string | null,
-  contentPass?: ContentPassOutcome
+  contentPass?: ContentPassOutcome,
+  directoryNotice: string | null = null
 ): Promise<boolean> {
   const processingDispatchFailed = result.processingDispatch.failed > 0
-  const completionNotice =
+  const contentNotice =
     reconciliationHoldNotice ??
     (processingDispatchFailed
       ? 'Some documents could not be queued for indexing. They will be retried automatically.'
       : null)
+  const listingFailures = contentPass?.checkpoint.listingFailures
+  const failedAccounts = listingFailures?.samples
+    .map((failure) => {
+      const details = [
+        failure.operation,
+        failure.status ? `HTTP ${failure.status}` : null,
+        ...failure.reasons,
+      ]
+        .filter(Boolean)
+        .join(', ')
+      return `${failure.scope} (${details})`
+    })
+    .join('; ')
+  const listingNotice = listingFailures?.count
+    ? `Source listing failed for ${listingFailures.count} ${listingFailures.count === 1 ? 'account' : 'accounts'}.${failedAccounts ? ` ${failedAccounts}.` : ''} Failed accounts will be retried at the next scheduled sync.`
+    : null
+  const completionNotice =
+    [directoryNotice, listingNotice, contentNotice].filter(Boolean).join('\n') || null
   try {
     return await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
@@ -389,7 +413,9 @@ export async function completeSuccessfulSync(
         .update(knowledgeConnectorSyncLog)
         .set({
           status:
-            processingDispatchFailed || (contentPass && isContentPassIncomplete(contentPass))
+            directoryNotice ||
+            processingDispatchFailed ||
+            (contentPass && isContentPassIncomplete(contentPass))
               ? 'partial'
               : 'completed',
           completedAt: now,
@@ -1043,7 +1069,9 @@ export async function executeSync(
         (options?.rehydrate || options?.fullSync) && connectorConfig.rehydrateOnFullSync
       )
 
-      let directoryRefreshed: Promise<Error | undefined> = Promise.resolve(undefined)
+      let directoryRefreshed: Promise<DirectoryRefreshResult | Error> = Promise.resolve({
+        status: 'skipped',
+      })
       if (mirrored) {
         /**
          * A switch into this mode hides every document before it flips, and one
@@ -1077,8 +1105,8 @@ export async function executeSync(
           force:
             Boolean(options.fullSync) ||
             connector.consecutiveFailures > 0 ||
-            connector.lastSyncError?.startsWith(DIRECTORY_ERROR_PREFIX),
-        }).then(() => undefined, toError)
+            hasDirectorySyncNotice(connector.lastSyncError),
+        }).catch(toError)
       }
 
       const contentPass = await runConnectorContentPass({
@@ -1140,8 +1168,14 @@ export async function executeSync(
 
       result.listingIncomplete = isContentPassIncomplete(contentPass)
       const reconciliationHoldNotice = contentPass.holdNotice
-      const directoryError = await directoryRefreshed
-      if (directoryError) throw directoryError
+      const directoryOutcome = await directoryRefreshed
+      if (directoryOutcome instanceof Error) throw directoryOutcome
+      const directoryNotice =
+        directoryOutcome.status === 'partial'
+          ? directoryOutcome.notice
+          : directoryOutcome.status === 'skipped' && mirrored
+            ? directorySyncNotice(connector.lastSyncError)
+            : null
 
       const postBatchPresence = await checkSyncTargetPresence(
         connectorId,
@@ -1171,7 +1205,8 @@ export async function executeSync(
         effectiveConnectorSyncIntervalMinutes(connector.accessMode, connector.syncIntervalMinutes),
         result,
         reconciliationHoldNotice,
-        contentPass
+        contentPass,
+        directoryNotice
       )
 
       if (!completionLanded) {

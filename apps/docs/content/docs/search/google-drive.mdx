@@ -155,13 +155,14 @@ Search schedules syncs hourly. Central crawls revisit the selected users' files 
 
 ## Troubleshooting
 
-**Directory permission sync failed** means Sim could not fully verify group membership. Check the Directory administrator’s access to the affected group and any nested groups; this is separate from file-download access. An incomplete membership read does not replace the last verified membership, which remains subject to freshness checks.
+Directory permission warnings mean Sim could not fully verify group membership. When other groups refresh successfully and only nested groups outside your Workspace customer deny access or cannot be found, Sim continues syncing content and reports a partial permission sync. An incomplete membership read does not replace or refresh the last verified membership, which remains subject to freshness checks. Directory-wide failures still stop the sync. Check the Directory administrator’s access to the affected group and nested groups; this is separate from file-download access.
 
 | Problem | Next step |
 | --- | --- |
 | Google rejects authorization (`unauthorized_client`) | In **Manage Domain Wide Delegation**, verify the numeric **Client ID** matches `client_id` in the JSON key uploaded to Sim and all required scopes appear under **View details**. Check pending approval and allow time for recent changes to propagate. Changing the OAuth consent screen alone does not authorize delegation. |
 | Directory access failed | Check all four delegated scopes and the **Directory administrator email** user's administrator privileges. A normal Google OAuth credential cannot supply this central Search path. |
 | Missing files in a central crawl | Check **Users**, folder and file-type filters, and whether selected active Workspace users can download the file and read its permissions. Opening a file alone does not prove either. Check Sync history for errors. Files reachable only by excluded or inactive accounts are not crawled; files with unverified permissions stay hidden. |
+| No text could be extracted | Images and scanned PDFs use OCR, but files with no extractable text cannot be indexed. Check whether the original contains readable text; a successful download does not guarantee searchable content. |
 | User not found or inactive | Use a primary email in the same Google Workspace customer. Aliases, external or guest accounts, suspended users, and archived users cannot be selected for crawling. |
 | A teammate sees no results | Confirm they have joined the Sim organization and their verified Sim email matches the Drive permission or group membership. For member accounts, finish their personal Drive connection too. |
 | A public or shared-link file is missing | Check **Openly shared files**. Link-only sharing does not grant Search access. A named user or group permission can still make the file searchable. |

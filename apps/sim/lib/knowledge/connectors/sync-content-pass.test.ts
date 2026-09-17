@@ -385,6 +385,35 @@ function contentWrite(): Record<string, unknown> {
 }
 
 describe('content pass checkpoint intent', () => {
+  it('does not reconcile deletions after a user listing failed, even without the unsafe marker', async () => {
+    sourceBody = { value: '<p>Current content</p>' }
+    const checkpoint = {
+      ...beginListingCheckpoint({
+        fingerprint: 'a'.repeat(64),
+        generationId: 'prior',
+        startedAt: new Date(0),
+      }),
+      listingFailures: {
+        count: 1,
+        samples: [
+          {
+            scope: 'unavailable@example.com',
+            operation: 'gmail.threads.list',
+            status: 400,
+            reasons: ['failedPrecondition'],
+          },
+        ],
+      },
+    }
+    const { pass, result } = await runPass({ checkpoint, access: 'admin' })
+    expect(pass.complete).toBe(true)
+    expect(pass.checkpoint.listingFailures).toEqual(checkpoint.listingFailures)
+    expect(pass.holdNotice).toContain('unlisted documents were kept')
+    expect(result.docsDeleted).toBe(0)
+    expect(mocks.hardDelete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => value.deletedAt != null)).toBe(false)
+  })
+
   it('persists unresolved permissions independently of successful content processing', async () => {
     sourceBody = { value: '<p>Current content</p>' }
     mocks.onPage.mockResolvedValue({ permissionsIncomplete: true })
