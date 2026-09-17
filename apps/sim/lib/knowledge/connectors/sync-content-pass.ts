@@ -224,7 +224,7 @@ async function reconcileCompletedListing(
   checkpoint: ListingCheckpoint,
   withLease: <T>(fn: (tx: DbOrTx) => Promise<T>) => Promise<T>
 ): Promise<{ finished: boolean; notice: string | null }> {
-  if (checkpoint.unsafe)
+  if (checkpoint.unsafe || (checkpoint.listingFailures?.count ?? 0) > 0)
     return {
       finished: true,
       notice:

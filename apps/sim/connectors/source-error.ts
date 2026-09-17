@@ -21,3 +21,6 @@ export class ConnectorSourceError extends Error {
 
 /** Keeps directory failures distinct from document-content failures through cause wrapping. */
 export class ConnectorDirectoryError extends Error {}
+
+/** A provider-confirmed inaccessible external group, rather than a directory-wide failure. */
+export class ConnectorDirectoryGroupAccessError extends ConnectorDirectoryError {}

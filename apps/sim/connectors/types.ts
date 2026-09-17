@@ -182,9 +182,18 @@ export interface ExternalDocument {
   metadata?: Record<string, unknown>
 }
 
-/**
- * Paginated result from listing documents in an external source.
- */
+/** Bounded provider evidence for scopes that could not be fully listed. */
+export interface ExternalListingFailures {
+  count: number
+  samples: {
+    scope: string
+    operation: string
+    status?: number
+    reasons: string[]
+  }[]
+}
+
+/** Paginated result from listing documents in an external source. */
 export interface ExternalDocumentList {
   documents: ExternalDocument[]
   nextCursor?: string
@@ -197,6 +206,8 @@ export interface ExternalDocumentList {
    * provider pagination must set this to false.
    */
   reconciliationSafe?: boolean
+  /** Cumulative, bounded failure evidence for this listing generation; replay must not add it twice. */
+  listingFailures?: ExternalListingFailures
 }
 
 /**

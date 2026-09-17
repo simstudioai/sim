@@ -6,6 +6,7 @@ import {
   addSourcePagePayloadBytes,
   ConnectorSyncCapacityError,
 } from '@/lib/knowledge/connectors/sync-primitives'
+import { listingFailuresSchema } from '@/connectors/listing-failures'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 
 const checkpointSchema = z.object({
@@ -22,6 +23,7 @@ const checkpointSchema = z.object({
   unsafe: z.boolean(),
   contentFailures: z.boolean().default(false),
   permissionFailures: z.boolean().default(false),
+  listingFailures: listingFailuresSchema.nullable().default(null),
   changeCursor: z
     .string()
     .max(512 * 1024)
@@ -68,6 +70,7 @@ export function beginListingCheckpoint(input: {
     unsafe: false,
     contentFailures: false,
     permissionFailures: false,
+    listingFailures: null,
     changeCursor: input.changeCursor ?? null,
     incrementalSince: input.incrementalSince?.toISOString() ?? null,
     forceRehydrate: input.forceRehydrate ?? false,
@@ -135,6 +138,7 @@ export async function runResumableListing(input: {
         unsafe: false,
         contentFailures: false,
         permissionFailures: false,
+        listingFailures: null,
       }
       await input.saveCheckpoint(checkpoint)
       cursors.clear()
@@ -152,11 +156,15 @@ export async function runResumableListing(input: {
     }
     checkpoint.unsafe ||=
       response.reconciliationSafe === false ||
+      response.listingFailures !== undefined ||
       Boolean(
         input.syncContext.listingCapped ||
           input.syncContext.listingTruncated ||
           input.syncContext.reconciliationUnsafe
       )
+    if (response.listingFailures) {
+      checkpoint.listingFailures = listingFailuresSchema.parse(response.listingFailures)
+    }
     if (response.currentCursor !== undefined && response.currentCursor !== checkpoint.cursor) {
       if (response.currentCursor.length > 512 * 1024)
         throw new ConnectorSyncCapacityError('Connector returned an oversized listing cursor')

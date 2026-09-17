@@ -1,6 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
 import { z } from 'zod'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE,
   type GoogleWorkspaceUser,
@@ -8,11 +10,18 @@ import {
   listGoogleWorkspaceUsers,
   selectedGoogleWorkspaceUsers,
 } from '@/connectors/google-workspace/users'
+import { listingFailuresSchema, MAX_LISTING_FAILURE_SAMPLES } from '@/connectors/listing-failures'
 import { ConnectorSourceError } from '@/connectors/source-error'
-import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
+import type {
+  ConnectorConfig,
+  ExternalDocument,
+  ExternalDocumentList,
+  ExternalListingFailures,
+} from '@/connectors/types'
 import { PER_MEMBER_LISTING_CONTEXT, sourceDocumentId } from '@/connectors/utils'
 
 type GoogleWorkspaceProvider = 'gmail' | 'google_calendar'
+const logger = createLogger('GoogleWorkspaceCrawl')
 const CURSOR_PREFIX = 'google-workspace:v1:'
 const MAX_CURSOR_BYTES = 384 * 1024
 const MAX_PROVIDER_CURSOR_BYTES = 256 * 1024
@@ -30,6 +39,7 @@ const cursorSchema = z.object({
     .max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
   nextUsersPageToken: z.string().min(1).max(8192).optional(),
   providerCursor: z.string().min(1).max(MAX_PROVIDER_CURSOR_BYTES).optional(),
+  listingFailures: listingFailuresSchema.optional(),
 })
 type CompanyCursor = z.infer<typeof cursorSchema>
 
@@ -128,6 +138,27 @@ function ownerDocument(document: ExternalDocument, access: DelegatedUser): Exter
   return { ...document, acl: [`u:${access.user.email}`] }
 }
 
+/** Isolates narrow user-list failures; delegation, known scope errors and quota errors still fail. */
+function userListingFailure(
+  error: unknown,
+  provider: GoogleWorkspaceProvider
+): Omit<ExternalListingFailures['samples'][number], 'scope'> | null {
+  if (!(error instanceof GoogleApiError) || !error.diagnostic || !error.reasonsComplete) return null
+  const reasons = error.diagnostic.reasons
+  const isolated =
+    provider === 'gmail'
+      ? error.diagnostic.operation === 'gmail.threads.list' &&
+        error.status === 400 &&
+        reasons.length > 0 &&
+        reasons.every((reason) => reason === 'failedPrecondition')
+      : error.diagnostic.operation === 'calendar.events.list' &&
+        error.status === 403 &&
+        reasons.every((reason) => reason === 'forbidden')
+  return isolated
+    ? { operation: error.diagnostic.operation, status: error.status, reasons: [...reasons] }
+    : null
+}
+
 /** Validates directory access and returns one revalidated identity for a provider-specific probe. */
 export async function validateGoogleWorkspaceConfig(
   input: GoogleWorkspaceCrawlInput
@@ -217,6 +248,7 @@ export async function listGoogleWorkspaceDocuments(
         .filter((user) => user.active && (!selected.length || selected.includes(user.email)))
         .map(({ id, email, customerId }) => ({ id, email, customerId })),
       nextUsersPageToken: page.nextPageToken,
+      listingFailures: state.listingFailures,
     }
   }
   const currentCursor = writeCursor(state)
@@ -225,6 +257,7 @@ export async function listGoogleWorkspaceDocuments(
     provider,
     users: state.users.slice(1),
     nextUsersPageToken: state.nextUsersPageToken,
+    listingFailures: state.listingFailures,
   })
   const emptyPage = (next: CompanyCursor): ExternalDocumentList => {
     const hasMore = Boolean(next.users.length || next.nextUsersPageToken)
@@ -233,6 +266,10 @@ export async function listGoogleWorkspaceDocuments(
       currentCursor,
       hasMore,
       nextCursor: hasMore ? writeCursor(next) : undefined,
+      ...(next.listingFailures && {
+        listingFailures: next.listingFailures,
+        reconciliationSafe: false,
+      }),
     }
   }
   if (!pending) return emptyPage(state)
@@ -240,6 +277,25 @@ export async function listGoogleWorkspaceDocuments(
   if (user) assertIdentity(user, pending)
   if (!user?.active || (selected.length && !selected.includes(user.email)))
     return emptyPage(advance())
+  const failedUser = (
+    failure: Omit<ExternalListingFailures['samples'][number], 'scope'>
+  ): ExternalDocumentList => {
+    const sample = { scope: user.email, ...failure }
+    const previous = state.listingFailures
+    state.listingFailures = {
+      count: (previous?.count ?? 0) + 1,
+      samples: [...(previous?.samples ?? []), sample].slice(0, MAX_LISTING_FAILURE_SAMPLES),
+    }
+    syncContext.reconciliationUnsafe = true
+    logger.warn('Google Workspace user could not be listed; continuing other users', {
+      provider,
+      ...sample,
+    })
+    return emptyPage(advance())
+  }
+  if (provider === 'gmail' && user.isMailboxSetup === false) {
+    return failedUser({ operation: 'directory.users.get', reasons: ['mailboxNotSetup'] })
+  }
   const access: PageAccess = {
     provider,
     user,
@@ -254,12 +310,20 @@ export async function listGoogleWorkspaceDocuments(
     externalIds: new Set(),
   }
   access.syncContext.signal = signal
-  const page = await listUserDocuments(
-    access.accessToken,
-    sourceConfig,
-    state.providerCursor,
-    access.syncContext
-  )
+  let page: ExternalDocumentList
+  try {
+    page = await listUserDocuments(
+      access.accessToken,
+      sourceConfig,
+      state.providerCursor,
+      access.syncContext
+    )
+  } catch (error) {
+    signal?.throwIfAborted()
+    const failure = userListingFailure(error, provider)
+    if (!failure) throw error
+    return failedUser(failure)
+  }
   signal?.throwIfAborted()
   if (access.syncContext.listingCapped === true) syncContext.listingCapped = true
   if (page.documents.length > MAX_PAGE_DOCUMENTS)
@@ -277,6 +341,10 @@ export async function listGoogleWorkspaceDocuments(
     currentCursor: writeCursor(replay),
     hasMore,
     nextCursor: hasMore ? writeCursor(next) : undefined,
+    ...(state.listingFailures && {
+      listingFailures: state.listingFailures,
+      reconciliationSafe: false,
+    }),
   }
   access.externalIds = new Set(documents.map((document) => document.externalId))
   pageAccess.set(syncContext, access)
