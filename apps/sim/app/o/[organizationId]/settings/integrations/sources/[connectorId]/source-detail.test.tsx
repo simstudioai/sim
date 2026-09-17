@@ -292,6 +292,32 @@ describe('organization source detail navigation', () => {
     }
   )
 
+  it.each(['active', 'pending', 'syncing'] as const)(
+    'keeps permission warnings visible alongside other sync notices while %s',
+    async (status) => {
+      mocks.detail.mockReturnValue({
+        data: {
+          ...connector,
+          accessMode: 'admin',
+          status,
+          lastSyncError: [
+            'Directory refresh incomplete: Private directory details',
+            'Source listing failed for 1 account. Private account details',
+            SOURCE_PERMISSION_ERROR,
+          ].join('\n'),
+        },
+      })
+      await render()
+      expect(container.textContent).toContain('Permission verification incomplete')
+      expect(container.textContent).toContain(SOURCE_PERMISSION_ERROR)
+      expect(container.textContent).not.toContain('Private directory details')
+      expect(container.textContent).not.toContain('Private account details')
+      expect(container.textContent).not.toContain(
+        'Review the connection settings and try syncing again.'
+      )
+    }
+  )
+
   it.each(['', '?view=settings', '?view=history'])(
     'shows integration deactivation independently of source sync state at %s',
     async (searchParams) => {
