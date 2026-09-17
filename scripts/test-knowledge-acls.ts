@@ -198,7 +198,12 @@ try {
     )
     run(
       'bunx',
-      ['vitest', 'run', 'script-migrations/0016_backfill_search_vectors.postgres.test.ts'],
+      [
+        'vitest',
+        'run',
+        'script-migrations/0016_backfill_search_vectors.postgres.test.ts',
+        'member-sync-status-migration.postgres.test.ts',
+      ],
       {
         cwd: path.join(root, 'packages/db'),
         env: environment,

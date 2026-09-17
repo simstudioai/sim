@@ -6437,7 +6437,7 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     connectorId: text('connector_id')
       .notNull()
       .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
-    /** `started`, `completed`, or `failed`. */
+    /** `started`, `partial`, `completed`, or `failed`. */
     status: text('status').notNull(),
     startedAt: timestamp('started_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
