@@ -221,6 +221,7 @@ jobs:
           lib/knowledge/__integration__/search-source-progress.integration.ts
           lib/knowledge/__integration__/search-source-pagination.integration.ts
           lib/knowledge/__integration__/search-reference-batching.integration.ts
+          lib/knowledge/__integration__/kb-block-search.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts
           lib/uploads/contexts/organization-logo/application.integration.ts
