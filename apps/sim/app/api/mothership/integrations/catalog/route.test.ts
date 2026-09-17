@@ -32,6 +32,7 @@ vi.mock('@/lib/mothership/tasks/application/context', () => ({ TASK_DELEGATION_A
 vi.mock('@/lib/mothership/tasks/wake', () => ({ runWakeTurn: vi.fn() }))
 
 import { env } from '@/lib/core/config/env'
+import type { IntegrationCatalogRequest } from '@/lib/mothership/generated/integration-catalog'
 import { executeSimControl } from '@/lib/mothership/transport/control'
 import { POST } from '@/app/api/mothership/integrations/catalog/route'
 
@@ -41,7 +42,10 @@ const scope = {
   chatId: '33333333-3333-4333-8333-333333333333',
 }
 const input = { mode: 'agent' as const, mcpServerIds: [], toolId: 'gmail_send', limit: 1 }
-function request(key = env.INTERNAL_API_SECRET ?? '') {
+function request(
+  key = env.INTERNAL_API_SECRET ?? '',
+  catalogInput: IntegrationCatalogRequest = input
+) {
   return new NextRequest('http://localhost/api/mothership/integrations/catalog', {
     method: 'POST',
     headers: {
@@ -51,15 +55,15 @@ function request(key = env.INTERNAL_API_SECRET ?? '') {
       'x-mothership-workspace-id': scope.workspaceId,
       'x-mothership-chat-id': scope.chatId,
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify(catalogInput),
   })
 }
-function checkpoint() {
+function checkpoint(catalogInput: IntegrationCatalogRequest = input) {
   return executeSimControl({
     id: 'catalog-control',
     scope,
     expiresAt: Date.now() + 5000,
-    operation: { kind: 'integration_catalog', input },
+    operation: { kind: 'integration_catalog', input: catalogInput },
   })
 }
 beforeEach(() => {
@@ -80,6 +84,37 @@ beforeEach(() => {
   ])
 })
 describe('direct and checkpoint catalog authorization parity', () => {
+  it.each(['google-email', 'Gmail', 'gmail'])(
+    'resolves %s identically through hosted HTTP and self-hosted outbound control',
+    async (service) => {
+      const query = { mode: 'agent' as const, mcpServerIds: [], service, query: 'email', limit: 5 }
+      const direct = await POST(request(undefined, query))
+      const outbound = await checkpoint(query)
+      expect(direct.status).toBe(200)
+      expect(outbound.status).toBe(200)
+      const body = await direct.json()
+      expect(body).toEqual(JSON.parse(outbound.body))
+      expect(body.operations).toEqual([
+        {
+          toolId: 'gmail_send',
+          service: 'gmail',
+          description: 'Send email',
+          inputSchema: { type: 'object' },
+        },
+      ])
+    }
+  )
+
+  it('reports an invalid service filter as a validation error on both transports', async () => {
+    const query = { ...input, service: 'not-a-service' }
+    const direct = await POST(request(undefined, query))
+    const outbound = await checkpoint(query)
+    expect(direct.status).toBe(400)
+    expect(outbound.status).toBe(400)
+    expect(JSON.stringify(await direct.json())).toContain('Unknown integration service')
+    expect(outbound.body).toContain('Unknown integration service')
+  })
+
   it('returns identical authorized schema responses through HTTP and outbound control', async () => {
     const direct = await POST(request())
     const outbound = await checkpoint()
