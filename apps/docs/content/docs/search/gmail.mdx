@@ -84,6 +84,8 @@ Enter the Client ID and these exact scopes, separated by a comma:
 https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly
 ```
 
+For a key shared with Drive and Calendar, use the [combined six-scope list](/search/google-drive#one-service-account-for-drive-gmail-and-calendar).
+
 Select **Authorize**, then **View details** to confirm both scopes were saved. If the same client also indexes Drive or Calendar, retain those services' required scopes. These Gmail crawl scopes do not allow sending or modifying mail.
 
 If your organization requires multi-party approval, another super administrator must approve the request. Delegation can take up to 24 hours to propagate. See Google's [delegation guide](https://knowledge.workspace.google.com/admin/apps/control-api-access-with-domain-wide-delegation).
@@ -136,6 +138,8 @@ Search schedules syncs hourly. The first sync lists every thread in scope and ca
 Updates, removals, and access refresh in the background. Empty mailboxes and filters with no matches complete normally with zero documents. Threads exceeding indexing size limits are skipped and reconsidered when they change.
 
 ## Troubleshooting
+
+An individual thread failure does not mean the whole mailbox failed. Sim retries temporary server and rate-limit errors with bounded backoff. Error diagnostics record the Google API operation, HTTP status, and a recognized error reason when available.
 
 | What you see | What to do |
 | --- | --- |

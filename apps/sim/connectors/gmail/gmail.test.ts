@@ -5,9 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: {} }))
 vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: mockFetchWithRetry,
+  fetchWithRetry: (
+    url: string,
+    init: RequestInit,
+    options: {
+      fetcher?: (url: string, init: RequestInit, transport: typeof fetch) => Promise<Response>
+    }
+  ) =>
+    options.fetcher
+      ? options.fetcher(url, init, mockFetchWithRetry)
+      : mockFetchWithRetry(url, init),
+}))
+vi.mock('@/connectors/gmail/mailbox', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/connectors/gmail/mailbox')>()),
+  getGmailMailboxEmail: vi.fn(async (token: string) =>
+    token === 'bob-token' ? 'bob@example.com' : 'alice@example.com'
+  ),
 }))
 vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -618,7 +632,9 @@ describe('Gmail separately stored message bodies', () => {
         .catch((caught: unknown) => caught)
 
       expect(error).toBeInstanceOf(Error)
-      expect(error).toMatchObject({ message: `Failed to fetch Gmail message body: ${status}` })
+      expect(error).toMatchObject({
+        message: `gmail.messages.attachments.get failed (HTTP ${status}).`,
+      })
       expect(gmailConnector.isCredentialInvalidError?.(error)).toBe(status === 401)
     }
   )
@@ -779,7 +795,8 @@ describe('Gmail Search member isolation', () => {
       externalId: 'member:alice:thread-1',
       contentHash: 'gmail:thread-1:10:body-v2',
       contentDeferred: false,
-      sourceUrl: 'https://mail.google.com/mail/u/0/#all/thread-1',
+      sourceUrl:
+        'https://accounts.google.com/AccountChooser?Email=alice%40example.com&continue=https%3A%2F%2Fmail.google.com%2Fmail%2F%3Fauthuser%3Dalice%2540example.com%23all%2Fthread-1',
     })
     expect(document?.content).toContain('Private mailbox content')
     expect(mockFetchWithRetry.mock.calls[0][0]).toContain('/threads/thread-1?format=full')
@@ -899,7 +916,7 @@ describe('Gmail thread revisions and deferred content', () => {
         .mockResolvedValueOnce(Response.json({ threads: [{ id: 'thread-1' }] }))
         .mockResolvedValueOnce(new Response(null, { status }))
       await expect(gmailConnector.listDocuments('token', {}, undefined, {})).rejects.toThrow(
-        `Failed to fetch thread thread-1: ${status}`
+        `gmail.threads.get failed (HTTP ${status}).`
       )
     }
   )
@@ -1211,7 +1228,8 @@ describe('Gmail change feed', () => {
     mockFetchWithRetry.mockImplementation(async (url: string) => {
       const parsed = new URL(url)
       requests.push(parsed)
-      if (parsed.pathname.endsWith('/profile')) return Response.json({ historyId: '500' })
+      if (parsed.pathname.endsWith('/profile'))
+        return Response.json({ emailAddress: 'alice@example.com', historyId: '500' })
       if (parsed.pathname.endsWith('/labels')) return Response.json({ labels })
       if (parsed.pathname.endsWith('/history')) {
         return Response.json(pages[historyCall++] ?? historyPage([]))

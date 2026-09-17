@@ -23,7 +23,7 @@ export async function exchangeSlackBotAuthorization(input: {
   clientId: string
   clientSecret: string
   code: string
-  redirectUri: string
+  redirectUri?: string
 }) {
   const response = await fetch('https://slack.com/api/oauth.v2.access', {
     method: 'POST',
@@ -31,7 +31,10 @@ export async function exchangeSlackBotAuthorization(input: {
       Authorization: `Basic ${Buffer.from(`${input.clientId}:${input.clientSecret}`).toString('base64')}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({ code: input.code, redirect_uri: input.redirectUri }),
+    body: new URLSearchParams({
+      code: input.code,
+      ...(input.redirectUri ? { redirect_uri: input.redirectUri } : {}),
+    }),
     signal: AbortSignal.timeout(10_000),
   })
   const value = await readResponseJsonWithLimit<unknown>(response, {

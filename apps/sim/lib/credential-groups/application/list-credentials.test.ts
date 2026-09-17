@@ -117,7 +117,10 @@ describe('listCredentialGroupCredentials', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.requirePolicy.mockResolvedValue({
-      document: buildOrganizationAccountAccessPolicy('group-1', ['workspace-1']),
+      document: buildOrganizationAccountAccessPolicy(
+        'group-1',
+        ['workspace-1'].map((workspaceId) => ({ workspaceId, access: { mode: 'all' as const } }))
+      ),
     })
     mocks.loadGroup.mockResolvedValue(groupContext)
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
@@ -133,6 +136,7 @@ describe('listCredentialGroupCredentials', () => {
         {
           credentialId: 'credential-1',
           email: 'person@example.com',
+          accountEmail: 'personal@example.com',
           displayName: 'person@example.com',
           providerId: 'google-email',
           providerSubjectId: 'google-subject-1',
@@ -251,6 +255,7 @@ describe('listCredentialGroupCredentials', () => {
         {
           credentialId: 'credential-1',
           email: 'person@example.com',
+          accountEmail: 'personal@example.com',
           displayName: 'person@example.com',
           providerId: 'google-email',
           providerSubjectId: 'google-subject-1',
@@ -263,6 +268,36 @@ describe('listCredentialGroupCredentials', () => {
     })
   })
 
+  it('filters restricted integrations before pagination and rejects explicitly requesting them', async () => {
+    mocks.loadGroup.mockResolvedValue({
+      ...groupContext,
+      options: [
+        ...groupContext.options,
+        { ...groupContext.options[0], id: 'calendar-option', provider: 'google-calendar' },
+      ],
+    })
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        {
+          workspaceId: 'workspace-1',
+          access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
+        },
+      ]),
+    })
+    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+    expect(mocks.listCredentials).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialGroupOptionIds: ['option-1'], limit: 50 })
+    )
+    mocks.listCredentials.mockClear()
+    await expect(
+      listCredentialGroupCredentials.execute({
+        principal: executorPrincipal(),
+        input: { ...input, credentialProviderIds: ['google-calendar'] },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
+  })
+
   it('filters by canonical providers active in the group', async () => {
     await listCredentialGroupCredentials.execute({
       principal: executorPrincipal(),
@@ -272,6 +307,34 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.listCredentials).toHaveBeenCalledWith(
       expect.objectContaining({ credentialProviderIds: ['google-email'] })
     )
+  })
+
+  it('rechecks a provider grant before the next page can expose account identities', async () => {
+    mocks.loadGroup.mockResolvedValue({
+      ...groupContext,
+      options: [
+        ...groupContext.options,
+        { ...groupContext.options[0], id: 'calendar-option', provider: 'google-calendar' },
+      ],
+    })
+    const query = { ...input, credentialProviderIds: ['google-email'] }
+    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input: query })
+    mocks.listCredentials.mockClear()
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        {
+          workspaceId: 'workspace-1',
+          access: { mode: 'selected', credentialTypes: ['oauth:google-calendar'] },
+        },
+      ]),
+    })
+    await expect(
+      listCredentialGroupCredentials.execute({
+        principal: executorPrincipal(),
+        input: { ...query, cursor: 'credential-1' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('normalizes an optional email filter independently of caller identity', async () => {

@@ -2430,6 +2430,62 @@
       "when": 1789436120319,
       "tag": "0347_sso_domain_primary_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 348,
+      "version": "7",
+      "when": 1789514921671,
+      "tag": "0348_drop_retired_usage_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 349,
+      "version": "7",
+      "when": 1789518532535,
+      "tag": "0349_permission_access_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1789579589946,
+      "tag": "0350_organization_require_sso",
+      "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1789583796385,
+      "tag": "0351_copilot_run_activity_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 352,
+      "version": "7",
+      "when": 1789588587193,
+      "tag": "0352_search_document_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 353,
+      "version": "7",
+      "when": 1789591219081,
+      "tag": "0353_search_mcp_activity",
+      "breakpoints": true
+    },
+    {
+      "idx": 354,
+      "version": "7",
+      "when": 1789600824945,
+      "tag": "0354_member_sync_failure_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 355,
+      "version": "7",
+      "when": 1789609714073,
+      "tag": "0355_workflow_activity_covering_index",
+      "breakpoints": true
     }
   ]
 }

@@ -358,9 +358,9 @@ describe('Credential Group resource policy lifecycle', () => {
 
     expect(migration).toContain('CREATE TABLE "resource_policy"')
     expect(migration).not.toContain('credential_group_resource_policy_lifecycle')
-    expect(packageJson.scripts['db:push']).toContain(
-      'scripts/reconcile-credential-group-resource-policies.ts'
-    )
+    expect(packageJson.scripts['db:push']).toContain('scripts/push.ts')
+    const pushSource = await readFile(new URL('../scripts/push.ts', import.meta.url), 'utf8')
+    expect(pushSource).toContain('scripts/reconcile-credential-group-resource-policies.ts')
     expect(helperSource).not.toContain('LegacyResourcePolicy')
     expect(helperSource).not.toContain("document ? 'grants'")
   })
@@ -380,6 +380,46 @@ describe('organization account policy validation', () => {
           },
         ]
       : [],
+  })
+  it('accepts integration conditions without rewriting organization policy grants', () => {
+    const statement = policy(['a']).statements[0]
+    const typed = {
+      ...policy([]),
+      statements: [
+        {
+          ...statement,
+          sid: 'WorkspaceCredentialAccess:oauth:gmail',
+          condition: { StringEquals: { 'credential_group:CredentialType': 'oauth:gmail' } },
+        },
+      ],
+    }
+    expect(() => validateOrganizationAccountPolicyDocument(typed, 'group-org')).not.toThrow()
+    expect(() =>
+      validateOrganizationAccountPolicyDocument(
+        { ...typed, statements: [...typed.statements, statement] },
+        'group-org'
+      )
+    ).toThrow('overlapping')
+    expect(() =>
+      validateOrganizationAccountPolicyDocument(
+        { ...typed, statements: [...typed.statements, ...typed.statements] },
+        'group-org'
+      )
+    ).toThrow('invalid')
+    expect(() =>
+      validateOrganizationAccountPolicyDocument(
+        {
+          ...typed,
+          statements: [
+            {
+              ...typed.statements[0],
+              condition: { StringNotEquals: { 'credential_group:CredentialType': 'oauth:gmail' } },
+            },
+          ],
+        },
+        'group-org'
+      )
+    ).toThrow()
   })
   it('accepts deny-by-default and the maximum workspace allowlist', () => {
     expect(() => validateOrganizationAccountPolicyDocument(policy([]), 'group-org')).not.toThrow()

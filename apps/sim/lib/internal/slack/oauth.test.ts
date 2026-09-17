@@ -28,6 +28,19 @@ beforeEach(() => {
   fetchMock.mockReset().mockResolvedValue(Response.json(grant))
 })
 describe('Slack bot OAuth exchange', () => {
+  it('uses the registered default callback for Slack-initiated installs and discards personal grants', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ ...grant, authed_user: { access_token: 'personal-token' } })
+    )
+    expect(
+      await exchangeSlackBotAuthorization({
+        clientId: 'client',
+        clientSecret: 'secret',
+        code: 'code',
+      })
+    ).toEqual(grant)
+    expect(fetchMock.mock.calls[0][1].body.has('redirect_uri')).toBe(false)
+  })
   it('exchanges a code with the same callback and client authentication', async () => {
     expect(await exchangeSlackBotAuthorization(input)).toEqual(grant)
     const [url, request] = fetchMock.mock.calls[0]

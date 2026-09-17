@@ -656,7 +656,7 @@ export async function upsertPersonalEnvVars(
    * plaintext. `added`/`updated` describe the earlier read and are reporting
    * only — the keys actually written are exactly the re-encrypted ones.
    */
-  const finalEncrypted = await db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     await lockPersonalEnvMap(tx, userId)
 
     const [currentRow] = await tx
@@ -679,14 +679,11 @@ export async function upsertPersonalEnvVars(
         target: [environment.userId],
         set: { variables: merged, updatedAt: new Date() },
       })
-
-    return merged
   })
 
   invalidateEffectiveDecryptedEnvCache({ userId })
   await syncPersonalEnvCredentialsForUser({
     userId,
-    envKeys: Object.keys(finalEncrypted),
   })
 
   return { added, updated }

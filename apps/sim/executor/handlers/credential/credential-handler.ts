@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { CREDENTIAL_GROUP_DELEGATION_AUDIENCE } from '@/lib/credential-groups/application/authorization'
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
 import { listCredentialGroupMcpConnections } from '@/lib/credential-groups/application/list-mcp-connections'
@@ -114,12 +115,14 @@ export class CredentialBlockHandler implements BlockHandler {
             cursor: find ? undefined : parseOptionalString(inputs.cursor, 'Cursor'),
           },
         })
-        if (!find) return result
+        if (!find) {
+          return { ...result, emails: result.credentials.map((account) => account.accountEmail) }
+        }
         if (result.credentials.length !== 1 || result.hasMore)
           throw new Error(
             `Expected exactly one organization account; found ${result.credentials.length}${result.hasMore ? '+' : ''}. Check the email, provider, and connection status.`
           )
-        return result.credentials[0]!
+        return omit(result.credentials[0]!, ['accountEmail'])
       }
       case 'find_organization_mcp_connection':
       case 'list_organization_mcp_connections': {

@@ -29,12 +29,18 @@ export interface OrganizationMembershipContext extends OrganizationAuthorization
   role: OrganizationRole
 }
 
+export interface OrganizationAuthorizationOptions {
+  executor?: Pick<typeof db, 'select'>
+  forUpdate?: boolean
+}
+
 /** Rechecks routed organization membership; owning a workspace is irrelevant to this grant. */
 export async function requireOrganizationMembership(
   principal: Principal,
   organizationId: string,
   minimumRole: 'member' | 'admin' = 'member',
-  capability: OperationDeclarableCapability | 'none' = 'none'
+  capability: OperationDeclarableCapability | 'none' = 'none',
+  options: OrganizationAuthorizationOptions = {}
 ): Promise<OrganizationMembershipContext> {
   if (principal.kind !== 'session' && !isUserCredentialPrincipal(principal)) {
     throw new PrincipalKindAuthorizationError(principal.kind, 'organization.membership')
@@ -44,7 +50,8 @@ export async function requireOrganizationMembership(
     organizationId,
     minimumRole,
     capability,
-    isUserCredentialPrincipal(principal) ? principal : undefined
+    isUserCredentialPrincipal(principal) ? principal : undefined,
+    options
   )
 }
 
@@ -53,19 +60,23 @@ async function requireOrganizationSubjectMembership(
   organizationId: string,
   minimumRole: 'member' | 'admin',
   capability: OperationDeclarableCapability | 'none',
-  userCredential?: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal
+  userCredential?: PersonalApiKeyPrincipal | OAuthAccessTokenPrincipal,
+  options: OrganizationAuthorizationOptions = {}
 ): Promise<OrganizationMembershipContext> {
-  const [membership] = await db
+  const query = (options.executor ?? db)
     .select({ role: member.role })
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
-    .limit(1)
+  const [membership] = options.forUpdate ? await query.for('update').limit(1) : await query.limit(1)
   const parsedRole = organizationRoleSchema.safeParse(membership?.role)
   if (!parsedRole.success) throw new OrchestrationError('not_found', 'Organization not found')
   if (minimumRole === 'admin' && !isOrgAdminRole(parsedRole.data)) {
     throw new OrchestrationError('forbidden', 'Organization administrator access is required')
   }
-  const config = await getUserPermissionConfigForOrganization(organizationId)
+  const config =
+    capability === 'none' && !userCredential
+      ? null
+      : await getUserPermissionConfigForOrganization(organizationId)
   if (userCredential && capabilityDeniedBy('personal_api_key.use', config))
     refuseCapability('personal_api_key.use')
   if (userCredential?.kind === 'oauth_access_token') {
@@ -81,7 +92,8 @@ async function requireOrganizationSubjectMembership(
 export async function authorizeOrganizationOperation(
   principal: Principal,
   operation: OrganizationOperation,
-  context: OrganizationAuthorizationContext
+  context: OrganizationAuthorizationContext,
+  options: OrganizationAuthorizationOptions = {}
 ): Promise<OrganizationMembershipContext> {
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
@@ -109,13 +121,16 @@ export async function authorizeOrganizationOperation(
       principal.subjectUserId,
       context.organizationId,
       operation.minimumRole,
-      operation.capability
+      operation.capability,
+      undefined,
+      options
     )
   }
   return requireOrganizationMembership(
     principal,
     context.organizationId,
     operation.minimumRole,
-    operation.capability
+    operation.capability,
+    options
   )
 }

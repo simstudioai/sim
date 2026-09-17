@@ -46,43 +46,21 @@ export const ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT = 100
 /**
  * A bare `YYYY-MM-DD` calendar date, and nothing else.
  *
- * Strict on purpose. The picker sends only bare dates — it has no time component —
- * and every looser rule tried here has been wrong in a different way:
+ * `z.iso.date()` is a calendar check rather than a format one — it refuses `2026-02-30` and a
+ * non-leap `2026-02-29`, so February is never answered about March — and it is pure pattern
+ * matching, so no input can make it throw. Both matter: a hand-rolled round trip through
+ * `toISOString` threw on an out-of-range month, and inside a refinement that escapes validation
+ * entirely and answers a malformed query string with a 500.
  *
- * - `Date.parse` alone accepts `2026-02-30` and rolls it forward, so February was
- *   answered about March. The round-trip below is what makes this a *calendar*
- *   check: a day that does not survive re-serialization never existed.
- * - Validating only a `YYYY-MM-DD` prefix let `2026-08` through as August 1, and
- *   `2026-08-01Tgarbage` through as an `Invalid Date` that made the window resolver
- *   throw from `toISOString` — a 500 for a malformed query string.
- * - A datetime with an offset would validate on its date part while the resolver
- *   read a different UTC day off the full value, so the range shown and the range
- *   queried could disagree.
- *
- * Accepting only the one form the client actually sends removes all three at once.
+ * Absent is allowed and empty is not. A missing bound is a real state — the picker clears the
+ * param rather than blanking it, and the resolver falls back to the current period — while an
+ * explicit `?start-date=` is a malformed request that must not silently answer about a different
+ * window. Deliberately unlike `usageLimitSchema`, which coerces `''` to its declared default;
+ * these bounds have none, so omitting one changes which period you get.
  */
-const isoDateSchema = z
-  .string()
+const isoDateSchema = z.iso
+  .date({ error: 'Expected a calendar date in YYYY-MM-DD form, such as 2026-08-01' })
   .optional()
-  .refine(
-    (value) => {
-      /*
-        Absent is allowed; empty is not. A missing bound is a real state — the picker
-        clears the param rather than blanking it — and the resolver falls back to the
-        current period for it. An explicit `?start-date=` is a malformed request, and
-        treating it as absent silently answered about a different window than the one
-        asked for.
-
-        Deliberately unlike `usageLimitSchema`, which does coerce `''` to its default:
-        that field declares a default, so omission has a documented meaning. These
-        bounds have none — omitting one changes which period you get.
-      */
-      if (value === undefined) return true
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-      return new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value
-    },
-    { message: 'Expected a calendar date in YYYY-MM-DD form, such as 2026-08-01' }
-  )
 
 /**
  * A page size that treats an empty or absent parameter as omitted.

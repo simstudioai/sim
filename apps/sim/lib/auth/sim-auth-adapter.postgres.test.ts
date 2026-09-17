@@ -5,7 +5,6 @@ import * as schema from '@sim/db/schema'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { generateId } from '@sim/utils/id'
 import type { BetterAuthOptions } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { organization } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -62,13 +61,9 @@ describe.skipIf(!databaseUrl)('Better Auth across the organization column drop',
           ? adapter.transaction((tx) => exerciseOrganization(tx))
           : exerciseOrganization(adapter)
 
+      await client`ALTER TABLE pg_temp.organization ADD COLUMN departed_member_usage numeric NOT NULL DEFAULT 0`
       await exercise()
       await client`ALTER TABLE pg_temp.organization DROP COLUMN departed_member_usage`
-
-      const unprojected = drizzleAdapter(database, { provider: 'pg', schema })(OPTIONS)
-      await expect(
-        unprojected.findOne({ model: 'organization', where: [{ field: 'id', value: 'missing' }] })
-      ).rejects.toMatchObject({ cause: { code: '42703' } })
 
       await exercise()
     } finally {

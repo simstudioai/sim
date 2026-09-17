@@ -2,12 +2,12 @@ import { db } from '@sim/db'
 import { permissionGroup, permissionGroupWorkspace, workspace } from '@sim/db/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import type { DbOrTx } from '@/lib/db/types'
 import type {
   AllMembersConflict,
   ScopeConflict,
 } from '@/lib/permission-groups/application/group-membership'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
 /** A workspace reference (id + display name). */
@@ -31,8 +31,13 @@ export async function authorizeOrgAccessControl(
     return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
   }
 
-  const entitled = await isOrganizationOnEnterprisePlan(organizationId)
-  if (!entitled) {
+  /**
+   * The active permission regime, which is what the Access Control page now reads too: an
+   * organization whose restrictions still apply has to be able to see and loosen them, and a
+   * deployment with Access Control switched off governs nobody, so neither should manage anything.
+   */
+  const governed = await isOrganizationPermissionRegimeActive(organizationId)
+  if (!governed) {
     return NextResponse.json({ error: 'Access Control is an Enterprise feature' }, { status: 403 })
   }
 

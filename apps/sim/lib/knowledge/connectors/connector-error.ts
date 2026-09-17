@@ -1,15 +1,19 @@
 import { findCause, getPostgresErrorCode } from '@sim/utils/errors'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import {
+  ConnectorDirectoryError,
   ConnectorSourceError,
   type ConnectorSourceFailureCategory,
 } from '@/connectors/source-error'
 
 export interface ConnectorFailureDiagnostic {
-  category: 'database' | ConnectorSourceFailureCategory | 'transport'
+  category: 'directory' | 'database' | ConnectorSourceFailureCategory | 'transport'
   message: string
   status?: number
   code?: string
+  operation?: string
+  reasons?: readonly string[]
+  phase?: 'directory'
 }
 
 const TRANSPORT_CODES = new Set([
@@ -30,7 +34,7 @@ const TRANSPORT_CODES = new Set([
  * SQL, bound parameters, URLs and arbitrary exception messages never enter the
  * result. Unknown failures retain the caller's domain-specific fallback.
  */
-export function getConnectorFailureDiagnostic(error: unknown): ConnectorFailureDiagnostic | null {
+function classifyFailure(error: unknown): ConnectorFailureDiagnostic | null {
   const code = getPostgresErrorCode(error)
   const databaseError = findCause(
     error,
@@ -104,5 +108,38 @@ export function getConnectorFailureDiagnostic(error: unknown): ConnectorFailureD
     category: 'request_rejected',
     status,
     message: `Source content request was rejected (HTTP ${status}). Check the source's download restrictions and supported content.`,
+  }
+}
+
+/** Preserves safe provider context and directory scope across wrapped failures. */
+export function getConnectorFailureDiagnostic(error: unknown): ConnectorFailureDiagnostic | null {
+  const diagnostic = classifyFailure(error)
+  const directoryError = findCause(
+    error,
+    (value): value is ConnectorDirectoryError => value instanceof ConnectorDirectoryError
+  )
+  const sourceError = findCause(
+    error,
+    (value): value is ConnectorSourceError => value instanceof ConnectorSourceError
+  )
+  const context = sourceError?.diagnostic
+  if (directoryError) {
+    const status = diagnostic?.status ? ` (HTTP ${diagnostic.status})` : ''
+    const code = diagnostic?.code ? ` Error code: ${diagnostic.code}.` : ''
+    const reason = context?.reasons.length ? ` Google reason: ${context.reasons.join(', ')}.` : ''
+    return {
+      ...diagnostic,
+      ...context,
+      category: diagnostic?.category ?? 'directory',
+      phase: 'directory',
+      message: `Directory permission sync failed${status}.${context ? ` Operation: ${context.operation}.` : ''}${reason}${code} Group membership could not be fully verified.`,
+    }
+  }
+  if (!diagnostic || !context) return diagnostic
+  const reason = context.reasons.length ? ` Google reason: ${context.reasons.join(', ')}.` : ''
+  return {
+    ...diagnostic,
+    ...context,
+    message: `Google request failed (HTTP ${diagnostic.status}). Operation: ${context.operation}.${reason}`,
   }
 }

@@ -86,7 +86,8 @@ function privateCredentialIdentity(namespace: string, value: string): string {
 export class ServiceAccountTokenError extends Error {
   constructor(
     public readonly statusCode: number,
-    public readonly errorDescription: string
+    public readonly errorDescription: string,
+    public readonly errorCode?: string
   ) {
     super(errorDescription)
     this.name = 'ServiceAccountTokenError'
@@ -296,22 +297,32 @@ export async function getServiceAccountToken(
       ...(options?.privacyMode === 'selector' ? {} : { body: errorBody }),
     })
     let description = `Token exchange failed: ${response.status}`
+    let errorCode: string | undefined
     if (options?.privacyMode !== 'selector') {
       try {
-        const parsed = JSON.parse(errorBody) as { error_description?: string }
-        if (parsed.error_description) {
-          const raw = parsed.error_description
-          if (raw.includes('SignatureException') || raw.includes('Invalid signature')) {
-            description = 'Invalid account credentials.'
-          } else {
-            description = raw
+        const parsed: unknown = JSON.parse(errorBody)
+        if (typeof parsed === 'object' && parsed !== null) {
+          if ('error' in parsed && typeof parsed.error === 'string') {
+            errorCode = parsed.error
+          }
+          if (
+            'error_description' in parsed &&
+            typeof parsed.error_description === 'string' &&
+            parsed.error_description.length > 0
+          ) {
+            const raw = parsed.error_description
+            if (raw.includes('SignatureException') || raw.includes('Invalid signature')) {
+              description = 'Invalid account credentials.'
+            } else {
+              description = raw
+            }
           }
         }
       } catch {
-        // use default description
+        /** Retain the status-based description when Google returns a non-JSON error. */
       }
     }
-    throw new ServiceAccountTokenError(response.status, description)
+    throw new ServiceAccountTokenError(response.status, description, errorCode)
   }
 
   const tokenData = (await response.json()) as { access_token: string }

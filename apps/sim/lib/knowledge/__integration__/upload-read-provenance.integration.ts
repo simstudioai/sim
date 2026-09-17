@@ -10,7 +10,6 @@ import {
   organization,
   user,
   workspace,
-  workspaceFileColumns,
   workspaceFiles,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -79,10 +78,7 @@ async function seedUpload(provenance?: WorkspaceFileSecretProvenance) {
     'text/plain',
     CONTENT.length
   )
-  const [file] = await db
-    .select(workspaceFileColumns)
-    .from(workspaceFiles)
-    .where(eq(workspaceFiles.key, key))
+  const [file] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.key, key))
   if (provenance) {
     await db.transaction((tx) =>
       replaceWorkspaceFileSecretProvenanceInTx(tx, file.id, file.contentUpdatedAt, provenance)

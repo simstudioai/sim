@@ -11,6 +11,7 @@ import { verifyOrganizationDomainContract } from '@/lib/api/contracts/organizati
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { checkDomainTxtRecord, toDomainResponse } from '@/lib/auth/sso/domain-verification'
+import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -187,6 +188,9 @@ export const POST = withRouteHandler(
         { status: 409 }
       )
     }
+
+    /** A newly verified domain can make the organization able to require single sign-on. */
+    invalidateSsoPolicyCache(organizationId)
 
     logger.info('Domain verified', { organizationId, domain: row.domain })
     recordAudit({

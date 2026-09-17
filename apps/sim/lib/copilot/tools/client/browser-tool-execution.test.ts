@@ -581,6 +581,25 @@ describe('executeBrowserToolOnClient', () => {
     }
   )
 
+  it('reports an unconfirmed effect without retrying or marking completed input as failed', async () => {
+    const result = { dispatched: true, effectObserved: false, possibleEffectObserved: true }
+    mockExecuteBrowserTool.mockResolvedValue(result)
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+    await flush()
+
+    expect(mockExecuteBrowserTool).toHaveBeenCalledOnce()
+    expect(mockReportCompletion).toHaveBeenCalledWith(
+      toolCallId,
+      'success',
+      'Browser input completed; its effect is unconfirmed. Inspect the current state before retrying.',
+      result
+    )
+  })
+
   it('uses unload-safe delivery when a stateful replay-guard rejection cannot be reported normally', async () => {
     const storageWrite = vi.spyOn(window.sessionStorage, 'setItem').mockImplementation(() => {
       throw new DOMException('Quota exceeded', 'QuotaExceededError')
@@ -1196,6 +1215,8 @@ describe('executeBrowserToolOnClient', () => {
   it('reshapes a screenshot into an image attachment the model can see', async () => {
     mockExecuteBrowserTool.mockResolvedValue({
       dataUrl: 'data:image/jpeg;base64,/9j/4AAQ',
+      imageSize: { width: 512, height: 320 },
+      scale: 0.5,
       viewport: {
         url: 'https://example.com/pricing',
         title: 'Pricing',
@@ -1214,6 +1235,9 @@ describe('executeBrowserToolOnClient', () => {
       source: { type: 'base64', media_type: 'image/jpeg', data: '/9j/4AAQ' },
     })
     expect(reported.content).toContain('https://example.com/pricing')
+    expect(reported.content).toContain('Viewport: 1024 × 640 CSS pixels')
+    expect(reported.content).toContain('Encoded image: 512 × 320 pixels')
+    expect(reported.content).toContain('cssX = 0 + imageX / 0.5; cssY = 0 + imageY / 0.5')
     expect(reported.dataUrl).toBeUndefined()
     expect(reported.viewport).toMatchObject({ width: 1024, height: 640 })
   })
@@ -1234,6 +1258,7 @@ describe('executeBrowserToolOnClient', () => {
     mockExecuteBrowserTool.mockResolvedValue({
       dataUrl: 'data:image/jpeg;base64,/9j/4AAQ',
       clip: { x: 20, y: 30, width: 200, height: 100 },
+      imageSize: { width: 400, height: 200 },
       scale: 2,
     })
     executeBrowserToolOnClient(nextToolCallId(), 'browser_screenshot', { elementId: 0 })
@@ -1242,8 +1267,8 @@ describe('executeBrowserToolOnClient', () => {
     const reported = mockReportCompletion.mock.calls[0][3]
     expect(reported.clip).toEqual({ x: 20, y: 30, width: 200, height: 100 })
     expect(reported.scale).toBe(2)
-    expect(reported.content).toContain('cssX = clip.x + imageX / scale')
-    expect(reported.content).toContain('cssY = clip.y + imageY / scale')
+    expect(reported.content).toContain('cssX = 20 + imageX / 2')
+    expect(reported.content).toContain('cssY = 30 + imageY / 2')
   })
 
   it('gives restored-tab switching the renderer navigation budget', async () => {

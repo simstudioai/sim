@@ -3,6 +3,7 @@ import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
+import { ConnectorDirectoryError } from '@/connectors/source-error'
 
 describe('connector failure diagnostics', () => {
   it('retains the SQLSTATE while discarding SQL, bound values and driver detail', () => {
@@ -83,6 +84,34 @@ describe('connector failure diagnostics', () => {
     expect(JSON.stringify(getConnectorFailureDiagnostic(error))).not.toContain('private')
     if (category !== 'authorization')
       expect(getConnectorFailureDiagnostic(error)?.message).not.toContain('access was denied')
+  })
+
+  it('reports a wrapped group-membership failure without suggesting file download permissions', () => {
+    const error = new Error('private outer message', {
+      cause: new ConnectorDirectoryError('private group detail', {
+        cause: new GoogleDriveApiError(403, ['forbidden'], 'directory.members.list'),
+      }),
+    })
+    const diagnostic = getConnectorFailureDiagnostic(error)
+    expect(diagnostic).toMatchObject({
+      phase: 'directory',
+      status: 403,
+      operation: 'directory.members.list',
+      reasons: ['forbidden'],
+    })
+    expect(diagnostic?.message).toContain('Directory permission sync failed')
+    expect(diagnostic?.message).not.toContain('file access')
+    expect(JSON.stringify(diagnostic)).not.toContain('private')
+  })
+
+  it('keeps directory context when the failure has no HTTP status', () => {
+    expect(
+      getConnectorFailureDiagnostic(new ConnectorDirectoryError('private directory details'))
+    ).toMatchObject({
+      category: 'directory',
+      phase: 'directory',
+      message: expect.stringContaining('Directory permission sync failed'),
+    })
   })
 
   it('does not infer status or permanence from a free-form message', () => {

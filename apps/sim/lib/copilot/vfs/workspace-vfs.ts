@@ -18,6 +18,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { getAccountBillingSnapshot } from '@/lib/billing/core/account-billing-snapshot'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { createCopilotChatPrincipal } from '@/lib/copilot/auth/application-delegation'
 import {
   buildWorkspaceContextMd,
   buildWorkspaceMd,
@@ -116,10 +117,11 @@ import {
 } from '@/lib/core/config/env-flags'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { CredentialGroupRecord } from '@/lib/credential-groups/types'
+import { CREDENTIAL_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
+import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
-  getEnrolledManagedOAuthCredentials,
 } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
@@ -3158,7 +3160,21 @@ export class WorkspaceVFS {
           getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }).then(
             async (accessible) => [
               ...accessible,
-              ...(await getEnrolledManagedOAuthCredentials(workspaceId, userId)),
+              ...(
+                await listPersonalCredentials.execute({
+                  principal: createCopilotChatPrincipal(
+                    { workspaceId, userId },
+                    CREDENTIAL_DELEGATION_AUDIENCE
+                  ),
+                  input: { workspaceId },
+                })
+              ).credentials
+                .filter((entry) => entry.type === 'managed_oauth')
+                .map((entry) => ({
+                  ...entry,
+                  type: 'managed_oauth' as const,
+                  role: 'member' as const,
+                })),
             ]
           ),
           listApiKeys(workspaceId),

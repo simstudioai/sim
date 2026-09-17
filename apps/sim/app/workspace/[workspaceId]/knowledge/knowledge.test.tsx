@@ -34,6 +34,12 @@ vi.mock('nuqs', () => ({
   useQueryStates: () => [{ search: '', connector: [], content: [], owner: [] }, vi.fn()],
 }))
 vi.mock('@/hooks/use-permission-config', () => ({ usePermissionConfig: () => ({ config: {} }) }))
+vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
+  useUserPermissionConfig: () => ({ data: { config: {} }, isPending: false }),
+}))
+vi.mock('@/hooks/queries/access-requests', () => ({
+  useDiscoverAccessRequests: () => ({ data: { enabled: false, entries: [] }, isPending: false }),
+}))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => mocks.permissions,
 }))

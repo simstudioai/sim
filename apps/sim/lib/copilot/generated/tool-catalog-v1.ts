@@ -500,12 +500,12 @@ export const BrowserClickAt: ToolCatalogEntry = {
       x: {
         type: 'number',
         description:
-          'X in CSS pixels within the current viewport. When read off a browser_screenshot, divide the image pixel value by scale and add clip.x when present.',
+          "X in CSS pixels within the current viewport. When read off a browser_screenshot, follow its caption's X mapping and crop origin.",
       },
       y: {
         type: 'number',
         description:
-          'Y in CSS pixels within the current viewport, converted from screenshot pixels the same way as x.',
+          "Y in CSS pixels within the current viewport. When read off a browser_screenshot, follow its caption's Y mapping and crop origin.",
       },
     },
     required: ['x', 'y'],
@@ -1519,7 +1519,7 @@ export const BrowserScreenshot: ToolCatalogEntry = {
       elementId: {
         type: 'number',
         description:
-          "Optional element id from the current tab's latest browser_snapshot. When present, capture only the visible portion of that top-page element without scrolling or changing layout. Scroll explicitly first if needed. Framed elements are rejected; use a viewport screenshot for them. Use the returned clip offset when converting image coordinates.",
+          "Optional element id from the current tab's latest browser_snapshot. When present, capture only the visible portion of that top-page element without scrolling or changing layout. Scroll explicitly first if needed. Framed elements are rejected; use a viewport screenshot for them. Follow the image caption's coordinate mapping, including its crop origin.",
       },
     },
   },
@@ -1626,16 +1626,27 @@ export const BrowserSelectOption: ToolCatalogEntry = {
   route: 'client',
   mode: 'async',
   parameters: {
-    type: 'object',
+    oneOf: [{ required: ['value'] }, { required: ['values'] }],
     properties: {
       elementId: {
-        type: 'number',
         description:
           "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
+        type: 'number',
       },
-      value: { type: 'string', description: "The option's visible label or its value." },
+      value: {
+        description: "One option's visible label or value. Omit when supplying values.",
+        type: 'string',
+      },
+      values: {
+        description:
+          'The complete desired selection for a native multiple-selection control: at most 100 visible labels or values. Empty array clears the selection. Omit value when using this field.',
+        items: { type: 'string' },
+        maxItems: 100,
+        type: 'array',
+      },
     },
-    required: ['elementId', 'value'],
+    required: ['elementId'],
+    type: 'object',
   },
   resultSchema: {
     type: 'object',
@@ -1643,6 +1654,12 @@ export const BrowserSelectOption: ToolCatalogEntry = {
       effectObserved: {
         type: 'boolean',
         description: 'Whether the settled readback retained the requested selection.',
+      },
+      labels: {
+        type: 'array',
+        description:
+          'Visible labels for the complete selected set in a multiple-selection control, in option order.',
+        items: { type: 'string' },
       },
       note: { type: 'string', description: 'Guidance when the page reverted the selection.' },
       notices: {
@@ -1655,8 +1672,20 @@ export const BrowserSelectOption: ToolCatalogEntry = {
         type: 'object',
         description: 'Settled selected label and value.',
         properties: {
+          labels: {
+            type: 'array',
+            description:
+              'Visible labels for the complete selected set in a multiple-selection control, in option order.',
+            items: { type: 'string' },
+          },
           selected: { type: 'string', description: 'Settled visible option label.' },
           value: { type: 'string', description: 'Settled option value.' },
+          values: {
+            type: 'array',
+            description:
+              'Selected native option values in DOM order; included for multiple-selection controls.',
+            items: { type: 'string' },
+          },
         },
       },
       refRecovered: {
@@ -1666,6 +1695,12 @@ export const BrowserSelectOption: ToolCatalogEntry = {
       },
       selected: { type: 'string', description: 'Canonical visible label of the matched option.' },
       value: { type: 'string', description: 'Canonical value of the matched option.' },
+      values: {
+        type: 'array',
+        description:
+          'Selected native option values in DOM order; included for multiple-selection controls.',
+        items: { type: 'string' },
+      },
     },
     required: ['selected'],
   },
@@ -1818,7 +1853,7 @@ export const BrowserType: ToolCatalogEntry = {
       text: {
         type: 'string',
         description:
-          "The text to type. Replaces the element's current content. Must be non-empty — an empty string is rejected as a missing parameter; to clear a field, press Mod+A then Backspace with browser_press_key.",
+          'The replacement value. Empty text clears an ordinary text field. For structured inputs use YYYY-MM-DD (date), HH:mm (time), YYYY-MM-DDTHH:mm (datetime-local), YYYY-MM (month), YYYY-Www (week), #rrggbb (color), or a numeric range value. Alternatively use Mod+A then Backspace to clear ordinary text with browser_press_key.',
       },
     },
     required: ['elementId', 'text'],

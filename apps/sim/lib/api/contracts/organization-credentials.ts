@@ -90,10 +90,9 @@ export const createOrganizationCredentialDraftContract = defineRouteContract({
   },
 })
 
-export const updateOrganizationCredentialBodySchema = z.intersection(
-  updateCredentialByIdBodySchema,
-  z.object({ organizationId: organizationIdSchema })
-)
+export const updateOrganizationCredentialBodySchema = updateCredentialByIdBodySchema.safeExtend({
+  organizationId: organizationIdSchema,
+})
 export type UpdateOrganizationCredentialBody = z.input<
   typeof updateOrganizationCredentialBodySchema
 >

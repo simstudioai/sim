@@ -11,6 +11,7 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -20,6 +21,7 @@ const {
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
   mockGetEmbeddingModelInfo,
   mockGetFileMetadataByKeys,
+  mockLogError,
   mockProcessDocument,
   mockTrigger,
 } = vi.hoisted(() => ({
@@ -29,9 +31,15 @@ const {
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
   mockGetEmbeddingModelInfo: vi.fn(),
   mockGetFileMetadataByKeys: vi.fn(),
+  mockLogError: vi.fn(),
   mockProcessDocument: vi.fn(),
   mockTrigger: vi.fn(),
 }))
+
+vi.mock('@sim/logger', async () => {
+  const { createMockLogger, loggerMock } = await import('@sim/testing/mocks/logger.mock')
+  return { ...loggerMock, createLogger: () => ({ ...createMockLogger(), error: mockLogError }) }
+})
 
 vi.mock('@trigger.dev/sdk', () => ({
   tasks: { batchTrigger: mockBatchTrigger, trigger: mockTrigger },
@@ -691,6 +699,110 @@ describe('processDocumentAsync write guards', () => {
     expect(onClaimed).toHaveBeenCalledTimes(1)
     expect(guardForStatusWrite('processing')).toBeDefined()
     expect(guardForStatusWrite('failed')).toBeDefined()
+  })
+
+  it('stores bounded database diagnostics while retaining the original error for retry classification', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
+    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+    )
+    const databaseError = new DrizzleQueryError(
+      'insert private SQL',
+      ['private bound content'],
+      Object.assign(new Error('private driver detail'), { code: '57014' })
+    )
+    mockProcessDocument.mockRejectedValueOnce(databaseError)
+    const onClaimed = vi.fn()
+
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'a.pdf',
+          fileUrl: 'https://example.com/a.pdf',
+          fileSize: 1,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION,
+        'request-1',
+        { chargedAtDispatch: true, onClaimed }
+      )
+    ).rejects.toBe(databaseError)
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingStatus: 'failed',
+        processingError: 'Database request failed (SQLSTATE 57014).',
+      })
+    )
+    expect(onClaimed).toHaveBeenCalledTimes(1)
+    expect(guardForStatusWrite('processing')).toBeDefined()
+    expect(guardForStatusWrite('failed')).toBeDefined()
+  })
+
+  it('records the failed embedding batch without exposing SQL, content or vectors', async () => {
+    armProviderSource()
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'document-1' }])
+    mockProcessDocument.mockResolvedValueOnce({
+      chunks: [{ text: 'private-content', metadata: { startIndex: 0, endIndex: 15 } }],
+      metadata: { chunkCount: 1, tokenCount: 3, characterCount: 15 },
+    })
+    mockGenerateEmbeddings.mockResolvedValueOnce({
+      embeddings: [[0.123456789]],
+      billableTokens: 0,
+      modelName: 'text-embedding-3-small',
+      pricingId: 'text-embedding-3-small',
+    })
+    const databaseError = new DrizzleQueryError(
+      'insert private SQL',
+      ['private-content', [0.123456789]],
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    )
+    dbChainMockFns.values.mockRejectedValueOnce(databaseError)
+
+    await expect(
+      processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'a.txt',
+          fileUrl: 'https://example.com/a.txt',
+          fileSize: 15,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
+    ).rejects.toBe(databaseError)
+
+    expect(mockLogError).toHaveBeenCalledWith('[document-1] Failed to insert embedding batch', {
+      knowledgeBaseId: 'knowledge-base-1',
+      operation: 'embedding.insert',
+      batchNumber: 1,
+      batchSize: 1,
+      totalChunks: 1,
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDimensions: 1536,
+      elapsedMs: expect.any(Number),
+      diagnostic: {
+        category: 'database',
+        code: '57014',
+        message: 'Database request failed (SQLSTATE 57014).',
+      },
+    })
+    const logs = JSON.stringify(mockLogError.mock.calls)
+    expect(logs).not.toContain('private')
+    expect(logs).not.toContain('0.123456789')
+    expect(guardForStatusWrite('failed')).toBeDefined()
+    expect(
+      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'completed')
+    ).toBe(false)
   })
 
   it('accepts a legacy queuedAt-only payload only while the row has no token', async () => {
@@ -1439,6 +1551,34 @@ describe('in-process quota continuation dispatch', () => {
     expect(mockProcessDocument.mock.calls[0][6].processingDeadlineAt).toBe(
       context.deadlineAt - 15_000
     )
+  })
+
+  it('redacts database query details in the in-process worker without changing acceptance', async () => {
+    const databaseError = new DrizzleQueryError(
+      'insert private-query',
+      ['private-parameter'],
+      Object.assign(new Error('private-driver-message'), { code: '57014' })
+    )
+    mockGenerateEmbeddings.mockRejectedValue(databaseError)
+
+    await expect(
+      processDocumentsWithQueue(
+        [queuedDocument],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        BILLING_ATTRIBUTION
+      )
+    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      '[request-1] In-process document processing failed',
+      expect.objectContaining({
+        error: 'Database request failed (SQLSTATE 57014).',
+        diagnostic: expect.objectContaining({ category: 'database', code: '57014' }),
+      })
+    )
+    expect(JSON.stringify(mockLogError.mock.calls)).not.toContain('private-')
   })
 
   it('resumes an OCR-throttled regular KB from the durable outbox to a completed index', async () => {

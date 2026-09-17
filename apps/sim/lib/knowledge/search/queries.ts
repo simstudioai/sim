@@ -56,6 +56,7 @@ const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'
 const MIN_VECTOR_RERANK_CANDIDATES = 400
 const MAX_VECTOR_RERANK_CANDIDATES = 1600
 const VECTOR_RERANK_OVERSAMPLING = 8
+const MAX_EXACT_KB_VECTOR_CANDIDATES = 200
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000
@@ -777,43 +778,95 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
       sql`${distance} < ${distanceThreshold}`,
     ])
   }
-  const vectorLeg = (executor: SearchExecutor, kbScope: SQL | undefined, limit: number) =>
-    selectRankedVectorResults(
-      executor,
-      distance,
-      [
-        kbScope,
-        ...getVisibilityConditions(access, params.filters),
-        sql`${distance} < ${distanceThreshold}`,
-      ],
-      limit
-    )
-
   /**
    * A relaxed-order iterative scan may hand rows back slightly out of distance
    * order, so both paths re-sort in memory before trimming to `topK`.
    */
   if (strategy.useParallel) {
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
-    const allResults = await withVectorScanSettings(async (executor) => {
-      const parallelResults = await Promise.all(
-        knowledgeBaseIds.map((kbId) =>
-          vectorLeg(executor, eq(embedding.knowledgeBaseId, kbId), parallelLimit)
-        )
+    const allResults: SearchResult[] = []
+    /** Keep one active KB leg per request so multi-base searches cannot monopolize the pool. */
+    for (const kbId of knowledgeBaseIds) {
+      allResults.push(
+        ...(await selectScopedVectorResults(
+          params,
+          distance,
+          eq(embedding.knowledgeBaseId, kbId),
+          parallelLimit
+        ))
       )
-      return parallelResults.flat()
-    })
+      if (params.budget?.timedOut) break
+    }
     return allResults.sort((a, b) => a.distance - b.distance).slice(0, topK)
   }
-  const rows = await withVectorScanSettings((executor) =>
-    vectorLeg(executor, inArray(embedding.knowledgeBaseId, knowledgeBaseIds), topK)
+  const rows = await selectScopedVectorResults(
+    params,
+    distance,
+    inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+    topK
   )
   return rows.sort((a, b) => a.distance - b.distance)
 }
 
 /**
+ * KB runs without a human subject still need bounded small-scope ranking. Probe only chunk
+ * identities, then reapply every access and visibility predicate before ranking and hydration.
+ * An overflowing probe selects ANN over the whole scope, never a truncated candidate prefix.
+ */
+async function selectScopedVectorResults(
+  params: SearchParams,
+  distance: SQL<number>,
+  kbScope: SQL | undefined,
+  limit: number,
+  tagConditions: (SQL | undefined)[] = []
+): Promise<SearchResult[]> {
+  try {
+    const probe = await runSearchQuery(params.budget, 'vector.probe', (executor) =>
+      executor
+        .select({ id: embedding.id })
+        .from(embedding)
+        .where(and(kbScope, eq(embedding.enabled, true), ...tagConditions))
+        .limit(MAX_EXACT_KB_VECTOR_CANDIDATES + 1)
+    )
+    if (probe.length === 0) return []
+    const conditions = [
+      kbScope,
+      ...getVisibilityConditions(params.access, params.filters),
+      ...tagConditions,
+      sql`${distance} < ${params.distanceThreshold}`,
+    ]
+    if (probe.length <= MAX_EXACT_KB_VECTOR_CANDIDATES) {
+      annotateSearchDiagnostics({ vectorRanking: 'exact' })
+      return await runSearchQuery(params.budget, 'vector.exact', (executor) =>
+        selectRankedVectorResults(
+          executor,
+          distance,
+          [
+            ...conditions,
+            inArray(
+              embedding.id,
+              probe.map((candidate) => candidate.id)
+            ),
+          ],
+          limit,
+          true
+        )
+      )
+    }
+    return await withVectorScanSettings(
+      (executor) => selectRankedVectorResults(executor, distance, conditions, limit),
+      params.budget
+    )
+  } catch (error) {
+    if (!params.budget?.isTimeout(error)) throw error
+    return []
+  }
+}
+
+/**
  * Bound ANN traversal and rerank a small candidate pool against the original vectors.
- * Materialized document identities let PostgreSQL filter before computing distances.
+ * Nearest-neighbor traversal drives document visibility lookups, avoiding a sort of
+ * every visible chunk when the planner underestimates the caller's accessible corpus.
  * An underfilled index scan expands to a filtered scan within the same statement snapshot.
  * Live source authorization and content hydration still run after candidate ranking.
  */
@@ -860,10 +913,6 @@ async function selectLiveVectorResults(
         ),
         excludeSearchSources(excludedSources),
       ]
-      const candidateVisibility = [
-        eq(embeddingSearch.enabled, true),
-        ...candidateDocumentVisibility,
-      ]
       /** Explicitly filtered scopes use exact ordering instead of HNSW traversal. */
       const exactPage = async (candidateIds?: string[]) => {
         annotateSearchDiagnostics({ vectorRanking: 'exact' })
@@ -888,22 +937,29 @@ async function selectLiveVectorResults(
       if (params.filters?.documentIds?.length || params.structuredFilters?.length) {
         return exactPage()
       }
-      /** Probe visibility without vector reads; revoked scopes must not detoast the corpus. */
+      /**
+       * Enumerate bounded chunk identities from visible documents. The lateral limit keeps
+       * the probe on document-indexed lookups instead of hashing the entire vector projection.
+       * An exhausted probe fits in the rerank pool and needs only one exact ranking pass.
+       */
       const probe = await runSearchQuery(params.budget, 'vector.probe', (executor) =>
-        executor
-          .select({ id: embeddingSearch.id })
-          .from(embeddingSearch)
-          .innerJoin(document, eq(document.id, embeddingSearch.documentId))
-          .where(
-            and(
+        executor.execute<{ id: string }>(sql`
+          SELECT scoped_chunk.id FROM ${document}
+          CROSS JOIN LATERAL (
+            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
+            WHERE ${and(
+              eq(embeddingSearch.documentId, document.id),
               inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-              ...candidateVisibility
-            )
-          )
-          .limit(LIVE_SEARCH_PAGE_SIZE)
+              eq(embeddingSearch.enabled, true)
+            )}
+            LIMIT ${candidateLimit}
+          ) AS scoped_chunk
+          WHERE ${and(...candidateDocumentVisibility)}
+          LIMIT ${candidateLimit}
+        `)
       )
       if (probe.length === 0) return { candidates: [], nextOffset: offset }
-      if (probe.length < LIVE_SEARCH_PAGE_SIZE) {
+      if (probe.length < candidateLimit) {
         return exactPage(probe.map((candidate) => candidate.id))
       }
       annotateSearchDiagnostics({
@@ -916,13 +972,12 @@ async function selectLiveVectorResults(
           queryVector.model
         ),
       })
-      const candidateConditions = and(
-        inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-        eq(embeddingSearch.enabled, true),
-        sql`${embeddingSearch.documentId} IN (SELECT id FROM visible_search_documents)`,
-        sql`EXISTS (SELECT 1 FROM visible_search_documents)`
-      )
-      /** Materialize only document identities, so neither the hash table nor ACL checks carry vectors. */
+      /**
+       * LIMIT keeps document authorization downstream of vector traversal, with a primary-key
+       * lookup per candidate. Only an underfilled ANN scan materializes the visible document set.
+       * Its exact fallback scores the compact projection once, then joins scalar distances to
+       * visible identities; it cannot turn into a random vector lookup for every document.
+       */
       const identities = await withVectorScanSettings(
         (executor) =>
           executor.execute<{ id: string; initial_count: number }>(sql`
@@ -931,16 +986,32 @@ async function selectLiveVectorResults(
             WHERE ${and(...candidateDocumentVisibility)}
           ), initial_candidates AS MATERIALIZED (
             SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
-            WHERE ${candidateConditions}
+            CROSS JOIN LATERAL (
+              SELECT 1 FROM ${document}
+              WHERE ${and(eq(document.id, embeddingSearch.documentId), ...candidateDocumentVisibility)}
+              LIMIT 1
+            ) AS visible
+            WHERE ${and(
+              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+              eq(embeddingSearch.enabled, true)
+            )}
             ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
+          ), filtered_scores AS MATERIALIZED (
+            SELECT ${embeddingSearch.id} AS id, ${embeddingSearch.documentId} AS document_id,
+              ${candidateDistance} AS distance FROM ${embeddingSearch}
+            WHERE ${and(
+              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+              eq(embeddingSearch.enabled, true)
+            )}
+              AND (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
           ), candidates AS (
             SELECT id FROM initial_candidates
             WHERE (SELECT count(*) FROM initial_candidates) >= ${candidateLimit}
             UNION ALL (
-              SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
-              WHERE ${candidateConditions}
-                AND (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
-              ORDER BY (${candidateDistance}) + 0, ${embeddingSearch.id}
+              SELECT filtered_scores.id FROM filtered_scores
+              INNER JOIN visible_search_documents ON visible_search_documents.id = filtered_scores.document_id
+              WHERE (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
+              ORDER BY filtered_scores.distance + 0, filtered_scores.id
               LIMIT ${candidateLimit}
             )
           ) SELECT id, (SELECT count(*)::int FROM initial_candidates) AS initial_count FROM candidates
@@ -1004,14 +1075,15 @@ function selectRankedVectorResults(
   executor: SearchExecutor,
   distance: SQL<number>,
   conditions: (SQL | undefined)[],
-  limit: number
+  limit: number,
+  exact = false
 ) {
   const ranked = executor
     .select({ id: embedding.id, distance: distance.as('distance') })
     .from(embedding)
     .innerJoin(document, eq(embedding.documentId, document.id))
     .where(and(...conditions))
-    .orderBy(distance)
+    .orderBy(exact ? sql`(${distance}) + 0` : distance)
     .limit(limit)
     .as('ranked_embeddings')
 
@@ -1298,18 +1370,12 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
       sql`${distance} < ${distanceThreshold}`,
     ])
   }
-  const rows = await withVectorScanSettings((executor) =>
-    selectRankedVectorResults(
-      executor,
-      distance,
-      [
-        inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
-        ...getVisibilityConditions(access, params.filters),
-        ...tagFilterConditions,
-        sql`${distance} < ${distanceThreshold}`,
-      ],
-      topK
-    )
+  const rows = await selectScopedVectorResults(
+    params,
+    distance,
+    inArray(embedding.knowledgeBaseId, knowledgeBaseIds),
+    topK,
+    tagFilterConditions
   )
   return rows.sort((a, b) => a.distance - b.distance)
 }

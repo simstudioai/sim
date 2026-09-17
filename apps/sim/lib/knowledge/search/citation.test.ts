@@ -21,6 +21,12 @@ describe('knowledge citations', () => {
     })
   })
 
+  it('preserves Gmail mailbox selection and thread targeting', () => {
+    const sourceUrl =
+      'https://accounts.google.com/AccountChooser?Email=alice%2Bwork%40example.com&continue=https%3A%2F%2Fmail.google.com%2Fmail%2F%3Fauthuser%3Dalice%252Bwork%2540example.com%23all%2F19a3f0123456789'
+    expect(createKnowledgeDocumentCitation({ ...input, sourceUrl }).citationUrl).toBe(sourceUrl)
+  })
+
   it.each([
     null,
     '',

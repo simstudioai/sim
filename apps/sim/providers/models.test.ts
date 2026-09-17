@@ -11,6 +11,7 @@ import {
   getModelsWithPromptCaching,
   getPromptCachingMinimumTokens,
   getProviderModels,
+  getStaticProviderModels,
   getThinkingStreamVisibility,
   isCustomModelId,
   isKnownModelId,
@@ -629,6 +630,37 @@ describe('fireworks static catalog (the sim-auto pool)', () => {
       1
     )
     expect(getModelPricing('fireworks/glm-5.2')?.input).toBeGreaterThan(0)
+  })
+})
+
+describe('getStaticProviderModels', () => {
+  it('retains public built-in models after private models are discovered', () => {
+    const originalModels = PROVIDER_DEFINITIONS.fireworks.models
+    const publicModels = getStaticProviderModels('fireworks')
+    try {
+      updateFireworksModels(['fireworks/private-test-model'])
+
+      expect(publicModels.length).toBeGreaterThan(0)
+      expect(getProviderModels('fireworks')).toContain('fireworks/private-test-model')
+      expect(getStaticProviderModels('fireworks')).toEqual(publicModels)
+    } finally {
+      PROVIDER_DEFINITIONS.fireworks.models = originalModels
+    }
+  })
+
+  it("excludes discovered names even when they match another provider's public model", () => {
+    const originalModels = PROVIDER_DEFINITIONS.ollama.models
+    try {
+      updateOllamaModels(['private-local-model', 'fireworks/glm-5.2'])
+
+      expect(getStaticProviderModels('ollama')).toEqual([])
+    } finally {
+      PROVIDER_DEFINITIONS.ollama.models = originalModels
+    }
+  })
+
+  it('returns no models for an unknown provider', () => {
+    expect(getStaticProviderModels('unknown-provider')).toEqual([])
   })
 })
 

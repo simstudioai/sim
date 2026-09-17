@@ -85,7 +85,10 @@ export class SearchBudget {
       if (expired) throw new SearchDeadlineError()
       recordSearchStageDuration(`${this.leg}.connection_acquire`, performance.now() - started)
       const timeout = String(this.remaining())
-      await tx.execute(sql`SELECT set_config('statement_timeout', ${timeout}, true)`)
+      /** Interactive retrieval cannot amortize compilation of the access predicates. */
+      await tx.execute(
+        sql`SELECT set_config('statement_timeout', ${timeout}, true), set_config('jit', 'off', true)`
+      )
       this.remaining()
       return measureSearchStage(stage, () => run(tx))
     })

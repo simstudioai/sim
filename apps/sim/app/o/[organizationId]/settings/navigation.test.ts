@@ -18,6 +18,7 @@ import {
 const enterprise: OrganizationSettingsFeatures = {
   billingEnabled: true,
   hasEnterprisePlan: true,
+  governanceActive: true,
   hosted: true,
   selfHosted: {},
 }
@@ -33,7 +34,7 @@ describe('organization settings navigation', () => {
 
   it('uses Sources for administration when Search is available', () => {
     expect(organizationSettingsNavigation(true, enterprise, available)).toEqual(
-      ORGANIZATION_SETTINGS_ITEMS.filter(({ id }) => id !== 'connected-accounts')
+      ORGANIZATION_SETTINGS_ITEMS
     )
     expect(
       organizationSettingsNavigation(true, enterprise, available).find(
@@ -46,10 +47,25 @@ describe('organization settings navigation', () => {
     expect(
       organizationSettingsNavigation(
         true,
-        { ...enterprise, hasEnterprisePlan: false },
+        { ...enterprise, hasEnterprisePlan: false, governanceActive: false },
         available
       ).map(({ id }) => id)
     ).toEqual(['billing', 'members', 'recently-deleted', 'search-mcp'])
+  })
+
+  /**
+   * A failing payment closes the plan gate while the organization's permission groups keep
+   * applying, so the page that edits them has to stay listed — otherwise its members are governed
+   * by rules nobody can reach until the invoice clears.
+   */
+  it('keeps Access Control listed while the organization is still governed', () => {
+    expect(
+      organizationSettingsNavigation(
+        true,
+        { ...enterprise, hasEnterprisePlan: false, governanceActive: true },
+        available
+      ).map(({ id }) => id)
+    ).toEqual(['billing', 'members', 'recently-deleted', 'access-control', 'search-mcp'])
   })
 
   it('honors individual self-hosted feature flags and hides billing when disabled', () => {

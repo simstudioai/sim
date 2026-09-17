@@ -18,7 +18,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { resolveCredentialDisplay } from '@/lib/integrations'
+import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   AddPeopleModal,

@@ -107,6 +107,7 @@ import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integr
 import { escapeLikePattern } from '@/lib/knowledge/tags/utils'
 import { isMemberSyncStatus } from '@/lib/knowledge/types'
 import { credentialProviderMatchesService, type ServiceProviderIdentity } from '@/lib/oauth'
+import { ServiceAccountTokenError } from '@/lib/oauth/credential-service'
 import { CAPABILITY_RULES, refuseCapability } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
@@ -321,15 +322,57 @@ export async function resolveConnectorCredentialAccessToken(input: {
 }): Promise<ConnectorAccessToken | null> {
   const identity = await resolveAuthorizedConnectorCredentialIdentity(input)
   if (!identity) return null
-  const resolved = await resolveConnectorAccessToken({
+  return resolveConnectorValidationAccessToken({
     auth: input.auth,
     accessMode: input.accessMode,
     connector: { credentialId: input.credentialId, encryptedApiKey: null },
     userId: identity.kind === 'oauth' ? identity.userId : input.actingUserId,
     requestId: input.requestId,
     sourceConfig: input.sourceConfig,
-  }).catch(rethrowGitHubInstallationSourceError)
-  return resolved
+  })
+}
+
+/** Exposes actionable credential refusals without returning raw provider payloads. */
+function rethrowConnectorCredentialError(error: unknown): never {
+  if (error instanceof ServiceAccountTokenError && [400, 401, 403].includes(error.statusCode)) {
+    let message: string
+    switch (error.errorCode) {
+      case 'unauthorized_client':
+        message =
+          "Google rejected service-account authorization (unauthorized_client). In Google Admin, authorize the JSON key's numeric client ID with the exact domain-wide delegation scopes in this connector's service-account setup section. Verify the delegated user's Workspace email and allow time for recent delegation changes to propagate."
+        break
+      case 'invalid_grant':
+        message =
+          "Google rejected the service-account grant (invalid_grant). Check that the JSON key is valid and the delegated user's primary Workspace email is correct."
+        break
+      case 'invalid_scope':
+        message =
+          "Google rejected the service-account scopes (invalid_scope). In Google Admin, authorize the exact domain-wide delegation scopes in this connector's service-account setup section."
+        break
+      case 'access_denied':
+        message =
+          'Google denied service-account access (access_denied). Ask your Workspace administrator to check API access policies and domain-wide delegation.'
+        break
+      default:
+        throw error
+    }
+    throw new OrchestrationError('validation', message)
+  }
+  rethrowGitHubInstallationSourceError(error)
+}
+
+/** Applies setup error handling to initial tokens and later delegated user probes. */
+async function resolveConnectorValidationAccessToken(
+  params: Parameters<typeof resolveConnectorAccessToken>[0]
+): Promise<ConnectorAccessToken | null> {
+  const resolved = await resolveConnectorAccessToken(params).catch(rethrowConnectorCredentialError)
+  const getDelegatedAccessToken = resolved?.getDelegatedAccessToken
+  if (!resolved || !getDelegatedAccessToken) return resolved
+  return {
+    ...resolved,
+    getDelegatedAccessToken: (subject) =>
+      getDelegatedAccessToken(subject).catch(rethrowConnectorCredentialError),
+  }
 }
 
 export async function validateConnectorSourceConfig(input: {
@@ -419,14 +462,14 @@ export async function validateConnectorSourceConfig(input: {
     if (identity.kind === 'oauth') tokenUserId = identity.userId
   }
 
-  const resolved = await resolveConnectorAccessToken({
+  const resolved = await resolveConnectorValidationAccessToken({
     auth: connectorConfig.auth,
     accessMode,
     connector: input.connector,
     userId: tokenUserId,
     requestId: input.requestId,
     sourceConfig: input.sourceConfig,
-  }).catch(rethrowGitHubInstallationSourceError)
+  })
   if (!resolved) {
     return {
       message: 'Failed to refresh access token. Please reconnect your account.',

@@ -8,6 +8,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
+import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { hasSSOAccess } from '@/lib/billing'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
@@ -756,6 +757,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return domainNotVerifiedResponse()
       }
 
+      /** The edit may have changed whether this provider can satisfy the sign-in requirement. */
+      invalidateSsoPolicyCache(orgId)
+
       logger.info('SSO provider updated successfully', { providerId, providerType, domain })
       return NextResponse.json({
         success: true,
@@ -800,6 +804,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       return domainNotVerifiedResponse()
     }
+
+    /** A new provider can make an organization able to require single sign-on again. */
+    invalidateSsoPolicyCache(orgId)
 
     logger.info('SSO provider registered successfully', {
       providerId,

@@ -92,7 +92,7 @@ export const startSlackSearchOAuthContract = defineRouteContract({
 })
 
 export const slackSearchOAuthCallbackQuerySchema = z.object({
-  state: z.string().min(1).max(200),
+  state: z.string().max(200).optional(),
   code: z.string().min(1).max(2000).optional(),
   error: z.string().min(1).max(200).optional(),
 })

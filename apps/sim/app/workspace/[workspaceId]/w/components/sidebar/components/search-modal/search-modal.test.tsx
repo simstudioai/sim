@@ -68,6 +68,10 @@ vi.mock('@/hooks/use-permission-config', () => ({
   }),
 }))
 
+vi.mock('@/hooks/queries/access-requests', () => ({
+  useDiscoverAccessRequests: () => ({ data: { enabled: false, entries: [] }, isPending: false }),
+}))
+
 /**
  * The palette owns these reads now — it mounts only while open, so the queries exist only then.
  * `mockTables` lets a test drive the Tables section the way the `tables` prop used to.

@@ -1,5 +1,4 @@
-import { omit } from '@sim/utils/object'
-import { getTableColumns, type SQL, sql } from 'drizzle-orm'
+import { type SQL, sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
   bigint,
@@ -525,15 +524,6 @@ export const workflowExecutionLogs = pgTable(
      * `materializeExecutionData`, which resolves the pointer.
      */
     executionData: jsonb('execution_data').notNull().default('{}'),
-    /**
-     * contract-pending(after #7134 and #7774 are fully deployed):
-     * DROP cost. Reads and inserts use workflowExecutionLogColumns. Before the
-     * drop, confirm script migration 0009_backfill_wel_residual_cost_total has
-     * projected all residual numeric totals, then deregister it in the contract
-     * PR because it reads this column.
-     */
-    /** @deprecated Not written/read; cost lives in usage_log + the `cost_total` projection. */
-    cost: jsonb('cost'),
     // Faithful, write-once projection of the run's usage_log ledger sum (dollars).
     // Backs list cost display/filter/sort without live aggregation; never an
     // independently-computed value (cost_total == SUM(usage_log) for the run).
@@ -565,6 +555,17 @@ export const workflowExecutionLogs = pgTable(
       table.workspaceId,
       table.startedAt
     ),
+    /** Supports index-only activity summaries and breakdowns. */
+    workspaceActivityIdx: index('workflow_execution_logs_workspace_activity_idx')
+      .on(
+        table.workspaceId,
+        table.startedAt,
+        table.status,
+        table.totalDurationMs,
+        table.workflowId,
+        table.trigger
+      )
+      .concurrently(),
     workspaceStartedAtIdDescIdx: index(
       'workflow_execution_logs_workspace_started_at_id_desc_idx'
     ).on(table.workspaceId, sql`${table.startedAt} DESC NULLS LAST`, sql`${table.id} DESC`),
@@ -597,12 +598,6 @@ export const workflowExecutionLogs = pgTable(
       ),
   })
 )
-
-/**
- * Live columns of `workflow_execution_logs` while the `cost` drop is
- * outstanding — see `userStatsColumns` for the pattern.
- */
-export const workflowExecutionLogColumns = omit(getTableColumns(workflowExecutionLogs), ['cost'])
 
 export const executionLargeValueReferenceSourceEnum = pgEnum(
   'execution_large_value_reference_source',
@@ -1250,36 +1245,8 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  /**
-   * contract-pending(after #7134 and #7774 are fully deployed):
-   * DROP the 19 deprecated columns. Usage updates were retired by #7078/#7113;
-   * #7134 removed the remaining reads. Declarations stay until the contract so
-   * generated migrations match the deployed database. Reads use userStatsColumns;
-   * inserts use withInsertColumns(userStats, userStatsColumns), because omitting
-   * values still makes Drizzle name the columns with DEFAULT. The pending-drop
-   * audit enforces both. Deploy the compatibility release to every writer before
-   * deleting these declarations and generating the DROP migration.
-   */
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalManualExecutions: integer('total_manual_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalApiCalls: integer('total_api_calls').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalChatExecutions: integer('total_chat_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
-  /** @deprecated Retired usage counter; derive from usage_log. */
-  totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
-  /** @deprecated No readers or writers; report cost from usage_log. */
-  totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
-  /** @deprecated No readers or writers; usage is the attributed usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
-  currentPeriodCost: decimal('current_period_cost').notNull().default('0'),
   /** Previous-period usage; written by the cycle-close sweep from ledger sums. */
   lastPeriodCost: decimal('last_period_cost').default('0'),
   /**
@@ -1290,10 +1257,6 @@ export const userStats = pgTable('user_stats', {
    * by the ordinary per-usage ledger write path.
    */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
-  /** @deprecated No readers or writers; ledger entity stamps attribute pre/post-join usage. Drop via DROP COLUMN in a follow-up migration. */
-  proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'),
-  /** @deprecated No readers or writers; see proPeriodCostSnapshot. Drop via DROP COLUMN in a follow-up migration. */
-  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'),
   /**
    * Credit balance tracker.
    *
@@ -1301,22 +1264,8 @@ export const userStats = pgTable('user_stats', {
    * overage collection. It is not a per-usage aggregate counter.
    */
   creditBalance: decimal('credit_balance').notNull().default('0'),
-  /** @deprecated No readers or writers; report Copilot cost from usage_log. */
-  totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
-  /** @deprecated No readers or writers; Copilot usage is the copilot-source usage_log ledger. Drop via DROP COLUMN in a follow-up migration. */
-  currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
   /** Previous-period Copilot cost; written by the cycle-close sweep from copilot-source ledger sums. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
-  /** @deprecated No readers or writers; report Copilot tokens from usage_log. */
-  totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
-  /** @deprecated No readers or writers; report Copilot calls from usage_log. */
-  totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
-  /** @deprecated No readers or writers; report MCP Copilot calls from usage_log. */
-  totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
-  /** @deprecated No readers or writers; report MCP Copilot cost from usage_log. */
-  totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
-  /** @deprecated No writer (never incremented or reset). MCP copilot usage lives in usage_log (source 'mcp_copilot'); read it from there, not this column. */
-  currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
   /**
    * Storage upload/delete hot-path tracker for personal plans.
    *
@@ -1324,8 +1273,6 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
-  /** @deprecated No readers or writers; not updated since execution stopped writing user_stats. */
-  lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
   /**
@@ -1344,35 +1291,6 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .default({}),
 })
-
-/**
- * Live columns of `user_stats` — the selection every read and withInsertColumns
- * insert uses while the contract-pending drop (see the marker inside the table) is
- * outstanding, so generated SQL never names the doomed columns. Enforced by
- * `scripts/check-pending-drop-tables.ts`; the contract PR deletes this helper
- * together with the deprecated declarations.
- */
-export const userStatsColumns = omit(getTableColumns(userStats), [
-  'totalManualExecutions',
-  'totalApiCalls',
-  'totalWebhookTriggers',
-  'totalScheduledExecutions',
-  'totalChatExecutions',
-  'totalMcpExecutions',
-  'totalTokensUsed',
-  'totalCost',
-  'currentPeriodCost',
-  'proPeriodCostSnapshot',
-  'proPeriodCostSnapshotAt',
-  'totalCopilotCost',
-  'currentPeriodCopilotCost',
-  'totalCopilotTokens',
-  'totalCopilotCalls',
-  'totalMcpCopilotCalls',
-  'totalMcpCopilotCost',
-  'currentPeriodMcpCopilotCost',
-  'lastActive',
-])
 
 export const customTools = pgTable(
   'custom_tools',
@@ -1688,6 +1606,13 @@ export const organization = pgTable('organization', {
    * cache TTL instead of the 24h cookie-cache lifetime.
    */
   securityPolicyVersion: integer('security_policy_version').notNull().default(1),
+  /**
+   * Whether members must sign in through this organization's identity provider.
+   * Checked only when a session is created, so turning it on ends no session that
+   * already exists; signing everyone out stays the separate revoke action. Owners
+   * keep password sign-in as a break-glass path for a broken identity provider.
+   */
+  requireSso: boolean('require_sso').notNull().default(false),
   whitelabelSettings: json('whitelabel_settings').$type<{
     brandName?: string
     logoUrl?: string
@@ -1720,16 +1645,6 @@ export const organization = pgTable('organization', {
     .notNull()
     .default({}),
   /**
-   * contract-pending(after #7134, #7774, and the Better Auth schema projection are fully deployed):
-   * DROP departed_member_usage. Application reads and inserts use
-   * organizationColumns; createSimAuthAdapter also projects the table for Better
-   * Auth's implicit reads, INSERT defaults, and RETURNING. Its projection must
-   * already be deployed before the drop; the pending-drop audit cannot inspect
-   * queries generated inside the auth dependency.
-   */
-  /** @deprecated No readers or writers; a departed member's ledger rows stay stamped to the org's period, so nothing needs capturing. */
-  departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),
-  /**
    * Organization credit balance tracker.
    *
    * Still debited/credited by billing lifecycle paths and threshold/final
@@ -1739,12 +1654,6 @@ export const organization = pgTable('organization', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
-
-/**
- * Live columns of `organization` while the `departed_member_usage` drop is
- * outstanding — see `userStatsColumns` for the pattern.
- */
-export const organizationColumns = omit(getTableColumns(organization), ['departedMemberUsage'])
 
 export const member = pgTable(
   'member',
@@ -1799,6 +1708,70 @@ export const organizationMemberUsageLimit = pgTable(
       table.userId
     ),
     organizationIdIdx: index('org_member_usage_limit_organization_id_idx').on(table.organizationId),
+  })
+)
+
+/** Organization opt-out; an absent row keeps access requests enabled. */
+export const organizationAccessRequestSettings = pgTable('organization_access_request_settings', {
+  organizationId: text('organization_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  allowRequests: boolean('allow_requests').default(true).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+})
+
+/** Durable review history, scoped to the organization that owned the request at creation. */
+export const permissionAccessRequest = pgTable(
+  'permission_access_request',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id'),
+    scopeKey: text('scope_key').notNull(),
+    targetKey: text('target_key').notNull(),
+    target: jsonb('target').notNull(),
+    targetLabel: text('target_label').notNull(),
+    membershipId: text('membership_id').notNull(),
+    groupId: text('group_id'),
+    groupName: text('group_name'),
+    reason: text('reason').default('').notNull(),
+    status: text('status', { enum: ['pending', 'fulfilled', 'declined', 'cancelled', 'closed'] })
+      .default('pending')
+      .notNull(),
+    decisionReason: text('decision_reason'),
+    decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+    decision: jsonb('decision'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    decidedAt: timestamp('decided_at'),
+  },
+  (table) => ({
+    pendingUnique: uniqueIndex('permission_access_request_pending_unique')
+      .on(table.organizationId, table.requesterId, table.scopeKey, table.targetKey)
+      .where(sql`${table.status} = 'pending'`),
+    organizationQueue: index('permission_access_request_org_queue_idx').on(
+      table.organizationId,
+      table.status,
+      table.createdAt,
+      table.id
+    ),
+    requesterHistory: index('permission_access_request_requester_idx').on(
+      table.organizationId,
+      table.requesterId,
+      table.scopeKey,
+      table.createdAt,
+      table.id
+    ),
+    statusCheck: check(
+      'permission_access_request_status_check',
+      sql`${table.status} in ('pending', 'fulfilled', 'declined', 'cancelled', 'closed')`
+    ),
   })
 )
 
@@ -2267,9 +2240,7 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
-    /** contract-pending(after the cutover and #7774 are fully deployed and size_bytes has no NULLs): drop size, workspace_files_sync_size_columns, and the temporary dev cutover runner — all application reads and writes use size_bytes */
-    size: integer('size').notNull().default(0),
-    /** Exact byte size. The deploy migration backfills existing rows before this release serves traffic. */
+    /** Exact byte size. */
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
@@ -2340,9 +2311,7 @@ export const workspaceFiles = pgTable(
   })
 )
 
-/** Canonical application projection; the legacy `size` bridge is migration-only. */
-export const workspaceFileColumns = omit(getTableColumns(workspaceFiles), ['size'])
-export type WorkspaceFileRow = Omit<typeof workspaceFiles.$inferSelect, 'size'>
+export type WorkspaceFileRow = typeof workspaceFiles.$inferSelect
 
 export const workspaceFileSearchIndexStatusEnum = pgEnum('workspace_file_search_index_status', [
   'pending',
@@ -3385,6 +3354,10 @@ export const embeddingSearch = pgTable(
   },
   (table) => ({
     knowledgeBaseIdx: index('embedding_search_kb_idx').on(table.knowledgeBaseId),
+    documentLookupIdx: index('embedding_search_document_lookup_idx')
+      .on(table.documentId, table.knowledgeBaseId, table.id)
+      .concurrently()
+      .where(sql`${table.enabled}`),
     binaryIdx: index('embedding_search_binary_hnsw_idx')
       .using('hnsw', table.binary.op('bit_hamming_ops'))
       .with({ m: 16, ef_construction: 64 }),
@@ -3768,6 +3741,7 @@ export const copilotRuns = pgTable(
     executionIdIdx: index('copilot_runs_execution_id_idx').on(table.executionId),
     parentRunIdIdx: index('copilot_runs_parent_run_id_idx').on(table.parentRunId),
     chatIdIdx: index('copilot_runs_chat_id_idx').on(table.chatId),
+    chatStartedAtIdx: index('copilot_runs_chat_started_at_idx').on(table.chatId, table.startedAt),
     userIdIdx: index('copilot_runs_user_id_idx').on(table.userId),
     workflowIdIdx: index('copilot_runs_workflow_id_idx').on(table.workflowId),
     workspaceIdIdx: index('copilot_runs_workspace_id_idx').on(table.workspaceId),
@@ -4707,6 +4681,64 @@ export const organizationSearchInvocation = pgTable(
     sourceTypesBounds: check(
       'organization_search_invocation_source_types_bounds',
       sql`cardinality(${table.sourceTypes}) <= 100`
+    ),
+  })
+)
+
+/** MCP tool attempts, separate from successful Search invocations and billable usage. */
+export const organizationSearchMcpInvocation = pgTable(
+  'organization_search_mcp_invocation',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    userId: text('user_id'),
+    authKind: text('auth_kind')
+      .$type<'oauth_access_token' | 'personal_api_key' | 'workspace_api_key'>()
+      .notNull(),
+    /** Snapshots survive OAuth client deletion; names are client-declared, not verified branding. */
+    oauthClientId: text('oauth_client_id'),
+    clientName: text('client_name'),
+    toolName: text('tool_name').$type<'search' | 'read_document' | 'chat'>().notNull(),
+    outcome: text('outcome').$type<'success' | 'error' | 'cancelled' | 'rate_limited'>().notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    organizationFk: foreignKey({
+      name: 'org_search_mcp_invocation_org_fk',
+      columns: [table.organizationId],
+      foreignColumns: [organization.id],
+    }).onDelete('cascade'),
+    userFk: foreignKey({
+      name: 'org_search_mcp_invocation_user_fk',
+      columns: [table.userId],
+      foreignColumns: [user.id],
+    }).onDelete('set null'),
+    organizationCreatedAtIdx: index('organization_search_mcp_invocation_org_created_idx').on(
+      table.organizationId,
+      table.createdAt
+    ),
+    userIdIdx: index('organization_search_mcp_invocation_user_idx').on(table.userId),
+    toolNameCheck: check(
+      'organization_search_mcp_invocation_tool_check',
+      sql`${table.toolName} IN ('search', 'read_document', 'chat')`
+    ),
+    outcomeCheck: check(
+      'organization_search_mcp_invocation_outcome_check',
+      sql`${table.outcome} IN ('success', 'error', 'cancelled', 'rate_limited')`
+    ),
+    durationBounds: check(
+      'organization_search_mcp_invocation_duration_check',
+      sql`${table.durationMs} >= 0`
+    ),
+    clientNameBounds: check(
+      'organization_search_mcp_invocation_client_name_check',
+      sql`length(${table.clientName}) <= 256`
+    ),
+    authCheck: check(
+      'organization_search_mcp_invocation_auth_check',
+      sql`(${table.authKind} = 'oauth_access_token' AND ${table.oauthClientId} IS NOT NULL)
+        OR (${table.authKind} IN ('personal_api_key', 'workspace_api_key') AND ${table.oauthClientId} IS NULL AND ${table.clientName} IS NULL)`
     ),
   })
 )
@@ -5988,6 +6020,9 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     membersCompleted: integer('members_completed').notNull().default(0),
     membersIncomplete: integer('members_incomplete').notNull().default(0),
     membersFailed: integer('members_failed').notNull().default(0),
+    /** Null on historical runs that did not record document failure counts. */
+    docsFailed: integer('docs_failed'),
+    processingDispatchFailed: integer('processing_dispatch_failed'),
     docsListed: integer('docs_listed').notNull().default(0),
     docsAdded: integer('docs_added').notNull().default(0),
     docsUpdated: integer('docs_updated').notNull().default(0),

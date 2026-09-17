@@ -11,7 +11,7 @@
 import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
-import { nativeImage, type WebContents, type WebFrameMain } from 'electron'
+import type { NativeImage, WebContents, WebFrameMain } from 'electron'
 
 const logger = createLogger('BrowserAgentCdp')
 
@@ -370,14 +370,13 @@ export async function evaluateInIsolatedFrame(
  */
 const MAX_SCREENSHOT_EDGE = 1024
 const SCREENSHOT_QUALITY = 70
-/**
- * Quality of the intermediate capture, before the in-process downscale
- * re-encodes at {@link SCREENSHOT_QUALITY}. Higher than the final quality so
- * the two lossy passes together land near where one pass did — the model reads
- * text out of these frames, and compression artifacts on glyphs cost more than
- * the transient bytes do.
- */
-const SCREENSHOT_CAPTURE_QUALITY = 90
+const UNSCALED_SCREENSHOT_QUALITY = 90
+const SCREENSHOT_CAPTURE_TIMEOUT_MS = 5_000
+/** Native surface copies cannot be cancelled; never accumulate them on a stalled tab. */
+const pendingScreenshotCaptures = new WeakSet<WebContents>()
+const activeScreenshotCaptures = new WeakSet<WebContents>()
+
+class ScreenshotCaptureTimeoutError extends Error {}
 
 interface CdpViewport {
   clientWidth: number
@@ -401,7 +400,8 @@ export interface ScreenshotCapture {
   dataUrl: string
   scale: number
   viewport: ScreenshotSize | null
-  imageSize: ScreenshotSize | null
+  imageSize: ScreenshotSize
+  clip?: ScreenshotClip
 }
 
 export interface ScreenshotClip {
@@ -456,8 +456,105 @@ function sameScreenshotViewport(
   )
 }
 
+async function captureNativeViewportImage(
+  contents: WebContents,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  signal?.throwIfAborted()
+  if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
+  pendingScreenshotCaptures.add(contents)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onAbort = () => {}
+  let onDestroyed = () => {}
+  try {
+    const interrupted = new Promise<never>((_resolve, reject) => {
+      onAbort = () => reject(new Error('Screenshot capture was cancelled'))
+      onDestroyed = () => reject(new Error('The screenshot tab was closed'))
+      signal?.addEventListener('abort', onAbort, { once: true })
+      contents.once('destroyed', onDestroyed)
+      timer = setTimeout(
+        () =>
+          reject(
+            new ScreenshotCaptureTimeoutError('Screenshot pixel capture timed out after 5 seconds')
+          ),
+        SCREENSHOT_CAPTURE_TIMEOUT_MS
+      )
+    })
+    const capture = (async () => {
+      try {
+        return await contents.capturePage(undefined, { stayHidden: true })
+      } finally {
+        pendingScreenshotCaptures.delete(contents)
+      }
+    })()
+    return await Promise.race([capture, interrupted])
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+    contents.removeListener('destroyed', onDestroyed)
+  }
+}
+
+/** Observes one complete frame; unlike a native surface copy, this wait can be cancelled. */
+async function captureViewportFrame(
+  contents: WebContents,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  signal?.throwIfAborted()
+  if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onAbort = () => {}
+  let onDestroyed = () => {}
+  let subscribed = false
+  try {
+    return await new Promise<NativeImage>((resolve, reject) => {
+      onAbort = () => reject(new Error('Screenshot capture was cancelled'))
+      onDestroyed = () => reject(new Error('The screenshot tab was closed'))
+      signal?.addEventListener('abort', onAbort, { once: true })
+      contents.once('destroyed', onDestroyed)
+      timer = setTimeout(
+        () => reject(new Error('Screenshot frame capture timed out after 5 seconds')),
+        SCREENSHOT_CAPTURE_TIMEOUT_MS
+      )
+      subscribed = true
+      contents.beginFrameSubscription(false, (image) => resolve(image))
+      contents.invalidate()
+    })
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+    contents.removeListener('destroyed', onDestroyed)
+    if (subscribed && !contents.isDestroyed()) contents.endFrameSubscription()
+  }
+}
+
+/** Captures pixels without reloading the page, changing geometry, or exposing a hidden window. */
+async function captureViewportImage(
+  contents: WebContents,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  signal?.throwIfAborted()
+  if (contents.isDestroyed()) throw new Error('The screenshot tab was closed')
+  if (activeScreenshotCaptures.has(contents)) {
+    throw new Error('A screenshot capture is already in progress on this tab')
+  }
+  activeScreenshotCaptures.add(contents)
+  try {
+    if (!pendingScreenshotCaptures.has(contents)) {
+      try {
+        return await captureNativeViewportImage(contents, signal)
+      } catch (error) {
+        if (!(error instanceof ScreenshotCaptureTimeoutError)) throw error
+      }
+    }
+    return await captureViewportFrame(contents, signal)
+  } finally {
+    activeScreenshotCaptures.delete(contents)
+  }
+}
+
 /**
- * Screenshot via CDP (works while the view is hidden), bounded in resolution.
+ * Native viewport capture, bounded in time and resolution.
  *
  * The capture is deliberately UNCLIPPED. Chromium implements `clip` by applying
  * device-emulation parameters (viewport offset and scale) to the widget and
@@ -468,12 +565,14 @@ function sameScreenshotViewport(
  * snapshot capture refuses to scale a visible surface for the same reason.
  *
  * Bounding resolution therefore happens here instead, on the returned image.
- * Optional element crops also happen in memory. Convert output coordinates
- * with cssX = (clip?.x ?? 0) + imageX / scale, and the equivalent Y formula.
+ * Optional element crops also happen in memory. The returned clip records the
+ * rounded/clamped CSS bounds. Map each image axis using those bounds and the
+ * returned imageSize, since resizing can round the two dimensions differently.
  */
 export async function captureScreenshot(
   contents: WebContents,
-  clip?: ScreenshotClip
+  clip?: ScreenshotClip,
+  signal?: AbortSignal
 ): Promise<ScreenshotCapture> {
   const metrics = await send<{
     cssLayoutViewport?: CdpViewport
@@ -492,10 +591,7 @@ export async function captureScreenshot(
   const scale =
     width > 0 && height > 0 ? Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)) : 1
 
-  const result = await send<{ data: string }>(contents, 'Page.captureScreenshot', {
-    format: 'jpeg',
-    quality: SCREENSHOT_CAPTURE_QUALITY,
-  })
+  const image = await captureViewportImage(contents, signal)
   const metricsAfterCapture = await send<{
     cssLayoutViewport?: CdpViewport
     layoutViewport?: CdpViewport
@@ -503,15 +599,12 @@ export async function captureScreenshot(
   if (!sameScreenshotViewport(captureViewport, screenshotViewportMetrics(metricsAfterCapture))) {
     throw new Error('The page viewport changed or could not be verified during screenshot capture')
   }
-  const captured = `data:image/jpeg;base64,${result.data}`
 
   const targetWidth = Math.round(width * scale)
   const targetHeight = Math.round(height * scale)
-  const image = nativeImage.createFromBuffer(Buffer.from(result.data, 'base64'))
   const size = image.isEmpty() ? { width: 0, height: 0 } : image.getSize()
   if (size.width === 0 || size.height === 0) {
-    if (clip) throw new Error('The screenshot could not be decoded for element cropping')
-    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: null }
+    throw new Error('Screenshot pixel capture returned an empty image')
   }
   if (clip && cssViewport) {
     const xScale = size.width / cssViewport.width
@@ -533,6 +626,12 @@ export async function captureScreenshot(
     if (croppedSize.width === 0 || croppedSize.height === 0) {
       throw new Error('The requested screenshot element produced an empty crop')
     }
+    const capturedClip = {
+      x: cropX / xScale,
+      y: cropY / yScale,
+      width: croppedSize.width / xScale,
+      height: croppedSize.height / yScale,
+    }
     const cropScale = Math.min(
       1,
       MAX_SCREENSHOT_EDGE / Math.max(croppedSize.width, croppedSize.height)
@@ -548,13 +647,19 @@ export async function captureScreenshot(
     const outputSize = output.getSize()
     return {
       dataUrl: `data:image/jpeg;base64,${output.toJPEG(SCREENSHOT_QUALITY).toString('base64')}`,
-      scale: outputSize.width / clip.width,
+      scale: outputSize.width / capturedClip.width,
       viewport: cssViewport,
       imageSize: outputSize,
+      clip: capturedClip,
     }
   }
   if (size.width === targetWidth && size.height === targetHeight) {
-    return { dataUrl: captured, scale, viewport: cssViewport, imageSize: size }
+    return {
+      dataUrl: `data:image/jpeg;base64,${image.toJPEG(UNSCALED_SCREENSHOT_QUALITY).toString('base64')}`,
+      scale,
+      viewport: cssViewport,
+      imageSize: size,
+    }
   }
 
   const resized = image.resize({ width: targetWidth, height: targetHeight, quality: 'good' })

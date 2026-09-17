@@ -55,6 +55,7 @@ import {
   startOrganizationAccountConnection,
 } from '@/lib/credential-groups/application/organization-accounts'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
+import { ORGANIZATION_CREDENTIAL_TYPES } from '@/lib/credential-groups/credential-types'
 import { ResourcePolicyRevisionConflictError } from '@/lib/resource-policies/repository'
 
 const principal: SessionPrincipal = {
@@ -62,7 +63,16 @@ const principal: SessionPrincipal = {
   userId: 'admin-user',
   sessionId: 'session-1',
 }
-const input = { organizationId: 'org-1', revision: 3, workspaceIds: ['workspace-1'] }
+const input = {
+  organizationId: 'org-1',
+  revision: 3,
+  grants: [
+    {
+      workspaceId: 'workspace-1',
+      access: { mode: 'selected' as const, credentialTypes: ['oauth:gmail' as const] },
+    },
+  ],
+}
 
 describe('organization workspace sharing administration', () => {
   beforeEach(() => {
@@ -166,7 +176,15 @@ describe('organization workspace sharing administration', () => {
     queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
     await expect(
       updateOrganizationAccountWorkspaceAccess.execute({ principal, input })
-    ).resolves.toMatchObject({ revision: 4, workspaceIds: ['workspace-1'] })
+    ).resolves.toMatchObject({
+      revision: 4,
+      grants: [
+        {
+          workspaceId: 'workspace-1',
+          access: { mode: 'selected' as const, credentialTypes: ['oauth:gmail' as const] },
+        },
+      ],
+    })
     expect(eq).toHaveBeenCalledWith(schemaMock.member.userId, 'admin-user')
     expect(eq).toHaveBeenCalledWith(schemaMock.member.organizationId, 'org-1')
     expect(eq).toHaveBeenCalledWith(schemaMock.workspace.organizationId, 'org-1')
@@ -175,6 +193,7 @@ describe('organization workspace sharing administration', () => {
         organizationId: 'org-1',
         actorUserId: 'admin-user',
         expectedRevision: 3,
+        document: buildOrganizationAccountAccessPolicy('group-1', input.grants),
       })
     )
   })
@@ -193,12 +212,28 @@ describe('organization workspace sharing administration', () => {
     await expect(
       updateOrganizationAccountWorkspaceAccess.execute({
         principal,
-        input: { ...input, workspaceIds: [] },
+        input: { ...input, grants: [] },
       })
-    ).resolves.toMatchObject({ workspaceIds: [] })
+    ).resolves.toMatchObject({ grants: [] })
     expect(mocks.write).toHaveBeenCalledWith(
       expect.objectContaining({ document: buildOrganizationAccountAccessPolicy('group-1', []) })
     )
+  })
+
+  it('rejects selected grants exceeding the persisted policy size bound before writing', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'admin' }])
+    const grants = Array.from({ length: 1000 }, (_, index) => ({
+      workspaceId: `workspace-${index}`,
+      access: { mode: 'selected' as const, credentialTypes: [...ORGANIZATION_CREDENTIAL_TYPES] },
+    }))
+    queueTableRows(
+      schemaMock.workspace,
+      grants.map((grant) => ({ id: grant.workspaceId }))
+    )
+    await expect(
+      updateOrganizationAccountWorkspaceAccess.execute({ principal, input: { ...input, grants } })
+    ).rejects.toMatchObject({ code: 'validation', message: expect.stringContaining('too large') })
+    expect(mocks.write).not.toHaveBeenCalled()
   })
 
   it('rejects a stale revision rather than overwriting another admin', async () => {
@@ -207,7 +242,7 @@ describe('organization workspace sharing administration', () => {
     await expect(
       updateOrganizationAccountWorkspaceAccess.execute({
         principal,
-        input: { ...input, workspaceIds: [] },
+        input: { ...input, grants: [] },
       })
     ).rejects.toMatchObject({ code: 'conflict' })
   })

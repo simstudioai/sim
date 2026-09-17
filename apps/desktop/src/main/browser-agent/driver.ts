@@ -66,6 +66,7 @@ import {
   readSelectElementState,
   scrollPage,
   selectOptionInElement,
+  setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
 import * as session from '@/main/browser-agent/session'
@@ -1236,7 +1237,7 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'outside-viewport') {
       throw new ToolError(
-        'That point is outside the visible viewport. Coordinates are CSS pixels within the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale, and scroll the target into view first.'
+        "That point is outside the visible viewport. Coordinates are CSS pixels within the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin, and scroll the target into view first."
       )
     }
     if (code === 'ambiguous-editable') {
@@ -1290,6 +1291,7 @@ function unwrapPageResult(result: unknown): unknown {
         `No option matched that label or value. Available options: ${options.join(', ')}`
       )
     }
+    throw new ToolError(String(code))
   }
   return result
 }
@@ -2278,7 +2280,8 @@ async function executeToolInner(
   params: Record<string, unknown>,
   assertCurrentExecution: () => void,
   executionDeadline: number | undefined,
-  invocationEpoch: number
+  invocationEpoch: number,
+  signal?: AbortSignal
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -2630,15 +2633,11 @@ async function executeToolInner(
             }
           : undefined
       assertCaptureIsCurrent()
-      const shot = await cdp.captureScreenshot(contents, clip).catch((error) => {
-        logger.warn('Browser screenshot capture failed', { error: getErrorMessage(error) })
-        return null
-      })
-      if (!shot) {
+      const shot = await cdp.captureScreenshot(contents, clip, signal).catch((error) => {
         throw new ToolError(
-          'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
+          `Could not capture the page: ${getErrorMessage(error)}. Use browser_snapshot or browser_read_text instead.`
         )
-      }
+      })
       assertCaptureIsCurrent()
       if (elementId !== undefined && elementClip) {
         const currentClip = toRecord(
@@ -2662,11 +2661,6 @@ async function executeToolInner(
       if (shot.dataUrl.length > 8_000_000) {
         throw new ToolError(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
-        )
-      }
-      if (!shot.imageSize) {
-        throw new ToolError(
-          'Could not verify the screenshot dimensions. Retry browser_screenshot or use browser_snapshot instead.'
         )
       }
       const viewport = shot.viewport
@@ -2720,13 +2714,14 @@ async function executeToolInner(
       }
       return {
         dataUrl: shot.dataUrl,
+        imageSize: shot.imageSize,
         viewport,
         scale,
         ...(clip
           ? {
               element: elementClip?.element,
               refRecovered: elementClip?.refRecovered === true,
-              clip,
+              clip: shot.clip ?? clip,
             }
           : {}),
       }
@@ -3344,16 +3339,19 @@ async function executeToolInner(
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
       }
-      let trusted = true
+      const valueInput = initialSurface.valueInput === true
+      let trusted = !valueInput
       let nativeInserted = false
       let nativeInsertAttempted = false
       try {
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
-        await dispatchKeyCombo(
-          contents,
-          parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
-        )
+        if (!valueInput) {
+          await dispatchKeyCombo(
+            contents,
+            parseKeyCombo(process.platform === 'darwin' ? 'Cmd+A' : 'Control+A')
+          )
+        }
         // The guard above vetted the element we asked to focus, but the insert
         // below goes wherever focus actually is now, a round trip later. Login
         // forms that auto-advance from username to password move it in exactly
@@ -3406,8 +3404,32 @@ async function executeToolInner(
         }
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
+        if ((finalSurface.valueInput === true) !== valueInput) {
+          throw new ToolError('The field type changed before input. Take a fresh browser_snapshot.')
+        }
         nativeInsertAttempted = true
-        await cdp.insertText(contents, text)
+        if (valueInput) {
+          const written = unwrapPageResult(
+            await execInPage(
+              target,
+              setFocusedInputValue,
+              [elementId, text],
+              false,
+              executionDeadline
+            ).catch((error) => {
+              throw new ToolError(
+                `The structured field write did not acknowledge completion (${getErrorMessage(error)}). It may have reached the field and was not retried; inspect the page before continuing.`
+              )
+            })
+          )
+          if (!isRecordLike(written) || written.dispatched !== true) {
+            throw new ToolError(
+              'The field did not acknowledge the value write. Inspect it before retrying.'
+            )
+          }
+        } else {
+          await cdp.insertText(contents, text)
+        }
         nativeInserted = true
 
         let submitted = false
@@ -3845,6 +3867,19 @@ async function executeToolInner(
     }
 
     case 'browser_select_option': {
+      const values = params.values
+      if (values !== undefined && params.value !== undefined) {
+        throw new ToolError('Provide value or values, not both.')
+      }
+      if (
+        values !== undefined &&
+        (!Array.isArray(values) ||
+          values.length > 100 ||
+          values.some((value) => typeof value !== 'string'))
+      ) {
+        throw new ToolError('values must be an array of at most 100 strings.')
+      }
+      const selection = values === undefined ? requireStr(params, 'value') : (values as string[])
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
@@ -3880,7 +3915,7 @@ async function executeToolInner(
         await execInPage(
           target,
           selectOptionInElement,
-          [elementId, requireStr(params, 'value')],
+          [elementId, selection],
           false,
           executionDeadline
         )
@@ -3894,10 +3929,22 @@ async function executeToolInner(
       }
       await sleep(50)
       const state = unwrapPageResult(await execInPage(target, readSelectElementState, [elementId]))
+      const selectedValues = selected.values
+      const readbackValues = isRecordLike(state) ? state.values : undefined
+      const selectedLabels = selected.labels
+      const readbackLabels = isRecordLike(state) ? state.labels : undefined
       const effectObserved =
         isRecordLike(state) &&
         selected.selected === state.selected &&
-        selected.value === state.value
+        selected.value === state.value &&
+        (!Array.isArray(selectedValues) ||
+          (Array.isArray(readbackValues) &&
+            selectedValues.length === readbackValues.length &&
+            selectedValues.every((value, index) => value === readbackValues[index]) &&
+            Array.isArray(selectedLabels) &&
+            Array.isArray(readbackLabels) &&
+            selectedLabels.length === readbackLabels.length &&
+            selectedLabels.every((label, index) => label === readbackLabels[index])))
       return {
         ...selected,
         effectObserved,
@@ -4172,7 +4219,7 @@ async function executeToolInner(
       )
       if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
         throw new ToolError(
-          'Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale.'
+          "Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin."
         )
       }
       if (pointTarget.fileInput === true) {
@@ -4416,7 +4463,7 @@ async function executeToolInner(
         )
         if (!isRecordLike(probe) || probe.found !== true) {
           throw new ToolError(
-            `Nothing is rendered at the ${which} point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale.`
+            `Nothing is rendered at the ${which} point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin.`
           )
         }
         return {
@@ -4599,9 +4646,13 @@ export async function executeTool(
         throw new ToolError('This browser action was cancelled before it started.')
       }
       state.activeToolCallId = toolCallId ?? null
+      const executionController = new AbortController()
       let cancelActiveExecution: () => void = () => {}
       const cancellation = new Promise<never>((_resolve, reject) => {
-        cancelActiveExecution = () => reject(new ToolError('This browser action was cancelled.'))
+        cancelActiveExecution = () => {
+          executionController.abort()
+          reject(new ToolError('This browser action was cancelled.'))
+        }
       })
       state.activeToolCancel = cancelActiveExecution
       return await session.withBrowserScope(resolvedScopeId, async () => {
@@ -4629,12 +4680,14 @@ export async function executeTool(
             params,
             assertCurrentExecution,
             executionDeadline,
-            invocationEpoch
+            invocationEpoch,
+            executionController.signal
           )
           const guardedExecution =
             watchdogMs === null
               ? execution
               : raceAgainstWatchdog(execution, watchdogMs, () => {
+                  executionController.abort()
                   if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
                   if (
                     tool === 'browser_snapshot' ||
@@ -4654,6 +4707,7 @@ export async function executeTool(
           })
           return result
         } finally {
+          executionController.abort()
           if (keepHiddenPageActive && !state.disposed) {
             session.setAutomationActive(false)
           }

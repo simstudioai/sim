@@ -1,12 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   invitation,
   invitationWorkspaceGrant,
   member,
   organization,
-  organizationColumns,
   outboxEvent,
   permissions,
   subscription,
@@ -1640,7 +1638,7 @@ export async function issueEnterpriseProvisioning(
 
     if (organizationToCreate) {
       const now = new Date()
-      await tx.insert(withInsertColumns(organization, organizationColumns)).values({
+      await tx.insert(organization).values({
         id: organizationToCreate.id,
         name: organizationToCreate.name,
         slug: slugifyOrganizationName(organizationToCreate.name, organizationToCreate.id),

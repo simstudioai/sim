@@ -1,10 +1,9 @@
 'use client'
 
 import { type ReactNode, useMemo } from 'react'
-import { Chip, ChipSelect, Tooltip } from '@sim/emcn'
+import { BarChart, Chip, ChipSelect, Tooltip } from '@sim/emcn'
 import { CircleInfo } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
-import { BarChart } from '@/components/charts'
 import {
   SEARCH_STATS_PEOPLE_LIMIT,
   SEARCH_STATS_SURFACE_LABELS,

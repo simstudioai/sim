@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
-import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_EVENTS, googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
+import { fetchGoogleApiWithRetry, GoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
   getGoogleWorkspaceDocument,
   InvalidGoogleWorkspaceCursor,
@@ -34,8 +34,6 @@ const PAGE_SIZE = 250
 const CALENDAR_PAGE_MAX_BYTES = 16 * 1024 * 1024
 const EVENT_FIELDS =
   'id,status,htmlLink,created,updated,summary,description,location,creator(email,displayName),organizer(email,displayName,self),start(date,dateTime,timeZone),end(date,dateTime,timeZone),attendees(email,displayName,responseStatus,self,resource,optional),recurringEventId,eventType'
-
-class GoogleCalendarCredentialInvalidError extends Error {}
 
 const calendarEventTimeSchema = z.object({
   date: z.string().optional(),
@@ -403,7 +401,7 @@ const userCalendarConnector: ConnectorConfig = {
   ...googleCalendarConnectorMeta,
 
   isListingScopeUnavailableError: isListingScopeUnavailableError,
-  isCredentialInvalidError: (error) => error instanceof GoogleCalendarCredentialInvalidError,
+  isCredentialInvalidError: (error) => error instanceof GoogleApiError && error.status === 401,
 
   listDocuments: async (
     accessToken: string,
@@ -504,24 +502,24 @@ const userCalendarConnector: ConnectorConfig = {
       hasPageToken: Boolean(pageToken),
     })
 
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      signal: syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new GoogleCalendarCredentialInvalidError('Reconnect your Google Calendar account')
-      }
-      logger.error('Failed to list Google Calendar events', {
-        status: response.status,
-        calendarId,
+    let response: Response
+    try {
+      response = await fetchGoogleApiWithRetry('calendar.events.list', url, {
+        method: 'GET',
+        signal: syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined,
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
       })
-      const error = listingRequestError('Failed to list Google Calendar events', response.status)
+    } catch (providerError) {
+      if (!(providerError instanceof GoogleApiError)) throw providerError
+      logger.error('Failed to list Google Calendar events', {
+        status: providerError.status,
+        calendarId,
+        ...providerError.diagnostic,
+      })
+      const error =
+        providerError.status === 404
+          ? listingRequestError('Failed to list Google Calendar events', providerError.status)
+          : providerError
       /**
        * One of several calendars a member cannot reach is absent from their
        * listing, not the end of it: move on to the next calendar so the rest of
@@ -537,7 +535,7 @@ const userCalendarConnector: ConnectorConfig = {
       ) {
         logger.warn('Skipping a Google Calendar the member cannot reach', {
           calendarId,
-          status: response.status,
+          status: providerError.status,
         })
         return calendarIndex + 1 < calendarIds.length
           ? {
@@ -668,21 +666,17 @@ const userCalendarConnector: ConnectorConfig = {
 
     const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=${encodeURIComponent(EVENT_FIELDS)}`
 
-    const response = await fetchWithRetry(url, {
-      method: 'GET',
-      signal: syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      if (response.status === 404 || response.status === 410) return null
-      if (response.status === 401) {
-        throw new GoogleCalendarCredentialInvalidError('Reconnect your Google Calendar account')
-      }
-      throw new Error(`Failed to get Google Calendar event: ${response.status}`)
+    let response: Response
+    try {
+      response = await fetchGoogleApiWithRetry('calendar.events.get', url, {
+        method: 'GET',
+        signal: syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined,
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+      })
+    } catch (error) {
+      if (error instanceof GoogleApiError && (error.status === 404 || error.status === 410))
+        return null
+      throw error
     }
 
     const event = calendarEventSchema.parse(await readCalendarJson(response))
@@ -717,30 +711,28 @@ const userCalendarConnector: ConnectorConfig = {
       for (const calendarId of calendarIds) {
         const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events?maxResults=1&singleEvents=true&orderBy=startTime&timeMin=${encodeURIComponent(new Date().toISOString())}`
 
-        const response = await fetchWithRetry(
-          url,
-          {
-            method: 'GET',
-            signal: syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined,
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
+        try {
+          await fetchGoogleApiWithRetry(
+            'calendar.events.list',
+            url,
+            {
+              method: 'GET',
+              signal: syncContext?.signal instanceof AbortSignal ? syncContext.signal : undefined,
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/json',
+              },
             },
-          },
-          VALIDATE_RETRY_OPTIONS
-        )
-
-        if (!response.ok) {
-          if (response.status === 404) {
+            VALIDATE_RETRY_OPTIONS
+          )
+        } catch (error) {
+          if (error instanceof GoogleApiError && error.status === 404) {
             return {
               valid: false,
               error: `Calendar not found: ${calendarId}. Check the calendar ID.`,
             }
           }
-          return {
-            valid: false,
-            error: `Failed to access Google Calendar "${calendarId}": ${response.status}`,
-          }
+          throw error
         }
       }
 

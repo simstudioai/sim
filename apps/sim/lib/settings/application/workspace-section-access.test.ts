@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   isScopedCredentialGroupsAvailable: vi.fn(),
   isKnowledgeMemberAccessAvailable: vi.fn(),
   isPlatformAdmin: vi.fn(),
+  isAccessRequestEnabled: vi.fn(),
   resolveVerifiedUserAccessControlContext: vi.fn(),
   resolveWorkspaceNavigation: vi.fn(),
 }))
@@ -56,6 +57,10 @@ vi.mock('@/components/settings/navigation', () => ({
   workspaceSectionUsesPermissionConfig: vi.fn((section: string) =>
     ['secrets', 'api-keys', 'inbox', 'mcp', 'custom-tools'].includes(section)
   ),
+  WORKSPACE_PERMISSION_CONFIG_KEYS: { secrets: 'hideSecretsTab' },
+}))
+vi.mock('@/lib/permission-access-requests/settings', () => ({
+  isAccessRequestEnabled: mocks.isAccessRequestEnabled,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mocks.isOrganizationOnEnterprisePlan,
@@ -68,6 +73,10 @@ vi.mock('@/lib/credential-groups/scoped-availability', () => ({
 }))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   isKnowledgeMemberAccessAvailable: mocks.isKnowledgeMemberAccessAvailable,
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  /** Access Control follows the regime; these tests drive it from the same plan knob. */
+  isOrganizationPermissionRegimeActive: mocks.isOrganizationOnEnterprisePlan,
 }))
 vi.mock('@/lib/organizations/settings-access', () => ({
   canOpenOrganizationSettingsSection: mocks.canOpenOrganizationSettingsSection,
@@ -127,6 +136,7 @@ describe('authorizeWorkspaceSettingsSection', () => {
     mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(true)
     mocks.isKnowledgeMemberAccessAvailable.mockResolvedValue(false)
     mocks.isPlatformAdmin.mockResolvedValue(true)
+    mocks.isAccessRequestEnabled.mockResolvedValue(false)
     mocks.canOpenOrganizationSettingsSection.mockResolvedValue(true)
     mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({ config: {} })
     mocks.resolveWorkspaceNavigation.mockReturnValue([{ id: 'secrets' }])
@@ -196,6 +206,56 @@ describe('authorizeWorkspaceSettingsSection', () => {
     )
   })
 
+  it.each([true, false])(
+    'offers a request-only page when requests are enabled=%s',
+    async (enabled) => {
+      mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+      mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+        config: { hideSecretsTab: true },
+      })
+      mocks.resolveWorkspaceNavigation.mockImplementation(({ permissionConfig }) =>
+        permissionConfig.hideSecretsTab ? [] : [{ id: 'secrets' }]
+      )
+      mocks.isAccessRequestEnabled.mockResolvedValue(enabled)
+
+      await expect(authorize('secrets')).resolves.toEqual(
+        enabled
+          ? { allowed: false, disposition: 'request-access', configKey: 'hideSecretsTab' }
+          : { allowed: false, disposition: 'redirect-general' }
+      )
+      expect(mocks.isAccessRequestEnabled).toHaveBeenCalledWith('organization-1')
+    }
+  )
+
+  it('keeps deployment and role exclusions when considering a permission request', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+      config: { hideSecretsTab: true },
+    })
+    mocks.resolveWorkspaceNavigation.mockReturnValue([])
+    mocks.isAccessRequestEnabled.mockResolvedValue(true)
+
+    await expect(authorize('secrets')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.isAccessRequestEnabled).not.toHaveBeenCalled()
+  })
+
+  it('does not offer organization requests for personal workspace restrictions', async () => {
+    mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
+      config: { hideSecretsTab: true },
+    })
+    mocks.resolveWorkspaceNavigation.mockImplementation(({ permissionConfig }) =>
+      permissionConfig.hideSecretsTab ? [] : [{ id: 'secrets' }]
+    )
+    await expect(authorize('secrets')).resolves.toEqual({
+      allowed: false,
+      disposition: 'redirect-general',
+    })
+    expect(mocks.isAccessRequestEnabled).not.toHaveBeenCalled()
+  })
+
   it('enforces canonical permission config independently of billing subscription state', async () => {
     mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
     mocks.resolveVerifiedUserAccessControlContext.mockResolvedValue({
@@ -221,7 +281,27 @@ describe('authorizeWorkspaceSettingsSection', () => {
 
     mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
     await expect(authorize('access-control')).resolves.toEqual({ allowed: true })
-    expect(mocks.getOrganizationSettingsFeatures).toHaveBeenCalledWith(true, mocks.deploymentShape)
+    /**
+     * Access Control is gated on the permission regime rather than the plan, so the plan lookup is
+     * skipped for it and the regime is what reaches the navigation gate.
+     */
+    expect(mocks.getOrganizationSettingsFeatures).toHaveBeenCalledWith(
+      false,
+      mocks.deploymentShape,
+      true
+    )
+  })
+
+  /**
+   * The workspace-scoped page reads the same regime as the organization one: an organization whose
+   * restrictions still apply during a failing payment must not have this page taken away.
+   */
+  it('keeps the workspace Access Control page open while the organization is governed', async () => {
+    mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
+    mocks.isOrganizationOnEnterprisePlan.mockResolvedValue(false)
+
+    await expect(authorize('access-control')).resolves.toEqual({ allowed: true })
+    expect(mocks.isOrganizationOnEnterprisePlan).toHaveBeenCalledTimes(1)
   })
 
   it('resolves the exact entitlement source only for gated workspace sections', async () => {
@@ -280,10 +360,10 @@ describe('authorizeWorkspaceSettingsSection', () => {
   it.each([
     { groups: true, search: false, allowed: true },
     { groups: false, search: false, allowed: false },
-    { groups: true, search: true, allowed: false },
+    { groups: true, search: true, allowed: true },
     { groups: false, search: true, allowed: false },
   ])(
-    'gates Connected accounts with organization groups=$groups and search=$search',
+    'gates Credential Groups with organization groups=$groups and search=$search',
     async ({ groups, search, allowed }) => {
       mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
       mocks.isScopedCredentialGroupsAvailable.mockResolvedValue(groups)
@@ -301,11 +381,7 @@ describe('authorizeWorkspaceSettingsSection', () => {
         kind: 'organization',
         organizationId: 'organization-1',
       })
-      if (groups) {
-        expect(mocks.isKnowledgeMemberAccessAvailable).toHaveBeenCalledWith({
-          organizationId: 'organization-1',
-        })
-      }
+      expect(mocks.isKnowledgeMemberAccessAvailable).not.toHaveBeenCalled()
       expect(mocks.isOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
     }
   )
@@ -329,9 +405,9 @@ describe('authorizeWorkspaceSettingsSection', () => {
     expect(mocks.canOpenOrganizationSettingsSection).not.toHaveBeenCalled()
   })
 
-  it('propagates feature lookup failures instead of opening Connected accounts', async () => {
+  it('propagates feature lookup failures instead of opening Credential Groups', async () => {
     mocks.checkWorkspaceAccess.mockResolvedValue(ORGANIZATION_ACCESS)
-    mocks.isKnowledgeMemberAccessAvailable.mockRejectedValue(new Error('Feature lookup failed'))
+    mocks.isScopedCredentialGroupsAvailable.mockRejectedValue(new Error('Feature lookup failed'))
 
     await expect(authorize('connected-accounts')).rejects.toThrow('Feature lookup failed')
   })

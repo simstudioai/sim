@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockLogger, mockSdkConnect, mockSdkListTools, mockPinnedClose } = vi.hoisted(() => ({
   mockLogger: {
@@ -98,6 +98,10 @@ describe('McpClient notification handler', () => {
     // clearAllMocks resets call history but not implementations; re-establish the
     // default so a per-test override can't bleed into later tests.
     vi.mocked(getMaxExecutionTimeout).mockReturnValue(30_000)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('preserves authorization-required errors raised by a locked credential reload', async () => {
@@ -199,6 +203,7 @@ describe('McpClient notification handler', () => {
   })
 
   it('clamps a configured tools/list timeout to the absolute discovery ceiling', async () => {
+    vi.useFakeTimers()
     vi.mocked(getMaxExecutionTimeout).mockReturnValue(120_000)
     const client = new McpClient({
       config: { ...createConfig(), timeout: 300_000 },
@@ -210,7 +215,7 @@ describe('McpClient notification handler', () => {
 
     expect(mockSdkListTools).toHaveBeenCalledWith(
       undefined,
-      expect.objectContaining({ timeout: 60_000, maxTotalTimeout: expect.any(Number) })
+      expect.objectContaining({ timeout: 60_000, maxTotalTimeout: 60_000 })
     )
   })
 

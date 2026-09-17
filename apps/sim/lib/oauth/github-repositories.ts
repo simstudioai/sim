@@ -44,12 +44,9 @@ export function parseGitHubRepositoriesTokenResponse(value: unknown) {
 
 /**
  * Reads provider-attested identity; a public profile email never establishes ownership.
- * A managed invitation may match a verified work address even when it is not primary.
+ * Both managed and ordinary connections use the account's verified primary email.
  */
-export async function verifyGitHubRepositoriesIdentity(
-  accessToken: string,
-  expectedEmail?: string
-) {
+export async function verifyGitHubRepositoriesIdentity(accessToken: string) {
   if (!accessToken.startsWith('ghu_')) {
     throw new OAuthIdentityVerificationError('provider_rejected', 'token')
   }
@@ -120,7 +117,6 @@ export async function verifyGitHubRepositoriesIdentity(
     throw new OAuthIdentityVerificationError('invalid_response', 'profile')
   }
   const user = parsedUser.data
-  const normalizedEmail = expectedEmail?.trim().toLowerCase()
   for (let page = 1; page <= MAX_EMAIL_PAGES; page++) {
     const parsedEmails = emailsSchema.safeParse(
       await get(`/user/emails?per_page=${EMAIL_PAGE_SIZE}&page=${page}`, 'emails')
@@ -129,11 +125,7 @@ export async function verifyGitHubRepositoriesIdentity(
       throw new OAuthIdentityVerificationError('invalid_response', 'emails')
     }
     const emails = parsedEmails.data
-    const matching = emails.find(
-      (entry) =>
-        entry.verified &&
-        (normalizedEmail ? entry.email.toLowerCase() === normalizedEmail : entry.primary)
-    )
+    const matching = emails.find((entry) => entry.verified && entry.primary)
     if (matching) {
       return {
         providerSubjectId: String(user.id),
@@ -146,7 +138,7 @@ export async function verifyGitHubRepositoriesIdentity(
       }
     }
     if (emails.length < EMAIL_PAGE_SIZE) {
-      throw new OAuthIdentityVerificationError('email_mismatch', 'emails')
+      throw new OAuthIdentityVerificationError('email_unverified', 'emails')
     }
   }
   throw new OAuthIdentityVerificationError('invalid_response', 'emails')

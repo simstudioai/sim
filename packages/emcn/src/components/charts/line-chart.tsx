@@ -1,0 +1,580 @@
+'use client'
+
+import { memo, useId, useMemo, useState } from 'react'
+import {
+  CHART_AXIS_LABEL_GAP,
+  CHART_DEFAULT_HEIGHT,
+  CHART_GRID_FRACTIONS,
+  CHART_TICK_FILL,
+  CHART_TICK_FONT_SIZE,
+  ChartDataTable,
+  ChartLegend,
+  ChartTooltip,
+  ChartTooltipRow,
+  chartPlotBand,
+  cn,
+  estimateTooltipHeight,
+  estimateTooltipWidth,
+  formatChartCompactNumber,
+  formatChartLatency,
+  formatChartTimestamp,
+  formatTimeTick,
+  positionChartTooltip,
+  resolveChartPadding,
+  resolveSpanMs,
+  resolveTimeTickIndices,
+  useChartWidth,
+  useIsDarkTheme,
+} from '@sim/emcn'
+
+export interface LineChartPoint {
+  timestamp: string
+  value: number
+}
+
+export interface LineChartMultiSeries {
+  id: string
+  label: string
+  color: string
+  data: LineChartPoint[]
+  dashed?: boolean
+}
+
+interface LineChartProps {
+  data: LineChartPoint[]
+  /** Pass `''` for the caller-owned-wrapper form: no card chrome, title, or legend. */
+  label: string
+  color: string
+  unit?: string
+  series?: LineChartMultiSeries[]
+  height?: number
+}
+
+/** Clamp control points to keep smoothed curves within the plot band. */
+function buildSmoothPath(
+  points: ReadonlyArray<{ x: number; y: number }>,
+  yMin: number,
+  yMax: number
+): string {
+  if (points.length <= 1) return ''
+  const tension = 0.2
+  let d = `M ${points[0].x} ${points[0].y}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] || points[i]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[i + 2] || points[i + 1]
+    const cp1x = p1.x + ((p2.x - p0.x) / 6) * tension
+    let cp1y = p1.y + ((p2.y - p0.y) / 6) * tension
+    const cp2x = p2.x - ((p3.x - p1.x) / 6) * tension
+    let cp2y = p2.y - ((p3.y - p1.y) / 6) * tension
+    cp1y = Math.max(yMin, Math.min(yMax, cp1y))
+    cp2y = Math.max(yMin, Math.min(yMax, cp2y))
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
+  }
+  return d
+}
+
+function LineChartComponent({
+  data,
+  label,
+  color,
+  unit,
+  series,
+  height = CHART_DEFAULT_HEIGHT,
+}: LineChartProps) {
+  const uniqueId = useId().replace(/:/g, '')
+  const [containerRef, containerWidth] = useChartWidth()
+  const width = containerWidth ?? 0
+  const isDark = useIsDarkTheme()
+  const [legendHoverSeriesId, setLegendHoverSeriesId] = useState<string | null>(null)
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
+
+  const hasExternalWrapper = !label || label === ''
+
+  const allSeries = useMemo(
+    () => [
+      { id: 'base', sourceId: 'base', label, color, data },
+      ...(series ?? []).map((item) => ({ ...item, id: `series:${item.id}`, sourceId: item.id })),
+    ],
+    [series, label, color, data]
+  )
+
+  const activeSeriesId = allSeries.some((item) => item.id === selectedSeriesId)
+    ? selectedSeriesId
+    : null
+
+  const { maxValue, minValue, valueRange } = useMemo(() => {
+    const flatValues = allSeries.flatMap((s) => s.data.map((d) => d.value))
+    const rawMax = Math.max(...flatValues, 1)
+    const rawMin = Math.min(...flatValues, 0)
+    const paddedMax = rawMax === 0 ? 1 : rawMax * 1.1
+    const paddedMin = Math.min(0, rawMin)
+    const unitSuffixPre = (unit || '').trim().toLowerCase()
+    let maxVal = Math.ceil(paddedMax)
+    let minVal = Math.floor(paddedMin)
+    if (unitSuffixPre === 'ms' || unitSuffixPre === 'latency') {
+      minVal = 0
+      if (paddedMax < 10) {
+        maxVal = Math.ceil(paddedMax)
+      } else if (paddedMax < 100) {
+        maxVal = Math.ceil(paddedMax / 10) * 10
+      } else if (paddedMax < 1000) {
+        maxVal = Math.ceil(paddedMax / 50) * 50
+      } else if (paddedMax < 10000) {
+        maxVal = Math.ceil(paddedMax / 500) * 500
+      } else {
+        maxVal = Math.ceil(paddedMax / 1000) * 1000
+      }
+    }
+    return {
+      maxValue: maxVal,
+      minValue: minVal,
+      valueRange: maxVal - minVal || 1,
+    }
+  }, [allSeries, unit])
+
+  const yAxisLabels = useMemo(() => {
+    const unitSuffix = (unit || '').trim()
+    const isLatency = unitSuffix.toLowerCase() === 'latency'
+    const suffix = unitSuffix === '%' && !isLatency ? unitSuffix : ''
+    const compact = (value: number) => {
+      if (isLatency) return value === 0 ? '0' : formatChartLatency(value)
+      return `${formatChartCompactNumber(value)}${suffix}`
+    }
+    return [compact(maxValue), compact(minValue)] as const
+  }, [maxValue, minValue, unit])
+
+  const padding = resolveChartPadding(yAxisLabels)
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
+  const { yMin, yMax } = chartPlotBand(height)
+
+  const scaledPoints = useMemo(
+    () =>
+      data.map((d, i) => {
+        const usableW = Math.max(1, chartWidth)
+        const x = padding.left + (i / (data.length - 1 || 1)) * usableW
+        const rawY = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
+        const y = Math.max(yMin, Math.min(yMax, rawY))
+        return { x, y }
+      }),
+    [data, chartWidth, chartHeight, minValue, valueRange, yMin, yMax, padding.left, padding.top]
+  )
+
+  /** Re-clamp the cursor after layout changes, which can occur without a pointer event. */
+  const hoverIndex =
+    hoverPos === null || scaledPoints.length === 0
+      ? null
+      : Math.max(
+          0,
+          Math.min(
+            scaledPoints.length - 1,
+            Math.round(
+              ((hoverPos.x - padding.left) / (chartWidth || 1)) * (scaledPoints.length - 1)
+            )
+          )
+        )
+
+  const scaledSeries = useMemo(
+    () =>
+      allSeries.map((s) => {
+        const pts = s.data.map((d, i) => {
+          const usableW = Math.max(1, chartWidth)
+          const x = padding.left + (i / (s.data.length - 1 || 1)) * usableW
+          const rawY = padding.top + chartHeight - ((d.value - minValue) / valueRange) * chartHeight
+          const y = Math.max(yMin, Math.min(yMax, rawY))
+          return { x, y }
+        })
+        return { ...s, pts }
+      }),
+    [
+      allSeries,
+      chartWidth,
+      chartHeight,
+      minValue,
+      valueRange,
+      yMin,
+      yMax,
+      padding.left,
+      padding.top,
+    ]
+  )
+
+  const validLegendHoverId =
+    scaledSeries.find((item) => item.id === legendHoverSeriesId)?.id ?? null
+  let hoverSeriesId = validLegendHoverId
+  if (hoverPos && hoverIndex !== null) {
+    hoverSeriesId = activeSeriesId
+    if (!activeSeriesId) {
+      let nearestDistance = Number.POSITIVE_INFINITY
+      let nearestSeriesId: string | null = null
+      for (const item of scaledSeries.slice(1)) {
+        const point = item.pts[hoverIndex]
+        if (!point) continue
+        const distance = Math.abs(point.y - hoverPos.y)
+        if (distance < nearestDistance) {
+          nearestDistance = distance
+          nearestSeriesId = item.id
+        }
+      }
+      hoverSeriesId = nearestDistance <= 12 ? nearestSeriesId : null
+    }
+  }
+
+  const getSeriesById = (id?: string | null) => scaledSeries.find((s) => s.id === id)
+  const visibleSeries =
+    activeSeriesId && !validLegendHoverId
+      ? scaledSeries.filter((s) => s.id === activeSeriesId)
+      : scaledSeries
+
+  const pathD = useMemo(() => buildSmoothPath(scaledPoints, yMin, yMax), [scaledPoints, yMin, yMax])
+
+  const currentHoverDate =
+    hoverIndex !== null && data[hoverIndex] ? formatChartTimestamp(data[hoverIndex].timestamp) : ''
+
+  if (containerWidth === null) {
+    return (
+      <div
+        ref={containerRef}
+        className={cn(
+          'w-full',
+          !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'
+        )}
+        style={{ height }}
+      />
+    )
+  }
+
+  if (data.length === 0) {
+    return (
+      <div
+        ref={containerRef}
+        className={cn(
+          'flex w-full items-center justify-center',
+          !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4'
+        )}
+        style={{ height }}
+      >
+        <p className='text-[var(--text-muted)] text-sm'>No data</p>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn(
+        /** Scroll below the minimum plot width without introducing a vertical scrollbar. */
+        'w-full overflow-x-auto overflow-y-hidden',
+        !hasExternalWrapper && 'rounded-lg border bg-[var(--surface-1)] p-4 shadow-card'
+      )}
+    >
+      {!hasExternalWrapper && (
+        <div className='mb-3 flex items-center gap-3'>
+          <h4 className='text-[var(--text-primary)] text-sm'>{label}</h4>
+          {allSeries.length > 1 && (
+            <ChartLegend
+              layout='row'
+              items={scaledSeries.slice(1)}
+              selectedId={activeSeriesId}
+              highlightedId={hoverSeriesId ?? activeSeriesId}
+              onHighlight={setLegendHoverSeriesId}
+              onSelect={setSelectedSeriesId}
+            />
+          )}
+        </div>
+      )}
+      <div className='relative' style={{ width, height }}>
+        <ChartDataTable
+          label={label || 'Values by date'}
+          series={allSeries.map((item) => ({
+            id: item.id,
+            label: item.label || unit || 'Value',
+            data: item.data,
+          }))}
+        />
+        <svg
+          aria-hidden='true'
+          width={width}
+          height={height}
+          className='overflow-hidden'
+          onMouseMove={(event) => {
+            if (scaledPoints.length === 0) return
+            const rect = event.currentTarget.getBoundingClientRect()
+            setHoverPos({ x: event.clientX - rect.left, y: event.clientY - rect.top })
+          }}
+          onMouseLeave={() => setHoverPos(null)}
+        >
+          <defs>
+            <linearGradient id={`area-${uniqueId}`} x1='0' x2='0' y1='0' y2='1'>
+              <stop offset='0%' stopColor={color} stopOpacity={isDark ? 0.25 : 0.45} />
+              <stop offset='100%' stopColor={color} stopOpacity={isDark ? 0.03 : 0.08} />
+            </linearGradient>
+            <clipPath id={`clip-${uniqueId}`}>
+              <rect
+                x={padding.left - 3}
+                y={yMin}
+                width={Math.max(1, chartWidth + 6)}
+                height={chartHeight - (yMin - padding.top) * 2}
+                rx='2'
+              />
+            </clipPath>
+          </defs>
+
+          <line
+            x1={padding.left}
+            y1={padding.top}
+            x2={padding.left}
+            y2={height - padding.bottom}
+            stroke='var(--border)'
+            strokeWidth='1'
+          />
+
+          {CHART_GRID_FRACTIONS.map((p) => (
+            <line
+              key={`${uniqueId}-grid-${p}`}
+              x1={padding.left}
+              y1={padding.top + chartHeight * p}
+              x2={width - padding.right}
+              y2={padding.top + chartHeight * p}
+              stroke='var(--border)'
+              strokeOpacity='0.35'
+              strokeWidth='1'
+            />
+          ))}
+
+          {!activeSeriesId && scaledPoints.length > 1 && (
+            <path
+              d={`${pathD} L ${scaledPoints[scaledPoints.length - 1].x} ${height - padding.bottom} L ${scaledPoints[0].x} ${height - padding.bottom} Z`}
+              fill={`url(#area-${uniqueId})`}
+              stroke='none'
+              clipPath={`url(#clip-${uniqueId})`}
+            />
+          )}
+
+          {!activeSeriesId &&
+            scaledPoints.length === 1 &&
+            (() => {
+              const strokeWidth = isDark ? 1.7 : 2.0
+              const capExtension = strokeWidth / 2
+              return (
+                <rect
+                  x={padding.left - capExtension}
+                  y={scaledPoints[0].y}
+                  width={Math.max(1, chartWidth + capExtension * 2)}
+                  height={height - padding.bottom - scaledPoints[0].y}
+                  fill={`url(#area-${uniqueId})`}
+                  clipPath={`url(#clip-${uniqueId})`}
+                />
+              )
+            })()}
+
+          {visibleSeries.map((s) => {
+            const isActive = activeSeriesId ? activeSeriesId === s.id : true
+            const isHovered = hoverSeriesId ? hoverSeriesId === s.id : false
+            const baseOpacity = isActive ? 1 : 0.12
+            const strokeOpacity = hoverSeriesId ? (isHovered ? 1 : 0.2) : baseOpacity
+            const sw = (() => {
+              switch (s.sourceId.toLowerCase()) {
+                case 'p50':
+                  return isDark ? 1.5 : 1.7
+                case 'p90':
+                  return isDark ? 1.9 : 2.1
+                case 'p99':
+                  return isDark ? 2.3 : 2.5
+                default:
+                  return isDark ? 1.7 : 2.0
+              }
+            })()
+            if (s.pts.length <= 1) {
+              const y = s.pts[0]?.y
+              if (y === undefined) return null
+              return (
+                <line
+                  key={s.id}
+                  x1={padding.left}
+                  y1={y}
+                  x2={width - padding.right}
+                  y2={y}
+                  stroke={s.color}
+                  strokeWidth={sw}
+                  strokeLinecap='round'
+                  opacity={strokeOpacity}
+                  className='transition-opacity duration-150 motion-reduce:transition-none'
+                  strokeDasharray={s.dashed ? '5 4' : undefined}
+                />
+              )
+            }
+            const p = buildSmoothPath(s.pts, yMin, yMax)
+            return (
+              <path
+                key={s.id}
+                d={p}
+                fill='none'
+                stroke={s.color}
+                strokeWidth={sw}
+                strokeLinecap='round'
+                clipPath={`url(#clip-${uniqueId})`}
+                style={{ mixBlendMode: isDark ? 'screen' : 'normal' }}
+                strokeDasharray={s.dashed ? '5 4' : undefined}
+                opacity={strokeOpacity}
+                className='transition-opacity duration-150 motion-reduce:transition-none'
+                onClick={() => setSelectedSeriesId((prev) => (prev === s.id ? null : s.id || null))}
+              />
+            )
+          })}
+
+          {hoverIndex !== null &&
+            scaledPoints[hoverIndex] &&
+            scaledPoints.length > 1 &&
+            (() => {
+              const guideSeries =
+                getSeriesById(activeSeriesId) || getSeriesById(hoverSeriesId) || scaledSeries[0]
+              const active = guideSeries
+              const pt = active.pts[hoverIndex] || scaledPoints[hoverIndex]
+              return (
+                <g pointerEvents='none' clipPath={`url(#clip-${uniqueId})`}>
+                  <line
+                    x1={pt.x}
+                    y1={padding.top}
+                    x2={pt.x}
+                    y2={height - padding.bottom}
+                    stroke={active.color}
+                    strokeOpacity='0.35'
+                    strokeDasharray='3 3'
+                  />
+                  {activeSeriesId &&
+                    (() => {
+                      const s = getSeriesById(activeSeriesId)
+                      const spt = s?.pts?.[hoverIndex]
+                      if (!s || !spt) return null
+                      return <circle cx={spt.x} cy={spt.y} r='3' fill={s.color} />
+                    })()}
+                </g>
+              )
+            })()}
+
+          {(() => {
+            if (data.length < 2) return null
+            const usableW = Math.max(1, chartWidth)
+            const spanMs = resolveSpanMs(data)
+            const idx = resolveTimeTickIndices(data.length, usableW)
+
+            return idx.map((i) => {
+              const x = padding.left + (i / (data.length - 1 || 1)) * usableW
+              const tsSource = data[i]?.timestamp
+              if (!tsSource) return null
+              const ts = new Date(tsSource)
+              const labelStr = Number.isNaN(ts.getTime()) ? '' : formatTimeTick(ts, spanMs)
+              return (
+                <text
+                  key={`${uniqueId}-x-axis-${i}`}
+                  x={x}
+                  y={height - padding.bottom + 14}
+                  fontSize={CHART_TICK_FONT_SIZE}
+                  textAnchor='middle'
+                  fill={CHART_TICK_FILL}
+                >
+                  {labelStr}
+                </text>
+              )
+            })
+          })()}
+
+          <text
+            x={padding.left - CHART_AXIS_LABEL_GAP}
+            y={padding.top}
+            textAnchor='end'
+            fontSize={CHART_TICK_FONT_SIZE}
+            fill={CHART_TICK_FILL}
+          >
+            {yAxisLabels[0]}
+          </text>
+          <text
+            x={padding.left - CHART_AXIS_LABEL_GAP}
+            y={height - padding.bottom}
+            textAnchor='end'
+            fontSize={CHART_TICK_FONT_SIZE}
+            fill={CHART_TICK_FILL}
+          >
+            {yAxisLabels[1]}
+          </text>
+
+          <line
+            x1={padding.left}
+            y1={height - padding.bottom}
+            x2={width - padding.right}
+            y2={height - padding.bottom}
+            stroke='var(--border)'
+            strokeWidth='1'
+          />
+        </svg>
+
+        {hoverIndex !== null &&
+          scaledPoints[hoverIndex] &&
+          (() => {
+            const active =
+              getSeriesById(activeSeriesId) || getSeriesById(hoverSeriesId) || scaledSeries[0]
+            const pt = active.pts[hoverIndex] || scaledPoints[hoverIndex]
+            const toDisplay = activeSeriesId
+              ? [getSeriesById(activeSeriesId)!]
+              : scaledSeries.length > 1
+                ? scaledSeries.slice(1)
+                : [scaledSeries[0]]
+
+            const fmt = (v?: number) => {
+              if (typeof v !== 'number' || !Number.isFinite(v)) return '—'
+              const u = unit || ''
+              if (u.includes('%')) return `${v.toFixed(1)}%`
+              if (u.toLowerCase() === 'latency') return formatChartLatency(v)
+              if (u.toLowerCase().includes('ms')) return `${Math.round(v)}ms`
+              if (u.toLowerCase().includes('exec')) return `${Math.round(v)}`
+              return `${Math.round(v)}${u}`
+            }
+
+            const longest = toDisplay.reduce((m, s) => {
+              const seriesIndex = allSeries.findIndex((x) => x.id === s.id)
+              const v = allSeries[seriesIndex]?.data?.[hoverIndex]?.value
+              const valueStr = fmt(v)
+              const labelStr = s.label || s.sourceId
+              const len = `${labelStr} ${valueStr}`.length
+              return Math.max(m, len)
+            }, 0)
+            const { left, top } = positionChartTooltip({
+              anchorX: hoverPos?.x ?? pt.x,
+              anchorY: hoverPos?.y ?? pt.y,
+              width,
+              height,
+              tooltipMaxWidth: estimateTooltipWidth(longest),
+              tooltipHeight: estimateTooltipHeight(toDisplay.length, Boolean(currentHoverDate)),
+              padding,
+            })
+            return (
+              <ChartTooltip left={left} top={top} date={currentHoverDate || undefined}>
+                {toDisplay.map((s) => {
+                  const seriesIndex = allSeries.findIndex((x) => x.id === s.id)
+                  const val = allSeries[seriesIndex]?.data?.[hoverIndex]?.value
+                  const seriesLabel = s.label || s.sourceId
+                  const showLabel =
+                    seriesLabel && seriesLabel !== 'base' && seriesLabel.trim() !== ''
+                  return (
+                    <ChartTooltipRow
+                      key={`tt-${s.id}`}
+                      color={s.color}
+                      label={showLabel ? seriesLabel : undefined}
+                      value={fmt(val)}
+                    />
+                  )
+                })}
+              </ChartTooltip>
+            )
+          })()}
+      </div>
+    </div>
+  )
+}
+
+export const LineChart = memo(LineChartComponent)

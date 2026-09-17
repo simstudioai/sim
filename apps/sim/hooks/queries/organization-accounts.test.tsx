@@ -27,6 +27,7 @@ import {
 import { slackSearchKeys } from '@/hooks/queries/slack-search'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
+import { selectorKeys, selectorQueryRoots } from '@/hooks/queries/utils/selector-keys'
 
 describe('personal account disconnect', () => {
   it.each([true, false])(
@@ -163,6 +164,20 @@ describe('organization account setup updates', () => {
       const other = slackSearchKeys.manifest('org-2', 'Sim Search')
       const overview = searchSourceKeys.organizationOverview('org-1')
       const otherOverview = searchSourceKeys.organizationOverview('org-2')
+      const providerSelectors = [
+        selectorKeys.scoped(
+          'workspace.credentialGroupProviders',
+          { kind: 'workspace', workspaceId: 'workspace-1' },
+          'block-1'
+        ),
+        selectorKeys.scoped(
+          'workspace.organizationMcpProviders',
+          { kind: 'workspace', workspaceId: 'workspace-1' },
+          'block-2'
+        ),
+        [...selectorQueryRoots.workflowSearchReplace, 'workflow-1'],
+      ]
+      for (const key of providerSelectors) client.setQueryData(key, { options: ['cached'] })
       for (const key of [current, renamed, other]) client.setQueryData(key, { existingApp: 'A1' })
       for (const key of [overview, otherOverview]) client.setQueryData(key, { providers: [] })
       try {
@@ -200,6 +215,8 @@ describe('organization account setup updates', () => {
         expect(client.getQueryState(other)?.isInvalidated).toBe(false)
         expect(client.getQueryState(overview)?.isInvalidated).toBe(success)
         expect(client.getQueryState(otherOverview)?.isInvalidated).toBe(false)
+        for (const key of providerSelectors)
+          expect(client.getQueryState(key)?.isInvalidated).toBe(success)
       } finally {
         await act(async () => root.unmount())
         client.clear()

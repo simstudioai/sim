@@ -28,9 +28,11 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
+import { ConnectorDirectoryError } from '@/connectors/source-error'
 import type {
   ConnectorConfig,
   ConnectorDirectory,
@@ -188,11 +190,13 @@ export async function syncExternalDirectoryGroups(input: {
         if (isRateLimitError(error)) throw error
         keptStale += 1
         firstError ??= toError(error)
+        const diagnostic = getConnectorFailureDiagnostic(error)
         logger.warn('Keeping last-known-good membership for a group that failed to enumerate', {
           workspaceId,
           providerId,
           externalGroupId: group.id,
-          error: getErrorMessage(error),
+          error: diagnostic?.message ?? getErrorMessage(error),
+          diagnostic,
         })
         continue
       }
@@ -377,12 +381,16 @@ export async function refreshMirroredDirectory(input: {
     })
     return result.skipped ? 'skipped' : 'refreshed'
   } catch (error) {
+    const diagnostic = getConnectorFailureDiagnostic(error)
     logger.error('Directory refresh failed; serving last-known-good group membership', {
       workspaceId,
       connector: connectorConfig.id,
-      error: getErrorMessage(error),
+      error: diagnostic?.message ?? getErrorMessage(error),
+      diagnostic,
     })
-    throw new Error(`${DIRECTORY_ERROR_PREFIX}${getErrorMessage(error)}`, { cause: error })
+    throw new ConnectorDirectoryError(`${DIRECTORY_ERROR_PREFIX}${getErrorMessage(error)}`, {
+      cause: error,
+    })
   }
 }
 
@@ -503,7 +511,10 @@ export async function refreshConnectorDirectory(
         }
         return outcome
       } catch (error) {
-        await recordError(getErrorMessage(error))
+        const diagnostic = getConnectorFailureDiagnostic(error)
+        await recordError(
+          diagnostic ? `${DIRECTORY_ERROR_PREFIX}${diagnostic.message}` : getErrorMessage(error)
+        )
         throw error
       }
     }

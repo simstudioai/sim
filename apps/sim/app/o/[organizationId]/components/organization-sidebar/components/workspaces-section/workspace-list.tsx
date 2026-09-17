@@ -18,6 +18,7 @@ import { WorkspaceContextMenu } from '@/components/workspaces/workspace-context-
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { useOrganizationWorkspaces } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-workspaces'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
+import { SidebarRowActions } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { useFlyoutInlineRename } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-flyout-inline-rename'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
 import { useToggleWorkspacePin, useUpdateWorkspace } from '@/hooks/queries/workspace'
@@ -139,6 +140,7 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
               key={workspace.id}
               asChild
               active={isActive || isMenuOpen}
+              actionOpen={isMenuOpen}
               onPointerMove={(event) => {
                 if (menu.isOpen || rename.editingId) event.preventDefault()
               }}
@@ -176,34 +178,36 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
           <SettingsGuardedLink
             key={workspace.id}
             href={href}
-            className={chipVariants({ active: isActive || isMenuOpen, fullWidth: true })}
+            className={cn(
+              chipVariants({ active: isActive || isMenuOpen, fullWidth: true }),
+              'group/sidebar-row'
+            )}
             onContextMenu={(event) => openMenu(event, workspace.id)}
           >
             {label}
-            <div className='relative flex size-[18px] shrink-0 items-center justify-center'>
-              {isPinned && (
-                <Pin
-                  role='img'
-                  aria-label='Pinned'
-                  className={cn(
-                    'absolute size-[12px] text-[var(--text-icon)] group-focus-within:opacity-0 group-hover:opacity-0',
-                    isMenuOpen && 'opacity-0'
-                  )}
-                />
-              )}
+            <SidebarRowActions
+              open={isMenuOpen}
+              indicator={
+                isPinned ? (
+                  <Pin
+                    role='img'
+                    aria-label='Pinned'
+                    aria-hidden={false}
+                    className='size-[12px] text-[var(--text-icon)]'
+                  />
+                ) : undefined
+              }
+            >
               <button
                 type='button'
                 aria-label={`Options for ${workspace.name}`}
                 onPointerDown={() => menu.preventDismiss()}
                 onClick={onMoreClick}
-                className={cn(
-                  'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
-                  isMenuOpen && 'opacity-100'
-                )}
+                className='flex size-[18px] items-center justify-center rounded-sm'
               >
                 <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
               </button>
-            </div>
+            </SidebarRowActions>
           </SettingsGuardedLink>
         )
       })}

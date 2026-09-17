@@ -80,6 +80,7 @@ import {
   MAX_KNOWLEDGE_ACCESS_CANDIDATES,
   SYSTEM_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/types'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
 import {
@@ -1388,9 +1389,11 @@ async function dispatchInProcess(
         const message = processingClaimed
           ? 'In-process document processing failed'
           : 'In-process document dispatch failed before claiming the document'
+        const diagnostic = getConnectorFailureDiagnostic(error)
         logger.error(`[${requestId}] ${message}`, {
           documentId: p.documentId,
-          error: getErrorMessage(error),
+          error: diagnostic?.message ?? getErrorMessage(error),
+          ...(diagnostic ? { diagnostic } : {}),
         })
         return processingClaimed
       }
@@ -1886,9 +1889,25 @@ export async function processDocumentAsync(
                   }
 
                   logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-                  for (const batch of batches) {
+                  for (const [batchIndex, batch] of batches.entries()) {
                     signal.throwIfAborted()
-                    await tx.insert(embedding).values(batch)
+                    const insertStartedAt = Date.now()
+                    try {
+                      await tx.insert(embedding).values(batch)
+                    } catch (error) {
+                      logger.error(`[${documentId}] Failed to insert embedding batch`, {
+                        knowledgeBaseId,
+                        operation: 'embedding.insert',
+                        batchNumber: batchIndex + 1,
+                        batchSize: batch.length,
+                        totalChunks: embeddingRecords.length,
+                        embeddingModel: kbEmbeddingModel,
+                        embeddingDimensions: kbEmbedding.dimensions,
+                        elapsedMs: Date.now() - insertStartedAt,
+                        diagnostic: getConnectorFailureDiagnostic(error),
+                      })
+                      throw error
+                    }
                   }
                   const provenanceRecords = embeddingRecords.flatMap((record, index) => {
                     const provenance = chunkProvenances[index]
@@ -2060,15 +2079,19 @@ export async function processDocumentAsync(
     const providerContinuationExhausted =
       recordedError instanceof ProviderCapacityContinuationExhaustedError
     const quotaContinuationFailed = quotaContinuationAttempted && !deferredUntil
+    const failureDiagnostic = getConnectorFailureDiagnostic(recordedError)
     const errorMessage = byokCredentialRejected
       ? BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE
       : embeddingQuotaExhausted
         ? quotaContinuationFailed
           ? getErrorMessage(recordedError, 'Embedding quota continuation dispatch failed')
           : EMBEDDING_QUOTA_EXHAUSTED_MESSAGE
-        : getErrorMessage(recordedError, 'Unknown error')
+        : failureDiagnostic?.category === 'database'
+          ? failureDiagnostic.message
+          : getErrorMessage(recordedError, 'Unknown error')
     const logContext = {
       errorType: toError(recordedError).name,
+      ...(failureDiagnostic ? { diagnostic: failureDiagnostic } : {}),
       knowledgeBaseId,
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,

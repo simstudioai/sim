@@ -5,12 +5,16 @@ import {
   UNIFIED_TO_ORGANIZATION_SECTION,
   UNIFIED_TO_WORKSPACE_SECTION,
   type UnifiedSettingsSection,
+  WORKSPACE_PERMISSION_CONFIG_KEYS,
   type WorkspaceSettingsSection,
   workspaceSectionUsesPermissionConfig,
 } from '@/components/settings/navigation'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
+import { isAccessRequestEnabled } from '@/lib/permission-access-requests/settings'
+import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { isCustomBlocksEligibleForOrganization } from '@/lib/workflows/custom-blocks/operations'
@@ -21,6 +25,7 @@ import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/linea
 export type WorkspaceSettingsSectionAccess =
   | { allowed: true }
   | { allowed: false; disposition: 'not-found' | 'redirect-general' }
+  | { allowed: false; disposition: 'request-access'; configKey: BooleanPermissionGroupConfigKey }
 
 interface AuthorizeWorkspaceSettingsSectionInput {
   workspaceId: string
@@ -28,14 +33,14 @@ interface AuthorizeWorkspaceSettingsSectionInput {
   section: UnifiedSettingsSection
 }
 
-async function canOpenWorkspaceSection(
+async function authorizeWorkspaceSection(
   section: WorkspaceSettingsSection,
   input: AuthorizeWorkspaceSettingsSectionInput,
   workspace: {
     organizationId: string | null
   },
   permission: NonNullable<Awaited<ReturnType<typeof checkWorkspaceAccess>>['permission']>
-): Promise<boolean> {
+): Promise<WorkspaceSettingsSectionAccess> {
   const [accessControl, forksAvailable, customBlocksAvailable] = await Promise.all([
     workspaceSectionUsesPermissionConfig(section)
       ? resolveVerifiedUserAccessControlContext(
@@ -53,7 +58,7 @@ async function canOpenWorkspaceSection(
   ])
 
   const deployment = getDeploymentShape()
-  const navigation = resolveWorkspaceNavigation({
+  const navigationOptions = {
     permission,
     permissionConfig: accessControl?.config ?? {},
     deployment,
@@ -63,8 +68,25 @@ async function canOpenWorkspaceSection(
       forks: forksAvailable,
       sandboxes: true,
     },
-  })
-  return navigation.some((item) => item.id === section)
+  }
+  if (resolveWorkspaceNavigation(navigationOptions).some((item) => item.id === section)) {
+    return { allowed: true }
+  }
+
+  const configKey = WORKSPACE_PERMISSION_CONFIG_KEYS[section]
+  if (
+    configKey &&
+    accessControl?.config?.[configKey] &&
+    workspace.organizationId &&
+    resolveWorkspaceNavigation({
+      ...navigationOptions,
+      permissionConfig: { ...navigationOptions.permissionConfig, [configKey]: false },
+    }).some((item) => item.id === section) &&
+    (await isAccessRequestEnabled(workspace.organizationId))
+  ) {
+    return { allowed: false, disposition: 'request-access', configKey }
+  }
+  return { allowed: false, disposition: 'redirect-general' }
 }
 
 async function canOpenOrganizationSection(
@@ -93,17 +115,26 @@ async function canOpenOrganizationSection(
   }
 
   const needsEnterprisePlan = organizationSection !== 'members' && organizationSection !== 'billing'
-  const [canOpenSection, isEnterpriseOrganization] = await Promise.all([
+  /** Same split as the organization surface: Access Control follows the regime, everything else the plan. */
+  const readsRegime = needsEnterprisePlan && organizationSection === 'access-control'
+  const [canOpenSection, isEnterpriseOrganization, governanceActive] = await Promise.all([
     canOpenOrganizationSettingsSection(workspace.organizationId, input.userId, organizationSection),
-    needsEnterprisePlan
+    needsEnterprisePlan && !readsRegime
       ? isOrganizationOnEnterprisePlan(workspace.organizationId)
+      : Promise.resolve(false),
+    readsRegime
+      ? isOrganizationPermissionRegimeActive(workspace.organizationId)
       : Promise.resolve(false),
   ])
   return (
     canOpenSection &&
     isOrganizationSettingsSectionAvailable(
       organizationSection,
-      getOrganizationSettingsFeatures(needsEnterprisePlan && isEnterpriseOrganization, deployment)
+      getOrganizationSettingsFeatures(
+        needsEnterprisePlan && isEnterpriseOrganization,
+        deployment,
+        governanceActive
+      )
     )
   )
 }
@@ -124,11 +155,14 @@ export async function authorizeWorkspaceSettingsSection(
   }
 
   const workspaceSection = UNIFIED_TO_WORKSPACE_SECTION[input.section]
-  if (
-    workspaceSection &&
-    !(await canOpenWorkspaceSection(workspaceSection, input, access.workspace, access.permission))
-  ) {
-    return { allowed: false, disposition: 'redirect-general' }
+  if (workspaceSection) {
+    const sectionAccess = await authorizeWorkspaceSection(
+      workspaceSection,
+      input,
+      access.workspace,
+      access.permission
+    )
+    if (!sectionAccess.allowed) return sectionAccess
   }
   if (!(await canOpenOrganizationSection(input, access.workspace))) {
     return { allowed: false, disposition: 'redirect-general' }

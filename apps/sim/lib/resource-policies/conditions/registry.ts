@@ -1,5 +1,6 @@
 import { credentialGroupActorOwnsCredentialConditionDefinition } from '@/lib/resource-policies/conditions/credential-group-actor-owns-credential'
 import { credentialGroupOptionIdConditionDefinition } from '@/lib/resource-policies/conditions/credential-group-option'
+import { credentialTypeConditionDefinition } from '@/lib/resource-policies/conditions/credential-type'
 import type {
   ResourcePolicyConditionDefinition,
   ResourcePolicyConditionKey,
@@ -9,6 +10,7 @@ import { workflowModeResourcePolicyConditionDefinition } from '@/lib/resource-po
 export const RESOURCE_POLICY_CONDITION_DEFINITIONS = Object.freeze({
   'credential_group:ActorOwnsCredential': credentialGroupActorOwnsCredentialConditionDefinition,
   'credential_group:OptionId': credentialGroupOptionIdConditionDefinition,
+  'credential_group:CredentialType': credentialTypeConditionDefinition,
   'execution:WorkflowMode': workflowModeResourcePolicyConditionDefinition,
 } as const satisfies Record<ResourcePolicyConditionKey, ResourcePolicyConditionDefinition>)
 

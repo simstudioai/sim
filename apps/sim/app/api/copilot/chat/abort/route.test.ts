@@ -33,7 +33,7 @@ const {
 })
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
-  getAccessibleCopilotChatAuth: mockGetAccessibleChat,
+  getAccessibleCopilotChatForCancellation: mockGetAccessibleChat,
 }))
 
 vi.mock('@/lib/copilot/request/http', () => ({
@@ -98,6 +98,24 @@ describe('POST /api/copilot/chat/abort', () => {
 
     await expect(response.json()).resolves.toMatchObject({ settled: false, forceReleased: true })
     expect(mockReleasePendingChatStream).toHaveBeenCalledWith('chat-1', 'stream-1')
+  })
+
+  it('authorizes org Stop using the cancellation lookup and forwards the canonical scope', async () => {
+    const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+    mockAuthenticate.mockResolvedValueOnce({ userId: 'user-1', isAuthenticated: true, principal })
+    mockGetLatestRunForStream.mockResolvedValueOnce({ chatId: 'chat-1', workspaceId: null })
+    mockGetAccessibleChat.mockResolvedValueOnce({ id: 'chat-1', organizationId: 'org-1' })
+    const response = await POST(abortRequest())
+    expect(response.status).toBe(200)
+    expect(mockGetAccessibleChat).toHaveBeenCalledWith('chat-1', 'user-1', { principal })
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'chat-1',
+        userId: 'user-1',
+        organizationId: 'org-1',
+        workspaceId: undefined,
+      })
+    )
   })
 
   it('refuses an inaccessible organization chat before changing stream state', async () => {

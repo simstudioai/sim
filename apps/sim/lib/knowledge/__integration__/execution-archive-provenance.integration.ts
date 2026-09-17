@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
 import {
   document,
   documentSecretProvenance,
@@ -16,7 +15,6 @@ import {
   userTableRowSecretProvenance,
   userTableRows,
   workspace,
-  workspaceFileColumns,
   workspaceFiles,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
@@ -387,7 +385,7 @@ describe('execution archive durable provenance', () => {
           .set({ deletedAt: new Date() })
           .where(eq(workspaceFiles.key, file.key))
       } else {
-        await db.insert(withInsertColumns(workspaceFiles, workspaceFileColumns)).values({
+        await db.insert(workspaceFiles).values({
           id: generateId(),
           key: file.key,
           userId: ids.aliceId,

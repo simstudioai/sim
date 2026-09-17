@@ -444,14 +444,13 @@ describe('script migration registry', () => {
       '0005_repair_unknown_table_row_provenance',
       '0006_repair_unknown_table_row_provenance_second_pass',
       '0007_repair_unknown_workspace_file_provenance',
-      '0008_backfill_workspace_file_size_bytes',
-      '0009_backfill_wel_residual_cost_total',
       '0010_backfill_credential_group_resource_policies',
       '0011_remap_legacy_knowledge_connector_credentials',
       '0012_reconcile_oauth_provider_lifecycle',
       '0013_backfill_legacy_knowledge_base_workspaces',
       '0014_require_knowledge_base_owner',
       '0016_backfill_search_vectors',
+      '0017_index_search_documents',
     ])
   })
 })

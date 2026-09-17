@@ -80,6 +80,7 @@ import {
   getServiceAccountToken,
   refreshTokenIfNeeded,
   resolveCredentialTokenBundle,
+  ServiceAccountTokenError,
 } from '@/lib/oauth/credential-service'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
@@ -452,5 +453,76 @@ describe('Google service-account token minting', () => {
 
     expect(mocks.decryptSecret).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains the Google error code for actionable setup failures', async () => {
+    queueTableRows(credential, [row])
+    fetchMock.mockResolvedValueOnce(
+      Response.json(
+        { error: 'unauthorized_client', error_description: RAW_PROVIDER_ERROR },
+        { status: 401 }
+      )
+    )
+    const error = await getServiceAccountToken(
+      'credential-1',
+      [driveScope],
+      'admin@example.com'
+    ).catch((error: unknown) => error)
+    expect(error).toBeInstanceOf(ServiceAccountTokenError)
+    expect(error).toMatchObject({
+      statusCode: 401,
+      errorCode: 'unauthorized_client',
+      errorDescription: RAW_PROVIDER_ERROR,
+    })
+  })
+
+  it('keeps token errors private for selectors', async () => {
+    queueTableRows(credential, [row])
+    fetchMock.mockResolvedValueOnce(
+      Response.json(
+        { error: 'unauthorized_client', error_description: RAW_PROVIDER_ERROR },
+        { status: 401 }
+      )
+    )
+    await expect(
+      getServiceAccountToken('credential-1', [driveScope], 'admin@example.com', {
+        privacyMode: 'selector',
+      })
+    ).rejects.toMatchObject({
+      statusCode: 401,
+      errorCode: undefined,
+      errorDescription: 'Token exchange failed: 401',
+    })
+    expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain(RAW_PROVIDER_ERROR)
+  })
+
+  it.each([
+    '<html>Unavailable</html>',
+    'null',
+    '{"error":42,"error_description":{}}',
+    '{"error_description":""}',
+  ])('handles malformed provider errors without losing the HTTP status: %s', async (body) => {
+    queueTableRows(credential, [row])
+    fetchMock.mockResolvedValueOnce(new Response(body, { status: 503 }))
+    await expect(getServiceAccountToken('credential-1', [driveScope])).rejects.toMatchObject({
+      statusCode: 503,
+      errorCode: undefined,
+      errorDescription: 'Token exchange failed: 503',
+    })
+  })
+
+  it('continues to hide invalid-signature details', async () => {
+    queueTableRows(credential, [row])
+    fetchMock.mockResolvedValueOnce(
+      Response.json(
+        { error: 'invalid_grant', error_description: 'Invalid signature: private key details' },
+        { status: 400 }
+      )
+    )
+    await expect(getServiceAccountToken('credential-1', [driveScope])).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: 'invalid_grant',
+      errorDescription: 'Invalid account credentials.',
+    })
   })
 })

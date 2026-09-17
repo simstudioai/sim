@@ -22,9 +22,10 @@ import {
   workspaceForkResourceMap,
   workspaceSandbox,
 } from '@sim/db/schema'
-import { type SQL, sql } from 'drizzle-orm'
+import { and, type SQL, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
+import { activeWorkspaceFileConditions } from '@/lib/workspace-files/query-scope'
 import {
   WorkspaceOperationConflict,
   workflowOperationFingerprint,
@@ -46,7 +47,14 @@ export interface ForkMutationAdmission {
   choices: Record<string, unknown>
 }
 
-/** Digests are bounded database aggregates; graph and secret values never enter preview diagnostics. */
+const MAX_REVISION_ROWS = 100_000
+const MAX_REVISION_BYTES = 64 * 1024 * 1024
+
+/**
+ * Fingerprints fork configuration in one database snapshot. Runtime file outputs and their
+ * storage ledger are not sync inputs; including them makes ordinary executions invalidate
+ * previews. Only bounded aggregates leave the database, never graph or secret values.
+ */
 export async function loadForkPreviewRevision(
   executor: DbOrTx,
   scope: ForkRevisionScope,
@@ -64,7 +72,7 @@ export async function loadForkPreviewRevision(
   )
   const workflowIds = sql`SELECT id FROM ${workflow} WHERE workspace_id IN (${values})`
   const queries: Record<string, SQL> = {
-    workspaces: sql`SELECT id, to_jsonb(r) - ARRAY['updated_at'] AS state FROM ${workspace} r WHERE id IN (${values})`,
+    workspaces: sql`SELECT id, to_jsonb(r) - ARRAY['updated_at', 'storage_used_bytes'] AS state FROM ${workspace} r WHERE id IN (${values})`,
     workflows: sql`SELECT id, to_jsonb(r) - ARRAY['run_count', 'last_run_at', 'last_synced', 'updated_at'] AS state FROM ${workflow} r WHERE workspace_id IN (${values})`,
     source_deployments: sql`SELECT d.id, to_jsonb(d) AS state FROM ${workflowDeploymentVersion} d JOIN ${workflow} w ON w.id = d.workflow_id WHERE w.workspace_id = ${scope.sourceWorkspaceId} AND d.is_active = true AND w.archived_at IS NULL AND w.fork_sync_excluded = false`,
     target_graph: sql`SELECT 'block:' || b.id AS id, to_jsonb(b) - ARRAY['updated_at', 'created_at'] AS state FROM ${workflowBlocks} b JOIN ${workflow} w ON w.id = b.workflow_id WHERE w.workspace_id = ${scope.targetWorkspaceId ?? scope.sourceWorkspaceId}
@@ -78,7 +86,7 @@ export async function loadForkPreviewRevision(
     tools: sql`SELECT id, to_jsonb(r) AS state FROM ${customTools} r WHERE workspace_id IN (${values})`,
     skills: sql`SELECT id, to_jsonb(r) AS state FROM ${skill} r WHERE workspace_id IN (${values})`,
     servers: sql`SELECT id, to_jsonb(r) - ARRAY['updated_at', 'last_connected_at', 'last_tools_refresh', 'tool_count', 'connection_status', 'last_error'] AS state FROM ${mcpServers} r WHERE workspace_id IN (${values})`,
-    files: sql`SELECT id, to_jsonb(r) AS state FROM ${workspaceFiles} r WHERE workspace_id IN (${values})`,
+    files: sql`SELECT id, to_jsonb(${workspaceFiles}) AS state FROM ${workspaceFiles} WHERE ${and(...activeWorkspaceFileConditions(ids))}`,
     credentials: sql`SELECT id, to_jsonb(r) - ARRAY['updated_at', 'last_used_at'] AS state FROM ${credential} r WHERE workspace_id IN (${values})`,
     secrets: sql`SELECT id, to_jsonb(r) - 'updated_at' AS state FROM ${workspaceEnvironment} r WHERE workspace_id IN (${values})`,
     sandboxes: sql`SELECT id, to_jsonb(r) AS state FROM ${workspaceSandbox} r WHERE workspace_id IN (${values})`,
@@ -89,17 +97,34 @@ export async function loadForkPreviewRevision(
     queries.block_identities = sql`SELECT id, to_jsonb(r) AS state FROM ${workspaceForkBlockMap} r WHERE child_workspace_id = ${scope.edge.childWorkspaceId}`
     queries.dependent_values = sql`SELECT id, to_jsonb(r) AS state FROM ${workspaceForkDependentValue} r WHERE child_workspace_id = ${scope.edge.childWorkspaceId}`
   }
+  const revisions = await executor.execute<{
+    category: string
+    count: string
+    bytes: string
+    digest: string
+  }>(
+    sql.join(
+      Object.entries(queries).map(
+        ([category, rows]) => sql`
+          SELECT ${category}::text AS category, count(*)::text AS count,
+            coalesce(sum(octet_length(state::text)), 0)::text AS bytes,
+            md5(coalesce(string_agg(md5(state::text), '' ORDER BY id), '')) AS digest
+          FROM (SELECT id, state FROM (${rows}) revision_source LIMIT ${MAX_REVISION_ROWS + 1}) revision_rows
+        `
+      ),
+      sql` UNION ALL `
+    )
+  )
   const categories: Record<string, string> = {}
-  for (const [category, rows] of Object.entries(queries)) {
-    const [size] = await executor.execute<{ count: string; bytes: string }>(
-      sql`SELECT count(*)::text AS count, coalesce(sum(octet_length(state::text)), 0)::text AS bytes FROM (${rows}) revision_rows`
-    )
-    if (Number(size.count) > 100000 || Number(size.bytes) > 64 * 1024 * 1024)
-      throw new ForkError(`Fork preview ${category} exceeds its row or 64 MiB byte ceiling`, 413)
-    const [revision] = await executor.execute<{ digest: string }>(
-      sql`SELECT md5(coalesce(string_agg(md5(state::text), '' ORDER BY id), '')) AS digest FROM (${rows}) revision_rows`
-    )
-    categories[category] = revision.digest
+  for (const revision of revisions) {
+    if (Number(revision.count) > MAX_REVISION_ROWS)
+      throw new ForkError(
+        `Fork preview ${revision.category} exceeds its ${MAX_REVISION_ROWS} row ceiling`,
+        413
+      )
+    if (Number(revision.bytes) > MAX_REVISION_BYTES)
+      throw new ForkError(`Fork preview ${revision.category} exceeds its 64 MiB byte ceiling`, 413)
+    categories[revision.category] = revision.digest
   }
   return {
     categories,

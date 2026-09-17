@@ -1,5 +1,4 @@
 import { db } from '@sim/db'
-import { withInsertColumns } from '@sim/db/insert-columns'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -38,7 +37,7 @@ export async function ensureAnonymousUserExists(): Promise<void> {
     })
 
     if (!existingStats) {
-      await db.insert(withInsertColumns(schema.userStats, schema.userStatsColumns)).values({
+      await db.insert(schema.userStats).values({
         id: generateId(),
         userId: ANONYMOUS_USER_ID,
         currentUsageLimit: '10000000000',

@@ -3,6 +3,7 @@ import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/copilot/auth/application-delegation'
 import {
+  authorizeOrganizationChatCancellation,
   authorizeOrganizationChatDelegation,
   authorizeOrganizationChatEvents,
   createOrganizationChat,
@@ -67,6 +68,28 @@ describe('private organization chat delegation', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
+  it('keeps cancellation member/chat checks while exempting the disabled Copilot capability', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'private-chat' }])
+    await authorizeOrganizationChatDelegation.execute({
+      principal: { ...principal(), audience: 'sim:copilot-cancel' },
+    })
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ subjectUserId: 'member-1' }),
+      expect.objectContaining({
+        id: 'organization.chats.cancel',
+        minimumRole: 'member',
+        capability: 'none',
+      }),
+      { organizationId: 'org-1' }
+    )
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    await expect(
+      authorizeOrganizationChatDelegation.execute({
+        principal: { ...principal(), audience: 'sim:copilot-cancel' },
+      })
+    ).rejects.toThrow('Conversation not found')
+  })
+
   it('does not accept an audience outside its registered operations', async () => {
     await expect(
       authorizeOrganizationChatDelegation.execute({
@@ -102,6 +125,24 @@ describe('organization chat events application boundary', () => {
     expect(authorize.mock.invocationCallOrder[0]).toBeLessThan(
       requireSearch.mock.invocationCallOrder[0]
     )
+  })
+
+  it('uses the same cancellation policy for authenticated session and delegated callbacks', async () => {
+    await authorizeOrganizationChatCancellation.execute({
+      principal,
+      input: { organizationId: 'org-1' },
+    })
+    expect(authorize).toHaveBeenCalledWith(
+      principal,
+      expect.objectContaining({
+        id: 'organization.chats.cancel',
+        minimumRole: 'member',
+        capability: 'none',
+        principalKinds: ['session', 'organization_delegated'],
+      }),
+      { organizationId: 'org-1' }
+    )
+    expect(requireSearch).not.toHaveBeenCalled()
   })
 
   it('does not examine rollout state for a non-member', async () => {

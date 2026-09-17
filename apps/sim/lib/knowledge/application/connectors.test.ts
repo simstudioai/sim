@@ -107,6 +107,15 @@ vi.mock('@/lib/credentials/application/organization-credentials', () => ({
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => ({
+  ServiceAccountTokenError: class extends Error {
+    constructor(
+      readonly statusCode: number,
+      readonly errorDescription: string,
+      readonly errorCode?: string
+    ) {
+      super(errorDescription)
+    }
+  },
   resolveCredentialTokenBundle: mocks.resolveTokenBundle,
   resolveOAuthAccountId: vi.fn(async () => null),
   getServiceAccountToken: vi.fn(),
@@ -145,6 +154,7 @@ vi.mock('@/connectors/registry.server', () => ({
           'https://www.googleapis.com/auth/admin.directory.group.readonly',
           'https://www.googleapis.com/auth/admin.directory.domain.readonly',
         ],
+        serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/drive.readonly'],
         serviceAccountSubjectFieldId: 'adminEmail',
       },
       validateConfig: mocks.validateConnectorConfig,
@@ -167,11 +177,20 @@ import {
   updateKnowledgeConnectorDocuments,
   validateConnectorSourceConfig,
 } from '@/lib/knowledge/application/connectors'
+import type { ConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
 import { MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH } from '@/lib/knowledge/constants'
+import { classifyKnowledgeFailure } from '@/lib/knowledge/orchestration/shared'
+import {
+  getServiceAccountToken,
+  resolveOAuthAccountId,
+  ServiceAccountTokenError,
+} from '@/lib/oauth/credential-service'
 import * as githubInstallation from '@/lib/oauth/github-installation'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
+import { gmailConnectorMeta } from '@/connectors/gmail/meta'
+import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 
 const crossWorkspaceContext = {
@@ -1622,6 +1641,240 @@ describe('organization connector credential authorization', () => {
     await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(rejection)
     expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
     expect(mocks.resolveTokenBundle).not.toHaveBeenCalled()
+  })
+
+  it.each([googleDriveConnectorMeta, gmailConnectorMeta, googleCalendarConnectorMeta])(
+    'projects $name token rejections as safe setup errors',
+    async ({ auth }) => {
+      mocks.resolveTokenBundle.mockRejectedValueOnce(
+        new ServiceAccountTokenError(401, 'private provider payload', 'unauthorized_client')
+      )
+      const error = await resolveConnectorCredentialAccessToken({ ...input, auth }).catch(
+        (error: unknown) => error
+      )
+      expect(error).toBeInstanceOf(OrchestrationError)
+      expect(internalOrchestrationErrorPolicy.project(error)).toMatchObject({
+        status: 400,
+        body: { error: expect.stringContaining('(unauthorized_client)') },
+      })
+      expect((error as Error).message).toContain('numeric client ID')
+      expect((error as Error).message).toContain(
+        "exact domain-wide delegation scopes in this connector's service-account setup section"
+      )
+      expect((error as Error).message).not.toContain('private provider payload')
+      expect(mocks.authorizeOrganizationCredentialUse).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each([
+    [400, 'invalid_grant', 'JSON key'],
+    [
+      400,
+      'invalid_scope',
+      "exact domain-wide delegation scopes in this connector's service-account setup section",
+    ],
+    [403, 'access_denied', 'API access policies'],
+  ])('classifies Google %s %s without exposing provider text', async (status, code, guidance) => {
+    mocks.resolveTokenBundle.mockRejectedValueOnce(
+      new ServiceAccountTokenError(status, 'private provider payload', code)
+    )
+    const error = await resolveConnectorCredentialAccessToken(input).catch(
+      (error: unknown) => error
+    )
+    expect(error).toMatchObject({ code: 'validation', message: expect.stringContaining(guidance) })
+    expect((error as Error).message).not.toContain('private provider payload')
+  })
+
+  it.each([googleDriveConnectorMeta, gmailConnectorMeta, googleCalendarConnectorMeta])(
+    'maps $name delegated token failures after directory authorization succeeds',
+    async ({ auth }) => {
+      vi.mocked(resolveOAuthAccountId).mockResolvedValueOnce({
+        accountId: '',
+        usedCredentialTable: true,
+        credentialId: credential.id,
+        credentialType: 'service_account',
+        providerId: credential.providerId,
+      })
+      vi.mocked(getServiceAccountToken).mockRejectedValueOnce(
+        new ServiceAccountTokenError(401, 'private delegated response', 'unauthorized_client')
+      )
+      const resolved = await resolveConnectorCredentialAccessToken({ ...input, auth })
+      expect(resolved?.accessToken).toBe('organization-token')
+      expect(getServiceAccountToken).not.toHaveBeenCalled()
+      if (!resolved?.getDelegatedAccessToken) throw new Error('Expected delegated token resolver')
+      await expect(resolved.getDelegatedAccessToken('member@example.com')).rejects.toMatchObject({
+        code: 'validation',
+        message: expect.stringContaining('(unauthorized_client)'),
+      })
+      expect(getServiceAccountToken).toHaveBeenCalledWith(
+        credential.id,
+        auth.mode === 'oauth' ? auth.serviceAccountDelegationScopes : undefined,
+        'member@example.com'
+      )
+    }
+  )
+
+  it('preserves successful delegated token reads and unexpected failures', async () => {
+    vi.mocked(resolveOAuthAccountId).mockResolvedValueOnce({
+      accountId: '',
+      usedCredentialTable: true,
+      credentialId: credential.id,
+      credentialType: 'service_account',
+      providerId: credential.providerId,
+    })
+    const resolved = await resolveConnectorCredentialAccessToken(input)
+    if (!resolved?.getDelegatedAccessToken) throw new Error('Expected delegated token resolver')
+    vi.mocked(getServiceAccountToken).mockResolvedValueOnce('delegated-token')
+    await expect(resolved.getDelegatedAccessToken('member@example.com')).resolves.toBe(
+      'delegated-token'
+    )
+    for (const error of [
+      new ServiceAccountTokenError(401, 'private delegated response', 'unknown-code'),
+      new ServiceAccountTokenError(503, 'private delegated response', 'unauthorized_client'),
+      new TypeError('Network request failed'),
+    ]) {
+      vi.mocked(getServiceAccountToken).mockRejectedValueOnce(error)
+      await expect(resolved.getDelegatedAccessToken('member@example.com')).rejects.toBe(error)
+    }
+  })
+
+  it('passes safe delegated errors to configuration validation', async () => {
+    vi.mocked(resolveOAuthAccountId).mockResolvedValueOnce({
+      accountId: '',
+      usedCredentialTable: true,
+      credentialId: credential.id,
+      credentialType: 'service_account',
+      providerId: credential.providerId,
+    })
+    vi.mocked(getServiceAccountToken).mockRejectedValueOnce(
+      new ServiceAccountTokenError(401, 'private delegated response', 'unauthorized_client')
+    )
+    mocks.validateConnectorConfig.mockImplementationOnce(
+      async (_token: string, _config: unknown, context: ConnectorAccessToken) => {
+        if (!context.getDelegatedAccessToken) throw new Error('Expected delegated token resolver')
+        try {
+          await context.getDelegatedAccessToken('member@example.com')
+          return { valid: true }
+        } catch (error) {
+          if (!(error instanceof Error)) throw error
+          return { valid: false, error: error.message }
+        }
+      }
+    )
+    const rejection = await validateConnectorSourceConfig({
+      principal,
+      organizationId: 'org',
+      actingUserId: principal.userId,
+      requestId: 'request',
+      sourceConfig: input.sourceConfig,
+      connector: {
+        connectorType: 'google_drive',
+        credentialId: credential.id,
+        encryptedApiKey: null,
+        accessMode: 'admin',
+      } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
+    })
+    expect(rejection).toMatchObject({
+      errorCode: 'validation',
+      message: expect.stringContaining('(unauthorized_client)'),
+    })
+    expect(rejection?.message).not.toContain('private delegated response')
+  })
+
+  it.each([400, 401, 403])(
+    'preserves unrecognized Google %s responses instead of assuming a configuration error',
+    async (status) => {
+      for (const code of [undefined, 'unknown-private-code', 'server_error']) {
+        const error = new ServiceAccountTokenError(status, 'private provider payload', code)
+        mocks.resolveTokenBundle.mockRejectedValueOnce(error)
+        await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(error)
+        expect(internalOrchestrationErrorPolicy.project(error)).toBeNull()
+      }
+    }
+  )
+
+  it.each([429, 500, 503])(
+    'preserves Google %s failures instead of blaming configuration',
+    async (status) => {
+      const error = new ServiceAccountTokenError(status, 'private provider payload', 'server_error')
+      mocks.resolveTokenBundle.mockRejectedValueOnce(error)
+      await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(error)
+      expect(internalOrchestrationErrorPolicy.project(error)).toBeNull()
+    }
+  )
+
+  it('preserves unexpected token failures as internal errors', async () => {
+    const error = new TypeError('private network failure')
+    mocks.resolveTokenBundle.mockRejectedValueOnce(error)
+    await expect(resolveConnectorCredentialAccessToken(input)).rejects.toBe(error)
+    expect(internalOrchestrationErrorPolicy.project(error)).toBeNull()
+  })
+
+  it('keeps authorization errors actionable through connector creation orchestration', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    queueTableRows(member, [{ role: 'admin' }])
+    mocks.resolveKnowledgeBase.mockResolvedValue({
+      organizationId: 'org',
+      knowledgeBaseId: 'org-index',
+      knowledgeBase: { id: 'org-index', name: 'Search', isSearchIndex: true },
+    })
+    mocks.resolveTokenBundle.mockRejectedValueOnce(
+      new ServiceAccountTokenError(401, 'private provider payload', 'unauthorized_client')
+    )
+    mocks.createConnector.mockImplementationOnce(
+      async (createInput: { resolveAccessToken(id: string): Promise<unknown> }) => {
+        try {
+          await createInput.resolveAccessToken(credential.id)
+          throw new Error('Unexpected successful token exchange')
+        } catch (error) {
+          return classifyKnowledgeFailure(error, 'request', 'Create connector')
+        }
+      }
+    )
+    const error = await createKnowledgeConnector
+      .execute({
+        principal,
+        input: {
+          knowledgeBaseId: 'org-index',
+          assertedOrganizationId: 'org',
+          connectorType: 'google_drive',
+          credentialId: credential.id,
+          accessMode: 'admin',
+          sourceConfig: input.sourceConfig,
+          syncIntervalMinutes: 60,
+        },
+      })
+      .catch((error: unknown) => error)
+    expect(internalOrchestrationErrorPolicy.project(error)).toMatchObject({
+      status: 400,
+      body: { error: expect.stringContaining('(unauthorized_client)') },
+    })
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('returns an actionable error before saving a configuration edit', async () => {
+    mocks.resolveTokenBundle.mockRejectedValueOnce(
+      new ServiceAccountTokenError(401, 'private provider payload', 'unauthorized_client')
+    )
+    await expect(
+      validateConnectorSourceConfig({
+        principal,
+        organizationId: 'org',
+        actingUserId: principal.userId,
+        requestId: 'request',
+        sourceConfig: input.sourceConfig,
+        connector: {
+          connectorType: 'google_drive',
+          credentialId: credential.id,
+          encryptedApiKey: null,
+          accessMode: 'admin',
+        } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('(unauthorized_client)'),
+    })
+    expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
   })
 
   it('does not mint a token after the credential creator leaves the organization', async () => {

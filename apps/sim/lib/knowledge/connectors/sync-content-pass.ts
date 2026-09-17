@@ -10,7 +10,10 @@ import {
   readListingCheckpoint,
   runResumableListing,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
-import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  SOURCE_CONTENT_ERROR,
+  SOURCE_PERMISSION_ERROR,
+} from '@/lib/knowledge/connectors/sync-limits'
 import { assertSyncLeaseHeldInTx, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
   type KnowledgeBaseOwner,
@@ -57,7 +60,10 @@ interface ContentPassInput {
   forceRehydrate: boolean
   fullSync?: boolean
   deadlineAt: number
-  onPage?: (documents: ExternalDocument[], generationStartedAt: Date) => Promise<void>
+  onPage?: (
+    documents: ExternalDocument[],
+    generationStartedAt: Date
+  ) => Promise<{ permissionsIncomplete: boolean } | undefined>
 }
 
 /** One durable content cycle shared by content-owned and member-visibility connectors. */
@@ -172,7 +178,8 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         },
       })
       if (!finished) return false
-      await input.onPage?.(documents, startedAt)
+      const pageOutcome = await input.onPage?.(documents, startedAt)
+      if (pageOutcome?.permissionsIncomplete) cycle.permissionFailures = true
       await withLease(async (tx) => {
         const verified = externalIds.filter((id) => !state.failedExternalIds.has(id))
         for (let offset = 0; offset < verified.length; offset += 500) {
@@ -204,7 +211,9 @@ export async function runConnectorContentPass(input: ContentPassInput) {
   return {
     checkpoint,
     complete: checkpoint.complete && reconciliation.finished,
-    holdNotice: reconciliation.notice ?? (checkpoint.contentFailures ? SOURCE_CONTENT_ERROR : null),
+    holdNotice: checkpoint.permissionFailures
+      ? SOURCE_PERMISSION_ERROR
+      : (reconciliation.notice ?? (checkpoint.contentFailures ? SOURCE_CONTENT_ERROR : null)),
     hydratedCount,
   }
 }

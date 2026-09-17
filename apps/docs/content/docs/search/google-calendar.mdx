@@ -86,6 +86,8 @@ Enter the Client ID and these exact comma-separated **OAuth scopes**:
 https://www.googleapis.com/auth/calendar.events.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly
 ```
 
+For a key shared with Drive and Gmail, use the [combined six-scope list](/search/google-drive#one-service-account-for-drive-gmail-and-calendar).
+
 Select **Authorize** and verify both scopes under **View details**. If you reuse a Drive or Gmail service account, retain its existing delegated scopes and add any missing Calendar scopes. An existing Drive authorization alone does not grant Calendar access. Delegation can take up to 24 hours to propagate; organizations requiring multi-party approval need another super administrator to approve the change. See [Google's delegation guide](https://knowledge.workspace.google.com/admin/apps/control-api-access-with-domain-wide-delegation).
 
 The **Directory administrator email** must be an active Workspace administrator with permission to read users. A super administrator has this permission; a custom administrator role can supply it. This identity lists the directory. Sim obtains a separate read-only Calendar token for each selected user; it does not read everyone's events as the administrator.
@@ -132,6 +134,8 @@ Cancelled events, attachment contents, meeting recordings, and transcripts are n
 Search schedules syncs hourly. Event edits, cancellations, access changes, inactive or removed users, and events moving outside the date window are reconciled during completed background syncs. Central crawls page through each selected user and resume unfinished work before removing documents no longer listed. Authorization, quota, and provider failures stop the sync rather than treating unread calendars as empty. The first sync may take longer, and results appear as indexing progresses; Search is not a live Calendar read.
 
 ## Troubleshooting
+
+When a sync fails, **Sync history** includes the Google API operation, HTTP status, and a recognized reason when available. A `403` alone does not establish a missing scope: `rateLimitExceeded` and `userRateLimitExceeded` are retried with bounded backoff. A persistent access error requires checking the affected user’s Calendar access.
 
 | What you see | What to do |
 | --- | --- |

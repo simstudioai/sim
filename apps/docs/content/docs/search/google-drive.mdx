@@ -121,6 +121,16 @@ Invite teammates through **Settings → Members → Invite**, using their Google
 </Step>
 </Steps>
 
+## One service account for Drive, Gmail, and Calendar
+
+You can reuse one JSON key for all three central connectors. Authorize this combined list on the same numeric **Client ID**, and enable **Google Drive API**, **Gmail API**, **Google Calendar API**, and **Admin SDK API** in its Cloud project:
+
+```text
+https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/calendar.events.readonly,https://www.googleapis.com/auth/admin.directory.user.readonly,https://www.googleapis.com/auth/admin.directory.group.readonly,https://www.googleapis.com/auth/admin.directory.domain.readonly
+```
+
+Under **View details**, verify all six scopes are saved. Gmail and Calendar succeeding does not verify Drive's group and domain permissions. Each connector still needs its own source configuration in Sim.
+
 ## Source options
 
 An admin opens **Settings → Sources → Google Drive** to open its configuration list. Each row shows **Member accounts** or **Service account** beside its sync status. Open a connection's **Settings** tab to edit its filters, then select **Save**. **Documents** shows indexed files and **Sync history** shows recent runs.
@@ -145,8 +155,11 @@ Search schedules syncs hourly. Central crawls revisit the selected users' files 
 
 ## Troubleshooting
 
+**Directory permission sync failed** means Sim could not fully verify group membership. Check the Directory administrator’s access to the affected group and any nested groups; this is separate from file-download access. An incomplete membership read does not replace the last verified membership, which remains subject to freshness checks.
+
 | Problem | Next step |
 | --- | --- |
+| Google rejects authorization (`unauthorized_client`) | In **Manage Domain Wide Delegation**, verify the numeric **Client ID** matches `client_id` in the JSON key uploaded to Sim and all required scopes appear under **View details**. Check pending approval and allow time for recent changes to propagate. Changing the OAuth consent screen alone does not authorize delegation. |
 | Directory access failed | Check all four delegated scopes and the **Directory administrator email** user's administrator privileges. A normal Google OAuth credential cannot supply this central Search path. |
 | Missing files in a central crawl | Check **Users**, folder and file-type filters, and whether selected active Workspace users can download the file and read its permissions. Opening a file alone does not prove either. Check Sync history for errors. Files reachable only by excluded or inactive accounts are not crawled; files with unverified permissions stay hidden. |
 | User not found or inactive | Use a primary email in the same Google Workspace customer. Aliases, external or guest accounts, suspended users, and archived users cannot be selected for crawling. |

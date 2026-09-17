@@ -73,7 +73,13 @@ describe('Credential Group trigger delivery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.requirePolicy.mockResolvedValue({
-      document: buildOrganizationAccountAccessPolicy('group-1', ['workspace-1', 'workspace-2']),
+      document: buildOrganizationAccountAccessPolicy(
+        'group-1',
+        ['workspace-1', 'workspace-2'].map((workspaceId) => ({
+          workspaceId,
+          access: { mode: 'all' as const },
+        }))
+      ),
     })
     mocks.resolveWorkspace.mockImplementation(async (workspaceId: string) => ({
       workspaceId,
@@ -106,6 +112,29 @@ describe('Credential Group trigger delivery', () => {
       }),
       expect.any(String)
     )
+  })
+
+  it('discovers subscribers only for the event integration and rechecks that type before delivery', async () => {
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        {
+          workspaceId: 'workspace-1',
+          access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
+        },
+        {
+          workspaceId: 'workspace-2',
+          access: { mode: 'selected', credentialTypes: ['oauth:google-calendar'] },
+        },
+      ]),
+    })
+    mocks.fetchSubscriptions.mockResolvedValue([subscription({ workflowId: 'allowed' })])
+    await fireCredentialGroupTrigger(EVENT)
+    expect(mocks.fetchSubscriptions).toHaveBeenCalledWith('org-1', ['workspace-1'])
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-1' }),
+      'oauth:gmail'
+    )
+    expect(mocks.processEvent).toHaveBeenCalledOnce()
   })
 
   it('does not scan subscriptions when no workspace has access', async () => {

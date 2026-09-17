@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getBillingEntityBlockStatus, getEffectiveBillingStatus } from '@/lib/billing/core/access'
 
@@ -119,8 +119,9 @@ describe('getBillingEntityBlockStatus', () => {
      * block this organization's workspaces.
      */
     it("reads the owner's own row and stops there", async () => {
-      queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
-      queueTableRows(schemaMock.userStats, [{ billingBlocked: false, billingBlockedReason: null }])
+      queueTableRows(schemaMock.member, [
+        { userId: 'owner-1', billingBlocked: false, billingBlockedReason: null },
+      ])
       queueTableRows(schemaMock.member, [{ organizationId: 'unrelated-org' }])
       queueTableRows(schemaMock.userStats, [{ blocked: true, blockedReason: 'dispute' }])
 
@@ -130,21 +131,30 @@ describe('getBillingEntityBlockStatus', () => {
         billingBlocked: false,
         billingBlockedReason: null,
       })
-    })
-
-    it("blocks when the owner's own row is blocked", async () => {
-      queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
-      queueTableRows(schemaMock.userStats, [
-        { billingBlocked: true, billingBlockedReason: 'payment_failed' },
-      ])
-
-      await expect(
-        getBillingEntityBlockStatus({ type: 'organization', id: 'org-1' })
-      ).resolves.toEqual({
-        billingBlocked: true,
-        billingBlockedReason: 'payment_failed',
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.leftJoin).toHaveBeenCalledWith(schemaMock.userStats, {
+        type: 'eq',
+        left: schemaMock.userStats.userId,
+        right: schemaMock.member.userId,
       })
     })
+
+    it.each(['payment_failed', 'dispute'])(
+      "blocks when the owner's own row is blocked for %s",
+      async (reason) => {
+        queueTableRows(schemaMock.member, [
+          { userId: 'owner-1', billingBlocked: true, billingBlockedReason: reason },
+        ])
+
+        await expect(
+          getBillingEntityBlockStatus({ type: 'organization', id: 'org-1' })
+        ).resolves.toEqual({
+          billingBlocked: true,
+          billingBlockedReason: reason,
+        })
+        expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      }
+    )
 
     it('is not blocked when the organization has no owner row', async () => {
       queueTableRows(schemaMock.member, [])
@@ -155,6 +165,41 @@ describe('getBillingEntityBlockStatus', () => {
         billingBlocked: false,
         billingBlockedReason: null,
       })
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    })
+
+    it('preserves the unblocked result when the owner has no stats row', async () => {
+      queueTableRows(schemaMock.member, [
+        { userId: 'owner-1', billingBlocked: null, billingBlockedReason: null },
+      ])
+      await expect(
+        getBillingEntityBlockStatus({ type: 'organization', id: 'org-1' })
+      ).resolves.toEqual({ billingBlocked: false, billingBlockedReason: null })
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    })
+
+    it('reads a changed payer block on the next call', async () => {
+      queueTableRows(schemaMock.member, [
+        { userId: 'owner-1', billingBlocked: false, billingBlockedReason: 'dispute' },
+      ])
+      queueTableRows(schemaMock.member, [
+        { userId: 'owner-1', billingBlocked: true, billingBlockedReason: 'dispute' },
+      ])
+      await expect(
+        getBillingEntityBlockStatus({ type: 'organization', id: 'org-1' })
+      ).resolves.toEqual({ billingBlocked: false, billingBlockedReason: null })
+      await expect(
+        getBillingEntityBlockStatus({ type: 'organization', id: 'org-1' })
+      ).resolves.toEqual({ billingBlocked: true, billingBlockedReason: 'dispute' })
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+    })
+
+    it('propagates a failed payer-status read', async () => {
+      const failure = new Error('database unavailable')
+      dbChainMockFns.limit.mockRejectedValueOnce(failure)
+      await expect(getBillingEntityBlockStatus({ type: 'organization', id: 'org-1' })).rejects.toBe(
+        failure
+      )
     })
   })
 })

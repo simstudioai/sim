@@ -21,6 +21,12 @@ export const ssoKeys = {
   providers: () => [...ssoKeys.all, 'providers'] as const,
   providerList: (organizationId?: string) =>
     [...ssoKeys.providers(), organizationId ?? ''] as const,
+  /**
+   * Whether members must sign in through the identity provider. Under the same root as the
+   * providers it depends on, so a provider change invalidates both in one call.
+   */
+  policies: () => [...ssoKeys.all, 'policy'] as const,
+  policy: (organizationId?: string) => [...ssoKeys.policies(), organizationId ?? ''] as const,
 }
 
 /**
@@ -62,7 +68,7 @@ export function useConfigureSSO() {
     onSettled: (_data, _error, variables) => {
       /** Awaited, so the caller navigates against a list that already holds the change. */
       return Promise.all([
-        queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
+        queryClient.invalidateQueries({ queryKey: ssoKeys.all }),
         queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) }),
         queryClient.invalidateQueries({ queryKey: organizationKeys.lists() }),
       ])
@@ -77,7 +83,7 @@ export function useDeleteSSOProvider() {
   return useMutation({
     mutationFn: (providerId: string) =>
       requestJson(deleteSsoProviderContract, { params: { providerId } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ssoKeys.all }),
   })
 }
 
@@ -91,6 +97,6 @@ export function useSetPrimarySSOProvider() {
         params: { providerId },
         body: { isPrimary: true },
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ssoKeys.providers() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ssoKeys.all }),
   })
 }

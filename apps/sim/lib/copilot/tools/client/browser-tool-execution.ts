@@ -24,6 +24,7 @@ import {
 } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { BrowserToolReplayLedger } from '@/lib/copilot/tools/client/browser-tool-replay-ledger'
+import { sanitizeBrowserToolResultForModel } from '@/lib/copilot/tools/client/browser-tool-result'
 import {
   reportClientToolCompletion,
   reportClientToolCompletionOnPageExit,
@@ -545,59 +546,6 @@ function timeoutForTool(toolName: BrowserToolName, params: Record<string, unknow
   return browserToolRendererTimeoutMs(toolName, params)
 }
 
-/** Splits a `data:<media type>;base64,<data>` URL into its parts. */
-function parseBase64DataUrl(dataUrl: string): { mediaType: string; data: string } | null {
-  const match = /^data:([^;,]+);base64,(.+)$/s.exec(dataUrl)
-  if (!match) return null
-  return { mediaType: match[1], data: match[2] }
-}
-
-/**
- * Reshapes a screenshot into the `attachment` contract the copilot serializes
- * into a real image content block, so the model sees the page rather than a
- * note about it. The data URL itself never goes inline: `content` is the text
- * the model reads beside the image, and the bytes travel under `attachment`.
- *
- * A malformed data URL degrades to the text note rather than shipping an
- * attachment the provider would reject.
- */
-function sanitizeResultForModel(
-  toolName: BrowserToolName,
-  result: unknown
-): Record<string, unknown> | undefined {
-  if (!isRecordLike(result)) {
-    return result === undefined ? undefined : { value: result }
-  }
-  if (toolName === 'browser_screenshot' && typeof result.dataUrl === 'string') {
-    const { dataUrl, ...rest } = result
-    const image = parseBase64DataUrl(dataUrl)
-    if (!image) {
-      return {
-        ...rest,
-        note: 'The screenshot could not be encoded. Use browser_snapshot or browser_read_text instead.',
-      }
-    }
-    const viewport = isRecordLike(rest.viewport) ? rest.viewport : null
-    const screenshotUrl =
-      typeof rest.url === 'string' && rest.url
-        ? rest.url
-        : viewport && typeof viewport.url === 'string'
-          ? viewport.url
-          : ''
-    const location = screenshotUrl ? ` of ${screenshotUrl}` : ''
-    const isElementCapture = isRecordLike(rest.clip)
-    return {
-      ...rest,
-      content: `Screenshot${location}. This is the rendered ${isElementCapture ? 'element' : 'viewport'} only — it carries no element ids, so use browser_snapshot before interacting.${isElementCapture ? ' For coordinate actions: cssX = clip.x + imageX / scale; cssY = clip.y + imageY / scale.' : ''}`,
-      attachment: {
-        type: 'image',
-        source: { type: 'base64', media_type: image.mediaType, data: image.data },
-      },
-    }
-  }
-  return result
-}
-
 /**
  * Fire-and-forget entry point invoked by the stream tool-event handler when a
  * `browser_*` client tool call arrives.
@@ -984,6 +932,7 @@ async function doExecuteBrowserTool(
     }
     nativeActionPending = false
     if (cancelled) return
+    const effectUnconfirmed = isRecordLike(result) && result.effectObserved === false
     const formStopped =
       toolName === 'browser_fill_form' && isRecordLike(result) && result.completed === false
     reportTerminalCompletion(
@@ -993,8 +942,10 @@ async function doExecuteBrowserTool(
           : ASYNC_TOOL_CONFIRMATION_STATUS.success,
         message: formStopped
           ? 'Form filling stopped; inspect the partial result'
-          : 'Browser action completed',
-        data: sanitizeResultForModel(toolName, result),
+          : effectUnconfirmed
+            ? 'Browser input completed; its effect is unconfirmed. Inspect the current state before retrying.'
+            : 'Browser action completed',
+        data: sanitizeBrowserToolResultForModel(toolName, result),
       },
       'Failed to report successful browser tool completion'
     )

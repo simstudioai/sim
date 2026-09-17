@@ -82,7 +82,10 @@ describe('personal connection launch', () => {
     mocks.organizationMembership.mockResolvedValue({ userId: 'viewer', role: 'member' })
     mocks.available.mockResolvedValue(true)
     mocks.policy.mockResolvedValue({
-      document: buildOrganizationAccountAccessPolicy('canonical-group', ['workspace']),
+      document: buildOrganizationAccountAccessPolicy(
+        'canonical-group',
+        ['workspace'].map((workspaceId) => ({ workspaceId, access: { mode: 'all' as const } }))
+      ),
     })
     mocks.catalog.mockResolvedValue([
       {

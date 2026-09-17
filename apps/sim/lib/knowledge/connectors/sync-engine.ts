@@ -122,7 +122,7 @@ async function applySourceMirroredAcls(input: {
   ownedExternalIds: readonly (string | null)[]
   lease?: SyncRunLease
   generationStartedAt: Date
-}): Promise<void> {
+}): Promise<{ permissionsIncomplete: boolean }> {
   const { connectorId, connectorConfig, externalDocs } = input
 
   /**
@@ -174,6 +174,7 @@ async function applySourceMirroredAcls(input: {
       }
     )
   }
+  return { permissionsIncomplete: unattributed > 0 || written.rejected > 0 }
 }
 
 /** Whether an automatic connector sync may begin from this persisted state. */
@@ -296,6 +297,7 @@ export interface ContentPassOutcome {
   checkpoint: {
     unsafe: boolean
     contentFailures?: boolean
+    permissionFailures?: boolean
     startedAt: string
     listedCount: number
     incrementalSince?: string | null
@@ -303,17 +305,18 @@ export interface ContentPassOutcome {
 }
 
 /**
- * A content pass is incomplete when the listing has not reached the end of the
- * source (the generation resumes on the next run) or a source read failed (the
- * next pass replays it). `checkpoint.unsafe` is deliberately not part of this:
- * it means "do not infer deletions from this listing" and is honored by the
- * deletion hold in `reconcileCompletedListing`. A held pass is still a
- * completed sync whose watermark advances.
+ * A deletion hold alone does not make a sync incomplete: `checkpoint.unsafe`
+ * prevents deletion reconciliation, but an otherwise successful crawl may
+ * still advance its watermark.
  */
 export function isContentPassIncomplete(
   contentPass: Pick<ContentPassOutcome, 'complete' | 'checkpoint'>
 ): boolean {
-  return !contentPass.complete || contentPass.checkpoint.contentFailures === true
+  return (
+    !contentPass.complete ||
+    contentPass.checkpoint.contentFailures === true ||
+    contentPass.checkpoint.permissionFailures === true
+  )
 }
 
 /**
@@ -332,6 +335,12 @@ export async function completeSuccessfulSync(
   reconciliationHoldNotice: string | null,
   contentPass?: ContentPassOutcome
 ): Promise<boolean> {
+  const processingDispatchFailed = result.processingDispatch.failed > 0
+  const completionNotice =
+    reconciliationHoldNotice ??
+    (processingDispatchFailed
+      ? 'Some documents could not be queued for indexing. They will be retried automatically.'
+      : null)
   try {
     return await db.transaction(async (tx) => {
       const [lockedKnowledgeBase] = await tx
@@ -379,7 +388,10 @@ export async function completeSuccessfulSync(
       const [closedLog] = await tx
         .update(knowledgeConnectorSyncLog)
         .set({
-          status: contentPass && isContentPassIncomplete(contentPass) ? 'partial' : 'completed',
+          status:
+            processingDispatchFailed || (contentPass && isContentPassIncomplete(contentPass))
+              ? 'partial'
+              : 'completed',
           completedAt: now,
           listedCount: contentPass?.complete
             ? contentPass.checkpoint.incrementalSince
@@ -392,6 +404,7 @@ export async function completeSuccessfulSync(
           docsUnchanged: result.docsUnchanged,
           docsSkipped: result.docsSkipped,
           docsFailed: result.docsFailed,
+          errorMessage: completionNotice,
         })
         .where(
           and(
@@ -409,7 +422,7 @@ export async function completeSuccessfulSync(
             now,
             actualDocCount,
             contentPass && !contentPass.complete ? now : calculateNextSyncTime(syncIntervalMinutes),
-            reconciliationHoldNotice,
+            completionNotice,
             result.docsFailed === 0 && (!contentPass || !isContentPassIncomplete(contentPass))
           ),
           /** Restored above under this same lock, or hidden by the admin pass before the ACLs it wrote. */
@@ -1110,7 +1123,7 @@ export async function executeSync(
         onPage: mirrored
           ? async (externalDocs, generationStartedAt) => {
               await directoryRefreshed
-              await applySourceMirroredAcls({
+              return applySourceMirroredAcls({
                 connectorId,
                 connectorConfig,
                 sourceConfig,

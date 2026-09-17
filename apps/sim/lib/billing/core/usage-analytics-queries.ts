@@ -32,27 +32,28 @@ export async function readUsageTimeSeries(
   executor: DbClient = dbReplica
 ): Promise<UsageTimeSeriesRow[]> {
   assertValidTimezone(timezone)
-  const bucketStart = sql<string | null>`to_char(
-    date_trunc(${bucket}, ${usageLog.createdAt} AT TIME ZONE ${timezone}),
-    'YYYY-MM-DD"T"HH24:MI:SS'
-  )`
+  const buckets = executor
+    .select({
+      bucketStart:
+        sql`date_trunc(${bucket}, (${usageLog.createdAt} AT TIME ZONE 'UTC') AT TIME ZONE ${timezone})`.as(
+          'bucket_start'
+        ),
+      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`.as('cost'),
+      events: sql<number>`COUNT(*)`.mapWith(Number).as('events'),
+    })
+    .from(usageLog)
+    .where(and(...scope))
+    .groupBy(sql`bucket_start`)
+    .as('buckets')
 
-  return (
-    executor
-      .select({
-        bucketStart: bucketStart.as('bucket_start'),
-        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-        events: sql<number>`COUNT(*)`.mapWith(Number),
-      })
-      .from(usageLog)
-      .where(and(...scope))
-      // Group by the output alias, not the expression. Re-rendering the fragment here
-      // emits a *textually different* one — the select list qualifies the column as
-      // `created_at`, the group-by as `usage_log.created_at` — and Postgres matches
-      // group-by expressions syntactically, so it rejects the query outright. It also
-      // duplicates the bound parameters.
-      .groupBy(sql`bucket_start`)
-  )
+  /** Format the aggregated buckets rather than every ledger entry. */
+  return executor
+    .select({
+      bucketStart: sql<string | null>`to_char(${buckets.bucketStart}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
+      cost: buckets.cost,
+      events: buckets.events,
+    })
+    .from(buckets)
 }
 
 export interface UsageTotals {

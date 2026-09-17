@@ -33,6 +33,8 @@ export interface FileParseResult {
 
 export interface FileParseOptions {
   signal?: AbortSignal
+  /** Preserve textual markup in a canonical .txt artifact instead of interpreting it as HTML or RTF. */
+  textMode?: 'literal'
   /** Complete PDF extraction rejects safety limits instead of returning preview text. */
   pdfTextMode?: 'preview' | 'complete'
 }

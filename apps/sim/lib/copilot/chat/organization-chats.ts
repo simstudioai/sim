@@ -111,6 +111,17 @@ export const createOrganizationChat = {
 }
 
 export const organizationChatDelegationOperations = {
+  /**
+   * permission-group-exempt: Stopping existing work remains available after Copilot is disabled.
+   */
+  cancel: defineOrganizationOperation({
+    id: 'organization.chats.cancel',
+    minimumRole: 'member',
+    principalKinds: ['session', 'organization_delegated'],
+    capability: 'none',
+    delegationAudience: 'sim:copilot-cancel',
+    delegatedServices: ['copilot'],
+  }),
   knowledge: defineOrganizationOperation({
     id: 'organization.chats.knowledge',
     minimumRole: 'member',
@@ -128,6 +139,18 @@ export const organizationChatDelegationOperations = {
     delegatedServices: ['copilot'],
   }),
 } as const
+
+/** Checks current membership for stopping an owned chat without requiring Copilot to remain enabled. */
+export const authorizeOrganizationChatCancellation = {
+  operation: organizationChatDelegationOperations.cancel,
+  execute({ principal, input }: { principal: Principal; input: OrganizationChatInput }) {
+    return authorizeOrganizationOperation(
+      principal,
+      organizationChatDelegationOperations.cancel,
+      input
+    )
+  },
+}
 
 /** A trusted service may act only on the subject's persisted private organization chat. */
 export const authorizeOrganizationChatDelegation = {

@@ -111,6 +111,9 @@ export const MEMBER_TOMBSTONE_PURGE_DAYS = 7
 /** Hard deletes one members-mode run may perform; bounds the blast radius of a bad run. */
 export const MEMBER_PURGE_MAX_PER_RUN = 1000
 
+export const SOURCE_PERMISSION_ERROR =
+  'Some document permissions could not be verified. Documents without verified access stay hidden from search.'
+
 /** Source downloads are retried by connector listing, never by parsing the retained file again. */
 export const SOURCE_CONTENT_ERROR =
   'Source content could not be refreshed. The connector will retry at its next scheduled sync.'

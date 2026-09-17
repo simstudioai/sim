@@ -65,20 +65,27 @@ export async function validateGoogleDirectoryAccess(
     throw new Error('Enter a Directory administrator email to mirror Drive permissions.')
   }
 
-  const probe = async (path: string) =>
+  const probe = async (path: string, operation: string) =>
     fetchGoogleDriveWithRetry(
       `${DIRECTORY_BASE}/${path}`,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
-      VALIDATE_RETRY_OPTIONS
+      VALIDATE_RETRY_OPTIONS,
+      operation
     )
 
   try {
-    const groupsResponse = await probe('groups?customer=my_customer&maxResults=1&fields=groups(id)')
+    const groupsResponse = await probe(
+      'groups?customer=my_customer&maxResults=1&fields=groups(id)',
+      'directory.groups.list'
+    )
     const groups = (await groupsResponse.json()) as { groups?: { id?: string }[] }
-    await probe('customer/my_customer/domains?fields=domains(domainName)')
+    await probe('customer/my_customer/domains?fields=domains(domainName)', 'directory.domains.list')
     const groupId = groups.groups?.[0]?.id
     if (groupId) {
-      await probe(`groups/${encodeURIComponent(groupId)}/members?maxResults=1&fields=members(id)`)
+      await probe(
+        `groups/${encodeURIComponent(groupId)}/members?maxResults=1&fields=members(id)`,
+        'directory.members.list'
+      )
     }
   } catch (error) {
     const guidance =
@@ -96,15 +103,20 @@ export async function validateGoogleDirectoryAccess(
   }
 }
 
-function directoryFetch(url: string, accessToken: string): Promise<Response> {
-  return fetchGoogleDriveWithRetry(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-  })
+function directoryFetch(url: string, accessToken: string, operation: string): Promise<Response> {
+  return fetchGoogleDriveWithRetry(
+    url,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    },
+    {},
+    operation
+  )
 }
 
 async function getJson<T>(url: string, accessToken: string): Promise<T> {
-  const response = await directoryFetch(url, accessToken)
+  const response = await directoryFetch(url, accessToken, 'directory.domains.list')
   return (await response.json()) as T
 }
 
@@ -128,7 +140,7 @@ async function listAll<T>(
       if (pageToken) query.set('pageToken', pageToken)
       return `${url}?${query.toString()}`
     },
-    fetch: (pageUrl) => directoryFetch(pageUrl, accessToken),
+    fetch: (pageUrl) => directoryFetch(pageUrl, accessToken, `directory.${itemsKey}.list`),
     parseError: (response) => response.json().catch(() => null),
     getItems: (body) => body[itemsKey] as T[] | undefined,
     getNextPageToken: (body) => body.nextPageToken as string | undefined,
@@ -296,6 +308,13 @@ export function openGoogleDirectory(
       return members
     } catch (error) {
       const failure = toError(error)
+      if (failure instanceof GoogleDriveApiError) {
+        logger.warn('Failed to read Google group membership', {
+          groupId,
+          status: failure.status,
+          ...failure.diagnostic,
+        })
+      }
       directMembers.set(groupId, failure)
       throw failure
     }

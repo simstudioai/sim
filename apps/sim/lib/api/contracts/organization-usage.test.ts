@@ -23,6 +23,23 @@ describe('organization usage window contract', () => {
     expect(parseWindow({ startDate: '2026-02-30' }).success).toBe(false)
   })
 
+  /**
+   * Out of calendar range but well-formed enough to reach the old hand-rolled refinement, which
+   * called `toISOString` on an Invalid Date. Zod does not wrap refinements, so the RangeError
+   * escaped `safeParse` itself and every usage route answered a malformed query string with a 500.
+   */
+  it.each(['2026-13-01', '2026-00-01', '2026-01-32', '2026-01-00', '9999-99-99'])(
+    'refuses %s without throwing out of safeParse',
+    (startDate) => {
+      expect(parseWindow({ startDate }).success).toBe(false)
+    }
+  )
+
+  it('refuses February 29 in a non-leap year', () => {
+    expect(parseWindow({ startDate: '2026-02-29' }).success).toBe(false)
+    expect(parseWindow({ startDate: '2024-02-29' }).success).toBe(true)
+  })
+
   it('refuses a parseable non-date such as a bare month', () => {
     // `new Date('2026-08')` is August 1. Accepting it returned a window the caller
     // never asked for, with nothing to indicate the value had been reinterpreted.

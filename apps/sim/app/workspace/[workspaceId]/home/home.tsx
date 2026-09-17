@@ -19,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import {
@@ -91,7 +92,15 @@ interface HomeProps {
   userId?: string
 }
 
-export function Home({ chatId, userName, userId }: HomeProps) {
+export function Home(props: HomeProps) {
+  return (
+    <PermissionAccessBoundary configKey='hideCopilot'>
+      <HomeContent {...props} />
+    </PermissionAccessBoundary>
+  )
+}
+
+function HomeContent({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()

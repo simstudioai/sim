@@ -3,6 +3,8 @@
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import type { ConnectorDirectory } from '@/connectors/types'
 
 const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory, mockAvailability } =
@@ -253,7 +255,8 @@ describe('refreshConnectorDirectory', () => {
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        lastSyncError: 'Directory refresh failed: 403',
+        lastSyncError:
+          'Directory refresh failed: Directory permission sync failed. Group membership could not be fully verified.',
       })
     )
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
@@ -269,6 +272,31 @@ describe('refreshConnectorDirectory', () => {
     )
     await expect(refreshConnectorDirectory('connector-1', 'req-1')).rejects.toThrow(
       '2 group memberships could not be refreshed'
+    )
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
+  })
+
+  it('persists the nested Google reason for scheduled directory failures', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow()])
+    const providerError = new GoogleDriveApiError(403, ['forbidden'], 'directory.members.list')
+    mockOpenDirectory.mockResolvedValue(
+      directory({ listGroupMembers: vi.fn().mockRejectedValue(providerError) })
+    )
+
+    const failure = await refreshConnectorDirectory('connector-1', 'req-1').catch(
+      (error: unknown) => error
+    )
+    expect(getConnectorFailureDiagnostic(failure)).toMatchObject({
+      status: 403,
+      operation: 'directory.members.list',
+      reasons: ['forbidden'],
+      phase: 'directory',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastSyncError:
+          'Directory refresh failed: Directory permission sync failed (HTTP 403). Operation: directory.members.list. Google reason: forbidden. Group membership could not be fully verified.',
+      })
     )
     expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(false)
   })
@@ -295,6 +323,11 @@ describe('refreshConnectorDirectory', () => {
       syncContext: {},
       accessToken: 'token',
     }).catch((error: unknown) => error)
+    expect(getConnectorFailureDiagnostic(failure)).toMatchObject({
+      phase: 'directory',
+      status: 429,
+      category: 'rate_limit',
+    })
     expect(getRetryAfterMs(failure)).toBe(60_000)
     expect(isRateLimitError(failure)).toBe(true)
   })

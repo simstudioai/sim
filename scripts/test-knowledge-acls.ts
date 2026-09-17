@@ -150,6 +150,7 @@ try {
   const environment = {
     ...process.env,
     DATABASE_URL: databaseUrl,
+    MIGRATION_DATABASE_URL: databaseUrl,
     KNOWLEDGE_ACL_TEST_DATABASE_URL: databaseUrl,
     KNOWLEDGE_ACL_TEST_REDIS_URL: `redis://${redisEndpoint}`,
     ...(scale ? { KNOWLEDGE_SCALE_REPORT_FILE: scaleReportFile } : {}),

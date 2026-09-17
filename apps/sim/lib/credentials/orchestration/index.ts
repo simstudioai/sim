@@ -602,11 +602,8 @@ export async function deleteCredentialRecord(
      * Same read-modify-write on the personal map, under the same lock its
      * other writers take, with the mirrors removed in the same transaction.
      *
-     * Targeted rather than a reconcile: the reconcile prunes every mirror
-     * absent from a caller-supplied key list, so a secret added between the
-     * read and the prune lost its mirror while its value survived. Deleting
-     * this one key's mirrors cannot strand another secret, and the lock order
-     * — map, then user identity — is the one `setPersonalSecret` already takes.
+     * Delete only this key's mirrors across every workspace. The lock order
+     * — map, then user identity — matches `setPersonalSecret` and bulk sync.
      */
     await db.transaction(async (tx) => {
       await lockPersonalEnvMap(tx, envOwnerUserId)

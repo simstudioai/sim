@@ -66,7 +66,7 @@ describe('Slack member scope policy', () => {
       workspaceId: 'workspace-1',
       workspaceName: 'Fixture',
       workspaceOwnerId: 'owner',
-      email: 'member@fixture.test',
+      email: 'sim-member@fixture.test',
       enrollmentStatus: 'in_progress',
       option,
       options: [option],
@@ -90,22 +90,83 @@ describe('Slack member scope policy', () => {
     expect(url.searchParams.get('user_scope')?.split(',')).toEqual([...scopes])
   })
 
-  it('accepts a minimal search grant and rejects the same grant for a workflow option', async () => {
-    for (const scopes of [SLACK_SEARCH_USER_SCOPES, SLACK_MANAGED_USER_SCOPES]) {
-      const current = context(scopes)
-      const policy = await adapter.getPolicy(current.option, {
-        workspaceId: current.workspaceId,
+  it.each([
+    { name: 'search', scopes: SLACK_SEARCH_USER_SCOPES },
+    { name: 'workflow', scopes: SLACK_MANAGED_USER_SCOPES },
+  ])('accepts a different provider email for a $name option', async ({ scopes }) => {
+    const current = context(scopes)
+    mocks.exchange.mockResolvedValueOnce({
+      appId: 'A1',
+      teamId: 'T1',
+      userId: 'U1',
+      accessToken: 'fixture-token',
+      tokenType: 'user',
+      scopes: [...scopes],
+    })
+    const policy = await adapter.getPolicy(current.option, {
+      workspaceId: current.workspaceId,
+      credentialGroupId: current.credentialGroupId,
+    })
+    const result = adapter.exchangeAndVerify({
+      context: current,
+      policy,
+      code: 'code',
+      attempt: {
+        state: 'state',
+        provider: 'slack',
+        workspaceId: 'workspace-1',
+        email: current.email,
+        nonceHash: 'nonce-hash',
+        enrollmentId: current.enrollmentId,
         credentialGroupId: current.credentialGroupId,
-      })
-      const result = adapter.exchangeAndVerify({
+        optionId: current.option.id,
+        authorizationAppId: policy.authorizationAppId,
+        scopeVersion: policy.scopeVersion,
+        requiredScopes: policy.requiredScopes,
+        redirectUri: 'https://sim.fixture.test/api/credential-groups/oauth/slack/callback',
+        invitationToken: 'invitation',
+        createdAt: Date.now(),
+      },
+    })
+    await expect(result).resolves.toMatchObject({
+      providerSubjectId: 'U1',
+      providerTenantId: 'T1',
+      displayName: 'member@fixture.test',
+      metadata: { email: 'member@fixture.test' },
+      grantedScopes: [...scopes],
+    })
+    expect(mocks.revoke).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { name: 'missing permissions', grant: { scopes: [...SLACK_SEARCH_USER_SCOPES] } },
+    { name: 'a different team', grant: { teamId: 'T2' } },
+    { name: 'a different app', grant: { appId: 'A2' } },
+  ])('still rejects $name and revokes the grant', async ({ grant }) => {
+    const current = context(SLACK_MANAGED_USER_SCOPES)
+    const policy = await adapter.getPolicy(current.option, {
+      workspaceId: current.workspaceId,
+      credentialGroupId: current.credentialGroupId,
+    })
+    mocks.exchange.mockResolvedValueOnce({
+      appId: 'A1',
+      teamId: 'T1',
+      userId: 'U1',
+      accessToken: 'fixture-token',
+      tokenType: 'user',
+      scopes: [...SLACK_MANAGED_USER_SCOPES],
+      ...grant,
+    })
+    await expect(
+      adapter.exchangeAndVerify({
         context: current,
         policy,
         code: 'code',
         attempt: {
           state: 'state',
           provider: 'slack',
-          workspaceId: 'workspace-1',
-          email: 'person@example.com',
+          workspaceId: current.workspaceId,
+          email: current.email,
           nonceHash: 'nonce-hash',
           enrollmentId: current.enrollmentId,
           credentialGroupId: current.credentialGroupId,
@@ -118,12 +179,7 @@ describe('Slack member scope policy', () => {
           createdAt: Date.now(),
         },
       })
-      if (scopes === SLACK_SEARCH_USER_SCOPES)
-        await expect(result).resolves.toMatchObject({
-          grantedScopes: [...SLACK_SEARCH_USER_SCOPES],
-        })
-      else await expect(result).rejects.toThrow('All requested Slack permissions')
-    }
+    ).rejects.toMatchObject({ statusCode: 403 })
     expect(mocks.revoke).toHaveBeenCalledExactlyOnceWith('fixture-token')
   })
 

@@ -12,6 +12,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { ScimSection } from '@/ee/scim/components/scim-section'
+import { RequireSsoSection } from '@/ee/sso/components/require-sso-section'
 import { SsoProviderList } from '@/ee/sso/components/sso-provider-list'
 import { SsoProviderSettings } from '@/ee/sso/components/sso-provider-settings'
 import { VerifiedDomainsSection } from '@/ee/sso/components/verified-domains-section'
@@ -155,13 +156,18 @@ function OrganizationSsoSettings({ organizationId }: SSOProps) {
             onRetry={() => void providers.refetch()}
           />
         ) : signInView === 'list' ? (
-          <SsoProviderList
-            providers={providerList}
-            active={tab === 'sign-in'}
-            docsLink={DOCS_LINKS['sign-in']}
-            onAdd={() => void setParams({ provider: null, createProvider: true })}
-            onOpen={(providerId) => void setParams({ provider: providerId, createProvider: null })}
-          />
+          <div className='flex flex-col gap-7'>
+            <SsoProviderList
+              providers={providerList}
+              active={tab === 'sign-in'}
+              docsLink={DOCS_LINKS['sign-in']}
+              onAdd={() => void setParams({ provider: null, createProvider: true })}
+              onOpen={(providerId) =>
+                void setParams({ provider: providerId, createProvider: null })
+              }
+            />
+            <RequireSsoSection organizationId={organizationId} />
+          </div>
         ) : (
           <SsoProviderSettings
             key={selectedProvider ? `provider:${selectedProvider.providerId}` : 'create'}

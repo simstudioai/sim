@@ -1350,10 +1350,11 @@ async function parseHttpFile(
   access.signal?.throwIfAborted()
 
   /** Prefer what we actually downloaded over what the document is *called*. */
-  const extension =
-    resolveStoredArtifactExtension(fileUrl) ?? resolveParserExtension(filename, mimeType)
+  const storedExtension = resolveStoredArtifactExtension(fileUrl)
+  const extension = storedExtension ?? resolveParserExtension(filename, mimeType)
   const result = await parseBuffer(buffer, extension, {
     signal: access.signal,
+    textMode: storedExtension === 'txt' ? 'literal' : undefined,
     pdfTextMode: extension === 'pdf' ? 'complete' : undefined,
   })
   return result
