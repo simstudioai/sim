@@ -112,12 +112,74 @@ describe('TabStrip interactions', () => {
     expect(onSelect).toHaveBeenLastCalledWith('pinned', 'keyboard')
 
     act(() => {
+      tabButton('two').focus()
       tabButton('two').dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true })
       )
     })
     expect(onClose).toHaveBeenCalledWith('two')
+    expect(document.activeElement).toBe(tabButton('two'))
+  })
+
+  it('restores focus to a committed survivor after an asynchronous multi-tab close', () => {
+    const onClose = vi.fn()
+    mount(renderStrip(tabs, vi.fn(), onClose))
+    act(() => {
+      tabButton('one').focus()
+      tabButton('one').dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }))
+    })
     expect(document.activeElement).toBe(tabButton('one'))
+    act(() => root?.render(renderStrip(tabs, vi.fn(), onClose)))
+    expect(document.activeElement).toBe(tabButton('one'))
+
+    act(() => root?.render(renderStrip([{ ...tabs[0], active: true }], vi.fn(), onClose)))
+    expect(document.activeElement).toBe(tabButton('pinned'))
+  })
+
+  it('does not steal focus from another control when a pending close completes', () => {
+    mount(renderStrip(tabs))
+    act(() => {
+      tabButton('one').focus()
+      tabButton('one').dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }))
+    })
+    const add = container?.querySelector<HTMLButtonElement>('[aria-label="New tab"]')
+    act(() => add?.focus())
+    act(() => root?.render(renderStrip([{ ...tabs[0], active: true }])))
+    expect(document.activeElement).toBe(add)
+  })
+
+  it('exposes a shared DOM ancestor for multi-tab drag images', () => {
+    const onTabDragStart = vi.fn((event) => {
+      const strip = event.currentTarget.closest('[data-tab-strip]')
+      expect(strip?.querySelectorAll('[data-tab-strip-item]')).toHaveLength(3)
+    })
+    mount(<TabStrip tabs={tabs} onSelect={vi.fn()} onTabDragStart={onTabDragStart} />)
+    act(() => stripItem('two').dispatchEvent(dragStartEvent()))
+    expect(onTabDragStart).toHaveBeenCalledOnce()
+  })
+
+  it('follows the active survivor across staggered tab removals', () => {
+    mount(renderStrip(tabs))
+    act(() => tabButton('one').focus())
+    act(() => root?.render(renderStrip([tabs[0], { ...tabs[2], active: true }])))
+    expect(document.activeElement).toBe(tabButton('two'))
+    act(() => root?.render(renderStrip([{ ...tabs[0], active: true }])))
+    expect(document.activeElement).toBe(tabButton('pinned'))
+  })
+
+  it('relinquishes focus ownership when the user leaves the strip', () => {
+    mount(renderStrip(tabs))
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    try {
+      act(() => tabButton('one').focus())
+      act(() => outside.focus())
+      act(() => outside.blur())
+      act(() => root?.render(renderStrip([{ ...tabs[0], active: true }])))
+      expect(document.activeElement).toBe(document.body)
+    } finally {
+      outside.remove()
+    }
   })
 
   it('identifies pointer selection separately from keyboard navigation', () => {

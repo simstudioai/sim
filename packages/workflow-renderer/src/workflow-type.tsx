@@ -36,6 +36,7 @@ const WORKFLOW_TYPE_ROLES = {
   generic_webhook: 'interface',
   guardrails: 'logic',
   human_in_the_loop: 'state',
+  human_in_the_loop_v2: 'state',
   image_generator: 'generative',
   image_generator_v2: 'generative',
   imap: 'interface',

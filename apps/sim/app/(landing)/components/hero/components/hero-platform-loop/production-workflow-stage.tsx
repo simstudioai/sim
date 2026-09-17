@@ -295,20 +295,22 @@ function PreviewActionBar({ block, running, workflowRunning, onRunToggle }: Prev
         {inertActions.map(({ label, Icon }) => (
           <Tooltip.Root key={label} preferAbove>
             <Tooltip.Trigger asChild>
-              <Button
-                type='button'
-                variant='ghost'
-                disabled
-                aria-label={`${label} unavailable in preview`}
-                className={cn(
-                  ACTION_BUTTON_STYLES,
-                  label === 'Delete' && LAST_ACTION_STYLES,
-                  workflowRunning && !running && BYSTANDER_ACTION_STYLES,
-                  sweeping && SWEEP_SLOT_STYLES
-                )}
-              >
-                <Icon className='size-[14px]' />
-              </Button>
+              <span className='inline-flex'>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  disabled
+                  aria-label={`${label} unavailable in preview`}
+                  className={cn(
+                    ACTION_BUTTON_STYLES,
+                    label === 'Delete' && LAST_ACTION_STYLES,
+                    workflowRunning && !running && BYSTANDER_ACTION_STYLES,
+                    sweeping && SWEEP_SLOT_STYLES
+                  )}
+                >
+                  <Icon className='size-[14px]' />
+                </Button>
+              </span>
             </Tooltip.Trigger>
             {!workflowRunning && <Tooltip.Content side='top'>{label}</Tooltip.Content>}
           </Tooltip.Root>

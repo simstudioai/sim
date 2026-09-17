@@ -535,6 +535,11 @@ export function TabStrip({
   const dropTargetIndexRef = useRef<number | null>(null)
   const autoScrollRafRef = useRef<number | null>(null)
   const autoScrollDirectionRef = useRef(0)
+  const focusedTabRef = useRef<{
+    id: string
+    element: HTMLButtonElement
+    index: number
+  } | null>(null)
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -761,6 +766,18 @@ export function TabStrip({
     button?.focus()
   }, [])
 
+  /** Restore keyboard focus only after the owner commits a close, including multi-tab closes. */
+  useLayoutEffect(() => {
+    const focusedTab = focusedTabRef.current
+    if (!focusedTab || tabs.some((tab) => tab.id === focusedTab.id)) return
+    focusedTabRef.current = null
+    const focused = document.activeElement
+    if (focused !== focusedTab.element && focused !== document.body) return
+    const nextTab =
+      tabs.find((tab) => tab.active) ?? tabs[Math.min(focusedTab.index, tabs.length - 1)]
+    if (nextTab) focusTab(nextTab.id)
+  }, [tabs, focusTab])
+
   const handleTabKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLButtonElement>, id: string) => {
       const index = tabs.findIndex((tab) => tab.id === id)
@@ -782,8 +799,6 @@ export function TabStrip({
         case 'Delete':
           if (onClose && !tabs[index].pinned) {
             event.preventDefault()
-            const nextTab = tabs[index + 1] ?? tabs[index - 1]
-            if (nextTab) focusTab(nextTab.id)
             onClose(id)
           }
           return
@@ -835,6 +850,19 @@ export function TabStrip({
   return (
     <div
       ref={stripRef}
+      data-tab-strip
+      onFocusCapture={(event) => {
+        const target = event.target
+        const id = target instanceof HTMLButtonElement ? target.dataset.tabStripButton : undefined
+        const index = tabs.findIndex((tab) => tab.id === id)
+        focusedTabRef.current =
+          target instanceof HTMLButtonElement && id !== undefined && index >= 0
+            ? { id, element: target, index }
+            : null
+      }}
+      onBlurCapture={(event) => {
+        if (event.relatedTarget !== null) focusedTabRef.current = null
+      }}
       // Geometry reads from custom properties with defaults baked into the
       // `var()` calls, so a caller resizes the strip by setting a property
       // rather than by passing a utility class that has to out-merge this one.
