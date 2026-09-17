@@ -22,6 +22,7 @@ const fixture = vi.hoisted(() => ({
   listGroups: vi.fn(),
   members: vi.fn(),
   listDocuments: vi.fn(),
+  acls: vi.fn(),
   enqueue: vi.fn(async (_type: string, _payload: unknown) => 'job'),
 }))
 vi.mock('@/lib/auth/internal', () => ({ verifyCronAuth: () => null }))
@@ -35,6 +36,7 @@ vi.mock('@/connectors/registry.server', () => ({
       name: 'Directory fixture',
       auth: { mode: 'apiKey', optional: true },
       listDocuments: fixture.listDocuments,
+      getDocumentAcls: fixture.acls,
       getDocument: async () => {
         throw new Error('Unexpected hydration')
       },
@@ -57,13 +59,23 @@ import {
 import { resolveUserKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
 import { groupToken } from '@/lib/knowledge/access/tokens'
 import {
+  persistExternalGroupMembership,
   refreshConnectorDirectory,
   syncExternalDirectoryGroups,
 } from '@/lib/knowledge/connectors/external-group-sync'
+import {
+  beginListingCheckpoint,
+  listingFingerprint,
+} from '@/lib/knowledge/connectors/listing-checkpoint'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import { GET as scheduleDirectories } from '@/app/api/knowledge/connectors/directory-sync/route'
 import { executeDirectorySyncJob } from '@/background/knowledge-connector-directory-sync'
-import type { ConnectorDirectory, ConnectorDirectoryGroup } from '@/connectors/types'
+import type {
+  ConnectorAclContext,
+  ConnectorDirectory,
+  ConnectorDirectoryGroup,
+  ExternalDocument,
+} from '@/connectors/types'
 
 describe('directory failure visibility in PostgreSQL', () => {
   const ids = createKnowledgeAclFixtureIds()
@@ -92,6 +104,7 @@ describe('directory failure visibility in PostgreSQL', () => {
       complete: true,
     }))
     fixture.listDocuments.mockReset().mockResolvedValue({ documents: [], hasMore: false })
+    fixture.acls.mockReset().mockResolvedValue({})
     await db
       .update(knowledgeConnector)
       .set({
@@ -160,6 +173,174 @@ describe('directory failure visibility in PostgreSQL', () => {
     })
     return { promise, resolve }
   }
+
+  it('keeps disjoint credential audiences independent of native-directory freshness and pruning', async () => {
+    const directory = { ...directoryFixture(), providerId: 'confluence' }
+    const persistAudience = (spaceId: string, subject: string) =>
+      db.transaction((tx) =>
+        persistExternalGroupMembership(
+          {
+            workspaceId: ids.workspaceId,
+            providerId: directory.providerId,
+            tenantId: directory.tenantId,
+            group: { id: `space-readers:${spaceId}` },
+            memberTokens: [subject],
+            observedAt: new Date(),
+          },
+          tx
+        )
+      )
+    await syncExternalDirectoryGroups({ workspaceId: ids.workspaceId, directory })
+    await persistAudience('1', 's:confluence:-:alice')
+    expect(
+      await syncExternalDirectoryGroups({ workspaceId: ids.workspaceId, directory })
+    ).toMatchObject({ skipped: true })
+    await persistAudience('2', 's:confluence:-:bob')
+    directory.listGroups = async () => []
+    expect(
+      await syncExternalDirectoryGroups({ workspaceId: ids.workspaceId, directory, force: true })
+    ).toMatchObject({ pruned: 1 })
+    const groups = await db.select().from(knowledgeExternalGroup).where(groupsWhere(directory))
+    expect(groups.map((group) => group.externalGroupId).sort()).toEqual([
+      'space-readers:1',
+      'space-readers:2',
+    ])
+    const memberships = await db
+      .select()
+      .from(knowledgeExternalGroupMember)
+      .where(
+        inArray(
+          knowledgeExternalGroupMember.groupId,
+          groups.map((group) => group.id)
+        )
+      )
+    expect(memberships.map((member) => member.subjectToken).sort()).toEqual([
+      's:confluence:-:alice',
+      's:confluence:-:bob',
+    ])
+  })
+
+  it('does not regrant an older audience when its delayed response arrives after a revocation', async () => {
+    const tenantId = generateId()
+    const observation = {
+      workspaceId: ids.workspaceId,
+      providerId: 'confluence',
+      tenantId,
+      group: { id: 'space-readers:1' },
+    }
+    const newer = new Date()
+    await db.transaction((tx) =>
+      persistExternalGroupMembership({ ...observation, memberTokens: [], observedAt: newer }, tx)
+    )
+    await db.transaction((tx) =>
+      persistExternalGroupMembership(
+        {
+          ...observation,
+          memberTokens: ['s:confluence:-:alice'],
+          observedAt: new Date(newer.getTime() - 60_000),
+        },
+        tx
+      )
+    )
+    const [group] = await db
+      .select()
+      .from(knowledgeExternalGroup)
+      .where(eq(knowledgeExternalGroup.tenantId, tenantId))
+    expect(group.lastSyncedAt).toEqual(newer)
+    expect(
+      await db
+        .select()
+        .from(knowledgeExternalGroupMember)
+        .where(eq(knowledgeExternalGroupMember.groupId, group.id))
+    ).toEqual([])
+  })
+
+  it('refreshes audience evidence and revocations when an old content generation resumes', async () => {
+    const pages = ['audience-first', 'audience-second']
+    await db.insert(document).values(
+      pages.map((externalId) => ({
+        id: generateId(),
+        knowledgeBaseId: ids.knowledgeBaseId,
+        connectorId: ids.connectorId,
+        externalId,
+        filename: externalId,
+        fileUrl: 'data:text/plain,fixture',
+        fileSize: 7,
+        mimeType: 'text/plain',
+        contentHash: `hash-${externalId}`,
+        processingStatus: 'completed',
+        acl: [],
+      }))
+    )
+    const connector = await source()
+    const checkpoint = beginListingCheckpoint({
+      fingerprint: listingFingerprint({
+        connectorType: connector.connectorType,
+        credentialId: connector.credentialId,
+        encryptedApiKey: connector.encryptedApiKey,
+        sourceConfig: connector.sourceConfig,
+        accessMode: connector.accessMode,
+      }),
+      generationId: generateId(),
+      startedAt: old,
+    })
+    await db
+      .update(knowledgeConnector)
+      .set({ listingCheckpoint: checkpoint })
+      .where(eq(knowledgeConnector.id, ids.connectorId))
+    fixture.listDocuments.mockImplementation(async (_token, _config, cursor) => {
+      const externalId = cursor ? pages[1] : pages[0]
+      return {
+        documents: [
+          {
+            externalId,
+            title: externalId,
+            content: 'fixture',
+            contentHash: `hash-${externalId}`,
+            mimeType: 'text/plain',
+          },
+        ],
+        hasMore: !cursor,
+        nextCursor: cursor ? undefined : 'second-page',
+      }
+    })
+    const tenantId = generateId()
+    fixture.acls.mockImplementation(
+      async (
+        _token,
+        _config,
+        documents: ExternalDocument[],
+        _syncContext,
+        context: ConnectorAclContext
+      ) => {
+        await context.persistGroupMembership({
+          providerId: 'confluence',
+          tenantId,
+          group: { id: 'space-readers:1' },
+          memberTokens: documents[0].externalId === pages[0] ? ['s:confluence:-:alice'] : [],
+        })
+        return Object.fromEntries(
+          documents.map((doc) => [doc.externalId, [`g:confluence:${tenantId}:space-readers:1`]])
+        )
+      }
+    )
+    const before = Date.now()
+    expect(await executeSync(ids.connectorId, { billingAttribution: billing })).toMatchObject({
+      docsUnchanged: 2,
+    })
+    expect(fixture.acls).toHaveBeenCalledTimes(2)
+    const [group] = await db
+      .select()
+      .from(knowledgeExternalGroup)
+      .where(eq(knowledgeExternalGroup.tenantId, tenantId))
+    expect(group.lastSyncedAt!.getTime()).toBeGreaterThanOrEqual(before - 1000)
+    expect(
+      await db
+        .select()
+        .from(knowledgeExternalGroupMember)
+        .where(eq(knowledgeExternalGroupMember.groupId, group.id))
+    ).toEqual([])
+  })
 
   it('advances past the first 200 directories, including microsecond timestamps and competing ticks', async () => {
     const connectors = Array.from({ length: 201 }, () => ({
@@ -425,7 +606,9 @@ describe('directory failure visibility in PostgreSQL', () => {
     }))
     await expect(
       executeDirectorySyncJob({ connectorId: ids.connectorId, requestId: generateId() })
-    ).rejects.toThrow('Directory refresh failed: 1 group memberships could not be refreshed')
+    ).rejects.toThrow(
+      'Directory permission sync failed. Group membership could not be fully verified.'
+    )
     const [group] = await db
       .select()
       .from(knowledgeExternalGroup)
@@ -458,7 +641,9 @@ describe('directory failure visibility in PostgreSQL', () => {
   it('reports a directory failure after an empty content crawl and recovers on a later sync', async () => {
     fixture.listGroups.mockRejectedValue(new Error('Directory API HTTP 403'))
     const result = await executeSync(ids.connectorId, { billingAttribution: billing })
-    expect(result.error).toBe('Directory refresh failed: Directory API HTTP 403')
+    expect(result.error).toBe(
+      'Directory permission sync failed. Group membership could not be fully verified.'
+    )
     expect(fixture.listDocuments).toHaveBeenCalledOnce()
     const failed = await source()
     expect(failed.status).toBe('error')
@@ -528,7 +713,7 @@ describe('directory failure visibility in PostgreSQL', () => {
     const result = await executeSync(ids.connectorId, { billingAttribution: billing })
     expect(result).toMatchObject({
       docsUnchanged: 2,
-      error: 'Directory refresh failed: Directory unavailable',
+      error: 'Directory permission sync failed. Group membership could not be fully verified.',
     })
     expect(fixture.listDocuments).toHaveBeenCalledTimes(2)
     const indexed = await db
@@ -547,10 +732,10 @@ describe('directory failure visibility in PostgreSQL', () => {
     fixture.listGroups.mockRejectedValue(new Error('Directory unavailable'))
     expect(
       (await executeSync(ids.connectorId, { billingAttribution: billing, fullSync: true })).error
-    ).toContain('Directory unavailable')
+    ).toContain('Directory permission sync failed')
     fixture.listGroups.mockClear()
     expect((await executeSync(ids.connectorId, { billingAttribution: billing })).error).toContain(
-      'Directory unavailable'
+      'Directory permission sync failed'
     )
     expect(fixture.listGroups).toHaveBeenCalledOnce()
     fixture.listGroups.mockResolvedValue(ids.groups.map((id) => ({ id })))

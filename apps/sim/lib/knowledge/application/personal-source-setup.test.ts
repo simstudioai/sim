@@ -90,6 +90,46 @@ const runConnect = (changes = {}) =>
   personalSourceSetup.execute({ principal, input: { ...connect, keys: ['PROJECT'], ...changes } })
 
 describe('personal source setup', () => {
+  it.each(['confluence', 'jira'] as const)(
+    'rejects mixed All and explicit %s keys before discovery or saving',
+    async (connectorType) => {
+      await expect(runConnect({ connectorType, keys: ['*', 'ENG'] })).rejects.toThrow(
+        'Use "*" by itself for All, or remove it to select individual items.'
+      )
+      expect(mocks.selector).not.toHaveBeenCalled()
+      expect(mocks.configure).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['confluence', 'jira'] as const)(
+    'authorizes %s All without freezing the available keys',
+    async (connectorType) => {
+      mocks.selector.mockResolvedValue({ kind: 'list', items: [], nextCursor: 'more' })
+      await expect(runConnect({ connectorType, keys: ['*'] })).resolves.toMatchObject({
+        kind: 'connected',
+      })
+      expect(mocks.ownAccount).toHaveBeenCalled()
+      expect(mocks.selector).toHaveBeenCalledTimes(1)
+      expect(mocks.configure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal,
+          input: expect.objectContaining({
+            sourceConfig: {
+              domain: credential.domain,
+              [connectorType === 'confluence' ? 'spaceKey' : 'projectKey']: '*',
+            },
+          }),
+        })
+      )
+    }
+  )
+
+  it('does not let All bypass a failed site or credential check', async () => {
+    mocks.selector.mockRejectedValue(new Error('Site unavailable'))
+    await expect(runConnect({ keys: ['*'] })).rejects.toThrow('Site unavailable')
+    expect(mocks.configure).not.toHaveBeenCalled()
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })

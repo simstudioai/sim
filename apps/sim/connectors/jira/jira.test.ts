@@ -61,6 +61,31 @@ afterEach(() => {
 })
 
 describe('Jira Search member documents', () => {
+  it('resolves All through the current credential across pages and future syncs', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ issues: [issue()], nextPageToken: 'page-two', isLast: false }))
+      .mockResolvedValueOnce(
+        json({ issues: [issue('20001', { project: { id: '20000', key: 'HR' } })], isLast: true })
+      )
+      .mockResolvedValueOnce(
+        json({ issues: [issue('30001', { project: { id: '30000', key: 'NEW' } })], isLast: true })
+      )
+    const config = { ...SOURCE, projectKey: ['*'], jql: 'status = Open' }
+    const context = { ...MEMBERS }
+    const first = await jiraConnector.listDocuments('token', config, undefined, context)
+    const second = await jiraConnector.listDocuments('token', config, first.nextCursor, context)
+    const nextSync = await jiraConnector.listDocuments('token', config, undefined, { ...MEMBERS })
+    expect(first.hasMore).toBe(true)
+    expect(second.documents[0].sourceUrl).toContain('ENG-20001')
+    expect(nextSync.documents[0].sourceUrl).toContain('ENG-30001')
+    expect(second.hasMore).toBe(false)
+    const urls = fetchMock.mock.calls.map(([input]) => new URL(String(input)))
+    expect(urls.map((url) => url.searchParams.get('jql'))).toEqual(
+      Array(3).fill('project IS NOT EMPTY AND (status = Open) ORDER BY updated DESC')
+    )
+    expect(urls[1].searchParams.get('nextPageToken')).toBe('page-two')
+  })
+
   it('offers managed member Search with canonical project setup and no central ACL mode', () => {
     expect(jiraConnectorMeta.search).toBe(true)
     expect(jiraConnectorMeta.permissionScopedListing?.capFieldIds).toEqual(['maxIssues'])

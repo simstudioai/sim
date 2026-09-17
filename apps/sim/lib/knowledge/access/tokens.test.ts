@@ -6,6 +6,7 @@ import {
   ACCESS_TOKEN_PATTERN,
   groupToken,
   isAccessToken,
+  isDirectoryMemberToken,
   isIdentityToken,
   MAX_ACL_TOKENS,
   sortAccessTokens,
@@ -176,5 +177,46 @@ describe('directory identity tokens', () => {
     's:confluence:missing',
   ])('rejects noncanonical member %s', (token) => {
     expect(isIdentityToken(token)).toBe(false)
+  })
+})
+
+describe('nested directory memberships', () => {
+  const directory = {
+    providerId: 'confluence',
+    tenantId: 'cloud',
+    externalGroupId: 'space-readers:123',
+  }
+  it.each(['s:confluence:-:account', 'g:confluence:cloud:engineering'])(
+    'accepts %s within the directory',
+    (value) => {
+      expect(isDirectoryMemberToken(value, directory)).toBe(true)
+    }
+  )
+  it.each([
+    'g:jira:cloud:engineering',
+    'g:confluence:other:engineering',
+    'g:confluence:cloud:Engineering',
+    'g:confluence:cloud: engineering ',
+    'g:confluence:cloud:space-readers:456',
+    'ws',
+    'link',
+    'pub',
+  ])('rejects %s', (value) => {
+    expect(isDirectoryMemberToken(value, directory)).toBe(false)
+  })
+
+  it('rejects nesting in native groups and other providers', () => {
+    expect(
+      isDirectoryMemberToken('g:confluence:cloud:engineering', {
+        ...directory,
+        externalGroupId: 'native',
+      })
+    ).toBe(false)
+    expect(
+      isDirectoryMemberToken('g:google-drive:cloud:engineering', {
+        ...directory,
+        providerId: 'google-drive',
+      })
+    ).toBe(false)
   })
 })

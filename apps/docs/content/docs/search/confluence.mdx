@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Image } from '@/components/ui/image'
 
-Search pages and blog posts from selected Confluence Cloud spaces. A Sim organization admin enables Confluence; **each teammate connects their own account**.
+Search pages, blog posts, and their PDF and Word attachments from selected Confluence Cloud spaces. A Sim organization admin enables Confluence; **each teammate connects their own account**.
 
 | Method | How it works |
 | --- | --- |
@@ -38,7 +38,9 @@ Open **Settings → Sources → Add source** and select **Confluence**. This ope
 
 ### Choose the account and spaces
 
-Under **Service account**, select a service account or [add one](#using-a-service-account). Enter the same **Confluence site** as the credential, then choose **Spaces**. **All** in the dropdown selects every space the account can currently browse; newly created spaces are not added automatically. Clear the picker search before selecting all.
+Under **Service account**, select a service account or [add one](#using-a-service-account). Enter the same **Confluence site** as the credential, then choose **Spaces**. **All** in the dropdown includes every space the syncing account can access at each sync, including newly accessible spaces. Clear the picker search before selecting all.
+
+If you selected all spaces before this behavior was introduced, reselect **All** and save. Previously saved selections remain a fixed list of spaces.
 
 To enter comma-separated keys such as `ENG, PRODUCT`, use the switch beside **Spaces**. Switching between the picker and manual entry keeps your selection.
 
@@ -63,7 +65,7 @@ After an admin configures Confluence, open **Integrations** and select **Connect
 If Confluence is allowed but no source exists, select **Connect** beside Confluence. To add another site later, open the Confluence row’s actions menu (**…**) and select **Add Confluence site**:
 
 1. Open **Your account** and select a saved account or **Connect Confluence account**. Authorize using the Atlassian email matching your verified Sim email.
-2. Enter the hostname under **Atlassian site**, then choose **Spaces**. Use **All** in the dropdown for the complete current list, or the arrows beside **Spaces** to enter comma-separated keys. You can select up to 1,000 spaces in this form.
+2. Enter the hostname under **Atlassian site**, then choose **Spaces**. Use **All** in the dropdown for all spaces accessible at each sync, or the arrows beside **Spaces** to enter comma-separated keys. You can select up to 1,000 individual spaces in this form.
 3. Select **Connect & Sync**. Sim saves the selected scope and starts indexing with your account.
 
 <Image className="mx-auto h-auto w-full max-w-md"
@@ -87,6 +89,7 @@ Use a **scoped API token** from an Atlassian service account:
 read:confluence-content.all
 read:page:confluence
 read:blogpost:confluence
+read:attachment:confluence
 read:space:confluence
 read:label:confluence
 search:confluence
@@ -98,7 +101,7 @@ read:user:confluence
 read:group:confluence
 ```
 
-Use all 12 scopes for account validation, pickers, content, permissions, and directory reads. Central indexing does not need write scopes.
+Use all 13 scopes for account validation, pickers, content, attachments, permissions, and directory reads. Central indexing does not need write scopes.
 
 4. Review and create the token, then copy it. Atlassian shows it only once.
 5. In Sim's source form, open **Service account → Add service account**. Paste the **API token**, enter **Site domain** (hostname only), and select **Add service account**. Continue in the source form with the same domain.
@@ -122,7 +125,9 @@ See Atlassian's [account setup](https://support.atlassian.com/user-management/do
 | **Filter by Label** | Optional comma-separated labels; content can match any listed label. |
 | **Metadata tags** | Labels, version, and last-modified tags. |
 
-Search manages the schedule and hides item limits. It indexes published/current content and each page's own text, including supported local callouts and code blocks. Archived content, comments, attachment contents, and expanded Include Page, Excerpt Include, or third-party macro output are excluded. Referenced pages can be indexed separately with their own permissions.
+Search manages the schedule and hides item limits. It indexes published/current content and each page's own text, including supported local callouts and code blocks. PDF, Word `.docx`, and Word 97–2003 `.doc` attachments on the selected pages and blog posts are indexed as separate documents with their parent content's permissions. Space, content-type, and label filters apply to the parent content. Attachment changes are checked on each sync, even when the parent text has not changed.
+
+Archived content, comments, other attachment formats, and expanded Include Page, Excerpt Include, or third-party macro output are excluded. Referenced pages can be indexed separately with their own permissions. Attachments over 100 MB are shown as skipped; convert older Word 6/95 files to `.docx` before attaching them.
 
 ## Manage access and sync
 
@@ -146,6 +151,7 @@ In **Sync history**, **Continuing** means a healthy listing needs another batch.
 | A new page, blog post, or label is missing | Confluence search can take time to update. Once the content appears in Confluence search with the selected label, sync again. |
 | A restricted page is missing | Both your account and the crawling account need access to the page and its ancestors. |
 | Embedded content is missing | Index the referenced page separately; remote macro output is excluded. |
+| PDF or Word attachments are missing | Check `read:attachment:confluence` and access to the parent page. Existing service-account tokens may need to be replaced with one that includes this scope. Attachment access failures are reported as a partial sync. |
 | **Reconnect** or email mismatch | Authorize with the Atlassian account matching your verified Sim email and grant all requested permissions. |
 
 Open a missing page as the affected teammate, check its space and page restrictions, then sync again after correcting access. See Atlassian's [content access](https://support.atlassian.com/confluence-cloud/docs/add-or-remove-page-restrictions/) and [permission inspection](https://support.atlassian.com/confluence-cloud/docs/inspect-a-users-permissions/) guides.

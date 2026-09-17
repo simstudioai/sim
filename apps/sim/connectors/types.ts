@@ -69,7 +69,7 @@ export interface ConnectorDirectoryGroup {
 
 export interface ConnectorDirectoryMembership {
   group: ConnectorDirectoryGroup
-  /** Canonical u:email or provider-attested s: identity tokens, with nested groups flattened. */
+  /** Canonical identities; Confluence space audiences may also name same-site native groups. */
   memberTokens: string[]
   /**
    * False when the walk could not be completed. A partial membership must never
@@ -77,6 +77,19 @@ export interface ConnectorDirectoryMembership {
    * enumerate silently revokes everyone in the part that did not.
    */
   complete: boolean
+}
+
+/** A complete source audience observed while resolving a bounded batch of document ACLs. */
+export interface ConnectorAclGroupMembership {
+  providerId: string
+  tenantId: string
+  group: ConnectorDirectoryGroup
+  memberTokens: string[]
+}
+
+/** Persistence capabilities bound by the engine to the canonical resource owner and sync lease. */
+export interface ConnectorAclContext {
+  persistGroupMembership: (membership: ConnectorAclGroupMembership) => Promise<void>
 }
 
 /**
@@ -330,8 +343,10 @@ export interface ConnectorConfigField {
    * Connector handlers receive `string | string[]` and should normalize via `parseMultiValue`.
    */
   multi?: boolean
-  /** Offers explicit bulk selection of the complete, bounded provider list. */
+  /** Offers selection of all items, using selectAllValue when configured. */
   allowSelectAll?: boolean
+  /** Stores a provider-supported scope marker instead of the currently loaded option IDs. */
+  selectAllValue?: string
 }
 
 /**
@@ -583,7 +598,8 @@ export interface ConnectorConfig extends ConnectorMeta {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     documents: readonly ExternalDocument[],
-    syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>,
+    aclContext?: ConnectorAclContext
   ) => Promise<Record<string, MirroredDocumentAcl>>
 
   /** Map source metadata to semantic tag keys (translated to slots by the sync engine) */

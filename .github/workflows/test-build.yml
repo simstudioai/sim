@@ -245,6 +245,26 @@ jobs:
           lib/knowledge/__integration__/connector-upload.integration.ts
           lib/uploads/contexts/organization-logo/application.integration.ts
 
+      - name: Verify Confluence identity and directory sync in PostgreSQL
+        working-directory: apps/sim
+        env:
+          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
+        run: >-
+          bunx vitest run --mode integration
+          lib/knowledge/__integration__/confluence-identity.integration.ts
+          lib/knowledge/__integration__/directory-sync.integration.ts
+
+      - name: Verify Confluence audience migrations and permission queries in PostgreSQL
+        working-directory: apps/sim
+        env:
+          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_acl_test
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); await sql`CREATE DATABASE sim_acl_test`; await sql.end()'
+          bunx vitest run --mode integration lib/knowledge/access/group-membership.integration.ts
+          bunx vitest run \
+            lib/knowledge/access/predicate.postgres.test.ts \
+            lib/knowledge/connectors/external-directory.postgres.test.ts
+
   test-build:
     name: Lint and Test
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}

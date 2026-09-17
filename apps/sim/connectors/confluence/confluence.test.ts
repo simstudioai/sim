@@ -7,7 +7,6 @@ import {
   AtlassianSiteNotMatchedError,
 } from '@/lib/atlassian/discovery'
 import {
-  buildLastModifiedClause,
   confluenceConnector,
   confluenceStorageToPlainText,
   confluenceViewToPlainText,
@@ -18,6 +17,97 @@ import {
   readIncludedLabels,
 } from '@/connectors/confluence/confluence'
 import { extractCursor } from '@/connectors/confluence/cursor'
+
+/** Existing page fixtures have no files; attachment traversal has its own regression suite. */
+function stubFetchWithoutAttachments(mockFetch: typeof fetch): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input))
+      return url.pathname.endsWith('/attachments')
+        ? Promise.resolve(Response.json({ results: [] }))
+        : mockFetch(input, init)
+    })
+  )
+}
+
+describe('Confluence dynamic All scope', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('lists newly accessible spaces on each sync, including old content, and follows pagination', async () => {
+    const fetchMock = vi.fn()
+    const page = (id: string, key: string) => ({
+      id,
+      type: 'page',
+      status: 'current',
+      title: id,
+      space: { key },
+      version: { number: 1 },
+    })
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ results: [page('1', 'ENG')], _links: { next: '?cursor=next' } })
+        )
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [page('2', 'HR')] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [page('3', 'NEW')] })))
+    stubFetchWithoutAttachments(fetchMock)
+    const config = {
+      domain: 'example.atlassian.net',
+      spaceKey: ['*'],
+      contentType: 'all',
+      labelFilter: 'published',
+    }
+    const context = { cloudId: 'cloud-1' }
+    const first = await confluenceConnector.listDocuments(
+      'token',
+      config,
+      undefined,
+      context,
+      new Date()
+    )
+    const second = await confluenceConnector.listDocuments(
+      'token',
+      config,
+      first.nextCursor,
+      context,
+      new Date()
+    )
+    const nextSync = await confluenceConnector.listDocuments(
+      'token',
+      config,
+      undefined,
+      { cloudId: 'cloud-1' },
+      new Date()
+    )
+    expect(first.hasMore).toBe(true)
+    expect(second.documents[0].externalId).toBe('2')
+    expect(second.hasMore).toBe(false)
+    expect(nextSync.documents[0].externalId).toBe('3')
+    const urls = fetchMock.mock.calls.map(([input]) => new URL(String(input)))
+    expect(urls.map((url) => url.searchParams.get('cql'))).toEqual(
+      Array(3).fill('type in ("page","blogpost") AND label="published"')
+    )
+    expect(urls[1].searchParams.get('cursor')).toBe('next')
+  })
+
+  it.each([
+    {},
+    { results: [], _links: { next: '?broken=cursor' } },
+    { results: [], _links: { next: '?cursor=repeat' } },
+  ])('rejects an incomplete search response %#', async (body) => {
+    stubFetchWithoutAttachments(vi.fn().mockResolvedValue(new Response(JSON.stringify(body))))
+    await expect(
+      confluenceConnector.listDocuments(
+        'token',
+        { domain: 'example.atlassian.net', spaceKey: '*' },
+        'repeat',
+        { cloudId: 'cloud-1' }
+      )
+    ).rejects.toThrow(/invalid|repeated/)
+  })
+})
 
 describe('Confluence service-account scopes', () => {
   it('requests metadata and role reads needed for complete mirrored ACLs', () => {
@@ -60,33 +150,13 @@ describe('escapeCql', () => {
   })
 })
 
-describe('buildLastModifiedClause', () => {
-  const now = new Date('2026-09-01T12:00:00Z')
-
-  it.concurrent('rounds the watermark up to whole minutes relative to the server clock', () => {
-    expect(buildLastModifiedClause(new Date('2026-09-01T11:30:30Z'), now)).toBe(
-      'lastModified >= now("-30m")'
-    )
-  })
-
-  it.concurrent('never asks for less than a minute', () => {
-    expect(buildLastModifiedClause(now, now)).toBe('lastModified >= now("-1m")')
-    expect(buildLastModifiedClause(new Date(now.getTime() + 60_000), now)).toBe(
-      'lastModified >= now("-1m")'
-    )
-  })
-})
-
 describe('Confluence rejected credentials', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it.each(['discovery', 'space', 'pages', 'cql', 'content'] as const)(
     'preserves authenticated401 at the %s boundary',
     async (boundary) => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () => new Response('', { status: 401 }))
-      )
+      stubFetchWithoutAttachments(vi.fn(async () => new Response('', { status: 401 })))
       const config = {
         domain: 'revocation-fixture.atlassian.net',
         spaceKey: 'ENG',
@@ -548,69 +618,6 @@ describe('confluenceViewToPlainText', () => {
   })
 })
 
-describe('confluence incremental CQL listing', () => {
-  const fetchMock =
-    vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
-
-  function jsonResponse(body: unknown): Response {
-    return new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
-  function cqlOfCall(index: number): string | null {
-    return new URL(String(fetchMock.mock.calls[index][0])).searchParams.get('cql')
-  }
-
-  beforeEach(() => {
-    vi.useFakeTimers()
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.useRealTimers()
-  })
-
-  it('keeps one lastModified clause across pages that straddle a minute boundary', async () => {
-    const lastSyncAt = new Date('2026-09-01T11:30:00Z')
-    const config = { domain: 'example.atlassian.net', spaceKey: 'ENG' }
-    const syncContext: Record<string, unknown> = { cloudId: 'cloud-1' }
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: [],
-          _links: { next: '/wiki/rest/api/content/search?cursor=page-2&cql=ignored' },
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse({ results: [] }))
-
-    vi.setSystemTime(new Date('2026-09-01T12:00:59Z'))
-    const first = await confluenceConnector.listDocuments(
-      'token',
-      config,
-      undefined,
-      syncContext,
-      lastSyncAt
-    )
-    expect(first.nextCursor).toBe('page-2')
-
-    vi.setSystemTime(new Date('2026-09-01T12:01:01Z'))
-    await confluenceConnector.listDocuments(
-      'token',
-      config,
-      first.nextCursor,
-      syncContext,
-      lastSyncAt
-    )
-
-    expect(cqlOfCall(0)).toContain('lastModified >= now("-31m")')
-    expect(cqlOfCall(1)).toBe(cqlOfCall(0))
-  })
-})
-
 describe('Confluence service-account site binding', () => {
   const config = { domain: 'other.atlassian.net', spaceKey: 'ENG' }
   const context = { cloudId: 'cloud-1', credentialDomain: 'bound.atlassian.net' }
@@ -619,7 +626,7 @@ describe('Confluence service-account site binding', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     fetchMock.mockRejectedValue(new Error('Unexpected provider request'))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchWithoutAttachments(fetchMock)
   })
 
   afterEach(() => vi.unstubAllGlobals())
@@ -696,7 +703,7 @@ describe('Confluence listing limits', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchWithoutAttachments(fetchMock)
     context = { cloudId: 'cloud-1', spaceId: 'space-1' }
   })
 
@@ -807,7 +814,9 @@ describe('Confluence listing limits', () => {
     )
     expect(result.documents).toHaveLength(4)
     expect(result.hasMore).toBe(true)
-    expect(JSON.parse(result.nextCursor!)).toEqual({
+    expect(
+      JSON.parse(JSON.parse(result.nextCursor!.slice('attachments:'.length)).parentCursor)
+    ).toEqual({
       page: 'next-page',
       blog: 'next-blog',
       pagesDone: false,
@@ -954,8 +963,7 @@ describe('Confluence permission-scoped content', () => {
   const view = '<p>Shared handbook</p><p>CONFIDENTIAL SALARY DATA</p><p>Local information</p>'
 
   beforeEach(() => {
-    vi.stubGlobal(
-      'fetch',
+    stubFetchWithoutAttachments(
       vi.fn(async (input: string | URL | Request) => {
         const format = new URL(String(input)).searchParams.get('body-format')
         return new Response(
@@ -1198,6 +1206,7 @@ describe('Confluence permission-scoped content', () => {
       }
       vi.mocked(fetch).mockImplementation(async (input) => {
         const url = new URL(String(input))
+        if (url.pathname.endsWith('/attachments')) return Response.json({ results: [] })
         if (url.pathname.endsWith('/spaces')) {
           return new Response(JSON.stringify({ results: [{ id: 'space-1', key: 'ENG' }] }))
         }
@@ -1297,7 +1306,7 @@ describe('confluence mirrored permissions', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetchWithoutAttachments(fetchMock)
   })
 
   afterEach(() => {
@@ -1316,12 +1325,13 @@ describe('confluence mirrored permissions', () => {
       'token',
       { domain: 'example.atlassian.net', spaceKey: ['ENG', 'HR'] },
       [page('eng-page', 'ENG'), page('hr-post', 'HR', 'blogpost')],
-      { cloudId: 'cloud-1' }
+      { cloudId: 'cloud-1' },
+      { persistGroupMembership: vi.fn().mockResolvedValue(undefined) }
     )
 
     expect(acls).toEqual({
-      'eng-page': ['s:confluence:-:acc-eng'],
-      'hr-post': ['s:confluence:-:acc-hr'],
+      'eng-page': ['g:confluence:cloud-1:space-readers:1'],
+      'hr-post': ['g:confluence:cloud-1:space-readers:2'],
     })
     /** A blog post has no ancestors and is never asked for them. */
     const asked = fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname)
@@ -1344,10 +1354,66 @@ describe('confluence mirrored permissions', () => {
       'token',
       { domain: 'example.atlassian.net', spaceKey: 'ENG' },
       [page('eng-page', 'ENG'), page('broken', 'ENG')],
-      { cloudId: 'cloud-1' }
+      { cloudId: 'cloud-1' },
+      { persistGroupMembership: vi.fn().mockResolvedValue(undefined) }
     )
 
-    expect(acls).toEqual({ 'eng-page': ['s:confluence:-:acc-eng'] })
+    expect(acls).toEqual({ 'eng-page': ['g:confluence:cloud-1:space-readers:1'] })
+  })
+
+  it('refreshes and persists a shared space audience once for the entire document batch', async () => {
+    site()
+    const persistGroupMembership = vi.fn().mockResolvedValue(undefined)
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: 'ENG' },
+      [page('first', 'ENG'), page('second', 'ENG')],
+      { cloudId: 'cloud-1' },
+      { persistGroupMembership }
+    )
+    expect(Object.keys(acls ?? {})).toEqual(['first', 'second'])
+    expect(persistGroupMembership).toHaveBeenCalledOnce()
+    expect(persistGroupMembership).toHaveBeenCalledWith({
+      providerId: 'confluence',
+      tenantId: 'cloud-1',
+      group: expect.objectContaining({ id: 'space-readers:1' }),
+      memberTokens: ['s:confluence:-:acc-eng'],
+    })
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).endsWith('/spaces/1/permissions?limit=250')
+      )
+    ).toHaveLength(1)
+  })
+
+  it('withholds only the failed space when its audience cannot be refreshed', async () => {
+    site()
+    const healthy = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input, init) =>
+      String(input).includes('/spaces/2/permissions') ? jsonResponse({}, 403) : healthy(input, init)
+    )
+    const persistGroupMembership = vi.fn().mockResolvedValue(undefined)
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: ['ENG', 'HR'] },
+      [page('eng', 'ENG'), page('hr', 'HR')],
+      { cloudId: 'cloud-1' },
+      { persistGroupMembership }
+    )
+    expect(acls).toEqual({ eng: ['g:confluence:cloud-1:space-readers:1'] })
+    expect(persistGroupMembership).toHaveBeenCalledOnce()
+  })
+
+  it('withholds a space ACL when its verified audience could not be persisted', async () => {
+    site()
+    const acls = await confluenceConnector.getDocumentAcls?.(
+      'token',
+      { domain: 'example.atlassian.net', spaceKey: 'ENG' },
+      [page('eng', 'ENG')],
+      { cloudId: 'cloud-1' },
+      { persistGroupMembership: vi.fn().mockRejectedValue(new Error('database unavailable')) }
+    )
+    expect(acls).toEqual({})
   })
 
   it('loads restrictions above the first ancestor batch even when the page and parent already restrict access', async () => {
@@ -1375,10 +1441,11 @@ describe('confluence mirrored permissions', () => {
       'token',
       { domain: 'example.atlassian.net', spaceKey: 'ENG' },
       [page('eng-page', 'ENG')],
-      { cloudId: 'cloud-1' }
+      { cloudId: 'cloud-1' },
+      { persistGroupMembership: vi.fn().mockResolvedValue(undefined) }
     )
     expect(acls?.['eng-page']).toEqual({
-      acl: ['s:confluence:-:acc-eng'],
+      acl: ['g:confluence:cloud-1:space-readers:1'],
       requirements: expect.arrayContaining([
         ['g:confluence:cloud-1:group-eng-page'],
         ['g:confluence:cloud-1:group-parent'],
