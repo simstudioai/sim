@@ -6,7 +6,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Credential } from '@/lib/oauth'
 import type { SourceSelectionLabels } from '@/lib/sim-search/source-identity'
-import type { ServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
+import type {
+  ServiceAccountConnectTarget,
+  useServiceAccountConnectTarget,
+} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import type { ConnectorConfigFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields'
 import type { ConfigFieldMap } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 
@@ -26,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   refetchCredentials: vi.fn(),
   oauthModal: vi.fn(),
   serviceAccountModal: vi.fn(),
+  serviceAccountTargetInput: vi.fn(),
   githubSetup: vi.fn(),
   serviceAccountTarget: null as ServiceAccountConnectTarget | null,
   memberAccess: true,
@@ -77,6 +81,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
       ['gmail_v2', { oauthAvailable: true, state: 'ready' }],
       ['google_calendar_v2', { oauthAvailable: true, state: 'ready' }],
       ['confluence_v2', { oauthAvailable: true, state: 'ready' }],
+      ['coda', { oauthAvailable: false, state: 'ready' }],
     ]),
     oauthServiceAvailability: new Map(
       [
@@ -173,7 +178,12 @@ vi.mock(
         </button>
       ) : null
     },
-    useServiceAccountConnectTarget: () => mocks.serviceAccountTarget,
+    useServiceAccountConnectTarget: (
+      args: Parameters<typeof useServiceAccountConnectTarget>[0]
+    ) => {
+      mocks.serviceAccountTargetInput(args)
+      return args.serviceAccountProviderId ? mocks.serviceAccountTarget : null
+    },
   })
 )
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields', () => ({
@@ -223,6 +233,7 @@ vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config
 }))
 
 import { AddConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/add-connector-modal'
+import { codaConnectorMeta } from '@/connectors/coda/meta'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
@@ -916,6 +927,55 @@ describe('Account connection dropdown', () => {
       )
     }
   )
+  it.each([true, false])(
+    'creates a Coda token credential inline (Search: %s)',
+    async (isSearchIndex) => {
+      mocks.credentials = []
+      mocks.serviceAccountTarget = {
+        serviceAccountProviderId: 'coda-service-account',
+        serviceName: 'Coda',
+        serviceIcon: codaConnectorMeta.icon,
+        label: 'Add API token',
+        hidden: false,
+      }
+      await render({
+        initialConnectorType: 'coda',
+        lockedAccessMode: 'admin',
+        isSearchIndex,
+        scope: isSearchIndex
+          ? { kind: 'organization', organizationId: 'org-1' }
+          : { kind: 'workspace', workspaceId: 'workspace-1' },
+      })
+      expect(mocks.serviceAccountTargetInput).toHaveBeenLastCalledWith(
+        expect.objectContaining({ serviceAccountProviderId: 'coda-service-account' })
+      )
+      expect(button('Connect & Sync')).toBeDisabled()
+      await act(async () => combobox('Select a service account').click())
+      const options = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
+      expect(options.map((option) => option.textContent?.trim())).toEqual(['Add API token'])
+      await act(async () =>
+        options[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      )
+      expect(mocks.serviceAccountModal).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          serviceAccountProviderId: 'coda-service-account',
+          ...(isSearchIndex ? { organizationId: 'org-1' } : { workspaceId: 'workspace-1' }),
+        })
+      )
+      await act(async () => button('Finish service account setup').click())
+      await act(async () => button('Connect & Sync').click())
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectorType: 'coda',
+          credentialId: 'new-service-account',
+          accessMode: 'admin',
+        }),
+        expect.any(Object)
+      )
+      expect(mocks.oauthModal).not.toHaveBeenCalled()
+    }
+  )
+
   it.each(['google_drive', 'gmail', 'google_calendar'])(
     'opens only service-account creation for a central %s source and submits that credential',
     async (connectorType) => {
