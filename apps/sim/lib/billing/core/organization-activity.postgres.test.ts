@@ -77,6 +77,19 @@ beforeAll(async () => {
       ('r6', 'c1', 'old', 'm2', '2026-03-09 10:00:00'),
       ('r7', 'c3', 'foreign', 'm1', '2026-03-09 10:00:00'),
       ('r8', 'personal', 'personal', 'm1', '2026-03-09 10:00:00');
+    INSERT INTO workspace VALUES ('edge1', 'First', 'edge'), ('edge2', 'Second', 'edge');
+    INSERT INTO workflow_execution_logs VALUES
+      ('edge0', 'edge1', 'f1', 'api', '2026-05-01 00:00:00', 'completed', 0),
+      ('edge100', 'edge1', 'f1', 'api', '2026-05-02 00:00:00', 'completed', 100),
+      ('edge300', 'edge2', 'f2', 'manual', '2026-05-02 00:00:00', 'completed', 300),
+      ('negative', 'edge2', 'f2', 'manual', '2026-05-03 00:00:00', 'failed', -1),
+      ('missing', 'edge2', 'f2', 'manual', '2026-05-03 00:00:00', 'completed', NULL);
+    INSERT INTO copilot_chats VALUES ('edge-chat1', 'edge1', NULL),
+      ('edge-chat2', 'edge2', NULL), ('edge-org-chat', NULL, 'edge');
+    INSERT INTO copilot_runs VALUES
+      ('edge-r1', 'edge-chat1', 'edge-e1', 'm1', '2026-05-01 00:00:00'),
+      ('edge-r2', 'edge-chat2', 'edge-e2', 'm1', '2026-05-02 00:00:00'),
+      ('edge-r3', 'edge-org-chat', 'edge-e3', 'm1', '2026-05-03 00:00:00');
   `)
   execute.mockImplementation((query) => database.execute(query))
   select.mockImplementation((fields) => database.select(fields))
@@ -180,6 +193,54 @@ describe.skipIf(!databaseUrl)('organization activity SQL', () => {
       failed: 0,
       chatRuns: 0,
       chatMembers: 0,
+      failureRate: null,
+      averageDurationMs: null,
+    })
+  })
+
+  it('counts members across the whole period and weights durations by eligible runs', async () => {
+    const edgeScope = {
+      organizationId: 'edge',
+      start: new Date('2026-05-01'),
+      end: new Date('2026-05-04'),
+    }
+    const result = await readActivitySummary(edgeScope, 'day', 'UTC')
+    expect(result.totals).toMatchObject({
+      workflowRuns: 5,
+      completed: 4,
+      failed: 1,
+      chatRuns: 3,
+      chatMembers: 1,
+      failureRate: 0.2,
+    })
+    expect(result.totals.averageDurationMs).toBeCloseTo(400 / 3)
+    const breakdown = await readActivityBreakdown(edgeScope, 'workspace', 'duration', 0)
+    expect(breakdown.rows.map((row) => [row.id, row.averageDurationMs, row.chatMembers])).toEqual([
+      ['edge2', 300, 1],
+      ['edge1', 50, 1],
+      ['organization', null, 1],
+    ])
+  })
+
+  it.each(['day', 'week', 'month'] as const)('preserves totals with %s buckets', async (bucket) => {
+    const result = await readActivitySummary(scope, bucket, 'Pacific/Auckland')
+    expect(result.totals).toMatchObject({ workflowRuns: 5, chatRuns: 3, chatMembers: 2 })
+    expect(result.series.reduce((sum, point) => sum + point.workflowRuns, 0)).toBe(5)
+    expect(result.series.reduce((sum, point) => sum + point.chatRuns, 0)).toBe(3)
+  })
+
+  it('returns workflow-only and chat-only periods without dropping either source', async () => {
+    const workflowOnly = await readActivitySummary({ ...scope, workspaceId: 'w2' }, 'day', 'UTC')
+    expect(workflowOnly.totals).toMatchObject({ workflowRuns: 2, chatRuns: 0, chatMembers: 0 })
+    const chatOnly = await readActivitySummary(
+      { ...scope, start: new Date('2026-03-01'), end: new Date('2026-03-02') },
+      'day',
+      'UTC'
+    )
+    expect(chatOnly.totals).toMatchObject({
+      workflowRuns: 0,
+      chatRuns: 1,
+      chatMembers: 1,
       failureRate: null,
       averageDurationMs: null,
     })
