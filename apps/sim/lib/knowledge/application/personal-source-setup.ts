@@ -28,7 +28,7 @@ import { MAX_SELECTOR_PAGES } from '@/lib/selectors/limits'
 import type { SelectorExecutionResult, SelectorRequest } from '@/lib/selectors/types'
 import { MAX_PERSONAL_SOURCE_SETUP_KEYS } from '@/lib/sim-search/personal-source-setup'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import { isAllSourceItems } from '@/connectors/selection'
+import { getSourceSelectionError, isAllSourceItems } from '@/connectors/selection'
 
 const logger = createLogger('PersonalSourceSetup')
 const VALIDATION_PHASE_TIMEOUT_MS = 30_000
@@ -178,6 +178,8 @@ export const personalSourceSetup = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError('validation', 'Select between 1 and 1,000 projects or spaces')
     }
     const keys = [...new Set(input.keys.map((key) => key.trim()))]
+    const selectionError = getSourceSelectionError(keys)
+    if (selectionError) throw new OrchestrationError('validation', selectionError)
     const remaining = new Set(keys)
     const cursors = new Set<string>()
     const timeout = AbortSignal.timeout(VALIDATION_PHASE_TIMEOUT_MS)

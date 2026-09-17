@@ -91,6 +91,17 @@ const runConnect = (changes = {}) =>
 
 describe('personal source setup', () => {
   it.each(['confluence', 'jira'] as const)(
+    'rejects mixed All and explicit %s keys before discovery or saving',
+    async (connectorType) => {
+      await expect(runConnect({ connectorType, keys: ['*', 'ENG'] })).rejects.toThrow(
+        'Use "*" by itself for All, or remove it to select individual items.'
+      )
+      expect(mocks.selector).not.toHaveBeenCalled()
+      expect(mocks.configure).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['confluence', 'jira'] as const)(
     'authorizes %s All without freezing the available keys',
     async (connectorType) => {
       mocks.selector.mockResolvedValue({ kind: 'list', items: [], nextCursor: 'more' })

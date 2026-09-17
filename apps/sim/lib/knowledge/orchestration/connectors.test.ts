@@ -101,7 +101,22 @@ vi.mock('@/connectors/registry.server', () => ({
     },
     notion: {
       auth: { mode: 'apiKey', optional: true },
+      configFields: [],
       validateConfig: vi.fn().mockResolvedValue({ valid: true }),
+    },
+    jira: {
+      name: 'Jira',
+      auth: { mode: 'oauth', provider: 'jira' },
+      permissionScopedListing: { capFieldIds: [] },
+      configFields: [
+        { id: 'projectSelector', canonicalParamId: 'projectKey', selectAllValue: '*' },
+      ],
+    },
+    confluence: {
+      name: 'Confluence',
+      auth: { mode: 'oauth', provider: 'confluence' },
+      permissionScopedListing: { capFieldIds: [] },
+      configFields: [{ id: 'spaceSelector', canonicalParamId: 'spaceKey', selectAllValue: '*' }],
     },
     google_drive: {
       name: 'Google Drive',
@@ -154,6 +169,30 @@ describe('performCreateKnowledgeConnector', () => {
     resolveBillingAttribution,
     resolveAccessToken: vi.fn(),
   }
+
+  it.each([
+    { connectorType: 'jira', field: 'projectKey' },
+    { connectorType: 'confluence', field: 'spaceKey' },
+  ])(
+    'rejects mixed All keys for credentialless $connectorType members',
+    async ({ connectorType, field }) => {
+      const outcome = await performCreateKnowledgeConnector({
+        ...createParams,
+        connectorType,
+        sourceConfig: { domain: 'example.atlassian.net', [field]: ['*', 'ENG'] },
+        accessMode: 'members',
+        membersBinding: { credentialGroupId: 'group-1', credentialGroupOptionId: 'option-1' },
+      })
+      expect(outcome).toMatchObject({
+        success: false,
+        errorCode: 'validation',
+        error: 'Use "*" by itself for All, or remove it to select individual items.',
+      })
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      expect(mockGrant).not.toHaveBeenCalled()
+      expect(createParams.resolveAccessToken).not.toHaveBeenCalled()
+    }
+  )
 
   it('validates and encrypts a GitHub PAT without resolving an OAuth account or returning the secret', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'kb-1' }])
@@ -480,6 +519,41 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   afterAll(resetDbChainMock)
+
+  it.each([
+    { connectorType: 'jira', field: 'projectKey' },
+    { connectorType: 'confluence', field: 'spaceKey' },
+  ])(
+    'rejects mixed All keys when editing credentialless $connectorType members',
+    async ({ connectorType, field }) => {
+      queueTableRows(schemaMock.knowledgeConnector, [
+        {
+          id: 'conn-1',
+          connectorType,
+          accessMode: 'members',
+          status: 'active',
+          memberSyncStatus: 'idle',
+          credentialId: null,
+        },
+      ])
+      const validateSourceConfig = vi.fn()
+      const outcome = await performUpdateKnowledgeConnector({
+        ...ACTOR,
+        knowledgeBase: KB,
+        connectorId: 'conn-1',
+        updates: { sourceConfig: { domain: 'example.atlassian.net', [field]: '*, ENG' } },
+        resolveBillingAttribution,
+        validateSourceConfig,
+      })
+      expect(outcome).toMatchObject({
+        success: false,
+        errorCode: 'validation',
+        error: 'Use "*" by itself for All, or remove it to select individual items.',
+      })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(validateSourceConfig).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects an update that names nothing before reading the connector', async () => {
     const outcome = await performUpdateKnowledgeConnector({

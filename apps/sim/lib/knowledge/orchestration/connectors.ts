@@ -64,6 +64,7 @@ import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
 import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import { findSourceSelectionError } from '@/connectors/selection'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 const logger = createLogger('KnowledgeConnectorOrchestration')
@@ -258,6 +259,9 @@ export async function performCreateKnowledgeConnector(
   if (!connectorConfig) {
     return fail(`Unknown connector type: ${connectorType}`, 'validation')
   }
+
+  const selectionError = findSourceSelectionError(connectorConfig, sourceConfig)
+  if (selectionError) return fail(selectionError, 'validation')
 
   try {
     await assertLiveSyncAllowed(resourceScopeFromOwner(kb), syncIntervalMinutes)
@@ -825,11 +829,13 @@ export async function performUpdateKnowledgeConnector(
     let nextSourceConfig = params.prepareSourceConfig
       ? await params.prepareSourceConfig(existing, updates.sourceConfig)
       : updates.sourceConfig
-    if (aclIsDerived(accessMode)) {
-      /** A derived-ACL mode has no listing cap; a save may refuse one, never store one. */
-      const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
-      const connectorConfig = CONNECTOR_REGISTRY[existing.connectorType]
-      if (connectorConfig) {
+    const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
+    const connectorConfig = CONNECTOR_REGISTRY[existing.connectorType]
+    if (connectorConfig) {
+      const selectionError = findSourceSelectionError(connectorConfig, nextSourceConfig)
+      if (selectionError) return fail(selectionError, 'validation')
+      if (aclIsDerived(accessMode)) {
+        /** A derived-ACL mode has no listing cap; a save may refuse one, never store one. */
         const capViolation = findListingCapViolation(connectorConfig, nextSourceConfig)
         if (capViolation) return fail(capViolation, 'validation')
         nextSourceConfig = stripListingCapFields(connectorConfig, nextSourceConfig)

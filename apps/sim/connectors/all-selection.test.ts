@@ -17,6 +17,42 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('dynamic All source validation', () => {
+  describe.each([
+    { name: 'Jira', connector: jiraConnector, field: 'projectKey' },
+    { name: 'Confluence', connector: confluenceConnector, field: 'spaceKey' },
+  ])('$name mixed All selection', ({ connector, field }) => {
+    const error = 'Use "*" by itself for All, or remove it to select individual items.'
+
+    it.each([{ value: '*, ENG' }, { value: ['*', 'ENG'] }, { value: ['ENG', ' * '] }])(
+      'rejects mixed keys before validation requests (%j)',
+      async ({ value }) => {
+        await expect(
+          connector.validateConfig('token', { domain: DOMAIN, [field]: value })
+        ).resolves.toEqual({ valid: false, error })
+        expect(fetchMock).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each([false, true])(
+      'rejects mixed keys before listing or splitting the scope (per member: %s)',
+      async (perMemberListing) => {
+        await expect(
+          connector.listDocuments('token', { domain: DOMAIN, [field]: ['*', 'ENG'] }, undefined, {
+            perMemberListing,
+          })
+        ).rejects.toThrow(error)
+        expect(fetchMock).not.toHaveBeenCalled()
+      }
+    )
+
+    it('rejects mixed keys during resumed hydration before reading the provider', async () => {
+      await expect(
+        connector.getDocument('token', { domain: DOMAIN, [field]: 'ENG, *' }, 'document-1')
+      ).rejects.toThrow(error)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+  })
+
   it.each([{ value: '*' }, { value: ['*'] }])(
     'validates Confluence All without enumerating or submitting literal space keys (%j)',
     async ({ value: spaceKey }) => {

@@ -10,7 +10,7 @@ import {
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { type RetryOptions, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { jiraConnectorMeta } from '@/connectors/jira/meta'
-import { isAllSourceItems } from '@/connectors/selection'
+import { getSourceSelectionError, isAllSourceItems } from '@/connectors/selection'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   computeContentHash,
@@ -303,6 +303,8 @@ export const jiraConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
+    const selectionError = getSourceSelectionError(sourceConfig.projectKey)
+    if (selectionError) throw new Error(selectionError)
     const domain = sourceConfig.domain as string
     const siteUrl = normalizeAtlassianSiteUrl(domain)
     const projectKeys = parseMultiValue(sourceConfig.projectKey)
@@ -527,6 +529,8 @@ export const jiraConnector: ConnectorConfig = {
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
+    const selectionError = getSourceSelectionError(sourceConfig.projectKey)
+    if (selectionError) throw new Error(selectionError)
     const domain = sourceConfig.domain as string
     const siteUrl = normalizeAtlassianSiteUrl(domain)
     const cloudId = await resolveCloudId(accessToken, domain, syncContext)
@@ -573,6 +577,8 @@ export const jiraConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
+    const selectionError = getSourceSelectionError(sourceConfig.projectKey)
+    if (selectionError) return { valid: false, error: selectionError }
     const domain = sourceConfig.domain as string
     const projectKeys = parseMultiValue(sourceConfig.projectKey)
 

@@ -34,7 +34,7 @@ import {
   openConfluenceDirectory,
   validateConfluencePermissionAccess,
 } from '@/connectors/confluence/permissions'
-import { isAllSourceItems } from '@/connectors/selection'
+import { getSourceSelectionError, isAllSourceItems } from '@/connectors/selection'
 import type {
   ConnectorAclContext,
   ConnectorConfig,
@@ -637,6 +637,8 @@ async function resolveConfluenceAcls(
   syncContext?: Record<string, unknown>,
   aclContext?: ConnectorAclContext
 ): Promise<Record<string, MirroredDocumentAcl>> {
+  const selectionError = getSourceSelectionError(sourceConfig.spaceKey)
+  if (selectionError) throw new Error(selectionError)
   const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
   const spaceIdForKey = memoizeAsync((spaceKey: string) =>
@@ -836,6 +838,8 @@ export const confluenceConnector: ConnectorConfig = {
   ...confluenceConnectorMeta,
 
   listDocuments: async (accessToken, sourceConfig, cursor, syncContext) => {
+    const selectionError = getSourceSelectionError(sourceConfig.spaceKey)
+    if (selectionError) throw new Error(selectionError)
     const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
     return listConfluenceAttachments({
       accessToken,
@@ -864,6 +868,8 @@ export const confluenceConnector: ConnectorConfig = {
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
+    const selectionError = getSourceSelectionError(sourceConfig.spaceKey)
+    if (selectionError) throw new Error(selectionError)
     const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
     const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
@@ -946,6 +952,8 @@ export const confluenceConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
+    const selectionError = getSourceSelectionError(sourceConfig.spaceKey)
+    if (selectionError) return { valid: false, error: selectionError }
     const domain = sourceConfig.domain as string
     const allSpaces = isAllSourceItems(sourceConfig.spaceKey)
     const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
