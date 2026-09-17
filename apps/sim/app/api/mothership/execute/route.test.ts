@@ -109,8 +109,7 @@ describe('buildExecuteResponsePayload', () => {
   it('still admits integration and mcp tool calls, and still drops other server tools', () => {
     const payload = buildExecuteResponsePayload(
       resultWithToolCalls(['gmail_send', 'mcp-notion-create', 'read', 'edit_workflow']),
-      'chat-1',
-      [{ name: 'gmail_send' }]
+      'chat-1'
     )
 
     const names = payload.toolCalls.map((tc: { name: string }) => tc.name)
@@ -422,6 +421,17 @@ describe('mothership private trace provenance transport', () => {
         'POST',
         {
           ...requestBody,
+          mcpTools: [
+            {
+              type: 'mcp',
+              params: { serverId: 'mcp-cg-123456789012345678901', toolName: 'search_transcripts' },
+            },
+            {
+              type: 'mcp',
+              usageControl: 'none',
+              params: { serverId: 'mcp-cg-123456789012345678901', toolName: 'delete_transcripts' },
+            },
+          ],
           contexts: [
             { kind: 'mcp', label: 'MCP 123', serverId: '123', path: '123' },
             {
@@ -445,12 +455,21 @@ describe('mothership private trace provenance transport', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockBuildTaggedMcpToolSchemas).toHaveBeenCalledWith(
-      'user-1',
-      'workspace-1',
-      ['123'],
-      expect.objectContaining({ mcpBlockId: 'block-1' })
-    )
+    expect(mockRunHeadlessCopilotLifecycle.mock.calls[0]?.[0]).toMatchObject({
+      integrationCatalog: {
+        mcpServerIds: ['123'],
+        mcpToolIds: ['mcp-cg-123456789012345678901-search_transcripts'],
+        mcpExecution: {
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          mcpBlockId: 'block-1',
+          subjectUserId: 'user-1',
+        },
+      },
+    })
+    expect(mockBuildIntegrationToolSchemas).not.toHaveBeenCalled()
+    expect(mockBuildTaggedMcpToolSchemas).not.toHaveBeenCalled()
+    expect(mockBuildSelectedMcpToolSchemas).not.toHaveBeenCalled()
     expect(mockProcessContextsServer).toHaveBeenCalledWith(
       [
         {
@@ -638,7 +657,7 @@ describe('mothership private trace provenance transport', () => {
     expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps discovered MCP schemas raw without activating matching configured secrets', async () => {
+  it('sends enabled MCP IDs without schemas or activating matching configured secrets', async () => {
     mockBuildTaggedMcpToolSchemas.mockResolvedValueOnce([
       { name: 'mcp-docs', description: 'Uses secret-value' },
     ])
@@ -653,9 +672,18 @@ describe('mothership private trace provenance transport', () => {
           entries: [],
           scope: { userId: 'user-1', workspaceId: 'workspace-1' },
         })
-        expect(payload.mothershipTools).toEqual([
-          { name: 'mcp-docs', description: 'Uses secret-value' },
-        ])
+        expect(payload).not.toHaveProperty('mothershipTools')
+        expect(payload).not.toHaveProperty('integrationTools')
+        expect(payload.integrationCatalog).toEqual({
+          mcpServerIds: ['server-1'],
+          mcpToolIds: [],
+          mcpExecution: {
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+            mcpBlockId: 'block-1',
+            subjectUserId: 'user-1',
+          },
+        })
         expect(JSON.stringify(payload.messages)).toContain('search_integration_tools')
         expect(JSON.stringify(payload.messages)).toContain('call_integration_tool')
         expect(JSON.stringify(payload.messages)).not.toContain('callable directly')

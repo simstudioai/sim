@@ -209,6 +209,10 @@ describe('durable Sim tool ownership', () => {
     'closes %s admission and refuses preexisting terminal rows',
     async (status) => {
       await updateRunStatus(input.runId, status)
+      expect(dbChainMockFns.returning).toHaveBeenCalledWith({
+        id: copilotRuns.id,
+        status: copilotRuns.status,
+      })
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
         expect.objectContaining({ status, toolAdmissionClosedAt: expect.anything() })
       )

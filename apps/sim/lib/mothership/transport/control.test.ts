@@ -7,6 +7,11 @@ const handlers = vi.hoisted(() => ({
   prepare: vi.fn(),
   wake: vi.fn(),
   workspace: vi.fn(),
+  catalog: vi.fn(),
+}))
+vi.mock('@/lib/mothership/integrations/application/catalog', () => ({
+  INTEGRATION_CATALOG_AUDIENCE: 'catalog',
+  readIntegrationCatalog: { execute: handlers.catalog },
 }))
 vi.mock('@/lib/mothership/chat/application/workspace-context', () => ({
   readWorkspaceContext: { execute: handlers.workspace },
@@ -183,5 +188,21 @@ it('uses the same protected inventory for checkpoint memory preflight', async ()
       audience: 'sim:workspaces',
       resourceScope: { chatId: 'chat' },
     }),
+  })
+})
+
+it('routes catalog reads through catalog-specific delegated authority', async () => {
+  handlers.catalog.mockResolvedValue({ total: 0, truncated: false, operations: [] })
+  const input = { mode: 'agent' as const, mcpServerIds: [], limit: 20 }
+  expect((await executeSimControl(request({ kind: 'integration_catalog', input }))).status).toBe(
+    200
+  )
+  expect(handlers.catalog).toHaveBeenCalledWith({
+    principal: expect.objectContaining({
+      audience: 'catalog',
+      workspaceId: 'workspace',
+      subjectUserId: 'user',
+    }),
+    input,
   })
 })

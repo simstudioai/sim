@@ -695,7 +695,7 @@ describe('Assistant payload', () => {
     expect(payload.organizationId).toBe('org-1')
     expect(payload).not.toHaveProperty('workspaceId')
     expect(payload).not.toHaveProperty('desktopCapabilities')
-    expect(payload.integrationTools ?? []).toEqual([])
+    expect(payload).not.toHaveProperty('integrationTools')
   })
 
   it('keeps the shared search scope and only personally authenticated integrations', async () => {
@@ -726,12 +726,8 @@ describe('Assistant payload', () => {
     for (const field of ['context', 'commands', 'mothershipTools', 'workflowId']) {
       expect(payload).not.toHaveProperty(field)
     }
-    expect(payload.integrationTools).toEqual([
-      expect.objectContaining({
-        name: 'gmail_send',
-        oauth: { required: true, provider: 'google-email' },
-      }),
-    ])
+    expect(payload).not.toHaveProperty('integrationTools')
+    expect(payload.integrationCatalog).toEqual({ mcpServerIds: [] })
   })
 })
 
@@ -780,9 +776,11 @@ describe('desktop request capabilities', () => {
   })
 })
 
-it('supplies org visibility and tagged MCP discovery while preserving desktop capabilities', async () => {
+it('carries only enabled MCP IDs without eager catalog discovery while preserving desktop capabilities', async () => {
   const { getBlockVisibilityForCopilot } = await import('@/lib/mothership/block-visibility')
   const { buildOrganizationTaggedMcpToolSchemas } = await import('@/lib/mothership/mcp-tools')
+  vi.mocked(getBlockVisibilityForCopilot).mockClear()
+  vi.mocked(buildOrganizationTaggedMcpToolSchemas).mockClear()
   const principal = { kind: 'session' as const, userId: 'user-org' }
   const payload = await buildCopilotRequestPayload(
     {
@@ -800,15 +798,10 @@ it('supplies org visibility and tagged MCP discovery while preserving desktop ca
     },
     { selectedModel: '' }
   )
-  expect(getBlockVisibilityForCopilot).toHaveBeenCalledWith('user-org', undefined, 'org-catalog')
-  expect(buildOrganizationTaggedMcpToolSchemas).toHaveBeenCalledWith(
-    principal,
-    {
-      userId: 'user-org',
-      organizationId: 'org-catalog',
-      chatId: 'chat-org',
-    },
-    ['server-a', 'server-b']
-  )
+  expect(getBlockVisibilityForCopilot).not.toHaveBeenCalled()
+  expect(buildOrganizationTaggedMcpToolSchemas).not.toHaveBeenCalled()
+  expect(payload.integrationCatalog).toEqual({ mcpServerIds: ['server-a', 'server-b'] })
+  expect(payload).not.toHaveProperty('integrationTools')
+  expect(payload).not.toHaveProperty('mothershipTools')
   expect(payload.desktop).toMatchObject({ browser: true, terminal: true })
 })

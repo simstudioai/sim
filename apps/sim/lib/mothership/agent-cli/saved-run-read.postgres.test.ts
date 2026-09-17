@@ -95,6 +95,7 @@ import {
   detachAsyncToolCall,
   getUnsettledClientWorkflowExecutions,
   prepareWorkbenchAccess,
+  recordRunBillingAdmission,
   recordSimSandboxProcess,
   renewSimToolExecutionLease,
   requestRunStop,
@@ -1548,6 +1549,51 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         ).toHaveLength(1)
       }
     )
+
+    it('patches only billing admission under the current controller and refuses missing recovery or terminal runs', async () => {
+      const chatId = generateId()
+      const runId = generateId()
+      const admission = { billingRequestId: generateId(), serializedAttribution: 'original-payer' }
+      const requestContext = {
+        controllerToken: 'current',
+        concurrentlyUpdated: { retained: true },
+        recovery: { kind: 'interactive_stream', request: { message: 'durable intent' } },
+      }
+      await db.insert(copilotChats).values({ id: chatId, userId: 'run-reader', workspaceId })
+      await db.insert(copilotRuns).values({
+        id: runId,
+        chatId,
+        streamId: generateId(),
+        userId: 'run-reader',
+        workspaceId,
+        executionId: generateId(),
+        status: 'paused_waiting_for_tool',
+        requestContext,
+      })
+      expect(await recordRunBillingAdmission(runId, admission, 'old')).toBeNull()
+      expect(await recordRunBillingAdmission(runId, admission, 'current')).toEqual({
+        id: runId,
+        status: 'paused_waiting_for_tool',
+      })
+      const [persisted] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+      expect(persisted.requestContext).toEqual({
+        ...requestContext,
+        recovery: { ...requestContext.recovery, billingAdmission: admission },
+      })
+      expect(await updateRunStatus(runId, 'complete', {}, 'current')).toEqual({
+        id: runId,
+        status: 'complete',
+      })
+      expect(await recordRunBillingAdmission(runId, admission, 'current')).toBeNull()
+      await db
+        .update(copilotRuns)
+        .set({
+          status: 'active',
+          requestContext: { controllerToken: 'current' },
+        })
+        .where(eq(copilotRuns.id, runId))
+      expect(await recordRunBillingAdmission(runId, admission, 'current')).toBeNull()
+    })
 
     it('fences an old controller out of physical assistant persistence and run completion after takeover', async () => {
       const chatId = generateId()

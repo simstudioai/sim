@@ -10,6 +10,8 @@ export const BillingAdmissionSchema = z
   })
   .strict()
 
+export type BillingAdmission = z.infer<typeof BillingAdmissionSchema>
+
 /** Start intent excludes transport credentials and receipts; takeover resolves those afresh. */
 export const DurableChatRequestSchema = ChatPayloadSchema.safeExtend({
   messageId: z.uuid(),

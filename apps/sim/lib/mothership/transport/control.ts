@@ -9,6 +9,10 @@ import { readWorkspaceContext } from '@/lib/mothership/chat/application/workspac
 import { WORKSPACE_TARGET_AUDIENCE } from '@/lib/mothership/chat/application/workspace-target'
 import type { SimControlRequest, SimControlResult } from '@/lib/mothership/generated/sim-transport'
 import {
+  INTEGRATION_CATALOG_AUDIENCE,
+  readIntegrationCatalog,
+} from '@/lib/mothership/integrations/application/catalog'
+import {
   RUN_CONTROL_AUDIENCE,
   readRunControl,
 } from '@/lib/mothership/request/application/read-control'
@@ -37,11 +41,13 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         },
         {
           audience:
-            operation.kind === 'workspace_context'
-              ? WORKSPACE_TARGET_AUDIENCE
-              : operation.kind === 'run_control'
-                ? RUN_CONTROL_AUDIENCE
-                : TASK_DELEGATION_AUDIENCE,
+            operation.kind === 'integration_catalog'
+              ? INTEGRATION_CATALOG_AUDIENCE
+              : operation.kind === 'workspace_context'
+                ? WORKSPACE_TARGET_AUDIENCE
+                : operation.kind === 'run_control'
+                  ? RUN_CONTROL_AUDIENCE
+                  : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
@@ -49,16 +55,25 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         { ...scope, workspaceId: scope.workspaceId!, delegationId: `transport:${request.id}` },
         {
           audience:
-            operation.kind === 'workspace_context'
-              ? WORKSPACE_TARGET_AUDIENCE
-              : operation.kind === 'run_control'
-                ? RUN_CONTROL_AUDIENCE
-                : TASK_DELEGATION_AUDIENCE,
+            operation.kind === 'integration_catalog'
+              ? INTEGRATION_CATALOG_AUDIENCE
+              : operation.kind === 'workspace_context'
+                ? WORKSPACE_TARGET_AUDIENCE
+                : operation.kind === 'run_control'
+                  ? RUN_CONTROL_AUDIENCE
+                  : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
   try {
     switch (operation.kind) {
+      case 'integration_catalog':
+        return {
+          status: 200,
+          body: JSON.stringify(
+            await readIntegrationCatalog.execute({ principal, input: operation.input })
+          ),
+        }
       case 'workspace_context':
         return {
           status: 200,

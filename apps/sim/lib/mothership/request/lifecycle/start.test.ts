@@ -19,6 +19,7 @@ const {
   runCopilotLifecycle,
   createRunSegment,
   updateRunStatus,
+  recordRunBillingAdmission,
   resetBuffer,
   clearFilePreviewSessions,
   scheduleBufferCleanup,
@@ -35,6 +36,7 @@ const {
   runCopilotLifecycle: vi.fn(),
   createRunSegment: vi.fn(),
   updateRunStatus: vi.fn(),
+  recordRunBillingAdmission: vi.fn(),
   resetBuffer: vi.fn(),
   clearFilePreviewSessions: vi.fn(),
   scheduleBufferCleanup: vi.fn(),
@@ -80,6 +82,7 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
 vi.mock('@/lib/mothership/async-runs/repository', () => ({
   createRunSegment,
   updateRunStatus,
+  recordRunBillingAdmission,
 }))
 
 let mockDisconnected = false
@@ -216,21 +219,14 @@ describe('createSSEStream terminal error handling', () => {
       serializedAttribution: 'original-payer',
       headers: {},
     }
-    updateRunStatus.mockResolvedValue({ status: 'active' })
+    recordRunBillingAdmission.mockResolvedValue({ status: 'active' })
     runCopilotLifecycle.mockImplementation(async (_payload, options) => {
       await options.onBillingAdmission(admission)
-      expect(updateRunStatus).toHaveBeenCalledWith(
+      expect(recordRunBillingAdmission).toHaveBeenCalledWith(
         'run-1',
-        'active',
         {
-          requestContext: expect.objectContaining({
-            recovery: expect.objectContaining({
-              billingAdmission: {
-                billingRequestId: admission.billingRequestId,
-                serializedAttribution: admission.serializedAttribution,
-              },
-            }),
-          }),
+          billingRequestId: admission.billingRequestId,
+          serializedAttribution: admission.serializedAttribution,
         },
         `${streamId}\ncontroller`
       )

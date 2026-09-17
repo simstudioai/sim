@@ -1,3 +1,4 @@
+import { serializePrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -18,18 +19,19 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
-import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
+import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
+import { createMcpToolId } from '@/lib/mcp/utils'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
 import {
   type CopilotEnvironmentContext,
   createCopilotEnvironmentContext,
 } from '@/lib/mothership/environment-context'
+import { IntegrationCatalogMcpExecution } from '@/lib/mothership/generated/integration-catalog'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
-import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
 import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import type { StreamEvent } from '@/lib/mothership/request/types'
@@ -43,6 +45,7 @@ import {
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
+import { hasToolId } from '@/tools/tool-ids'
 
 export const maxDuration = 3600
 
@@ -94,12 +97,10 @@ function encodeNdjson(value: unknown): Uint8Array {
 
 export function buildExecuteResponsePayload(
   result: Awaited<ReturnType<typeof runHeadlessCopilotLifecycle>>,
-  effectiveChatId: string,
-  integrationTools: Array<{ name: string }>
+  effectiveChatId: string
 ) {
-  const clientToolNames = new Set(integrationTools.map((t) => t.name))
   const clientToolCalls = (result.toolCalls || []).filter(
-    (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
+    (tc: { name: string }) => hasToolId(tc.name) || tc.name.startsWith('mcp-')
   )
 
   return {
@@ -246,34 +247,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
     const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
     const userPermission = workspaceAccess.permission
-    const mothershipToolsPromise = Promise.allSettled([
-      buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? [], mcpContext),
-      buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds, mcpContext),
-    ]).then((results) => {
-      const groups = results.map((result) => {
-        if (result.status === 'rejected') throw result.reason
-        return result.value
+    const selectedMcpToolIds = (mcpTools ?? [])
+      .filter((tool) => tool.type === 'mcp' && (tool.usageControl || 'auto') !== 'none')
+      .map((tool) => {
+        const { serverId, toolName } = resolveMcpToolBinding(tool)
+        return createMcpToolId(serverId, toolName)
       })
-      const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
-      return [...byName.values()]
+    const agentContexts = await processContextsServer(
+      nonMcpAgentMentions,
+      userId,
+      lastUserMessage,
+      workspaceId,
+      effectiveChatId,
+      activeResolvedSecretTraceRegistry
+    ).catch((error) => {
+      reqLogger.warn('Failed to resolve agent contexts for execution', {
+        error: toError(error).message,
+      })
+      return []
     })
-    const [integrationTools, mothershipTools, agentContexts] = await Promise.all([
-      buildIntegrationToolSchemas(userId, undefined, workspaceId),
-      mothershipToolsPromise,
-      processContextsServer(
-        nonMcpAgentMentions,
-        userId,
-        lastUserMessage,
-        workspaceId,
-        effectiveChatId,
-        activeResolvedSecretTraceRegistry
-      ).catch((error) => {
-        reqLogger.warn('Failed to resolve agent contexts for execution', {
-          error: toError(error).message,
-        })
-        return []
-      }),
-    ])
     /**
      * The wire payload IS the shared ExecuteRequest contract. Caller-side context —
      * resolved mentions and the MCP-enablement notice — folds into the message array
@@ -285,12 +277,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         const c = ctx as { type?: string; content?: string }
         return `[Attached ${c.type ?? 'context'}]\n${c.content ?? ''}`
       }),
-      ...(mothershipTools.length > 0
+      ...(taggedMcpServerIds.length || selectedMcpToolIds.length
         ? [
             [
-              'The following MCP operations are enabled. Find their input schemas with search_integration_tools using the exact toolId shown, then invoke them through call_integration_tool.',
+              'MCP operations are enabled. Discover their current input schemas with search_integration_tools, then invoke them through call_integration_tool.',
               'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
-              ...mothershipTools.map((tool) => `- ${tool.name}: ${tool.description || tool.name}`),
+              ...taggedMcpServerIds.map((id) => `Enabled MCP server: ${id}`),
+              ...selectedMcpToolIds.map((id) => `Enabled MCP operation: ${id}`),
             ].join('\n'),
           ]
         : []),
@@ -310,8 +303,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workspaceId,
       chatId: effectiveChatId,
       messageId,
-      ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
+      integrationCatalog: {
+        mcpServerIds: taggedMcpServerIds,
+        mcpToolIds: selectedMcpToolIds,
+        mcpExecution: IntegrationCatalogMcpExecution.parse({
+          workflowId: delegation.workflowId,
+          executionId: delegation.executionId,
+          mcpBlockId: delegation.mcpBlockId,
+          subjectUserId: delegation.subjectUserId,
+          ...(delegation.principal ? { principal: serializePrincipal(delegation.principal) } : {}),
+          ...(delegation.currentWorkflow ? { currentWorkflow: delegation.currentWorkflow } : {}),
+        }),
+      },
     }
 
     let allowExplicitAbort = true
@@ -491,7 +494,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
               send({
                 type: 'final',
                 data: withPrivateProvenance(
-                  buildExecuteResponsePayload(result, effectiveChatId, integrationTools),
+                  buildExecuteResponsePayload(result, effectiveChatId),
                   resolvedSecretTraceRegistry,
                   includePrivateProvenance
                 ),
@@ -619,7 +622,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       return NextResponse.json(
         withPrivateProvenance(
-          buildExecuteResponsePayload(result, effectiveChatId, integrationTools),
+          buildExecuteResponsePayload(result, effectiveChatId),
           resolvedSecretTraceRegistry,
           includePrivateProvenance
         ),

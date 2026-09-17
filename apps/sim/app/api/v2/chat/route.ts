@@ -31,7 +31,6 @@ import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { chatOperations } from '@/lib/mothership/application/operations'
 import { resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
 import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
-import { buildIntegrationToolSchemas } from '@/lib/mothership/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
@@ -60,6 +59,7 @@ import {
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
+import { hasToolId } from '@/tools/tool-ids'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 3600
@@ -140,14 +140,9 @@ function encodeNdjson(value: unknown): Uint8Array {
  * reply, the conversation id that continues this conversation, and the client
  * tool calls the run surfaced.
  */
-function buildChatResultPayload(
-  result: OrchestratorResult,
-  conversationId: string,
-  integrationTools: Array<{ name: string }>
-) {
-  const clientToolNames = new Set(integrationTools.map((t) => t.name))
+function buildChatResultPayload(result: OrchestratorResult, conversationId: string) {
   const clientToolCalls = (result.toolCalls || []).filter(
-    (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
+    (tc: { name: string }) => hasToolId(tc.name) || tc.name.startsWith('mcp-')
   )
 
   return {
@@ -330,13 +325,10 @@ export const POST = withRouteHandler(
         })
       }
 
-      const [integrationTools, billingAttribution] = await Promise.all([
-        buildIntegrationToolSchemas(userId, undefined, workspaceId),
-        // Hosted execution refuses to run without an attribution snapshot;
-        // the executor path receives it as a header, this path resolves it
-        // from the authenticated actor and asserted workspace.
-        resolveBillingAttribution({ actorUserId: userId, workspaceId }),
-      ])
+      const billingAttribution = await resolveBillingAttribution({
+        actorUserId: userId,
+        workspaceId,
+      })
 
       /**
        * The wire payload IS the shared ChatRequest contract, and this surface now rides
@@ -351,7 +343,7 @@ export const POST = withRouteHandler(
         workspaceId,
         chatId,
         messageId,
-        ...(integrationTools.length > 0 ? { integrationTools } : {}),
+        integrationCatalog: { mcpServerIds: [] },
         ...(effort ? { effort } : {}),
       }
 
@@ -474,7 +466,7 @@ export const POST = withRouteHandler(
 
                 send({
                   type: 'final',
-                  data: buildChatResultPayload(result, chatId, integrationTools),
+                  data: buildChatResultPayload(result, chatId),
                 })
               } catch (error) {
                 if (
@@ -543,7 +535,7 @@ export const POST = withRouteHandler(
           return v2Error('INTERNAL_ERROR', result.error || 'Chat request failed')
         }
 
-        return v2Data(buildChatResultPayload(result, chatId, integrationTools))
+        return v2Data(buildChatResultPayload(result, chatId))
       } finally {
         allowExplicitAbort = false
         req.signal.removeEventListener('abort', onAbort)
