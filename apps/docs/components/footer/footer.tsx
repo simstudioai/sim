@@ -41,7 +41,7 @@ const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Contact', href: `${SIM_SITE_URL}/contact`, external: true },
 ]
 
-/** Top model providers — mirrors the landing footer's top 8 catalog providers. */
+/** Top model providers — mirrors the landing footer's top 7 catalog providers. */
 const MODEL_LINKS: FooterItem[] = [
   { label: 'All Models', href: `${SIM_SITE_URL}/models`, external: true },
   { label: 'OpenAI', href: `${SIM_SITE_URL}/models/openai`, external: true },
@@ -51,7 +51,6 @@ const MODEL_LINKS: FooterItem[] = [
   { label: 'xAI', href: `${SIM_SITE_URL}/models/xai`, external: true },
   { label: 'Cerebras', href: `${SIM_SITE_URL}/models/cerebras`, external: true },
   { label: 'Groq', href: `${SIM_SITE_URL}/models/groq`, external: true },
-  { label: 'Sakana AI', href: `${SIM_SITE_URL}/models/sakana`, external: true },
 ]
 
 const BLOCK_LINKS: FooterItem[] = [

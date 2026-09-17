@@ -87,7 +87,7 @@ const RESOURCES_LINKS: FooterItem[] = [
 /** Top model providers, sourced from the catalog so labels/hrefs never drift. */
 const MODEL_LINKS: FooterItem[] = [
   { label: 'All Models', href: '/models' },
-  ...MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 8).map((provider) => ({
+  ...MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 7).map((provider) => ({
     label: provider.name,
     href: provider.href,
   })),
