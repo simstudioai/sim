@@ -2261,8 +2261,20 @@ export const workspaceFiles = pgTable(
      * with a `now()` default: Postgres applies this as a fast-default (no table rewrite), existing rows
      * get a stable timestamp that — like every metadata write — never advances it, and every insert path
      * is covered without per-call plumbing. Only a content write (upload / overwrite) advances it.
+     *
+     * MILLISECOND precision is an invariant, not an incidental detail. This value is a revision identity
+     * that round-trips through JavaScript `Date` and JSON — search-index dispatch payloads, If-Match
+     * tokens, realtime versions — all of which truncate to milliseconds, while `now()` stores
+     * microseconds. A sub-millisecond value therefore stops comparing equal to its own round-trip, and
+     * every SQL equality keyed on it matches zero rows: a file whose
+     * `workspace_file_search_index.source_content_updated_at` came from such a round trip can never be
+     * claimed, indexed, or cleaned up. The default truncates, and the
+     * `workspace_files_content_version_millisecond` trigger enforces it for the writers a default cannot
+     * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and any UPDATE.
      */
-    contentUpdatedAt: timestamp('content_updated_at').notNull().defaultNow(),
+    contentUpdatedAt: timestamp('content_updated_at')
+      .notNull()
+      .default(sql`date_trunc('milliseconds', now())`),
     /**
      * Durable cutover marker for content secret provenance. NULL is reserved for legacy rows and
      * writes from app versions that predate tracking. Provenance-aware writers set version 1 in the
