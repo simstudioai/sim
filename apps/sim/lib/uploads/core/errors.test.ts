@@ -20,6 +20,7 @@ describe('isObjectNotFoundError', () => {
     )
     /** Azure Blob. */
     expect(isObjectNotFoundError({ code: 'BlobNotFound', statusCode: 404 })).toBe(true)
+    expect(isObjectNotFoundError({ code: 'ENOENT' })).toBe(true)
     /** GCS, which reports a numeric code. */
     expect(isObjectNotFoundError({ code: 404 })).toBe(true)
   })

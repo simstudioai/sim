@@ -4,7 +4,7 @@
 import {
   workspaceFileSearchBackfill,
   workspaceFileSearchDispatchQueue,
-  workspaceFileSearchIndex,
+  workspaceFileSearchRevision,
 } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,6 +26,9 @@ vi.mock('@sim/db/schema', async () => ({
 }))
 
 vi.mock('@sim/logger', () => ({ createLogger: () => ({ info: mocks.info, error: mocks.error }) }))
+vi.mock('@/lib/workspace-files/search/index-state', () => ({
+  cleanupFileSearchBuilds: vi.fn().mockResolvedValue(0),
+}))
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { batchTrigger: mocks.batchTrigger } }))
 vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
@@ -59,7 +62,7 @@ describe('workspace file search dispatch policy', () => {
       {
         payload,
         options: {
-          idempotencyKey: 'workspace-file-search:file-1:2026-08-29T12:00:00.000Z',
+          idempotencyKey: 'workspace-file-search-v2:file-1:2026-08-29T12:00:00.000Z:initial',
           idempotencyKeyTTL: '1h',
           tags: ['workspaceId:workspace-1', 'fileId:file-1'],
           region: 'us-east-1',
@@ -142,12 +145,12 @@ describe('workspace file search dispatch deadlines', () => {
     'preserves enqueue failures when claim release fails: %s',
     async (releaseFails) => {
       queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
-      queueTableRows(workspaceFileSearchIndex, [])
-      queueTableRows(workspaceFileSearchIndex, [{ active: 0 }])
+      queueTableRows(workspaceFileSearchRevision, [])
       queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
       dbChainMockFns.execute
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ acquired: true }])
+        .mockResolvedValueOnce([{ active: 0 }])
         .mockResolvedValueOnce([
           {
             workspaceId: 'workspace-1',

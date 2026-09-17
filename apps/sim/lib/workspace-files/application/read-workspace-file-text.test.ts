@@ -3,6 +3,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { FileParserError } from '@/lib/file-parsers/errors'
 
 const mocks = vi.hoisted(() => ({
   getFile: vi.fn(),
@@ -124,6 +125,91 @@ describe('readWorkspaceFileText', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
   })
 
+  it('uses the complete text representation before selecting a line window', async () => {
+    const controller = new AbortController()
+    mocks.parseBuffer.mockResolvedValueOnce({ content: 'header\ntail needle\n', metadata: {} })
+    const result = await readWorkspaceFileText.execute({
+      principal: principals[0],
+      input: input({ offset: 2, limit: 1 }),
+      request: { headers: new Headers(), signal: controller.signal },
+    })
+    expect(mocks.fetchBuffer).toHaveBeenCalledWith(expect.anything(), {
+      maxBytes: 25 * 1024 * 1024,
+      signal: controller.signal,
+    })
+    expect(mocks.parseBuffer).toHaveBeenCalledWith(expect.any(Buffer), 'txt', {
+      contentMode: 'complete',
+      pdfTextMode: 'complete',
+      maxTextBytes: 25 * 1024 * 1024,
+      signal: controller.signal,
+    })
+    expect(result.text).toBe('tail needle')
+    expect(result.lineRange).toMatchObject({ offset: 2, lineCount: 1, totalLines: 2 })
+  })
+
+  it('does not fetch bytes for an already cancelled request', async () => {
+    const controller = new AbortController()
+    controller.abort(new Error('request cancelled'))
+    await expect(
+      readWorkspaceFileText.execute({
+        principal: principals[0],
+        input: input(),
+        request: { headers: new Headers(), signal: controller.signal },
+      })
+    ).rejects.toBe(controller.signal.reason)
+    expect(mocks.getFile).not.toHaveBeenCalled()
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+    expect(mocks.parseBuffer).not.toHaveBeenCalled()
+  })
+
+  it.each(['', 'downloaded text'])(
+    'stops before parsing a cancelled download of %j',
+    async (text) => {
+      const controller = new AbortController()
+      const reason = new Error('request cancelled during download')
+      mocks.fetchBuffer.mockImplementationOnce(async () => {
+        controller.abort(reason)
+        return Buffer.from(text)
+      })
+      await expect(
+        readWorkspaceFileText.execute({
+          principal: principals[0],
+          input: input(),
+          request: { headers: new Headers(), signal: controller.signal },
+        })
+      ).rejects.toBe(reason)
+      expect(mocks.parseBuffer).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['return', 'throw'])(
+    'preserves cancellation when the parser would %s',
+    async (outcome) => {
+      const controller = new AbortController()
+      const reason = new Error('request cancelled during parsing')
+      mocks.parseBuffer.mockImplementationOnce(async () => {
+        controller.abort(reason)
+        if (outcome === 'throw') throw new FileParserError('invalid_format', 'parser stopped')
+        return { content: 'abandoned output', metadata: {} }
+      })
+      await expect(
+        readWorkspaceFileText.execute({
+          principal: principals[0],
+          input: input(),
+          request: { headers: new Headers(), signal: controller.signal },
+        })
+      ).rejects.toBe(reason)
+    }
+  )
+
+  it('reports complete extraction complexity limits as payload limits', async () => {
+    mocks.parseBuffer.mockRejectedValueOnce(
+      new FileParserError('complexity_limit', 'expanded text budget')
+    )
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+  })
   it('denies a principal below the read role', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
 
@@ -292,15 +378,39 @@ describe('readWorkspaceFileText', () => {
     ['memo.docx', 'text/x-docxjs'],
     ['deck.pptx', 'text/x-pptxgenjs'],
   ])('extracts %s from its compiled artifact, not its %s source', async (name, type) => {
+    const controller = new AbortController()
     mocks.getFile.mockResolvedValueOnce(fileRecord({ name, type, size: 900 }))
     mocks.parseBuffer.mockResolvedValueOnce({ content: 'Quarterly results', metadata: {} })
 
-    const result = await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
+    const result = await readWorkspaceFileText.execute({
+      principal: principals[2],
+      input: input(),
+      request: { headers: new Headers(), signal: controller.signal },
+    })
 
     expect(mocks.fetchServable).toHaveBeenCalledTimes(1)
+    expect(mocks.fetchServable.mock.calls[0][2]).toMatchObject({ signal: controller.signal })
     expect(mocks.fetchBuffer).not.toHaveBeenCalled()
     expect(mocks.parseBuffer.mock.calls[0][0].toString()).toBe('%PDF-1.7 rendered')
     expect(result.text).toBe('Quarterly results')
+  })
+
+  it('preserves cancellation when an artifact read wraps the error', async () => {
+    const controller = new AbortController()
+    const reason = new Error('request cancelled during artifact read')
+    mocks.getFile.mockResolvedValueOnce(fileRecord({ name: 'report.pdf', type: 'text/x-pdflibjs' }))
+    mocks.fetchServable.mockImplementationOnce(async () => {
+      controller.abort(reason)
+      throw new DocCompileUserError('not ready', { pending: true })
+    })
+    await expect(
+      readWorkspaceFileText.execute({
+        principal: principals[0],
+        input: input(),
+        request: { headers: new Headers(), signal: controller.signal },
+      })
+    ).rejects.toBe(reason)
+    expect(mocks.parseBuffer).not.toHaveBeenCalled()
   })
 
   /** A genuinely uploaded PDF carries its real MIME and must keep reading its own bytes. */

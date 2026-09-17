@@ -122,6 +122,34 @@ describe('analyzeFileSearchRegex', () => {
     })
   })
 
+  describe('conservative fragment candidates', () => {
+    it.each([
+      ['alpha|omega', ['alpha', 'omega']],
+      ['(?:alpha)?omega', ['omega', 'alphaomega']],
+      ['(?:ab){2,5}', ['abab', 'ababababab']],
+      ['(?:a(?:x|y)bc){2}', ['axb caybc'.replace(' ', ''), 'aybcaxbc']],
+      ['ab(?:😀|😁)cde', ['ab😀cde', 'ab😁cde']],
+      ['(?:🙂ab|🙃cd)+', ['🙂ab', '🙃cd', '🙂ab🙃cd']],
+      ['(?:ab🙂|cd🙂)ef', ['ab🙂ef', 'cd🙂ef']],
+      ['(?:abc|def){0,3}ghi', ['ghi', 'abcdefghi']],
+      ['(?:abc){1000}xyz', [`${'abc'.repeat(1000)}xyz`]],
+      ['a{1000}(?:bcd|efg)', [`${'a'.repeat(1000)}bcd`, `${'a'.repeat(1000)}efg`]],
+    ])('never excludes a matching line for %s', (source, matches) => {
+      const analysis = analyzeFileSearchRegex(source)
+      for (const match of matches) {
+        expect(new RegExp(source, 'u').test(match)).toBe(true)
+        if (analysis.candidateLiterals) {
+          expect(analysis.candidateLiterals.some((seed) => match.includes(seed))).toBe(true)
+          expect(
+            analysis.candidateLiterals.every(
+              (seed) => [...seed].length === 3 && seed.isWellFormed()
+            )
+          ).toBe(true)
+        }
+      }
+    })
+  })
+
   describe('accepted subset', () => {
     it.each([
       'error \\d+',

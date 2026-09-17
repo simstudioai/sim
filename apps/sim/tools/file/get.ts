@@ -143,7 +143,7 @@ export const fileGetContentTool: InternalToolConfig<FileGetContentParams, ToolRe
   id: 'file_get_content',
   name: 'File Get Content',
   description:
-    'Extract the text content of workspace files selected directly, identified by canonical file ID, or collected from one or more workspace folders.',
+    'Extract workspace file text using the same parser mode as File Search. Use the returned fileId and offset/limit to read the matching line and surrounding context. For documents and spreadsheets, line numbers refer to extracted text, not page numbers or worksheet row numbers.',
   version: '1.0.0',
 
   params: {

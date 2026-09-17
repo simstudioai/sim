@@ -1,0 +1,114 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  begin: vi.fn(),
+  append: vi.fn(),
+  publish: vi.fn(),
+  fail: vi.fn(),
+  file: vi.fn(),
+  load: vi.fn(),
+  extract: vi.fn(),
+}))
+vi.mock('@/lib/workspace-files/search/index-state', () => ({
+  beginFileSearchBuild: mocks.begin,
+  appendFileSearchChunks: mocks.append,
+  publishFileSearchBuild: mocks.publish,
+  failFileSearchRevision: mocks.fail,
+}))
+vi.mock('@/lib/uploads/contexts/workspace', () => ({ getWorkspaceFile: mocks.file }))
+vi.mock('@/lib/workspace-files/search/extract', () => ({
+  loadIndexableBytes: mocks.load,
+  extractIndexText: mocks.extract,
+}))
+
+import {
+  FILE_SEARCH_INSERT_BATCH_BYTES,
+  FILE_SEARCH_INSERT_BATCH_ROWS,
+  FILE_SEARCH_MAX_SOURCE_BYTES,
+} from '@/lib/workspace-files/search/constants'
+import type { FileSearchChunk } from '@/lib/workspace-files/search/index-plan'
+import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
+
+const payload = {
+  workspaceId: 'workspace',
+  fileId: 'file',
+  sourceContentUpdatedAt: '2026-01-01T00:00:00.000Z',
+  dispatchToken: '2026-01-02T00:00:00.000Z',
+}
+const signal = new AbortController().signal
+
+describe('complete-file indexing worker', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.begin.mockResolvedValue({ id: 'build', ...payload })
+    mocks.append.mockResolvedValue(true)
+    mocks.publish.mockResolvedValue(true)
+    mocks.file.mockResolvedValue({
+      name: 'sample.txt',
+      size: 6,
+      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+    })
+    mocks.load.mockResolvedValue({ buffer: Buffer.from('needle') })
+    mocks.extract.mockResolvedValue({ text: 'needle', partial: false })
+  })
+  it('ignores a legacy task without a dispatch token', async () => {
+    await indexWorkspaceFileForSearch({ ...payload, dispatchToken: undefined }, signal)
+    expect(mocks.begin).not.toHaveBeenCalled()
+  })
+  it('does no storage work for an obsolete dispatch', async () => {
+    mocks.begin.mockResolvedValue(null)
+    await indexWorkspaceFileForSearch(payload, signal)
+    expect(mocks.load).not.toHaveBeenCalled()
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
+  it('rejects an oversized source before downloading', async () => {
+    mocks.file.mockResolvedValue({
+      size: FILE_SEARCH_MAX_SOURCE_BYTES + 1,
+      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+    })
+    await indexWorkspaceFileForSearch(payload, signal)
+    expect(mocks.load).not.toHaveBeenCalled()
+    expect(mocks.publish).toHaveBeenCalledWith(
+      expect.anything(),
+      { status: 'skipped', failureReason: 'source_too_large' },
+      signal
+    )
+  })
+  it('never publishes a parser prefix', async () => {
+    mocks.extract.mockResolvedValue({ text: 'needle', partial: true })
+    await indexWorkspaceFileForSearch(payload, signal)
+    expect(mocks.append).not.toHaveBeenCalled()
+    expect(mocks.publish).toHaveBeenCalledWith(
+      expect.anything(),
+      { status: 'skipped', failureReason: 'incomplete_extraction' },
+      signal
+    )
+  })
+  it('flushes byte-bounded batches before publishing all chunks', async () => {
+    mocks.extract.mockResolvedValue({ text: 'abc\n'.repeat(600_000), partial: false })
+    await indexWorkspaceFileForSearch(payload, signal)
+    let rows = 0
+    for (const [, chunks] of mocks.append.mock.calls as [unknown, FileSearchChunk[]][]) {
+      expect(chunks.length).toBeLessThanOrEqual(FILE_SEARCH_INSERT_BATCH_ROWS)
+      expect(
+        chunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.content), 0)
+      ).toBeLessThanOrEqual(FILE_SEARCH_INSERT_BATCH_BYTES)
+      rows += chunks.length
+    }
+    expect(mocks.append.mock.calls.length).toBeGreaterThan(1)
+    expect(rows).toBeLessThan(300)
+    expect(mocks.publish).toHaveBeenCalledWith(
+      expect.anything(),
+      { status: 'ready', chunkCount: rows, lineCount: 600000, indexedBytes: 2400000 },
+      signal
+    )
+    expect(mocks.append.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      mocks.publish.mock.invocationCallOrder[0]
+    )
+  })
+  it('stops immediately when a retry loses its build token', async () => {
+    mocks.append.mockResolvedValue(false)
+    await indexWorkspaceFileForSearch(payload, signal)
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
+})

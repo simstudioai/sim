@@ -1,9 +1,10 @@
-import { type Buffer, isUtf8 } from 'node:buffer'
+import { Buffer, isUtf8 } from 'node:buffer'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { resolveServableDoc } from '@/lib/copilot/tools/server/files/doc-compile'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { isSupportedFileType } from '@/lib/file-parsers'
+import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
 import {
   fetchWorkspaceFileBuffer,
   type WorkspaceFileRecord,
@@ -13,7 +14,8 @@ import {
   FILE_SEARCH_MAX_EXTRACTED_BYTES,
   FILE_SEARCH_MAX_SOURCE_BYTES,
 } from '@/lib/workspace-files/search/constants'
-import { truncateUtf8ToBytes } from '@/lib/workspace-files/search/text'
+import { FileSearchExclusionError } from '@/lib/workspace-files/search/index-plan'
+import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 
 const logger = createLogger('WorkspaceFileSearchExtract')
 
@@ -53,7 +55,10 @@ export async function loadIndexableBytes(
     signal,
   })
   signal.throwIfAborted()
-  const servable = await resolveServableDoc(file.workspaceId, raw, file.name)
+  const servable = await resolveServableDoc(file.workspaceId, raw, file.name, {
+    maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
+    signal,
+  })
   if (servable.kind === 'artifact') {
     assertKnownSizeWithinLimit(
       servable.buffer.length,
@@ -70,8 +75,10 @@ function isPlainText(buffer: Buffer): boolean {
 }
 
 function boundText(content: string, truncated: boolean): ExtractedIndexText {
-  const bounded = truncateUtf8ToBytes(content, FILE_SEARCH_MAX_EXTRACTED_BYTES)
-  return { text: bounded, partial: truncated || bounded.length < content.length }
+  if (Buffer.byteLength(content, 'utf8') > FILE_SEARCH_MAX_EXTRACTED_BYTES) {
+    throw new FileSearchExclusionError('extracted_text_too_large')
+  }
+  return { text: content, partial: truncated }
 }
 
 /**
@@ -95,12 +102,19 @@ export async function extractIndexText(
   const extension = getFileExtension(fileName)
   if (bytes.kind !== 'source' && extension && isSupportedFileType(extension)) {
     try {
-      const parsed = await parseBuffer(buffer, extension, { signal })
+      const parsed = await parseWorkspaceFileText(buffer, extension, {
+        signal,
+        maxTextBytes: FILE_SEARCH_MAX_EXTRACTED_BYTES,
+      })
       if (parsed.metadata?.degraded) return null
       return boundText(parsed.content ?? '', parsed.metadata?.truncated === true)
     } catch (error) {
       signal.throwIfAborted()
-      if (isPayloadSizeLimitError(error)) throw error
+      if (isPayloadSizeLimitError(error))
+        throw new FileSearchExclusionError('extracted_text_too_large')
+      if (error instanceof FileSearchExclusionError) throw error
+      if (getFileParserErrorCode(error) === 'complexity_limit')
+        throw new FileSearchExclusionError('incomplete_extraction')
       const plainText = isPlainText(buffer)
       logger.warn(
         plainText

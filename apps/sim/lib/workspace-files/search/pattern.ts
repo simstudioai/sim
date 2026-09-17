@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import {
+  FILE_SEARCH_CANDIDATE_LITERAL_CHARS,
   FILE_SEARCH_MAX_QUERY_LENGTH,
   FILE_SEARCH_MIN_QUERY_LENGTH,
 } from '@/lib/workspace-files/search/constants'
@@ -17,13 +18,7 @@ export interface FileSearchMatchRange {
   end: number
 }
 
-/**
- * One query, resolved into everything the rest of the search needs to know about
- * it. Every mode-specific decision — how PostgreSQL matches a segment, whether
- * the segment must be a whole logical line, where the match sits inside it —
- * lives here, so the repository builds one query shape and the preview renderer
- * one preview shape regardless of mode.
- */
+/** Validated SQL matching semantics and bounded preview rendering for both search modes. */
 export interface CompiledFileSearchPattern {
   mode: FileSearchMode
   /**
@@ -34,20 +29,10 @@ export interface CompiledFileSearchPattern {
   caseSensitive: boolean
   /** The operand for `LIKE` / `ILIKE` in exact mode, or `~` / `~*` in regex mode. */
   sqlPattern: string
-  /**
-   * The exact text every match equals, when there is one. A literal match has a
-   * known length and position, which is what lets a caller rank two segments of
-   * the same logical line by how much of it surrounds the match; a regex match
-   * has neither, so this is `null` in regex mode.
-   */
+  /** OR-ed LIKE patterns used only to select conservative chunk candidates. */
+  candidatePatterns: string[] | null
+  /** Exact text to locate for a literal query; regex offsets are resolved by PostgreSQL. */
   literalText: string | null
-  /**
-   * Whether the pattern may only match a segment that holds its whole logical
-   * line. `^` and `$` bind to the segment PostgreSQL matches, so on a line long
-   * enough to have been split they would anchor mid-line; restricting the match
-   * to unsplit lines trades those matches for never reporting a false one.
-   */
-  wholeLineOnly: boolean
   /**
    * Locates the match inside a segment PostgreSQL already matched — but only
    * where locating it is bounded work. Exact mode scans for a known string.
@@ -124,8 +109,10 @@ function compileExactPattern(query: string): CompiledFileSearchPattern {
     mode: 'exact',
     caseSensitive,
     sqlPattern: `%${escapeFileSearchLikePattern(query)}%`,
+    candidatePatterns: [
+      `%${escapeFileSearchLikePattern([...query].slice(0, FILE_SEARCH_CANDIDATE_LITERAL_CHARS).join(''))}%`,
+    ],
     literalText: query,
-    wholeLineOnly: false,
     findMatchRange: (segment) => findLiteralMatchRange(segment, query, caseSensitive),
   }
 }
@@ -158,8 +145,10 @@ function compileRegexPattern(query: string): CompiledFileSearchPattern {
     mode: 'regex',
     caseSensitive,
     sqlPattern: analysis.postgresSource,
+    candidatePatterns:
+      analysis.candidateLiterals?.map((literal) => `%${escapeFileSearchLikePattern(literal)}%`) ??
+      null,
     literalText: null,
-    wholeLineOnly: analysis.anchored,
     findMatchRange: () => null,
   }
 }
