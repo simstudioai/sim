@@ -737,13 +737,13 @@ describe('Search levels', () => {
     expect(mocks.submit).toHaveBeenCalledWith('First line\nSecond line', [])
   })
 
-  it.each(['Fast', 'Adaptive', 'Max'])(
+  it.each(['Fast', 'Auto', 'Max'])(
     'selects %s without losing the draft or image',
     async (label) => {
       await render(true, 'Preserved question')
       await paste([new File(['image'], 'screenshot.png', { type: 'image/png' })])
       const picker = container.querySelector<HTMLButtonElement>('[aria-label="Search level"]')!
-      expect(picker.textContent).toBe('Adaptive')
+      expect(picker.textContent).toBe('Auto')
       expect(picker.nextElementSibling?.getAttribute('aria-label')).toBe('Voice input')
       await act(async () =>
         picker.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
@@ -774,7 +774,7 @@ describe('Search levels', () => {
       row.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')
     ).not.toBeNull()
     expect(mode.nextElementSibling?.getAttribute('aria-label')).toBe('Attach images')
-    expect(row.querySelector('[aria-label="Search level"]')?.textContent).toBe('Adaptive')
+    expect(row.querySelector('[aria-label="Search level"]')?.textContent).toBe('Auto')
   })
 })
 
@@ -802,7 +802,7 @@ it.each([true, false])(
       (item) => item.textContent
     )
     expect(options).toEqual(
-      allowNoAssistant ? ['None', 'Fast', 'Adaptive', 'Max'] : ['Fast', 'Adaptive', 'Max']
+      allowNoAssistant ? ['None', 'Fast', 'Auto', 'Max'] : ['Fast', 'Auto', 'Max']
     )
   }
 )

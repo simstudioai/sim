@@ -10,7 +10,7 @@ import type { SearchLevel } from '@/app/o/[organizationId]/home/search-params'
 const SEARCH_LEVELS = [
   { value: 'none', label: 'None', description: 'Search results without an assistant' },
   { value: 'fast', label: 'Fast', description: 'Faster and cheaper' },
-  { value: 'adaptive', label: 'Adaptive', description: 'Balanced speed and depth' },
+  { value: 'adaptive', label: 'Auto', description: 'Balanced speed and depth' },
   { value: 'max', label: 'Max', description: 'Thorough research and verification' },
 ] as const satisfies ReadonlyArray<{
   value: SearchLevel
