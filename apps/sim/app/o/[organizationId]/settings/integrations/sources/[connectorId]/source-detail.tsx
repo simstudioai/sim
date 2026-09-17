@@ -12,6 +12,7 @@ import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsa
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { SOURCE_PERMISSION_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -186,6 +187,7 @@ function SourceDetailContent({
     ? describeSearchSource(meta, connector.sourceConfig) || meta.name
     : 'Connection'
   const { effectiveStatus, lastSyncError } = getConnectorSyncState(connector)
+  const permissionsIncomplete = connector.lastSyncError === SOURCE_PERMISSION_ERROR
   const status =
     effectiveStatus === 'paused'
       ? 'Sync paused'
@@ -271,12 +273,23 @@ function SourceDetailContent({
     >
       {integrationFeedback}
       <SourceNavigation view={view} onViewChange={onViewChange} />
-      {effectiveStatus === 'active' && lastSyncError && (
-        <SettingsResourceRow
-          title='Some connection updates are incomplete'
-          description='Review the connection settings and try syncing again.'
-        />
-      )}
+      {lastSyncError &&
+        (effectiveStatus === 'active' ||
+          (permissionsIncomplete &&
+            (effectiveStatus === 'pending' || effectiveStatus === 'syncing'))) && (
+          <SettingsResourceRow
+            title={
+              permissionsIncomplete
+                ? 'Permission verification incomplete'
+                : 'Some connection updates are incomplete'
+            }
+            description={
+              permissionsIncomplete
+                ? SOURCE_PERMISSION_ERROR
+                : 'Review the connection settings and try syncing again.'
+            }
+          />
+        )}
       <ConnectorRecovery
         connector={connector}
         knowledgeBaseId={connector.knowledgeBaseId}

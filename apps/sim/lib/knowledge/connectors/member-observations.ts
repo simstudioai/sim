@@ -7,6 +7,7 @@ import {
 } from '@sim/db/schema'
 import {
   and,
+  asc,
   eq,
   exists,
   gt,
@@ -291,31 +292,53 @@ export async function applyMemberDocumentLifecycle(input: {
   }
   for (const phase of ['tombstoned', 'resurrected'] as const) {
     if (phase === 'tombstoned' && !input.allowRemoval) continue
+    const seenOrder = sql`COALESCE(${document.sourceSeenAt}, '-infinity'::timestamp)`
+    let after: { id: string; seenAt: string } | undefined
     for (;;) {
       if (Date.now() >= input.deadlineAt) return result
       await input.lease.beatIfDue()
-      const changed = await input.withLease(async (tx) => {
-        const condition = and(
-          eq(document.connectorId, connectorId),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          phase === 'tombstoned'
-            ? and(isNull(document.deletedAt), hasNoObservation())
-            : and(isNotNull(document.deletedAt), isNotNull(document.contentHash), hasObservation())
+      const condition = and(
+        eq(document.connectorId, connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        phase === 'tombstoned'
+          ? and(isNull(document.deletedAt), hasNoObservation())
+          : and(isNotNull(document.deletedAt), isNotNull(document.contentHash), hasObservation())
+      )
+      /** Materialize the limited IDs before UPDATE so its observation check stays batch-bound. */
+      const candidates = await db
+        .select({ id: document.id, seenAt: sql<string>`${seenOrder}::text` })
+        .from(document)
+        .where(
+          and(
+            condition,
+            after
+              ? sql`(${seenOrder}, ${document.id}) > (${after.seenAt}::timestamp, ${after.id})`
+              : undefined
+          )
         )
-        const candidates = tx
-          .select({ id: document.id })
-          .from(document)
-          .where(condition)
-          .limit(MATERIALIZE_BATCH_SIZE)
+        .orderBy(seenOrder, asc(document.id))
+        .limit(MATERIALIZE_BATCH_SIZE)
+      if (candidates.length === 0) break
+      if (Date.now() >= input.deadlineAt) return result
+      const changed = await input.withLease(async (tx) => {
         return tx
           .update(document)
           .set({ deletedAt: phase === 'tombstoned' ? now : null })
-          .where(and(condition, inArray(document.id, candidates)))
+          .where(
+            and(
+              condition,
+              inArray(
+                document.id,
+                candidates.map(({ id }) => id)
+              )
+            )
+          )
           .returning({ id: document.id })
       })
       result[phase] += changed.length
-      if (changed.length < MATERIALIZE_BATCH_SIZE) break
+      after = candidates.at(-1)
+      if (candidates.length < MATERIALIZE_BATCH_SIZE) break
     }
   }
 
