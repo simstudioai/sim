@@ -57,6 +57,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
+  if (payload.op === 'upsert' && payload.readOnly) return
   if (payload.resource.type === 'settings') {
     const settings = payload.resource
     if (
@@ -142,10 +143,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   // lists, never from the stream; older servers announced them as resources.
   if (payload.resource.type === 'browser' || payload.resource.type === 'terminal') return
   const resourceType = payload.resource.type
-  const readOnly = payload.op === 'upsert' && payload.readOnly === true
-  if (!readOnly)
-    invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
-  if (!readOnly && resourceType === 'workflow' && payload.op !== 'remove' && payload.resource.id) {
+  invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
+  if (resourceType === 'workflow' && payload.op !== 'remove' && payload.resource.id) {
     notifyWorkflowExternalUpdate(payload.resource.id)
   }
   if (payload.op === 'refresh') return
@@ -303,7 +302,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     } else onResourceEvent?.(getChatResourceSelectionId(resource))
   }
 
-  if (resource.type === 'workflow' && !readOnly) {
+  if (resource.type === 'workflow') {
     ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
   }
 }

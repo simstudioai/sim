@@ -110,7 +110,7 @@ describe('handleResourceEvent removal', () => {
   })
 
   it.each(['workflow', 'table', 'file', 'knowledgebase', 'log'] as const)(
-    'opens an authorized %s read without invalidating or reconciling editable content',
+    'ignores an authorized %s read without opening, saving or changing focus',
     (type) => {
       const onResourceEvent = vi.fn()
       const deps = makeStreamLoopDeps({ onResourceEventRef: { current: onResourceEvent } })
@@ -124,12 +124,13 @@ describe('handleResourceEvent removal', () => {
           resource: { type, id: 'addressed', title: 'Addressed resource' },
         },
       })
-      expect(onResourceEvent).toHaveBeenCalledWith('addressed')
-      expect(deps.setResources).toHaveBeenCalled()
+      expect(onResourceEvent).not.toHaveBeenCalled()
+      expect(deps.setResources).not.toHaveBeenCalled()
       expect(deps.addResource).not.toHaveBeenCalled()
       expect(mocks.invalidateResourceQueries).not.toHaveBeenCalled()
       expect(mocks.notifyWorkflowExternalUpdate).not.toHaveBeenCalled()
       expect(deps.ensureWorkflowInRegistry).not.toHaveBeenCalled()
+      expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
     }
   )
 
@@ -152,13 +153,12 @@ describe('handleResourceEvent removal', () => {
     expect(deps.setResources).not.toHaveBeenCalled()
     expect(mocks.invalidateResourceQueries).not.toHaveBeenCalled()
     expect(mocks.notifyWorkflowExternalUpdate).not.toHaveBeenCalled()
-    expect(deps.queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ['mothership-chats', 'detail', 'chat'],
-    })
+    expect(deps.queryClient.invalidateQueries).not.toHaveBeenCalled()
   })
 
-  it('still reconciles a committed workflow edit after opening it for a read', () => {
-    const deps = makeStreamLoopDeps()
+  it('still opens and reconciles a committed workflow edit after a read', () => {
+    const onResourceEvent = vi.fn()
+    const deps = makeStreamLoopDeps({ onResourceEventRef: { current: onResourceEvent } })
     const event = removeEvent('workflow', 'wf')
     handleResourceEvent(
       { deps } as StreamLoopContext,
@@ -173,6 +173,8 @@ describe('handleResourceEvent removal', () => {
     )
     expect(mocks.invalidateResourceQueries).toHaveBeenCalledTimes(1)
     expect(mocks.notifyWorkflowExternalUpdate).toHaveBeenCalledExactlyOnceWith('wf')
+    expect(deps.addResource).toHaveBeenCalledTimes(1)
+    expect(onResourceEvent).toHaveBeenCalledExactlyOnceWith('wf')
   })
 
   it.each([

@@ -7,7 +7,12 @@ export async function persistResourceEffect(
   chatId: string,
   payload: ResourcePayload
 ): Promise<void> {
-  if (!payload.effectId || payload.op === 'refresh') return
+  if (
+    !payload.effectId ||
+    payload.op === 'refresh' ||
+    (payload.op === 'upsert' && payload.readOnly)
+  )
+    return
   if (payload.op === 'clear_view') {
     await changeStoredChatResources(
       chatId,
