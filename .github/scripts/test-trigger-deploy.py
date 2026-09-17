@@ -220,6 +220,21 @@ print(value)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('--deployment-id d-old', calls)
 
+    def test_live_retry_waits_for_history_to_include_the_same_attempt(self):
+        for previous_status in ('Failed', 'Abandoned'):
+            with self.subTest(previous_status=previous_status):
+                previous = deploy_action('action-old', start=999, status=previous_status)
+                result, calls = self.poll({
+                    'list-action-executions': [
+                        {'json': [previous]},
+                        {'json': [previous, deploy_action()]},
+                    ],
+                })
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(calls.count('get-pipeline-state '), 2)
+                self.assertEqual(calls.count('get-deployment '), 1)
+                self.assertIn('get-deployment --deployment-id d-current', calls)
+
     def test_bad_live_state_and_failed_actions_fail_closed(self):
         for updates in (
             {'get-pipeline-state': {'error': 'AccessDeniedException'}},

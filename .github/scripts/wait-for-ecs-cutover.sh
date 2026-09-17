@@ -99,14 +99,17 @@ if not state or state.get("latestExecution", {}).get("pipelineExecutionId") != o
 if len({a["actionName"] for a in actions}) != 1:
     raise SystemExit("ERROR: expected one Deploy action in the app pipeline")
 latest = max(actions, key=lambda a: a["startTime"])
-if latest["status"] not in ("InProgress", "Succeeded"):
-    raise SystemExit("ERROR: Deploy action ended in " + latest["status"])
 matches = [a["latestExecution"] for a in state.get("actionStates", [])
            if a["actionName"] == latest["actionName"]
            and a.get("latestExecution", {}).get("actionExecutionId") == latest["actionExecutionId"]]
 if len(matches) > 1:
     raise SystemExit("ERROR: ambiguous live Deploy action")
-deployment_id = matches[0].get("externalExecutionId", "") if matches else ""
+if not matches:
+    print("")
+    sys.exit(0)
+if latest["status"] not in ("InProgress", "Succeeded"):
+    raise SystemExit("ERROR: Deploy action ended in " + latest["status"])
+deployment_id = matches[0].get("externalExecutionId", "")
 if deployment_id and not re.fullmatch(r"d-[A-Za-z0-9]+", deployment_id):
     raise SystemExit("ERROR: invalid CodeDeploy deployment ID in pipeline state")
 print(deployment_id)
