@@ -33,9 +33,9 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
     const url = new URL(databaseUrl!)
     if (
       !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !url.pathname.startsWith('/sim_acl_test')
+      (!url.pathname.startsWith('/sim_acl_test') && url.pathname !== '/sim_auth_scim')
     ) {
-      throw new Error('Repair tests require a disposable local sim_acl_test database')
+      throw new Error('Repair tests require a disposable local integration database')
     }
     admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
@@ -107,7 +107,7 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
 
   afterAll(async () => {
     try {
-      await admin.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
+      await admin?.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
     } finally {
       await sql?.end()
       await admin?.end()
@@ -282,6 +282,24 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
 
       const [row] = await sql<{ version: number }[]>`SELECT secret_provenance_version AS version
         FROM workspace_files WHERE id = 'tracked-live'`
+      expect(row.version).toBe(1)
+    })
+
+    it('normalizes a legacy row promoted into the workspace by a metadata-only write', async () => {
+      // Materializing a chat upload sets `context` alone, so the revision is never written; without
+      // normalizing here the search-index trigger would key the promoted file to an unclaimable value.
+      await seedLegacyFile({ id: 'promoted', context: 'mothership', provenance: 1 })
+
+      await sql`UPDATE workspace_files SET context = 'workspace' WHERE id = 'promoted'`
+
+      expect(await revisionOf('promoted')).toBe(MILLISECOND_REVISION)
+      const [row] = await sql<{ version: number; indexed: string | null }[]>`
+        SELECT file.secret_provenance_version AS version,
+          (SELECT search_index.source_content_updated_at::text
+           FROM workspace_file_search_index AS search_index
+           WHERE search_index.file_id = file.id) AS indexed
+        FROM workspace_files AS file WHERE file.id = 'promoted'`
+      expect(row.indexed).toBe(MILLISECOND_REVISION)
       expect(row.version).toBe(1)
     })
 
