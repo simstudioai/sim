@@ -24,148 +24,37 @@
  *   bun run apps/sim/scripts/check-block-registry.ts origin/main
  */
 
-import { execSync } from 'child_process'
+import { execFileSync } from 'node:child_process'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
-import { getAllBlocks, getBlock, getBlockMeta } from '@/blocks/registry'
+import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
+import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
 import { getToolParams } from '@/tools/metadata'
 
 const baseRef = process.argv[2] || 'HEAD~1'
 
-const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim()
+const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf-8' }).trim()
 const gitOpts = { encoding: 'utf-8' as const, cwd: gitRoot }
 
 type IdMap = Record<string, Set<string>>
 
-/**
- * Returns the index of the `[` opening the first `subBlocks:` array literal in
- * `source`, or null when that `subBlocks` value is an expression instead.
- */
-function findSubBlocksLiteral(source: string): number | null {
-  const match = /subBlocks:\s*(\S)/.exec(source)
-  if (!match || match[1] !== '[') return null
-  return match.index + match[0].length - 1
-}
-
-/**
- * Extracts subblock IDs from the `subBlocks: [ ... ]` array literal whose
- * opening bracket is at `bracketStart`. Only grabs the top-level `id:` of each
- * subblock object — ignores nested IDs inside `options`, `columns`, etc.
- */
-function extractSubBlockIds(source: string, bracketStart: number): string[] {
-  const ids: string[] = []
-  let braceDepth = 0
-  let bracketDepth = 0
-  let i = bracketStart + 1
-  bracketDepth = 1
-
-  while (i < source.length && bracketDepth > 0) {
-    const ch = source[i]
-
-    if (ch === '[') bracketDepth++
-    else if (ch === ']') {
-      bracketDepth--
-      if (bracketDepth === 0) break
-    } else if (ch === '{') {
-      braceDepth++
-      if (braceDepth === 1) {
-        const ahead = source.slice(i, i + 200)
-        const idMatch = ahead.match(/{\s*(?:\/\/[^\n]*\n\s*)*id:\s*['"]([^'"]+)['"]/)
-        if (idMatch) {
-          ids.push(idMatch[1])
-        }
-      }
-    } else if (ch === '}') {
-      braceDepth--
-    }
-
-    i++
-  }
-
-  return ids
-}
-
 function getCurrentIds(): IdMap {
   const map: IdMap = {}
-  for (const block of getAllBlocks()) {
+  for (const block of Object.values(getBlockRegistry())) {
     map[block.type] = new Set(block.subBlocks.map((sb) => sb.id))
   }
   return map
 }
 
-type PreviousIdsResult =
-  | { kind: 'skip'; reason: string }
-  | { kind: 'noop' }
-  | { kind: 'ok'; map: IdMap }
+function getPreviousIds(): IdMap | null {
+  const changed = execFileSync(
+    'git',
+    ['diff', '--name-only', baseRef, '--', 'apps/sim/blocks', 'apps/sim/triggers'],
+    gitOpts
+  ).trim()
+  if (!changed) return null
 
-/**
- * Reads a block's subblock IDs from its source at the base ref. A file can
- * declare an untyped legacy block before the typed block, so a typed block
- * with a `subBlocks` array literal is read from its own definition. A typed
- * block that derives `subBlocks` (for example by filtering the legacy block's)
- * cannot be evaluated here, so it is read from the legacy literal: IDs the
- * derivation already dropped then look removed. That fails closed while the
- * file is being edited, and the block is skipped while the file is unchanged,
- * since this diff cannot have removed anything from it.
- */
-function extractPreviousIds(content: string, definitionStart: number, fileChanged: boolean) {
-  const ownLiteral = findSubBlocksLiteral(content.slice(definitionStart))
-  if (ownLiteral !== null) return extractSubBlockIds(content, definitionStart + ownLiteral)
-  if (!fileChanged) return []
-  const legacyLiteral = findSubBlocksLiteral(content)
-  return legacyLiteral === null ? [] : extractSubBlockIds(content, legacyLiteral)
-}
-
-function getPreviousIds(): PreviousIdsResult {
-  const registryPath = 'apps/sim/blocks/registry.ts'
-  const blocksDir = 'apps/sim/blocks/blocks'
-
-  let changedPaths: Set<string>
-  try {
-    const diff = execSync(
-      `git diff --name-only ${baseRef} -- ${registryPath} ${blocksDir}`,
-      gitOpts
-    ).trim()
-    changedPaths = new Set(diff ? diff.split('\n') : [])
-  } catch {
-    return { kind: 'skip', reason: 'Could not diff against base ref' }
-  }
-
-  if (changedPaths.size === 0) {
-    return { kind: 'noop' }
-  }
-
-  const map: IdMap = {}
-
-  try {
-    const blockFiles = execSync(`git ls-tree -r --name-only ${baseRef} -- ${blocksDir}`, gitOpts)
-      .trim()
-      .split('\n')
-      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-
-    for (const filePath of blockFiles) {
-      let content: string
-      try {
-        content = execSync(`git show ${baseRef}:${filePath}`, gitOpts)
-      } catch {
-        continue
-      }
-
-      const typeMatch = content.match(
-        /BlockConfig(?:<[^>]*>)?\s*=\s*\{[\s\S]*?type:\s*['"]([^'"]+)['"]/
-      )
-      if (!typeMatch) continue
-      const blockType = typeMatch[1]
-
-      const ids = extractPreviousIds(content, typeMatch.index ?? 0, changedPaths.has(filePath))
-      if (ids.length === 0) continue
-
-      map[blockType] = new Set(ids)
-    }
-  } catch (err) {
-    return { kind: 'skip', reason: `Could not read previous block files from ${baseRef}: ${err}` }
-  }
-
-  return { kind: 'ok', map }
+  const previous = readBlockRegistryAtRef(gitRoot, baseRef)
+  return Object.fromEntries(Object.entries(previous).map(([type, ids]) => [type, new Set(ids)]))
 }
 
 type CheckResult =
@@ -176,10 +65,7 @@ type CheckResult =
 function checkSubblockIdStability(): CheckResult {
   const previous = getPreviousIds()
 
-  if (previous.kind === 'skip') {
-    return { kind: 'skip', message: `${previous.reason} — skipping subblock ID stability check` }
-  }
-  if (previous.kind === 'noop') {
+  if (previous === null) {
     return {
       kind: 'skip',
       message: 'No block definition changes detected — skipping subblock ID stability check',
@@ -189,7 +75,7 @@ function checkSubblockIdStability(): CheckResult {
   const current = getCurrentIds()
   const errors: string[] = []
 
-  for (const [blockType, prevIds] of Object.entries(previous.map)) {
+  for (const [blockType, prevIds] of Object.entries(previous)) {
     const currIds = current[blockType]
     if (!currIds) continue
 

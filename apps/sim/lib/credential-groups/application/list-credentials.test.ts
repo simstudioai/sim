@@ -136,6 +136,7 @@ describe('listCredentialGroupCredentials', () => {
         {
           credentialId: 'credential-1',
           email: 'person@example.com',
+          accountEmail: 'personal@example.com',
           displayName: 'person@example.com',
           providerId: 'google-email',
           providerSubjectId: 'google-subject-1',
@@ -254,6 +255,7 @@ describe('listCredentialGroupCredentials', () => {
         {
           credentialId: 'credential-1',
           email: 'person@example.com',
+          accountEmail: 'personal@example.com',
           displayName: 'person@example.com',
           providerId: 'google-email',
           providerSubjectId: 'google-subject-1',
@@ -305,6 +307,34 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.listCredentials).toHaveBeenCalledWith(
       expect.objectContaining({ credentialProviderIds: ['google-email'] })
     )
+  })
+
+  it('rechecks a provider grant before the next page can expose account identities', async () => {
+    mocks.loadGroup.mockResolvedValue({
+      ...groupContext,
+      options: [
+        ...groupContext.options,
+        { ...groupContext.options[0], id: 'calendar-option', provider: 'google-calendar' },
+      ],
+    })
+    const query = { ...input, credentialProviderIds: ['google-email'] }
+    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input: query })
+    mocks.listCredentials.mockClear()
+    mocks.requirePolicy.mockResolvedValue({
+      document: buildOrganizationAccountAccessPolicy('group-1', [
+        {
+          workspaceId: 'workspace-1',
+          access: { mode: 'selected', credentialTypes: ['oauth:google-calendar'] },
+        },
+      ]),
+    })
+    await expect(
+      listCredentialGroupCredentials.execute({
+        principal: executorPrincipal(),
+        input: { ...query, cursor: 'credential-1' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('normalizes an optional email filter independently of caller identity', async () => {
