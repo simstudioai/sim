@@ -2,8 +2,8 @@
 
 import { cn } from '@sim/emcn'
 import dynamic from 'next/dynamic'
+import { FilesMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/files-menu-preview'
 import { EdgeFade } from '@/app/(landing)/components/shared/edge-fade'
-import { FileLibraryGraphic } from '@/app/(landing)/files/components/feature-graphics/file-library-graphic'
 import { useLazyMount } from '@/app/(landing)/hooks/use-lazy-mount'
 import { SearchBackdrop } from '@/app/(landing)/search/components/search-backdrop/search-backdrop'
 
@@ -26,15 +26,7 @@ export function SearchPreview({ layout = 'menu', mode = 'chat' }: SearchPreviewP
   const menu = layout === 'menu'
 
   if (layout === 'feature' && mode === 'files') {
-    return (
-      <div
-        aria-hidden='true'
-        inert
-        className='absolute inset-x-6 top-6 bottom-6 mx-auto max-w-[360px]'
-      >
-        <FileLibraryGraphic />
-      </div>
-    )
+    return <FilesMenuPreview layout='feature' />
   }
 
   return (
