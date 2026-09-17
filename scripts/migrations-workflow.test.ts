@@ -25,7 +25,7 @@ function runMigration(env: Record<string, string> = {}) {
           printf 'COMMAND: %s\n' "$*"
           case "$2" in
             db:push) printf '%s\n' "$PUSH_OUTPUT"; return "$PUSH_EXIT" ;;
-            ./scripts/apply-dev-workspace-file-size-cutover.ts) return "$CUTOVER_EXIT" ;;
+            ./scripts/prepare-dev-schema.ts) return "$PREPARE_EXIT" ;;
             ./scripts/migrate.ts) return "$MIGRATE_EXIT" ;;
             *) return 99 ;;
           esac
@@ -42,7 +42,7 @@ function runMigration(env: Record<string, string> = {}) {
           MIGRATION_TEST_LOG: join(directory, 'push.log'),
           PUSH_EXIT: '0',
           PUSH_OUTPUT: 'Changes applied',
-          CUTOVER_EXIT: '0',
+          PREPARE_EXIT: '0',
           MIGRATE_EXIT: '0',
           ...env,
         },
@@ -61,38 +61,39 @@ describe('migration workflow exit propagation', () => {
     })
     expect(result.status).toBe(42)
     expect(result.stdout).toContain('DATABASE_URL is required')
-    expect(result.stdout).not.toContain(
-      'COMMAND: run ./scripts/apply-dev-workspace-file-size-cutover.ts'
-    )
   })
 
-  it('runs the dev cutover only after a successful schema push', () => {
+  it('prepares the dev schema before pushing it', () => {
     const result = runMigration()
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('COMMAND: run db:push --force')
-    expect(result.stdout).toContain(
-      'COMMAND: run ./scripts/apply-dev-workspace-file-size-cutover.ts'
+    expect(result.stdout.indexOf('COMMAND: run ./scripts/prepare-dev-schema.ts')).toBeLessThan(
+      result.stdout.indexOf('COMMAND: run db:push --force')
     )
+    expect(result.stdout).toContain('COMMAND: run ./scripts/prepare-dev-schema.ts')
   })
 
   it('still rejects drizzle interactive failures that exit zero', () => {
     const result = runMigration({ PUSH_OUTPUT: 'Interactive prompts require a TTY terminal' })
     expect(result.status).toBe(1)
-    expect(result.stdout).not.toContain(
-      'COMMAND: run ./scripts/apply-dev-workspace-file-size-cutover.ts'
-    )
   })
 
-  it('propagates dev cutover failures', () => {
-    expect(runMigration({ CUTOVER_EXIT: '43' }).status).toBe(43)
-  })
-
-  it('keeps versioned migration failures fatal outside dev', () => {
-    const result = runMigration({ ENVIRONMENT: 'staging', MIGRATE_EXIT: '44' })
-    expect(result.status).toBe(44)
-    expect(result.stdout).toContain('COMMAND: run ./scripts/migrate.ts')
+  it('stops before push when preparation fails', () => {
+    const result = runMigration({ PREPARE_EXIT: '43' })
+    expect(result.status).toBe(43)
     expect(result.stdout).not.toContain('COMMAND: run db:push')
   })
+
+  it.each(['staging', 'production'])(
+    'keeps versioned migration failures fatal in %s',
+    (environment) => {
+      const result = runMigration({ ENVIRONMENT: environment, MIGRATE_EXIT: '44' })
+      expect(result.status).toBe(44)
+      expect(result.stdout).toContain('COMMAND: run ./scripts/migrate.ts')
+      expect(result.stdout).not.toContain('COMMAND: run db:push')
+      expect(result.stdout).not.toContain('COMMAND: run ./scripts/prepare-dev-schema.ts')
+    }
+  )
 
   it('fails before invoking commands when no database URL is configured', () => {
     const result = runMigration({ DATABASE_URL: '' })
