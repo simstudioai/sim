@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockAssertBillingAttributionSnapshot,
   mockProcessDocumentAsync,
+  mockQueue,
   mockResolveTriggerRegion,
   mockTask,
   mockTrigger,
@@ -14,11 +15,16 @@ const {
   mockAssertBillingAttributionSnapshot: vi.fn(),
   mockProcessDocumentAsync: vi.fn(),
   mockResolveTriggerRegion: vi.fn(),
+  mockQueue: vi.fn((config) => config),
   mockTask: vi.fn((config) => config),
   mockTrigger: vi.fn(),
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask, tasks: { trigger: mockTrigger } }))
+vi.mock('@trigger.dev/sdk', () => ({
+  queue: mockQueue,
+  task: mockTask,
+  tasks: { trigger: mockTrigger },
+}))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mockResolveTriggerRegion }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,

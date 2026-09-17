@@ -170,6 +170,8 @@ async function recoverStoredDocuments(
                 mimeType: doc.mimeType,
               },
               processingOptions: {},
+              /** This sweep only selects connector-owned documents. */
+              processingLane: 'backfill',
               requestId: token,
               processingQueueToken: token,
               processingQueuedAt: queuedAt.toISOString(),

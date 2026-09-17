@@ -245,7 +245,8 @@ describe('v1 knowledge document upload route', () => {
       'kb-1',
       {},
       'req-1',
-      SYSTEM_BILLING_ATTRIBUTION
+      SYSTEM_BILLING_ATTRIBUTION,
+      'interactive'
     )
   })
 })

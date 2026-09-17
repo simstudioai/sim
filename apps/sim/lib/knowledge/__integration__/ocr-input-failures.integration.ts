@@ -168,7 +168,14 @@ describe('OCR input failures stop without partial indexing or futile retries', (
         workspaceId: ids.workspaceId,
       })
       expect(
-        await processDocumentsWithQueue([file], ids.knowledgeBaseId, {}, generateId(), billing)
+        await processDocumentsWithQueue(
+          [file],
+          ids.knowledgeBaseId,
+          {},
+          generateId(),
+          billing,
+          'interactive'
+        )
       ).toMatchObject({ accepted: 1, failed: 0 })
       const [failed] = await db.select().from(document).where(eq(document.id, file.documentId))
       expect(failed).toMatchObject({
