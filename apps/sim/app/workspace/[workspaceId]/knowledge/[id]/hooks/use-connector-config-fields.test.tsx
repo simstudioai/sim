@@ -311,6 +311,40 @@ describe('useConnectorConfigFields member configuration', () => {
     }
   )
 
+  it.each([
+    [jiraConnectorMeta, 'projectKey', 'projectSelector'],
+    [confluenceConnectorMeta, 'spaceKey', 'spaceSelector'],
+  ] as const)(
+    'preserves saved $0.name All scope through manual entry and clears it when the site changes',
+    (meta, canonicalId, selectorId) => {
+      render({
+        connectorConfig: meta,
+        accessMode: 'members',
+        initialSourceConfig: { domain: 'team.atlassian.net', [selectorId]: ['*'] },
+        initialSelectionLabels: { [canonicalId]: [{ id: '*', label: 'All' }] },
+      })
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['*'])
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.sourceConfig[canonicalId]).toEqual(['*'])
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['*'])
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.sourceConfig[selectorId]).toEqual(['*'])
+      expect(describeSearchSource(meta, current.resolveSourceConfig())).toBe(
+        'team.atlassian.net · All'
+      )
+      act(() => current.toggleCanonicalMode(canonicalId))
+      act(() => current.handleFieldChange(canonicalId, 'ENG, PRODUCT'))
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['ENG', 'PRODUCT'])
+      act(() => current.handleFieldChange(selectorId, ['*'], [{ id: '*', label: 'All' }]))
+      act(() => current.handleFieldChange('domain', 'other.atlassian.net'))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
+      act(() => current.toggleCanonicalMode(canonicalId))
+      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
+      expect(current.selectionLabels).toEqual({})
+    }
+  )
+
   it('clears dependent selector labels together with their values', () => {
     const meta: ConnectorMeta = {
       ...googleDriveConnectorMeta,

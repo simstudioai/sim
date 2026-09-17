@@ -14,7 +14,11 @@ function requestUrl(input: string | URL | Request): URL {
 
 beforeEach(() => {
   fetchMock.mockReset()
-  vi.stubGlobal('fetch', fetchMock)
+  vi.stubGlobal('fetch', (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    return requestUrl(input).pathname.endsWith('/attachments')
+      ? Promise.resolve(Response.json({ results: [] }))
+      : fetchMock(input, init)
+  })
 })
 
 afterEach(() => vi.unstubAllGlobals())

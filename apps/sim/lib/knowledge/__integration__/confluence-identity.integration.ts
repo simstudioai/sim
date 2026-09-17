@@ -23,7 +23,10 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { groupToken, subjectToken } from '@/lib/knowledge/access/tokens'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
-import { syncExternalDirectoryGroups } from '@/lib/knowledge/connectors/external-group-sync'
+import {
+  persistExternalGroupMembership,
+  syncExternalDirectoryGroups,
+} from '@/lib/knowledge/connectors/external-group-sync'
 
 describe('Confluence identities with hidden directory email', () => {
   const ids = createKnowledgeAclFixtureIds()
@@ -45,6 +48,7 @@ describe('Confluence identities with hidden directory email', () => {
   const documents = [
     { id: generateId(), acl: [group] },
     { id: generateId(), acl: [sourceSubject] },
+    { id: generateId(), acl: ['g:confluence:fixture-cloud:space-readers:123'] },
   ]
   const principal: Principal = {
     kind: 'session',
@@ -142,6 +146,22 @@ describe('Confluence identities with hidden directory email', () => {
         }),
       },
     })
+    await db.transaction((tx) =>
+      persistExternalGroupMembership(
+        {
+          workspaceId: ids.workspaceId,
+          providerId: 'confluence',
+          tenantId: 'fixture-cloud',
+          group: { id: 'space-readers:123' },
+          memberTokens: [
+            group,
+            ...Array.from({ length: 6000 }, (_, index) => `s:confluence:-:other-${index}`),
+          ],
+          observedAt: new Date(),
+        },
+        tx
+      )
+    )
     await db.insert(document).values(
       documents.map((fixture) => ({
         id: fixture.id,

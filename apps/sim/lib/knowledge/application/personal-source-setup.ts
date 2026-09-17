@@ -28,6 +28,7 @@ import { MAX_SELECTOR_PAGES } from '@/lib/selectors/limits'
 import type { SelectorExecutionResult, SelectorRequest } from '@/lib/selectors/types'
 import { MAX_PERSONAL_SOURCE_SETUP_KEYS } from '@/lib/sim-search/personal-source-setup'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { isAllSourceItems } from '@/connectors/selection'
 
 const logger = createLogger('PersonalSourceSetup')
 const VALIDATION_PHASE_TIMEOUT_MS = 30_000
@@ -201,6 +202,10 @@ export const personalSourceSetup = defineAuthorizedKnowledgeUseCase({
         throw error
       }
       if (result.kind !== 'list') throw new Error('Source discovery returned an unexpected result')
+      if (isAllSourceItems(keys)) {
+        remaining.clear()
+        break
+      }
       for (const option of result.items) remaining.delete(option.id)
       if (remaining.size === 0) break
       if (!result.nextCursor || result.truncated || cursors.has(result.nextCursor)) break

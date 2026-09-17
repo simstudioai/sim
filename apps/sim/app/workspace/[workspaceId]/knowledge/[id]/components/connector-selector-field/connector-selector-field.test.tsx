@@ -34,11 +34,67 @@ vi.mock('@/hooks/queries/selectors', () => ({
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/connector-selector-field'
 
 interface ComboboxCallbacks {
-  options: { value: string; label: string; hidden?: boolean; onSelect?: () => void }[]
+  options: {
+    value: string
+    label: string
+    hidden?: boolean
+    selected?: boolean
+    onSelect?: () => void
+  }[]
   disabled: boolean
   onChange?: (value: string) => void
   onMultiSelectChange?: (value: string[]) => void
 }
+
+it('stores dynamic All without enumerating a snapshot and lets users select individual items again', async () => {
+  const field = {
+    id: 'spaces',
+    title: 'Spaces',
+    type: 'selector',
+    selectorKey: 'confluence.spaces',
+    multi: true,
+    allowSelectAll: true,
+    selectAllValue: '*',
+  } as const
+  const root = createRoot(document.createElement('div'))
+  const render = async (value: string[]) =>
+    act(async () =>
+      root.render(
+        <ConnectorSelectorField
+          field={field}
+          value={value}
+          onChange={mocks.change}
+          credentialId='credential-1'
+          sourceConfig={{ domain: 'example.atlassian.net' }}
+          configFields={[field]}
+          canonicalModes={{}}
+        />
+      )
+    )
+  try {
+    await render([])
+    await act(async () =>
+      mocks.combobox.mock
+        .lastCall![0].options.find((option) => option.label === 'All')
+        ?.onSelect?.()
+    )
+    expect(mocks.change).toHaveBeenLastCalledWith(['*'], [{ id: '*', label: 'All' }])
+    expect(mocks.loadAll).not.toHaveBeenCalled()
+    await render(['*'])
+    await act(async () => mocks.combobox.mock.lastCall![0].onMultiSelectChange?.(['*', 'folder-b']))
+    expect(mocks.change).toHaveBeenLastCalledWith(
+      ['folder-b'],
+      [{ id: 'folder-b', label: 'Company docs' }]
+    )
+    await render(['*', 'folder-b'])
+    const all = mocks.combobox.mock.lastCall![0].options.find((option) => option.label === 'All')
+    await act(async () => all?.onSelect?.())
+    expect(mocks.change).toHaveBeenLastCalledWith(['*'], [{ id: '*', label: 'All' }])
+  } finally {
+    await act(async () => root.unmount())
+    vi.clearAllMocks()
+  }
+})
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)

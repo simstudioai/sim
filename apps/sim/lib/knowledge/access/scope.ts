@@ -36,6 +36,11 @@ import {
   resolveGitHubInstallationReadGrants,
 } from '@/lib/knowledge/access/github-installation'
 import {
+  assertExternalGroupTokenCapacity,
+  MAX_EXTERNAL_GROUP_TOKENS,
+  parentGroupTokensQuery,
+} from '@/lib/knowledge/access/group-membership'
+import {
   confluenceSiteSourceCondition,
   githubInstallationSourceCondition,
   liveSourceKnowledgeBaseCondition,
@@ -105,7 +110,7 @@ async function loadExternalGroupTokens(
    */
   const freshEnough = new Date(Date.now() - EXTERNAL_GROUP_STALE_AFTER_MS)
   const rows = await db
-    .select({
+    .selectDistinct({
       providerId: knowledgeExternalGroup.providerId,
       tenantId: knowledgeExternalGroup.tenantId,
       externalGroupId: knowledgeExternalGroup.externalGroupId,
@@ -122,6 +127,10 @@ async function loadExternalGroupTokens(
         gte(knowledgeExternalGroup.lastSyncedAt, freshEnough)
       )
     )
+    .limit(MAX_EXTERNAL_GROUP_TOKENS + 1)
+  if (rows.length > MAX_EXTERNAL_GROUP_TOKENS) {
+    throw new Error('External group access exceeded its token capacity')
+  }
 
   const tokens: string[] = []
   for (const row of rows) {
@@ -132,7 +141,19 @@ async function loadExternalGroupTokens(
     })
     if (token) tokens.push(token)
   }
-  return tokens
+  assertExternalGroupTokenCapacity(tokens)
+  if (tokens.length > 0) {
+    const parents = await db.execute<{ token: string }>(
+      parentGroupTokensQuery(tokens, scope, freshEnough)
+    )
+    if (parents.length > MAX_EXTERNAL_GROUP_TOKENS) {
+      throw new Error('External group access exceeded its token capacity')
+    }
+    for (const parent of parents) tokens.push(parent.token)
+  }
+  const uniqueTokens = sortAccessTokens(tokens)
+  assertExternalGroupTokenCapacity(uniqueTokens)
+  return uniqueTokens
 }
 
 export interface KnowledgeAccessScopeContext {

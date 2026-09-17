@@ -18,6 +18,7 @@ import {
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
+import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import {
   CONTENT_ENGINE_ACCESS_MODES,
   type ContentEngineAccessMode,
@@ -36,6 +37,7 @@ import {
   type DirectoryRefreshResult,
   directorySyncNotice,
   hasDirectorySyncNotice,
+  persistExternalGroupMembership,
   refreshMirroredDirectory,
 } from '@/lib/knowledge/connectors/external-group-sync'
 import { listingFingerprint } from '@/lib/knowledge/connectors/listing-checkpoint'
@@ -116,6 +118,7 @@ export {
  */
 async function applySourceMirroredAcls(input: {
   connectorId: string
+  kbOwner: KnowledgeBaseOwner
   connectorConfig: ConnectorConfig
   sourceConfig: Record<string, unknown>
   syncContext: Record<string, unknown>
@@ -135,15 +138,36 @@ async function applySourceMirroredAcls(input: {
    * place until the next run.
    */
   const unanswered = unansweredByListing(externalDocs)
-  const fetched =
-    unanswered.length > 0 && connectorConfig.getDocumentAcls
-      ? await connectorConfig.getDocumentAcls(
-          input.accessToken,
-          input.sourceConfig,
-          unanswered,
-          input.syncContext
-        )
-      : {}
+  let fetched: Record<string, MirroredDocumentAcl> = {}
+  if (unanswered.length > 0 && connectorConfig.getDocumentAcls) {
+    /** Audience freshness belongs to this observation, including when an old crawl resumes. */
+    const [clock] = await db.execute<{ startedAt: string }>(
+      sql`SELECT statement_timestamp()::text AS "startedAt"`
+    )
+    const observedAt = new Date(clock?.startedAt ?? '')
+    if (!Number.isFinite(observedAt.getTime()))
+      throw new Error('Could not read the sync database clock')
+    fetched = await connectorConfig.getDocumentAcls(
+      input.accessToken,
+      input.sourceConfig,
+      unanswered,
+      input.syncContext,
+      {
+        persistGroupMembership: (membership) =>
+          db.transaction(async (tx) => {
+            if (input.lease) await assertSyncLeaseHeldInTx(tx, connectorId, input.lease)
+            await persistExternalGroupMembership(
+              {
+                ...resourceScopeFields(resourceScopeFromOwner(input.kbOwner)),
+                ...membership,
+                observedAt,
+              },
+              tx
+            )
+          }),
+      }
+    )
+  }
   const { acls, unattributed, unresolvedExternalIds } = mergeMirroredAcls(externalDocs, fetched)
   const evidence = { unresolvedExternalIds, generationStartedAt: input.generationStartedAt }
   const listed = acls.size
@@ -1158,6 +1182,7 @@ export async function executeSync(
               await directoryRefreshed
               return applySourceMirroredAcls({
                 connectorId,
+                kbOwner,
                 connectorConfig,
                 sourceConfig,
                 syncContext,

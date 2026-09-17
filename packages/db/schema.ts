@@ -6037,8 +6037,8 @@ export const knowledgeExternalGroup = pgTable(
 /**
  * External group membership keyed by canonical identity tokens: verified
  * addresses (`u:`) or provider account identities (`s:`). Provider identities
- * preserve permissions when a directory hides email addresses. Nested groups
- * are flattened by directory sync, without requiring members to have Sim accounts.
+ * preserve permissions when a directory hides email addresses. Confluence space
+ * audiences may also reference native groups, whose members remain identities.
  */
 export const knowledgeExternalGroupMember = pgTable(
   'knowledge_external_group_member',

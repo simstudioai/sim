@@ -37,7 +37,9 @@ Open **Settings → Sources → Add source** and select **Jira**. This opens **A
 
 ### Choose the projects
 
-Under **Account for browsing**, select a saved account (including your personal Search account) or choose **Connect Jira account**. Enter **Jira site**, then choose **Projects**. **All** in the dropdown selects every project the account can currently browse; newly created projects are not added automatically. Clear the picker search before selecting all.
+Under **Account for browsing**, select a saved account (including your personal Search account) or choose **Connect Jira account**. Enter **Jira site**, then choose **Projects**. **All** in the dropdown includes every project the syncing account can access at each sync, including newly accessible projects. Clear the picker search before selecting all.
+
+If you selected all projects before this behavior was introduced, reselect **All** and save. Previously saved selections remain a fixed list of projects.
 
 To enter keys such as `ENG, SUPPORT` manually, use the switch beside **Projects**; this works without a browsing account. Switching between the picker and manual entry keeps your selection.
 
@@ -76,7 +78,7 @@ Each teammate follows this step. Sim reuses an existing authorized account where
 After an admin approves Jira, a teammate can select **Connect** on the Jira row in **Integrations**. To add another site or project selection later, open the Jira row's actions menu (**…**) and select **Add projects**:
 
 1. Open **Your account** and select a saved account or **Connect Jira account**. Authorize using the Atlassian email matching your verified Sim email.
-2. Enter the hostname under **Atlassian site**, then choose **Projects**. Clear the picker search to use **All**, or use the arrows beside **Projects** to enter comma-separated keys. You can select up to 1,000 projects. Changing the account or site clears the project selection.
+2. Enter the hostname under **Atlassian site**, then choose **Projects**. Clear the picker search to use **All**, or use the arrows beside **Projects** to enter comma-separated keys. You can select up to 1,000 individual projects. Changing the account or site clears the project selection.
 3. Select **Connect & Sync**. Sim saves the selected scope and starts indexing with your account.
 
 <Image className="mx-auto h-auto w-full max-w-md"

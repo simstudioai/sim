@@ -5,9 +5,11 @@ import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   type ConfluencePrincipal,
   type ConfluenceRestriction,
+  confluenceSpaceGroupId,
   confluenceSubjectToken,
 } from '@/lib/knowledge/access/confluence-permissions'
-import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
+import { CONFLUENCE_SPACE_GROUP_PREFIX } from '@/lib/knowledge/access/confluence-space-groups'
+import { canonicalGroupId, groupToken } from '@/lib/knowledge/access/tokens'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { extractCursor } from '@/connectors/confluence/cursor'
@@ -26,9 +28,19 @@ const GROUP_PAGE_SIZE = 200
 const MAX_PAGES = 100
 const MAX_PERMISSION_PAGES = 1000
 const PERMISSION_RESPONSE_MAX_BYTES = 1024 * 1024
+const MAX_SPACE_READERS = 100_000
+const MAX_SPACE_READER_BYTES = 16 * 1024 * 1024
 const MAX_PERMISSION_CURSOR_LENGTH = 8192
 const PERMISSION_COLLECTION_TIMEOUT_MS = 5 * 60 * 1000
 const PREFLIGHT_RESPONSE_MAX_BYTES = 256 * 1024
+
+function validateNativeGroupId(id: string): string {
+  const canonical = canonicalGroupId(id)
+  if (!canonical || canonical.startsWith(CONFLUENCE_SPACE_GROUP_PREFIX)) {
+    throw new Error('Confluence returned an invalid group ID')
+  }
+  return id
+}
 
 function apiBase(cloudId: string): string {
   return `https://api.atlassian.com/ex/confluence/${cloudId}/wiki`
@@ -313,11 +325,18 @@ export async function listSpaceReadPrincipals(
     if (!id) {
       unmapped += 1
     } else if (type === 'user' || type === 'group') {
+      if (type === 'group') validateNativeGroupId(id)
       const key = `${type}:${id}`
       if (!principals.has(key)) {
         principalBytes += Buffer.byteLength(key, 'utf8')
-        if (principals.size >= MAX_ACL_TOKENS || principalBytes > PERMISSION_RESPONSE_MAX_BYTES) {
-          throw new Error('Confluence space readers exceeded the document permission limit')
+        if (principals.size >= MAX_SPACE_READERS || principalBytes > MAX_SPACE_READER_BYTES) {
+          logger.warn('Confluence space audience exceeded the directory capacity', {
+            cloudId,
+            spaceId,
+            principals: principals.size,
+            principalBytes,
+          })
+          throw new Error('Confluence space readers exceeded the directory capacity')
         }
         principals.set(key, { kind: type, id })
       }
@@ -477,6 +496,7 @@ export async function getReadRestriction(
     }
     for (const group of groups) {
       if (!group.id) throw new Error('Confluence read restriction is missing a group id')
+      validateNativeGroupId(group.id)
       principals.set(`group:${group.id}`, { kind: 'group', id: group.id })
     }
     const nextStarts = [
@@ -565,7 +585,7 @@ async function listSiteGroups(
   )
   const groups: ConnectorDirectoryGroup[] = []
   for (const group of raw) {
-    if (group.id) groups.push({ id: group.id })
+    groups.push({ id: validateNativeGroupId(group.id ?? '') })
   }
   return groups
 }
@@ -601,4 +621,22 @@ export function openConfluenceDirectory(
     listGroups: () => listSiteGroups(cloudId, accessToken),
     listGroupMembers: (group) => listGroupMemberTokens(cloudId, accessToken, group),
   }
+}
+
+/** Only spaces encountered by this credential's content crawl need an audience refresh. */
+export async function listConfluenceSpaceMembership(
+  providerId: string,
+  cloudId: string,
+  accessToken: string,
+  spaceId: string
+): Promise<ConnectorDirectoryMembership> {
+  const group = { id: confluenceSpaceGroupId(spaceId) }
+  const principals = await listSpaceReadPrincipals(cloudId, accessToken, spaceId)
+  const memberTokens = principals.map((principal) => {
+    if (principal.kind === 'user') return confluenceSubjectToken(principal.id)
+    const token = groupToken({ providerId, tenantId: cloudId, groupId: principal.id })
+    if (!token) throw new Error('Confluence returned an invalid reader group')
+    return token
+  })
+  return { group, memberTokens, complete: true }
 }

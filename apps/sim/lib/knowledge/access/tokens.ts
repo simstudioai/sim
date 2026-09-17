@@ -1,4 +1,8 @@
 import { normalizeEmail } from '@sim/utils/string'
+import {
+  CONFLUENCE_SPACE_GROUP_PREFIX,
+  isConfluenceSpaceGroupId,
+} from '@/lib/knowledge/access/confluence-space-groups'
 import { type MirroredDocumentAcl, WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 
 /**
@@ -86,11 +90,28 @@ export function isAccessToken(value: string): boolean {
   return ACCESS_TOKEN_PATTERN.test(value)
 }
 
-/** Directory members are people; document audiences and groups cannot become member identities. */
+/** Identity seeds represent people; document audiences and groups are not reader identities. */
 export function isIdentityToken(value: string): boolean {
   if (!isAccessToken(value)) return false
   if (value.startsWith('s:')) return true
   return value.startsWith('u:') && userToken(value.slice(2)) === value
+}
+
+/** A Confluence space audience may reference native groups; native memberships remain identities. */
+export function isDirectoryMemberToken(
+  value: string,
+  directory: { providerId: string; tenantId: string; externalGroupId: string }
+): boolean {
+  if (isIdentityToken(value)) return true
+  if (directory.providerId !== 'confluence' || !isConfluenceSpaceGroupId(directory.externalGroupId))
+    return false
+  const prefix = `g:${directory.providerId}:${directory.tenantId || NO_TENANT_SEGMENT}:`
+  return (
+    isAccessToken(value) &&
+    value.startsWith(prefix) &&
+    !value.slice(prefix.length).startsWith(CONFLUENCE_SPACE_GROUP_PREFIX) &&
+    value === groupToken({ ...directory, groupId: value.slice(prefix.length) })
+  )
 }
 
 export interface SubjectCredential {

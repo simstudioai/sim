@@ -128,6 +128,7 @@ beforeEach(() => {
         version: { number: sourceVersion },
       }
       if (url.pathname.endsWith('/spaces/space/pages')) return Response.json({ results: [page] })
+      if (url.pathname.endsWith('/pages/page/attachments')) return Response.json({ results: [] })
       if (url.pathname.endsWith('/pages/page')) {
         return Response.json({
           ...page,
@@ -420,6 +421,46 @@ describe('content pass checkpoint intent', () => {
     expect(hydrate).not.toHaveBeenCalled()
     expect(result.docsUpdated).toBe(0)
   })
+
+  it.each([403, 401])(
+    'indexes healthy Confluence pages while preserving attachments after access failure %s',
+    async (status) => {
+      sourceBody = { value: '<p>Current content</p>' }
+      const healthy = vi.mocked(fetch).getMockImplementation()!
+      vi.mocked(fetch).mockImplementation(async (input, init) =>
+        String(input).includes('/pages/page/attachments')
+          ? status === 401
+            ? Response.json(
+                { code: 401, message: 'Unauthorized; scope does not match' },
+                { status }
+              )
+            : new Response(null, { status })
+          : healthy(input, init)
+      )
+      const { pass, result } = await runPass({ access: 'admin' })
+      expect(pass.complete).toBe(true)
+      expect(pass.checkpoint).toMatchObject({
+        unsafe: true,
+        listingFailures: {
+          count: 1,
+          samples: [
+            {
+              scope: 'page',
+              operation: 'confluence.attachments.list',
+              status,
+              reasons: [status === 401 ? 'attachment_scope_mismatch' : 'attachment_access_denied'],
+            },
+          ],
+        },
+      })
+      expect(pass.holdNotice).toContain('unlisted documents were kept')
+      expect(result.docsAdded).toBe(1)
+      expect(result.docsDeleted).toBe(0)
+      expect(mocks.dispatch).toHaveBeenCalledOnce()
+      expect(mocks.hardDelete).not.toHaveBeenCalled()
+      expect(dbChainMockFns.set.mock.calls.some(([value]) => value.deletedAt != null)).toBe(false)
+    }
+  )
 
   it('does not reconcile deletions after a user listing failed, even without the unsafe marker', async () => {
     sourceBody = { value: '<p>Current content</p>' }

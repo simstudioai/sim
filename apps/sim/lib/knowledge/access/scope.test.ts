@@ -53,6 +53,7 @@ vi.mock('@/lib/knowledge/access/connector-permissions', () => ({
   loadConnectorPermissionGroupTokens: mockCsvGrants,
 }))
 
+import { MAX_EXTERNAL_GROUP_TOKENS } from '@/lib/knowledge/access/group-membership'
 import {
   createKnowledgeAccessProvider,
   createUserKnowledgeAccessProvider,
@@ -280,7 +281,8 @@ describe('createKnowledgeAccessProvider', () => {
     const [first, second] = await Promise.all([provider.get(), provider.get()])
 
     expect(first).toBe(second)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.selectDistinct).toHaveBeenCalledTimes(1)
   })
 
   it('scopes live-source discovery to sources a held reader credential can prove', async () => {
@@ -353,6 +355,34 @@ describe('tokens mirrored from a source directory', () => {
   function queueGroups(rows: Array<Record<string, string | null>>) {
     queueTableRows(schemaMock.knowledgeExternalGroupMember, rows)
   }
+
+  it('fails closed on the direct-group overflow sentinel before discarding malformed tokens', async () => {
+    queueSubjects([
+      { providerId: 'confluence', providerTenantId: null, providerSubjectId: 'reader' },
+    ])
+    queueGroups(
+      Array.from({ length: MAX_EXTERNAL_GROUP_TOKENS + 1 }, () => ({
+        providerId: 'invalid:provider',
+        tenantId: 'cloud',
+        externalGroupId: 'group',
+      }))
+    )
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).rejects.toThrow('token capacity')
+    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
+  })
+
+  it('fails closed on the audience overflow sentinel before merging duplicate tokens', async () => {
+    queueSubjects([
+      { providerId: 'confluence', providerTenantId: null, providerSubjectId: 'reader' },
+    ])
+    queueGroups([{ providerId: 'confluence', tenantId: 'cloud', externalGroupId: 'group' }])
+    dbChainMockFns.execute.mockResolvedValueOnce(
+      Array.from({ length: MAX_EXTERNAL_GROUP_TOKENS + 1 }, () => ({
+        token: 'g:confluence:cloud:group',
+      }))
+    )
+    await expect(resolveKnowledgeAccessScope(SESSION, WORKSPACE)).rejects.toThrow('token capacity')
+  })
 
   it('gives a person their own address and every group it belongs to', async () => {
     queueSubjects([

@@ -1,3 +1,4 @@
+import { CONFLUENCE_SPACE_GROUP_PREFIX } from '@/lib/knowledge/access/confluence-space-groups'
 import { groupToken, sortAccessTokens, subjectToken } from '@/lib/knowledge/access/tokens'
 import { LINK_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 
@@ -5,6 +6,12 @@ import { LINK_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 export interface ConfluencePrincipal {
   kind: 'user' | 'group'
   id: string
+}
+
+/** Space audiences use a namespace rejected at native group ingestion. */
+export function confluenceSpaceGroupId(spaceId: string): string {
+  if (!/^\d+$/.test(spaceId)) throw new Error('Confluence returned an invalid space ID')
+  return `${CONFLUENCE_SPACE_GROUP_PREFIX}${spaceId}`
 }
 
 /** Atlassian account IDs are global, matching the managed OAuth /me identity. */

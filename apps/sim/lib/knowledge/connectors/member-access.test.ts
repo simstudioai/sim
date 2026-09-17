@@ -74,6 +74,7 @@ import {
   ResourcePolicyNotFoundError,
   ResourcePolicyRevisionConflictError,
 } from '@/lib/resource-policies/repository'
+import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 
 const GROUP_ID = 'group-1'
 const BINDING = {
@@ -516,6 +517,34 @@ describe('knowledge connector member access', () => {
           sourceConfig: { folderId: ['folder-1'], maxFiles: '' },
         })
       ).toEqual({ ok: true, option: driveOption })
+    })
+
+    it('keeps existing Confluence page credentials eligible without attachment access', () => {
+      const confluenceOption = {
+        ...driveOption,
+        id: 'option-confluence',
+        provider: 'confluence',
+        label: 'Confluence',
+        authorizationAppId: 'atlassian:app',
+        requiredScopes: [
+          'read:confluence-content.all',
+          'read:page:confluence',
+          'read:blogpost:confluence',
+          'read:space:confluence',
+          'read:label:confluence',
+          'search:confluence',
+          'offline_access',
+        ],
+      }
+
+      expect(
+        validateKnowledgeConnectorMembersBinding({
+          connectorMeta: confluenceConnectorMeta,
+          group: { status: 'active', options: [confluenceOption] },
+          credentialGroupOptionId: confluenceOption.id,
+          sourceConfig: { domain: 'example.atlassian.net', spaceKey: ['ENG'], maxPages: '' },
+        })
+      ).toEqual({ ok: true, option: confluenceOption })
     })
 
     describe('a Slack option, whose members authorize through the workspace custom app', () => {

@@ -20,8 +20,9 @@ import {
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import type { DbTransaction } from '@/lib/db/types'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
+import { CONFLUENCE_SPACE_GROUP_PREFIX } from '@/lib/knowledge/access/confluence-space-groups'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
-import { canonicalGroupId, isIdentityToken } from '@/lib/knowledge/access/tokens'
+import { canonicalGroupId, isDirectoryMemberToken } from '@/lib/knowledge/access/tokens'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {
   resolveConnectorAccessToken,
@@ -37,6 +38,7 @@ import {
   ConnectorDirectoryGroupAccessError,
 } from '@/connectors/source-error'
 import type {
+  ConnectorAclGroupMembership,
   ConnectorConfig,
   ConnectorDirectory,
   ConnectorDirectoryGroup,
@@ -228,6 +230,7 @@ export async function syncExternalDirectoryGroups(input: {
       const groupId = await withDirectoryLease(lease, (tx) =>
         upsertGroup({ ...owner, providerId, tenantId, group }, tx)
       )
+      if (!groupId) throw new Error('Directory group could not be persisted')
       let membership: ConnectorDirectoryMembership
       try {
         membership = await directory.listGroupMembers(group)
@@ -253,7 +256,12 @@ export async function syncExternalDirectoryGroups(input: {
         continue
       }
       await withDirectoryLease(lease, (tx) =>
-        replaceGroupMembers(groupId, membership.memberTokens, tx)
+        replaceGroupMembers(
+          groupId,
+          membership.memberTokens,
+          { ...lease, externalGroupId: group.id },
+          tx
+        )
       )
       refreshed += 1
     }
@@ -293,9 +301,10 @@ export async function syncExternalDirectoryGroups(input: {
 
 async function upsertGroup(
   input: DirectoryIdentity & { group: ConnectorDirectoryGroup },
-  tx: DbTransaction
-): Promise<string> {
-  const { workspaceId, providerId, tenantId, group } = input
+  tx: DbTransaction,
+  observedAt?: Date
+): Promise<string | undefined> {
+  const { providerId, tenantId, group } = input
   const [row] = await tx
     .insert(knowledgeExternalGroup)
     .values({
@@ -315,18 +324,44 @@ async function upsertGroup(
         knowledgeExternalGroup.externalGroupId,
       ],
       set: { updatedAt: new Date() },
+      ...(observedAt
+        ? {
+            setWhere: or(
+              isNull(knowledgeExternalGroup.lastSyncedAt),
+              lt(knowledgeExternalGroup.lastSyncedAt, observedAt)
+            ),
+          }
+        : {}),
     })
     .returning({ id: knowledgeExternalGroup.id })
-  return row.id
+  return row?.id
 }
 
-/** Membership replacement and its freshness watermark commit together under the directory lease. */
+/** The caller owns the transaction and fences it with its directory or content-sync lease. */
+export async function persistExternalGroupMembership(
+  input: DirectoryIdentity & ConnectorAclGroupMembership & { observedAt: Date },
+  tx: DbTransaction
+): Promise<void> {
+  const groupId = await upsertGroup(input, tx, input.observedAt)
+  if (!groupId) return
+  await replaceGroupMembers(
+    groupId,
+    input.memberTokens,
+    { ...input, externalGroupId: input.group.id },
+    tx,
+    input.observedAt
+  )
+}
+
+/** Membership replacement and its freshness watermark commit together. */
 async function replaceGroupMembers(
   groupId: string,
   memberTokens: string[],
-  tx: DbTransaction
+  directory: DirectoryIdentity & { externalGroupId: string },
+  tx: DbTransaction,
+  observedAt?: Date
 ): Promise<void> {
-  if (memberTokens.some((token) => !isIdentityToken(token))) {
+  if (memberTokens.some((token) => !isDirectoryMemberToken(token, directory))) {
     throw new Error('Directory membership contains an invalid identity token')
   }
   await tx
@@ -339,7 +374,7 @@ async function replaceGroupMembers(
   }
   await tx
     .update(knowledgeExternalGroup)
-    .set({ lastSyncedAt: sql`clock_timestamp()`, updatedAt: sql`clock_timestamp()` })
+    .set({ lastSyncedAt: observedAt ?? sql`clock_timestamp()`, updatedAt: sql`clock_timestamp()` })
     .where(eq(knowledgeExternalGroup.id, groupId))
 }
 
@@ -358,6 +393,11 @@ async function pruneRemovedGroups(lease: DirectoryLease, keep: readonly string[]
             eq(knowledgeExternalGroup.tenantId, lease.tenantId),
             ...(keep.length > 0
               ? [notInArray(knowledgeExternalGroup.externalGroupId, [...keep])]
+              : []),
+            ...(lease.providerId === 'confluence'
+              ? [
+                  sql`NOT starts_with(${knowledgeExternalGroup.externalGroupId}, ${CONFLUENCE_SPACE_GROUP_PREFIX})`,
+                ]
               : [])
           )
         )

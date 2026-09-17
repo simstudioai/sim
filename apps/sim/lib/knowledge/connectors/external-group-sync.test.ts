@@ -93,6 +93,19 @@ describe('syncExternalDirectoryGroups', () => {
     expect(dir.listGroups).toHaveBeenCalledOnce()
   })
 
+  it('rejects group references in a native directory membership', async () => {
+    const dir = directory({
+      listGroupMembers: vi.fn(async (group) => ({
+        group,
+        memberTokens: ['g:google-drive:corp.com:engineering'],
+        complete: true,
+      })),
+    })
+    await expect(
+      syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir })
+    ).rejects.toThrow('invalid identity token')
+  })
+
   it('replaces membership only from a complete enumeration, keeping the rest last-known-good', async () => {
     queueTableRows(schemaMock.knowledgeExternalGroup, [])
     const dir = directory({

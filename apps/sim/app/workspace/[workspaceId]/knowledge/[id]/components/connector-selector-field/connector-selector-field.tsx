@@ -139,8 +139,11 @@ export function ConnectorSelectorField({
 
   const singleValue = Array.isArray(value) ? value[0] : value
   const selectedIds = useMemo(
-    () => (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean),
-    [value]
+    () =>
+      (Array.isArray(value) ? value : value ? [value] : []).filter(
+        (id) => Boolean(id) && id !== field.selectAllValue
+      ),
+    [value, field.selectAllValue]
   )
   const missingSelectedIds = useMemo(() => {
     const loadedIds = new Set(options.map((option) => option.id))
@@ -197,6 +200,9 @@ export function ConnectorSelectorField({
   }, [options, selectedOptions, searchedOption, selectedLabels, selectedIds])
 
   const handleChange = (nextValue: ConfigFieldValue) => {
+    if (Array.isArray(nextValue) && field.selectAllValue) {
+      nextValue = nextValue.filter((id) => id !== field.selectAllValue)
+    }
     bulkGenerationRef.current += 1
     setBulkError(null)
     const ids = new Set(Array.isArray(nextValue) ? nextValue : nextValue ? [nextValue] : [])
@@ -214,16 +220,24 @@ export function ConnectorSelectorField({
 
   const hasSearch = searchTerm.trim().length > 0 || debouncedSearch.length > 0
   const selectedIdSet = new Set(selectedIds)
-  const allSelected =
-    !hasMore &&
-    !truncated &&
-    options.length > 0 &&
-    selectedIds.length === options.length &&
-    options.every((option) => selectedIdSet.has(option.id))
+  const values = Array.isArray(value) ? value : [value]
+  const allSelected = field.selectAllValue
+    ? values.length === 1 && values[0] === field.selectAllValue
+    : !hasMore &&
+      !truncated &&
+      options.length > 0 &&
+      selectedIds.length === options.length &&
+      options.every((option) => selectedIdSet.has(option.id))
   const selectAll = async () => {
     if (!isEnabled || hasSearch || isFetching || isLoadingAll) return
     if (allSelected) {
       handleChange([])
+      return
+    }
+    if (field.selectAllValue) {
+      bulkGenerationRef.current += 1
+      setBulkError(null)
+      onChange([field.selectAllValue], [{ id: field.selectAllValue, label: 'All' }])
       return
     }
     const generation = ++bulkGenerationRef.current
@@ -265,10 +279,10 @@ export function ConnectorSelectorField({
           aria-label={field.title}
           multiSelect
           options={
-            field.allowSelectAll && (options.length > 0 || hasMore)
+            field.allowSelectAll && (options.length > 0 || hasMore || allSelected)
               ? [
                   {
-                    value: '',
+                    value: field.selectAllValue ?? '',
                     label: 'All',
                     disabled: !isEnabled || hasSearch || isFetching || isLoadingAll,
                     onSelect: () => void selectAll(),

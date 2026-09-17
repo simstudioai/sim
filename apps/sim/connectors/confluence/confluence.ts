@@ -18,17 +18,29 @@ import {
   type RetryOptions,
   VALIDATE_RETRY_OPTIONS,
 } from '@/lib/knowledge/documents/utils'
+import {
+  getConfluenceAttachment,
+  isConfluenceAttachment,
+  listConfluenceAttachments,
+  locateConfluenceAttachment,
+} from '@/connectors/confluence/attachments'
 import { extractCursor } from '@/connectors/confluence/cursor'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import {
   describeContent,
   getReadRestriction,
   listAncestorIds,
-  listSpaceReadPrincipals,
+  listConfluenceSpaceMembership,
   openConfluenceDirectory,
   validateConfluencePermissionAccess,
 } from '@/connectors/confluence/permissions'
-import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
+import { isAllSourceItems } from '@/connectors/selection'
+import type {
+  ConnectorAclContext,
+  ConnectorConfig,
+  ExternalDocument,
+  ExternalDocumentList,
+} from '@/connectors/types'
 import {
   htmlToPlainText,
   joinTagArray,
@@ -598,6 +610,7 @@ const ACL_CONCURRENCY = 8
 
 /** Where a listed piece of content lives, as the permission pass needs it. */
 interface ContentLocation {
+  id: string
   spaceId: string
   contentType: string
 }
@@ -606,9 +619,9 @@ interface ContentLocation {
  * Resolves who may read each listed page.
  *
  * Confluence reports a page's restrictions only when asked for that page, so
- * unlike Drive this cannot ride along with the listing. Two things are cached
- * for the batch: each space's read principals and each page's restriction,
- * which may be consulted by many descendants.
+ * unlike Drive this cannot ride along with the listing. Space IDs and page
+ * restrictions are cached for descendants within the batch. Space audiences
+ * are refreshed and persisted on demand using this source's credential.
  *
  * A page falls back to *its own* space's readers, never the union of every
  * configured space: a connector over two spaces must not let a reader of one
@@ -621,35 +634,64 @@ async function resolveConfluenceAcls(
   accessToken: string,
   sourceConfig: Record<string, unknown>,
   documents: readonly ExternalDocument[],
-  syncContext?: Record<string, unknown>
+  syncContext?: Record<string, unknown>,
+  aclContext?: ConnectorAclContext
 ): Promise<Record<string, MirroredDocumentAcl>> {
   const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
   const spaceIdForKey = memoizeAsync((spaceKey: string) =>
     resolveSpaceId(cloudId, accessToken, spaceKey)
   )
-  const spacePrincipalsFor = memoizeAsync((spaceId: string) =>
-    listSpaceReadPrincipals(cloudId, accessToken, spaceId)
-  )
   const readRestriction = memoizeAsync((contentId: string) =>
     getReadRestriction(cloudId, accessToken, contentId)
   )
 
+  const spaceAudience = memoizeAsync(async (spaceId: string) => {
+    if (!aclContext) throw new Error('Confluence space membership persistence is unavailable')
+    const membership = await listConfluenceSpaceMembership(
+      CONFLUENCE_ACL_PROVIDER_ID,
+      cloudId,
+      accessToken,
+      spaceId
+    )
+    await aclContext.persistGroupMembership({
+      providerId: CONFLUENCE_ACL_PROVIDER_ID,
+      tenantId: cloudId,
+      group: membership.group,
+      memberTokens: membership.memberTokens,
+    })
+    return membership.group.id
+  })
+
   /** The listing usually says where a page lives; anything it did not describe is asked. */
   const locate = async (doc: ExternalDocument): Promise<ContentLocation | null> => {
+    if (isConfluenceAttachment(doc.externalId)) {
+      return locateConfluenceAttachment(
+        {
+          accessToken,
+          cloudId,
+          domain: normalizeConfluenceDomainHost(sourceConfig.domain as string),
+          syncContext,
+        },
+        sourceConfig,
+        doc
+      )
+    }
     const spaceKey = doc.metadata?.spaceKey
     const contentType = doc.metadata?.contentType
     if (typeof spaceKey === 'string' && spaceKey) {
       return {
+        id: doc.externalId,
         spaceId: await spaceIdForKey(spaceKey),
         contentType: typeof contentType === 'string' ? contentType : 'page',
       }
     }
-    return describeContent(cloudId, accessToken, doc.externalId)
+    const location = await describeContent(cloudId, accessToken, doc.externalId)
+    return location ? { id: doc.externalId, ...location } : null
   }
 
   /** One entry per page whose permissions this run could read in full. */
-  const resolved = new Map<string, { spaceId: string; chain: ConfluenceRestriction[] }>()
+  const resolved = new Map<string, { spaceGroupId: string; chain: ConfluenceRestriction[] }>()
   let unreadable = 0
   await mapWithConcurrency(documents, ACL_CONCURRENCY, async (doc) => {
     const externalId = doc.externalId
@@ -659,20 +701,19 @@ async function resolveConfluenceAcls(
         unreadable += 1
         return
       }
-      const own = await readRestriction(externalId)
+      const own = await readRestriction(location.id)
       /**
        * Every ancestor restriction still applies when the page has its own.
        * A blog post has no ancestors to inherit from.
        */
       const chain: ConfluenceRestriction[] = [own]
       if (location.contentType !== 'blogpost') {
-        for (const ancestorId of await listAncestorIds(cloudId, accessToken, externalId)) {
+        for (const ancestorId of await listAncestorIds(cloudId, accessToken, location.id)) {
           const restriction = await readRestriction(ancestorId)
           chain.push(restriction)
         }
       }
-      await spacePrincipalsFor(location.spaceId)
-      resolved.set(externalId, { spaceId: location.spaceId, chain })
+      resolved.set(externalId, { spaceGroupId: await spaceAudience(location.spaceId), chain })
     } catch (error) {
       unreadable += 1
       logger.warn("Could not verify a page's permissions", {
@@ -684,9 +725,9 @@ async function resolveConfluenceAcls(
   })
 
   const acls: Record<string, MirroredDocumentAcl> = {}
-  for (const [externalId, { spaceId, chain }] of resolved) {
+  for (const [externalId, { spaceGroupId, chain }] of resolved) {
     const result = confluencePageAcl({
-      spacePrincipals: await spacePrincipalsFor(spaceId),
+      spacePrincipals: [{ kind: 'group', id: spaceGroupId }],
       restrictionChain: chain,
       providerId: CONFLUENCE_ACL_PROVIDER_ID,
       tenantId: cloudId,
@@ -706,83 +747,106 @@ async function resolveConfluenceAcls(
   return acls
 }
 
-export const confluenceConnector: ConnectorConfig = {
-  isCredentialInvalidError: (error) =>
-    error instanceof Error && 'status' in error && error.status === 401,
-  ...confluenceConnectorMeta,
+async function listParentDocuments(
+  accessToken: string,
+  sourceConfig: Record<string, unknown>,
+  cursor?: string,
+  syncContext?: Record<string, unknown>
+): Promise<ExternalDocumentList> {
+  const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
+  const allSpaces = isAllSourceItems(sourceConfig.spaceKey)
+  const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
+  const contentType = (sourceConfig.contentType as string) || 'page'
+  const labelFilter = (sourceConfig.labelFilter as string) || ''
+  const maxPages = sourceConfig.maxPages ? Number(sourceConfig.maxPages) : 0
 
-  listDocuments: async (
-    accessToken: string,
-    sourceConfig: Record<string, unknown>,
-    cursor?: string,
-    syncContext?: Record<string, unknown>,
-    lastSyncAt?: Date
-  ): Promise<ExternalDocumentList> => {
-    const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
-    const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
-    const contentType = (sourceConfig.contentType as string) || 'page'
-    const labelFilter = (sourceConfig.labelFilter as string) || ''
-    const maxPages = sourceConfig.maxPages ? Number(sourceConfig.maxPages) : 0
+  if (spaceKeys.length === 0) {
+    throw new Error('At least one space key is required')
+  }
 
-    if (spaceKeys.length === 0) {
-      throw new Error('At least one space key is required')
-    }
+  const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
 
-    const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
+  /**
+   * Route through CQL when a label filter is set, when multiple spaces are
+   * selected — the v2 space endpoint cannot apply those filters.
+   */
+  if (allSpaces) {
+    return listDocumentsViaCql(
+      cloudId,
+      accessToken,
+      domain,
+      [],
+      contentType,
+      labelFilter,
+      maxPages,
+      cursor,
+      syncContext
+    )
+  }
+  if (labelFilter.trim() || spaceKeys.length > 1) {
+    return listSpaceBatchesViaCql(
+      cloudId,
+      accessToken,
+      domain,
+      spaceKeys,
+      contentType,
+      labelFilter,
+      maxPages,
+      cursor,
+      syncContext
+    )
+  }
 
-    /**
-     * Route through CQL when a label filter is set, when multiple spaces are
-     * selected, or when only recently modified content is wanted — the v2
-     * `/spaces/{spaceId}/pages` endpoint is single-space only and cannot filter
-     * by modification time, but CQL natively supports `space in (...)` and
-     * `lastModified`.
-     */
-    if (labelFilter.trim() || spaceKeys.length > 1 || lastSyncAt) {
-      return listSpaceBatchesViaCql(
-        cloudId,
-        accessToken,
-        domain,
-        spaceKeys,
-        contentType,
-        labelFilter,
-        maxPages,
-        cursor,
-        syncContext,
-        lastSyncAt
-      )
-    }
+  const spaceKey = spaceKeys[0]
+  let spaceId = syncContext?.spaceId as string | undefined
+  if (!spaceId) {
+    spaceId = await resolveSpaceId(cloudId, accessToken, spaceKey)
+    if (syncContext) syncContext.spaceId = spaceId
+  }
 
-    const spaceKey = spaceKeys[0]
-    let spaceId = syncContext?.spaceId as string | undefined
-    if (!spaceId) {
-      spaceId = await resolveSpaceId(cloudId, accessToken, spaceKey)
-      if (syncContext) syncContext.spaceId = spaceId
-    }
-
-    if (contentType === 'all') {
-      return listAllContentTypes(
-        cloudId,
-        accessToken,
-        domain,
-        spaceId,
-        spaceKey,
-        maxPages,
-        cursor,
-        syncContext
-      )
-    }
-
-    return listDocumentsV2(
+  if (contentType === 'all') {
+    return listAllContentTypes(
       cloudId,
       accessToken,
       domain,
       spaceId,
       spaceKey,
-      contentType,
       maxPages,
       cursor,
       syncContext
     )
+  }
+
+  return listDocumentsV2(
+    cloudId,
+    accessToken,
+    domain,
+    spaceId,
+    spaceKey,
+    contentType,
+    maxPages,
+    cursor,
+    syncContext
+  )
+}
+
+export const confluenceConnector: ConnectorConfig = {
+  isCredentialInvalidError: (error) =>
+    error instanceof Error && 'status' in error && error.status === 401,
+  ...confluenceConnectorMeta,
+
+  listDocuments: async (accessToken, sourceConfig, cursor, syncContext) => {
+    const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
+    return listConfluenceAttachments({
+      accessToken,
+      cloudId,
+      domain: normalizeConfluenceDomainHost(sourceConfig.domain as string),
+      cursor,
+      syncContext,
+      /** Attachment versions change independently of their parent pages. */
+      listParents: (parentCursor, parentContext) =>
+        listParentDocuments(accessToken, sourceConfig, parentCursor, parentContext),
+    })
   },
 
   getDocumentAcls: resolveConfluenceAcls,
@@ -802,6 +866,14 @@ export const confluenceConnector: ConnectorConfig = {
   ): Promise<ExternalDocument | null> => {
     const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
     const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext)
+
+    if (isConfluenceAttachment(externalId)) {
+      return getConfluenceAttachment(
+        { accessToken, cloudId, domain, syncContext },
+        sourceConfig,
+        externalId
+      )
+    }
 
     const scopedContent = usesPermissionScopedContent(syncContext)
     const bodyFormat = scopedContent ? 'storage' : 'view'
@@ -875,6 +947,7 @@ export const confluenceConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const domain = sourceConfig.domain as string
+    const allSpaces = isAllSourceItems(sourceConfig.spaceKey)
     const spaceKeys = parseMultiValue(sourceConfig.spaceKey)
 
     if (!domain || spaceKeys.length === 0) {
@@ -897,14 +970,14 @@ export const confluenceConnector: ConnectorConfig = {
           : VALIDATE_RETRY_OPTIONS
       const cloudId = await resolveCloudId(accessToken, sourceConfig, syncContext, retryOptions)
       let permissionSpaceId: string | undefined
-      for (const batch of spaceKeyBatches(spaceKeys)) {
+      for (const batch of allSpaces ? [[]] : spaceKeyBatches(spaceKeys)) {
         const remainingKeys = new Set(batch)
         const seenCursors = new Set<string>()
         let cursor: string | undefined
         do {
           const params = new URLSearchParams()
           for (const key of batch) params.append('keys', key)
-          params.set('limit', String(batch.length))
+          params.set('limit', String(allSpaces ? 1 : batch.length))
           if (cursor) params.set('cursor', cursor)
           const response = await fetchWithRetry(
             `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/spaces?${params}`,
@@ -923,7 +996,7 @@ export const confluenceConnector: ConnectorConfig = {
           }
           for (const space of data.results) {
             if (
-              remainingKeys.delete(space.key) &&
+              (allSpaces || remainingKeys.delete(space.key)) &&
               !permissionSpaceId &&
               typeof space.id === 'string'
             ) {
@@ -1042,7 +1115,8 @@ async function listDocumentsV2(
   }
 
   const data = await response.json()
-  const results = data.results || []
+  if (!Array.isArray(data.results)) throw new Error('Confluence returned an invalid content page')
+  const results = data.results
 
   const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
@@ -1060,7 +1134,11 @@ async function listDocumentsV2(
       )
     })
 
-  const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
+  const next = (data._links as Record<string, unknown> | undefined)?.next
+  const nextCursor = extractCursor(next)
+  if (next && (!nextCursor || nextCursor === cursor)) {
+    throw new Error('Confluence returned an invalid or repeated content continuation')
+  }
 
   const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
   const remaining = maxPages > 0 ? Math.max(0, maxPages - fetchedSoFar) : Number.POSITIVE_INFINITY
@@ -1174,34 +1252,6 @@ async function listAllContentTypes(
 }
 
 /**
- * The CQL clause selecting content modified since a watermark. CQL's `now()`
- * takes a relative offset and evaluates on the server, which sidesteps the
- * timezone the endpoint would otherwise assume for an absolute timestamp; the
- * offset rounds up to the next whole minute so nothing at the edge is missed.
- */
-export function buildLastModifiedClause(lastSyncAt: Date, now: Date): string {
-  const minutes = Math.max(1, Math.ceil((now.getTime() - lastSyncAt.getTime()) / 60_000))
-  return `lastModified >= now("-${minutes}m")`
-}
-
-/**
- * The `lastModified` clause every page of one listing shares. The clause is a
- * window relative to the server clock, so recomputing it on a later page that
- * crosses a minute boundary would pair the cursor `_links.next` issued with a
- * query it was not issued for; the first page fixes it for the run.
- */
-export function resolveLastModifiedClause(
-  lastSyncAt: Date,
-  syncContext: Record<string, unknown> | undefined
-): string {
-  const fixed = syncContext?.cqlLastModifiedClause
-  if (typeof fixed === 'string') return fixed
-  const clause = buildLastModifiedClause(lastSyncAt, new Date())
-  if (syncContext) syncContext.cqlLastModifiedClause = clause
-  return clause
-}
-
-/**
  * Page size for CQL search. The endpoint defaults to 25 and documents no hard
  * maximum, so this stays conservatively below the fixed system limits it warns
  * about rather than mirroring the v2 endpoints' 250.
@@ -1218,8 +1268,7 @@ async function listSpaceBatchesViaCql(
   labelFilter: string,
   maxPages: number,
   cursor?: string,
-  syncContext: Record<string, unknown> = {},
-  lastSyncAt?: Date
+  syncContext: Record<string, unknown> = {}
 ): Promise<ExternalDocumentList> {
   const batches = spaceKeyBatches(spaceKeys)
   if (batches.length === 1) {
@@ -1232,8 +1281,7 @@ async function listSpaceBatchesViaCql(
       labelFilter,
       maxPages,
       cursor,
-      syncContext,
-      lastSyncAt
+      syncContext
     )
   }
 
@@ -1267,8 +1315,7 @@ async function listSpaceBatchesViaCql(
     labelFilter,
     maxPages,
     providerCursor,
-    syncContext,
-    lastSyncAt
+    syncContext
   )
   const hasMoreBatches = batchIndex + 1 < batches.length
   if (maxPages > 0 && Number(syncContext.totalDocsFetched) >= maxPages) {
@@ -1289,7 +1336,7 @@ async function listSpaceBatchesViaCql(
 }
 
 /**
- * Lists documents using CQL search via the v1 API (used when label filtering is enabled).
+ * Lists parents through CQL for all-space, multi-space, and label-filtered sources.
  */
 async function listDocumentsViaCql(
   cloudId: string,
@@ -1300,29 +1347,25 @@ async function listDocumentsViaCql(
   labelFilter: string,
   maxPages: number,
   cursor?: string,
-  syncContext?: Record<string, unknown>,
-  lastSyncAt?: Date
+  syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
   const labels = labelFilter
     .split(',')
     .map((l) => l.trim())
     .filter(Boolean)
 
-  // Build CQL query
-  let cql = buildSpaceClause(spaceKeys)
+  let cql = spaceKeys.length > 0 ? `${buildSpaceClause(spaceKeys)} AND ` : ''
 
   if (contentType === 'blogpost') {
-    cql += ' AND type="blogpost"'
+    cql += 'type="blogpost"'
   } else if (contentType === 'all') {
     /**
-     * An unconstrained CQL search matches every content type the index holds —
-     * attachments, comments, space descriptions and user profiles included — none
-     * of which `getDocument` can resolve through the page/blogpost endpoints. "All
-     * content" means both indexable content types, not literally everything.
+     * Restrict parent discovery to pages and blog posts; supported attachments
+     * are listed separately beneath these parents.
      */
-    cql += ' AND type in ("page","blogpost")'
+    cql += 'type in ("page","blogpost")'
   } else {
-    cql += ' AND type="page"'
+    cql += 'type="page"'
   }
 
   if (labels.length === 1) {
@@ -1331,8 +1374,6 @@ async function listDocumentsViaCql(
     const labelList = labels.map((l) => `"${escapeCql(l)}"`).join(',')
     cql += ` AND label in (${labelList})`
   }
-
-  if (lastSyncAt) cql += ` AND ${resolveLastModifiedClause(lastSyncAt, syncContext)}`
 
   const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
   const remaining = maxPages > 0 ? maxPages - fetchedSoFar : Number.POSITIVE_INFINITY
@@ -1381,7 +1422,8 @@ async function listDocumentsViaCql(
   }
 
   const data = await response.json()
-  const results = data.results || []
+  if (!Array.isArray(data.results)) throw new Error('Confluence returned an invalid search page')
+  const results = data.results
 
   const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
@@ -1396,7 +1438,11 @@ async function listDocumentsViaCql(
     allDocuments.length > remaining ? allDocuments.slice(0, remaining) : allDocuments
   const trimmedByCap = documents.length < allDocuments.length
 
-  const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
+  const next = (data._links as Record<string, unknown> | undefined)?.next
+  const nextCursor = extractCursor(next)
+  if (next && (!nextCursor || nextCursor === cursor)) {
+    throw new Error('Confluence returned an invalid or repeated search continuation')
+  }
 
   const totalFetched = fetchedSoFar + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
