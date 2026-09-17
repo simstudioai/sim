@@ -1,10 +1,13 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { sortObjectKeysDeep } from '@sim/utils/object'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   type ConfluencePrincipal,
   type ConfluenceRestriction,
   confluenceSubjectToken,
 } from '@/lib/knowledge/access/confluence-permissions'
+import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { extractCursor } from '@/connectors/confluence/cursor'
@@ -21,6 +24,10 @@ const GROUP_PAGE_SIZE = 200
 
 /** Bounds provider pagination, including malformed continuation responses. */
 const MAX_PAGES = 100
+const MAX_PERMISSION_PAGES = 1000
+const PERMISSION_RESPONSE_MAX_BYTES = 1024 * 1024
+const MAX_PERMISSION_CURSOR_LENGTH = 8192
+const PERMISSION_COLLECTION_TIMEOUT_MS = 5 * 60 * 1000
 const PREFLIGHT_RESPONSE_MAX_BYTES = 256 * 1024
 
 function apiBase(cloudId: string): string {
@@ -72,34 +79,77 @@ async function getJson<T>(
 }
 
 /**
- * Drains a v2 collection by following `_links.next`, the only termination
- * Confluence documents. The requested page size is a ceiling the server may
- * lower, so a page shorter than it proves nothing.
+ * Reduces permission pages without retaining unrelated assignments. Completion
+ * requires EOF; distinct cursors cannot conceal a repeated page of assignments.
  */
-async function drainV2<T>(url: string, accessToken: string, what: string): Promise<T[]> {
-  const items: T[] = []
+async function visitPermissionPages<T>(
+  url: string,
+  accessToken: string,
+  context: { cloudId: string; spaceId: string; collection: string },
+  visit: (entries: T[]) => void
+): Promise<void> {
   const cursors = new Set<string>()
+  const pages = new Set<string>()
+  const signal = AbortSignal.timeout(PERMISSION_COLLECTION_TIMEOUT_MS)
   let cursor: string | undefined
-  for (let page = 0; page < MAX_PAGES; page += 1) {
+  let entries = 0
+  let fetchedPages = 0
+  const fail = (reason: string): never => {
+    logger.warn('Confluence permission pagination did not complete', {
+      ...context,
+      pages: fetchedPages,
+      entries,
+      reason,
+    })
+    throw new Error(`Confluence ${context.collection} ${reason}`)
+  }
+  for (let page = 0; page < MAX_PERMISSION_PAGES; page += 1) {
     const query = new URLSearchParams({ limit: String(PAGE_SIZE) })
     if (cursor) query.set('cursor', cursor)
     const body = await getJson<{ results?: T[]; _links?: { next?: string } }>(
       `${url}?${query.toString()}`,
-      accessToken
+      accessToken,
+      { maxResponseBytes: PERMISSION_RESPONSE_MAX_BYTES, retryOptions: { signal } }
     )
-    if (!Array.isArray(body.results)) {
-      throw new Error(`Confluence returned invalid ${what}`)
+    fetchedPages += 1
+    if (!Array.isArray(body.results) || body.results.length > PAGE_SIZE) {
+      return fail('returned an invalid permission page')
     }
-    items.push(...body.results)
+    const results = body.results
     const next = body._links?.next
-    if (!next) return items
-    cursor = extractCursor(next)
-    if (!cursor || cursors.has(cursor)) {
-      throw new Error(`Confluence returned an invalid or repeated ${what} continuation`)
+    if (results.length > 0) {
+      const fingerprint = createHash('sha256')
+        .update(
+          results
+            .map((entry) => JSON.stringify(sortObjectKeysDeep(entry)))
+            .sort()
+            .join('\n')
+        )
+        .digest('hex')
+      if (pages.has(fingerprint)) fail('repeated a permission page')
+      pages.add(fingerprint)
     }
-    cursors.add(cursor)
+    entries += results.length
+    visit(results)
+    if (!next) {
+      if (page >= MAX_PAGES) {
+        logger.info('Completed a large Confluence permission collection', {
+          ...context,
+          pages: page + 1,
+          entries,
+        })
+      }
+      return
+    }
+    cursor = extractCursor(next)
+    if (!cursor || cursor.length > MAX_PERMISSION_CURSOR_LENGTH) {
+      return fail('returned an invalid or repeated permission continuation')
+    }
+    const cursorHash = createHash('sha256').update(cursor).digest('hex')
+    if (cursors.has(cursorHash)) fail('returned an invalid or repeated permission continuation')
+    cursors.add(cursorHash)
   }
-  throw new Error(`Confluence ${what} exceeded ${MAX_PAGES} pages (${items.length} entries)`)
+  fail(`exceeded ${MAX_PERMISSION_PAGES} pages (${entries} entries)`)
 }
 
 /**
@@ -254,13 +304,8 @@ export async function listSpaceReadPrincipals(
   accessToken: string,
   spaceId: string
 ): Promise<ConfluencePrincipal[]> {
-  const entries = await drainV2<SpacePermissionEntry>(
-    `${apiBase(cloudId)}/api/v2/spaces/${encodeURIComponent(spaceId)}/permissions`,
-    accessToken,
-    'space permissions'
-  )
-
-  const principals: ConfluencePrincipal[] = []
+  const principals = new Map<string, ConfluencePrincipal>()
+  let principalBytes = 0
   const accessTypes = new Set<'user' | 'admin'>()
   let grantedToRole = false
   let unmapped = 0
@@ -268,7 +313,14 @@ export async function listSpaceReadPrincipals(
     if (!id) {
       unmapped += 1
     } else if (type === 'user' || type === 'group') {
-      principals.push({ kind: type, id })
+      const key = `${type}:${id}`
+      if (!principals.has(key)) {
+        principalBytes += Buffer.byteLength(key, 'utf8')
+        if (principals.size >= MAX_ACL_TOKENS || principalBytes > PERMISSION_RESPONSE_MAX_BYTES) {
+          throw new Error('Confluence space readers exceeded the document permission limit')
+        }
+        principals.set(key, { kind: type, id })
+      }
     } else if (type === 'access-class') {
       const accessClass = id.toLowerCase().replaceAll('_', '-')
       if (accessClass === 'all-licensed-users') {
@@ -281,28 +333,37 @@ export async function listSpaceReadPrincipals(
       unmapped += 1
     }
   }
-  for (const entry of entries) {
-    if (entry.operation?.key !== 'read' || entry.operation.targetType !== 'space') continue
-    const id = entry.principal?.id
-    const type = entry.principal?.type?.toLowerCase().replaceAll('_', '-')
-    if (type === 'role') {
-      grantedToRole = true
-      continue
+  await visitPermissionPages<SpacePermissionEntry>(
+    `${apiBase(cloudId)}/api/v2/spaces/${encodeURIComponent(spaceId)}/permissions`,
+    accessToken,
+    { cloudId, spaceId, collection: 'space permissions' },
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.operation?.key !== 'read' || entry.operation.targetType !== 'space') continue
+        const id = entry.principal?.id
+        const type = entry.principal?.type?.toLowerCase().replaceAll('_', '-')
+        if (type === 'role') {
+          grantedToRole = true
+          continue
+        }
+        addPrincipal(type, id)
+      }
     }
-    addPrincipal(type, id)
-  }
+  )
 
   if (grantedToRole) {
-    const assignments = await drainV2<SpaceRoleAssignment>(
+    await visitPermissionPages<SpaceRoleAssignment>(
       `${apiBase(cloudId)}/api/v2/spaces/${encodeURIComponent(spaceId)}/role-assignments`,
       accessToken,
-      'space role assignments'
+      { cloudId, spaceId, collection: 'space role assignments' },
+      (assignments) => {
+        for (const assignment of assignments) {
+          const id = assignment.principal?.principalId
+          const type = assignment.principal?.principalType?.toLowerCase().replaceAll('_', '-')
+          addPrincipal(type, id)
+        }
+      }
     )
-    for (const assignment of assignments) {
-      const id = assignment.principal?.principalId
-      const type = assignment.principal?.principalType?.toLowerCase().replaceAll('_', '-')
-      addPrincipal(type, id)
-    }
   }
 
   for (const accessType of accessTypes) {
@@ -313,7 +374,7 @@ export async function listSpaceReadPrincipals(
     )
     for (const group of groups) {
       if (!group.id) throw new Error('Confluence access group is missing its id')
-      principals.push({ kind: 'group', id: group.id })
+      addPrincipal('group', group.id)
     }
   }
 
@@ -327,11 +388,7 @@ export async function listSpaceReadPrincipals(
       }
     )
   }
-  return [
-    ...new Map(
-      principals.map((principal) => [`${principal.kind}:${principal.id}`, principal])
-    ).values(),
-  ]
+  return [...principals.values()]
 }
 
 interface RestrictionPage<T> {

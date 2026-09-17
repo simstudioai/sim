@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
 import {
   getReadRestriction,
   listAncestorIds,
@@ -292,20 +293,22 @@ describe('listSpaceReadPrincipals', () => {
     'rejects a repeated or missing cursor without publishing partial permissions: %s',
     async (next) => {
       mockFetch
-        .mockResolvedValueOnce(jsonResponse({ results: [], _links: { next: '?cursor=next' } }))
-        .mockResolvedValueOnce(jsonResponse({ results: [], _links: { next } }))
+        .mockResolvedValueOnce(
+          jsonResponse({ results: [{ id: 'first' }], _links: { next: '?cursor=next' } })
+        )
+        .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'second' }], _links: { next } }))
 
       await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
-        'invalid or repeated space permissions continuation'
+        'invalid or repeated permission continuation'
       )
       expect(mockFetch).toHaveBeenCalledTimes(2)
     }
   )
 
   it('rejects a cursor cycle rather than making a hundred repeated requests', async () => {
-    for (const cursor of ['first', 'second', 'first']) {
+    for (const [page, cursor] of ['first', 'second', 'first'].entries()) {
       mockFetch.mockResolvedValueOnce(
-        jsonResponse({ results: [], _links: { next: `?cursor=${cursor}` } })
+        jsonResponse({ results: [{ id: String(page) }], _links: { next: `?cursor=${cursor}` } })
       )
     }
     await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow('repeated')
@@ -315,7 +318,7 @@ describe('listSpaceReadPrincipals', () => {
   it('rejects a malformed collection instead of treating it as a verified empty grant', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({}))
     await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
-      'invalid space permissions'
+      'invalid permission page'
     )
   })
 
@@ -325,6 +328,7 @@ describe('listSpaceReadPrincipals', () => {
       jsonResponse({
         results: [
           {
+            id: String(page),
             principal: { type: 'user', id: 'reader' },
             operation: { key: 'read', targetType: 'space' },
           },
@@ -333,9 +337,129 @@ describe('listSpaceReadPrincipals', () => {
       })
     )
     await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
-      'exceeded 100 pages (100 entries)'
+      'exceeded 1000 pages (1000 entries)'
     )
-    expect(mockFetch).toHaveBeenCalledTimes(100)
+    expect(mockFetch).toHaveBeenCalledTimes(1000)
+  })
+
+  it('reads past 25,000 assignments and only publishes readers after the final page', async () => {
+    let page = 0
+    mockFetch.mockImplementation(async () => {
+      const current = page++
+      return jsonResponse({
+        results:
+          current < 100
+            ? Array.from({ length: 250 }, (_, index) => ({
+                id: `${current}-${index}`,
+                principal: { type: 'user', id: 'editor' },
+                operation: { key: 'create', targetType: 'page' },
+              }))
+            : [
+                {
+                  id: 'last',
+                  principal: { type: 'group', id: 'readers' },
+                  operation: { key: 'read', targetType: 'space' },
+                },
+              ],
+        _links: current < 100 ? { next: `?cursor=${page}` } : {},
+      })
+    })
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'large-space')).resolves.toEqual([
+      { kind: 'group', id: 'readers' },
+    ])
+    expect(mockFetch).toHaveBeenCalledTimes(101)
+  })
+
+  it('rejects repeated assignments even when cursors and record order change', async () => {
+    const reader = {
+      id: 'one',
+      principal: { type: 'user', id: 'reader' },
+      operation: { key: 'read', targetType: 'space' },
+    }
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({ results: [reader, { id: 'two' }], _links: { next: '?cursor=one' } })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ results: [{ id: 'two' }, reader], _links: { next: '?cursor=two' } })
+      )
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space')).rejects.toThrow(
+      'repeated a permission page'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('follows an empty permission page that has a continuation', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ results: [], _links: { next: '?cursor=next' } }))
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        results: [
+          {
+            principal: { type: 'group', id: 'readers' },
+            operation: { key: 'read', targetType: 'space' },
+          },
+        ],
+      })
+    )
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space')).resolves.toEqual([
+      { kind: 'group', id: 'readers' },
+    ])
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds retained readers without truncating a large grant', async () => {
+    let page = 0
+    mockFetch.mockImplementation(async () =>
+      jsonResponse({
+        results: Array.from({ length: 250 }, (_, index) => ({
+          principal: { type: 'user', id: `reader-${page}-${index}` },
+          operation: { key: 'read', targetType: 'space' },
+        })),
+        _links: { next: `?cursor=${++page}` },
+      })
+    )
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space')).rejects.toThrow(
+      'document permission limit'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(Math.floor(MAX_ACL_TOKENS / 250) + 1)
+  })
+
+  it('rejects an oversized permission response before accepting its readers', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ results: [{ id: 'x'.repeat(1024 * 1024) }] }))
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space')).rejects.toThrow(
+      'exceeds maximum size'
+    )
+  })
+
+  it('does not return a partial reader list when a later permission page fails', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          results: [
+            {
+              principal: { type: 'user', id: 'reader' },
+              operation: { key: 'read', targetType: 'space' },
+            },
+          ],
+          _links: { next: '?cursor=next' },
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({}, 403))
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space')).rejects.toThrow('403')
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses an oversized continuation before issuing another request', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        results: [],
+        _links: { next: `?cursor=${'x'.repeat(8193)}` },
+      })
+    )
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space')).rejects.toThrow(
+      'invalid or repeated permission continuation'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })
 

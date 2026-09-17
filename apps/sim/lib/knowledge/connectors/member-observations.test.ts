@@ -162,6 +162,7 @@ describe('applyMemberDocumentLifecycle', () => {
 
   it('tombstones in bounded transactions and leaves remaining work for the next run', async () => {
     const batch = Array.from({ length: 500 }, (_, i) => ({ id: `document-${i}` }))
+    queueTableRows(schemaMock.document, batch)
     dbChainMockFns.returning.mockResolvedValueOnce(batch)
     const input: Parameters<typeof applyMemberDocumentLifecycle>[0] = {
       connectorId: 'c-1',
@@ -184,6 +185,8 @@ describe('applyMemberDocumentLifecycle', () => {
     })
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(500)
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'remaining' }]).mockResolvedValueOnce([])
+    queueTableRows(schemaMock.document, [{ id: 'remaining' }])
+    queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [])
     expect(
       await applyMemberDocumentLifecycle({ ...input, deadlineAt: Date.now() + 60_000 })
@@ -197,6 +200,8 @@ describe('applyMemberDocumentLifecycle', () => {
 
   it('reports a reclaimed lease during a purge batch as the run being superseded', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [])
     queueTableRows(schemaMock.document, [{ id: 'd-1' }])
     vi.mocked(hardDeleteDocuments).mockRejectedValueOnce(
       new ConnectorSyncDeletionGuardError('lease reclaimed')
