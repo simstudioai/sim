@@ -63,7 +63,11 @@ export interface ReadWorkspaceFileTextResult {
  * before any bytes are fetched. It is NOT authoritative for a generation source,
  * which is why that path is bounded by the artifact ceiling instead.
  */
-async function readSourceBuffer(file: WorkspaceFileRecord, maxBytes: number): Promise<Buffer> {
+async function readSourceBuffer(
+  file: WorkspaceFileRecord,
+  maxBytes: number,
+  signal?: AbortSignal
+): Promise<Buffer> {
   if (file.size > maxBytes) {
     /**
      * Sizes render with `includeBytes` because a caller-supplied `maxBytes` is
@@ -75,19 +79,23 @@ async function readSourceBuffer(file: WorkspaceFileRecord, maxBytes: number): Pr
       `"${file.name}" is ${formatFileSize(file.size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
     )
   }
-  return fetchWorkspaceFileBuffer(file, { maxBytes })
+  return fetchWorkspaceFileBuffer(file, { maxBytes, signal })
 }
 
 async function executeReadWorkspaceFileText({
   input,
   context,
   principal,
+  request,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
   ReadWorkspaceFileTextInput,
   ActiveWorkspaceFileContext
 >): Promise<ReadWorkspaceFileTextResult> {
+  const signal = request?.signal
+  signal?.throwIfAborted()
   const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
+  signal?.throwIfAborted()
   if (!file) throw new OrchestrationError('not_found', 'File not found')
 
   const extension = getFileExtension(file.name)
@@ -112,12 +120,13 @@ async function executeReadWorkspaceFileText({
     ? (
         await resolveRenderedWorkspaceArtifact(file, principal, {
           maxBytes,
+          signal,
           tooLargeMessage: (limit) =>
             `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
         })
       ).buffer
-    : await readSourceBuffer(file, maxBytes)
-  const parsed = await parseFileText(content, extension, file.name)
+    : await readSourceBuffer(file, maxBytes, signal)
+  const parsed = await parseFileText(content, extension, file.name, signal)
   const metadata = parsed.metadata ?? {}
 
   const truncated = metadata.truncated === true
@@ -154,15 +163,23 @@ async function executeReadWorkspaceFileText({
  * well formed, it is the stored bytes that cannot become the representation
  * being asked for, and the caller needs to know that retrying will not help.
  */
-async function parseFileText(content: Buffer, extension: string, fileName: string) {
+async function parseFileText(
+  content: Buffer,
+  extension: string,
+  fileName: string,
+  signal?: AbortSignal
+) {
+  signal?.throwIfAborted()
   if (content.byteLength === 0) {
     return { content: '', metadata: {} }
   }
   try {
     return await parseWorkspaceFileText(content, extension, {
       maxTextBytes: MAX_TEXT_EXTRACTION_BYTES,
+      signal,
     })
   } catch (error) {
+    signal?.throwIfAborted()
     if (isPayloadSizeLimitError(error) || getFileParserErrorCode(error) === 'complexity_limit') {
       throw new OrchestrationError(
         'payload_too_large',
