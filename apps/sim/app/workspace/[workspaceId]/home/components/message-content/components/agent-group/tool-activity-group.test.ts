@@ -89,7 +89,7 @@ describe('getToolActivitySummary', () => {
   })
 
   it.each([
-    ['rejected', 'Failed running checks'],
+    ['rejected', 'Running checks'],
     ['skipped', 'Skipped running checks'],
     ['interrupted', 'Stopped running checks'],
   ] as const)('labels a single %s tool as finished', (status, expected) => {
@@ -132,9 +132,9 @@ describe('getToolActivitySummary', () => {
     ).toBe('Read files, searched files, used the terminal +1 more · 1 stopped · 1 skipped')
   })
 
-  it('keeps individual failures explicit without adding aggregate failure badges', () => {
+  it('keeps individual unsuccessful actions neutral without aggregate failure badges', () => {
     const rejected = { ...tool('terminal', 'rejected'), displayTitle: 'Running checks' }
-    expect(getToolActivitySummary([rejected])).toBe('Failed running checks')
+    expect(getToolActivitySummary([rejected])).toBe('Running checks')
     expect(getToolActivitySummary([rejected, tool('read', 'skipped')])).toBe(
       'Tool activity · 1 skipped'
     )

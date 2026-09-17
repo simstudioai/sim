@@ -1419,16 +1419,7 @@ export function getToolCompletedTitle(title: string): string | undefined {
   return past + title.slice(firstWord.length)
 }
 
-/**
- * Titles that already say the work is over.
- *
- * Two layers project a terminal tense: the client tool store phrases its own
- * error and skip labels ("Attempted to read X", "Skipped reading X"), and this
- * module projects again at the render boundary. Re-projecting an
- * already-projected title stacked prefixes — "Failed: Failed: Attempted to read
- * metadata for thread_tracking" — and even a single pass over a store label
- * reads as doubly hedged. Whichever layer spoke first wins.
- */
+/** Recognize terminal wording already supplied by the tool store or persisted history. */
 const TERMINAL_TITLE_PREFIXES = new Set(['Failed', 'Attempted', 'Skipped', 'Stopped'])
 
 function firstWordOf(title: string): string {
@@ -1444,7 +1435,7 @@ function statesTerminalOutcome(title: string): boolean {
 /** Apply one terminal outcome prefix while preserving already-resolved titles. */
 function getToolOutcomeTitle(
   title: string,
-  outcome: 'Failed' | 'Stopped' | 'Skipped',
+  outcome: 'Stopped' | 'Skipped',
   preserveExistingOutcome: boolean
 ): string {
   if (preserveExistingOutcome && statesTerminalOutcome(title)) return title
@@ -1462,10 +1453,26 @@ function getToolOutcomeTitle(
   return `${outcome}: ${title}`
 }
 
+/** Error rows describe the action without failure badges or claims of completion. */
+function getNeutralToolActionTitle(title: string): string {
+  let action = title
+  while (action) {
+    const firstWord = firstWordOf(action)
+    const prefix = firstWord.replace(/:$/, '').toLowerCase()
+    if (!['failed', 'stopped', 'skipped', 'completed'].includes(prefix)) break
+    action = action.slice(firstWord.length).trimStart()
+  }
+  if (!action) return 'Tool activity'
+  if (action === title) return title
+  const firstWord = firstWordOf(action)
+  const gerund = firstWord.charAt(0).toUpperCase() + firstWord.slice(1)
+  return COMPLETED_VERB_REWRITES[gerund] ? gerund + action.slice(firstWord.length) : action
+}
+
 /**
  * Resolve a tool title at the rendering boundary. Successful calls use a known
  * past-tense rewrite when available and otherwise preserve the wording.
- * Failed, stopped, and skipped calls retain explicit outcome labels.
+ * Unsuccessful calls keep a neutral action; stopped and skipped calls retain their labels.
  */
 export function getToolStatusDisplayTitle(
   title: string,
@@ -1482,7 +1489,7 @@ export function getToolStatusDisplayTitle(
     return getToolCompletedTitle(title) ?? title
   }
   if (status === 'error' || status === 'rejected') {
-    return getToolOutcomeTitle(title, 'Failed', !description)
+    return getNeutralToolActionTitle(title)
   }
   if (status === 'cancelled' || status === 'aborted' || status === 'interrupted') {
     return getToolOutcomeTitle(title, 'Stopped', !description)
