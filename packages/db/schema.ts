@@ -556,14 +556,16 @@ export const workflowExecutionLogs = pgTable(
       table.startedAt
     ),
     /** Supports index-only activity summaries and breakdowns. */
-    workspaceActivityIdx: index('workflow_execution_logs_workspace_activity_idx').on(
-      table.workspaceId,
-      table.startedAt,
-      table.status,
-      table.totalDurationMs,
-      table.workflowId,
-      table.trigger
-    ),
+    workspaceActivityIdx: index('workflow_execution_logs_workspace_activity_idx')
+      .on(
+        table.workspaceId,
+        table.startedAt,
+        table.status,
+        table.totalDurationMs,
+        table.workflowId,
+        table.trigger
+      )
+      .concurrently(),
     workspaceStartedAtIdDescIdx: index(
       'workflow_execution_logs_workspace_started_at_id_desc_idx'
     ).on(table.workspaceId, sql`${table.startedAt} DESC NULLS LAST`, sql`${table.id} DESC`),
