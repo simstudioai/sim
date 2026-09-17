@@ -222,7 +222,10 @@ jobs:
         working-directory: packages/db
         env:
           KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: bunx vitest run script-migrations/0016_backfill_search_vectors.postgres.test.ts
+        run: >-
+          bunx vitest run
+          script-migrations/0016_backfill_search_vectors.postgres.test.ts
+          script-migrations/0018_repair_workspace_file_content_revision.postgres.test.ts
 
       - name: Verify Search progress, pagination, and outbox scheduling in PostgreSQL
         working-directory: apps/sim
@@ -235,10 +238,35 @@ jobs:
           lib/knowledge/__integration__/search-source-pagination.integration.ts
           lib/knowledge/__integration__/search-reference-batching.integration.ts
           lib/knowledge/__integration__/embedding-insert-batches.integration.ts
+          lib/knowledge/__integration__/connector-lifecycle-locks.integration.ts
+          lib/knowledge/__integration__/connector-deferral.integration.ts
+          lib/knowledge/__integration__/stored-document-recovery.integration.ts
+          lib/knowledge/__integration__/connector-partition-work.integration.ts
+          lib/knowledge/__integration__/listing-continuation.integration.ts
           lib/knowledge/__integration__/kb-block-search.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts
           lib/uploads/contexts/organization-logo/application.integration.ts
+
+      - name: Verify Confluence identity and directory sync in PostgreSQL
+        working-directory: apps/sim
+        env:
+          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
+        run: >-
+          bunx vitest run --mode integration
+          lib/knowledge/__integration__/confluence-identity.integration.ts
+          lib/knowledge/__integration__/directory-sync.integration.ts
+
+      - name: Verify Confluence audience migrations and permission queries in PostgreSQL
+        working-directory: apps/sim
+        env:
+          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_acl_test
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); await sql`CREATE DATABASE sim_acl_test`; await sql.end()'
+          bunx vitest run --mode integration lib/knowledge/access/group-membership.integration.ts
+          bunx vitest run \
+            lib/knowledge/access/predicate.postgres.test.ts \
+            lib/knowledge/connectors/external-directory.postgres.test.ts
 
   test-build:
     name: Lint and Test

@@ -80,8 +80,12 @@ import {
   getServiceAccountToken,
   refreshTokenIfNeeded,
   resolveCredentialTokenBundle,
+  resolveServiceAccountToken,
   ServiceAccountTokenError,
 } from '@/lib/oauth/credential-service'
+import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
+import { isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import { fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 const RAW_CREDENTIAL_ID = 'credential-raw-secret-id'
@@ -339,6 +343,240 @@ describe('non-refreshable OAuth token expiry', () => {
   )
 })
 
+describe('OAuth access-token refresh headroom', () => {
+  const now = new Date('2026-09-17T12:00:00.000Z')
+
+  function createOAuthAccount(remainingMs: number | null = 6_000) {
+    return {
+      id: RAW_ACCOUNT_ID,
+      accountId: 'provider-subject',
+      providerId: 'google-drive',
+      userId: RAW_USER_ID,
+      accessToken: 'original-access-token',
+      refreshToken: 'original-refresh-token' as string | null,
+      accessTokenExpiresAt: remainingMs === null ? null : new Date(now.getTime() + remainingMs),
+      refreshTokenExpiresAt: null as Date | null,
+      updatedAt: new Date(now.getTime() - 30 * 24 * 60 * 60_000),
+    }
+  }
+
+  type OAuthAccount = ReturnType<typeof createOAuthAccount>
+
+  function queueCredentialAccount(row: OAuthAccount) {
+    queueTableRows(credential, [
+      { id: RAW_CREDENTIAL_ID, type: 'oauth', accountId: RAW_ACCOUNT_ID },
+    ])
+    queueTableRows(account, [row])
+  }
+
+  const readers = [
+    {
+      name: 'credential bundle',
+      throwsOnFailure: false,
+      read: async (row: OAuthAccount) => {
+        queueCredentialAccount(row)
+        const bundle = await resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+        return bundle?.accessToken ?? null
+      },
+    },
+    {
+      name: 'provider token',
+      throwsOnFailure: false,
+      read: async (row: OAuthAccount) => {
+        queueTableRows(account, [row])
+        return getOAuthToken(RAW_USER_ID, row.providerId)
+      },
+    },
+    {
+      name: 'refresh result',
+      throwsOnFailure: true,
+      read: async (row: OAuthAccount) =>
+        (await refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).accessToken,
+    },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    vi.mocked(isInstagramProvider).mockReturnValue(false)
+    vi.mocked(shouldProactivelyRefreshInstagramToken).mockReturnValue(false)
+    vi.mocked(isMicrosoftProvider).mockReturnValue(false)
+    mocks.getRecentTerminalError.mockResolvedValue(null)
+    mocks.coalesceLocally.mockImplementation(
+      async (_key: string, producer: () => Promise<unknown>) => producer()
+    )
+    mocks.withLeaderLock.mockImplementation(async (options: { onLeader: () => Promise<unknown> }) =>
+      options.onLeader()
+    )
+    mocks.refreshOAuthToken.mockResolvedValue({
+      ok: true,
+      accessToken: 'refreshed-access-token',
+      refreshToken: 'rotated-refresh-token',
+      expiresIn: 3600,
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.mocked(isInstagramProvider).mockReturnValue(false)
+    vi.mocked(shouldProactivelyRefreshInstagramToken).mockReturnValue(false)
+    vi.mocked(isMicrosoftProvider).mockReturnValue(false)
+  })
+
+  describe.each(readers)('$name', ({ read, throwsOnFailure }) => {
+    it.each(['google-drive', 'jira', 'microsoft-teams'])(
+      'refreshes %s with six seconds remaining before the first request',
+      async (providerId) => {
+        const row = { ...createOAuthAccount(), providerId }
+        await expect(read(row)).resolves.toBe('refreshed-access-token')
+        expect(mocks.refreshOAuthToken).toHaveBeenCalledExactlyOnceWith(
+          providerId,
+          'original-refresh-token'
+        )
+        expect(dbChainMockFns.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            accessToken: 'refreshed-access-token',
+            refreshToken: 'rotated-refresh-token',
+            accessTokenExpiresAt: new Date(now.getTime() + 3_600_000),
+          })
+        )
+      }
+    )
+
+    it.each([
+      { remainingMs: -1, refresh: true },
+      { remainingMs: 0, refresh: true },
+      { remainingMs: 300_000, refresh: true },
+      { remainingMs: 300_001, refresh: false },
+      { remainingMs: 3_600_000, refresh: false },
+      { remainingMs: null, refresh: false },
+    ])('handles $remainingMs milliseconds remaining', async ({ remainingMs, refresh }) => {
+      await expect(read(createOAuthAccount(remainingMs))).resolves.toBe(
+        refresh ? 'refreshed-access-token' : 'original-access-token'
+      )
+      expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(refresh ? 1 : 0)
+    })
+
+    it('still refreshes a missing access token without a known expiry', async () => {
+      await expect(read({ ...createOAuthAccount(null), accessToken: '' })).resolves.toBe(
+        'refreshed-access-token'
+      )
+    })
+
+    it('preserves still-valid tokens without refresh capability', async () => {
+      await expect(read({ ...createOAuthAccount(), refreshToken: null })).resolves.toBe(
+        'original-access-token'
+      )
+      expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
+    })
+
+    it.each([6_000, -1])(
+      'does not fall back to a token with %i milliseconds remaining when refresh fails',
+      async (remainingMs) => {
+        mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'invalid_grant' })
+        const result = read(createOAuthAccount(remainingMs))
+        if (throwsOnFailure) await expect(result).rejects.toThrow('Failed to refresh token')
+        else await expect(result).resolves.toBeNull()
+        expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(1)
+        expect(dbChainMockFns.set).not.toHaveBeenCalled()
+      }
+    )
+
+    it('preserves Instagram proactive refresh and its healthy-token fallback', async () => {
+      vi.mocked(isInstagramProvider).mockReturnValue(true)
+      vi.mocked(shouldProactivelyRefreshInstagramToken).mockReturnValue(true)
+      mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'temporarily_unavailable' })
+      await expect(
+        read({ ...createOAuthAccount(3_600_000), providerId: 'instagram' })
+      ).resolves.toBe('original-access-token')
+      expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not bypass Instagram minimum token age with the generic refresh window', async () => {
+      vi.mocked(isInstagramProvider).mockReturnValue(true)
+      vi.mocked(shouldProactivelyRefreshInstagramToken).mockReturnValue(false)
+      await expect(
+        read({ ...createOAuthAccount(), providerId: 'instagram', updatedAt: now })
+      ).resolves.toBe('original-access-token')
+      expect(shouldProactivelyRefreshInstagramToken).toHaveBeenCalledWith(
+        expect.objectContaining({ updatedAt: now })
+      )
+      expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
+    })
+  })
+
+  it('waits for the refresh leader instead of accepting its near-expired stored token', async () => {
+    queueCredentialAccount(createOAuthAccount())
+    queueTableRows(account, [createOAuthAccount()])
+    queueTableRows(account, [{ ...createOAuthAccount(3_600_000), accessToken: 'leader-token' }])
+    mocks.withLeaderLock.mockImplementation(
+      async (options: { onFollower: () => Promise<string | null> }) => {
+        expect(await options.onFollower()).toBeNull()
+        return options.onFollower()
+      }
+    )
+    await expect(
+      resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    ).resolves.toEqual({ accessToken: 'leader-token' })
+    expect(mocks.refreshOAuthToken).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { remainingMs: 6_000, refresh: true },
+    { remainingMs: 300_000, refresh: true },
+    { remainingMs: 300_001, refresh: false },
+  ])(
+    'applies headroom to the shared Slack token with $remainingMs left',
+    async ({ remainingMs, refresh }) => {
+      const row = { ...createOAuthAccount(-1), providerId: 'slack', accountId: 'TEXAMPLE-usr_U1' }
+      const chainVersion = new Date(0)
+      mocks.getFreshestSlackChain.mockResolvedValue({
+        accessToken: 'installation-access-token',
+        refreshToken: 'installation-refresh-token',
+        accessTokenExpiresAt: new Date(now.getTime() + remainingMs),
+        chainVersion,
+      })
+      queueCredentialAccount(row)
+      await expect(
+        resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+      ).resolves.toEqual({
+        accessToken: refresh ? 'refreshed-access-token' : 'installation-access-token',
+      })
+      expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(refresh ? 1 : 0)
+      if (refresh)
+        expect(mocks.refreshOAuthToken).toHaveBeenCalledWith('slack', 'installation-refresh-token')
+      expect(fanOutSlackTokenChain).toHaveBeenCalledWith(
+        'TEXAMPLE',
+        expect.objectContaining({
+          accessToken: refresh ? 'refreshed-access-token' : 'installation-access-token',
+        }),
+        { ifChainUnchangedSince: chainVersion }
+      )
+    }
+  )
+
+  it('preserves Microsoft refresh-token aging without rejecting a healthy access token', async () => {
+    vi.mocked(isMicrosoftProvider).mockReturnValue(true)
+    mocks.refreshOAuthToken.mockResolvedValue({ ok: false, errorCode: 'temporarily_unavailable' })
+    const row = {
+      ...createOAuthAccount(3_600_000),
+      providerId: 'microsoft-teams',
+      refreshTokenExpiresAt: new Date(now.getTime() + 24 * 60 * 60_000),
+    }
+    queueCredentialAccount(row)
+    await expect(
+      resolveCredentialTokenBundle(RAW_CREDENTIAL_ID, RAW_USER_ID, 'test')
+    ).resolves.toEqual({ accessToken: 'original-access-token' })
+    await expect(refreshTokenIfNeeded('test', row, RAW_ACCOUNT_ID)).resolves.toEqual({
+      accessToken: 'original-access-token',
+      refreshed: false,
+    })
+    expect(mocks.refreshOAuthToken).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('Google service-account token minting', () => {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
   const fetchMock = vi.fn<typeof fetch>()
@@ -414,6 +652,7 @@ describe('Google service-account token minting', () => {
       redirect: 'error',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: expect.any(URLSearchParams),
+      signal: expect.any(AbortSignal),
     })
     const body = fetchMock.mock.calls[0][1]?.body
     expect(body).toBeInstanceOf(URLSearchParams)
@@ -455,6 +694,23 @@ describe('Google service-account token minting', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('preserves cancellation through the service-account resolver registry', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('Caller cancelled', 'AbortError')
+    controller.abort(reason)
+    await expect(
+      resolveServiceAccountToken(
+        'credential-1',
+        GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+        [driveScope],
+        'member@example.com',
+        { signal: controller.signal }
+      )
+    ).rejects.toBe(reason)
+    expect(mocks.decryptSecret).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('retains the Google error code for actionable setup failures', async () => {
     queueTableRows(credential, [row])
     fetchMock.mockResolvedValueOnce(
@@ -474,6 +730,13 @@ describe('Google service-account token minting', () => {
       errorCode: 'unauthorized_client',
       errorDescription: RAW_PROVIDER_ERROR,
     })
+    expect(mocks.logger.error).toHaveBeenCalledWith('Service account token exchange failed', {
+      status: 401,
+      subject: 'admin@example.com',
+      scopes: [driveScope],
+      errorCode: 'unauthorized_client',
+    })
+    expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain(RAW_PROVIDER_ERROR)
   })
 
   it('keeps token errors private for selectors', async () => {
@@ -503,11 +766,11 @@ describe('Google service-account token minting', () => {
     '{"error_description":""}',
   ])('handles malformed provider errors without losing the HTTP status: %s', async (body) => {
     queueTableRows(credential, [row])
-    fetchMock.mockResolvedValueOnce(new Response(body, { status: 503 }))
+    fetchMock.mockResolvedValueOnce(new Response(body, { status: 400 }))
     await expect(getServiceAccountToken('credential-1', [driveScope])).rejects.toMatchObject({
-      statusCode: 503,
+      statusCode: 400,
       errorCode: undefined,
-      errorDescription: 'Token exchange failed: 503',
+      errorDescription: 'Token exchange failed: 400',
     })
   })
 
@@ -524,5 +787,48 @@ describe('Google service-account token minting', () => {
       errorCode: 'invalid_grant',
       errorDescription: 'Invalid account credentials.',
     })
+  })
+
+  it('returns the existing typed error after bounded transient retries and keeps selectors private', async () => {
+    queueTableRows(credential, [row])
+    fetchMock.mockImplementation(async () =>
+      Response.json(
+        {
+          error: 'temporarily_unavailable',
+          error_description: RAW_PROVIDER_ERROR,
+        },
+        { status: 503 }
+      )
+    )
+    const request = getServiceAccountToken('credential-1', [driveScope], 'private@example.com', {
+      privacyMode: 'selector',
+    })
+    const checked = expect(request).rejects.toMatchObject({
+      name: 'ServiceAccountTokenError',
+      statusCode: 503,
+      errorCode: undefined,
+      errorDescription: 'Token exchange failed: 503',
+    })
+    await vi.runAllTimersAsync()
+    await checked
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    const logs = JSON.stringify([
+      ...mocks.logger.info.mock.calls,
+      ...mocks.logger.warn.mock.calls,
+      ...mocks.logger.error.mock.calls,
+    ])
+    expect(logs).not.toContain(RAW_PROVIDER_ERROR)
+    expect(logs).not.toContain('private@example.com')
+    expect(logs).not.toContain('crawler@qa-project.iam.gserviceaccount.com')
+  })
+
+  it('retains the HTTP status when an error payload exceeds the response limit', async () => {
+    queueTableRows(credential, [row])
+    fetchMock.mockResolvedValueOnce(new Response('x'.repeat(100_000), { status: 400 }))
+    await expect(getServiceAccountToken('credential-1', [driveScope])).rejects.toMatchObject({
+      statusCode: 400,
+      errorDescription: 'Token exchange failed: 400',
+    })
+    expect(JSON.stringify(mocks.logger.error.mock.calls)).not.toContain('xxxx')
   })
 })

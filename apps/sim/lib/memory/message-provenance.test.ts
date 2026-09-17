@@ -9,18 +9,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   decrypt: vi.fn(),
-  isEnforced: vi.fn(),
-  report: vi.fn(),
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
   loadWorkspace: vi.fn(),
 }))
 
 vi.mock('@sim/logger', () => ({ createLogger: () => mocks.logger }))
 vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
-  isDurableSecretProvenanceEnforced: mocks.isEnforced,
-  reportUnrecordedDurableProvenance: mocks.report,
-}))
 vi.mock('@/lib/logs/execution/pii-redaction', () => ({
   redactObjectStrings: vi.fn(async (value: unknown) => value),
 }))
@@ -125,11 +119,10 @@ function principal(): WorkflowExecutionDelegatedPrincipal {
   }
 }
 
-describe.each([false, true])('memory message provenance with enforcement %s', (enforced) => {
+describe('memory message provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mocks.isEnforced.mockReturnValue(enforced)
     mocks.decrypt.mockResolvedValue({ decrypted: SECRET })
     mocks.loadWorkspace.mockResolvedValue({
       workspaceId: SCOPE.workspaceId,
@@ -283,7 +276,6 @@ describe.each([false, true])('memory message provenance with enforcement %s', (e
       const context = executionContext()
       expect((await new Memory().fetchMemoryMessages(context, INPUTS))[0].content).toBe('{{TOKEN}}')
       expect(context.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
-      expect(mocks.report).not.toHaveBeenCalled()
       expect(mocks.logger.error).toHaveBeenCalledExactlyOnceWith(
         'Validated historical memory secret provenance',
         {
@@ -400,8 +392,7 @@ describe.each([false, true])('memory message provenance with enforcement %s', (e
       await importDurableSecretProvenance(
         readerRegistry,
         selector.select(messages, false),
-        messages,
-        'memory'
+        messages
       )
     ).toBe(true)
     expect(readerRegistry.exportProvenance().entries).toHaveLength(1)
@@ -454,7 +445,6 @@ describe.each([false, true])('memory message provenance with enforcement %s', (e
     expect(result[0].content).toBe('{{TOKEN}}')
     expect(execution.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
     expect(mocks.decrypt).toHaveBeenCalledWith('corrupt-ciphertext', { logFailure: false })
-    expect(mocks.report).not.toHaveBeenCalled()
     expect(mocks.logger.error).toHaveBeenCalledWith(
       'Historical memory secret provenance could not be recovered',
       {

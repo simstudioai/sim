@@ -12,6 +12,7 @@ import {
 import {
   ConnectorSourceError,
   type ConnectorSourceFailureCategory,
+  type ConnectorSourceReasonState,
 } from '@/connectors/source-error'
 
 const GOOGLE_ERROR_REASON_MAX_COUNT = 16
@@ -110,7 +111,8 @@ export class GoogleDriveApiError extends ConnectorSourceError {
     status: number,
     normalizedReasons: readonly string[],
     operation = 'drive.request',
-    reasonsComplete = true
+    reasonsComplete = true,
+    reasonState?: ConnectorSourceReasonState
   ) {
     const diagnosticReasons = safeGoogleErrorReasons(normalizedReasons).slice(
       0,
@@ -122,7 +124,7 @@ export class GoogleDriveApiError extends ConnectorSourceError {
       `Google Drive API request failed with HTTP ${status}${reasonSuffix}`,
       status,
       diagnosticCategory(kind, status),
-      { operation, reasons: diagnosticReasons }
+      { operation, reasons: diagnosticReasons, ...(reasonState ? { reasonState } : {}) }
     )
     this.name = 'GoogleDriveApiError'
     this.reasons = diagnosticReasons
@@ -144,7 +146,13 @@ export async function readGoogleDriveApiError(
   operation = 'drive.request'
 ): Promise<GoogleDriveApiError> {
   const details = await readGoogleErrorDetails(response)
-  return new GoogleDriveApiError(response.status, details.reasons, operation, details.complete)
+  return new GoogleDriveApiError(
+    response.status,
+    details.reasons,
+    operation,
+    details.complete,
+    details.reasonState
+  )
 }
 
 /**

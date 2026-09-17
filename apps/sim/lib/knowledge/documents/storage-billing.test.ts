@@ -236,6 +236,7 @@ describe('knowledge document storage attribution', () => {
     expect(mockEnqueueKnowledgeDocumentProcessing).toHaveBeenCalledWith(dbChainMock.db, {
       knowledgeBaseId: 'knowledge-base-1',
       documentId: 'document-1',
+      processingLane: 'interactive',
       processingOptions: { lang: 'en' },
       billingAttribution,
     })

@@ -2261,8 +2261,20 @@ export const workspaceFiles = pgTable(
      * with a `now()` default: Postgres applies this as a fast-default (no table rewrite), existing rows
      * get a stable timestamp that — like every metadata write — never advances it, and every insert path
      * is covered without per-call plumbing. Only a content write (upload / overwrite) advances it.
+     *
+     * MILLISECOND precision is an invariant, not an incidental detail. This value is a revision identity
+     * that round-trips through JavaScript `Date` and JSON — search-index dispatch payloads, If-Match
+     * tokens, realtime versions — all of which truncate to milliseconds, while `now()` stores
+     * microseconds. A sub-millisecond value therefore stops comparing equal to its own round-trip, and
+     * every SQL equality keyed on it matches zero rows: a file whose
+     * `workspace_file_search_index.source_content_updated_at` came from such a round trip can never be
+     * claimed, indexed, or cleaned up. The default truncates, and the
+     * `workspace_files_content_version_millisecond` trigger enforces it for the writers a default cannot
+     * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and any UPDATE.
      */
-    contentUpdatedAt: timestamp('content_updated_at').notNull().defaultNow(),
+    contentUpdatedAt: timestamp('content_updated_at')
+      .notNull()
+      .default(sql`date_trunc('milliseconds', now())`),
     /**
      * Durable cutover marker for content secret provenance. NULL is reserved for legacy rows and
      * writes from app versions that predate tracking. Provenance-aware writers set version 1 in the
@@ -5698,6 +5710,67 @@ export const knowledgeConnector = pgTable(
   })
 )
 
+/** Bounded provider partitions, committed atomically with their owning connector listing checkpoint. */
+export const knowledgeConnectorPartition = pgTable(
+  'knowledge_connector_partition',
+  {
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
+    partitionKey: text('partition_key').notNull(),
+    generationId: text('generation_id').notNull(),
+    context: jsonb('context').$type<Record<string, unknown>>().notNull(),
+    cursor: text('cursor'),
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    retryAt: timestamp('retry_at').notNull().defaultNow(),
+    lastServedAt: timestamp('last_served_at'),
+    failure: jsonb('failure').$type<Record<string, unknown>>(),
+    permissionCursor: text('permission_cursor'),
+    permissionAttempts: integer('permission_attempts').notNull().default(0),
+    permissionRetryAt: timestamp('permission_retry_at').notNull(),
+    permissionLastServedAt: timestamp('permission_last_served_at'),
+    permissionStartedAt: timestamp('permission_started_at'),
+    permissionFailure: jsonb('permission_failure').$type<Record<string, unknown>>(),
+  },
+  (table) => ({
+    pk: primaryKey({ name: 'kcp_pk', columns: [table.connectorId, table.partitionKey] }),
+    contentDueIdx: index('kcp_content_due_idx').on(
+      table.connectorId,
+      table.generationId,
+      table.status,
+      table.retryAt,
+      table.lastServedAt
+    ),
+    permissionDueIdx: index('kcp_permission_due_idx').on(
+      table.connectorId,
+      table.generationId,
+      table.permissionRetryAt,
+      table.permissionLastServedAt
+    ),
+    partitionKeyCheck: check(
+      'kcp_partition_key_check',
+      sql`octet_length(${table.partitionKey}) BETWEEN 1 AND 1024`
+    ),
+    contextCheck: check(
+      'kcp_context_check',
+      sql`jsonb_typeof(${table.context}) = 'object' AND octet_length(${table.context}::text) <= 16384`
+    ),
+    statusCheck: check(
+      'kcp_status_check',
+      sql`${table.status} IN ('pending', 'complete', 'blocked')`
+    ),
+    cursorCheck: check(
+      'kcp_cursor_check',
+      sql`(${table.cursor} IS NULL OR octet_length(${table.cursor}) <= 393216) AND (${table.permissionCursor} IS NULL OR octet_length(${table.permissionCursor}) <= 393216)`
+    ),
+    attemptsCheck: check(
+      'kcp_attempts_check',
+      sql`${table.attempts} >= 0 AND ${table.permissionAttempts} >= 0`
+    ),
+  })
+)
+
 /** Private provider configuration; metadata reads never materialize the larger normalized payload. */
 export const knowledgeConnectorPermissionSnapshot = pgTable(
   'knowledge_connector_permission_snapshot',
@@ -5976,8 +6049,8 @@ export const knowledgeExternalGroup = pgTable(
 /**
  * External group membership keyed by canonical identity tokens: verified
  * addresses (`u:`) or provider account identities (`s:`). Provider identities
- * preserve permissions when a directory hides email addresses. Nested groups
- * are flattened by directory sync, without requiring members to have Sim accounts.
+ * preserve permissions when a directory hides email addresses. Confluence space
+ * audiences may also reference native groups, whose members remain identities.
  */
 export const knowledgeExternalGroupMember = pgTable(
   'knowledge_external_group_member',

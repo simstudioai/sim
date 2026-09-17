@@ -250,6 +250,28 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     }
     const check = (grants?: ConfluenceSiteReadGrant[], userId = 'cf-reader', join = false) =>
       readable([token], 'cf-document', join, undefined, userId, grants)
+    const audience = 'g:confluence:cloud-1:space-readers:123'
+    const engineering = 'g:confluence:cloud-1:engineering'
+    await connection.unsafe(`
+      INSERT INTO knowledge_external_group(id,organization_id,provider_id,tenant_id,external_group_id,last_synced_at)
+        VALUES ('cf-native','cf-org','confluence','cloud-1','engineering',now()),
+          ('cf-space','cf-org','confluence','cloud-1','space-readers:123',now());
+      INSERT INTO knowledge_external_group_member(group_id,subject_token)
+        VALUES ('cf-native','${token}'), ('cf-space','${engineering}');
+      UPDATE document SET acl=ARRAY['${audience}'], acl_requirements='[["${engineering}"],["${token}"]]' WHERE id='cf-document';
+    `)
+    const nestedCheck = () =>
+      readable([token, audience, engineering], 'cf-document', true, undefined, 'cf-reader', [grant])
+    expect(await nestedCheck()).toBe(true)
+    await connection`UPDATE knowledge_external_group SET last_synced_at = now() - interval '2 days' WHERE id = 'cf-native'`
+    expect(await nestedCheck()).toBe(false)
+    await connection`UPDATE knowledge_external_group SET last_synced_at = now() WHERE id = 'cf-native'`
+    await connection`UPDATE knowledge_external_group_member SET subject_token = 's:confluence:-:cf-bob' WHERE group_id = 'cf-native'`
+    expect(await nestedCheck()).toBe(false)
+    await connection.unsafe(`
+      DELETE FROM knowledge_external_group WHERE id IN ('cf-native','cf-space');
+      UPDATE document SET acl=ARRAY['${token}'], acl_requirements='[["${token}"]]' WHERE id='cf-document';
+    `)
     for (const join of [false, true]) {
       expect(await check(undefined, 'cf-reader', join)).toBe(false)
       expect(await check([grant], 'cf-reader', join)).toBe(true)
@@ -440,6 +462,16 @@ describe.runIf(Boolean(databaseUrl))('knowledge ACLs in PostgreSQL', () => {
     ).toBe(true)
     await putDocument('locked', acl.acl, [[]])
     expect(await readable(groups, 'locked')).toBe(false)
+  })
+
+  it('reads safely with an audience larger than the SQL parameter limit', async () => {
+    const tokens = Array.from(
+      { length: 70_000 },
+      (_, index) => `g:confluence:tenant:space-${index}`
+    )
+    await putDocument('large-directory', [tokens[69_999]], [[tokens[50_000]]])
+    expect(await readable(tokens, 'large-directory')).toBe(true)
+    expect(await readable(tokens.slice(0, 69_999), 'large-directory')).toBe(false)
   })
 
   it('expires mirrored user, group and public grants, including legacy and orphaned source rows', async () => {

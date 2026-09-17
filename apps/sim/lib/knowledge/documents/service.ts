@@ -103,6 +103,7 @@ import {
   recordUndispatchedDocumentFailure,
 } from '@/lib/knowledge/documents/processing-claim'
 import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
@@ -110,6 +111,7 @@ import {
   createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
   type DocumentProcessingBillingContext,
+  type DocumentProcessingLane,
   type DocumentProcessingPayload,
   hasDocumentProcessingBillingScope,
 } from '@/lib/knowledge/documents/processing-payload'
@@ -720,12 +722,14 @@ function buildJobPayload(
   processingQueueToken: string,
   processingQueuedAt: Date,
   chargedAtDispatch: boolean,
-  billingContext: DocumentProcessingBillingContext
+  billingContext: DocumentProcessingBillingContext,
+  lane: DocumentProcessingLane
 ): DocumentProcessingPayload {
   return createDocumentProcessingPayload(
     {
       knowledgeBaseId,
       documentId: doc.documentId,
+      processingLane: lane,
       docData: {
         filename: doc.filename,
         fileUrl: doc.fileUrl,
@@ -1070,6 +1074,11 @@ async function bestEffortWithdrawDocumentsQueued(
  * pass. A successful Trigger.dev hand-off is only an accepted child run, not a
  * claim about its eventual processing outcome. A connector sync passes its
  * lease, and the queue write then lands only while the run still holds it.
+ *
+ * `lane` decides which per-tenant queue the work is admitted through, and is
+ * required rather than inferred so a new caller has to state whether someone is
+ * waiting on the result. It is stamped onto every payload so continuations of
+ * this pass resume in the same lane.
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
@@ -1077,6 +1086,7 @@ export async function processDocumentsWithQueue(
   processingOptions: ProcessingOptions,
   requestId: string,
   billingAttribution: BillingAttributionSnapshot | undefined,
+  lane: DocumentProcessingLane,
   lease?: ProcessingDispatchLease,
   executionContext?: DocumentProcessingExecutionContext
 ): Promise<DocumentProcessingDispatchResult> {
@@ -1150,7 +1160,8 @@ export async function processDocumentsWithQueue(
       requestId,
       generation.processingQueuedAt,
       generation.chargedAtDispatch,
-      billingContext
+      billingContext,
+      lane
     )
   })
 
@@ -1239,6 +1250,7 @@ async function dispatchViaBatchTrigger(
               `knowledgeBaseId:${payload.knowledgeBaseId}`,
               `documentId:${payload.documentId}`,
             ],
+            ...documentProcessingQueueOptions(payload),
             region,
           },
         }))
@@ -1260,12 +1272,27 @@ async function dispatchViaBatchTrigger(
    * Only a total dispatch failure raises, so a chunk failing alone would leave its
    * documents at `pending` with nothing recording why. Processing them here is
    * slower than the queue but does not drop the work.
+   *
+   * Backfill is excluded deliberately. Such a chunk is rejected precisely when
+   * the tenant is already saturated, and the worker absorbing it is the one
+   * holding the connector lease: the in-flight count stays bounded, but the
+   * total work does not, so a rejected chunk can outlast the lease it is
+   * running under. Leaving those documents undispatched reports them failed,
+   * which is what the next sync's stuck-document sweep reclaims. Interactive
+   * work has no such sweep behind it, so it still falls back.
    */
-  if (undispatched.length > 0) {
+  const fallback = undispatched.filter((payload) => payload.processingLane !== 'backfill')
+  const swept = undispatched.length - fallback.length
+  if (swept > 0) {
     logger.warn(
-      `[${requestId}] Processing ${undispatched.length} documents in-process after failed enqueue`
+      `[${requestId}] Leaving ${swept} backfill documents for the stuck-document sweep after failed enqueue`
     )
-    const directlyDispatchedIds = await dispatchInProcess(undispatched, requestId, executionContext)
+  }
+  if (fallback.length > 0) {
+    logger.warn(
+      `[${requestId}] Processing ${fallback.length} documents in-process after failed enqueue`
+    )
+    const directlyDispatchedIds = await dispatchInProcess(fallback, requestId, executionContext)
     for (const documentId of directlyDispatchedIds) dispatchedIds.add(documentId)
   }
 
@@ -3102,6 +3129,12 @@ export async function createSingleDocument(
         documentId,
         processingOptions: options.processing.processingOptions,
         billingAttribution: options.processing.billingAttribution,
+        /**
+         * Every caller of this function is a person adding a document — an
+         * upload session, a workspace-file attach, a direct create. Connector
+         * ingestion builds its documents through the sync engine instead.
+         */
+        processingLane: 'interactive',
       })
     }
 
@@ -3544,7 +3577,9 @@ export async function retryDocumentProcessing(
       knowledgeBaseId,
       {},
       requestId,
-      billingAttribution
+      billingAttribution,
+      /** One document, retried by hand: a person is waiting on this one. */
+      'interactive'
     )
     if (dispatch.failed > 0 || dispatch.accepted !== 1) {
       throw new Error(`Document processing dispatch was not accepted for ${documentId}`)

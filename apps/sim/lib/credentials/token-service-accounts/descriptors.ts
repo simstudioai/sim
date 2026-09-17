@@ -424,7 +424,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/coda',
     helpText:
-      'Create a token under Account settings → API settings. A token restricted to specific docs or tables can only read and write those.',
+      'Create a token under Account settings → API connections. A token restricted to specific docs or tables can only read and write those.',
   },
   [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,

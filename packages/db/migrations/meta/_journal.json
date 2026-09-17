@@ -2486,6 +2486,27 @@
       "when": 1789609714073,
       "tag": "0355_workflow_activity_covering_index",
       "breakpoints": true
+    },
+    {
+      "idx": 356,
+      "version": "7",
+      "when": 1789672641125,
+      "tag": "0356_connector_partition_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 357,
+      "version": "7",
+      "when": 1789677432855,
+      "tag": "0357_outbox_autovacuum",
+      "breakpoints": true
+    },
+    {
+      "idx": 358,
+      "version": "7",
+      "when": 1789678807393,
+      "tag": "0358_workspace_file_content_version_precision",
+      "breakpoints": true
     }
   ]
 }

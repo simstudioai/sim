@@ -1,5 +1,6 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { isAllSourceItems } from '@/connectors/selection'
 import type { ConnectorMeta } from '@/connectors/types'
 import { parseMultiValue } from '@/connectors/utils'
 
@@ -175,6 +176,7 @@ export function describeSearchSource(
       .flatMap((id) => {
         if (!SOURCE_ADDRESS_FIELDS.has(id) || caps.has(id)) return []
         const value = sourceConfig[id]
+        if ((id === 'spaceKey' || id === 'projectKey') && isAllSourceItems(value)) return ['All']
         if (labels[id]) return labels[id].map((option) => option.label)
         const values = parseMultiValue(value)
         const hasOpaqueId = values.some((item) =>

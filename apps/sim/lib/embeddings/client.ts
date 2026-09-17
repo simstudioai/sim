@@ -70,11 +70,20 @@ const logger = createLogger('EmbeddingClient')
  * Embedding requests issued concurrently within a single embed call.
  *
  * A provider's rate limit is per API key, so this multiplies with however many
- * documents are being processed at once: the document-processing queue admits
- * {@link env.KB_CONFIG_CONCURRENCY_LIMIT} task runs, each reaching here. It was
- * previously read from that same variable, so one knob set both factors and the
- * product reached four figures of in-flight requests against one key — enough to
- * hold a provider at its limit indefinitely, which no retry policy can absorb.
+ * documents are being processed at once. That document count is no longer a
+ * single number: the processing queues admit
+ * {@link env.KB_CONFIG_CONCURRENCY_LIMIT} interactive and
+ * {@link env.KB_CONFIG_BACKFILL_CONCURRENCY_LIMIT} backfill runs *per tenant*,
+ * bounded in aggregate by the Trigger.dev environment concurrency limit, and
+ * each run reaches here. The product is held down instead by the durable
+ * per-credential token bucket in `waitForProviderAdmission`, which every one of
+ * those runs shares. This factor was previously read from the same variable as
+ * the queue depth, so one knob set both and the product reached four figures of
+ * in-flight requests against one key — enough to hold a provider at its limit
+ * indefinitely, which no retry policy can absorb.
+ *
+ * The `bulk` parameter below is a different axis: it marks document indexing as
+ * opposed to query-time embedding, and is true for an interactive upload too.
  */
 const DEFAULT_CONCURRENT_BATCHES = 8
 const MAX_ALLOWED_CONCURRENT_BATCHES = 16

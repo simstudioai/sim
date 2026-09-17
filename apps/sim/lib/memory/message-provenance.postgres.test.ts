@@ -10,9 +10,8 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { database, mockIsEnforced } = vi.hoisted(() => ({
+const { database } = vi.hoisted(() => ({
   database: { current: undefined as PostgresJsDatabase | undefined },
-  mockIsEnforced: vi.fn(),
 }))
 
 vi.unmock('drizzle-orm')
@@ -31,10 +30,6 @@ vi.mock('@sim/db', () => ({
 }))
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: async (value: string) => ({ decrypted: value.replace('cipher-', 'secret-') }),
-}))
-vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
-  isDurableSecretProvenanceEnforced: mockIsEnforced,
-  reportUnrecordedDurableProvenance: vi.fn(),
 }))
 vi.mock('@/lib/logs/execution/pii-redaction', () => ({
   redactObjectStrings: async (value: unknown) => value,
@@ -189,11 +184,10 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
     }
   })
 
-  describe.each([false, true])('enforcement %s', (enforced) => {
+  describe('enforced memory provenance', () => {
     it('keeps a large one-secret conversation exact across tool and native writes and model reads', async () => {
       if (!connection) throw new Error('PostgreSQL test database is not initialized')
-      mockIsEnforced.mockReturnValue(enforced)
-      const key = `large-conversation-${enforced}`
+      const key = `large-conversation-strict`
       const messages = Array.from({ length: 17_000 }, (_, index) => ({
         role: 'user',
         content: `secret-SHARED message-${index}`,
@@ -246,9 +240,8 @@ describe.skipIf(!databaseUrl)('memory provenance in PostgreSQL', () => {
       'preserves both first appends and secret bindings for %s',
       async (mode) => {
         if (!connection) throw new Error('PostgreSQL test database is not initialized')
-        mockIsEnforced.mockReturnValue(enforced)
         for (let index = 0; index < 8; index++) {
-          const key = `${enforced}-${mode}-${index}`
+          const key = `strict-${mode}-${index}`
           await Promise.all([
             mode === 'native-native' ? nativeAppend(key, 'A') : toolAppend(key, 'A'),
             mode === 'tool-tool' ? toolAppend(key, 'B') : nativeAppend(key, 'B'),

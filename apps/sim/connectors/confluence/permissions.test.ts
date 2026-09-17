@@ -2,12 +2,13 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
 import {
   getReadRestriction,
   listAncestorIds,
+  listConfluenceSpaceMembership,
   listGroupMemberTokens,
   listSpaceReadPrincipals,
+  openConfluenceDirectory,
 } from '@/connectors/confluence/permissions'
 
 const mockFetch = vi.fn()
@@ -26,6 +27,63 @@ beforeEach(() => {
 })
 
 describe('listSpaceReadPrincipals', () => {
+  it('retains more than 5,000 readers in a space audience without expanding document ACLs', async () => {
+    let page = 0
+    mockFetch.mockImplementation(async () => {
+      const offset = page++ * 250
+      return jsonResponse({
+        results: Array.from({ length: 250 }, (_, index) => ({
+          principal: { type: 'user', id: `reader-${offset + index}` },
+          operation: { key: 'read', targetType: 'space' },
+        })),
+        ...(page < 24 ? { _links: { next: `?cursor=${page}` } } : {}),
+      })
+    })
+    const membership = await listConfluenceSpaceMembership('confluence', CLOUD, 'token', '123')
+    expect(membership.complete).toBe(true)
+    expect(membership.memberTokens).toHaveLength(6000)
+    expect(membership.memberTokens[5999]).toBe('s:confluence:-:reader-5999')
+    expect(mockFetch).toHaveBeenCalledTimes(24)
+  })
+
+  it('stores native reader groups without flattening their membership', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        results: [
+          {
+            principal: { type: 'group', id: 'engineering' },
+            operation: { key: 'read', targetType: 'space' },
+          },
+        ],
+      })
+    )
+    await expect(
+      listConfluenceSpaceMembership('confluence', CLOUD, 'token', '123')
+    ).resolves.toEqual({
+      group: { id: 'space-readers:123' },
+      memberTokens: ['g:confluence:cloud-1:engineering'],
+      complete: true,
+    })
+  })
+
+  it('lists only site-native groups without enumerating unrelated visible spaces', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ results: [{ id: 'engineering' }] }))
+    const directory = openConfluenceDirectory('confluence', CLOUD, 'token')
+    await expect(directory.listGroups()).resolves.toEqual([{ id: 'engineering' }])
+    expect(mockFetch).toHaveBeenCalledOnce()
+    expect(mockFetch.mock.calls[0][0]).toContain('/rest/api/group?')
+  })
+
+  it.each(['space-readers:123', ' SPACE-READERS:123 '])(
+    'rejects native groups in the reserved namespace: %s',
+    async (id) => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ results: [{ id }] }))
+      await expect(
+        openConfluenceDirectory('confluence', CLOUD, 'token').listGroups()
+      ).rejects.toThrow('invalid group ID')
+    }
+  )
+
   it('keeps only the permission that grants reading the space', () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
@@ -419,9 +477,9 @@ describe('listSpaceReadPrincipals', () => {
       })
     )
     await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space')).rejects.toThrow(
-      'document permission limit'
+      'directory capacity'
     )
-    expect(mockFetch).toHaveBeenCalledTimes(Math.floor(MAX_ACL_TOKENS / 250) + 1)
+    expect(mockFetch).toHaveBeenCalledTimes(401)
   })
 
   it('rejects an oversized permission response before accepting its readers', async () => {

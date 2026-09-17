@@ -78,7 +78,7 @@ Each connector has source-specific fields that control what gets synced. Example
 
 - **Notion** — sync an entire workspace, a specific database, or a single page tree
 - **GitHub** — specify a repository, branch, and optional file extension filter
-- **Confluence** — enter your Atlassian domain and optionally filter by space key or content type
+- **Confluence** — enter your Atlassian domain and choose spaces, or **All** for all spaces accessible at each sync. Optionally filter by content type or label. PDF and Word (`.docx`, Word 97–2003 `.doc`) attachments on matching pages and blog posts are included as separate documents.
 - **Azure DevOps** — choose what to sync (wiki pages, work items, repository files, or all), with optional work item type/state filters, a custom WIQL query, and repository/branch/path filters
 - **Amazon S3** — point at a bucket with an optional key prefix and a customizable file extension allowlist; S3-compatible stores (Cloudflare R2, MinIO) are supported via a custom endpoint
 - **YouTube** — sync a channel (by `@handle` or ID) or playlist, with an optional published-after date filter and the option to exclude Shorts
@@ -87,6 +87,8 @@ Each connector has source-specific fields that control what gets synced. Example
 - **Fireflies** — optionally filter by host email or cap the number of transcripts synced
 
 Configuration is validated on save — if a repository doesn't exist or a domain is unreachable, you'll see an error immediately.
+
+Confluence attachment indexing requires `read:attachment:confluence`. For a service account, include it when creating the scoped API token; see the [Confluence scope list](/search/confluence#using-a-service-account). Attachments are checked even when the parent page has not changed. Files over 100 MB appear as skipped; convert Word 6/95 files to `.docx` before attaching them.
 
 </Step>
 <Step>

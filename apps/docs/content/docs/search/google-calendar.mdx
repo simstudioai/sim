@@ -62,7 +62,7 @@ Admins can request member connections from **Settings → Sources → People →
 
 Open **Settings → Sources → Add source** and select **Google Calendar**. This opens **Connect Google Calendar service account**. To add another connection later, open **Google Calendar** from the Sources list and select **Connect service account**.
 
-This requires a Google Workspace customer and a super administrator to authorize domain-wide delegation. Consumer Gmail accounts cannot use this path.
+This requires a Google Workspace customer and a super administrator to authorize domain-wide delegation. Consumer Gmail accounts cannot use this path. In the Google Admin Console, confirm **Apps → Google Workspace → Calendar → Service status** is on for the users you want to index. An active Workspace account does not necessarily have Calendar enabled.
 
 <Steps>
 <Step>
@@ -131,7 +131,9 @@ Sim indexes event titles, descriptions, times, locations, and the selected atten
 
 Cancelled events, attachment contents, meeting recordings, and transcripts are not indexed. Status entries such as working location, out of office, focus time, and birthdays, and automatically generated reservation events from Gmail are not indexed. Events Google returns only as free/busy blocks, without searchable details, are not indexed. Events outside the selected date window are excluded. Private event details that Google withholds are not available in Search; see [Google's calendar sharing rules](https://developers.google.com/workspace/calendar/api/concepts/sharing).
 
-Search schedules syncs hourly. Event edits, cancellations, access changes, inactive or removed users, and events moving outside the date window are reconciled during completed background syncs. Central crawls page through each selected user and resume unfinished work before removing documents no longer listed. If an individual user's event listing returns a `403` with an explicit `forbidden` reason and no other reasons, Sim records a warning and continues with the remaining users. The crawl stays incomplete and retries affected users on the next scheduled crawl; unread calendars are not treated as empty. A `403` without a reason stops the crawl because its cause is unknown. Credential, delegation, Directory, and other provider failures still stop the crawl. The first sync may take longer, and results appear as indexing progresses; Search is not a live Calendar read.
+Search schedules syncs hourly. The first sync may span several background runs; results appear as indexing progresses. Central crawls save each user's progress so a large calendar or an account-specific access failure does not hold up other users. Temporary failures retry automatically. Unresolved accounts are revisited without treating unread calendars as empty; credential, delegation, Directory, and scope failures still require attention.
+
+Event edits, cancellations, access changes, inactive or removed users, and events moving outside the date window are reconciled in the background. Sim refreshes existing permissions while a longer crawl continues. Results with stale or unverified permissions remain hidden. Search is not a live Calendar read.
 
 ## Troubleshooting
 

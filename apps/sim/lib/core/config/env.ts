@@ -189,7 +189,6 @@ export const env = createEnv({
     BILLING_CONCURRENCY_LIMIT_ENTERPRISE:   z.string().optional(),                  // In-flight executions per Enterprise billing account (metadata-overridable)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
     TRIGGER_EU_REGION:                     z.boolean().optional(),                 // Route Trigger.dev runs to eu-central-1 instead of the default us-east-1 (fallback for the trigger-eu-region flag when AppConfig is not the source of truth)
-    DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES: z.string().optional(),            // Durable surfaces where unrecorded secret provenance fails the run instead of logging a warning: "all", or a comma-separated subset of memory,table-row,knowledge,workspace-file (default: none enforced)
 
     // Table feature limits (per plan). Apply when billing is disabled (free tier defaults) or for billed plans.
     FREE_TABLES_LIMIT:                     z.number().optional(),                  // Max user tables per workspace on free tier (default: 5)
@@ -459,7 +458,8 @@ export const env = createEnv({
     KB_CONFIG_RETRY_FACTOR:                z.number().optional().default(2),       // Retry backoff factor
     KB_CONFIG_MIN_TIMEOUT:                 z.number().optional().default(1000),    // Min timeout in ms
     KB_CONFIG_MAX_TIMEOUT:                 z.number().optional().default(10000),   // Max timeout in ms
-    KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Concurrent document-processing task runs (Trigger.dev queue depth)
+    KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Per-tenant concurrent document-processing runs in the interactive lane
+    KB_CONFIG_BACKFILL_CONCURRENCY_LIMIT:  z.number().optional().default(20),      // Per-tenant concurrent document-processing runs in the connector-backfill lane
     KB_CONFIG_EMBEDDING_CONCURRENCY:       z.number().optional().default(8),       // Concurrent embedding API requests within one embed call
     /** Deployment operating budgets shared by every caller using the same provider credential. */
     KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: z.number().positive().optional().default(600),

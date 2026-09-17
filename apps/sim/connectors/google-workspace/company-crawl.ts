@@ -4,6 +4,10 @@ import { z } from 'zod'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
+  type GoogleCompanyCursorAdapter,
+  googleCompanyUserContextSchema,
+} from '@/connectors/google-workspace/company-work'
+import {
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE,
   type GoogleWorkspaceUser,
   getGoogleWorkspaceUser,
@@ -28,15 +32,7 @@ const MAX_PROVIDER_CURSOR_BYTES = 256 * 1024
 const MAX_PAGE_DOCUMENTS = 2500
 const cursorSchema = z.object({
   provider: z.enum(['gmail', 'google_calendar']),
-  users: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(256),
-        email: z.string().email().max(254),
-        customerId: z.string().min(1).max(256),
-      })
-    )
-    .max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
+  users: z.array(googleCompanyUserContextSchema).max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
   nextUsersPageToken: z.string().min(1).max(8192).optional(),
   providerCursor: z.string().min(1).max(MAX_PROVIDER_CURSOR_BYTES).optional(),
   listingFailures: listingFailuresSchema.optional(),
@@ -91,15 +87,40 @@ function writeCursor(state: CompanyCursor): string {
   return cursor
 }
 
+/** Reuses the verified per-user crawl without placing every user's continuation in one cursor. */
+export function googleWorkspaceCompanyCursorAdapter(
+  provider: GoogleWorkspaceProvider
+): GoogleCompanyCursorAdapter {
+  return {
+    seed: (user) => writeCursor({ provider, users: [user] }),
+    resume: (cursor) => {
+      const state = readCursor(cursor, provider)
+      return state.users.map((user, index) => ({
+        user,
+        cursor: writeCursor({
+          provider,
+          users: [user],
+          ...(index === 0 ? { providerCursor: state.providerCursor } : {}),
+        }),
+      }))
+    },
+  }
+}
+
 function signalFrom(context: Record<string, unknown>): AbortSignal | undefined {
   return context.signal instanceof AbortSignal ? context.signal : undefined
 }
 
-function tokenResolver(context: Record<string, unknown>): (subject: string) => Promise<string> {
+function tokenResolver(
+  context: Record<string, unknown>
+): (subject: string, signal?: AbortSignal) => Promise<string> {
   if (context.mirrorsSourceAcls !== true || typeof context.getDelegatedAccessToken !== 'function') {
     throw new Error('Company-wide indexing requires a delegated Google Workspace service account')
   }
-  return context.getDelegatedAccessToken as (subject: string) => Promise<string>
+  return context.getDelegatedAccessToken as (
+    subject: string,
+    signal?: AbortSignal
+  ) => Promise<string>
 }
 
 function userContext(
@@ -117,9 +138,11 @@ async function delegate(
   user: GoogleWorkspaceUser,
   context: Record<string, unknown>
 ): Promise<string> {
-  signalFrom(context)?.throwIfAborted()
-  const token = await tokenResolver(context)(user.email)
-  signalFrom(context)?.throwIfAborted()
+  const signal = signalFrom(context)
+  signal?.throwIfAborted()
+  const resolveToken = tokenResolver(context)
+  const token = await (signal ? resolveToken(user.email, signal) : resolveToken(user.email))
+  signal?.throwIfAborted()
   if (typeof token !== 'string' || !token)
     throw new Error('Google Workspace delegation returned no access token')
   return token

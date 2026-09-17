@@ -20,8 +20,9 @@ import {
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import type { DbTransaction } from '@/lib/db/types'
 import { resolveKnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
+import { CONFLUENCE_SPACE_GROUP_PREFIX } from '@/lib/knowledge/access/confluence-space-groups'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
-import { canonicalGroupId, isIdentityToken } from '@/lib/knowledge/access/tokens'
+import { canonicalGroupId, isDirectoryMemberToken } from '@/lib/knowledge/access/tokens'
 import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {
   resolveConnectorAccessToken,
@@ -37,6 +38,7 @@ import {
   ConnectorDirectoryGroupAccessError,
 } from '@/connectors/source-error'
 import type {
+  ConnectorAclGroupMembership,
   ConnectorConfig,
   ConnectorDirectory,
   ConnectorDirectoryGroup,
@@ -228,6 +230,7 @@ export async function syncExternalDirectoryGroups(input: {
       const groupId = await withDirectoryLease(lease, (tx) =>
         upsertGroup({ ...owner, providerId, tenantId, group }, tx)
       )
+      if (!groupId) throw new Error('Directory group could not be persisted')
       let membership: ConnectorDirectoryMembership
       try {
         membership = await directory.listGroupMembers(group)
@@ -253,7 +256,12 @@ export async function syncExternalDirectoryGroups(input: {
         continue
       }
       await withDirectoryLease(lease, (tx) =>
-        replaceGroupMembers(groupId, membership.memberTokens, tx)
+        replaceGroupMembers(
+          groupId,
+          membership.memberTokens,
+          { ...lease, externalGroupId: group.id },
+          tx
+        )
       )
       refreshed += 1
     }
@@ -293,9 +301,10 @@ export async function syncExternalDirectoryGroups(input: {
 
 async function upsertGroup(
   input: DirectoryIdentity & { group: ConnectorDirectoryGroup },
-  tx: DbTransaction
-): Promise<string> {
-  const { workspaceId, providerId, tenantId, group } = input
+  tx: DbTransaction,
+  observedAt?: Date
+): Promise<string | undefined> {
+  const { providerId, tenantId, group } = input
   const [row] = await tx
     .insert(knowledgeExternalGroup)
     .values({
@@ -315,31 +324,111 @@ async function upsertGroup(
         knowledgeExternalGroup.externalGroupId,
       ],
       set: { updatedAt: new Date() },
+      ...(observedAt
+        ? {
+            setWhere: or(
+              isNull(knowledgeExternalGroup.lastSyncedAt),
+              lt(knowledgeExternalGroup.lastSyncedAt, observedAt)
+            ),
+          }
+        : {}),
     })
     .returning({ id: knowledgeExternalGroup.id })
-  return row.id
+  return row?.id
 }
 
-/** Membership replacement and its freshness watermark commit together under the directory lease. */
+/** The caller owns the transaction and fences it with its directory or content-sync lease. */
+export async function persistExternalGroupMembership(
+  input: DirectoryIdentity & ConnectorAclGroupMembership & { observedAt: Date },
+  tx: DbTransaction
+): Promise<void> {
+  const groupId = await upsertGroup(input, tx, input.observedAt)
+  if (!groupId) return
+  await replaceGroupMembers(
+    groupId,
+    input.memberTokens,
+    { ...input, externalGroupId: input.group.id },
+    tx,
+    input.observedAt
+  )
+}
+
+/**
+ * Membership replacement and its freshness watermark commit together.
+ *
+ * Writes only the difference. Rewriting a whole group per sync costs two row
+ * writes per member every time, and a directory sync overwhelmingly re-observes
+ * membership that has not changed. Unconditional replacement had taken this
+ * table to ~55M lifetime inserts and ~55M deletes against ~127k live rows —
+ * roughly 430x write amplification, holding it at ~91% dead tuples through
+ * 2,447 autovacuum cycles, an order of magnitude more than any comparable
+ * table. That vacuum load is charged to the same I/O every other query on the
+ * instance competes for. The extra read is one index scan of the group's
+ * primary-key prefix, and it is what lets an unchanged group write nothing.
+ *
+ * `created_at` therefore becomes first-observed rather than last-observed. No
+ * reader projects it; the group's own `lastSyncedAt` below is the freshness
+ * signal, and it is still written every pass.
+ */
 async function replaceGroupMembers(
   groupId: string,
   memberTokens: string[],
-  tx: DbTransaction
+  directory: DirectoryIdentity & { externalGroupId: string },
+  tx: DbTransaction,
+  observedAt?: Date
 ): Promise<void> {
-  if (memberTokens.some((token) => !isIdentityToken(token))) {
+  if (memberTokens.some((token) => !isDirectoryMemberToken(token, directory))) {
     throw new Error('Directory membership contains an invalid identity token')
   }
+  /**
+   * Serializes membership writes for this group before the set is read.
+   *
+   * The two callers fence on different leases — the directory lease and the
+   * connector sync lease — so neither excludes the other, and on the directory
+   * path the group upsert commits in a separate transaction from this one, so
+   * its row lock is already gone. Without this, the removal set is computed
+   * from a snapshot a concurrent pass may have moved past, and a subject that
+   * pass inserted would survive a complete enumeration that did not observe it:
+   * membership retained rather than revoked. The blind delete this replaced was
+   * immune because it never read first.
+   */
   await tx
-    .delete(knowledgeExternalGroupMember)
+    .select({ id: knowledgeExternalGroup.id })
+    .from(knowledgeExternalGroup)
+    .where(eq(knowledgeExternalGroup.id, groupId))
+    .for('update')
+  const desired = new Set(memberTokens)
+  const existing = await tx
+    .select({ subjectToken: knowledgeExternalGroupMember.subjectToken })
+    .from(knowledgeExternalGroupMember)
     .where(eq(knowledgeExternalGroupMember.groupId, groupId))
-  for (const batch of chunkArray([...new Set(memberTokens)], MEMBER_WRITE_BATCH_SIZE)) {
+  const retained = new Set<string>()
+  const removed: string[] = []
+  for (const row of existing) {
+    if (desired.has(row.subjectToken)) retained.add(row.subjectToken)
+    else removed.push(row.subjectToken)
+  }
+  const added = [...desired].filter((subjectToken) => !retained.has(subjectToken))
+
+  for (const batch of chunkArray(removed, MEMBER_WRITE_BATCH_SIZE)) {
+    await tx
+      .delete(knowledgeExternalGroupMember)
+      .where(
+        and(
+          eq(knowledgeExternalGroupMember.groupId, groupId),
+          inArray(knowledgeExternalGroupMember.subjectToken, batch)
+        )
+      )
+  }
+  for (const batch of chunkArray(added, MEMBER_WRITE_BATCH_SIZE)) {
     await tx
       .insert(knowledgeExternalGroupMember)
       .values(batch.map((subjectToken) => ({ groupId, subjectToken })))
+      .onConflictDoNothing()
   }
   await tx
     .update(knowledgeExternalGroup)
-    .set({ lastSyncedAt: sql`clock_timestamp()`, updatedAt: sql`clock_timestamp()` })
+    .set({ lastSyncedAt: observedAt ?? sql`clock_timestamp()`, updatedAt: sql`clock_timestamp()` })
     .where(eq(knowledgeExternalGroup.id, groupId))
 }
 
@@ -358,6 +447,11 @@ async function pruneRemovedGroups(lease: DirectoryLease, keep: readonly string[]
             eq(knowledgeExternalGroup.tenantId, lease.tenantId),
             ...(keep.length > 0
               ? [notInArray(knowledgeExternalGroup.externalGroupId, [...keep])]
+              : []),
+            ...(lease.providerId === 'confluence'
+              ? [
+                  sql`NOT starts_with(${knowledgeExternalGroup.externalGroupId}, ${CONFLUENCE_SPACE_GROUP_PREFIX})`,
+                ]
               : [])
           )
         )

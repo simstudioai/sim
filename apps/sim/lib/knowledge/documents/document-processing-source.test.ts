@@ -1599,7 +1599,8 @@ describe('in-process quota continuation dispatch', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
@@ -1648,6 +1649,7 @@ describe('in-process quota continuation dispatch', () => {
         {},
         'request-1',
         BILLING_ATTRIBUTION,
+        'interactive',
         undefined,
         context
       )
@@ -1671,7 +1673,8 @@ describe('in-process quota continuation dispatch', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
@@ -1695,7 +1698,8 @@ describe('in-process quota continuation dispatch', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toMatchObject({ accepted: 1, failed: 0 })
     expect(mockTrigger).not.toHaveBeenCalled()
@@ -1876,7 +1880,8 @@ describe('in-process quota continuation dispatch', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
@@ -1901,7 +1906,8 @@ describe('in-process quota continuation dispatch', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 

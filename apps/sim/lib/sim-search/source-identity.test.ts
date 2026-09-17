@@ -14,6 +14,18 @@ import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 
 describe('Search source identity', () => {
+  it('describes dynamic All without exposing the persisted marker', () => {
+    expect(
+      describeSearchSource(confluenceConnectorMeta, {
+        domain: 'example.atlassian.net',
+        spaceKey: ['*'],
+      })
+    ).toBe('example.atlassian.net · All')
+    expect(searchSourceIdentity(confluenceConnectorMeta, { spaceKey: ['*'] })).not.toBe(
+      searchSourceIdentity(confluenceConnectorMeta, { spaceKey: ['ENG', 'HR'] })
+    )
+  })
+
   it('normalizes multi-value settings and ignores runtime mappings and cleared caps', () => {
     expect(
       searchSourceIdentity(confluenceConnectorMeta, {

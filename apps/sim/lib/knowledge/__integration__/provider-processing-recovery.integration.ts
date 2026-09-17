@@ -292,7 +292,8 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
           ids.knowledgeBaseId,
           {},
           requestId,
-          billing
+          billing,
+          'interactive'
         )
         if (holdParentHandoff) {
           await Promise.race([

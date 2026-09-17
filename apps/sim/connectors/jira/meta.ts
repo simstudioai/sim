@@ -1,4 +1,5 @@
 import { JiraIcon } from '@/components/icons'
+import { ALL_SOURCE_ITEMS } from '@/connectors/selection'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const jiraConnectorMeta: ConnectorMeta = {
@@ -30,6 +31,7 @@ export const jiraConnectorMeta: ConnectorMeta = {
       mode: 'basic',
       multi: true,
       allowSelectAll: true,
+      selectAllValue: ALL_SOURCE_ITEMS,
       preserveValueOnModeChange: true,
       dependsOn: ['domain'],
       placeholder: 'Select one or more projects',

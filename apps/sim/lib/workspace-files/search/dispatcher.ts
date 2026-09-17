@@ -301,6 +301,7 @@ async function reapStaleClaims(tx: DbTransaction, now: Date): Promise<number> {
   return rows.length
 }
 
+/** Probe each workspace's available slots and lock candidates before the update, skipping busy rows. */
 async function claimQueuedWorkspaceJobs(
   tx: DbTransaction,
   workspaceIds: readonly string[],
@@ -320,48 +321,35 @@ async function claimQueuedWorkspaceJobs(
     WITH selected_workspace(workspace_id) AS (
       VALUES ${workspaceValues}
     ),
-    workspace_active AS (
-      SELECT search_index.workspace_id, count(*)::int AS active_count
-      FROM workspace_file_search_index AS search_index
-      INNER JOIN selected_workspace AS selected
-        ON selected.workspace_id = search_index.workspace_id
-      WHERE search_index.status = 'pending'
-        AND search_index.dispatched_at IS NOT NULL
-      GROUP BY search_index.workspace_id
-    ),
-    ranked AS (
-      SELECT
-        search_index.workspace_id,
-        search_index.file_id,
-        search_index.source_content_updated_at,
-        search_index.updated_at,
-        coalesce(workspace_active.active_count, 0) AS active_count,
-        row_number() OVER (
-          PARTITION BY search_index.workspace_id
-          ORDER BY
-            search_index.updated_at,
-            search_index.file_id,
-            search_index.source_content_updated_at
-        ) AS workspace_rank
-      FROM workspace_file_search_index AS search_index
-      INNER JOIN selected_workspace AS selected
-        ON selected.workspace_id = search_index.workspace_id
-      INNER JOIN workspace_files AS file
-        ON file.id = search_index.file_id
-        AND file.workspace_id = search_index.workspace_id
-        AND file.context = 'workspace'
-        AND file.deleted_at IS NULL
-        AND file.content_updated_at = search_index.source_content_updated_at
-      LEFT JOIN workspace_active
-        ON workspace_active.workspace_id = search_index.workspace_id
-      WHERE search_index.status = 'pending'
-        AND search_index.dispatched_at IS NULL
-    ),
-    candidates AS (
-      SELECT workspace_id, file_id, source_content_updated_at
-      FROM ranked
-      WHERE workspace_rank <= ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING} - active_count
-      ORDER BY updated_at, workspace_id, file_id, source_content_updated_at
+    candidates AS MATERIALIZED (
+      SELECT queued.*
+      FROM selected_workspace AS selected
+      CROSS JOIN LATERAL (
+        SELECT count(*)::int AS active_count
+        FROM (
+          SELECT 1 FROM workspace_file_search_index AS active
+          WHERE active.workspace_id = selected.workspace_id
+            AND active.status = 'pending' AND active.dispatched_at IS NOT NULL
+          LIMIT ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING}
+        ) AS active_claims
+      ) AS workspace_active
+      CROSS JOIN LATERAL (
+        SELECT search_index.workspace_id, search_index.file_id,
+          search_index.source_content_updated_at, search_index.updated_at
+        FROM workspace_file_search_index AS search_index
+        INNER JOIN workspace_files AS file
+          ON file.id = search_index.file_id
+          AND file.workspace_id = search_index.workspace_id
+          AND file.context = 'workspace'
+          AND file.deleted_at IS NULL
+          AND file.content_updated_at = search_index.source_content_updated_at
+        WHERE search_index.workspace_id = selected.workspace_id
+          AND search_index.status = 'pending' AND search_index.dispatched_at IS NULL
+        ORDER BY search_index.updated_at, search_index.file_id, search_index.source_content_updated_at
+        LIMIT greatest(0, ${FILE_SEARCH_INDEX_WORKSPACE_OUTSTANDING} - workspace_active.active_count)
+        FOR UPDATE OF search_index SKIP LOCKED
+      ) AS queued
+      ORDER BY queued.updated_at, queued.workspace_id, queued.file_id, queued.source_content_updated_at
       LIMIT ${remainingGlobalCapacity}
     )
     UPDATE workspace_file_search_index AS search_index

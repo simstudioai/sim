@@ -174,7 +174,14 @@ describe('embedding progress survives a processing slice', () => {
       })
     })
     expect(
-      await processDocumentsWithQueue([file], ids.knowledgeBaseId, {}, requestId, billing)
+      await processDocumentsWithQueue(
+        [file],
+        ids.knowledgeBaseId,
+        {},
+        requestId,
+        billing,
+        'interactive'
+      )
     ).toMatchObject({ accepted: 1, failed: 0 })
     const [deferred] = await db.select().from(document).where(eq(document.id, file.documentId))
     expect(deferred).toMatchObject({

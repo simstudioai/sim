@@ -370,8 +370,10 @@ async function resolveConnectorValidationAccessToken(
   if (!resolved || !getDelegatedAccessToken) return resolved
   return {
     ...resolved,
-    getDelegatedAccessToken: (subject) =>
-      getDelegatedAccessToken(subject).catch(rethrowConnectorCredentialError),
+    getDelegatedAccessToken: (subject, signal) =>
+      (signal ? getDelegatedAccessToken(subject, signal) : getDelegatedAccessToken(subject)).catch(
+        rethrowConnectorCredentialError
+      ),
   }
 }
 

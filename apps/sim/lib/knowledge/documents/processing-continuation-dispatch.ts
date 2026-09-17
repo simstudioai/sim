@@ -5,6 +5,7 @@ import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 import { isInsideTriggerRun } from '@/lib/core/config/trigger-runtime'
+import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
 import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 
 export interface DocumentProcessingContinuation {
@@ -30,6 +31,13 @@ export async function dispatchDocumentProcessingContinuation(
       delay: deferredUntil,
       idempotencyKey,
       tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
+      /**
+       * A continuation stays in the lane its original dispatch was admitted
+       * against. Re-deriving the lane here would let a backfill document that
+       * deferred on quota resume as interactive work and escape the tenant's
+       * bulk ceiling — the retry path would become the way around the limit.
+       */
+      ...documentProcessingQueueOptions(payload),
       region,
     })
     return

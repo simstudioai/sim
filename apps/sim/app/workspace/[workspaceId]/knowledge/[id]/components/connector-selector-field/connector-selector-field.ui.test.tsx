@@ -39,7 +39,11 @@ vi.mock('@/hooks/queries/selectors', () => ({
 
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/connector-selector-field'
 
-function ControlledSelector() {
+interface ControlledSelectorProps {
+  dynamicAll?: boolean
+}
+
+function ControlledSelector({ dynamicAll = false }: ControlledSelectorProps) {
   const [value, setValue] = useState<string[]>([])
   return (
     <ConnectorSelectorField
@@ -50,6 +54,7 @@ function ControlledSelector() {
         selectorKey: 'confluence.spaces',
         multi: true,
         allowSelectAll: true,
+        selectAllValue: dynamicAll ? '*' : undefined,
       }}
       credentialId='credential-1'
       value={value}
@@ -72,57 +77,63 @@ beforeEach(() => {
   mocks.error = null
 })
 
-it('selects all pages with the keyboard, announces selection, and toggles it off', async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  const originalScroll = HTMLElement.prototype.scrollIntoView
-  HTMLElement.prototype.scrollIntoView = vi.fn()
-  mocks.loadAll.mockResolvedValue({
-    status: 'complete',
-    options: [
-      { id: 'ENG', label: 'Engineering' },
-      { id: 'OPS', label: 'Operations' },
-    ],
-  })
-  const container = document.createElement('div')
-  document.body.appendChild(container)
-  const root = createRoot(container)
-  try {
-    await act(async () => root.render(<ControlledSelector />))
-    expect(container.textContent).not.toContain('Select all')
-    expect(container.textContent).not.toContain('Clear')
-    const trigger = container.querySelector('[role="combobox"]')
-    expect(trigger).not.toBeNull()
-    await act(async () =>
-      trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-    )
-    expect(document.querySelector('[role="option"]')?.textContent).toBe('All')
-    await act(async () =>
-      trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    )
-    expect(document.querySelector('[role="option"]')?.getAttribute('aria-selected')).toBe('true')
-    expect(mocks.loadAll).toHaveBeenCalledOnce()
-    expect(mocks.change).toHaveBeenCalledWith(
-      ['ENG', 'OPS'],
-      [
+it.each([false, true])(
+  'selects All with the keyboard and toggles it off (dynamic: %s)',
+  async (dynamicAll) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const originalScroll = HTMLElement.prototype.scrollIntoView
+    HTMLElement.prototype.scrollIntoView = vi.fn()
+    mocks.loadAll.mockResolvedValue({
+      status: 'complete',
+      options: [
         { id: 'ENG', label: 'Engineering' },
         { id: 'OPS', label: 'Operations' },
-      ]
-    )
-    await act(async () =>
-      document
-        .querySelector('[role="option"]')
-        ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    )
-    expect(mocks.change).toHaveBeenLastCalledWith([], [])
-    expect(document.querySelector('[role="option"]')?.getAttribute('aria-selected')).toBe('false')
-    expect(mocks.loadAll).toHaveBeenCalledOnce()
-  } finally {
-    await act(async () => root.unmount())
-    container.remove()
-    HTMLElement.prototype.scrollIntoView = originalScroll
-    vi.unstubAllGlobals()
+      ],
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(<ControlledSelector dynamicAll={dynamicAll} />))
+      expect(container.textContent).not.toContain('Select all')
+      expect(container.textContent).not.toContain('Clear')
+      const trigger = container.querySelector('[role="combobox"]')
+      expect(trigger).not.toBeNull()
+      await act(async () =>
+        trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+      )
+      expect(document.querySelector('[role="option"]')?.textContent).toBe('All')
+      await act(async () =>
+        trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      )
+      expect(document.querySelector('[role="option"]')?.getAttribute('aria-selected')).toBe('true')
+      expect(mocks.loadAll).toHaveBeenCalledTimes(dynamicAll ? 0 : 1)
+      expect(mocks.change).toHaveBeenCalledWith(
+        dynamicAll ? ['*'] : ['ENG', 'OPS'],
+        dynamicAll
+          ? [{ id: '*', label: 'All' }]
+          : [
+              { id: 'ENG', label: 'Engineering' },
+              { id: 'OPS', label: 'Operations' },
+            ]
+      )
+      if (dynamicAll) expect(trigger?.textContent).toContain('All')
+      await act(async () =>
+        document
+          .querySelector('[role="option"]')
+          ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      )
+      expect(mocks.change).toHaveBeenLastCalledWith([], [])
+      expect(document.querySelector('[role="option"]')?.getAttribute('aria-selected')).toBe('false')
+      expect(mocks.loadAll).toHaveBeenCalledTimes(dynamicAll ? 0 : 1)
+    } finally {
+      await act(async () => root.unmount())
+      container.remove()
+      HTMLElement.prototype.scrollIntoView = originalScroll
+      vi.unstubAllGlobals()
+    }
   }
-})
+)
 
 it.each(['empty', 'error'] as const)(
   'shows the initial %s state without All and allows failed lists to retry',

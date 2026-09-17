@@ -136,7 +136,6 @@ describe('chat upload reads racing with save_upload', () => {
         expect(
           await importWorkspaceFileSecretProvenanceForModelView({
             workspaceId: ids.workspaceId,
-            actorUserId: ids.aliceId,
             identity: envelope.file,
             value: envelope.value,
             view: 'opaque',
@@ -202,7 +201,6 @@ describe('chat upload reads racing with save_upload', () => {
       expect(
         await importWorkspaceFileSecretProvenanceForModelView({
           workspaceId: ids.workspaceId,
-          actorUserId: ids.aliceId,
           identity: read.file,
           value: read.value,
           view: 'opaque',

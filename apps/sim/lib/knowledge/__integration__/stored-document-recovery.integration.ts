@@ -6,6 +6,7 @@ import path from 'node:path'
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   member,
@@ -340,8 +341,8 @@ describe('independent recovery of retained connector documents', () => {
             return resolve(id)
           })
         try {
-          expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
           expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+          expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
         } finally {
           spy.mockRestore()
         }
@@ -383,6 +384,176 @@ describe('independent recovery of retained connector documents', () => {
       expect(await eventsFor(healthy)).toHaveLength(1)
     }
   )
+
+  it('recovers a sibling connector when the oldest candidate batch belongs to a locked connector', async () => {
+    const blocked = await seed()
+    const file = await failedFile(blocked)
+    const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+    await db.insert(document).values(
+      Array.from({ length: DOCUMENT_RECOVERY_BATCH_SIZE - 1 }, () => ({
+        ...original,
+        id: generateId(),
+        externalId: generateId(),
+        secretProvenanceVersion: null,
+      }))
+    )
+    const healthy = { ...blocked, connectorId: generateId(), lockId: generateId() }
+    await db.insert(knowledgeConnector).values({
+      id: healthy.connectorId,
+      knowledgeBaseId: healthy.knowledgeBaseId,
+      connectorType: 'google_drive',
+      sourceConfig: {},
+      accessMode: 'admin',
+      status: 'syncing',
+      syncLockToken: healthy.lockId,
+    })
+    const healthyFile = await failedFile(healthy)
+    await db
+      .update(document)
+      .set({ uploadedAt: new Date(original.uploadedAt.getTime() + 1) })
+      .where(eq(document.id, healthyFile.documentId))
+
+    let release!: () => void
+    let acquired!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve
+    })
+    const holder = db.transaction(async (tx) => {
+      await tx
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, blocked.knowledgeBaseId))
+        .for('share')
+      await tx
+        .select({ id: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(eq(knowledgeConnector.id, blocked.connectorId))
+        .for('update')
+      acquired()
+      await released
+    })
+    await locked
+    try {
+      expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+      const events = await eventsFor(blocked)
+      expect(events).toHaveLength(1)
+      expect(events[0].payload).toMatchObject({ documentId: healthyFile.documentId })
+      const [admitted] = await db
+        .select()
+        .from(document)
+        .where(eq(document.id, healthyFile.documentId))
+      expect(admitted.processingAttempts).toBe(2)
+      expect(admitted.processingQueueToken).toBe(events[0].id)
+      const untouched = await db
+        .select()
+        .from(document)
+        .where(eq(document.connectorId, blocked.connectorId))
+      expect(untouched).toHaveLength(DOCUMENT_RECOVERY_BATCH_SIZE)
+      for (const row of untouched) {
+        expect(row).toMatchObject({
+          processingStatus: original.processingStatus,
+          processingAttempts: original.processingAttempts,
+          processingQueueToken: original.processingQueueToken,
+          processingQueuedAt: original.processingQueuedAt,
+          processingError: original.processingError,
+          processingRecoveryAfter: original.processingRecoveryAfter,
+        })
+      }
+    } finally {
+      release()
+      await holder
+      await db
+        .update(knowledgeConnector)
+        .set({ status: 'paused' })
+        .where(inArray(knowledgeConnector.id, [blocked.connectorId, healthy.connectorId]))
+    }
+  })
+
+  it('recovers another document while an index transaction holds the same KB foreign-key lock', async () => {
+    const ids = await seed()
+    const file = await failedFile(ids)
+    const indexedId = generateId()
+    await db.insert(document).values({
+      id: indexedId,
+      knowledgeBaseId: ids.knowledgeBaseId,
+      filename: 'Concurrent index.txt',
+      fileUrl: 'data:text/plain,fixture',
+      fileSize: 7,
+      mimeType: 'text/plain',
+      processingStatus: 'completed',
+    })
+    let release!: () => void
+    let acquired!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve
+    })
+    const indexing = db.transaction(async (tx) => {
+      await tx.insert(embedding).values({
+        id: generateId(),
+        knowledgeBaseId: ids.knowledgeBaseId,
+        documentId: indexedId,
+        chunkIndex: 0,
+        chunkHash: 'fixture',
+        content: 'fixture',
+        contentLength: 7,
+        tokenCount: 1,
+        startOffset: 0,
+        endOffset: 7,
+        embedding: [1, ...Array<number>(1535).fill(0)],
+      })
+      acquired()
+      await released
+    })
+    await locked
+    try {
+      expect(await recoverKnowledgeDocumentProcessing()).toBe(1)
+      expect(await eventsFor(ids)).toHaveLength(1)
+      const [admitted] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(admitted.processingAttempts).toBe(2)
+    } finally {
+      release()
+      await indexing
+    }
+  })
+
+  it('does not claim work while a KB soft deletion is committing', async () => {
+    const ids = await seed()
+    const file = await failedFile(ids)
+    let release!: () => void
+    let acquired!: () => void
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve
+    })
+    const deletion = db.transaction(async (tx) => {
+      await tx
+        .update(knowledgeBase)
+        .set({ deletedAt: new Date() })
+        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+      acquired()
+      await released
+    })
+    await locked
+    try {
+      expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
+    } finally {
+      release()
+      await deletion
+    }
+    expect(await recoverKnowledgeDocumentProcessing()).toBe(0)
+    expect(await eventsFor(ids)).toHaveLength(0)
+    const [original] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(original.processingAttempts).toBe(1)
+    expect(original.processingQueueToken).toBe('old-fixture-generation')
+  })
 
   it('replays the additive migration and leaves the concurrent recovery index valid', async () => {
     const migration = readFileSync(

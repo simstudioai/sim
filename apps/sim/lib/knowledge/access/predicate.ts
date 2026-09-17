@@ -7,14 +7,13 @@ import {
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
-  knowledgeExternalGroup,
-  knowledgeExternalGroupMember,
   member,
   user,
 } from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
 import { EXTERNAL_GROUP_STALE_AFTER_MS } from '@/lib/knowledge/access/external-groups'
 import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
+import { confluenceReaderGroupCondition } from '@/lib/knowledge/access/group-membership'
 import type { KnowledgeAccessScope, SystemAccessScope } from '@/lib/knowledge/access/types'
 import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
 import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
@@ -23,17 +22,15 @@ import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
 /** Every Confluence clause must match the same confirmed reader, including that reader's groups. */
 function confluenceReaderClause(hasToken: (token: SQL) => SQL): SQL {
-  return sql`(${hasToken(sql`confluence_read_grant.reader_subject_token`)} OR EXISTS (
-    SELECT 1 FROM ${knowledgeExternalGroup}
-    JOIN ${knowledgeExternalGroupMember} ON ${knowledgeExternalGroupMember.groupId} = ${knowledgeExternalGroup.id}
-    WHERE ${knowledgeExternalGroupMember.subjectToken} = confluence_read_grant.reader_subject_token
-      AND ${knowledgeExternalGroup.providerId} = 'confluence'
-      AND ${knowledgeExternalGroup.tenantId} = confluence_read_grant.cloud_id
-      AND ${knowledgeExternalGroup.organizationId} IS NOT DISTINCT FROM ${knowledgeBase.organizationId}
-      AND ${knowledgeExternalGroup.workspaceId} IS NOT DISTINCT FROM ${knowledgeBase.workspaceId}
-      AND ${knowledgeExternalGroup.lastSyncedAt} >= statement_timestamp() - (${EXTERNAL_GROUP_STALE_AFTER_MS} * interval '1 millisecond')
-      AND ${hasToken(sql`('g:confluence:' || confluence_read_grant.cloud_id || ':' || ${knowledgeExternalGroup.externalGroupId})`)}
-  ))`
+  const groups = confluenceReaderGroupCondition({
+    readerSubjectToken: sql`confluence_read_grant.reader_subject_token`,
+    cloudId: sql`confluence_read_grant.cloud_id`,
+    organizationId: sql`${knowledgeBase.organizationId}`,
+    workspaceId: sql`${knowledgeBase.workspaceId}`,
+    freshEnough: sql`statement_timestamp() - (${EXTERNAL_GROUP_STALE_AFTER_MS} * interval '1 millisecond')`,
+    hasToken,
+  })
+  return sql`(${hasToken(sql`confluence_read_grant.reader_subject_token`)} OR ${groups})`
 }
 
 /** A cached space grant cannot substitute for the reader's current Confluence site access. */
@@ -168,11 +165,8 @@ function githubInstallationAccessCondition(scope: KnowledgeAccessScope): SQL {
 
 /**
  * The single read-side access predicate: the document's ACL overlaps the
- * caller's token set. Tokens are bound as scalars and assembled with
- * `ARRAY[...]` because the shared pool runs with `fetch_types: false`, under
- * which a JS array bound as one parameter fails at execution (see
- * packages/db/db.ts). A literal array also keeps the planner's statistics on
- * `acl` usable, which is what lets it choose the GIN index for a selective set.
+ * caller's token set. Small token sets use literal arrays for GIN planning;
+ * large directories use one JSON parameter to avoid PostgreSQL's bind limit.
  *
  * Additional clauses preserve source intersections. Source-derived grants also
  * require recent evidence, independent of scheduler health. A drained member
@@ -243,11 +237,13 @@ function storedKnowledgeAccessCondition(
 }
 
 /**
- * A `text[]` literal assembled from scalar binds, for comparing against an
- * ACL column. Every place that compares ACLs builds its array this way, for
- * the `fetch_types: false` reason above.
+ * The pool uses fetch_types: false, so arrays must be constructed from scalar
+ * parameters. A JSON scalar keeps large sets below PostgreSQL's bind limit.
  */
 export function textArrayLiteral(values: readonly string[]): SQL {
+  if (values.length > 1000) {
+    return sql`ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(values)}::text::jsonb))`
+  }
   return sql`ARRAY[${sql.join(
     values.map((value) => sql`${value}`),
     sql`, `

@@ -106,7 +106,8 @@ describe('processDocumentsWithQueue billing attribution', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     const jobs = mockBatchTrigger.mock.calls[0][1]
@@ -119,6 +120,7 @@ describe('processDocumentsWithQueue billing attribution', () => {
     expect(structuredClone(jobs[0].payload)).toEqual({
       knowledgeBaseId: 'knowledge-base-1',
       documentId: 'document-1',
+      processingLane: 'interactive',
       docData: {
         filename: 'document.txt',
         fileUrl: 'https://example.com/document.txt',
@@ -183,7 +185,14 @@ describe('processDocumentsWithQueue billing attribution', () => {
     ])
 
     await expect(
-      processDocumentsWithQueue([DOCUMENT], 'knowledge-base-1', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        undefined,
+        'interactive'
+      )
     ).rejects.toThrow('Workspace document processing requires a billing attribution snapshot')
     expect(mockBatchTrigger).not.toHaveBeenCalled()
     const withdrawal = dbChainMockFns.set.mock.calls.find(
@@ -204,7 +213,8 @@ describe('processDocumentsWithQueue billing attribution', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).rejects.toThrow('Document processing workspace does not match billing attribution')
     expect(mockBatchTrigger).not.toHaveBeenCalled()
@@ -216,7 +226,14 @@ describe('processDocumentsWithQueue billing attribution', () => {
     ])
 
     await expect(
-      processDocumentsWithQueue([DOCUMENT], 'knowledge-base-1', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [DOCUMENT],
+        'knowledge-base-1',
+        {},
+        'request-1',
+        undefined,
+        'interactive'
+      )
     ).rejects.toThrow('Document processing requires a workspace or organization owner')
     expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
@@ -325,10 +342,112 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
+  })
+
+  it('places each job in its lane queue under the owning tenant concurrency key', async () => {
+    markInsideTriggerRun()
+
+    await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION,
+      'interactive'
+    )
+
+    const items = mockBatchTrigger.mock.calls[0][1]
+    expect(items[0].options).toMatchObject({
+      queue: 'document-processing-queue',
+      concurrencyKey: 'workspace:workspace-1',
+    })
+  })
+
+  /**
+   * The starvation this split exists to prevent: connector backfill must not be
+   * able to occupy the queue a person's upload is admitted through.
+   */
+  it('sends connector backfill to a different queue than interactive work', async () => {
+    markInsideTriggerRun()
+
+    await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION,
+      'backfill'
+    )
+
+    const items = mockBatchTrigger.mock.calls[0][1]
+    expect(items[0].options.queue).toBe('document-processing-backfill-queue')
+    expect(items[0].options.concurrencyKey).toBe('workspace:workspace-1')
+  })
+
+  it('keys an organization-owned knowledge base on its organization, not a null workspace', async () => {
+    markInsideTriggerRun()
+    dbChainMockFns.limit.mockResolvedValue([
+      { userId: 'knowledge-owner', workspaceId: null, organizationId: 'org-1' },
+    ])
+
+    await processDocumentsWithQueue(
+      [DOCUMENT],
+      'knowledge-base-1',
+      {},
+      'request-1',
+      {
+        ...BILLING_ATTRIBUTION,
+        workspaceId: null,
+        organizationId: 'org-1',
+        billingEntity: { type: 'organization', id: 'org-1' },
+      } satisfies BillingAttributionSnapshot,
+      'backfill'
+    )
+
+    const items = mockBatchTrigger.mock.calls[0][1]
+    expect(items[0].options.concurrencyKey).toBe('organization:org-1')
+  })
+
+  /**
+   * A rejected backfill chunk means the tenant's own queue is already saturated.
+   * Absorbing those documents into the dispatching worker would turn queue
+   * backpressure into unbounded in-process fan-out on the one machine still
+   * holding the connector lease, so they are reported failed and left for the
+   * next sync's stuck-document sweep. The interactive lane still falls back,
+   * because nothing else would ever come back for a person's upload.
+   */
+  it('leaves a rejected backfill chunk for the sweep instead of processing it in-process', async () => {
+    markInsideTriggerRun()
+    const documents = Array.from({ length: 1001 }, (_, index) => ({
+      ...DOCUMENT,
+      documentId: `document-${index}`,
+    }))
+    dbChainMockFns.returning.mockResolvedValueOnce(documents.map((doc) => ({ id: doc.documentId })))
+    mockBatchTrigger
+      .mockResolvedValueOnce({ batchId: 'batch-1' })
+      .mockRejectedValueOnce(new Error('queue is full'))
+
+    const result = await processDocumentsWithQueue(
+      documents,
+      'knowledge-base-1',
+      {},
+      'request-1',
+      BILLING_ATTRIBUTION,
+      'backfill'
+    )
+
+    expect(mockBatchTrigger).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({
+      requested: 1001,
+      accepted: 1000,
+      failed: 1,
+      failedDocumentIds: ['document-1000'],
+    })
   })
 
   it('returns acceptance separately from eventual child completion', async () => {
@@ -339,7 +458,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
@@ -361,7 +481,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
@@ -381,7 +502,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({
@@ -504,7 +626,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
@@ -580,7 +703,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
@@ -625,7 +749,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
@@ -692,7 +817,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).rejects.toThrow('document processing dispatches failed')
 
@@ -728,7 +854,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({
@@ -749,7 +876,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(result).toEqual({ requested: 2, accepted: 2, failed: 0, failedDocumentIds: [] })
@@ -761,7 +889,14 @@ describe('processDocumentsWithQueue dispatch backend', () => {
 
   it('returns an empty dispatch summary without resolving billing context', async () => {
     await expect(
-      processDocumentsWithQueue([], 'missing-knowledge-base', {}, 'request-1', undefined)
+      processDocumentsWithQueue(
+        [],
+        'missing-knowledge-base',
+        {},
+        'request-1',
+        undefined,
+        'interactive'
+      )
     ).resolves.toEqual({ requested: 0, accepted: 0, failed: 0, failedDocumentIds: [] })
 
     expect(mockBatchTrigger).not.toHaveBeenCalled()
@@ -777,7 +912,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
@@ -792,7 +928,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
@@ -834,7 +971,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).rejects.toThrow('document processing dispatches failed')
 
@@ -876,7 +1014,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
@@ -958,7 +1097,8 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
@@ -999,7 +1139,8 @@ describe('processDocumentsWithQueue attempt refund', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).rejects.toThrow('trigger.dev region unavailable')
 
@@ -1048,7 +1189,8 @@ describe('processDocumentsWithQueue attempt refund', () => {
       'knowledge-base-1',
       {},
       'request-1',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive'
     )
 
     expect(
@@ -1092,6 +1234,7 @@ describe('processDocumentsWithQueue under a connector sync lease', () => {
         {},
         'request-1',
         BILLING_ATTRIBUTION,
+        'backfill',
         lease
       )
     ).rejects.toBeInstanceOf(SyncLockLostException)
@@ -1115,6 +1258,7 @@ describe('processDocumentsWithQueue under a connector sync lease', () => {
         {},
         'request-1',
         BILLING_ATTRIBUTION,
+        'backfill',
         lease
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })

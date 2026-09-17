@@ -29,6 +29,7 @@ import {
   GITHUB_INSTALLATION_PROVIDER_ID,
   type GitHubInstallationRepositoryScope,
 } from '@/lib/oauth/github-installation-types'
+import { exchangeGoogleServiceAccountJwt } from '@/lib/oauth/google-service-account-transport'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -62,6 +63,7 @@ import {
 } from '@/lib/slack-search/app-configuration'
 
 const logger = createLogger('OAuthCredentialService')
+const OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000
 
 export interface CredentialTokenResolutionOptions {
   /**
@@ -73,6 +75,8 @@ export interface CredentialTokenResolutionOptions {
   privacyMode?: 'selector'
   /** GitHub installation content tokens may only address one connector repository. */
   githubRepositoryScope?: GitHubInstallationRepositoryScope
+  /** Cancels Google service-account token exchange and retry waits. */
+  signal?: AbortSignal
 }
 
 function privateCredentialIdentity(namespace: string, value: string): string {
@@ -189,6 +193,19 @@ const SA_EXCLUDED_SCOPES = new Set([
   'https://www.googleapis.com/auth/userinfo.profile',
 ])
 
+/** Google's documented JWT error codes are safe to retain without the provider description. */
+const SA_DIAGNOSTIC_ERROR_CODES = new Set([
+  'access_denied',
+  'admin_policy_enforced',
+  'deleted_client',
+  'disabled_client',
+  'invalid_client',
+  'invalid_grant',
+  'invalid_scope',
+  'org_internal',
+  'unauthorized_client',
+])
+
 /**
  * Generates a short-lived access token for a Google service account credential
  * using the two-legged OAuth JWT flow (RFC 7523).
@@ -204,6 +221,7 @@ export async function getServiceAccountToken(
   impersonateEmail?: string,
   options?: CredentialTokenResolutionOptions
 ): Promise<string> {
+  options?.signal?.throwIfAborted()
   const [credentialRow] = await db
     .select({
       type: credential.type,
@@ -267,6 +285,7 @@ export async function getServiceAccountToken(
           hasSubject: Boolean(impersonateEmail),
           scopes: filteredScopes.join(' '),
           aud: tokenUri,
+          subject: impersonateEmail,
         }
   )
 
@@ -280,22 +299,10 @@ export async function getServiceAccountToken(
 
   const jwt = `${signingInput}.${signature}`
 
-  const response = await fetch(tokenUri, {
-    method: 'POST',
-    redirect: 'error',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
-  })
+  const response = await exchangeGoogleServiceAccountJwt(tokenUri, jwt, options?.signal)
 
   if (!response.ok) {
-    const errorBody = await response.text()
-    logger.error('Service account token exchange failed', {
-      status: response.status,
-      ...(options?.privacyMode === 'selector' ? {} : { body: errorBody }),
-    })
+    const errorBody = response.body
     let description = `Token exchange failed: ${response.status}`
     let errorCode: string | undefined
     if (options?.privacyMode !== 'selector') {
@@ -322,10 +329,20 @@ export async function getServiceAccountToken(
         /** Retain the status-based description when Google returns a non-JSON error. */
       }
     }
+    logger.error('Service account token exchange failed', {
+      status: response.status,
+      ...(options?.privacyMode === 'selector'
+        ? {}
+        : {
+            subject: impersonateEmail,
+            scopes: filteredScopes,
+            ...(errorCode && SA_DIAGNOSTIC_ERROR_CODES.has(errorCode) ? { errorCode } : {}),
+          }),
+    })
     throw new ServiceAccountTokenError(response.status, description, errorCode)
   }
 
-  const tokenData = (await response.json()) as { access_token: string }
+  const tokenData = JSON.parse(response.body) as { access_token: string }
   return tokenData.access_token
 }
 
@@ -660,11 +677,9 @@ async function resolveClientCredentialAccountToken(
   })
 }
 
-interface ServiceAccountTokenOptions {
+interface ServiceAccountTokenOptions extends CredentialTokenResolutionOptions {
   scopes?: string[]
   impersonateEmail?: string
-  privacyMode?: 'selector'
-  githubRepositoryScope?: GitHubInstallationRepositoryScope
 }
 
 type ServiceAccountTokenResolver = (
@@ -725,7 +740,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   },
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: async (
     credentialId,
-    { scopes, impersonateEmail, privacyMode }
+    { scopes, impersonateEmail, privacyMode, signal }
   ) => {
     if (!scopes?.length) {
       throw new Error('Scopes are required for service account credentials')
@@ -733,6 +748,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
     return {
       accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail, {
         privacyMode,
+        signal,
       }),
     }
   },
@@ -843,6 +859,19 @@ interface CoalescedRefreshOptions {
 }
 
 /**
+ * Leave time for request preparation and transit, including when reusing another worker's token.
+ * Instagram instead uses its age-gated long-lived token refresh policy.
+ */
+function isOAuthAccessTokenExpiring(
+  expiresAt: Date | null | undefined,
+  providerId: string,
+  now = new Date()
+): boolean {
+  const refreshWindowMs = isInstagramProvider(providerId) ? 0 : OAUTH_ACCESS_TOKEN_REFRESH_WINDOW_MS
+  return expiresAt != null && expiresAt.getTime() <= now.getTime() + refreshWindowMs
+}
+
+/**
  * Slack lock budgets sized past `TOKEN_REFRESH_TIMEOUT_MS` (15s) in
  * lib/oauth/oauth.ts: installation-keyed locks make every sibling row's request
  * a follower of one refresh, so the TTL covers the provider call plus generous
@@ -917,7 +946,7 @@ async function performCoalescedRefresh({
             if (
               freshest.accessToken &&
               freshest.accessTokenExpiresAt &&
-              freshest.accessTokenExpiresAt > new Date()
+              !isOAuthAccessTokenExpiring(freshest.accessTokenExpiresAt, providerId)
             ) {
               await fanOutSlackTokenChain(
                 slackTeamId,
@@ -1024,7 +1053,7 @@ async function performCoalescedRefresh({
           if (
             row?.accessToken &&
             row.accessTokenExpiresAt &&
-            row.accessTokenExpiresAt > new Date()
+            !isOAuthAccessTokenExpiring(row.accessTokenExpiresAt, providerId)
           ) {
             logger.info('Got fresh access token from coalesced refresh', logContext)
             return row.accessToken
@@ -1077,8 +1106,6 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 
   const credential = connections[0]
 
-  // Determine whether we should refresh: missing/expired token, or Instagram
-  // long-lived token nearing expiry (Meta cannot refresh after expiry).
   const now = new Date()
   const tokenExpiry = credential.accessTokenExpiresAt
   if (!credential.refreshToken && tokenExpiry && tokenExpiry <= now) {
@@ -1086,7 +1113,8 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
     return null
   }
   const accessTokenNeedsRefresh =
-    !!credential.refreshToken && (!credential.accessToken || (tokenExpiry && tokenExpiry < now))
+    !!credential.refreshToken &&
+    (!credential.accessToken || isOAuthAccessTokenExpiring(tokenExpiry, providerId, now))
   const instagramNeedsProactiveRefresh =
     !!credential.refreshToken &&
     isInstagramProvider(providerId) &&
@@ -1163,7 +1191,6 @@ export async function resolveCredentialTokenBundle(
     return null
   }
 
-  // Decide if we should refresh: token missing OR expired
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
   const now = new Date()
@@ -1173,10 +1200,10 @@ export async function resolveCredentialTokenBundle(
     return null
   }
 
-  // Check if access token needs refresh (missing or expired)
   const accessTokenNeedsRefresh =
     !!credential.refreshToken &&
-    (!credential.accessToken || (accessTokenExpiresAt && accessTokenExpiresAt <= now))
+    (!credential.accessToken ||
+      isOAuthAccessTokenExpiring(accessTokenExpiresAt, credential.providerId, now))
 
   // Check if we should proactively refresh to prevent refresh token expiry
   // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity
@@ -1277,7 +1304,6 @@ export async function refreshTokenIfNeeded(
 ): Promise<{ accessToken: string; refreshed: boolean }> {
   const resolvedCredentialId = credential.resolvedCredentialId ?? credentialId
 
-  // Decide if we should refresh: token missing OR expired
   const accessTokenExpiresAt = credential.accessTokenExpiresAt
   const refreshTokenExpiresAt = credential.refreshTokenExpiresAt
   const now = new Date()
@@ -1286,10 +1312,10 @@ export async function refreshTokenIfNeeded(
     throw new Error('OAuth access token expired and cannot be refreshed; reconnect the account')
   }
 
-  // Check if access token needs refresh (missing or expired)
   const accessTokenNeedsRefresh =
     !!credential.refreshToken &&
-    (!credential.accessToken || (accessTokenExpiresAt && accessTokenExpiresAt <= now))
+    (!credential.accessToken ||
+      isOAuthAccessTokenExpiring(accessTokenExpiresAt, credential.providerId, now))
 
   // Check if we should proactively refresh to prevent refresh token expiry
   // This applies to Microsoft providers whose refresh tokens expire after 90 days of inactivity

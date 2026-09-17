@@ -6,7 +6,7 @@
  * From apps/sim, run:
  * `TABLE_PROVENANCE_TEST_DATABASE_URL=postgresql://user@127.0.0.1:5432/postgres bun run test lib/table/rows/secret-provenance.postgres.test.ts`
  * CI needs a local PostgreSQL service and this variable; the default unit suite separately
- * checks flag policy, stale-snapshot reporting, and write-event attribution without a database.
+ * checks enforcement, stale-snapshot reporting, and write-event attribution without a database.
  */
 import { userTableRows } from '@sim/db/schema'
 import { loggingSessionMock } from '@sim/testing'
@@ -39,15 +39,11 @@ import { cancelWorkflowGroupRuns } from '@/lib/table/workflow-columns'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { ExecutionCallbacks } from '@/executor/execution/types'
 
-const { database, mockIsEnforced, mockReport, mockError, mockExecuteWorkflowCore } = vi.hoisted(
-  () => ({
-    database: { current: undefined as PostgresJsDatabase | undefined },
-    mockIsEnforced: vi.fn(() => false),
-    mockReport: vi.fn(),
-    mockError: vi.fn(),
-    mockExecuteWorkflowCore: vi.fn(),
-  })
-)
+const { database, mockError, mockExecuteWorkflowCore } = vi.hoisted(() => ({
+  database: { current: undefined as PostgresJsDatabase | undefined },
+  mockError: vi.fn(),
+  mockExecuteWorkflowCore: vi.fn(),
+}))
 
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
@@ -87,10 +83,6 @@ vi.mock('@/lib/workflows/executor/execution-core', () => ({
 }))
 vi.mock('@/lib/workflows/executor/pause-persistence', () => ({
   handlePostExecutionPauseState: vi.fn(),
-}))
-vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
-  isDurableSecretProvenanceEnforced: mockIsEnforced,
-  reportUnrecordedDurableProvenance: mockReport,
 }))
 
 const databaseUrl = process.env.TABLE_PROVENANCE_TEST_DATABASE_URL
@@ -238,7 +230,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    mockIsEnforced.mockReturnValue(false)
     if (!connection) throw new Error('PostgreSQL test database is not initialized')
     await connection.unsafe(
       'TRUNCATE table_row_executions, user_table_rows, user_table_row_secret_provenance, user_table_definitions'
@@ -280,7 +271,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   }
 
   it('keeps the original single-row value and secret lineage across a concurrent stamped write', async () => {
-    mockIsEnforced.mockReturnValue(true)
     await insertRow({
       status: 'exact',
       entries: [
@@ -304,7 +294,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   })
 
   it('captures only projected, returned rows and ignores an unknown pagination witness', async () => {
-    mockIsEnforced.mockReturnValue(true)
     await insertRow({ status: 'exact', entries: [secretEntry] })
     await insertRow({ id: 'row-2', status: 'unknown' })
     const reader = new TableRowProvenanceReader(scope)
@@ -327,7 +316,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   })
 
   it('captures insert provenance before a later writer changes the returned row', async () => {
-    mockIsEnforced.mockReturnValue(true)
     const reader = new TableRowProvenanceReader(scope)
     const row = await insertOrderedRow({
       tableId: 'table-1',
@@ -346,7 +334,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
   })
 
   it('returns the actual merged row and captures its lineage before the write transaction commits', async () => {
-    mockIsEnforced.mockReturnValue(true)
     await insertRow({ status: 'exact' })
     if (!database.current) throw new Error('Database unavailable')
     const transact = database.current.transaction.bind(database.current)
@@ -490,7 +477,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
       )
       expect(stored.entries).toEqual(baseStatus === 'exact' ? [boundEntry] : [])
       expect(fireTableTrigger).toHaveBeenCalledOnce()
-      mockIsEnforced.mockReturnValue(true)
       const provenance = await loadTableRowSecretProvenance(
         [{ id: 'row-1', updatedAt: written!.updatedAt }],
         scope
@@ -724,43 +710,38 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
       unrecorded: false,
     },
     { name: 'exact-empty', fixture: { status: 'exact' }, unrecorded: false },
-  ])('classifies $name explicitly under both flag settings', async ({ fixture, unrecorded }) => {
-    await insertRow(fixture)
-    for (const enforced of [false, true]) {
-      mockIsEnforced.mockReturnValue(enforced)
-      mockReport.mockClear()
+  ])(
+    'classifies $name explicitly without a compatibility bypass',
+    async ({ fixture, unrecorded }) => {
+      await insertRow(fixture)
+
       await expect(
         getTableSnapshotModelMountSafety({
           tableId: 'table-1',
           workspaceId: 'workspace-1',
           rowsVersion: 7,
         })
-      ).resolves.toBe(enforced && unrecorded ? 'unsafe-provenance' : 'safe')
-      expect(mockReport).toHaveBeenCalledTimes(unrecorded && !enforced ? 1 : 0)
+      ).resolves.toBe(unrecorded ? 'unsafe-provenance' : 'safe')
     }
-  })
+  )
 
   it.each([
     { name: 'known secret entries', entries: [secretEntry] },
     { name: 'malformed array', entries: [null] },
     { name: 'malformed object', entries: {} },
-  ])(
-    'keeps $name unsafe with the flag off and does not report a proceeded read',
-    async ({ entries }) => {
-      await insertRow({ status: 'exact', entries })
-      await insertRow({ id: 'unrecorded-row', status: 'unknown' })
-      await expect(
-        getTableSnapshotModelMountSafety({
-          tableId: 'table-1',
-          workspaceId: 'workspace-1',
-          rowsVersion: 7,
-        })
-      ).resolves.toBe('unsafe-provenance')
-      expect(mockReport).not.toHaveBeenCalled()
-    }
-  )
+  ])('keeps $name unsafe unsafe without a compatibility bypass', async ({ entries }) => {
+    await insertRow({ status: 'exact', entries })
+    await insertRow({ id: 'unrecorded-row', status: 'unknown' })
+    await expect(
+      getTableSnapshotModelMountSafety({
+        tableId: 'table-1',
+        workspaceId: 'workspace-1',
+        rowsVersion: 7,
+      })
+    ).resolves.toBe('unsafe-provenance')
+  })
 
-  it('returns one count for a stable allowed snapshot containing several unrecorded rows', async () => {
+  it('refuses a stable snapshot containing several unrecorded rows', async () => {
     await insertRow({ id: 'missing' })
     await insertRow({ id: 'unknown', status: 'unknown' })
     await expect(
@@ -769,13 +750,7 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
         workspaceId: 'workspace-1',
         rowsVersion: 7,
       })
-    ).resolves.toBe('safe')
-    expect(mockReport).toHaveBeenCalledExactlyOnceWith({
-      surface: 'table-row',
-      cause: 'row-sidecar-not-exact',
-      affectedCount: 2,
-      workspaceId: 'workspace-1',
-    })
+    ).resolves.toBe('unsafe-provenance')
   })
 
   it('preserves legacy compatibility and records every SQL-derived unknown by cause', async () => {
@@ -909,7 +884,6 @@ describe.skipIf(!databaseUrl)('table provenance in PostgreSQL', () => {
       ).resolves.toEqual({ version: 1, complete: true, entries: expectedEntries, scope })
     }
     expect(mockError).not.toHaveBeenCalled()
-    expect(mockReport).not.toHaveBeenCalled()
   })
 
   it('preserves wide bindings through derived SQL and removes only the deleted column', async () => {

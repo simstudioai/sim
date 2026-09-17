@@ -11,7 +11,6 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { env, envNumber } from '@/lib/core/config/env'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
@@ -81,19 +80,11 @@ export const CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES = 256 * 1024 * 1024
 const PROCESSING_DISPATCH_BATCH_SIZE = 25
 
 /**
- * Bounds each sync's contribution to the shared processing queue. Oldest eligible
- * documents drain first; the remaining backlog stays eligible for subsequent syncs.
+ * Bounds each sync's contribution to this tenant's bulk processing queue. Oldest
+ * eligible documents drain first; the remaining backlog stays eligible for
+ * subsequent syncs.
  */
 export const STUCK_RETRY_MAX_CANDIDATES_PER_SYNC = 200
-
-/**
- * Concurrent `knowledge-process-document` runs, shared by every workspace.
- *
- * Read from the same env var the task itself is configured with rather than
- * restated, so the drain estimate below cannot describe a queue depth the
- * deployment does not actually run.
- */
-const PROCESSING_QUEUE_CONCURRENCY = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20)
 
 export class ConnectorSyncCapacityError extends Error {}
 
@@ -1012,6 +1003,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         {},
         generateId(),
         billingAttribution,
+        'backfill',
         { connectorId, stillHeld: input.lease.stillHeld }
       )
       result.processingDispatch.accepted += dispatch.accepted
@@ -1392,7 +1384,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         .select({ id: knowledgeBase.id })
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-        .for('update')
+        .for('share')
       if (!activeKnowledgeBase) throw new SyncLockLostException(connectorId)
 
       const [heldSyncLock] = await tx
@@ -1510,6 +1502,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         {},
         generateId(),
         billingAttribution,
+        'backfill',
         { connectorId, stillHeld: input.lease.stillHeld }
       )
       result.processingDispatch.accepted += dispatch.accepted
