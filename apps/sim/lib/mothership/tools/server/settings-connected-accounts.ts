@@ -36,14 +36,19 @@ import {
 } from '@/lib/mothership/tools/server/settings-operation'
 
 export const connectedAccountSettingsActions = {
-  setup: settingsOperation(ensureOrganizationAccountsBodySchema, async (context, input) => {
-    const result = await ensureOrganizationAccounts.execute({
-      principal: context.principal,
-      input: { ...input, organizationId: settingsOrganizationId(context) },
-    })
-    return { ...result, status: 'configured', connectionRequired: true }
-  }),
+  setup: settingsOperation(
+    'write',
+    ensureOrganizationAccountsBodySchema,
+    async (context, input) => {
+      const result = await ensureOrganizationAccounts.execute({
+        principal: context.principal,
+        input: { ...input, organizationId: settingsOrganizationId(context) },
+      })
+      return { ...result, status: 'configured', connectionRequired: true }
+    }
+  ),
   update: settingsOperation(
+    'write',
     z.strictObject({
       groupId: z.string().min(1).max(128),
       changes: updateCredentialGroupBodySchema,
@@ -59,6 +64,7 @@ export const connectedAccountSettingsActions = {
       })
   ),
   connect: settingsOperation(
+    'write',
     startOrganizationAccountConnectionBodySchema,
     async (context, input) => ({
       status: 'requires_user_setup',
@@ -71,6 +77,7 @@ export const connectedAccountSettingsActions = {
     })
   ),
   list_people: settingsOperation(
+    'read',
     listOrganizationAccountPeopleQuerySchema.strict(),
     (context, input) =>
       listOrganizationAccountPeople.execute({
@@ -79,6 +86,7 @@ export const connectedAccountSettingsActions = {
       })
   ),
   invite: settingsOperation(
+    'write',
     inviteOrganizationAccountPeopleBodySchema.strict(),
     async (context, input) => {
       const result = await inviteOrganizationAccountPeople.execute({
@@ -101,6 +109,7 @@ export const connectedAccountSettingsActions = {
     }
   ),
   resend_invitation: settingsOperation(
+    'write',
     z.strictObject({
       enrollmentId: z.string().min(1).max(128),
       optionId: z.string().min(1).max(128).optional(),
@@ -115,6 +124,7 @@ export const connectedAccountSettingsActions = {
     })
   ),
   revoke: settingsOperation(
+    'write',
     z.strictObject({ enrollmentId: z.string().min(1).max(128) }),
     async (context, input) => ({
       enrollment: (
@@ -125,13 +135,14 @@ export const connectedAccountSettingsActions = {
       ).credentialGroupEnrollment,
     })
   ),
-  workspace_access: settingsOperation(z.strictObject({}), (context) =>
+  workspace_access: settingsOperation('read', z.strictObject({}), (context) =>
     getOrganizationAccountWorkspaceAccess.execute({
       principal: context.principal,
       input: { organizationId: settingsOrganizationId(context) },
     })
   ),
   set_workspace_access: settingsOperation(
+    'write',
     updateOrganizationAccountWorkspaceAccessBodySchema,
     async (context, input) => {
       const result = await updateOrganizationAccountWorkspaceAccess.execute({
@@ -142,6 +153,7 @@ export const connectedAccountSettingsActions = {
     }
   ),
   set_indexing: settingsOperation(
+    'write',
     updateOrganizationAccountIndexingBodySchema,
     async (context, input) => {
       const result = await updateOrganizationAccountIndexing.execute({
@@ -152,6 +164,7 @@ export const connectedAccountSettingsActions = {
     }
   ),
   add_mcp_provider: settingsOperation(
+    'write',
     z.union([
       createCredentialGroupMcpConnectorBodySchema.options[0],
       createCredentialGroupMcpConnectorBodySchema.options[1],
@@ -166,6 +179,7 @@ export const connectedAccountSettingsActions = {
     })
   ),
   remove_mcp_provider: settingsOperation(
+    'write',
     z.strictObject({ connectorId: managedMcpConnectorIdSchema }),
     async (context, input) => ({
       mcpServer: (

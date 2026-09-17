@@ -2078,6 +2078,7 @@ export function useChat(
       }
       const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
+        refreshRoute: () => router.refresh(),
         viewerId,
         workspaceId,
         organizationId,
@@ -2223,6 +2224,7 @@ export function useChat(
       return { sawStreamError: settledError, sawComplete: state.sawCompleteEvent }
     },
     [
+      router,
       viewerId,
       workspaceId,
       queryClient,

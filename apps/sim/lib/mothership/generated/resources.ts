@@ -48,6 +48,16 @@ export const ResourceAddress = z.object({
 });
 export type ResourceAddress = z.infer<typeof ResourceAddress>;
 
+/** Settings invalidate caches without becoming openable panel resources. */
+export const SettingsRefresh = z.object({
+  type: z.literal("settings"),
+  id: z.string().trim().min(1),
+  scope: z.enum(["account", "organization", "workspace"]),
+  workspaceId: z.uuid().optional(),
+  organizationId: z.string().trim().min(1).optional(),
+});
+export type SettingsRefresh = z.infer<typeof SettingsRefresh>;
+
 /** Refreshing a collection never invents an entity or opens a panel. */
 export const ResourceChange = z.discriminatedUnion("op", [
   z.object({
@@ -70,11 +80,14 @@ export const ResourceChange = z.discriminatedUnion("op", [
   }),
   z.object({
     op: z.literal("refresh"),
-    resource: z.object({
-      type: ResourceType,
-      workspaceId: z.uuid().optional(),
-      id: z.string().regex(/\S/).optional(),
-    }),
+    resource: z.union([
+      z.object({
+        type: ResourceType,
+        workspaceId: z.uuid().optional(),
+        id: z.string().regex(/\S/).optional(),
+      }),
+      SettingsRefresh,
+    ]),
   }),
 ]);
 export type ResourceChange = z.infer<typeof ResourceChange>;

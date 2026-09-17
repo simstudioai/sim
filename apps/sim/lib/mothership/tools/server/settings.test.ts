@@ -31,6 +31,7 @@ import {
   readOrganizationSettings,
   updateOrganizationSettings,
 } from '@/lib/organizations/application/settings'
+import { updateCurrentUserPreferences } from '@/lib/users/application/preferences'
 
 const principal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
@@ -351,4 +352,50 @@ describe('settings tool dispatch', () => {
       result: { status: 'requires_user_setup', authorizationUrl: 'https://sim.test/oauth/test' },
     })
   })
+})
+
+it('publishes a preference refresh only after the canonical write succeeds', async () => {
+  resolve.mockResolvedValue({ scope: 'account', principal })
+  const update = vi
+    .spyOn(updateCurrentUserPreferences, 'execute')
+    .mockResolvedValue({ success: true })
+  const input = {
+    scope: 'account',
+    section: 'preferences',
+    action: 'update',
+    changes: { theme: 'light' },
+  } as const
+  const result = await settingsServerTool.execute(input)
+  expect(result).toMatchObject({
+    resources: [
+      { op: 'refresh', resource: { type: 'settings', scope: 'account', id: 'preferences' } },
+    ],
+  })
+  update.mockRejectedValueOnce(new Error('Write refused'))
+  await expect(settingsServerTool.execute(input)).rejects.toThrow('Write refused')
+})
+
+it('publishes scoped refreshes for writes, while settings queries remain side-effect free', async () => {
+  resolve.mockResolvedValue({ scope: 'organization', organizationId: 'org', principal })
+  sectionAccess.mockResolvedValue(true)
+  vi.spyOn(updateOrganizationSettings, 'execute').mockResolvedValue(value)
+  expect(
+    await settingsServerTool.execute({
+      scope: 'organization',
+      section: 'general',
+      action: 'update',
+      changes: { name: 'Example' },
+    })
+  ).toMatchObject({
+    resources: [
+      {
+        op: 'refresh',
+        resource: { type: 'settings', scope: 'organization', organizationId: 'org', id: 'general' },
+      },
+    ],
+  })
+  vi.spyOn(readOrganizationSettings, 'execute').mockResolvedValue(value)
+  expect(
+    await settingsServerTool.execute({ scope: 'organization', section: 'general', action: 'get' })
+  ).not.toHaveProperty('resources')
 })

@@ -1,11 +1,16 @@
 import type { z } from 'zod'
 import type { AnyApiRouteContract } from '@/lib/api/contracts/types'
+import * as credentials from '@/lib/api/contracts/v2/credentials'
+import * as customTools from '@/lib/api/contracts/v2/custom-tools'
 import * as files from '@/lib/api/contracts/v2/files'
 import * as knowledge from '@/lib/api/contracts/v2/knowledge'
 import * as chunks from '@/lib/api/contracts/v2/knowledge-chunks'
 import * as tags from '@/lib/api/contracts/v2/knowledge-tags'
 import * as logs from '@/lib/api/contracts/v2/logs'
 import * as logStats from '@/lib/api/contracts/v2/logs-stats'
+import * as mcpServers from '@/lib/api/contracts/v2/mcp-servers'
+import * as sandboxes from '@/lib/api/contracts/v2/sandboxes'
+import * as secrets from '@/lib/api/contracts/v2/secrets'
 import * as tables from '@/lib/api/contracts/v2/tables'
 import * as workflows from '@/lib/api/contracts/v2/workflows'
 import { parseFolderPath } from '@/lib/folders/paths'
@@ -125,7 +130,42 @@ function folders(contracts: Record<string, unknown>, type: ResourceKind): Effect
   })
 }
 
+function settingsMutations(
+  section: string,
+  contracts: Pick<AnyApiRouteContract, 'method' | 'path'>[]
+): EffectRoute[] {
+  return contracts.map(({ method, path }) => ({
+    method,
+    path,
+    async project() {
+      return [{ op: 'refresh', resource: { type: 'settings', scope: 'workspace', id: section } }]
+    },
+  }))
+}
+
 const EFFECT_ROUTES: EffectRoute[] = [
+  ...settingsMutations('secrets', [secrets.v2SetSecretContract, secrets.v2DeleteSecretContract]),
+  ...settingsMutations('credentials', [
+    credentials.v2CreateCredentialConnectionContract,
+    credentials.v2CreateServiceAccountCredentialContract,
+    credentials.v2UpdateCredentialContract,
+    credentials.v2DeleteCredentialContract,
+  ]),
+  ...settingsMutations('custom-tools', [
+    customTools.v2CreateCustomToolContract,
+    customTools.v2UpdateCustomToolContract,
+    customTools.v2DeleteCustomToolContract,
+  ]),
+  ...settingsMutations('mcp', [
+    mcpServers.v2CreateMcpServerContract,
+    mcpServers.v2UpdateMcpServerContract,
+    mcpServers.v2DeleteMcpServerContract,
+  ]),
+  ...settingsMutations('sandboxes', [
+    sandboxes.v2CreateSandboxContract,
+    sandboxes.v2UpdateSandboxContract,
+    sandboxes.v2DeleteSandboxContract,
+  ]),
   {
     ...after(workflows.v2GetWorkflowContract, ({ data }) => upsert('workflow', data, true)),
     readOnly: true,

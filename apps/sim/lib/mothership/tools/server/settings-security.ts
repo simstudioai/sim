@@ -25,6 +25,7 @@ export async function readSettingsDomains(context: SettingsContext) {
 const domainInput = z.strictObject({ domainId: z.string().min(1).max(200) })
 export const organizationDomainSettingsActions = {
   add_domain: settingsOperation(
+    'write',
     addOrganizationDomainBodySchema.strict(),
     async (context, input) => {
       const organizationId = settingsOrganizationId(context)
@@ -46,14 +47,14 @@ export const organizationDomainSettingsActions = {
       }
     }
   ),
-  verify_domain: settingsOperation(domainInput, async (context, input) => {
+  verify_domain: settingsOperation('write', domainInput, async (context, input) => {
     const result = await verifyOrganizationDomain.execute({
       principal: context.principal,
       input: { ...input, organizationId: settingsOrganizationId(context) },
     })
     return { ...result, domain: projectOrganizationDomainForTool(result.domain) }
   }),
-  remove_domain: settingsOperation(domainInput, (context, input) =>
+  remove_domain: settingsOperation('write', domainInput, (context, input) =>
     removeOrganizationDomain.execute({
       principal: context.principal,
       input: { ...input, organizationId: settingsOrganizationId(context) },

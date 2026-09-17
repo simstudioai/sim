@@ -17,12 +17,13 @@ import {
 const keyIdSchema = z.string().min(1).max(200)
 
 export const personalKeySettingsActions = {
-  revoke: settingsOperation(z.strictObject({ keyId: keyIdSchema }), (context, input) =>
+  revoke: settingsOperation('write', z.strictObject({ keyId: keyIdSchema }), (context, input) =>
     revokePersonalApiKey.execute({ principal: context.principal, input })
   ),
 }
 export const workspaceKeySettingsActions = {
   rename: settingsOperation(
+    'write',
     updateWorkspaceApiKeyBodySchema.extend({ keyId: keyIdSchema }).strict(),
     async (context, input) => ({
       key: (
@@ -33,17 +34,21 @@ export const workspaceKeySettingsActions = {
       ).key,
     })
   ),
-  revoke: settingsOperation(z.strictObject({ keyId: keyIdSchema }), async (context, input) => ({
-    success: (
-      await revokeWorkspaceApiKey.execute({
-        principal: context.principal,
-        input: { ...input, workspaceId: settingsWorkspaceId(context) },
-      })
-    ).success,
-  })),
+  revoke: settingsOperation(
+    'write',
+    z.strictObject({ keyId: keyIdSchema }),
+    async (context, input) => ({
+      success: (
+        await revokeWorkspaceApiKey.execute({
+          principal: context.principal,
+          input: { ...input, workspaceId: settingsWorkspaceId(context) },
+        })
+      ).success,
+    })
+  ),
 }
 export const organizationByokSettingsActions = {
-  revoke: settingsOperation(deleteByokKeyBodySchema.strict(), (context, input) =>
+  revoke: settingsOperation('write', deleteByokKeyBodySchema.strict(), (context, input) =>
     deleteOrganizationByokKey.execute({
       principal: context.principal,
       input: { ...input, organizationId: settingsOrganizationId(context) },
@@ -52,7 +57,7 @@ export const organizationByokSettingsActions = {
 }
 
 export const workspaceByokSettingsActions = {
-  revoke: settingsOperation(deleteByokKeyBodySchema.strict(), (context, input) =>
+  revoke: settingsOperation('write', deleteByokKeyBodySchema.strict(), (context, input) =>
     deleteWorkspaceByokKey.execute({
       principal: context.principal,
       input: { ...input, workspaceId: settingsWorkspaceId(context) },

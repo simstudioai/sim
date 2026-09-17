@@ -89,6 +89,7 @@ export interface StreamLoopDeps {
   workspaceId?: string
   organizationId?: string
   queryClient: QueryClient
+  refreshRoute?: () => void
   assistantId: string
   expectedGen: number | undefined
   options: StreamLoopOptions
