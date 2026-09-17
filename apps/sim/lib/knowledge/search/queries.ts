@@ -55,7 +55,7 @@ const CANDIDATE_HNSW_EF_SEARCH = '1000'
 const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'
 const MIN_VECTOR_RERANK_CANDIDATES = 400
 const MAX_VECTOR_RERANK_CANDIDATES = 1600
-const VECTOR_RERANK_OVERSAMPLING = 8
+const VECTOR_RERANK_OVERSAMPLING = 32
 
 /** How long to stop trying the iterative-scan settings after the server rejected them. */
 const HNSW_SETTINGS_UNSUPPORTED_RETRY_MS = 10 * 60 * 1000

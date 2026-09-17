@@ -56,6 +56,7 @@ vi.hoisted(() => {
   if (process.env.KNOWLEDGE_SEARCH_PERFORMANCE_TEST === 'true') {
     Object.assign(process.env, {
       OPENAI_API_KEY: 'isolated-embedding-http-fixture',
+      GEMINI_API_KEY: 'isolated-gemini-http-fixture',
       CONFLUENCE_CLIENT_ID: 'isolated-confluence-fixture-client',
       CONFLUENCE_CLIENT_SECRET: 'isolated-confluence-fixture-secret',
     })
@@ -74,6 +75,7 @@ const unrelatedChunkCount = Number(
 const evictSharedBuffers = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_EVICT_BUFFERS === 'true'
 const dimensions = 1536
 const candidateDimensions = 512
+const hybridCandidateLimit = 1600
 const chunksPerDocument = 4
 const logger = createLogger('SearchLatencyIntegration')
 const fixtureSchema = z.object({
@@ -95,6 +97,7 @@ function readFixtureReport(file: string) {
     .object({
       fixture: fixtureSchema,
       unrelatedFixture: fixtureSchema,
+      fullWidthFixture: fixtureSchema.optional(),
       method: z.object({ fixtureVersion: z.literal(2) }),
     })
     .parse(JSON.parse(readFileSync(file, 'utf8')))
@@ -102,7 +105,7 @@ function readFixtureReport(file: string) {
 const reused = reuseFile ? readFixtureReport(reuseFile) : undefined
 const ids = reused?.fixture ?? createKnowledgeAclFixtureIds()
 const unrelated = reused?.unrelatedFixture ?? createKnowledgeAclFixtureIds()
-const fullWidthFixture = createKnowledgeAclFixtureIds()
+const fullWidthFixture = reused?.fullWidthFixture ?? createKnowledgeAclFixtureIds()
 const fullWidthChunkCount = 5000
 const organizationChatId = generateId()
 function topicVector(topic = 0) {
@@ -121,6 +124,7 @@ const captured: CapturedQuery[] = []
 const report: Record<string, unknown> = {
   fixture: ids,
   unrelatedFixture: unrelated,
+  fullWidthFixture,
   method: {
     fixtureVersion: 2,
     chunkCount,
@@ -565,13 +569,36 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
           ? new Response(null, { status: 403 })
           : Response.json({ type: 'known', accountId: ids.aliceId })
       }
+      if (
+        url ===
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents'
+      ) {
+        z.object({
+          requests: z
+            .array(
+              z.object({
+                model: z.literal('models/gemini-embedding-001'),
+                content: z.object({
+                  parts: z.array(z.object({ text: z.literal('Orion deployment') })),
+                }),
+                outputDimensionality: z.literal(dimensions),
+              })
+            )
+            .length(1),
+        }).parse(JSON.parse(String(init?.body)))
+        embeddingCalls++
+        return Response.json({
+          embeddings: [{ values: queryVector }],
+          usageMetadata: { promptTokenCount: 4 },
+        })
+      }
       if (url !== 'https://api.openai.com/v1/embeddings')
         throw new Error(`Unexpected outbound request in search fixture: ${new URL(url).origin}`)
       const body = z
         .object({
           input: z.array(z.string()).length(1),
           encoding_format: z.literal('base64'),
-          model: z.enum(['text-embedding-3-small', 'text-embedding-ada-002']),
+          model: z.literal('text-embedding-3-small'),
         })
         .parse(JSON.parse(String(init?.body)))
       embeddingCalls += body.input.length
@@ -691,12 +718,13 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
       for (const index of indexes) await db.execute(sql.raw(index.indexdef))
     }
     /** A non-shortenable model must populate its own full-width projection through the write trigger. */
-    await seedKnowledgeAclFixture(fullWidthFixture, { connectorType: 'google_drive' })
-    await db
-      .update(knowledgeBase)
-      .set({ embeddingModel: 'text-embedding-ada-002' })
-      .where(eq(knowledgeBase.id, fullWidthFixture.knowledgeBaseId))
-    await db.execute(sql`
+    if (!reused?.fullWidthFixture) {
+      await seedKnowledgeAclFixture(fullWidthFixture, { connectorType: 'google_drive' })
+      await db
+        .update(knowledgeBase)
+        .set({ embeddingModel: 'gemini-embedding-001' })
+        .where(eq(knowledgeBase.id, fullWidthFixture.knowledgeBaseId))
+      await db.execute(sql`
       WITH source AS MATERIALIZED (
         SELECT id, content, embedding FROM embedding
         WHERE knowledge_base_id = ${ids.knowledgeBaseId} ORDER BY id LIMIT ${fullWidthChunkCount}
@@ -716,6 +744,14 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         3000, 750, 0, 3000, source.embedding
       FROM source JOIN documents ON documents.id = ${fullWidthFixture.workspaceId} || '-doc-' || source.id
     `)
+    }
+    const [fullWidthSize] = await db.execute<{ count: number }>(
+      sql`SELECT count(*)::int AS count FROM embedding WHERE knowledge_base_id = ${fullWidthFixture.knowledgeBaseId}`
+    )
+    expect(fullWidthSize.count).toBe(fullWidthChunkCount)
+    await db.execute(sql`UPDATE embedding SET tag1 = 'selected' WHERE knowledge_base_id = ${ids.knowledgeBaseId}
+      AND tag1 IS DISTINCT FROM 'selected'
+      AND document_id IN (SELECT id FROM document WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND external_id::int < 600)`)
     await db.execute(sql`ANALYZE document`)
     await db.execute(sql`ANALYZE embedding`)
     await db.execute(sql`ANALYZE embedding_search`)
@@ -743,12 +779,9 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     db.$client.options.debug = previousDebug
     vi.unstubAllGlobals()
     saveReport()
-    for (const fixture of [
-      fullWidthFixture,
-      ...(process.env.KNOWLEDGE_SEARCH_PERFORMANCE_KEEP_DATABASE === 'true'
-        ? []
-        : [ids, unrelated]),
-    ]) {
+    for (const fixture of process.env.KNOWLEDGE_SEARCH_PERFORMANCE_KEEP_DATABASE === 'true'
+      ? []
+      : [ids, unrelated, fullWidthFixture]) {
       await db.delete(workspace).where(eq(workspace.id, fixture.workspaceId))
       await db.delete(organization).where(eq(organization.id, fixture.organizationId))
       await db.delete(user).where(eq(user.id, fixture.aliceId))
@@ -1089,7 +1122,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     }
   }, 180_000)
 
-  it.each([200, 396, 400, 1000, 2000])(
+  it.each([200, 1000, 1596, 1600, 2000])(
     'keeps a selective scope of %s chunks within both retrieval budgets',
     async (count) => {
       const documentCount = count / chunksPerDocument
@@ -1116,10 +1149,14 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
             true
           )
           const probe = plans.find((plan) => plan.kind === 'probe')!
-          expect(probe.plan[0].Plan['Actual Rows']).toBe(Math.min(count, 400))
-          expect(assertIndexedChunkProbe(probe.plan[0].Plan)).toBe(Math.min(documentCount, 100))
-          expect(plans.filter((plan) => plan.kind === 'vector')).toHaveLength(count < 400 ? 0 : 1)
-          if (count > 400) {
+          expect(probe.plan[0].Plan['Actual Rows']).toBe(Math.min(count, hybridCandidateLimit))
+          expect(assertIndexedChunkProbe(probe.plan[0].Plan)).toBe(
+            Math.min(documentCount, hybridCandidateLimit / chunksPerDocument)
+          )
+          expect(plans.filter((plan) => plan.kind === 'vector')).toHaveLength(
+            count < hybridCandidateLimit ? 0 : 1
+          )
+          if (count > hybridCandidateLimit) {
             const rerank = plans.find((plan) => plan.kind === 'rerank')!
             const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
             const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
@@ -1187,8 +1224,10 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         expectCompleteVectorSearch(broad.diagnostics)
         expect(broad.result.data.results).toHaveLength(15)
         const broadProbe = broad.plans.find((plan) => plan.kind === 'probe')!
-        expect(broadProbe.plan[0].Plan['Actual Rows']).toBe(400)
-        expect(assertIndexedChunkProbe(broadProbe.plan[0].Plan)).toBe(400 / chunksPerDocument)
+        expect(broadProbe.plan[0].Plan['Actual Rows']).toBe(hybridCandidateLimit)
+        expect(assertIndexedChunkProbe(broadProbe.plan[0].Plan)).toBe(
+          hybridCandidateLimit / chunksPerDocument
+        )
         const { result, plans, diagnostics } = await sample(`member-scope.${surface}`, () =>
           surface === 'copilot' ? search(ids.bobId) : searchDashboard('Orion deployment', ids.bobId)
         )
@@ -1376,8 +1415,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         for (const diagnostics of completed) expectCompleteVectorSearch(diagnostics)
       }
 
-      await db.execute(sql`UPDATE embedding SET tag1 = 'selected' WHERE knowledge_base_id = ${ids.knowledgeBaseId}
-        AND document_id IN (SELECT id FROM document WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND external_id::int < 600)`)
       const tagged = await sample('workspace-kb.tagged', () =>
         searchWorkspaceKb('Orion deployment', {
           tagFilters: [{ tagName: 'Fixture', operator: 'eq', value: 'selected' }],
@@ -1417,9 +1454,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
       expectCompleteVectorSearch(denied.diagnostics)
       expect(denied.result.data.results).toEqual([])
     } finally {
-      await db.execute(
-        sql`UPDATE embedding SET tag1 = NULL WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND tag1 = 'selected'`
-      )
       await db
         .update(knowledgeConnector)
         .set({ accessRewritePending: false })
