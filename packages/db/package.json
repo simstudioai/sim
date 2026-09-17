@@ -48,8 +48,9 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "drizzle-kit": "^0.31.4",
+    "@types/bun": "1.4.1",
     "@types/node": "24.2.1",
+    "drizzle-kit": "0.31.10",
     "typescript": "^7.0.2",
     "vitest": "^4.1.0"
   }

@@ -1,0 +1,75 @@
+diff --git a/bin.cjs b/bin.cjs
+index 07274ea6f53fd54a129b3d338892feda6e995cff..2c4556d9f8741560581e4c1f4e06d1dfb8dda63c 100755
+--- a/bin.cjs
++++ b/bin.cjs
+@@ -32692,7 +32692,7 @@ var init_migrate = __esm({
+       };
+     };
+     promptColumnsConflicts = async (tableName, newColumns, missingColumns) => {
+-      if (newColumns.length === 0 || missingColumns.length === 0) {
++      if (process.env.SIM_DB_PUSH_RENAME_MODE === "create" || newColumns.length === 0 || missingColumns.length === 0) {
+         return { created: newColumns, renamed: [], deleted: missingColumns };
+       }
+       const result = {
+@@ -32742,7 +32742,7 @@ var init_migrate = __esm({
+       return result;
+     };
+     promptNamedConflict = async (newItems, missingItems, entity) => {
+-      if (missingItems.length === 0 || newItems.length === 0) {
++      if (process.env.SIM_DB_PUSH_RENAME_MODE === "create" || missingItems.length === 0 || newItems.length === 0) {
+         return {
+           created: newItems,
+           renamed: [],
+@@ -32792,7 +32792,7 @@ var init_migrate = __esm({
+       return result;
+     };
+     promptNamedWithSchemasConflict = async (newItems, missingItems, entity) => {
+-      if (missingItems.length === 0 || newItems.length === 0) {
++      if (process.env.SIM_DB_PUSH_RENAME_MODE === "create" || missingItems.length === 0 || newItems.length === 0) {
+         return {
+           created: newItems,
+           renamed: [],
+@@ -32852,7 +32852,7 @@ var init_migrate = __esm({
+       return result;
+     };
+     promptSchemasConflict = async (newSchemas, missingSchemas) => {
+-      if (missingSchemas.length === 0 || newSchemas.length === 0) {
++      if (process.env.SIM_DB_PUSH_RENAME_MODE === "create" || missingSchemas.length === 0 || newSchemas.length === 0) {
+         return { created: newSchemas, renamed: [], deleted: missingSchemas };
+       }
+       const result = {
+@@ -82739,7 +82739,7 @@ var init_push = __esm({
+               );
+               if ((data == null ? void 0 : data.index) === 0) {
+                 (0, import_hanji13.render)(`[${source_default.red("x")}] All changes were aborted`);
+-                process.exit(0);
++                process.exit(1);
+               }
+             }
+           }
+@@ -82761,7 +82761,7 @@ var init_push = __esm({
+             );
+             if ((data == null ? void 0 : data.index) === 0) {
+               (0, import_hanji13.render)(`[${source_default.red("x")}] All changes were aborted`);
+-              process.exit(0);
++              process.exit(1);
+             }
+           }
+           for (const dStmnt of statementsToExecute) {
+@@ -82774,7 +82774,7 @@ var init_push = __esm({
+           }
+         }
+       } catch (e4) {
+-        console.error(e4);
++        throw e4;
+       }
+     };
+     sqlitePush = async (schemaPath, verbose, strict, credentials2, tablesFilter, force, casing2) => {
+@@ -92279,6 +92279,7 @@ var push = command2({
+       }
+     } catch (e4) {
+       console.error(e4);
++      process.exit(1);
+     }
+     process.exit(0);
+   }

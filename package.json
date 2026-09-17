@@ -192,6 +192,7 @@
   ],
   "patchedDependencies": {
     "@better-auth/oauth-provider@1.6.27": "patches/@better-auth%2Foauth-provider@1.6.27.patch",
+    "drizzle-kit@0.31.10": "patches/drizzle-kit@0.31.10.patch",
     "postgres@3.4.9": "patches/postgres@3.4.9.patch"
   }
 }
