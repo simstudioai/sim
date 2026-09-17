@@ -39,7 +39,6 @@ describe('outbox processor enqueue', () => {
       idempotencyKeyTTL: '5m',
       maxDuration: 900,
       region: 'us-east-1',
-      ttl: '1m',
     })
     expect(mocks.processor).not.toHaveBeenCalled()
   })

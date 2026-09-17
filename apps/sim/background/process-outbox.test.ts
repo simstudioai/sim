@@ -14,9 +14,10 @@ describe('outbox processor task', () => {
   it('bounds worker concurrency and lets the durable outbox own event retries', async () => {
     expect(processOutboxTask).toMatchObject({
       id: 'process-outbox',
+      machine: 'medium-2x',
       maxDuration: 900,
       retry: { maxAttempts: 1 },
-      queue: { name: 'process-outbox', concurrencyLimit: 4 },
+      queue: { name: 'process-outbox', concurrencyLimit: 15 },
     })
     const output = { result: { processed: 3 }, recoveredDocuments: 0, reapedBackgroundWork: 0 }
     mocks.processor.mockResolvedValueOnce(output)

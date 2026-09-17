@@ -27,8 +27,6 @@ export async function enqueueOutboxProcessor(): Promise<OutboxProcessorEnqueueRe
     idempotencyKeyTTL: '5m',
     maxDuration: OUTBOX_PROCESSOR_MAX_DURATION_SECONDS,
     region: await resolveTriggerRegion(),
-    /** Expired ticks are superseded by the next poll of the same durable outbox. */
-    ttl: '1m',
   })
   return { backend: 'trigger-dev', jobId: handle.id }
 }
