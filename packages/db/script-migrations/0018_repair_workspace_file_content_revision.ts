@@ -13,14 +13,14 @@ interface RepairPage {
  * Repairs one page of revisions stored with sub-millisecond precision.
  *
  * `content_updated_at` must be millisecond-precise; the column's TSDoc in `packages/db/schema.ts` has why
- * a sub-millisecond revision strands a file as permanently unindexed. Migration 0357 stops new ones being
+ * a sub-millisecond revision strands a file as permanently unindexed. Migration 0358 stops new ones being
  * minted; these are the rows that predate it, almost all stamped by the `DEFAULT now()` that added the
  * column.
  *
  * Scoped to `context = 'workspace'`, live and soft-deleted: those are the rows the search index keys on,
  * and a soft-deleted row is restored by paths that do not rewrite `content_updated_at`, which would
  * re-enter the broken state. Other contexts are never search-indexed and only ever compare this column in
- * JavaScript, where both sides are already millisecond; the 0357 trigger normalizes them on their next
+ * JavaScript, where both sides are already millisecond; the 0358 trigger normalizes them on their next
  * content write rather than rewriting millions of rows here.
  *
  * Keyset by `id` so each page continues along the primary key instead of re-scanning the rows earlier

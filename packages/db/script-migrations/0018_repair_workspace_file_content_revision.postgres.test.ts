@@ -92,7 +92,7 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
       EXECUTE FUNCTION demote_secret_provenance_version()`
     await applyMigration(
       sql,
-      '0357_workspace_file_content_version_precision.sql',
+      '0358_workspace_file_content_version_precision.sql',
       (statement) =>
         statement.includes('content_version_millisecond') ||
         statement.includes('SET DEFAULT date_trunc')
@@ -115,7 +115,7 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
   })
 
   /**
-   * Seeds a row that predates the 0357 trigger, which would otherwise normalize it on the way in.
+   * Seeds a row that predates the 0358 trigger, which would otherwise normalize it on the way in.
    * Timestamps go in as SQL literals: the driver serializes a bound `timestamp` parameter through a
    * JavaScript `Date`, which is the very truncation under test.
    */
@@ -232,7 +232,7 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
     expect(row.remaining).toBe(0)
   })
 
-  describe('the 0357 invariant', () => {
+  describe('the 0358 invariant', () => {
     async function insertWithDatabaseDefault(id: string) {
       await sql.unsafe(`INSERT INTO workspace_files (id, workspace_id, context)
         VALUES ('${id}', 'legacy-workspace', 'workspace')`)

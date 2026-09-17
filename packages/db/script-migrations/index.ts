@@ -39,7 +39,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   /** 0016 completes partially applied 0015 binary projections together with the new search vectors. */
   backfillSearchVectorsMigration,
   indexSearchDocumentsMigration,
-  /** 0357 stops new sub-millisecond revisions; this retires the ones that predate it. */
+  /** 0358 stops new sub-millisecond revisions; this retires the ones that predate it. */
   repairWorkspaceFileContentRevisionMigration,
 ]
 
