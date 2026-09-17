@@ -211,20 +211,24 @@ export async function runDocumentProcessing(
 
 /**
  * Both lanes are keyed by tenant at dispatch, so `concurrencyLimit` is the
- * ceiling one tenant may hold in that lane, not a ceiling for the fleet. The
- * shared bound is the Trigger.dev environment concurrency limit, which is where
- * a global ceiling belongs; observed peak there is ~97 across every task.
+ * ceiling one tenant may hold in that lane, not a ceiling for the fleet. There
+ * is no longer a fleet-wide ceiling for document processing: the aggregate is
+ * active tenants times the lane limit, bounded only by the Trigger.dev
+ * environment concurrency limit, which every other task shares.
  *
- * Both default to the limit the single shared queue carried, which is what
- * keeps this split from ever draining slower than the queue it replaces: the
- * busiest case it has to beat is one tenant alone, and one tenant alone still
- * gets the same slots it used to get for backfill plus a separate allowance for
- * work someone is waiting on. Any second tenant is pure gain, because under the
- * shared queue it got whatever the first one left.
+ * Both carry 20 because that is the number the single shared queue carried, not
+ * because 20 was derived for a per-tenant ceiling — it has been the default
+ * since the queue was introduced and the split changed its unit rather than its
+ * value. One tenant alone therefore still gets what it used to for backfill,
+ * plus a separate allowance for work someone is waiting on; two tenants draw
+ * twice the aggregate the shared queue ever allowed.
  *
- * Splitting the two into separate variables is for operating them, not for
- * sizing them: backfill is the one to lower when the environment ceiling is the
- * binding constraint, and lowering it must not slow down a person's upload.
+ * So backfill is the one to lower, and the database is what decides when: it is
+ * the resource the aggregate actually lands on, and the per-document embedding
+ * writes are the load. Lower it when their latency climbs, not when the
+ * Trigger.dev environment limit is approached. The queue concurrency override
+ * API applies a new value without a redeploy; this variable is read when the
+ * worker deploy registers the queue, so changing it here needs one.
  */
 export const interactiveProcessingQueue = queue({
   name: INTERACTIVE_PROCESSING_QUEUE_NAME,
