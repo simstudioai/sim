@@ -2,7 +2,10 @@
 import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const resolve = vi.hoisted(() => vi.fn())
+const { resolve, sectionAccess } = vi.hoisted(() => ({ resolve: vi.fn(), sectionAccess: vi.fn() }))
+vi.mock('@/lib/settings/application/organization-section-access', () => ({
+  authorizeOrganizationSettingsSection: sectionAccess,
+}))
 vi.mock('@/lib/mothership/application/settings-context', () => ({
   resolveSettingsContext: resolve,
 }))
@@ -71,10 +74,26 @@ function execute(
 }
 beforeEach(() => {
   vi.restoreAllMocks()
+  sectionAccess.mockReset().mockResolvedValue(true)
   resolve.mockReset()
   target('workspace')
 })
 describe('settings management adapter boundaries', () => {
+  it('checks current organization section access before forwarding a billing mutation', async () => {
+    target('organization')
+    sectionAccess.mockResolvedValue(false)
+    const update = vi.spyOn(updateUsageLimit, 'execute').mockResolvedValue({} as never)
+    await expect(
+      execute('organization', 'billing', 'set_spending_limit', { limit: 12.5 })
+    ).rejects.toThrow('unavailable for your current organization access')
+    expect(sectionAccess).toHaveBeenCalledWith({
+      organizationId: 'trusted-org',
+      userId: 'actor',
+      section: 'billing',
+    })
+    expect(update).not.toHaveBeenCalled()
+  })
+
   it.each(['account', 'organization'] as const)(
     'binds %s dollar caps to trusted context and passes dollars unchanged',
     async (scope) => {

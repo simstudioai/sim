@@ -41,6 +41,7 @@ vi.mock('@/lib/workspace-files/application/resolve-rendered-workspace-artifact',
   resolveRenderedWorkspaceArtifact: mocks.render,
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
+  SESSION_SANDBOX_HOME: '/home/user',
   readSessionSandboxFile: vi.fn(),
   writeSessionSandboxFile: vi.fn(),
 }))

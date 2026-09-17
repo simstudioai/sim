@@ -192,7 +192,13 @@ export const authorizeOrganizationChatCancellation = {
 
 /** A trusted service may act only on the subject's persisted private organization chat. */
 export const authorizeOrganizationChatDelegation = {
-  async execute({ principal }: { principal: OrganizationDelegatedPrincipal }) {
+  async execute({
+    principal,
+    mode,
+  }: {
+    principal: OrganizationDelegatedPrincipal
+    mode?: 'assistant' | 'agent'
+  }) {
     if (principal.serviceId !== 'copilot')
       throw new OrchestrationError('forbidden', 'Invalid conversation delegation')
     const operation = Object.values(organizationChatDelegationOperations).find(
@@ -216,6 +222,7 @@ export const authorizeOrganizationChatDelegation = {
       )
       .limit(1)
     if (!chat) throw new OrchestrationError('not_found', 'Conversation not found')
+    if (mode === 'agent') await requireBuildPermission(context)
     return context
   },
 }

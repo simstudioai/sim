@@ -4,8 +4,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
-  authorizeOrganizationChatCancellation,
   authorizeOrganizationChat,
+  authorizeOrganizationChatCancellation,
   authorizeOrganizationChatDelegation,
   authorizeOrganizationChatEvents,
   createOrganizationChat,
@@ -226,6 +226,18 @@ describe('organization Build admission', () => {
     })
     expect(permissionConfig).not.toHaveBeenCalled()
   })
+  it('rechecks Build permission for a delegated continuation while allowing Search', async () => {
+    authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'owner' })
+    permissionConfig.mockResolvedValue({ disableWorkspaceCreation: true })
+    dbChainMockFns.limit.mockResolvedValue([{ id: 'private-chat' }])
+    await expect(
+      authorizeOrganizationChatDelegation.execute({ principal: principal(), mode: 'agent' })
+    ).rejects.toThrow('Build requires permission')
+    await expect(
+      authorizeOrganizationChatDelegation.execute({ principal: principal(), mode: 'assistant' })
+    ).resolves.toMatchObject({ userId: 'member-1' })
+  })
+
   it('checks current membership before the Build permission projection', async () => {
     authorize.mockRejectedValueOnce(new Error('Membership revoked'))
     await expect(

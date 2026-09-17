@@ -6,6 +6,7 @@ const { readFile, writeFile, embedded } = vi.hoisted(() => ({
   embedded: vi.fn(),
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
+  SESSION_SANDBOX_HOME: '/home/user',
   readSessionSandboxFile: readFile,
   writeSessionSandboxFile: writeFile,
 }))

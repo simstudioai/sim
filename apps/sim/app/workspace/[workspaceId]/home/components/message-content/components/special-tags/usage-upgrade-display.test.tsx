@@ -15,7 +15,7 @@ vi.mock('@/lib/core/config/deployment-shape', async (importOriginal) => ({
   useDeploymentShape: () => ({ hosted: true }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useWorkspaceHostContext: () => ({
+  useOptionalWorkspaceHostContext: () => ({
     workspace: { id: 'workspace', billedAccountUserId: 'owner' },
     hostOrganizationId: 'organization',
     viewer: { isHostOrganizationAdmin: false },

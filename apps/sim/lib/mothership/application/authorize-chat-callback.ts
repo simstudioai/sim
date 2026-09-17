@@ -8,6 +8,8 @@ import {
   type BillingAttributionSnapshot,
   checkAttributedBillingBlocks,
 } from '@/lib/billing/core/billing-attribution'
+import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { chatOperations } from '@/lib/mothership/application/operations'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
@@ -19,8 +21,6 @@ import {
   COPILOT_VALIDATION_PURPOSE,
   type CopilotValidationPurpose,
 } from '@/lib/mothership/generated/billing-protocol-v1'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 const CALLBACK_AUDIENCE = 'sim:copilot-callback'
@@ -57,9 +57,10 @@ interface CopilotChatCallbackContext {
   chatId?: string
   delegationId: string
   purpose: Exclude<CopilotValidationPurpose, 'new-turn'>
+  mode?: 'assistant' | 'agent'
 }
 
-/** Reauthorizes the original server-owned scope across a Go lifecycle boundary. */
+/** Reauthorizes the original server-owned scope across a model lifecycle boundary. */
 export async function authorizeCopilotChatCallback(context: CopilotChatCallbackContext) {
   if (context.organizationId) {
     if (!context.chatId || context.workspaceId) {
@@ -75,7 +76,7 @@ export async function authorizeCopilotChatCallback(context: CopilotChatCallbackC
         ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
       }
     )
-    await authorizeOrganizationChatDelegation.execute({ principal })
+    await authorizeOrganizationChatDelegation.execute({ principal, mode: context.mode })
     return
   }
   if (!context.workspaceId) return

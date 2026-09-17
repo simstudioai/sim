@@ -1585,7 +1585,7 @@ async function getChatUploadByName(
   chatId?: string
 ): Promise<WorkspaceFileRecord | null> {
   const [file] = await db
-    .select(workspaceFileColumns)
+    .select()
     .from(workspaceFiles)
     .where(
       and(
