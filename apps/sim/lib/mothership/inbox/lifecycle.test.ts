@@ -216,4 +216,15 @@ describe('inbox lifecycle failure safety', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
     expect(mocks.deleteInbox).not.toHaveBeenCalled()
   })
+
+  it('rolls back a created inbox when its response is missing the creation timestamp', async () => {
+    queueTableRows(schemaMock.workspace, [emptyState])
+    mocks.createInbox.mockResolvedValueOnce({ inbox_id: newInbox.inbox_id })
+    await expect(enableInbox('workspace-1')).rejects.toThrow(
+      'Email service returned an invalid inbox'
+    )
+    expect(mocks.deleteInbox).toHaveBeenCalledWith(newInbox.inbox_id)
+    expect(mocks.createWebhook).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
 })

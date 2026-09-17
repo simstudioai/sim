@@ -16,6 +16,7 @@ vi.mock('@/lib/mothership/inbox/agentmail-client', () => mocks)
 
 import {
   cancelInboxCleanup,
+  type InboxCleanupPayload,
   inboxCleanupOutboxHandlers,
 } from '@/lib/mothership/inbox/cleanup-outbox'
 
@@ -131,5 +132,61 @@ describe('durable inbox cleanup', () => {
   it('refuses activation when rollback is no longer cancelable', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
     await expect(cancelInboxCleanup(db, 'event-1')).rejects.toThrow('Inbox setup expired')
+  })
+
+  it.each(['webhook', 'inbox'])(
+    'allows more than ten expected %s polls without spending failure attempts',
+    async (resource) => {
+      const pending: InboxCleanupPayload = { ...payload }
+      vi.mocked(context.checkpointPayload).mockImplementation(async (patch) => {
+        Object.assign(pending, patch)
+      })
+      if (resource === 'webhook') mocks.deleteWebhook.mockResolvedValue(false)
+      else mocks.deleteInbox.mockResolvedValue(false)
+
+      for (let poll = 0; poll < 11; poll++) {
+        await expect(cleanup(pending, context)).resolves.toMatchObject({
+          outcome: 'deferred',
+          consumeAttempt: false,
+          minimumBackoffMs: 30_000,
+        })
+      }
+      expect(pending.deletionPollsRemaining).toBe(109)
+      mocks.deleteWebhook.mockResolvedValue(true)
+      mocks.getInbox.mockResolvedValueOnce(null)
+      await expect(cleanup(pending, context)).resolves.toBeUndefined()
+    }
+  )
+
+  it.each(['webhook', 'inbox'])(
+    'bounds perpetual %s polling and returns to the failure budget',
+    async (resource) => {
+      const pending: InboxCleanupPayload = { ...payload, deletionPollsRemaining: 1 }
+      vi.mocked(context.checkpointPayload).mockImplementation(async (patch) => {
+        Object.assign(pending, patch)
+      })
+      if (resource === 'webhook') mocks.deleteWebhook.mockResolvedValue(false)
+      else mocks.deleteInbox.mockResolvedValue(false)
+
+      await expect(cleanup(pending, context)).resolves.toMatchObject({ consumeAttempt: false })
+      expect(pending.deletionPollsRemaining).toBe(0)
+      const exhausted = await cleanup(pending, context)
+      expect(exhausted).toMatchObject({
+        outcome: 'deferred',
+        reason: expect.stringContaining('exhausted'),
+      })
+      expect(exhausted).not.toHaveProperty('consumeAttempt', false)
+      expect(pending.deletionPollsRemaining).toBe(0)
+    }
+  )
+
+  it('continues charging actual provider failures to the outbox error budget', async () => {
+    mocks.deleteWebhook.mockRejectedValueOnce(new Error('Connection failed'))
+    await expect(cleanup({ ...payload, deletionPollsRemaining: 100 }, context)).rejects.toThrow(
+      'Connection failed'
+    )
+    expect(context.checkpointPayload).not.toHaveBeenCalledWith(
+      expect.objectContaining({ deletionPollsRemaining: expect.any(Number) })
+    )
   })
 })

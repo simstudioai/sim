@@ -83,7 +83,8 @@ export interface DeferredOutboxHandlerResult {
    * Defaults to true for an external acknowledgement with a finite retry
    * budget. False is reserved for waits on an internal dependency whose own
    * outbox row independently reaches completed or dead-letter, and for
-   * bounded continuation after durable progress (`continueOutboxHandler`).
+   * bounded continuation after durable progress (`continueOutboxHandler`),
+   * or external polling with a separately persisted, finite poll allowance.
    */
   consumeAttempt?: boolean
 }

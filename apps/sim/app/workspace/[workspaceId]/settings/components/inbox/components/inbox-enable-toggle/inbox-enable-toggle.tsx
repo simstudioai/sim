@@ -19,7 +19,7 @@ import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
 const INBOX_OPTIONS = [
   { value: 'enabled', label: 'On' },
   { value: 'disabled', label: 'Off' },
-]
+] as const
 
 export function InboxEnableToggle() {
   const params = useParams()

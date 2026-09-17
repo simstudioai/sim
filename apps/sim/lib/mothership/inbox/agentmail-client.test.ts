@@ -5,6 +5,7 @@ import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createInbox,
+  createWebhook,
   deleteInbox,
   deleteWebhook,
   getInbox,
@@ -46,5 +47,22 @@ describe('AgentMail resource deletion', () => {
   it('never exposes provider response bodies in user-facing errors', async () => {
     fetchMock.mockResolvedValueOnce(new Response('private provider diagnostic', { status: 400 }))
     await expect(createInbox({ username: 'test' })).rejects.toThrow('Check the email prefix')
+  })
+
+  it('reports an address conflict only when creating an inbox', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 409 }))
+    await expect(createInbox({ username: 'test' })).rejects.toThrow(
+      'This email address is unavailable'
+    )
+  })
+  it('reports webhook conflicts as a service failure instead of an address conflict', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 409 }))
+    await expect(
+      createWebhook({
+        url: 'https://example.com/webhook',
+        eventTypes: ['message.received'],
+        inboxIds: ['inbox@example.com'],
+      })
+    ).rejects.toThrow('The email service is unavailable')
   })
 })

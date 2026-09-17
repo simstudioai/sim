@@ -99,7 +99,11 @@ async function rollbackProvisioning(inbox: AgentMailInbox, webhook: AgentMailWeb
 
 async function provisionInbox(username?: string) {
   const inbox = await agentmail.createInbox({ username, displayName: 'Sim' })
-  if (!inbox?.inbox_id || !inbox.created_at) {
+  if (!inbox?.inbox_id) {
+    throw new Error('Email service returned an invalid inbox')
+  }
+  if (!inbox.created_at) {
+    await rollbackUninstalledResources(inbox, null)
     throw new Error('Email service returned an invalid inbox')
   }
   try {

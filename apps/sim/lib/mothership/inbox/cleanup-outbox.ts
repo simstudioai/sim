@@ -6,6 +6,7 @@ import { z } from 'zod'
 import {
   deferOutboxHandler,
   enqueueOutboxEvent,
+  type OutboxEventContext,
   type OutboxHandler,
   type OutboxHandlerRegistry,
   processOutboxEventById,
@@ -14,6 +15,8 @@ import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 
 const logger = createLogger('InboxCleanup')
 const INBOX_CLEANUP_EVENT = 'inbox.resources.cleanup'
+const MAX_DELETION_POLLS = 120
+const DELETION_POLL_INTERVAL_MS = 30_000
 
 const cleanupPayloadSchema = z
   .object({
@@ -22,10 +25,25 @@ const cleanupPayloadSchema = z
     webhookId: z.string().min(1).max(256).nullable(),
     inboxDeleteAccepted: z.boolean().optional(),
     cleanupStarted: z.boolean().optional(),
+    deletionPollsRemaining: z.number().int().min(0).max(MAX_DELETION_POLLS).optional(),
   })
   .refine((payload) => !payload.inboxId || payload.inboxCreatedAt !== null)
 
 export type InboxCleanupPayload = z.infer<typeof cleanupPayloadSchema>
+
+/** Expected provider waits have a separate finite allowance from failures such as network errors. */
+async function waitForDeletion(
+  payload: InboxCleanupPayload,
+  context: OutboxEventContext,
+  reason: string
+) {
+  const remaining = payload.deletionPollsRemaining ?? MAX_DELETION_POLLS
+  if (remaining === 0) {
+    return deferOutboxHandler(`${reason}: polling allowance exhausted`, DELETION_POLL_INTERVAL_MS)
+  }
+  await context.checkpointPayload({ deletionPollsRemaining: remaining - 1 })
+  return deferOutboxHandler(reason, DELETION_POLL_INTERVAL_MS, false)
+}
 
 const cleanupInboxResources: OutboxHandler = async (rawPayload, context) => {
   const payload = cleanupPayloadSchema.parse(rawPayload)
@@ -41,7 +59,7 @@ const cleanupInboxResources: OutboxHandler = async (rawPayload, context) => {
       .limit(1)
     if (active) throw new Error('Inbox webhook is still in use')
     if (!(await agentmail.deleteWebhook(payload.webhookId, context.signal))) {
-      return deferOutboxHandler('Waiting for webhook deletion', 5_000)
+      return waitForDeletion(payload, context, 'Waiting for webhook deletion')
     }
   }
 
@@ -62,7 +80,7 @@ const cleanupInboxResources: OutboxHandler = async (rawPayload, context) => {
     if (await agentmail.deleteInbox(payload.inboxId, context.signal)) return
     await context.checkpointPayload({ inboxDeleteAccepted: true })
   }
-  return deferOutboxHandler('Waiting for inbox deletion', 5_000)
+  return waitForDeletion(payload, context, 'Waiting for inbox deletion')
 }
 
 export const inboxCleanupOutboxHandlers = {

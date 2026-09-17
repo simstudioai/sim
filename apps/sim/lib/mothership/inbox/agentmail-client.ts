@@ -27,7 +27,7 @@ class AgentMailError extends Error {
     path: string
   ) {
     super(
-      status === 409
+      status === 409 && path === '/inboxes'
         ? 'This email address is unavailable. Choose another prefix or try again later.'
         : status === 400 && path === '/inboxes'
           ? 'Unable to create this inbox. Check the email prefix and try again, or contact support.'
