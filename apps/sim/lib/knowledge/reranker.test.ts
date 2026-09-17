@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 import { setupGlobalFetchMock } from '@sim/testing/mocks'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AtomicAdmissionOptions,
@@ -13,6 +15,8 @@ const admission = vi.hoisted(() => ({
   setCooldown: vi.fn(),
   cooldowns: new Map<string, Date>(),
 }))
+const { getBYOKKey } = vi.hoisted(() => ({ getBYOKKey: vi.fn() }))
+vi.mock('@/lib/api-key/byok', () => ({ getBYOKKey }))
 vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({
   createStorageAdapter: () => ({
     consumeTokensAtomically: admission.consume,
@@ -31,6 +35,15 @@ const envSnapshot = { ...env }
 describe('Knowledge reranker model boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnvFlags({ isHosted: true })
+    getBYOKKey.mockResolvedValue(null)
+    setEnv({
+      KB_CONFIG_RERANK_REQUESTS_PER_MINUTE: undefined,
+      KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE: undefined,
+      COHERE_API_KEY_1: undefined,
+      COHERE_API_KEY_2: undefined,
+      COHERE_API_KEY_3: undefined,
+    })
     admission.cooldowns.clear()
     admission.consume.mockImplementation(
       async (_reservations: readonly TokenBucketReservation[], options: AtomicAdmissionOptions) => {
@@ -55,9 +68,57 @@ describe('Knowledge reranker model boundary', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    resetEnvFlagsMock()
     vi.unstubAllGlobals()
     for (const key of Object.keys(env)) delete (env as Record<string, unknown>)[key]
     Object.assign(env, envSnapshot)
+  })
+
+  it.each([
+    { hosted: true, source: 'env', expectedKey: 'cohere-key', burst: 16, refill: 10 },
+    { hosted: true, source: 'rotation', expectedKey: 'rotating-key', burst: 16, refill: 10 },
+    { hosted: true, source: 'workspace', expectedKey: 'byok-key', burst: 2, refill: 1 },
+    { hosted: true, source: 'organization', expectedKey: 'byok-key', burst: 2, refill: 1 },
+    { hosted: false, source: 'user', expectedKey: 'user-key', burst: 2, refill: 1 },
+    { hosted: false, source: 'env', expectedKey: 'cohere-key', burst: 2, refill: 1 },
+    { hosted: false, source: 'rotation', expectedKey: 'rotating-key', burst: 2, refill: 1 },
+    { hosted: false, source: 'workspace', expectedKey: 'byok-key', burst: 2, refill: 1 },
+    { hosted: false, source: 'organization', expectedKey: 'byok-key', burst: 2, refill: 1 },
+  ])('uses the $source credential budget on hosted=$hosted', async (fixture) => {
+    setEnvFlags({ isHosted: fixture.hosted })
+    const isBYOK = fixture.source === 'workspace' || fixture.source === 'organization'
+    if (isBYOK) {
+      getBYOKKey.mockResolvedValue({ apiKey: 'byok-key', scope: fixture.source, isBYOK: true })
+    }
+    if (fixture.source === 'rotation') {
+      setEnv({ COHERE_API_KEY: undefined, COHERE_API_KEY_1: 'rotating-key' })
+    }
+    const result = await rerank('query', [{ id: 'one', text: 'content' }], {
+      model: 'rerank-v4.0-fast',
+      workspaceId: 'fixture-workspace',
+      apiKey: fixture.hosted || fixture.source === 'user' ? 'user-key' : undefined,
+    })
+    expect(result.isBYOK).toBe(isBYOK)
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.cohere.com/v2/rerank',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: `Bearer ${fixture.expectedKey}` }),
+      })
+    )
+    expect(admission.consume.mock.calls[0][0]).toMatchObject([
+      { config: { maxTokens: fixture.burst, refillRate: fixture.refill, refillIntervalMs: 1000 } },
+    ])
+    if (fixture.source === 'user') expect(getBYOKKey).not.toHaveBeenCalled()
+    else expect(getBYOKKey).toHaveBeenCalledWith('fixture-workspace', 'cohere')
+  })
+
+  it('fails before admission when no credential is configured', async () => {
+    setEnv({ COHERE_API_KEY: undefined })
+    await expect(
+      rerank('query', [{ id: 'one', text: 'content' }], { model: 'rerank-v4.0-fast' })
+    ).rejects.toThrow('No Cohere API key configured')
+    expect(admission.consume).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('projects query and documents at egress while returning the original item', async () => {
@@ -132,10 +193,16 @@ describe('Knowledge reranker model boundary', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response('{}', { status: 429, headers: { 'Retry-After': '2' } })
     )
-    const first = rerank('first', [{ id: 'one', text: 'content' }], { model: 'rerank-v4.0-fast' })
+    const first = rerank('first', [{ id: 'one', text: 'content' }], {
+      model: 'rerank-v4.0-fast',
+      workspaceId: 'fixture-workspace-one',
+    })
     await vi.advanceTimersByTimeAsync(0)
     expect(admission.setCooldown).toHaveBeenCalledOnce()
-    const second = rerank('second', [{ id: 'two', text: 'content' }], { model: 'rerank-v4.0-fast' })
+    const second = rerank('second', [{ id: 'two', text: 'content' }], {
+      model: 'rerank-v4.0-fast',
+      workspaceId: 'fixture-workspace-two',
+    })
     await vi.advanceTimersByTimeAsync(1999)
     expect(fetch).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1)
@@ -147,7 +214,7 @@ describe('Knowledge reranker model boundary', () => {
     expect(new Set(reservations.map((item) => item.key)).size).toBe(1)
     expect(reservations[0].key).toMatch(/^provider:rerank:cohere:[a-f0-9]{64}:requests$/)
     expect(reservations[0].key).not.toContain('cohere-key')
-    expect(reservations[0].config.refillRate).toBe(1)
+    expect(reservations[0].config).toMatchObject({ maxTokens: 16, refillRate: 10 })
   })
 
   it('bounds repeated 429s to four attempts with no timer left behind', async () => {

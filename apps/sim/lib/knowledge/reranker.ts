@@ -68,7 +68,7 @@ class RerankAPIError extends Error {
 async function resolveCohereKey(
   workspaceId?: string | null,
   userApiKey?: string
-): Promise<{ apiKey: string; isBYOK: boolean }> {
+): Promise<{ apiKey: string; isBYOK: boolean; isHostedCredential: boolean }> {
   /**
    * Mirrors the agent block hosted-key pattern (`injectHostedKeyIfNeeded`):
    * on self-hosted the user-supplied key from the block field flows through
@@ -76,20 +76,20 @@ async function resolveCohereKey(
    * platform env, so any user-supplied value is ignored.
    */
   if (!isHosted && userApiKey) {
-    return { apiKey: userApiKey, isBYOK: false }
+    return { apiKey: userApiKey, isBYOK: false, isHostedCredential: false }
   }
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'cohere')
     if (byokResult) {
       logger.info('Using BYOK key for Cohere reranker', { scope: byokResult.scope })
-      return { apiKey: byokResult.apiKey, isBYOK: true }
+      return { apiKey: byokResult.apiKey, isBYOK: true, isHostedCredential: false }
     }
   }
   if (env.COHERE_API_KEY) {
-    return { apiKey: env.COHERE_API_KEY, isBYOK: false }
+    return { apiKey: env.COHERE_API_KEY, isBYOK: false, isHostedCredential: isHosted }
   }
   try {
-    return { apiKey: getRotatingApiKey('cohere'), isBYOK: false }
+    return { apiKey: getRotatingApiKey('cohere'), isBYOK: false, isHostedCredential: isHosted }
   } catch {
     throw new Error(
       'No Cohere API key configured. Set COHERE_API_KEY_1/2/3 (rotation) or COHERE_API_KEY.'
@@ -135,7 +135,10 @@ export async function rerank<T extends RerankItem>(
     throw new Error(`Unsupported reranker model: ${options.model}`)
   }
 
-  const { apiKey, isBYOK } = await resolveCohereKey(options.workspaceId, options.apiKey)
+  const { apiKey, isBYOK, isHostedCredential } = await resolveCohereKey(
+    options.workspaceId,
+    options.apiKey
+  )
   const cappedItems =
     items.length > MAX_DOCUMENTS_PER_RERANK ? items.slice(0, MAX_DOCUMENTS_PER_RERANK) : items
   if (items.length > MAX_DOCUMENTS_PER_RERANK) {
@@ -155,6 +158,7 @@ export async function rerank<T extends RerankItem>(
     async (signal) => {
       await waitForProviderAdmission({
         ...identity,
+        isHostedCredential,
         signal,
         maxWaitMs: Math.max(0, deadlineAt - Date.now()),
       })

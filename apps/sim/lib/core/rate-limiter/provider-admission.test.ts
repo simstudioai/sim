@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +19,7 @@ vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({
 }))
 
 import { waitForProviderAdmission } from '@/lib/core/rate-limiter/provider-admission'
+import { DbTokenBucket } from '@/lib/core/rate-limiter/storage/db-token-bucket'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 
 const INPUT = {
@@ -32,6 +34,11 @@ describe('provider admission', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    resetDbChainMock()
+    setEnv({
+      KB_CONFIG_RERANK_REQUESTS_PER_MINUTE: undefined,
+      KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE: undefined,
+    })
     getCooldownUntil.mockResolvedValue(null)
     consumeTokens.mockResolvedValue({ allowed: true, tokensRemaining: 1, resetAt: new Date() })
   })
@@ -64,6 +71,131 @@ describe('provider admission', () => {
     await vi.advanceTimersByTimeAsync(1)
     await pending
     expect(consumeTokens).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    { isHostedCredential: true, maxTokens: 16, refillRate: 10 },
+    { isHostedCredential: false, maxTokens: 2, refillRate: 1 },
+    { isHostedCredential: undefined, maxTokens: 2, refillRate: 1 },
+  ])('selects the rerank budget for hosted=$isHostedCredential', async (fixture) => {
+    await waitForProviderAdmission({
+      ...INPUT,
+      operation: 'rerank',
+      providerId: 'cohere',
+      isHostedCredential: fixture.isHostedCredential,
+    })
+    expect(consumeTokens.mock.calls[0][0]).toEqual([
+      {
+        key: 'provider:rerank:cohere:hashed-credential:requests',
+        cost: 1,
+        config: {
+          maxTokens: fixture.maxTokens,
+          refillRate: fixture.refillRate,
+          refillIntervalMs: 1000,
+        },
+      },
+    ])
+  })
+
+  it('preserves the shared override unless a hosted-specific override is set', async () => {
+    setEnv({ KB_CONFIG_RERANK_REQUESTS_PER_MINUTE: '120' })
+    const input = { ...INPUT, operation: 'rerank' as const, providerId: 'cohere' }
+    await waitForProviderAdmission({ ...input, isHostedCredential: true })
+    await waitForProviderAdmission(input)
+    setEnv({ KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE: '300' })
+    await waitForProviderAdmission({ ...input, isHostedCredential: true })
+    await waitForProviderAdmission(input)
+    expect(consumeTokens.mock.calls.map(([reservations]) => reservations[0].config)).toEqual([
+      { maxTokens: 16, refillRate: 2, refillIntervalMs: 1000 },
+      { maxTokens: 2, refillRate: 2, refillIntervalMs: 1000 },
+      { maxTokens: 16, refillRate: 5, refillIntervalMs: 1000 },
+      { maxTokens: 2, refillRate: 2, refillIntervalMs: 1000 },
+    ])
+  })
+
+  it('caps the hosted burst when the configured minute budget is smaller', async () => {
+    setEnv({ KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE: '1' })
+    await waitForProviderAdmission({
+      ...INPUT,
+      operation: 'rerank',
+      providerId: 'cohere',
+      isHostedCredential: true,
+    })
+    expect(consumeTokens.mock.calls[0][0][0].config).toMatchObject({
+      maxTokens: 1,
+      refillRate: 1 / 60,
+    })
+  })
+
+  it.each(['0', '-1', '', 'invalid', 'Infinity'])(
+    'rejects an invalid hosted rerank override (%s) before spending capacity',
+    async (value) => {
+      setEnv({ KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE: value })
+      await expect(
+        waitForProviderAdmission({
+          ...INPUT,
+          operation: 'rerank',
+          providerId: 'cohere',
+          isHostedCredential: true,
+        })
+      ).rejects.toThrow('Hosted rerank requests per minute must be finite and at least 1')
+      expect(consumeTokens).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { operation: 'embedding', providerId: 'openai', maxTokens: 64, refillRate: 10 },
+    { operation: 'ocr', providerId: 'mistral', maxTokens: 2, refillRate: 1 },
+    { operation: 'rerank', providerId: 'another-provider', maxTokens: 2, refillRate: 1 },
+  ] as const)('preserves the $operation budget for $providerId', async (fixture) => {
+    setEnv({ KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE: '300' })
+    await waitForProviderAdmission({
+      ...INPUT,
+      operation: fixture.operation,
+      providerId: fixture.providerId,
+      isHostedCredential: true,
+    })
+    const reservations = consumeTokens.mock.calls[0][0]
+    expect(reservations.at(-1).config).toMatchObject({
+      maxTokens: fixture.maxTokens,
+      refillRate: fixture.refillRate,
+    })
+  })
+
+  it('sustains 600 hosted reranks per minute through the real bucket refill calculation', async () => {
+    const input = {
+      ...INPUT,
+      operation: 'rerank' as const,
+      providerId: 'cohere',
+      isHostedCredential: true,
+      maxWaitMs: 1,
+    }
+    let stored: { key: string; tokens: string; lastRefillAt: Date } | undefined
+    dbChainMockFns.values.mockImplementation((rows) => {
+      stored ??= rows.find((row: { key: string }) => row.key.endsWith(':requests'))
+      return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
+    })
+    dbChainMockFns.limit.mockImplementation(async () => [stored])
+    dbChainMockFns.set.mockImplementation((values) => {
+      Object.assign(stored!, values)
+      return { where: vi.fn().mockResolvedValue(undefined) }
+    })
+    const bucket = new DbTokenBucket()
+    consumeTokens.mockImplementation((reservations, options) =>
+      bucket.consumeTokensAtomically(reservations, options)
+    )
+
+    for (let request = 0; request < 16; request++) await waitForProviderAdmission(input)
+    await expect(waitForProviderAdmission(input)).rejects.toMatchObject({ retryAfterMs: 1000 })
+    for (let second = 0; second < 60; second++) {
+      await vi.advanceTimersByTimeAsync(1000)
+      for (let request = 0; request < 10; request++) await waitForProviderAdmission(input)
+      await expect(waitForProviderAdmission(input)).rejects.toMatchObject({ retryAfterMs: 1000 })
+    }
+    expect(stored?.tokens).toBe('0')
+    expect(new Set(consumeTokens.mock.calls.map(([reservations]) => reservations[0].key))).toEqual(
+      new Set(['provider:rerank:cohere:hashed-credential:requests'])
+    )
   })
 
   it('stops waiting immediately when the caller aborts', async () => {
