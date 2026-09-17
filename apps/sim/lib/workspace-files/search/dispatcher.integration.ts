@@ -1,7 +1,6 @@
 /** Real PostgreSQL cancellation must roll back preparation and release its advisory lock. */
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -138,7 +137,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await expectAdvisoryLockReleased()
   }, 20_000)
 
-  it('releases committed claims after contention exceeds the preparation lock deadline', async () => {
+  it('releases committed claims without the preparation deadlines', async () => {
     const fileId = generateId()
     const workspaceId = generateId()
     await connection`UPDATE workspace_file_search_backfill SET completed_at = now()`
@@ -149,43 +148,46 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       VALUES (${fileId}, ${workspaceId}, '2026-09-16', 'pending', now())`
     await connection`INSERT INTO workspace_file_search_dispatch_queue
       (workspace_id, enqueued_at, updated_at) VALUES (${workspaceId}, now(), now())`
+    await connection`CREATE TABLE cleanup_timeouts (
+      lock_timeout text, statement_timeout text, transaction_timeout text
+    )`
+    await connection`CREATE FUNCTION record_cleanup_timeouts() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        INSERT INTO cleanup_timeouts VALUES (
+          current_setting('lock_timeout'),
+          current_setting('statement_timeout'),
+          current_setting('transaction_timeout')
+        );
+        RETURN NEW;
+      END
+    $$`
+    await connection`CREATE TRIGGER record_cleanup_timeouts AFTER UPDATE OF dispatched_at
+      ON workspace_file_search_index FOR EACH ROW
+      WHEN (OLD.dispatched_at IS NOT NULL AND NEW.dispatched_at IS NULL)
+      EXECUTE FUNCTION record_cleanup_timeouts()`
 
     const enqueueError = new Error('Queue unavailable')
-    let blocker: Promise<unknown> | undefined
-    mocks.batchTrigger.mockImplementationOnce(async () => {
-      let locked = () => {}
-      const lockReady = new Promise<void>((resolve) => {
-        locked = resolve
-      })
-      blocker = connection.begin(async (tx) => {
-        await tx`SELECT file_id FROM workspace_file_search_index WHERE file_id = ${fileId} FOR UPDATE`
-        locked()
-        await sleep(3_000)
-      })
-      await Promise.race([lockReady, blocker])
-      throw enqueueError
-    })
+    mocks.batchTrigger.mockRejectedValueOnce(enqueueError)
 
-    try {
-      await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(enqueueError)
-      expect(mocks.batchTrigger).toHaveBeenCalledWith('workspace-file-search-index', [
-        expect.objectContaining({
-          payload: {
-            fileId,
-            workspaceId,
-            sourceContentUpdatedAt: '2026-09-16T00:00:00.000Z',
-          },
-        }),
-      ])
-      const [index] = await connection`SELECT dispatched_at FROM workspace_file_search_index
-        WHERE file_id = ${fileId}`
-      expect(index.dispatched_at).toBeNull()
-      const [queued] =
-        await connection`SELECT workspace_id FROM workspace_file_search_dispatch_queue
-        WHERE workspace_id = ${workspaceId}`
-      expect(queued.workspace_id).toBe(workspaceId)
-    } finally {
-      await blocker
-    }
+    await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(enqueueError)
+    expect(mocks.batchTrigger).toHaveBeenCalledWith('workspace-file-search-index', [
+      expect.objectContaining({
+        payload: {
+          fileId,
+          workspaceId,
+          sourceContentUpdatedAt: '2026-09-16T00:00:00.000Z',
+        },
+      }),
+    ])
+    const [index] = await connection`SELECT dispatched_at FROM workspace_file_search_index
+      WHERE file_id = ${fileId}`
+    expect(index.dispatched_at).toBeNull()
+    const [queued] = await connection`SELECT workspace_id FROM workspace_file_search_dispatch_queue
+      WHERE workspace_id = ${workspaceId}`
+    expect(queued.workspace_id).toBe(workspaceId)
+    const timeouts = await connection`SELECT * FROM cleanup_timeouts`
+    expect([...timeouts]).toEqual([
+      { lock_timeout: '0', statement_timeout: '0', transaction_timeout: '0' },
+    ])
   })
 })
