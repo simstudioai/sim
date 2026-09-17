@@ -42,7 +42,7 @@ describe('Credential organization operations', () => {
     vi.clearAllMocks()
     mocks.principal.mockResolvedValue({ delegationId: 'current-run' })
     mocks.oauth.mockResolvedValue({
-      credentials: [account],
+      credentials: [{ ...account, accountEmail: 'personal@example.com' }],
       count: 1,
       hasMore: false,
       nextCursor: null,
@@ -102,6 +102,85 @@ describe('Credential organization operations', () => {
         }),
       })
     )
+  })
+  it('discovers provider emails across pages without requiring an enrollment email', async () => {
+    const accounts = [
+      { ...account, accountEmail: 'first@example.com' },
+      { ...account, credentialId: 'credential-2', accountEmail: 'second@example.com' },
+      {
+        ...account,
+        credentialId: 'credential-3',
+        email: 'colleague@example.com',
+        accountEmail: 'third@example.com',
+      },
+    ]
+    mocks.oauth
+      .mockResolvedValueOnce({
+        credentials: accounts.slice(0, 2),
+        count: 2,
+        hasMore: true,
+        nextCursor: 'credential-2',
+      })
+      .mockResolvedValueOnce({
+        credentials: accounts.slice(2),
+        count: 1,
+        hasMore: false,
+        nextCursor: null,
+      })
+    const input = {
+      operation: 'list_organization_accounts',
+      organizationProviders: ['google-email'],
+      limit: 2,
+    }
+    const first = await handler.execute(ctx, block, input)
+    const second = await handler.execute(ctx, block, { ...input, cursor: first.nextCursor })
+    expect(first).toMatchObject({
+      credentials: accounts.slice(0, 2),
+      emails: ['first@example.com', 'second@example.com'],
+      count: 2,
+      hasMore: true,
+    })
+    expect(second).toMatchObject({
+      credentials: accounts.slice(2),
+      emails: ['third@example.com'],
+      hasMore: false,
+      nextCursor: null,
+    })
+    expect(mocks.oauth).toHaveBeenLastCalledWith({
+      principal: { delegationId: 'current-run' },
+      input: {
+        workspaceId: 'child-workspace',
+        email: undefined,
+        credentialProviderIds: ['google-email'],
+        limit: 2,
+        cursor: 'credential-2',
+      },
+    })
+  })
+  it('preserves the optional exact enrollment-email filter for organization lists', async () => {
+    await handler.execute(ctx, block, {
+      operation: 'list_organization_accounts',
+      organizationProviders: ['google-email'],
+      email: 'person@example.com',
+    })
+    expect(mocks.oauth).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ email: 'person@example.com' }) })
+    )
+  })
+  it('returns empty email and account arrays when no accessible accounts match', async () => {
+    mocks.oauth.mockResolvedValue({ credentials: [], count: 0, hasMore: false, nextCursor: null })
+    await expect(
+      handler.execute(ctx, block, {
+        operation: 'list_organization_accounts',
+        organizationProviders: ['google-email'],
+      })
+    ).resolves.toEqual({
+      credentials: [],
+      emails: [],
+      count: 0,
+      hasMore: false,
+      nextCursor: null,
+    })
   })
   it('returns the person’s MCP credential separately from the shared server', async () => {
     const connection = {

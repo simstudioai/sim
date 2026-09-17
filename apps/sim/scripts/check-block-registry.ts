@@ -27,6 +27,7 @@
 import { execSync } from 'child_process'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
 import { getAllBlocks, getBlock, getBlockMeta } from '@/blocks/registry'
+import { extractInlineBlockSubBlockIds } from '@/scripts/block-registry-source'
 import { getToolParams } from '@/tools/metadata'
 
 const baseRef = process.argv[2] || 'HEAD~1'
@@ -35,50 +36,6 @@ const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' })
 const gitOpts = { encoding: 'utf-8' as const, cwd: gitRoot }
 
 type IdMap = Record<string, Set<string>>
-
-/**
- * Extracts subblock IDs from the `subBlocks: [ ... ]` section of a block
- * definition. Only grabs the top-level `id:` of each subblock object —
- * ignores nested IDs inside `options`, `columns`, etc.
- */
-function extractSubBlockIds(source: string): string[] {
-  const startIdx = source.indexOf('subBlocks:')
-  if (startIdx === -1) return []
-
-  const bracketStart = source.indexOf('[', startIdx)
-  if (bracketStart === -1) return []
-
-  const ids: string[] = []
-  let braceDepth = 0
-  let bracketDepth = 0
-  let i = bracketStart + 1
-  bracketDepth = 1
-
-  while (i < source.length && bracketDepth > 0) {
-    const ch = source[i]
-
-    if (ch === '[') bracketDepth++
-    else if (ch === ']') {
-      bracketDepth--
-      if (bracketDepth === 0) break
-    } else if (ch === '{') {
-      braceDepth++
-      if (braceDepth === 1) {
-        const ahead = source.slice(i, i + 200)
-        const idMatch = ahead.match(/{\s*(?:\/\/[^\n]*\n\s*)*id:\s*['"]([^'"]+)['"]/)
-        if (idMatch) {
-          ids.push(idMatch[1])
-        }
-      }
-    } else if (ch === '}') {
-      braceDepth--
-    }
-
-    i++
-  }
-
-  return ids
-}
 
 function getCurrentIds(): IdMap {
   const map: IdMap = {}
@@ -128,16 +85,9 @@ function getPreviousIds(): PreviousIdsResult {
         continue
       }
 
-      const typeMatch = content.match(
-        /BlockConfig(?:<[^>]*>)?\s*=\s*\{[\s\S]*?type:\s*['"]([^'"]+)['"]/
-      )
-      if (!typeMatch) continue
-      const blockType = typeMatch[1]
-
-      const ids = extractSubBlockIds(content)
-      if (ids.length === 0) continue
-
-      map[blockType] = new Set(ids)
+      for (const [blockType, ids] of Object.entries(extractInlineBlockSubBlockIds(content))) {
+        if (ids.length > 0) map[blockType] = new Set(ids)
+      }
     }
   } catch (err) {
     return { kind: 'skip', reason: `Could not read previous block files from ${baseRef}: ${err}` }

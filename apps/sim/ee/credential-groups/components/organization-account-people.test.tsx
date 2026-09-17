@@ -126,6 +126,58 @@ it('keeps the compact People rows and resends from the actions menu', async () =
   )
 })
 
+it('counts active accounts and separates disconnected and reconnecting providers', async () => {
+  mocks.people.mockReturnValue({
+    data: {
+      pages: [
+        {
+          enrollments: [
+            {
+              id: 'enrollment-1',
+              email: 'person@example.com',
+              status: 'completed',
+              connections: [
+                { provider: 'google-calendar', status: 'revoked', count: 3 },
+                { provider: 'gmail', status: 'active', count: 2 },
+                { provider: 'google-drive', status: 'needs_reauth', count: 1 },
+              ],
+              mcpConnections: [
+                { mcpServerId: 'active-server', name: 'Research workspace', status: 'active' },
+                { mcpServerId: 'revoked-server', name: 'Archived workspace', status: 'revoked' },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  })
+  await renderPeople()
+
+  expect(container.textContent).toContain('3 accounts connected')
+  const groups = Array.from(container.querySelectorAll('[role="group"]'))
+  expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
+    'Connected',
+    'Reconnect required',
+    'Disconnected',
+  ])
+  expect(groups[0]?.textContent).toContain('Gmail (2)')
+  expect(groups[0]?.textContent).toContain('Research workspace')
+  expect(groups[0]?.textContent).not.toContain('Calendar')
+  expect(groups[1]?.textContent).toContain('Google Drive')
+  expect(groups[2]?.textContent).toContain('Google Calendar (3)')
+  expect(groups[2]?.textContent).toContain('Archived workspace')
+})
+
+it('hides stale connected badges after the person’s access is revoked', async () => {
+  const result = mocks.people()
+  result.data.pages[0].enrollments[0].status = 'revoked'
+  await renderPeople()
+
+  expect(container.textContent).toContain('Access revoked')
+  expect(container.textContent).not.toContain('accounts connected')
+  expect(container.querySelector('[role="group"]')).toBeNull()
+})
+
 it('requires revoke confirmation, allows cancellation, and never submits from an unfocused Enter', async () => {
   await renderPeople()
   await selectPersonAction('Revoke')

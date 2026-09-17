@@ -13,9 +13,9 @@ import {
 import { organizationAccountPolicyAllowsWorkspace } from '@/lib/credential-groups/application/workspace-access-policy'
 import {
   CredentialGroupCredentialCursorNotFoundError,
-  type CredentialGroupCredentialReference,
   listCredentialGroupCredentialReferences,
   MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE,
+  type OrganizationAccountCredentialReference,
 } from '@/lib/credential-groups/credentials'
 import {
   getCredentialGroupProviderId,
@@ -31,7 +31,7 @@ export interface ListCredentialGroupCredentialsInput {
 }
 
 export interface ListCredentialGroupCredentialsResult {
-  credentials: CredentialGroupCredentialReference[]
+  credentials: OrganizationAccountCredentialReference[]
   count: number
   hasMore: boolean
   nextCursor: string | null

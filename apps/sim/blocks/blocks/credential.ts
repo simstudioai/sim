@@ -21,12 +21,15 @@ export const CredentialBlock: BlockConfig = {
   name: 'Credential',
   description: 'Select credentials or find organization accounts and MCP connections',
   longDescription:
-    'Select workspace OAuth credentials or find and list organization accounts in an allowlisted workspace. Organization accounts are shared with every authorized workflow in that workspace. Returns credential references and account metadata. Manage invitations in organization settings.',
+    'Select workspace OAuth credentials or find and list organization accounts in an allowlisted workspace. List Organization Accounts discovers connected accounts by provider without requiring an email. An optional exact enrollment email narrows the list. Only active accounts for integrations allowed in the executing workspace are returned; disconnected accounts are excluded. Results are paginated using hasMore and nextCursor. Manage invitations in organization settings.',
   bestPractices: `
   - Use "Select Credential" to define an OAuth credential once and reference <CredentialBlock.credentialId> in multiple downstream blocks instead of repeating credential IDs.
   - Use "List Credentials" with a ForEach loop to iterate over all OAuth accounts (e.g. all Gmail accounts).
   - Use the Provider filter to narrow results to specific services (e.g. Gmail, Slack).
-  - The outputs are credential ID references, not secret values — they are safe to log and inspect.
+  - Use "List Organization Accounts" with Providers selected and Email blank to discover all accessible accounts for those integrations.
+  - Organization lists return one page at a time. While hasMore is true, pass nextCursor as Cursor with the same filters to get every matching account.
+  - "Find Organization Account" requires an exact enrollment email and provider, and fails unless exactly one active account matches.
+  - Outputs contain account identities and credential references, never secret values.
   - To switch credentials across environments, replace the single Credential block rather than updating every downstream block.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/credential',
@@ -39,7 +42,11 @@ export const CredentialBlock: BlockConfig = {
         select: ['Select an OAuth credential'],
         list: ['List OAuth credentials', { text: 'for', field: 'providerFilter' }],
         find_organization_account: ['Find organization account', { text: 'for', field: 'email' }],
-        list_organization_accounts: ['List organization accounts', { text: 'for', field: 'email' }],
+        list_organization_accounts: [
+          'List organization accounts',
+          { text: 'from', field: 'organizationProviders' },
+          { text: 'for', field: 'email' },
+        ],
         find_organization_mcp_connection: [
           'Find organization MCP connection',
           { text: 'for', field: 'email' },
@@ -96,17 +103,6 @@ export const CredentialBlock: BlockConfig = {
       condition: { field: 'operation', value: 'select' },
     },
     {
-      id: 'email',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'person@example.com',
-      condition: { field: 'operation', value: ORGANIZATION_OPERATIONS },
-      required: {
-        field: 'operation',
-        value: ['find_organization_account', 'find_organization_mcp_connection'],
-      },
-    },
-    {
       id: 'organizationProvider',
       title: 'Provider',
       type: 'dropdown',
@@ -118,6 +114,8 @@ export const CredentialBlock: BlockConfig = {
       id: 'organizationProviders',
       title: 'Providers',
       type: 'dropdown',
+      placeholder: 'All allowed providers',
+      emptyIsValid: true,
       multiSelect: true,
       selectorKey: 'workspace.credentialGroupProviders',
       condition: { field: 'operation', value: 'list_organization_accounts' },
@@ -129,6 +127,17 @@ export const CredentialBlock: BlockConfig = {
       selectorKey: 'workspace.organizationMcpProviders',
       condition: { field: 'operation', value: MCP_OPERATIONS },
       required: { field: 'operation', value: 'find_organization_mcp_connection' },
+    },
+    {
+      id: 'email',
+      title: 'Email',
+      type: 'short-input',
+      placeholder: 'Optional for lists; exact enrollment email',
+      condition: { field: 'operation', value: ORGANIZATION_OPERATIONS },
+      required: {
+        field: 'operation',
+        value: ['find_organization_account', 'find_organization_mcp_connection'],
+      },
     },
     {
       id: 'limit',
@@ -152,7 +161,10 @@ export const CredentialBlock: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', description: 'Credential operation' },
-    email: { type: 'string', description: 'Enrollment email' },
+    email: {
+      type: 'string',
+      description: 'Exact enrollment email; optional for lists, required for find operations',
+    },
     organizationProvider: {
       type: 'string',
       description: 'Organization OAuth provider ID for an exact match',
@@ -199,8 +211,14 @@ export const CredentialBlock: BlockConfig = {
     credentials: {
       type: 'json',
       description:
-        'Array of OAuth credential objects, each with credentialId, displayName, and providerId',
+        'OAuth credential objects with credentialId, displayName, and providerId. Organization accounts also include email (enrollment address), accountEmail (provider account address), providerSubjectId, and providerTenantId.',
       condition: { field: 'operation', value: ['list', 'list_organization_accounts'] },
+    },
+    emails: {
+      type: 'json',
+      description:
+        'Provider account email addresses on this page, in the same order as credentials. Multiple accounts are preserved; follow nextCursor while hasMore is true for additional pages.',
+      condition: { field: 'operation', value: 'list_organization_accounts' },
     },
     count: {
       type: 'number',
