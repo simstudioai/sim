@@ -124,7 +124,7 @@ describe('API-key KB block fan-out', () => {
           expect(result.rows[0].knowledgeBaseId).toBe(bases[index].id)
           expect(result.rows[0].distance).toBeCloseTo(0)
         }
-        expect(statements.filter((query) => query.includes('statement_timeout'))).toHaveLength(36)
+        expect(statements.filter((query) => query.includes('statement_timeout'))).toHaveLength(54)
         expect(statements.filter((query) => query.includes('+ 0'))).toHaveLength(18)
         expect(statements.some((query) => query.includes('hnsw.iterative_scan'))).toBe(false)
       } finally {

@@ -46,7 +46,6 @@ export type SearchStage =
   | `${RetrievalLeg}.sql`
   | 'vector.settings'
   | 'vector.probe'
-  | 'vector.ann'
   | 'vector.rerank'
   | 'vector.exact'
   | 'vector.candidate_search'
@@ -72,6 +71,7 @@ export interface SearchDiagnosticMetadata {
   embeddingDimensions?: number
   vectorRanking?: 'exact' | 'candidate-rerank'
   vectorCandidateStorage?: 'stored-halfvec'
+  /** Requested strategy, not an assertion about the physical index selected by PostgreSQL. */
   vectorCandidateScan?: 'planned' | 'filtered'
   vectorBudgetMs?: number
   vectorCandidateLimit?: number
