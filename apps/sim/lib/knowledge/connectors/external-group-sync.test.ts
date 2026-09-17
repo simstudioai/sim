@@ -124,6 +124,78 @@ describe('syncExternalDirectoryGroups', () => {
     )
   })
 
+  /**
+   * The reason membership writes are a diff: a directory sync overwhelmingly
+   * re-observes membership that has not changed, and rewriting the group would
+   * charge two row writes per member to autovacuum for no change at all.
+   */
+  it('writes nothing when the observed membership already matches', async () => {
+    queueTableRows(schemaMock.knowledgeExternalGroup, [])
+    queueTableRows(schemaMock.knowledgeExternalGroupMember, [{ subjectToken: 'u:alice@corp.com' }])
+    const dir = directory({
+      listGroups: vi.fn(async () => [{ id: 'eng@corp.com' }]),
+      listGroupMembers: vi.fn(async (group) => ({
+        group,
+        memberTokens: ['u:alice@corp.com'],
+        complete: true,
+      })),
+    })
+
+    await syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir })
+
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(dbChainMockFns.values).not.toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ subjectToken: 'u:alice@corp.com' })])
+    )
+    expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastSyncedAt' in value)).toBe(true)
+  })
+
+  /**
+   * The removal set is computed from a read, so that read has to be serialized
+   * against the other writer. Both callers fence on different leases, and the
+   * directory path commits its group upsert in a separate transaction, so the
+   * lock has to be taken here.
+   */
+  it('locks the group row before reading the membership it will diff against', async () => {
+    queueTableRows(schemaMock.knowledgeExternalGroup, [])
+    queueTableRows(schemaMock.knowledgeExternalGroupMember, [{ subjectToken: 'u:alice@corp.com' }])
+    const dir = directory({
+      listGroups: vi.fn(async () => [{ id: 'eng@corp.com' }]),
+      listGroupMembers: vi.fn(async (group) => ({
+        group,
+        memberTokens: ['u:alice@corp.com'],
+        complete: true,
+      })),
+    })
+
+    await syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir })
+
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+  })
+
+  it('writes only the difference when membership changed', async () => {
+    queueTableRows(schemaMock.knowledgeExternalGroup, [])
+    queueTableRows(schemaMock.knowledgeExternalGroupMember, [
+      { subjectToken: 'u:alice@corp.com' },
+      { subjectToken: 'u:bob@corp.com' },
+    ])
+    const dir = directory({
+      listGroups: vi.fn(async () => [{ id: 'eng@corp.com' }]),
+      listGroupMembers: vi.fn(async (group) => ({
+        group,
+        memberTokens: ['u:alice@corp.com', 'u:carol@corp.com'],
+        complete: true,
+      })),
+    })
+
+    await syncExternalDirectoryGroups({ workspaceId: 'ws-1', directory: dir })
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      { groupId: expect.any(String), subjectToken: 'u:carol@corp.com' },
+    ])
+    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
+  })
+
   it.each(['ws', 'pub', 'link', 'g:confluence:cloud:group', 'alice@corp.com', 'u:Alice@corp.com'])(
     'rejects invalid member %s before replacing membership or updating freshness',
     async (invalid) => {
@@ -370,7 +442,15 @@ describe('refreshConnectorDirectory', () => {
     expect(dbChainMockFns.set.mock.calls.some(([value]) => 'lastCompleteSyncAt' in value)).toBe(
       false
     )
-    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
+    /**
+     * The accessible group's membership is written; the denied one is left
+     * alone. Nothing is deleted because the diff found no member to remove —
+     * membership writes are the difference, not a full rewrite.
+     */
+    expect(dbChainMockFns.values).toHaveBeenCalledWith([
+      { groupId: expect.any(String), subjectToken: 'u:alice@corp.com' },
+    ])
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it('keeps unknown failures blocking even when other group memberships refreshed', async () => {

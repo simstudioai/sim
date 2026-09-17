@@ -353,7 +353,23 @@ export async function persistExternalGroupMembership(
   )
 }
 
-/** Membership replacement and its freshness watermark commit together. */
+/**
+ * Membership replacement and its freshness watermark commit together.
+ *
+ * Writes only the difference. Rewriting a whole group per sync costs two row
+ * writes per member every time, and a directory sync overwhelmingly re-observes
+ * membership that has not changed. Unconditional replacement had taken this
+ * table to ~55M lifetime inserts and ~55M deletes against ~127k live rows —
+ * roughly 430x write amplification, holding it at ~91% dead tuples through
+ * 2,447 autovacuum cycles, an order of magnitude more than any comparable
+ * table. That vacuum load is charged to the same I/O every other query on the
+ * instance competes for. The extra read is one index scan of the group's
+ * primary-key prefix, and it is what lets an unchanged group write nothing.
+ *
+ * `created_at` therefore becomes first-observed rather than last-observed. No
+ * reader projects it; the group's own `lastSyncedAt` below is the freshness
+ * signal, and it is still written every pass.
+ */
 async function replaceGroupMembers(
   groupId: string,
   memberTokens: string[],
@@ -364,13 +380,51 @@ async function replaceGroupMembers(
   if (memberTokens.some((token) => !isDirectoryMemberToken(token, directory))) {
     throw new Error('Directory membership contains an invalid identity token')
   }
+  /**
+   * Serializes membership writes for this group before the set is read.
+   *
+   * The two callers fence on different leases — the directory lease and the
+   * connector sync lease — so neither excludes the other, and on the directory
+   * path the group upsert commits in a separate transaction from this one, so
+   * its row lock is already gone. Without this, the removal set is computed
+   * from a snapshot a concurrent pass may have moved past, and a subject that
+   * pass inserted would survive a complete enumeration that did not observe it:
+   * membership retained rather than revoked. The blind delete this replaced was
+   * immune because it never read first.
+   */
   await tx
-    .delete(knowledgeExternalGroupMember)
+    .select({ id: knowledgeExternalGroup.id })
+    .from(knowledgeExternalGroup)
+    .where(eq(knowledgeExternalGroup.id, groupId))
+    .for('update')
+  const desired = new Set(memberTokens)
+  const existing = await tx
+    .select({ subjectToken: knowledgeExternalGroupMember.subjectToken })
+    .from(knowledgeExternalGroupMember)
     .where(eq(knowledgeExternalGroupMember.groupId, groupId))
-  for (const batch of chunkArray([...new Set(memberTokens)], MEMBER_WRITE_BATCH_SIZE)) {
+  const retained = new Set<string>()
+  const removed: string[] = []
+  for (const row of existing) {
+    if (desired.has(row.subjectToken)) retained.add(row.subjectToken)
+    else removed.push(row.subjectToken)
+  }
+  const added = [...desired].filter((subjectToken) => !retained.has(subjectToken))
+
+  for (const batch of chunkArray(removed, MEMBER_WRITE_BATCH_SIZE)) {
+    await tx
+      .delete(knowledgeExternalGroupMember)
+      .where(
+        and(
+          eq(knowledgeExternalGroupMember.groupId, groupId),
+          inArray(knowledgeExternalGroupMember.subjectToken, batch)
+        )
+      )
+  }
+  for (const batch of chunkArray(added, MEMBER_WRITE_BATCH_SIZE)) {
     await tx
       .insert(knowledgeExternalGroupMember)
       .values(batch.map((subjectToken) => ({ groupId, subjectToken })))
+      .onConflictDoNothing()
   }
   await tx
     .update(knowledgeExternalGroup)
