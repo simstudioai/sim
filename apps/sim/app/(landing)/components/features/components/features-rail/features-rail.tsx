@@ -86,8 +86,8 @@ interface FeaturesRailProps {
   /** Accessible name of the scrolling region. */
   label: string
   /**
-   * The cards, in order. Each becomes one slot; once JS runs the whole set is
-   * cloned on both sides so the rail loops.
+   * The cards, in order. Each becomes one slot; as the rail approaches the
+   * viewport the whole set is cloned on both sides so the rail loops.
    */
   children: ReactNode
 }
@@ -96,7 +96,7 @@ interface FeaturesRailProps {
  * The homepage product rail: native horizontal scrolling that never ends.
  *
  * The server renders the set once, so the HTML - and any visit without JS - is
- * the plain finite rail with the first card under the heading. After hydration
+ * the plain finite rail with the first card under the heading. Near the viewport
  * the set is cloned once on each side, the scroll position jumps one set width
  * before paint so nothing visibly moves (folded, so Strict Mode's second run of
  * the effect lands on the same spot), and a passive scroll listener folds the
@@ -124,7 +124,22 @@ export function FeaturesRail({ label, children }: FeaturesRailProps) {
   const cards = Children.toArray(children)
 
   useEffect(() => {
-    setLooping(true)
+    const rail = railRef.current
+    if (!rail) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setLooping(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        setLooping(true)
+        observer.disconnect()
+      },
+      { rootMargin: '600px' }
+    )
+    observer.observe(rail)
+    return () => observer.disconnect()
   }, [])
 
   useLayoutEffect(() => {

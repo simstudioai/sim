@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { ChipChevronDown, chipContentLabelClass, chipVariants, cn } from '@sim/emcn'
+import dynamic from 'next/dynamic'
 import { flushSync } from 'react-dom'
 import {
   HOME_INSET,
@@ -11,10 +12,17 @@ import {
 import { NavMenuCard } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-card'
 import { NavMenuItem } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-item'
 import { NavMenuLogoMarquee } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-logo-marquee'
-import { NavMenuPreview } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/nav-menu-preview'
 import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
 import { NAVBAR_GLASS_SURFACE } from '@/app/(landing)/components/navbar/components/navbar-shell'
 import { useNavbarMenu } from '@/app/(landing)/components/navbar/hooks/use-navbar-menu'
+
+const NavMenuPreview = dynamic(
+  () =>
+    import(
+      '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/nav-menu-preview'
+    ).then((module) => module.NavMenuPreview),
+  { loading: () => <div className='min-h-[340px]' /> }
+)
 
 interface NavMenuClusterProps {
   /** Non-empty group of mega-menus that share one stable panel. */
@@ -68,6 +76,7 @@ export function NavMenuCluster({ menus, modelsPreview }: NavMenuClusterProps) {
     () => menus.find((menu) => !isFloating(menu)) ?? menus[0]
   )
   const [activeItem, setActiveItem] = useState(surfaceMenu.sections[0].items[0])
+  const [previewMounted, setPreviewMounted] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -86,6 +95,7 @@ export function NavMenuCluster({ menus, modelsPreview }: NavMenuClusterProps) {
   const activateMenu = (menu: NavMenu) => {
     setActiveMenu(menu)
     if (!isFloating(menu)) {
+      setPreviewMounted(true)
       setSurfaceMenu(menu)
       setActiveItem(menu.sections[0].items[0])
     }
@@ -270,7 +280,7 @@ export function NavMenuCluster({ menus, modelsPreview }: NavMenuClusterProps) {
                 ))}
               </div>
 
-              <NavMenuPreview item={activeItem} modelsPreview={modelsPreview} />
+              {previewMounted && <NavMenuPreview item={activeItem} modelsPreview={modelsPreview} />}
             </div>
           </div>
         </div>

@@ -446,7 +446,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/linkedin',
-        destination: 'https://www.linkedin.com/company/simstudioai/',
+        destination: 'https://www.linkedin.com/company/simdotai/',
         permanent: false,
       },
       {

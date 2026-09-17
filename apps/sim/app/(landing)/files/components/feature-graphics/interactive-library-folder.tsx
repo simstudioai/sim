@@ -84,7 +84,7 @@ export function InteractiveLibraryFolder({
         <button
           type='button'
           className={styles.folderButton}
-          aria-label={`${name}, ${count}`}
+          aria-label={`${name} ${count}`}
           aria-pressed={open}
           onPointerEnter={(event) => {
             if (event.pointerType !== 'touch') setHovered(true)
@@ -128,8 +128,7 @@ export function InteractiveLibraryFolder({
                 />
               </svg>
               <span className={styles.folderLabel}>
-                <span>{name}</span>
-                <span>{count}</span>
+                <span>{name}</span> <span>{count}</span>
               </span>
             </motion.span>
           </span>

@@ -23,12 +23,6 @@ export const X_DEMO_BOOKED_EVENT_ID = 'tw-q5xbl-q5xbn' as const
 
 const AHREFS_ANALYTICS_KEY = 'WJ9yWTBAiQKZAE/2TyU/yA' as const
 
-declare global {
-  interface Window {
-    _hsq?: unknown[][]
-  }
-}
-
 const GOOGLE_ANALYTICS_SCRIPT = gtag({
   id: GOOGLE_ANALYTICS_ID,
   category: 'measurement',
@@ -70,15 +64,3 @@ export const GLOBAL_CONSENT_SCRIPTS = [
 
 /** Marketing-page integrations that should not load on a direct workspace visit. */
 export const X_PIXEL_SCRIPT = xPixel({ pixelId: X_PIXEL_ID })
-
-/** HubSpot has no first-party c15t helper, so it uses the generic script contract. */
-export const HUBSPOT_SCRIPT = {
-  id: 'hubspot',
-  src: 'https://js-na2.hs-scripts.com/246720681.js',
-  category: 'measurement',
-  async: true,
-  onBeforeLoad: () => {
-    window._hsq ||= []
-    window._hsq.push(['setPath', window.location.pathname])
-  },
-} as const

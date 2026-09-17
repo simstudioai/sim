@@ -8,6 +8,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -322,6 +323,7 @@ export function tabDropIndex(
 }
 
 interface TabProps {
+  buttonId: string
   tab: TabStripItem
   variant: TabStripVariant
   /**
@@ -350,6 +352,7 @@ interface TabProps {
 
 const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
   {
+    buttonId,
     tab,
     variant,
     showDivider,
@@ -420,11 +423,13 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button
+            id={buttonId}
             type='button'
             variant='subtle'
             size='sm'
             role='tab'
             aria-selected={Boolean(tab.active)}
+            aria-keyshortcuts={closeable ? 'Delete' : undefined}
             aria-label={tab.pinned ? tab.title : undefined}
             data-tab-strip-button={tab.id}
             tabIndex={focusable ? 0 : -1}
@@ -502,6 +507,9 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
  * contains. Callers map their own state onto {@link TabStripItem} and supply
  * the icon, which is why a favicon and a spinning shell indicator can share
  * one component.
+ *
+ * The tablist owns only tabs so adjacent close buttons remain separate
+ * accessible controls while sharing each tab's visual geometry.
  */
 export function TabStrip({
   tabs,
@@ -519,6 +527,7 @@ export function TabStrip({
   variant = 'attached',
   className,
 }: TabStripProps) {
+  const stripId = useId()
   const atLimit = maxTabs !== undefined && tabs.length >= maxTabs
   const stripRef = useRef<HTMLDivElement>(null)
   const scrollNodeRef = useRef<HTMLDivElement>(null)
@@ -526,6 +535,11 @@ export function TabStrip({
   const dropTargetIndexRef = useRef<number | null>(null)
   const autoScrollRafRef = useRef<number | null>(null)
   const autoScrollDirectionRef = useRef(0)
+  const focusedTabRef = useRef<{
+    id: string
+    element: HTMLButtonElement
+    index: number
+  } | null>(null)
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -752,6 +766,18 @@ export function TabStrip({
     button?.focus()
   }, [])
 
+  /** Restore keyboard focus only after the owner commits a close, including multi-tab closes. */
+  useLayoutEffect(() => {
+    const focusedTab = focusedTabRef.current
+    if (!focusedTab || tabs.some((tab) => tab.id === focusedTab.id)) return
+    focusedTabRef.current = null
+    const focused = document.activeElement
+    if (focused !== focusedTab.element && focused !== document.body) return
+    const nextTab =
+      tabs.find((tab) => tab.active) ?? tabs[Math.min(focusedTab.index, tabs.length - 1)]
+    if (nextTab) focusTab(nextTab.id)
+  }, [tabs, focusTab])
+
   const handleTabKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLButtonElement>, id: string) => {
       const index = tabs.findIndex((tab) => tab.id === id)
@@ -801,6 +827,7 @@ export function TabStrip({
     return (
       <Tab
         key={tab.id}
+        buttonId={`${stripId}-${encodeURIComponent(tab.id)}`}
         tab={tab}
         variant={variant}
         showDivider={variant === 'floating' && isBareTab(tab) && isBareTab(previous)}
@@ -823,6 +850,19 @@ export function TabStrip({
   return (
     <div
       ref={stripRef}
+      data-tab-strip
+      onFocusCapture={(event) => {
+        const target = event.target
+        const id = target instanceof HTMLButtonElement ? target.dataset.tabStripButton : undefined
+        const index = tabs.findIndex((tab) => tab.id === id)
+        focusedTabRef.current =
+          target instanceof HTMLButtonElement && id !== undefined && index >= 0
+            ? { id, element: target, index }
+            : null
+      }}
+      onBlurCapture={(event) => {
+        if (event.relatedTarget !== null) focusedTabRef.current = null
+      }}
       // Geometry reads from custom properties with defaults baked into the
       // `var()` calls, so a caller resizes the strip by setting a property
       // rather than by passing a utility class that has to out-merge this one.
@@ -862,9 +902,17 @@ export function TabStrip({
         was a tab strip you could scroll vertically by exactly one pixel. Pulling the whole
         row down instead keeps the tabs flush inside it, so there is nothing to scroll.
       */}
+      {tabs.length > 0 && (
+        <div
+          role='tablist'
+          aria-label='Tabs'
+          aria-owns={[...pinnedTabs, ...regularTabs]
+            .map((tab) => `${stripId}-${encodeURIComponent(tab.id)}`)
+            .join(' ')}
+          className='sr-only'
+        />
+      )}
       <div
-        role='tablist'
-        aria-label='Tabs'
         className={cn(
           'flex min-w-0 shrink gap-0.5',
           variant === 'attached' ? '-mb-px items-end' : 'items-center gap-2'

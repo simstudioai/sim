@@ -1,10 +1,17 @@
 import { BlockTileView } from '@sim/workflow-renderer'
+import { getWorkflowTypeAccent } from '@sim/workflow-renderer/workflow-type'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 const Icon = ({ className }: { className?: string }) => <svg className={className} />
 
 describe('shared block tile', () => {
+  it('preserves the state accent for both Human block versions', () => {
+    expect(getWorkflowTypeAccent('human_in_the_loop_v2')).toEqual(
+      getWorkflowTypeAccent('human_in_the_loop')
+    )
+    expect(getWorkflowTypeAccent('human_in_the_loop_v2').tone).toBe('yellow')
+  })
   it('uses the same role accent and header dimensions for a core block', () => {
     const html = renderToStaticMarkup(
       <BlockTileView blockType='agent' icon={Icon} bgColor='#33C482' useAccent size='lg' />

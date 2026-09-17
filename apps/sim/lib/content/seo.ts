@@ -242,7 +242,7 @@ export function buildTagsMetadata(section: ContentSection): Metadata {
   const canonical = `${SITE_URL}${section.basePath}/tags`
   const description = `Browse Sim ${section.name.toLowerCase()} posts by topic: AI agents, workflows, integrations, and more.`
   return {
-    title: 'Tags',
+    title: `${section.name} Tags`,
     description,
     alternates: { canonical },
     openGraph: {
