@@ -11,6 +11,7 @@ import {
   CalComIcon,
   ClaudeIcon,
   ClickUpIcon,
+  CodaIcon,
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
@@ -1318,6 +1319,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'hubspot',
+  },
+  coda: {
+    name: 'Coda',
+    icon: CodaIcon,
+    services: {
+      coda: {
+        name: 'Coda',
+        description: 'Read and write Coda docs, pages, and tables.',
+        providerId: 'coda',
+        serviceAccountProviderId: 'coda-service-account',
+        icon: CodaIcon,
+        baseProviderIcon: CodaIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'coda',
   },
   harmonic: {
     name: 'Harmonic',

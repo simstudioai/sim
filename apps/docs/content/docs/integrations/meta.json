@@ -46,6 +46,7 @@
     "cloudformation",
     "cloudtrail",
     "cloudwatch",
+    "coda",
     "codepipeline",
     "confluence",
     "context_dev",

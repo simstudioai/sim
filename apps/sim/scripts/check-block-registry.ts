@@ -37,17 +37,21 @@ const gitOpts = { encoding: 'utf-8' as const, cwd: gitRoot }
 type IdMap = Record<string, Set<string>>
 
 /**
- * Extracts subblock IDs from the `subBlocks: [ ... ]` section of a block
- * definition. Only grabs the top-level `id:` of each subblock object —
- * ignores nested IDs inside `options`, `columns`, etc.
+ * Returns the index of the `[` opening the first `subBlocks:` array literal in
+ * `source`, or null when that `subBlocks` value is an expression instead.
  */
-function extractSubBlockIds(source: string): string[] {
-  const startIdx = source.indexOf('subBlocks:')
-  if (startIdx === -1) return []
+function findSubBlocksLiteral(source: string): number | null {
+  const match = /subBlocks:\s*(\S)/.exec(source)
+  if (!match || match[1] !== '[') return null
+  return match.index + match[0].length - 1
+}
 
-  const bracketStart = source.indexOf('[', startIdx)
-  if (bracketStart === -1) return []
-
+/**
+ * Extracts subblock IDs from the `subBlocks: [ ... ]` array literal whose
+ * opening bracket is at `bracketStart`. Only grabs the top-level `id:` of each
+ * subblock object — ignores nested IDs inside `options`, `columns`, etc.
+ */
+function extractSubBlockIds(source: string, bracketStart: number): string[] {
   const ids: string[] = []
   let braceDepth = 0
   let bracketDepth = 0
@@ -93,22 +97,40 @@ type PreviousIdsResult =
   | { kind: 'noop' }
   | { kind: 'ok'; map: IdMap }
 
+/**
+ * Reads a block's subblock IDs from its source at the base ref. A file can
+ * declare an untyped legacy block before the typed block, so a typed block
+ * with a `subBlocks` array literal is read from its own definition. A typed
+ * block that derives `subBlocks` (for example by filtering the legacy block's)
+ * cannot be evaluated here, so it is read from the legacy literal: IDs the
+ * derivation already dropped then look removed. That fails closed while the
+ * file is being edited, and the block is skipped while the file is unchanged,
+ * since this diff cannot have removed anything from it.
+ */
+function extractPreviousIds(content: string, definitionStart: number, fileChanged: boolean) {
+  const ownLiteral = findSubBlocksLiteral(content.slice(definitionStart))
+  if (ownLiteral !== null) return extractSubBlockIds(content, definitionStart + ownLiteral)
+  if (!fileChanged) return []
+  const legacyLiteral = findSubBlocksLiteral(content)
+  return legacyLiteral === null ? [] : extractSubBlockIds(content, legacyLiteral)
+}
+
 function getPreviousIds(): PreviousIdsResult {
   const registryPath = 'apps/sim/blocks/registry.ts'
   const blocksDir = 'apps/sim/blocks/blocks'
 
-  let hasChanges = false
+  let changedPaths: Set<string>
   try {
     const diff = execSync(
       `git diff --name-only ${baseRef} -- ${registryPath} ${blocksDir}`,
       gitOpts
     ).trim()
-    hasChanges = diff.length > 0
+    changedPaths = new Set(diff ? diff.split('\n') : [])
   } catch {
     return { kind: 'skip', reason: 'Could not diff against base ref' }
   }
 
-  if (!hasChanges) {
+  if (changedPaths.size === 0) {
     return { kind: 'noop' }
   }
 
@@ -134,7 +156,7 @@ function getPreviousIds(): PreviousIdsResult {
       if (!typeMatch) continue
       const blockType = typeMatch[1]
 
-      const ids = extractSubBlockIds(content)
+      const ids = extractPreviousIds(content, typeMatch.index ?? 0, changedPaths.has(filePath))
       if (ids.length === 0) continue
 
       map[blockType] = new Set(ids)
