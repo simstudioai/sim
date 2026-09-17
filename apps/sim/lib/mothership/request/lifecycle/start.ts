@@ -12,7 +12,7 @@ import {
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { createRunSegment, updateRunStatus } from '@/lib/mothership/async-runs/repository'
+import { createRunSegment, recordRunBillingAdmission } from '@/lib/mothership/async-runs/repository'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   MothershipStreamV1EventType,
@@ -330,22 +330,14 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               onBillingAdmission: async (admission) => {
                 if (!chatId || !savedRequestContext.recovery) return
                 await assertControllerOwnership()
-                const updated = await updateRunStatus(
+                if (!lease) throw new StreamControllerSupersededError()
+                const updated = await recordRunBillingAdmission(
                   runId,
-                  'active',
                   {
-                    requestContext: {
-                      ...savedRequestContext,
-                      recovery: {
-                        ...savedRequestContext.recovery,
-                        billingAdmission: {
-                          billingRequestId: admission.billingRequestId,
-                          serializedAttribution: admission.serializedAttribution,
-                        },
-                      },
-                    },
+                    billingRequestId: admission.billingRequestId,
+                    serializedAttribution: admission.serializedAttribution,
                   },
-                  lease?.value
+                  lease.value
                 )
                 if (!updated) throw new Error('Run no longer owns billing admission')
               },

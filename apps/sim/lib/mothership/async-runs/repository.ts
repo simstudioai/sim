@@ -47,6 +47,7 @@ import {
   traceMothershipQuery,
   traceMothershipTransaction,
 } from '@/lib/mothership/observability/database'
+import type { BillingAdmission } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { markSpanForError } from '@/lib/mothership/request/otel'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 
@@ -276,7 +277,6 @@ export async function updateRunStatus(
   updates: {
     completedAt?: Date | null
     error?: string | null
-    requestContext?: Record<string, unknown>
   } = {},
   controllerToken?: string
 ) {
@@ -302,7 +302,6 @@ export async function updateRunStatus(
             ? (updates.completedAt ?? sql`now()`)
             : updates.completedAt,
           error: updates.error,
-          requestContext: updates.requestContext,
           updatedAt: new Date(),
         })
         .where(
@@ -314,7 +313,39 @@ export async function updateRunStatus(
               : undefined
           )
         )
-        .returning()
+        .returning({ id: copilotRuns.id, status: copilotRuns.status })
+      return run ?? null
+    }
+  )
+}
+
+/** Persist admission without replacing recovery intent or any concurrently updated context. */
+export async function recordRunBillingAdmission(
+  runId: string,
+  admission: BillingAdmission,
+  controllerToken: string
+) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsUpdateRunStatus,
+    'UPDATE',
+    'copilot_runs',
+    { [TraceAttr.RunId]: runId },
+    async () => {
+      const [run] = await db
+        .update(copilotRuns)
+        .set({
+          requestContext: sql`jsonb_set(${copilotRuns.requestContext}, '{recovery,billingAdmission}', ${JSON.stringify(admission)}::jsonb)`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotRuns.id, runId),
+            notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
+            sql`${copilotRuns.requestContext}->>'controllerToken' = ${controllerToken}`,
+            sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`
+          )
+        )
+        .returning({ id: copilotRuns.id, status: copilotRuns.status })
       return run ?? null
     }
   )

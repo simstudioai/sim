@@ -50,7 +50,22 @@ describe('durable recovery admission contract', () => {
     expect(parsed.request).not.toHaveProperty('byokApiKey')
     expect(parsed.request).not.toHaveProperty('delegationToken')
     expect(parsed.request).not.toHaveProperty('receivedTextChars')
+    expect(parsed.request).not.toHaveProperty('integrationTools')
+    expect(parsed.request).not.toHaveProperty('mothershipTools')
   })
+  it.each(['integrationTools', 'mothershipTools'])(
+    'rejects %s schemas at the durable request boundary',
+    (field) => {
+      expect(
+        StreamRecoveryConfigSchema.safeParse(
+          config({
+            ...workspaceRequest,
+            [field]: [{ name: 'tool', inputSchema: { type: 'object' } }],
+          })
+        ).success
+      ).toBe(false)
+    }
+  )
   it.each([
     config(workspaceRequest, 'assistant'),
     config(organizationRequest, 'agent'),

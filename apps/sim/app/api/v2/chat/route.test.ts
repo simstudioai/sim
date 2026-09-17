@@ -97,7 +97,7 @@ vi.mock('@/lib/mothership/chat/messages-store', () => ({
 }))
 
 vi.mock('@/lib/mothership/chat/payload', () => ({
-  buildIntegrationToolSchemas: vi.fn().mockResolvedValue([{ name: 'run_workflow' }]),
+  buildIntegrationToolSchemas: vi.fn().mockResolvedValue([{ name: 'gmail_send' }]),
 }))
 
 vi.mock('@/lib/mothership/entitlements', () => ({
@@ -155,7 +155,7 @@ const successResult = {
   success: true,
   content: 'Hello there',
   contentBlocks: [],
-  toolCalls: [{ name: 'run_workflow' }, { name: 'internal_only' }],
+  toolCalls: [{ name: 'gmail_send' }, { name: 'internal_only' }],
   usage: { prompt: 10, completion: 5 },
   cost: { total: 0.01 },
 }
@@ -441,7 +441,7 @@ describe('POST /api/v2/chat', () => {
       conversationId: SERVER_ISSUED_CHAT_ID,
       tokens: { prompt: 10, completion: 5, total: 15 },
       cost: { total: 0.01 },
-      toolCalls: [{ name: 'run_workflow' }],
+      toolCalls: [{ name: 'gmail_send' }],
     })
 
     const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
@@ -452,7 +452,7 @@ describe('POST /api/v2/chat', () => {
       userId: 'user-1',
       workspaceId: 'workspace-1',
       chatId: SERVER_ISSUED_CHAT_ID,
-      integrationTools: [{ name: 'run_workflow' }],
+      integrationCatalog: { mcpServerIds: [] },
     })
     for (const legacy of ['messages', 'mode', 'isHosted', 'workspaceContext', 'userPermission']) {
       expect(payload).not.toHaveProperty(legacy)

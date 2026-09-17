@@ -30,10 +30,6 @@ import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-invento
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
-import {
-  buildOrganizationTaggedMcpToolSchemas,
-  buildTaggedMcpToolSchemas,
-} from '@/lib/mothership/mcp-tools'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
 import { providerIdsForService } from '@/lib/oauth/utils'
@@ -166,8 +162,8 @@ export function clearIntegrationToolSchemaCacheForTests(): void {
 
 /**
  * Build deferred integration tool schemas from the Sim tool registry.
- * Shared by the interactive chat payload builder and the non-interactive
- * block execution route so both paths send the same tool definitions to Go.
+ * The on-demand catalog uses this canonical projection; schemas never ride
+ * the initial chat request or its recovery configuration.
  *
  * When `workspaceId` is provided the user's workspace permission config is
  * loaded once and used to skip any tool whose owning block is not in the
@@ -407,43 +403,6 @@ export async function buildCopilotRequestPayload(
           : []),
       ]
 
-  let integrationTools: ToolSchema[] = []
-  let mothershipTools: ToolSchema[] = []
-
-  if (
-    isAssistant ||
-    (!params.organizationId && effectiveMode === 'build') ||
-    (params.organizationId && !isAssistant)
-  ) {
-    integrationTools = await buildIntegrationToolSchemas(
-      userId,
-      {
-        schemaSurface: 'copilot',
-        personalAccountsOnly: isAssistant,
-        organizationId: params.organizationId,
-      },
-      params.workspaceId
-    )
-  }
-
-  if (!isAssistant && params.organizationId && params.mcpServerIds?.length) {
-    if (!params.principal || !params.chatId)
-      throw new Error('Organization MCP discovery requires an authenticated chat')
-    mothershipTools = await buildOrganizationTaggedMcpToolSchemas(
-      params.principal,
-      { userId, organizationId: params.organizationId, chatId: params.chatId },
-      params.mcpServerIds
-    )
-  }
-
-  if (!isAssistant && params.workspaceId && params.mcpServerIds?.length) {
-    mothershipTools = await buildTaggedMcpToolSchemas(
-      userId,
-      params.workspaceId,
-      params.mcpServerIds
-    )
-  }
-
   /** Assistant sends its trusted mode and prepared context; Build may include authorized workspace inventory. */
   const inventory =
     !isAssistant && params.principal && params.workspaceId
@@ -471,8 +430,9 @@ export async function buildCopilotRequestPayload(
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
-    ...(integrationTools.length > 0 ? { integrationTools } : {}),
-    ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
+    integrationCatalog: {
+      mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
+    },
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),

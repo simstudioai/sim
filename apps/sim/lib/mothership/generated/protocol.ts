@@ -17,9 +17,10 @@
 
 import { z } from "zod";
 import { AssistantImage, AssistantSearch, AssistantSearchLevel } from "./assistant";
+import { IntegrationCatalogContext } from "./integration-catalog";
 import { SimConnection } from "./sim-transport";
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** Model-authored intent labels for one top-level tool activity, carried in tool arguments. */
 export const ToolActivity = z.object({
@@ -145,9 +146,7 @@ export const ChatPayloadSchema = z
     assistantImages: z.array(AssistantImage).max(5).optional(),
     /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
     workflowId: z.string().optional(),
-    integrationTools: z.array(z.unknown()).default([]),
-    /** User-configured MCP tool schemas — same shape as integrationTools; served by the gateway. */
-    mothershipTools: z.array(z.unknown()).default([]),
+    integrationCatalog: IntegrationCatalogContext.optional(),
     /** Accepted for wire compatibility with current sim builds; unused — the CLI now
      * executes on the sim side under sim's own authentication, so no credential crosses. */
     delegationToken: z.string().optional(),
@@ -250,10 +249,8 @@ export interface ChatRequest extends StreamResponseReceipt {
   assistantImages?: AssistantImage[] | undefined;
   /** Workflow-scoped chats (the workflow-page copilot): the agent anchors to this workflow. */
   workflowId?: string | undefined;
-  /** Connected-service operation schemas served by the integration gateway. */
-  integrationTools?: unknown[] | undefined;
-  /** User-configured MCP tool schemas — same shape as integrationTools. */
-  mothershipTools?: unknown[] | undefined;
+  /** Authorized discovery selectors; schemas stay in Sim's catalog. */
+  integrationCatalog?: IntegrationCatalogContext | undefined;
   /** Deprecated: unused since the CLI moved to sim-side in-process execution (no
    * credential crosses the wire); accepted so current senders keep validating. */
   delegationToken?: string | undefined;
@@ -397,10 +394,9 @@ export interface ProtocolMismatch {
 
 /**
  * POST /api/mothership/execute — the one-shot headless surface used by Sim Chat blocks.
- * The caller supplies the full conversation (its system prompt included) and the tool
- * schemas; the worker runs one bounded loop and
- * streams the same mothership-stream-v1 frames. No skills or CLI; local search and the
- * execution gateway expose only the caller-provided integration/MCP operations.
+ * The caller supplies the conversation and authorized catalog selectors. The worker
+ * runs one bounded loop and streams mothership-stream-v1 frames. No skills or CLI;
+ * discovery and execution resolve selected operations through Sim.
  */
 export interface ExecuteRequest extends StreamResponseReceipt {
   effort?: ChatRequest["effort"];
@@ -413,8 +409,7 @@ export interface ExecuteRequest extends StreamResponseReceipt {
   workspaceId?: string | undefined;
   chatId?: string | undefined;
   messageId?: string | undefined;
-  integrationTools?: unknown[] | undefined;
-  mothershipTools?: unknown[] | undefined;
+  integrationCatalog?: IntegrationCatalogContext | undefined;
   delegationToken?: string | undefined;
   /** Enterprise BYOK: one-shot executions pin the customer key like chat turns (S27). */
   byokApiKey?: string | undefined;
