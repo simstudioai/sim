@@ -24,76 +24,37 @@
  *   bun run apps/sim/scripts/check-block-registry.ts origin/main
  */
 
-import { execSync } from 'child_process'
+import { execFileSync } from 'node:child_process'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
-import { getAllBlocks, getBlock, getBlockMeta } from '@/blocks/registry'
-import { extractInlineBlockSubBlockIds } from '@/scripts/block-registry-source'
+import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
+import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
 import { getToolParams } from '@/tools/metadata'
 
 const baseRef = process.argv[2] || 'HEAD~1'
 
-const gitRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim()
+const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf-8' }).trim()
 const gitOpts = { encoding: 'utf-8' as const, cwd: gitRoot }
 
 type IdMap = Record<string, Set<string>>
 
 function getCurrentIds(): IdMap {
   const map: IdMap = {}
-  for (const block of getAllBlocks()) {
+  for (const block of Object.values(getBlockRegistry())) {
     map[block.type] = new Set(block.subBlocks.map((sb) => sb.id))
   }
   return map
 }
 
-type PreviousIdsResult =
-  | { kind: 'skip'; reason: string }
-  | { kind: 'noop' }
-  | { kind: 'ok'; map: IdMap }
+function getPreviousIds(): IdMap | null {
+  const changed = execFileSync(
+    'git',
+    ['diff', '--name-only', baseRef, '--', 'apps/sim/blocks', 'apps/sim/triggers'],
+    gitOpts
+  ).trim()
+  if (!changed) return null
 
-function getPreviousIds(): PreviousIdsResult {
-  const registryPath = 'apps/sim/blocks/registry.ts'
-  const blocksDir = 'apps/sim/blocks/blocks'
-
-  let hasChanges = false
-  try {
-    const diff = execSync(
-      `git diff --name-only ${baseRef} -- ${registryPath} ${blocksDir}`,
-      gitOpts
-    ).trim()
-    hasChanges = diff.length > 0
-  } catch {
-    return { kind: 'skip', reason: 'Could not diff against base ref' }
-  }
-
-  if (!hasChanges) {
-    return { kind: 'noop' }
-  }
-
-  const map: IdMap = {}
-
-  try {
-    const blockFiles = execSync(`git ls-tree -r --name-only ${baseRef} -- ${blocksDir}`, gitOpts)
-      .trim()
-      .split('\n')
-      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-
-    for (const filePath of blockFiles) {
-      let content: string
-      try {
-        content = execSync(`git show ${baseRef}:${filePath}`, gitOpts)
-      } catch {
-        continue
-      }
-
-      for (const [blockType, ids] of Object.entries(extractInlineBlockSubBlockIds(content))) {
-        if (ids.length > 0) map[blockType] = new Set(ids)
-      }
-    }
-  } catch (err) {
-    return { kind: 'skip', reason: `Could not read previous block files from ${baseRef}: ${err}` }
-  }
-
-  return { kind: 'ok', map }
+  const previous = readBlockRegistryAtRef(gitRoot, baseRef)
+  return Object.fromEntries(Object.entries(previous).map(([type, ids]) => [type, new Set(ids)]))
 }
 
 type CheckResult =
@@ -104,10 +65,7 @@ type CheckResult =
 function checkSubblockIdStability(): CheckResult {
   const previous = getPreviousIds()
 
-  if (previous.kind === 'skip') {
-    return { kind: 'skip', message: `${previous.reason} — skipping subblock ID stability check` }
-  }
-  if (previous.kind === 'noop') {
+  if (previous === null) {
     return {
       kind: 'skip',
       message: 'No block definition changes detected — skipping subblock ID stability check',
@@ -117,7 +75,7 @@ function checkSubblockIdStability(): CheckResult {
   const current = getCurrentIds()
   const errors: string[] = []
 
-  for (const [blockType, prevIds] of Object.entries(previous.map)) {
+  for (const [blockType, prevIds] of Object.entries(previous)) {
     const currIds = current[blockType]
     if (!currIds) continue
 
