@@ -26,6 +26,16 @@ export async function runPush(args: string[]): Promise<number> {
     return 1
   }
 
+  if (!help && args.includes('--force')) {
+    const preparation = Bun.spawn(['bun', '--env-file=.env', 'run', './scripts/prepare-push.ts'], {
+      stdin: 'inherit',
+      stdout: 'inherit',
+      stderr: 'inherit',
+    })
+    const preparationExit = await preparation.exited
+    if (preparationExit !== 0) return preparationExit
+  }
+
   const pushArgs = args.filter((arg) => arg !== '--interactive-renames')
   const child = Bun.spawn(
     ['bunx', '--no-install', 'drizzle-kit', 'push', '--config=./drizzle.config.ts', ...pushArgs],
