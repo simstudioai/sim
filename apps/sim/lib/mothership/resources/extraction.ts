@@ -1,5 +1,6 @@
 import { toRecord } from '@sim/utils/object'
 import {
+  ApplyFileEdit,
   CreateEmptyFile,
   CreateWorkflow,
   DownloadFile,
@@ -26,6 +27,7 @@ const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   TableViews.id,
   CreateEmptyFile.id,
   PrepareFileEdit.id,
+  ApplyFileEdit.id,
   DownloadFile.id,
   CreateWorkflow.id,
   EditWorkflow.id,
@@ -111,6 +113,7 @@ export function extractResourcesFromToolResult(
     }
 
     case CreateEmptyFile.id:
+    case ApplyFileEdit.id:
     case PrepareFileEdit.id: {
       const file = toRecord(data.file)
       if (file.id) {

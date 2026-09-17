@@ -5,31 +5,34 @@ import { describe, expect, it } from 'vitest'
 import { extractDeletedResourcesFromToolResult, extractResourcesFromToolResult } from './extraction'
 
 describe('extractResourcesFromToolResult', () => {
-  it('extracts file resources from create_empty_file results', () => {
-    const resources = extractResourcesFromToolResult(
-      'create_empty_file',
-      {
-        fileName: 'notes.md',
-      },
-      {
-        success: true,
-        message: 'File "notes.md" created successfully',
-        data: {
-          id: 'file_123',
-          name: 'notes.md',
-          contentType: 'text/markdown',
+  it.each(['create_empty_file', 'prepare_file_edit', 'apply_file_edit'])(
+    'extracts committed file identity from %s results',
+    (toolName) => {
+      const resources = extractResourcesFromToolResult(
+        toolName,
+        {
+          fileName: 'notes.md',
         },
-      }
-    )
+        {
+          success: true,
+          message: 'File "notes.md" created successfully',
+          data: {
+            id: 'file_123',
+            name: 'notes.md',
+            contentType: 'text/markdown',
+          },
+        }
+      )
 
-    expect(resources).toEqual([
-      {
-        type: 'file',
-        id: 'file_123',
-        title: 'notes.md',
-      },
-    ])
-  })
+      expect(resources).toEqual([
+        {
+          type: 'file',
+          id: 'file_123',
+          title: 'notes.md',
+        },
+      ])
+    }
+  )
 
   it('uses the knowledge base id for manage_knowledge_base tag mutations', () => {
     const resources = extractResourcesFromToolResult(

@@ -44,8 +44,9 @@ export const workspaceFilesKeys = {
   workspaceLists: (workspaceId: string) => [...workspaceFilesKeys.lists(), workspaceId] as const,
   list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
     [...workspaceFilesKeys.workspaceLists(workspaceId), scope] as const,
+  records: () => [...workspaceFilesKeys.all, 'record'] as const,
   record: (workspaceId: string, fileId: string) =>
-    [...workspaceFilesKeys.all, 'record', workspaceId, fileId] as const,
+    [...workspaceFilesKeys.records(), workspaceId, fileId] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
   contentFile: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,

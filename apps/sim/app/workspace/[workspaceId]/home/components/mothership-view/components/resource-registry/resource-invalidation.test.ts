@@ -52,6 +52,22 @@ describe('resource cache reconciliation', () => {
     expect(client.getQueryState(file)?.isInvalidated).toBe(true)
   })
 
+  it.each(['file', undefined])(
+    'refreshes addressed file metadata and versioned content after an edit (id: %s)',
+    (id) => {
+      const client = new QueryClient()
+      const affected = [
+        workspaceFilesKeys.record('w', 'file'),
+        workspaceFilesKeys.content('w', 'file', 'text', 'old-storage-key'),
+      ]
+      const other = workspaceFilesKeys.record('other-workspace', 'file')
+      for (const key of [...affected, other]) client.setQueryData(key, {})
+      invalidateResourceQueries(client, 'w', 'file', id)
+      for (const key of affected) expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+      expect(client.getQueryState(other)?.isInvalidated).toBe(id === undefined)
+    }
+  )
+
   it('updates workflow publication metadata shown beside the draft', () => {
     const client = new QueryClient()
     const affected = [

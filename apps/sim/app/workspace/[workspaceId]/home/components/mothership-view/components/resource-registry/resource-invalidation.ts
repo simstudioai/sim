@@ -28,6 +28,7 @@ const RESOURCE_INVALIDATORS: Record<
   },
   file: (qc, wId, id) => {
     invalidate(qc, workspaceFilesKeys.lists())
+    invalidate(qc, id ? workspaceFilesKeys.record(wId, id) : workspaceFilesKeys.records())
     invalidate(qc, id ? workspaceFilesKeys.contentFile(wId, id) : workspaceFilesKeys.contents())
     invalidate(qc, workspaceFilesKeys.storageInfo())
   },

@@ -379,7 +379,7 @@ describe('copilot go stream helpers', () => {
     { fail: false, readOnly: true },
     { fail: true, readOnly: true },
   ])(
-    'commits worker resource effects before forwarding (failure: $fail, read only: $readOnly)',
+    'persists mutations but never read-only panels (failure: $fail, read only: $readOnly)',
     async ({ fail, readOnly }) => {
       const resource = { type: 'workflow', id: 'wf', title: 'A workflow' }
       const order: string[] = []
@@ -428,8 +428,13 @@ describe('copilot go stream helpers', () => {
           },
         }
       )
-      if (fail) await expect(promise).rejects.toThrow('Resource storage unavailable')
+      if (fail && !readOnly) await expect(promise).rejects.toThrow('Resource storage unavailable')
       else await promise
+      if (readOnly) {
+        expect(order).toEqual(['publish'])
+        expect(changeStoredChatResourcesMock).not.toHaveBeenCalled()
+        return
+      }
       expect(order).toEqual(fail ? ['persist'] : ['persist', 'publish'])
       expect(changeStoredChatResourcesMock).toHaveBeenCalledWith(
         'chat',

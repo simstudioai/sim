@@ -51,6 +51,7 @@ vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () =>
   updateWorkspaceFileContent: { execute: vi.fn() },
 }))
 
+import { extractResourcesFromToolResult } from '@/lib/mothership/resources/extraction'
 import { editContentServerTool } from '@/lib/mothership/tools/server/files/edit-content'
 import { consumeLatestFileIntent } from '@/lib/mothership/tools/server/files/file-intent-store'
 import { workspaceFileServerTool } from '@/lib/mothership/tools/server/files/workspace-file'
@@ -102,6 +103,9 @@ describe('prepared file write across tool invocations', () => {
     const applyContext = { ...prepareContext, toolCallId: 'apply' }
     const applied = await editContentServerTool.execute({ content }, applyContext)
     expect(applied.success, applied.message).toBe(true)
+    expect(extractResourcesFromToolResult('apply_file_edit', { content }, applied)).toEqual([
+      { type: 'file', id: created.id, title: created.name },
+    ])
     expect(executeFileUseCase).toHaveBeenNthCalledWith(
       1,
       prepareContext,
