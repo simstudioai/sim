@@ -223,154 +223,19 @@ jobs:
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:${{ github.sha }}-dev
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
-  # Upload without promotion in parallel; the release gate waits for the schema.
-  deploy-trigger-dev:
-    name: Deploy Trigger.dev (Dev)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 15
-    outputs:
-      version: ${{ steps.deploy.outputs.deploymentVersion }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.1
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            **/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Deploy to Trigger.dev (skip promotion)
-        id: deploy
-        working-directory: ./apps/sim
-        env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
-          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
-        run: |
-          set -eo pipefail
-          if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
-            exit 1
-          fi
-          bunx trigger.dev@4.5.12 deploy --env preview --branch dev-sim --skip-promotion
-
-      - name: Validate deployment version output
-        env:
-          VERSION: ${{ steps.deploy.outputs.deploymentVersion }}
-        run: |
-          if ! [[ "$VERSION" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
-            echo "ERROR: Trigger.dev did not report a valid deploymentVersion output" >&2
-            exit 1
-          fi
-
-  # Promote only after the gated app tag move, then observe live traffic cutover.
-  promote-trigger-dev:
-    name: Promote Trigger.dev (Dev)
-    needs: [promote-images, deploy-trigger-dev]
-    if: >-
-      !cancelled() &&
-      github.event_name == 'push' && github.ref == 'refs/heads/dev' &&
-      needs.promote-images.result == 'success' &&
-      needs.promote-images.outputs.promoted == 'true' &&
-      needs.deploy-trigger-dev.result == 'success'
-    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    # Dev bake is 5 min and dev deploys don't queue behind a bake (serialized by the
-    # ci-<ref> group), so a 20-min poll is ample; the 40-min job leaves ~20 min for
-    # setup + promote above it (mirrors the prod 90-vs-70 margin), and the 40-min
-    # session outlasts the poll.
-    timeout-minutes: 40
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.1
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            **/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
-        with:
-          role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.DEV_AWS_REGION }}
-          role-duration-seconds: 2400
-
-      - name: Wait for ECS traffic cutover
-        env:
-          OVERALL_TIMEOUT: "1200"
-          CHANGED: ${{ needs.promote-images.outputs.app_image_changed }}
-          DIGEST: ${{ needs.promote-images.outputs.app_image_digest }}
-          EPOCH: ${{ needs.promote-images.outputs.retag_epoch }}
-        run: |
-          set -eo pipefail
-          case "$CHANGED" in
-            true) ;;
-            false) EPOCH=0 ;;
-            *) echo "ERROR: invalid app image change metadata" >&2; exit 1 ;;
-          esac
-          bash .github/scripts/wait-for-ecs-cutover.sh sim-dev-us-east-1-app-deployment "$DIGEST" "$EPOCH"
-
-      - name: Promote Trigger.dev version
-        working-directory: ./apps/sim
-        env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
-          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
-          VERSION: ${{ needs.deploy-trigger-dev.outputs.version }}
-        run: |
-          set -eo pipefail
-          if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
-            exit 1
-          fi
-          if [ -z "$VERSION" ]; then
-            echo "ERROR: no deployed version passed from deploy-trigger-dev" >&2
-            exit 1
-          fi
-          echo "Promoting Trigger.dev version $VERSION (preview / dev-sim)"
-          bunx trigger.dev@4.5.12 promote "$VERSION" --env preview --branch dev-sim
-
   # Build and upload tasks alongside tests and images. The unpromoted version
   # cannot serve new runs; promote-images waits for it and successful migrations.
-  deploy-trigger:
-    name: Deploy Trigger.dev
+  prepare-trigger:
+    name: Prepare Trigger.dev
     if: >-
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
       version: ${{ steps.deploy.outputs.deploymentVersion }}
+      environment: ${{ steps.target.outputs.environment }}
+      preview_branch: ${{ steps.target.outputs.preview_branch }}
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -394,20 +259,37 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Deploy to Trigger.dev (skip promotion)
+      - name: Select Trigger environment
+        id: target
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/main) TRIGGER_ENV=prod; TRIGGER_BRANCH='' ;;
+            refs/heads/staging) TRIGGER_ENV=staging; TRIGGER_BRANCH='' ;;
+            refs/heads/dev) TRIGGER_ENV=preview; TRIGGER_BRANCH=dev-sim ;;
+            *) echo "ERROR: unsupported Trigger release ref: $GITHUB_REF" >&2; exit 1 ;;
+          esac
+          echo "environment=$TRIGGER_ENV" >> "$GITHUB_OUTPUT"
+          echo "preview_branch=$TRIGGER_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Trigger.dev version without promotion
         id: deploy
         working-directory: ./apps/sim
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
-          TRIGGER_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
+          TRIGGER_ENV: ${{ steps.target.outputs.environment }}
+          TRIGGER_BRANCH: ${{ steps.target.outputs.preview_branch }}
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
             echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
             exit 1
           fi
-          bunx trigger.dev@4.5.12 deploy --env "$TRIGGER_ENV" --skip-promotion
+          TARGET_ARGS=(--env "$TRIGGER_ENV")
+          if [ -n "$TRIGGER_BRANCH" ]; then
+            TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
+          fi
+          bunx trigger.dev@4.5.12 deploy "${TARGET_ARGS[@]}" --skip-promotion
 
       - name: Validate deployment version output
         env:
@@ -552,19 +434,18 @@ jobs:
   # moves; a missing image can't produce a partial mixed-version deploy.
   promote-images:
     name: Promote Images
-    needs: [migrate, build-amd64, deploy-trigger, migrate-dev, build-dev, deploy-trigger-dev]
+    needs: [migrate, build-amd64, prepare-trigger, migrate-dev, build-dev]
     # Explicit results: see migrate's comment.
     if: >-
       !cancelled() && github.event_name == 'push' &&
+      needs.prepare-trigger.result == 'success' &&
       (
         ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
           needs.migrate.result == 'success' &&
-          needs.build-amd64.result == 'success' &&
-          needs.deploy-trigger.result == 'success') ||
+          needs.build-amd64.result == 'success') ||
         (github.ref == 'refs/heads/dev' &&
           needs.migrate-dev.result == 'success' &&
-          needs.build-dev.result == 'success' &&
-          needs.deploy-trigger-dev.result == 'success')
+          needs.build-dev.result == 'success')
       )
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
@@ -665,7 +546,7 @@ jobs:
             fi
           done
 
-  # Main/staging: promote the parked Trigger.dev version after observing the ECS
+  # Promote the parked Trigger.dev version after observing the ECS
   # traffic cutover (CodeDeploy AllowTraffic on every target). The image retag
   # triggers the ECS pipeline; this job correlates it via the digest + retag epoch
   # (rejecting a stale execution reusing the digest) and promotes at cutover.
@@ -674,20 +555,19 @@ jobs:
   # promote never fires and this job fails visibly.
   promote-trigger:
     name: Promote Trigger.dev
-    needs: [promote-images, deploy-trigger]
+    needs: [promote-images, prepare-trigger]
     # Explicit results also suppress skip propagation from optional ancestors.
     if: >-
       !cancelled() &&
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev') &&
       needs.promote-images.result == 'success' &&
-      needs.deploy-trigger.result == 'success' &&
+      needs.prepare-trigger.result == 'success' &&
       needs.promote-images.outputs.promoted == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    # Must exceed the poll script's OVERALL_TIMEOUT (70 min, covering a prod deploy
-    # queued behind a ~50-min bake) PLUS runner setup + the final promote step, so
-    # the Actions timeout never kills the job before the script's own deadline.
-    timeout-minutes: 90
+    # Leave setup/promotion headroom above the cutover poll (dev: 20 min;
+    # staging/prod: 70 min, including a deploy queued behind a long bake).
+    timeout-minutes: ${{ github.ref == 'refs/heads/dev' && 40 || 90 }}
     permissions:
       contents: read
       id-token: write
@@ -717,21 +597,19 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
-          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
-          # The poll can run up to ~70 min (prod deploy queued behind a bake), which
-          # outlasts the default 1h session. Hold the session for the full job so AWS
-          # calls don't start failing mid-poll. Requires the deploy role's
-          # MaxSessionDuration to be >= this value (roles are managed outside the repo).
-          role-duration-seconds: 5400
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_REGION || secrets.STAGING_AWS_REGION }}
+          # Match each environment's session budget; both outlast their polls.
+          role-duration-seconds: ${{ github.ref == 'refs/heads/dev' && 2400 || 5400 }}
 
       # An unchanged tag may belong to a failed or still-running earlier deploy.
       # Verify its latest cutover rather than treating tag equality as success.
       - name: Wait for ECS traffic cutover
         env:
+          OVERALL_TIMEOUT: ${{ github.ref == 'refs/heads/dev' && 1200 || 4200 }}
           APP_IMAGE_CHANGED: ${{ needs.promote-images.outputs.app_image_changed }}
           DIGEST: ${{ needs.promote-images.outputs.app_image_digest }}
-          PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}-us-east-1-app-deployment
+          PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || github.ref == 'refs/heads/dev' && 'dev' || 'staging' }}-us-east-1-app-deployment
           RETAG_EPOCH: ${{ needs.promote-images.outputs.retag_epoch }}
         run: |
           set -eo pipefail
@@ -747,8 +625,9 @@ jobs:
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
-          TRIGGER_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
-          VERSION: ${{ needs.deploy-trigger.outputs.version }}
+          TRIGGER_ENV: ${{ needs.prepare-trigger.outputs.environment }}
+          TRIGGER_BRANCH: ${{ needs.prepare-trigger.outputs.preview_branch }}
+          VERSION: ${{ needs.prepare-trigger.outputs.version }}
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
@@ -756,11 +635,15 @@ jobs:
             exit 1
           fi
           if [ -z "$VERSION" ]; then
-            echo "ERROR: no deployed version passed from deploy-trigger" >&2
+            echo "ERROR: no deployed version passed from prepare-trigger" >&2
             exit 1
           fi
           echo "Promoting Trigger.dev version $VERSION ($TRIGGER_ENV)"
-          bunx trigger.dev@4.5.12 promote "$VERSION" --env "$TRIGGER_ENV"
+          TARGET_ARGS=(--env "$TRIGGER_ENV")
+          if [ -n "$TRIGGER_BRANCH" ]; then
+            TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
+          fi
+          bunx trigger.dev@4.5.12 promote "$VERSION" "${TARGET_ARGS[@]}"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
