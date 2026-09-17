@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -17,6 +18,17 @@ def execution(start=1000, digest=DIGEST, identifier='execution-current'):
         'pipelineExecutionId': identifier,
         'sourceRevisions': [{'actionName': 'ECR_Source', 'revisionId': digest}],
     }
+
+
+def deploy_action(identifier='action-current', start=1000, status='InProgress'):
+    return {'actionName': 'Deploy_to_ECS', 'actionExecutionId': identifier,
+            'startTime': start, 'status': status, 'output': {}}
+
+
+def deploy_state(execution_id='execution-current', action_id='action-current', deployment_id='d-current'):
+    return {'latestExecution': {'pipelineExecutionId': execution_id}, 'actionStates': [
+        {'actionName': 'Deploy_to_ECS', 'latestExecution': {
+            'actionExecutionId': action_id, 'externalExecutionId': deployment_id, 'status': 'InProgress'}}]}
 
 
 class DeploymentGateTests(unittest.TestCase):
@@ -88,7 +100,8 @@ print(value)
         responses = {
             'list-pipeline-executions': {'json': [execution()]},
             'get-pipeline-execution': {'text': 'InProgress'},
-            'list-action-executions': {'text': 'd-current'},
+            'get-pipeline-state': {'json': deploy_state()},
+            'list-action-executions': {'json': [deploy_action()]},
             'get-deployment': {'text': 'InProgress'},
             'list-deployment-targets': {'text': 'target-one\ttarget-two'},
             'get-deployment-target:target-one': {'text': 'Succeeded'},
@@ -175,9 +188,48 @@ print(value)
                 self.assertNotIn('get-deployment ', calls)
 
     def test_waits_for_queued_deploy_action(self):
-        result, calls = self.poll({'list-action-executions': [{'text': 'None'}, {'text': 'd-current'}]})
+        result, calls = self.poll({'list-action-executions': [
+            {'json': []}, {'json': [deploy_action()]}]})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls.count('list-action-executions '), 2)
+
+    def test_finds_live_deployment_before_action_history_has_output(self):
+        result, calls = self.poll()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('get-pipeline-state --name app-pipeline', calls)
+        self.assertIn('get-deployment --deployment-id d-current', calls)
+        self.assertIn('Traffic cutover complete', result.stdout)
+
+    def test_waits_for_state_from_the_exact_pipeline_and_action(self):
+        for stale in (None, deploy_state(execution_id='execution-old'),
+                      deploy_state(action_id='action-old'), deploy_state(deployment_id='')):
+            with self.subTest(stale=stale):
+                result, calls = self.poll({'get-pipeline-state': [
+                    {'json': stale}, {'json': deploy_state()}]})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(calls.count('get-pipeline-state '), 2)
+                self.assertEqual(calls.count('get-deployment '), 1)
+
+    def test_old_live_action_cannot_satisfy_a_retry(self):
+        result, calls = self.poll({
+            'list-action-executions': {'json': [deploy_action(), deploy_action('action-old', start=999)]},
+            'get-pipeline-state': [
+                {'json': deploy_state(action_id='action-old', deployment_id='d-old')},
+                {'json': deploy_state()}],
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('--deployment-id d-old', calls)
+
+    def test_bad_live_state_and_failed_actions_fail_closed(self):
+        for updates in (
+            {'get-pipeline-state': {'error': 'AccessDeniedException'}},
+            {'get-pipeline-state': {'json': deploy_state(deployment_id='wrong-provider-id')}},
+            {'list-action-executions': {'json': [deploy_action(status='Failed')]}},
+        ):
+            with self.subTest(updates=updates):
+                result, calls = self.poll(updates)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('get-deployment ', calls)
 
     def test_failed_deployment_never_accepts_old_cutover(self):
         result, calls = self.poll({'get-deployment': {'text': 'Failed'}})
@@ -258,6 +310,88 @@ print(value)
             'batch-get-image': {'json': {'images': [{'imageId': {'imageDigest': DIGEST}}], 'failures': []}}})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('app_image_changed=false', result.github_output)
+
+
+class ReleaseOrderingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        workflow = SCRIPTS.parent / 'workflows' / 'ci.yml'
+        parsed = subprocess.run([
+            'bun', '-e', 'console.log(JSON.stringify(Bun.YAML.parse(await Bun.file(process.argv[1]).text())))',
+            str(workflow)], check=True, capture_output=True, text=True)
+        cls.jobs = json.loads(parsed.stdout)['jobs']
+
+    def eligible(self, job, branch, results, event='push', cancelled=False, promoted='true'):
+        expression = self.jobs[job]['if']
+        expression = re.sub(r'needs\.([\w-]+)\.result', lambda m: repr(results[m[1]]), expression)
+        expression = expression.replace('needs.promote-images.outputs.promoted', repr(promoted))
+        expression = expression.replace('github.ref', repr('refs/heads/' + branch))
+        expression = expression.replace('github.event_name', repr(event))
+        expression = expression.replace('!cancelled()', repr(not cancelled))
+        expression = expression.replace('&&', ' and ').replace('||', ' or ')
+        return eval(' '.join(expression.split()), {'__builtins__': {}})
+
+    def release_results(self, branch):
+        active = ('migrate-dev', 'build-dev', 'deploy-trigger-dev') if branch == 'dev' else (
+            'migrate', 'build-amd64', 'deploy-trigger')
+        results = {name: 'success' if name in active else 'skipped'
+                   for name in self.jobs['promote-images']['needs']}
+        return active, results
+
+    def test_uploads_and_image_builds_can_start_before_migration(self):
+        for job in ('deploy-trigger', 'deploy-trigger-dev', 'build-amd64', 'build-dev'):
+            self.assertFalse(self.jobs[job].get('needs'), job)
+        for job in ('deploy-trigger', 'deploy-trigger-dev'):
+            upload = next(step for step in self.jobs[job]['steps'] if step.get('id') == 'deploy')
+            self.assertIn('--skip-promotion', upload['run'])
+
+    def test_each_release_waits_for_all_three_gates(self):
+        for branch in ('main', 'staging', 'dev'):
+            active, ready = self.release_results(branch)
+            self.assertTrue(self.eligible('promote-images', branch, ready))
+            for gate in active:
+                self.assertIn(gate, self.jobs['promote-images']['needs'])
+                for failure in ('failure', 'cancelled', 'skipped'):
+                    with self.subTest(branch=branch, gate=gate, result=failure):
+                        self.assertFalse(self.eligible('promote-images', branch, {**ready, gate: failure}))
+            self.assertFalse(self.eligible('promote-images', branch, ready, cancelled=True))
+            self.assertFalse(self.eligible('promote-images', branch, ready, event='pull_request'))
+
+    def test_migrations_still_require_successful_tests(self):
+        self.assertIn('test-build', self.jobs['migrate']['needs'])
+        for branch in ('main', 'staging'):
+            self.assertTrue(self.eligible('migrate', branch, {'test-build': 'success'}))
+            for result in ('failure', 'cancelled', 'skipped'):
+                self.assertFalse(self.eligible('migrate', branch, {'test-build': result}))
+
+    def test_dev_build_cannot_move_deploy_tags(self):
+        steps = self.jobs['build-dev']['steps']
+        build = next(step for step in steps if step.get('uses') == './.github/actions/docker-build')
+        self.assertTrue(build['with']['tags'].endswith(':${{ github.sha }}-dev'))
+        self.assertNotIn('promote-app-image.sh', json.dumps(steps))
+        self.assertNotIn('imagetools create', json.dumps(steps))
+
+    def test_task_promotion_requires_a_successful_fresh_app_release(self):
+        for branch, job, upload in (('main', 'promote-trigger', 'deploy-trigger'),
+                                    ('staging', 'promote-trigger', 'deploy-trigger'),
+                                    ('dev', 'promote-trigger-dev', 'deploy-trigger-dev')):
+            ready = {'promote-images': 'success', upload: 'success'}
+            self.assertIn('promote-images', self.jobs[job]['needs'])
+            self.assertTrue(self.eligible(job, branch, ready))
+            self.assertFalse(self.eligible(job, branch, ready, promoted='false'))
+            self.assertFalse(self.eligible(job, branch, {**ready, 'promote-images': 'failure'}))
+            steps = self.jobs[job]['steps']
+            wait = next(i for i, step in enumerate(steps) if 'wait-for-ecs-cutover.sh' in step.get('run', ''))
+            promote = next(i for i, step in enumerate(steps) if 'promote "$VERSION"' in step.get('run', ''))
+            self.assertLess(wait, promote)
+            self.assertEqual(steps[promote]['env']['VERSION'], '${{ needs.' + upload + '.outputs.version }}')
+
+    def test_permission_check_and_other_images_precede_app_rollout(self):
+        steps = self.jobs['promote-images']['steps']
+        preflight = next(i for i, step in enumerate(steps) if 'get-pipeline-state' in step.get('run', ''))
+        retag = next(i for i, step in enumerate(steps) if step.get('id') == 'promote')
+        self.assertLess(preflight, retag)
+        self.assertTrue(steps[retag]['env']['ECR_REPOS'].strip().endswith('${{ secrets.ECR_APP }}'))
 
 
 if __name__ == '__main__':
