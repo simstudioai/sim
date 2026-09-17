@@ -1,6 +1,6 @@
 import { findCause, getPostgresErrorCode } from '@sim/utils/errors'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
-import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
+import { getEmbeddingAPIError } from '@/lib/embeddings/api-error'
 import {
   ConnectorDirectoryError,
   ConnectorSourceError,
@@ -66,6 +66,19 @@ function classifyFailure(error: unknown): ConnectorFailureDiagnostic | null {
   if (databaseError) {
     return { category: 'database', message: 'Database request failed without a driver error code.' }
   }
+  const embeddingError = getEmbeddingAPIError(error)
+  if (
+    embeddingError &&
+    Number.isInteger(embeddingError.status) &&
+    embeddingError.status >= 400 &&
+    embeddingError.status <= 599
+  ) {
+    return {
+      category: 'embedding',
+      status: embeddingError.status,
+      message: `Embedding service request failed (HTTP ${embeddingError.status}).`,
+    }
+  }
   const httpError = findCause(
     error,
     (value): value is Error & { status: number } =>
@@ -78,13 +91,6 @@ function classifyFailure(error: unknown): ConnectorFailureDiagnostic | null {
   )
   if (!httpError) return null
   const { status } = httpError
-  if (httpError instanceof EmbeddingAPIError) {
-    return {
-      category: 'embedding',
-      status,
-      message: `Embedding service request failed (HTTP ${status}).`,
-    }
-  }
   const category = httpError instanceof ConnectorSourceError ? httpError.category : undefined
   if (category === 'authorization' || (!category && (status === 401 || status === 403))) {
     return {

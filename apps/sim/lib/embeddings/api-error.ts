@@ -20,3 +20,18 @@ export class EmbeddingAPIError extends Error {
     this.isBYOK = isBYOK
   }
 }
+
+/** Finds an embedding failure through bounded aggregate/cause wrappers. */
+export function getEmbeddingAPIError(error: unknown): EmbeddingAPIError | null {
+  const pending = [error]
+  const seen = new Set<unknown>()
+  while (pending.length > 0 && seen.size < 32) {
+    const current = pending.pop()
+    if (!(current instanceof Error) || seen.has(current)) continue
+    seen.add(current)
+    if (current instanceof EmbeddingAPIError) return current
+    if (current.cause !== undefined) pending.push(current.cause)
+    if (current instanceof AggregateError) pending.push(...current.errors.slice(0, 32))
+  }
+  return null
+}
