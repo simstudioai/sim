@@ -70,6 +70,43 @@ describe('HTTP Request Tool', () => {
       expect(url.includes('chars')).toBe(true)
     })
 
+    it.concurrent('substitutes path parameters only by their whole name', () => {
+      expect(processUrl('https://www.google.com', { '': '' })).toBe('https://www.google.com')
+      expect(processUrl('https://api.example.com:8443/users/:id', { '8443': 'x', id: '42' })).toBe(
+        'https://api.example.com:8443/users/42'
+      )
+      expect(processUrl('https://api.example.com/users/:idx/:id', { id: '1', idx: '2' })).toBe(
+        'https://api.example.com/users/2/1'
+      )
+      expect(processUrl('https://api.example.com/users/:id-profile', { id: '7' })).toBe(
+        'https://api.example.com/users/7-profile'
+      )
+      expect(processUrl('https://api.example.com/users/:user-id', { 'user-id': '9' })).toBe(
+        'https://api.example.com/users/9'
+      )
+      expect(processUrl('https://api.example.com/users/:id', { id: '$&' })).toBe(
+        'https://api.example.com/users/%24%26'
+      )
+      expect(processUrl('https://api.example.com/users/:user.name', { 'user.name': 'ada' })).toBe(
+        'https://api.example.com/users/ada'
+      )
+      expect(processUrl('https://api.example.com/v1/:$ref', { $ref: 'x' })).toBe(
+        'https://api.example.com/v1/x'
+      )
+      expect(processUrl('https://api.example.com/users/:id', { '/': 'x', '1': 'y' })).toBe(
+        'https://api.example.com/users/:id'
+      )
+      expect(
+        processUrl('https://api.example.com/:user-id/:user', { user: 'alice', 'user-id': '42' })
+      ).toBe('https://api.example.com/42/alice')
+      expect(
+        processUrl('https://api.example.com/:user.name', { user: 'alice', 'user.name': 'ada' })
+      ).toBe('https://api.example.com/ada')
+      expect(processUrl('https://api.example.com/:é/:éa', { é: '42', éa: '7' })).toBe(
+        'https://api.example.com/42/7'
+      )
+    })
+
     it.concurrent('canonicalizes first-party API calls before the apex redirect', () => {
       expect(
         processUrl('https://sim.ai/api/v2/workflows', undefined, [
