@@ -96,7 +96,9 @@ describe('resolveServableDocBytes', () => {
     expect(mockLoadCompiledDoc).toHaveBeenCalledWith(
       WORKSPACE_ID,
       PDF_SOURCE.toString('utf-8'),
-      'pdf'
+      'pdf',
+      undefined,
+      { maxBytes: undefined, signal: undefined }
     )
     expect(mockLoadCompiledDoc).toHaveBeenCalledTimes(1)
   })
@@ -123,7 +125,9 @@ describe('resolveServableDocBytes', () => {
     expect(mockLoadCompiledDoc).toHaveBeenCalledWith(
       WORKSPACE_ID,
       PDF_SOURCE.toString('utf-8'),
-      'pdf'
+      'pdf',
+      undefined,
+      { maxBytes: undefined, signal: undefined }
     )
   })
 
@@ -202,7 +206,13 @@ describe('resolveServableDocBytes', () => {
       buffer: legacyArtifact,
       contentType: 'application/pdf',
     })
-    expect(mockLoadCompiledDoc).toHaveBeenCalledWith(WORKSPACE_ID, source.toString('utf-8'), 'pdf')
+    expect(mockLoadCompiledDoc).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      source.toString('utf-8'),
+      'pdf',
+      undefined,
+      { maxBytes: undefined, signal: undefined }
+    )
     expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
     expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     expect(mockStoreCompiledDoc).not.toHaveBeenCalled()
@@ -221,7 +231,8 @@ describe('resolveServableDocBytes', () => {
     expect(mockLoadPublishedCompiledDoc).toHaveBeenCalledWith(
       WORKSPACE_ID,
       source.toString('utf-8'),
-      'pdf'
+      'pdf',
+      { maxBytes: undefined, signal: undefined }
     )
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
     expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
@@ -242,7 +253,8 @@ describe('resolveServableDocBytes', () => {
     expect(mockLoadPublishedCompiledDoc).toHaveBeenCalledWith(
       WORKSPACE_ID,
       source.toString('utf-8'),
-      'pdf'
+      'pdf',
+      { maxBytes: undefined, signal: undefined }
     )
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
   })
@@ -307,7 +319,13 @@ describe('resolveServableDocBytes', () => {
       contentType: 'application/pdf',
     })
     expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
-    expect(mockLoadCompiledDoc).toHaveBeenCalledWith(WORKSPACE_ID, source.toString('utf-8'), 'pdf')
+    expect(mockLoadCompiledDoc).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      source.toString('utf-8'),
+      'pdf',
+      undefined,
+      { maxBytes: undefined, signal: undefined }
+    )
     expect(mockExecuteInSandbox).not.toHaveBeenCalled()
   })
 

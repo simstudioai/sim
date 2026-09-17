@@ -29,7 +29,10 @@ vi.mock('@/lib/file-parsers', () => ({
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { FILE_SEARCH_MAX_SOURCE_BYTES } from '@/lib/workspace-files/search/constants'
+import {
+  FILE_SEARCH_MAX_EXTRACTED_BYTES,
+  FILE_SEARCH_MAX_SOURCE_BYTES,
+} from '@/lib/workspace-files/search/constants'
 import { extractIndexText, loadIndexableBytes } from '@/lib/workspace-files/search/extract'
 
 const FILE: WorkspaceFileRecord = {
@@ -81,7 +84,10 @@ describe('loadIndexableBytes', () => {
       maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
       signal,
     })
-    expect(mockResolveServableDoc).toHaveBeenCalledWith(FILE.workspaceId, SOURCE, FILE.name)
+    expect(mockResolveServableDoc).toHaveBeenCalledWith(FILE.workspaceId, SOURCE, FILE.name, {
+      maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
+      signal,
+    })
   })
 
   it('settles for the generation source when no artifact exists, without compiling', async () => {
@@ -138,7 +144,12 @@ describe('extractIndexText', () => {
     await expect(
       extractIndexText({ buffer: FENCED_JSON, kind: 'stored' }, 'data.json', signal)
     ).resolves.toEqual({ text: 'hello world', partial: true })
-    expect(mockParseBuffer).toHaveBeenCalledWith(FENCED_JSON, 'json', { signal })
+    expect(mockParseBuffer).toHaveBeenCalledWith(FENCED_JSON, 'json', {
+      signal,
+      pdfTextMode: 'complete',
+      contentMode: 'complete',
+      maxTextBytes: FILE_SEARCH_MAX_EXTRACTED_BYTES,
+    })
   })
 
   it('indexes the raw text when the parser rejects a text file', async () => {
@@ -221,6 +232,17 @@ describe('extractIndexText', () => {
       extractIndexText({ buffer: BINARY, kind: 'stored' }, 'blob.bin', new AbortController().signal)
     ).resolves.toBeNull()
     expect(mockParseBuffer).not.toHaveBeenCalled()
+  })
+
+  it('rejects the entire expanded document above the extraction budget', async () => {
+    mockParseBuffer.mockResolvedValue({ content: 'x'.repeat(FILE_SEARCH_MAX_EXTRACTED_BYTES + 1) })
+    await expect(
+      extractIndexText(
+        { buffer: FENCED_JSON, kind: 'stored' },
+        'data.json',
+        new AbortController().signal
+      )
+    ).rejects.toMatchObject({ reason: 'extracted_text_too_large' })
   })
 
   it('indexes an empty file as empty text', async () => {

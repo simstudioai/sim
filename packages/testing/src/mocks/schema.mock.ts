@@ -730,6 +730,24 @@ export const schemaMock = {
   },
   workspaceFiles: workspaceFilesMock,
   workspaceFileSearchIndex: workspaceFileSearchIndexMock,
+  workspaceFileSearchRevision: {
+    ...workspaceFileSearchIndexMock,
+    buildId: 'revision.buildId',
+    chunkCount: 'revision.chunkCount',
+  },
+  workspaceFileSearchBuild: {
+    id: 'build.id',
+    fileId: 'build.fileId',
+    expiresAt: 'build.expiresAt',
+  },
+  workspaceFileSearchChunk: {
+    buildId: 'chunk.buildId',
+    workspaceId: 'chunk.workspaceId',
+    ordinal: 'chunk.ordinal',
+    lineStart: 'chunk.lineStart',
+    fragment: 'chunk.fragment',
+    content: 'chunk.content',
+  },
   workspaceFileSearchSegment: workspaceFileSearchSegmentMock,
   workspaceFileSecretProvenance: {
     fileId: 'workspaceFileSecretProvenance.fileId',

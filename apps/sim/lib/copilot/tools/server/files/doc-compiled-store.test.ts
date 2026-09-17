@@ -16,6 +16,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
 }))
 
 import {
+  loadCompiledDoc,
   loadPublishedCompiledDoc,
   storeCompiledDoc,
 } from '@/lib/copilot/tools/server/files/doc-compiled-store'
@@ -103,6 +104,35 @@ describe('compiled document publication', () => {
     await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).rejects.toThrow(
       PayloadSizeLimitError
     )
+  })
+
+  it('applies the caller budget and cancellation to both pointer and artifact downloads', async () => {
+    const signal = new AbortController().signal
+    const maxBytes = 25 * 1024 * 1024
+    mockHeadObject.mockResolvedValue({ size: 1 })
+    mockDownloadFile
+      .mockResolvedValueOnce(
+        Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'x'.repeat(8192) }))
+      )
+      .mockResolvedValueOnce(Buffer.from('%PDF-artifact'))
+
+    await loadPublishedCompiledDoc('workspace-1', 'source', 'pdf', { maxBytes, signal })
+
+    expect(mockDownloadFile).toHaveBeenCalledTimes(2)
+    for (const [options] of mockDownloadFile.mock.calls) {
+      expect(options).toMatchObject({ maxBytes, signal })
+    }
+  })
+
+  it('does not turn an interrupted artifact download into a cache miss', async () => {
+    const controller = new AbortController()
+    mockDownloadFile.mockImplementationOnce(async () => {
+      controller.abort()
+      throw new Error('download interrupted')
+    })
+    await expect(
+      loadCompiledDoc('workspace-1', 'source', 'pdf', undefined, { signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('still reports a missing artifact as not yet built', async () => {

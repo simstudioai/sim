@@ -77,7 +77,7 @@ Extract the text content of workspace files selected directly, identified by can
 
 ### File Search
 
-Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.
+Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.
 
 #### Input
 
@@ -99,13 +99,13 @@ Search the indexed text of active workspace files for lines matching a query, an
 |   ↳ `text` | string | Matching line or bounded match-centered preview. |
 | `count` | number | Number of returned matching lines. |
 | `truncated` | boolean | Whether more matching lines exist beyond the configured hard cap. |
-| `complete` | boolean | Whether indexing has no pending or failed current revisions; skipped and partial coverage is reported separately. |
+| `complete` | boolean | Whether indexing has no pending or failed current revisions; excluded files are reported separately. |
 | `indexStatus` | object | Current workspace search-index coverage by file status. |
-|   ↳ `readyFiles` | number | Files whose current revision is searchable. |
+|   ↳ `readyFiles` | number | Files whose entire current extracted text is searchable. |
 |   ↳ `pendingFiles` | number | Files still waiting to be indexed. |
 |   ↳ `failedFiles` | number | Files whose current indexing attempt failed. |
-|   ↳ `skippedFiles` | number | Files intentionally excluded because they are unsupported or oversized. |
-|   ↳ `partialFiles` | number | Searchable files whose extracted text was truncated by the parser or cap. |
+|   ↳ `skippedFiles` | number | Files excluded in full because they are oversized, unsupported, or cannot be completely extracted. |
+|   ↳ `partialFiles` | number | Always zero; retained for compatibility. Files are never partially indexed. |
 
 ### File Fetch
 
@@ -380,4 +380,14 @@ Move an existing workspace file into a folder. Moves the file itself; use Move F
 | `fileId` | string | The file that was moved. |
 | `folderPath` | string | The folder the file now lives in. |
 
+{/* MANUAL-CONTENT-START:search_limits */}
+## Search coverage and limits
 
+Search indexes the complete extracted text of each eligible file. The source file and its extracted UTF-8 text must each be at most **25 MiB (26,214,400 bytes)**. Oversized files, unsupported binary formats, and documents that cannot be completely extracted within parser safety limits are excluded as whole files and counted in `skippedFiles`. Search never indexes only the first rows, lines, or characters. CSV search preserves decoded source text; spreadsheet search includes populated cells beyond the preview limits. Image-only documents require searchable text; search does not perform OCR.
+
+Existing parser safeguards also apply to complete extraction. PDFs allow at most 10,000 pages, 20 MiB of extracted text, 250,000 characters on one page, and 60 seconds of extraction. Office archives allow at most 150 MiB expanded in total, 64 MiB for one archive entry, and 10,000 entries; malformed archives and excessive compression ratios are rejected. Hitting any of these limits excludes the whole file from search.
+
+Updates are indexed asynchronously. `pendingFiles` and `failedFiles` indicate revisions that are not yet searchable; a new revision becomes searchable only when its full index is ready. An empty result proves absence only within the searched scope when `complete` is true and `skippedFiles` is zero.
+
+Regex is evaluated against complete logical lines, including long lines, and cannot span line breaks. Returned lines may use a shortened preview. The result limit (up to 200 lines) and a 10-second query deadline limit an individual request, not the amount of text indexed. An expensive query fails explicitly instead of returning an apparently complete subset; narrow its literal text or folder scope and retry.
+{/* MANUAL-CONTENT-END */}

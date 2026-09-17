@@ -18,6 +18,9 @@ vi.mock('@/lib/workspace-files/search/indexing', () => ({
   indexWorkspaceFileForSearch: vi.fn(),
   markWorkspaceFileSearchIndexFailed: vi.fn(),
 }))
+vi.mock('@/lib/workspace-files/search/index-state', () => ({
+  cleanupFileSearchBuilds: vi.fn().mockResolvedValue(0),
+}))
 vi.mock('@trigger.dev/sdk', () => ({ tasks: { batchTrigger: mocks.batchTrigger } }))
 vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
@@ -52,7 +55,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       id text PRIMARY KEY, workspace_id text NOT NULL, context text NOT NULL,
       deleted_at timestamp, content_updated_at timestamp NOT NULL
     )`
-    await connection`CREATE TABLE workspace_file_search_index (
+    await connection`CREATE TABLE workspace_file_search_revision (
       file_id text NOT NULL, workspace_id text NOT NULL, source_content_updated_at timestamp NOT NULL,
       status text NOT NULL, dispatched_at timestamp, updated_at timestamp NOT NULL,
       PRIMARY KEY (file_id, source_content_updated_at)
@@ -61,20 +64,22 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       workspace_id text PRIMARY KEY, enqueued_at timestamp NOT NULL,
       updated_at timestamp NOT NULL, last_dispatched_at timestamp
     )`
-    await connection`CREATE INDEX ON workspace_file_search_index
+    await connection`CREATE INDEX ON workspace_file_search_revision
       (workspace_id, updated_at, file_id, source_content_updated_at)
       WHERE status = 'pending' AND dispatched_at IS NULL`
-    await connection`CREATE INDEX ON workspace_file_search_index (workspace_id, dispatched_at)
+    await connection`CREATE INDEX ON workspace_file_search_revision (workspace_id, dispatched_at)
       WHERE status = 'pending' AND dispatched_at IS NOT NULL`
     await connection`INSERT INTO workspace_file_search_backfill (id, updated_at)
-      VALUES ('workspace-file-search-v1', '2026-09-16 00:00:00')`
+      VALUES ('workspace-file-search-chunks-v2', '2026-09-16 00:00:00')`
+    await connection`CREATE TABLE workspace_file_search_build (id text PRIMARY KEY, expires_at timestamp)`
+    await connection`CREATE TABLE workspace_file_search_chunk (build_id text NOT NULL, ordinal integer NOT NULL, PRIMARY KEY(build_id, ordinal))`
     database.current = drizzle(connection)
   })
 
   beforeEach(async () => {
     mocks.batchTrigger.mockReset()
     await connection`DROP TRIGGER IF EXISTS slow_backfill ON workspace_file_search_backfill`
-    await connection`TRUNCATE workspace_files, workspace_file_search_index, workspace_file_search_dispatch_queue`
+    await connection`TRUNCATE workspace_files, workspace_file_search_revision, workspace_file_search_dispatch_queue`
     await connection`UPDATE workspace_file_search_backfill
       SET updated_at = '2026-09-16 00:00:00', completed_at = NULL`
   })
@@ -102,7 +107,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
       SELECT ${workspaceId} || '-' || lpad(n::text, 6, '0'), ${workspaceId}, 'workspace', '2026-09-16'
       FROM generate_series(1, ${queued + active}) n`
-    await connection`INSERT INTO workspace_file_search_index
+    await connection`INSERT INTO workspace_file_search_revision
       (file_id, workspace_id, source_content_updated_at, status, updated_at, dispatched_at)
       SELECT id, workspace_id, content_updated_at, 'pending', '2026-09-16',
         CASE WHEN row_number() OVER (ORDER BY id DESC) <= ${active} THEN now() ELSE NULL END
@@ -114,7 +119,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
   it('skips a locked candidate without losing it or exceeding workspace capacity', async () => {
     await seedQueue('workspace-1', 3, 1)
     await connection.begin(async (tx) => {
-      await tx`SELECT file_id FROM workspace_file_search_index
+      await tx`SELECT file_id FROM workspace_file_search_revision
         WHERE file_id = 'workspace-1-000001' FOR UPDATE`
       const results = await Promise.all([
         prepareWorkspaceFileSearchDispatch(),
@@ -123,12 +128,12 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       expect(results.flatMap((result) => result.payloads).map((payload) => payload.fileId)).toEqual(
         ['workspace-1-000002']
       )
-      const [locked] = await tx`SELECT dispatched_at FROM workspace_file_search_index
+      const [locked] = await tx`SELECT dispatched_at FROM workspace_file_search_revision
         WHERE file_id = 'workspace-1-000001'`
       expect(locked.dispatched_at).toBeNull()
     })
     expect((await prepareWorkspaceFileSearchDispatch()).payloads).toEqual([])
-    await connection`UPDATE workspace_file_search_index SET status = 'ready'
+    await connection`UPDATE workspace_file_search_revision SET status = 'ready'
       WHERE file_id = 'workspace-1-000002'`
     const retry = await prepareWorkspaceFileSearchDispatch()
     expect(retry.payloads.map((payload) => payload.fileId)).toEqual(['workspace-1-000001'])
@@ -157,7 +162,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     const result = await prepareWorkspaceFileSearchDispatch()
     expect(result.payloads).toHaveLength(1)
     expect((await prepareWorkspaceFileSearchDispatch()).payloads).toEqual([])
-    const [row] = await connection`SELECT count(*)::int AS active FROM workspace_file_search_index
+    const [row] =
+      await connection`SELECT count(*)::int AS active FROM workspace_file_search_revision
       WHERE status = 'pending' AND dispatched_at IS NOT NULL`
     expect(row.active).toBe(100)
   })
@@ -213,7 +219,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`UPDATE workspace_file_search_backfill SET completed_at = now()`
     await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
       VALUES (${fileId}, ${workspaceId}, 'workspace', '2026-09-16')`
-    await connection`INSERT INTO workspace_file_search_index
+    await connection`INSERT INTO workspace_file_search_revision
       (file_id, workspace_id, source_content_updated_at, status, updated_at)
       VALUES (${fileId}, ${workspaceId}, '2026-09-16', 'pending', now())`
     await connection`INSERT INTO workspace_file_search_dispatch_queue
@@ -232,7 +238,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       END
     $$`
     await connection`CREATE TRIGGER record_cleanup_timeouts AFTER UPDATE OF dispatched_at
-      ON workspace_file_search_index FOR EACH ROW
+      ON workspace_file_search_revision FOR EACH ROW
       WHEN (OLD.dispatched_at IS NOT NULL AND NEW.dispatched_at IS NULL)
       EXECUTE FUNCTION record_cleanup_timeouts()`
 
@@ -243,13 +249,14 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     expect(mocks.batchTrigger).toHaveBeenCalledWith('workspace-file-search-index', [
       expect.objectContaining({
         payload: {
+          dispatchToken: expect.any(String),
           fileId,
           workspaceId,
           sourceContentUpdatedAt: '2026-09-16T00:00:00.000Z',
         },
       }),
     ])
-    const [index] = await connection`SELECT dispatched_at FROM workspace_file_search_index
+    const [index] = await connection`SELECT dispatched_at FROM workspace_file_search_revision
       WHERE file_id = ${fileId}`
     expect(index.dispatched_at).toBeNull()
     const [queued] = await connection`SELECT workspace_id FROM workspace_file_search_dispatch_queue

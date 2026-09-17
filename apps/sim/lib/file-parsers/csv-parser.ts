@@ -3,8 +3,9 @@ import { readFile } from 'fs/promises'
 import { Readable } from 'stream'
 import { createLogger } from '@sim/logger'
 import { type Options, parse } from 'csv-parse'
+import { CompleteTextBuilder } from '@/lib/file-parsers/complete-text'
 import { FileParserError } from '@/lib/file-parsers/errors'
-import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import {
   type DecodedText,
   decodeTextBuffer,
@@ -29,7 +30,7 @@ export class CsvParser implements FileParser {
    * caps already bound the file, and `parseBuffer` — the production path —
    * always held the full buffer.
    */
-  async parseFile(filePath: string): Promise<FileParseResult> {
+  async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
     if (!filePath) {
       throw new Error('No file path provided')
     }
@@ -38,21 +39,33 @@ export class CsvParser implements FileParser {
       throw new Error(`File not found: ${filePath}`)
     }
 
-    return this.parseBuffer(await readFile(filePath))
+    return this.parseBuffer(await readFile(filePath), options)
   }
 
-  async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+  async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
     const bufferSize = buffer.length
     logger.info(
       `Parsing CSV buffer, size: ${bufferSize} bytes (${(bufferSize / 1024 / 1024).toFixed(2)} MB)`
     )
 
     const decoded = decodeTextBuffer(buffer)
+    if (options.contentMode === 'complete') return this.parseComplete(decoded, options)
     const stream = new Readable({ read() {} })
     stream.push(decoded.text)
     stream.push(null)
 
     return this.parseStream(stream, decoded)
+  }
+
+  /** Search preserves the source text without allocating a cell object for every CSV field. */
+  private parseComplete(decoded: DecodedText, options: FileParseOptions): FileParseResult {
+    options.signal?.throwIfAborted()
+    const content = new CompleteTextBuilder(options.maxTextBytes)
+    content.append(sanitizeTextForUTF8(decoded.text))
+    return {
+      content: content.finish(),
+      metadata: { encoding: decoded.encoding, truncated: false },
+    }
   }
 
   private parseStream(

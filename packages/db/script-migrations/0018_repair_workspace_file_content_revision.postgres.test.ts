@@ -167,6 +167,23 @@ describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in 
     expect(await revisionOf('knowledge')).toBe(MICROSECOND_REVISION)
   })
 
+  it('retains obsolete text for the contract migration after chunk search is installed', async () => {
+    await sql`CREATE TABLE workspace_file_search_revision (file_id text PRIMARY KEY)`
+    try {
+      await seedLegacyFile({ id: 'retired', context: 'workspace' })
+      await seedIndexRow('retired', MICROSECOND_REVISION, true)
+      await sql.unsafe(`INSERT INTO workspace_file_search_segment
+        (file_id, workspace_id, source_content_updated_at, line_number, segment_number, content)
+        VALUES ('retired', 'legacy-workspace', TIMESTAMP '${MICROSECOND_REVISION}', 1, 1, 'old text')`)
+      expect(await repairWorkspaceFileContentRevisions(sql)).toBe(1)
+      expect(await revisionOf('retired')).toBe(MILLISECOND_REVISION)
+      const [row] = await sql`SELECT count(*)::int AS count FROM workspace_file_search_segment`
+      expect(row.count).toBe(1)
+    } finally {
+      await sql`DROP TABLE workspace_file_search_revision`
+    }
+  })
+
   it('keeps a tracked provenance version and realigns its sidecar', async () => {
     await seedLegacyFile({ id: 'tracked', context: 'workspace', provenance: 1 })
     await seedSidecar('tracked', MILLISECOND_REVISION)
