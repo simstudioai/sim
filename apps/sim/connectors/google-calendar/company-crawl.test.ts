@@ -354,8 +354,26 @@ describe('Google Calendar company crawl', () => {
     }
   )
 
-  it('continues another user after an unclassified list access denial and retains its diagnostic', async () => {
-    fetchMock.mockResolvedValueOnce(response({ error: { code: 403 } }, 403))
+  it.each([{ error: { code: 403 } }, { error: { code: 403, errors: [], details: [] } }])(
+    'propagates an unclassified list access denial and retains its diagnostic: %j',
+    async (body) => {
+      fetchMock.mockResolvedValueOnce(response(body, 403))
+      const syncContext = context()
+      await expect(
+        googleCalendarConnector.listDocuments('directory-token', {}, undefined, syncContext)
+      ).rejects.toMatchObject({
+        status: 403,
+        diagnostic: { operation: 'calendar.events.list', reasons: [] },
+      })
+      expect(fetchMock).toHaveBeenCalledOnce()
+      expect(syncContext.getDelegatedAccessToken.mock.calls).toEqual([[ALICE.email]])
+    }
+  )
+
+  it('continues another user after an explicit forbidden denial and retains its diagnostic', async () => {
+    fetchMock.mockResolvedValueOnce(
+      response({ error: { code: 403, errors: [{ reason: 'forbidden' }] } }, 403)
+    )
     const first = await googleCalendarConnector.listDocuments(
       'directory-token',
       {},
@@ -369,7 +387,12 @@ describe('Google Calendar company crawl', () => {
       listingFailures: {
         count: 1,
         samples: [
-          { scope: ALICE.email, operation: 'calendar.events.list', status: 403, reasons: [] },
+          {
+            scope: ALICE.email,
+            operation: 'calendar.events.list',
+            status: 403,
+            reasons: ['forbidden'],
+          },
         ],
       },
     })
