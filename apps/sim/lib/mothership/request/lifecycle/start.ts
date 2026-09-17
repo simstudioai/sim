@@ -13,6 +13,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { createRunSegment, recordRunBillingAdmission } from '@/lib/mothership/async-runs/repository'
+import { buildChatTitleContext } from '@/lib/mothership/chat/title-context'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   MothershipStreamV1EventType,
@@ -304,6 +305,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             }
 
             fireTitleGeneration({
+              inventory: requestPayload.inventory,
               chatId,
               currentChat,
               userId,
@@ -520,6 +522,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 // Title generation (fire-and-forget side effect)
 
 function fireTitleGeneration(params: {
+  inventory?: unknown
   chatId?: string
   currentChat: CurrentChatSummary
   userId?: string
@@ -551,6 +554,7 @@ function fireTitleGeneration(params: {
   if (!chatId || currentChat?.title) return
 
   requestChatTitle({
+    inventory: params.inventory,
     chatId,
     message,
     model: titleModel,
@@ -587,6 +591,7 @@ function fireTitleGeneration(params: {
 
 /** Requests a title through the shared Assistant backend and its attributed billing protocol. */
 export async function requestChatTitle(params: {
+  inventory?: unknown
   chatId?: string
   message: string
   model: string
@@ -642,6 +647,7 @@ export async function requestChatTitle(params: {
     const mothershipBaseURL = await getMothershipBaseURL({ userId })
     // Title reads the user's message content, so an enterprise chat pins its key here too.
     const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
+    const context = await buildChatTitleContext(params)
     const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
       method: 'POST',
       signal,
@@ -649,6 +655,7 @@ export async function requestChatTitle(params: {
       body: JSON.stringify(
         TitleRequest.parse({
           message,
+          ...(context ? { context } : {}),
           ...(workspaceId ? { workspaceId } : {}),
           ...(organizationId ? { organizationId, chatId } : {}),
           ...(userId ? { userId } : {}),

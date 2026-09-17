@@ -367,6 +367,8 @@ export type ForkChatResponse = z.infer<typeof ForkChatResponse>;
 /** POST /api/generate-chat-title */
 export const TitleRequest = z.strictObject({
   message: z.string().min(1),
+  /** Bounded, authorized scope and resource names for disambiguating the user's topic. */
+  context: z.string().max(6_000).optional(),
   /** Enterprise BYOK pins the title call because it reads user content. */
   byokApiKey: z.string().optional(),
   /** Optional metering identity for callers without a persisted chat yet. */
