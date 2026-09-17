@@ -187,7 +187,7 @@ function SourceDetailContent({
     ? describeSearchSource(meta, connector.sourceConfig) || meta.name
     : 'Connection'
   const { effectiveStatus, lastSyncError } = getConnectorSyncState(connector)
-  const permissionsIncomplete = lastSyncError === SOURCE_PERMISSION_ERROR
+  const permissionsIncomplete = connector.lastSyncError === SOURCE_PERMISSION_ERROR
   const status =
     effectiveStatus === 'paused'
       ? 'Sync paused'
