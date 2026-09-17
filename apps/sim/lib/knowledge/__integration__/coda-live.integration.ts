@@ -86,6 +86,7 @@ describe
     let documentId: string
     let token: string
     let fixture: z.infer<typeof fixtureSchema>
+    let fixtureValidated = false
     let credentialId = generateId()
     const principal = (userId: string): Principal => ({
       kind: 'session',
@@ -173,6 +174,7 @@ describe
       ) {
         throw new Error('Refusing to change sharing on a non-fixture document')
       }
+      fixtureValidated = true
       await revokeShare()
       await waitForAcl(false)
       ids = await seedKnowledgeAclFixture()
@@ -263,7 +265,10 @@ describe
 
     afterAll(async () => {
       try {
-        if (fixture && allowSharing) await revokeShare()
+        if (fixtureValidated && allowSharing) {
+          await revokeShare()
+          await waitForAcl(false)
+        }
       } finally {
         if (ids && !uiFixturePath) {
           const rows = await db
@@ -300,7 +305,7 @@ describe
         }
         await db.$client.end()
       }
-    })
+    }, 60_000)
 
     it('indexes through admin setup and restricts private content to its owner', async () => {
       expect(metrics.embeddingCalls).toBeGreaterThan(0)

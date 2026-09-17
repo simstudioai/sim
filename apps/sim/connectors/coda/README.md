@@ -2,9 +2,30 @@
 
 ## Precedent and authentication
 
-[Glean](https://www.glean.com/connectors/coda) supports Coda document/page search with source permissions. [Onyx's connector](https://github.com/onyx-dot-app/onyx/blob/main/backend/onyx/connectors/coda/connector.py) reads page text and table rows using a Coda API token; its content connector is not evidence that ordinary tokens expose an organization directory.
+| Reference | Verified behavior | What it establishes for Sim |
+| --- | --- | --- |
+| [Glean Coda search](https://www.glean.com/connectors/coda) | Native document/page indexing with query-time source permissions. | The same access-control objective. The public page does not specify the crawler's credentials, endpoints, directory expansion, or deletion strategy; exact implementation parity is not established. |
+| [Glean Coda agent service credential](https://docs.glean.com/administration/agent-identity/coda) | A dedicated Coda user and an MCP-restricted token for agent tools. | Dedicated identity and credential rotation are useful operational precedent. This is a separate MCP integration, not the REST indexing setup; its MCP token restriction must not be copied into Sim's connector instructions. |
+| [Onyx Coda connector](https://github.com/onyx-dot-app/onyx/blob/5fe6573c3c155e1a75b51de32d4988ee6c82164e/backend/onyx/connectors/coda/connector.py) | A bearer token, optional workspace scope, page content, and table rows through the public REST API. | Direct precedent for ordinary content ingestion. Sim uses bounded deferred hydration rather than collecting the entire source before indexing. |
+
+Onyx's [test setup](https://github.com/onyx-dot-app/onyx/blob/5fe6573c3c155e1a75b51de32d4988ee6c82164e/backend/tests/daily/connectors/coda/README.md) also uses an API token generated in account settings. Its reviewed Coda implementation has no source ACL or directory calls, and its [permission-sync registry](https://github.com/onyx-dot-app/onyx/blob/5fe6573c3c155e1a75b51de32d4988ee6c82164e/backend/ee/onyx/external_permissions/sync_params.py) has no Coda entry. It therefore does not establish Enterprise permission parity. Coda's own API documentation is the authority for Sim's Enterprise path.
 
 This connector reuses Sim's existing `coda-service-account` token credential and its selector. The metadata's `oauth` discriminator means “use a stored credential” in the shared connector framework. The actual credential is an API token, with no OAuth authorization or refresh flow. Personal credential-group enrollment is not exposed because that flow currently requires OAuth. Admin indexing matches provider-reported grants to verified Sim emails instead.
+
+## API contract audit
+
+All connector requests are GET requests authenticated with `Authorization: Bearer`. The following operation IDs were checked against the OpenAPI specifications embedded in Coda's [public reference](https://coda.io/developers/apis/v1) and [Admin reference](https://coda.io/developers/apis/admin/v1), including query parameters, response fields, pagination, and allowed formats. None of these operations is deprecated.
+
+| API | Operations used |
+| --- | --- |
+| Public identity and discovery | `whoami`, `listDocs`, `getDoc` |
+| Public content | `listPages`, `getPage`, `listPageContent`, `listTables`, `getTable`, `listColumns`, `listRows` |
+| Public permissions | `getPermissions` |
+| Admin discovery | `getOrganization`, `listDocs` with `docIds` or `docAvailabilityState` and `fetchPermissionsMode=none` |
+| Admin content and permissions | `listPagesV2`, `getPageV2` with `outputFormat=LossyPlainText`, `listDocPermissionsV2` |
+| Admin directory | `listOrgUsers`, `listGroups`, `listGroupMembers`, `listWorkspaces`, `listWorkspaceUsers` |
+
+The Admin API requires an [Enterprise organization administrator](https://help.superhuman.com/hc/en-us/articles/46210125237901-Intro-to-Superhuman-Docs-Admin-API). Ordinary workspace admin access does not satisfy that requirement. All network calls use the shared secure fetch/retry path and fixed API origins; the connector uses no browser session, private endpoint, credential impersonation, or provider permission mutation. Synthetic directory groups are Sim's internal representation of documented grants, not invented Coda API objects. Size and crawl limits below are Sim safeguards, not claimed Coda service limits.
 
 ## Access tradeoffs
 
