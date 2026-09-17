@@ -394,7 +394,10 @@ describe('AgentBlockHandler', () => {
         expect(inputs).toEqual(original)
 
         queueTableRows(schemaMock.memory, [
-          { data: [...stored, { role: 'assistant', content: 'First answer' }] },
+          {
+            secretProvenanceVersion: null,
+            data: [...stored, { role: 'assistant', content: 'First answer' }],
+          },
         ])
         mockGetProviderFromModel.mockReturnValue('anthropic')
         const nextContext = { ...mockContext, executionId: 'exec-2' }
@@ -428,6 +431,7 @@ describe('AgentBlockHandler', () => {
       mockGetProviderFromModel.mockReturnValue('openai')
       queueTableRows(schemaMock.memory, [
         {
+          secretProvenanceVersion: null,
           data: [
             { role: 'user', content: 'Analyze this file', executionId: 'exec-1', files: [file] },
           ],
@@ -448,7 +452,9 @@ describe('AgentBlockHandler', () => {
 
     it('saves a new attachment appended to an existing conversation', async () => {
       mockGetProviderFromModel.mockReturnValue('openai')
-      queueTableRows(schemaMock.memory, [{ data: [{ role: 'assistant', content: 'Hello' }] }])
+      queueTableRows(schemaMock.memory, [
+        { secretProvenanceVersion: null, data: [{ role: 'assistant', content: 'Hello' }] },
+      ])
       await handler.execute({ ...mockContext, executionId: 'exec-2' }, mockBlock, {
         model: 'gpt-4o',
         memoryType: 'conversation',
@@ -468,6 +474,7 @@ describe('AgentBlockHandler', () => {
       const hydrate = vi.spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
       queueTableRows(schemaMock.memory, [
         {
+          secretProvenanceVersion: null,
           data: [
             { role: 'user', content: 'Old file', files: [file] },
             { role: 'assistant', content: 'Recent answer' },
