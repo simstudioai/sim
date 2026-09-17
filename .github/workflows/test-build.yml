@@ -119,7 +119,12 @@ jobs:
         env:
           BILLING_USAGE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
           BILLING_USAGE_TEST_REDIS_URL: redis://127.0.0.1:6379
-        run: bunx vitest run lib/billing/core/usage-log.postgres.test.ts lib/billing/core/organization-activity.postgres.test.ts lib/billing/calculations/usage-reservation.test.ts
+        run: >-
+          bunx vitest run
+          lib/billing/core/usage-log.postgres.test.ts
+          lib/billing/core/organization-activity.postgres.test.ts
+          lib/billing/core/usage-analytics-queries.postgres.test.ts
+          lib/billing/calculations/usage-reservation.test.ts
 
       - name: Verify fork previews ignore execution file history in PostgreSQL
         working-directory: apps/sim

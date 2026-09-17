@@ -113,6 +113,10 @@ export const dbReplica: typeof db = replicaUrl
     )
   : db
 
+if (!replicaUrl) {
+  logger.info('Read replica URL is not configured; analytics reads use the primary', { role })
+}
+
 const subPoolClients = new Map<SubProcessDbRole, typeof db>()
 
 /** Which env var the process connection came from — named in dbFor fallback logs. */
