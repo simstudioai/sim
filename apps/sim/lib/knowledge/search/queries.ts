@@ -49,7 +49,10 @@ const logger = createLogger('KnowledgeSearchQueries')
 const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Bound candidate pages retained while live permissions are checked. */
 const MAX_AUTHORIZED_SEARCH_CANDIDATES = 20_000
-/** Stop a permission-starved graph walk early enough to scan the filtered projection instead. */
+/**
+ * Stop a permission-starved graph walk early enough to scan the filtered projection instead.
+ * This approximate iterative-visit threshold excludes pgvector's initial scan; it is not a row limit.
+ */
 const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '1000'
 const CANDIDATE_HNSW_EF_SEARCH = '1000'
 const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'

@@ -75,7 +75,7 @@ const unrelatedChunkCount = Number(
 const evictSharedBuffers = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_EVICT_BUFFERS === 'true'
 const dimensions = 1536
 const candidateDimensions = 512
-const hybridCandidateLimit = 1600
+const HYBRID_CANDIDATE_LIMIT = 1600
 const chunksPerDocument = 4
 const logger = createLogger('SearchLatencyIntegration')
 const fixtureSchema = z.object({
@@ -106,7 +106,7 @@ const reused = reuseFile ? readFixtureReport(reuseFile) : undefined
 const ids = reused?.fixture ?? createKnowledgeAclFixtureIds()
 const unrelated = reused?.unrelatedFixture ?? createKnowledgeAclFixtureIds()
 const fullWidthFixture = reused?.fullWidthFixture ?? createKnowledgeAclFixtureIds()
-const fullWidthChunkCount = 5000
+const FULL_WIDTH_CHUNK_COUNT = 5000
 const organizationChatId = generateId()
 function topicVector(topic = 0) {
   const vector = Array.from({ length: dimensions }, (_, index) =>
@@ -129,7 +129,7 @@ const report: Record<string, unknown> = {
     fixtureVersion: 2,
     chunkCount,
     unrelatedChunkCount,
-    fullWidthChunkCount,
+    fullWidthChunkCount: FULL_WIDTH_CHUNK_COUNT,
     dimensions,
     candidateDimensions,
     chunksPerDocument,
@@ -162,6 +162,7 @@ interface ExplainNode {
   'Node Type': string
   'Actual Rows': number
   'Actual Loops': number
+  'Rows Removed by Filter'?: number
   'Plan Rows'?: number
   'Shared Hit Blocks'?: number
   'Shared Read Blocks'?: number
@@ -179,6 +180,7 @@ const explainNodeSchema: z.ZodType<ExplainNode> = z.lazy(() =>
       'Node Type': z.string(),
       'Actual Rows': z.number(),
       'Actual Loops': z.number(),
+      'Rows Removed by Filter': z.number().optional(),
       'Plan Rows': z.number().optional(),
       'Shared Hit Blocks': z.number().optional(),
       'Shared Read Blocks': z.number().optional(),
@@ -430,7 +432,7 @@ function expectCompleteVectorSearch(diagnostics: z.infer<typeof diagnosticSchema
 async function sample(
   label: string,
   run: () => ReturnType<typeof search>,
-  options: { explain?: boolean } = {}
+  options: { explain?: boolean; candidateScanRowLimit?: number } = {}
 ) {
   captured.length = 0
   diagnosticLog?.mockClear()
@@ -530,7 +532,24 @@ async function sample(
         `"embedding_search"."${width === 1536 ? 'vector' : `vector_${width}`}"`
       )
       expect(diagnostics.vectorCandidateLimit).toBeGreaterThan(0)
-      assertIndexedCandidates(parsedPlan[0].Plan, diagnostics.vectorCandidateLimit!, width)
+      if (options.candidateScanRowLimit !== undefined) {
+        /** A small model-specific projection can be cheaper to rank through its KB index. */
+        assertCompactCandidates(parsedPlan[0].Plan)
+        const scans = explainNodes(parsedPlan[0].Plan).filter(
+          (node) => node['Relation Name'] === 'embedding_search' && node['Actual Loops'] > 0
+        )
+        expect(scans.length).toBeGreaterThan(0)
+        for (const node of scans) {
+          const visited =
+            (node['Actual Rows'] + (node['Rows Removed by Filter'] ?? 0)) * node['Actual Loops']
+          /** EXPLAIN rounds per-worker row averages to integers. */
+          expect(visited).toBeLessThanOrEqual(
+            options.candidateScanRowLimit + node['Actual Loops'] - 1
+          )
+        }
+      } else {
+        assertIndexedCandidates(parsedPlan[0].Plan, diagnostics.vectorCandidateLimit!, width)
+      }
     }
     if (query.query.includes('WITH visible_keyword_documents')) {
       assertScalarKeywordSorts(parsedPlan[0].Plan)
@@ -727,7 +746,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
       await db.execute(sql`
       WITH source AS MATERIALIZED (
         SELECT id, content, embedding FROM embedding
-        WHERE knowledge_base_id = ${ids.knowledgeBaseId} ORDER BY id LIMIT ${fullWidthChunkCount}
+        WHERE knowledge_base_id = ${ids.knowledgeBaseId} ORDER BY id LIMIT ${FULL_WIDTH_CHUNK_COUNT}
       ), documents AS (
         INSERT INTO document
           (id, knowledge_base_id, connector_id, external_id, filename, file_url, file_size,
@@ -748,7 +767,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     const [fullWidthSize] = await db.execute<{ count: number }>(
       sql`SELECT count(*)::int AS count FROM embedding WHERE knowledge_base_id = ${fullWidthFixture.knowledgeBaseId}`
     )
-    expect(fullWidthSize.count).toBe(fullWidthChunkCount)
+    expect(fullWidthSize.count).toBe(FULL_WIDTH_CHUNK_COUNT)
     await db.execute(sql`UPDATE embedding SET tag1 = 'selected' WHERE knowledge_base_id = ${ids.knowledgeBaseId}
       AND tag1 IS DISTINCT FROM 'selected'
       AND document_id IN (SELECT id FROM document WHERE knowledge_base_id = ${ids.knowledgeBaseId} AND external_id::int < 600)`)
@@ -1149,14 +1168,14 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
             true
           )
           const probe = plans.find((plan) => plan.kind === 'probe')!
-          expect(probe.plan[0].Plan['Actual Rows']).toBe(Math.min(count, hybridCandidateLimit))
+          expect(probe.plan[0].Plan['Actual Rows']).toBe(Math.min(count, HYBRID_CANDIDATE_LIMIT))
           expect(assertIndexedChunkProbe(probe.plan[0].Plan)).toBe(
-            Math.min(documentCount, hybridCandidateLimit / chunksPerDocument)
+            Math.min(documentCount, HYBRID_CANDIDATE_LIMIT / chunksPerDocument)
           )
           expect(plans.filter((plan) => plan.kind === 'vector')).toHaveLength(
-            count < hybridCandidateLimit ? 0 : 1
+            count < HYBRID_CANDIDATE_LIMIT ? 0 : 1
           )
-          if (count > hybridCandidateLimit) {
+          if (count > HYBRID_CANDIDATE_LIMIT) {
             const rerank = plans.find((plan) => plan.kind === 'rerank')!
             const actual = await db.$client.unsafe(rerank.query, rerank.parameters).values()
             const expected = await db.execute<{ id: string }>(sql`SELECT id FROM embedding
@@ -1224,9 +1243,9 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         expectCompleteVectorSearch(broad.diagnostics)
         expect(broad.result.data.results).toHaveLength(15)
         const broadProbe = broad.plans.find((plan) => plan.kind === 'probe')!
-        expect(broadProbe.plan[0].Plan['Actual Rows']).toBe(hybridCandidateLimit)
+        expect(broadProbe.plan[0].Plan['Actual Rows']).toBe(HYBRID_CANDIDATE_LIMIT)
         expect(assertIndexedChunkProbe(broadProbe.plan[0].Plan)).toBe(
-          hybridCandidateLimit / chunksPerDocument
+          HYBRID_CANDIDATE_LIMIT / chunksPerDocument
         )
         const { result, plans, diagnostics } = await sample(`member-scope.${surface}`, () =>
           surface === 'copilot' ? search(ids.bobId) : searchDashboard('Orion deployment', ids.bobId)
@@ -1356,8 +1375,10 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         report[`${label}.recall`] = { neighbors: expected.length, recall }
         saveReport()
       }
-      const fullWidth = await sample('workspace-kb.full-width', () =>
-        searchWorkspaceKb('Orion deployment', { fixture: fullWidthFixture })
+      const fullWidth = await sample(
+        'workspace-kb.full-width',
+        () => searchWorkspaceKb('Orion deployment', { fixture: fullWidthFixture }),
+        { candidateScanRowLimit: FULL_WIDTH_CHUNK_COUNT }
       )
       expectCompleteVectorSearch(fullWidth.diagnostics)
       expect(fullWidth.diagnostics.vectorCandidateDimensions).toBe(dimensions)
