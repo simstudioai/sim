@@ -49,8 +49,9 @@ const logger = createLogger('KnowledgeSearchQueries')
 const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Tuples a relaxed-order scan may visit before giving up on filling the limit. */
 const HNSW_MAX_SCAN_TUPLES = '20000'
-/** Iterative scans expand a modest initial neighborhood when permission filters reject neighbors. */
-const CANDIDATE_HNSW_EF_SEARCH = '100'
+/** Stop a permission-starved graph walk early enough to scan the filtered projection instead. */
+const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '1000'
+const CANDIDATE_HNSW_EF_SEARCH = '1000'
 const CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER = '2'
 const MIN_VECTOR_RERANK_CANDIDATES = 400
 const MAX_VECTOR_RERANK_CANDIDATES = 1600
@@ -85,7 +86,7 @@ async function withVectorScanSettings<T>(
       await measureSearchStage('vector.settings', () =>
         tx.execute(
           ranking === 'candidate'
-            ? sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true), set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`
+            ? sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${CANDIDATE_HNSW_MAX_SCAN_TUPLES}, true), set_config('hnsw.ef_search', ${CANDIDATE_HNSW_EF_SEARCH}, true), set_config('hnsw.scan_mem_multiplier', ${CANDIDATE_HNSW_SCAN_MEM_MULTIPLIER}, true)`
             : sql`SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.max_scan_tuples', ${HNSW_MAX_SCAN_TUPLES}, true)`
         )
       )

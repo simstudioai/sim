@@ -452,7 +452,8 @@ async function sample(
         query.query.includes('WITH visible_search_documents') ||
         (query.query.includes('from "embedding_search"') && query.query.includes('order by'))
       ) {
-        await tx.unsafe('SET LOCAL hnsw.ef_search = 100')
+        await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 1000')
+        await tx.unsafe('SET LOCAL hnsw.ef_search = 1000')
         await tx.unsafe('SET LOCAL hnsw.scan_mem_multiplier = 2')
       }
       return tx.unsafe(
@@ -1185,7 +1186,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
   it('runs two independent Assistant searches concurrently', async () => {
     diagnosticLog?.mockClear()
     const start = performance.now()
-    const results = await Promise.all([search(), search(ids.aliceId, 'Engineering operations')])
+    const results = await Promise.all([search(), search(ids.aliceId, 'Topic 11 deployment')])
     const completed = diagnosticLog!.mock.calls
       .filter(([message]) => message === 'Knowledge search completed')
       .map(([, metadata]) => diagnosticSchema.parse(metadata))
@@ -1277,7 +1278,7 @@ describe.skipIf(!enabled)('Assistant search latency on a realistic indexed corpu
       const started = performance.now()
       const results = await Promise.all([
         search(ids.aliceId, 'Orion deployment', {}, true, 20),
-        search(ids.aliceId, 'Engineering operations', {}, true, 20),
+        search(ids.aliceId, 'Topic 11 deployment', {}, true, 20),
       ])
       const diagnostics = diagnosticLog!.mock.calls
         .filter(([message]) => message === 'Knowledge search completed')
