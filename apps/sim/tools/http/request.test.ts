@@ -96,6 +96,15 @@ describe('HTTP Request Tool', () => {
       expect(processUrl('https://api.example.com/users/:id', { '/': 'x', '1': 'y' })).toBe(
         'https://api.example.com/users/:id'
       )
+      expect(
+        processUrl('https://api.example.com/:user-id/:user', { user: 'alice', 'user-id': '42' })
+      ).toBe('https://api.example.com/42/alice')
+      expect(
+        processUrl('https://api.example.com/:user.name', { user: 'alice', 'user.name': 'ada' })
+      ).toBe('https://api.example.com/ada')
+      expect(processUrl('https://api.example.com/:é/:éa', { é: '42', éa: '7' })).toBe(
+        'https://api.example.com/42/7'
+      )
     })
 
     it.concurrent('canonicalizes first-party API calls before the apex redirect', () => {
