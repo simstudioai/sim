@@ -336,8 +336,10 @@ class ReleaseOrderingTests(unittest.TestCase):
             str(workflow)], check=True, capture_output=True, text=True)
         cls.jobs = json.loads(parsed.stdout)['jobs']
 
-    def eligible(self, job, branch, results, event='push', cancelled=False, promoted='true'):
-        expression = self.jobs[job]['if']
+    def evaluate(self, expression, branch, results=None, event='push', cancelled=False, promoted='true'):
+        results = results or {}
+        if expression.startswith('${{'):
+            expression = expression[3:-2]
         expression = re.sub(r'needs\.([\w-]+)\.result', lambda m: repr(results[m[1]]), expression)
         expression = expression.replace('needs.promote-images.outputs.promoted', repr(promoted))
         expression = expression.replace('github.ref', repr('refs/heads/' + branch))
@@ -346,19 +348,21 @@ class ReleaseOrderingTests(unittest.TestCase):
         expression = expression.replace('&&', ' and ').replace('||', ' or ')
         return eval(' '.join(expression.split()), {'__builtins__': {}})
 
+    def eligible(self, job, branch, results, **options):
+        return self.evaluate(self.jobs[job]['if'], branch, results, **options)
+
     def release_results(self, branch):
-        active = ('migrate-dev', 'build-dev', 'deploy-trigger-dev') if branch == 'dev' else (
-            'migrate', 'build-amd64', 'deploy-trigger')
+        active = ('migrate-dev', 'build-dev', 'prepare-trigger') if branch == 'dev' else (
+            'migrate', 'build-amd64', 'prepare-trigger')
         results = {name: 'success' if name in active else 'skipped'
                    for name in self.jobs['promote-images']['needs']}
         return active, results
 
     def test_uploads_and_image_builds_can_start_before_migration(self):
-        for job in ('deploy-trigger', 'deploy-trigger-dev', 'build-amd64', 'build-dev'):
+        for job in ('prepare-trigger', 'build-amd64', 'build-dev'):
             self.assertFalse(self.jobs[job].get('needs'), job)
-        for job in ('deploy-trigger', 'deploy-trigger-dev'):
-            upload = next(step for step in self.jobs[job]['steps'] if step.get('id') == 'deploy')
-            self.assertIn('--skip-promotion', upload['run'])
+        upload = next(step for step in self.jobs['prepare-trigger']['steps'] if step.get('id') == 'deploy')
+        self.assertIn('--skip-promotion', upload['run'])
 
     def test_each_release_waits_for_all_three_gates(self):
         for branch in ('main', 'staging', 'dev'):
@@ -387,9 +391,9 @@ class ReleaseOrderingTests(unittest.TestCase):
         self.assertNotIn('imagetools create', json.dumps(steps))
 
     def test_task_promotion_requires_a_successful_fresh_app_release(self):
-        for branch, job, upload in (('main', 'promote-trigger', 'deploy-trigger'),
-                                    ('staging', 'promote-trigger', 'deploy-trigger'),
-                                    ('dev', 'promote-trigger-dev', 'deploy-trigger-dev')):
+        for branch, job, upload in (('main', 'promote-trigger', 'prepare-trigger'),
+                                    ('staging', 'promote-trigger', 'prepare-trigger'),
+                                    ('dev', 'promote-trigger', 'prepare-trigger')):
             ready = {'promote-images': 'success', upload: 'success'}
             self.assertIn('promote-images', self.jobs[job]['needs'])
             self.assertTrue(self.eligible(job, branch, ready))
@@ -400,6 +404,81 @@ class ReleaseOrderingTests(unittest.TestCase):
             promote = next(i for i, step in enumerate(steps) if 'promote "$VERSION"' in step.get('run', ''))
             self.assertLess(wait, promote)
             self.assertEqual(steps[promote]['env']['VERSION'], '${{ needs.' + upload + '.outputs.version }}')
+
+    def test_shared_trigger_jobs_use_the_same_target_for_upload_and_promotion(self):
+        self.assertEqual({job for job in self.jobs if 'trigger' in job}, {'prepare-trigger', 'promote-trigger'})
+        prepare = self.jobs['prepare-trigger']
+        select = next(step for step in prepare['steps'] if step.get('id') == 'target')
+        upload = next(step for step in prepare['steps'] if step.get('id') == 'deploy')
+        promote = next(step for step in self.jobs['promote-trigger']['steps']
+                       if 'promote "$VERSION"' in step.get('run', ''))
+        for variable, output in (('TRIGGER_ENV', 'environment'), ('TRIGGER_BRANCH', 'preview_branch')):
+            self.assertEqual(upload['env'][variable], '${{ steps.target.outputs.' + output + ' }}')
+            self.assertEqual(prepare['outputs'][output], '${{ steps.target.outputs.' + output + ' }}')
+            self.assertEqual(promote['env'][variable], '${{ needs.prepare-trigger.outputs.' + output + ' }}')
+        for branch, target, preview_branch in (('main', 'prod', ''), ('staging', 'staging', ''),
+                                                ('dev', 'preview', 'dev-sim')):
+            with self.subTest(branch=branch), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                env = {**os.environ, 'GITHUB_REF': 'refs/heads/' + branch,
+                       'GITHUB_OUTPUT': str(root / 'outputs'), 'PATH': f'{root}:{os.environ["PATH"]}'}
+                subprocess.run(['bash', '-eo', 'pipefail', '-c', select['run']], env=env, check=True)
+                outputs = dict(line.split('=', 1) for line in (root / 'outputs').read_text().splitlines())
+                self.assertEqual(outputs, {'environment': target, 'preview_branch': preview_branch})
+                (root / 'bunx').write_text('''#!/usr/bin/env python3
+import json, os, sys
+with open(os.environ['CLI_CALLS'], 'a') as stream:
+    stream.write(json.dumps(sys.argv[1:]) + '\\n')
+''')
+                (root / 'bunx').chmod(0o755)
+                env.update({'TRIGGER_ENV': outputs['environment'], 'TRIGGER_BRANCH': outputs['preview_branch'],
+                            'TRIGGER_ACCESS_TOKEN': 'test-token', 'TRIGGER_PROJECT_ID': 'test-project',
+                            'VERSION': '20260101.1', 'CLI_CALLS': str(root / 'calls')})
+                for step in (upload, promote):
+                    subprocess.run(['bash', '-eo', 'pipefail', '-c', step['run']], env=env,
+                                   check=True, capture_output=True, text=True)
+                calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+                flags = ['--env', target] + (['--branch', preview_branch] if preview_branch else [])
+                self.assertEqual(calls, [
+                    ['trigger.dev@4.5.12', 'deploy', *flags, '--skip-promotion'],
+                    ['trigger.dev@4.5.12', 'promote', '20260101.1', *flags],
+                ])
+                self.assertTrue(self.eligible('prepare-trigger', branch, {}))
+                self.assertFalse(self.eligible('prepare-trigger', branch, {}, event='pull_request'))
+
+    def test_unsupported_trigger_ref_fails_before_upload(self):
+        select = next(step for step in self.jobs['prepare-trigger']['steps'] if step.get('id') == 'target')
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'outputs'
+            result = subprocess.run(['bash', '-eo', 'pipefail', '-c', select['run']],
+                                    env={**os.environ, 'GITHUB_REF': 'refs/heads/unsupported',
+                                         'GITHUB_OUTPUT': str(output)}, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('unsupported Trigger release ref', result.stderr)
+            self.assertFalse(output.exists())
+        self.assertFalse(self.eligible('prepare-trigger', 'unsupported', {}))
+
+    def test_shared_promotion_preserves_environment_session_and_poll_budgets(self):
+        job = self.jobs['promote-trigger']
+        credentials = next(step for step in job['steps'] if step['name'] == 'Configure AWS credentials')['with']
+        wait = next(step for step in job['steps'] if step['name'] == 'Wait for ECS traffic cutover')['env']
+        for branch, poll, session, minutes, role in (
+            ('main', 4200, 5400, 90, 'prod-role'),
+            ('staging', 4200, 5400, 90, 'staging-role'),
+            ('dev', 1200, 2400, 40, 'dev-role'),
+        ):
+            with self.subTest(branch=branch):
+                self.assertEqual(self.evaluate(wait['OVERALL_TIMEOUT'], branch), poll)
+                self.assertEqual(self.evaluate(credentials['role-duration-seconds'], branch), session)
+                self.assertEqual(self.evaluate(job['timeout-minutes'], branch), minutes)
+                role_expression = credentials['role-to-assume']
+                for key, value in (('AWS_ROLE_TO_ASSUME', 'prod-role'),
+                                   ('STAGING_AWS_ROLE_TO_ASSUME', 'staging-role'),
+                                   ('DEV_AWS_ROLE_TO_ASSUME', 'dev-role')):
+                    role_expression = role_expression.replace('secrets.' + key, repr(value))
+                self.assertEqual(self.evaluate(role_expression, branch), role)
+                self.assertGreater(session, poll)
+                self.assertGreater(minutes * 60, poll)
 
     def test_permission_check_and_other_images_precede_app_rollout(self):
         steps = self.jobs['promote-images']['steps']
