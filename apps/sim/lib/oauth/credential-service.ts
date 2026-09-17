@@ -29,6 +29,7 @@ import {
   GITHUB_INSTALLATION_PROVIDER_ID,
   type GitHubInstallationRepositoryScope,
 } from '@/lib/oauth/github-installation-types'
+import { exchangeGoogleServiceAccountJwt } from '@/lib/oauth/google-service-account-transport'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -73,6 +74,8 @@ export interface CredentialTokenResolutionOptions {
   privacyMode?: 'selector'
   /** GitHub installation content tokens may only address one connector repository. */
   githubRepositoryScope?: GitHubInstallationRepositoryScope
+  /** Cancels Google service-account token exchange and retry waits. */
+  signal?: AbortSignal
 }
 
 function privateCredentialIdentity(namespace: string, value: string): string {
@@ -189,6 +192,19 @@ const SA_EXCLUDED_SCOPES = new Set([
   'https://www.googleapis.com/auth/userinfo.profile',
 ])
 
+/** Google's documented JWT error codes are safe to retain without the provider description. */
+const SA_DIAGNOSTIC_ERROR_CODES = new Set([
+  'access_denied',
+  'admin_policy_enforced',
+  'deleted_client',
+  'disabled_client',
+  'invalid_client',
+  'invalid_grant',
+  'invalid_scope',
+  'org_internal',
+  'unauthorized_client',
+])
+
 /**
  * Generates a short-lived access token for a Google service account credential
  * using the two-legged OAuth JWT flow (RFC 7523).
@@ -204,6 +220,7 @@ export async function getServiceAccountToken(
   impersonateEmail?: string,
   options?: CredentialTokenResolutionOptions
 ): Promise<string> {
+  options?.signal?.throwIfAborted()
   const [credentialRow] = await db
     .select({
       type: credential.type,
@@ -267,6 +284,7 @@ export async function getServiceAccountToken(
           hasSubject: Boolean(impersonateEmail),
           scopes: filteredScopes.join(' '),
           aud: tokenUri,
+          subject: impersonateEmail,
         }
   )
 
@@ -280,22 +298,10 @@ export async function getServiceAccountToken(
 
   const jwt = `${signingInput}.${signature}`
 
-  const response = await fetch(tokenUri, {
-    method: 'POST',
-    redirect: 'error',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
-  })
+  const response = await exchangeGoogleServiceAccountJwt(tokenUri, jwt, options?.signal)
 
   if (!response.ok) {
-    const errorBody = await response.text()
-    logger.error('Service account token exchange failed', {
-      status: response.status,
-      ...(options?.privacyMode === 'selector' ? {} : { body: errorBody }),
-    })
+    const errorBody = response.body
     let description = `Token exchange failed: ${response.status}`
     let errorCode: string | undefined
     if (options?.privacyMode !== 'selector') {
@@ -322,10 +328,20 @@ export async function getServiceAccountToken(
         /** Retain the status-based description when Google returns a non-JSON error. */
       }
     }
+    logger.error('Service account token exchange failed', {
+      status: response.status,
+      ...(options?.privacyMode === 'selector'
+        ? {}
+        : {
+            subject: impersonateEmail,
+            scopes: filteredScopes,
+            ...(errorCode && SA_DIAGNOSTIC_ERROR_CODES.has(errorCode) ? { errorCode } : {}),
+          }),
+    })
     throw new ServiceAccountTokenError(response.status, description, errorCode)
   }
 
-  const tokenData = (await response.json()) as { access_token: string }
+  const tokenData = JSON.parse(response.body) as { access_token: string }
   return tokenData.access_token
 }
 
@@ -660,11 +676,9 @@ async function resolveClientCredentialAccountToken(
   })
 }
 
-interface ServiceAccountTokenOptions {
+interface ServiceAccountTokenOptions extends CredentialTokenResolutionOptions {
   scopes?: string[]
   impersonateEmail?: string
-  privacyMode?: 'selector'
-  githubRepositoryScope?: GitHubInstallationRepositoryScope
 }
 
 type ServiceAccountTokenResolver = (
@@ -725,7 +739,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   },
   [GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID]: async (
     credentialId,
-    { scopes, impersonateEmail, privacyMode }
+    { scopes, impersonateEmail, privacyMode, signal }
   ) => {
     if (!scopes?.length) {
       throw new Error('Scopes are required for service account credentials')
@@ -733,6 +747,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
     return {
       accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail, {
         privacyMode,
+        signal,
       }),
     }
   },

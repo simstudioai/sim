@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CONNECTOR_SOURCE_REASON_STATES } from '@/connectors/source-error'
 
 export const MAX_LISTING_FAILURE_SAMPLES = 10
 
@@ -12,6 +13,7 @@ export const listingFailuresSchema = z.object({
         operation: z.string().min(1).max(96),
         status: z.number().int().min(100).max(599).optional(),
         reasons: z.array(z.string().min(1).max(64)).max(16),
+        reasonState: z.enum(CONNECTOR_SOURCE_REASON_STATES).optional(),
       })
     )
     .max(MAX_LISTING_FAILURE_SAMPLES),

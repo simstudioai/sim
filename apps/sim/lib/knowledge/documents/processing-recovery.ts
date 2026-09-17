@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionOwner,
   resolveSystemBillingAttribution,
@@ -23,6 +23,7 @@ const logger = createLogger('KnowledgeDocumentRecovery')
 export const KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT = 'knowledge.document.processing.recover'
 export const DOCUMENT_RECOVERY_BATCH_SIZE = 200
 const RECOVERY_RUNTIME_MS = 20_000
+const MAX_RECOVERY_CANDIDATE_BATCHES = 4
 const RECOVERABLE_CONNECTOR_STATUSES = ['active', 'error', 'pending', 'syncing']
 
 /**
@@ -40,6 +41,34 @@ async function recoverStoredDocuments(
   deadlineAt: number,
   signal: AbortSignal
 ): Promise<number> {
+  let recovered = 0
+  const blockedKnowledgeBases = new Set<string>()
+  const attemptedConnectors = new Set<string>()
+  for (let batch = 0; batch < MAX_RECOVERY_CANDIDATE_BATCHES; batch++) {
+    if (recovered >= DOCUMENT_RECOVERY_BATCH_SIZE || Date.now() >= deadlineAt) break
+    const connectorsBefore = attemptedConnectors.size
+    recovered += await recoverStoredDocumentBatch(
+      now,
+      deadlineAt,
+      signal,
+      blockedKnowledgeBases,
+      attemptedConnectors,
+      DOCUMENT_RECOVERY_BATCH_SIZE - recovered
+    )
+    if (attemptedConnectors.size === connectorsBefore) break
+  }
+  return recovered
+}
+
+async function recoverStoredDocumentBatch(
+  now: Date,
+  deadlineAt: number,
+  signal: AbortSignal,
+  blockedKnowledgeBases: Set<string>,
+  attemptedConnectors: Set<string>,
+  limit: number
+): Promise<number> {
+  /** Discovery does not claim work. Ownership is rechecked under lifecycle locks below. */
   const candidates = await db.transaction(async (tx) => {
     signal.throwIfAborted()
     await tx.execute(
@@ -50,7 +79,7 @@ async function recoverStoredDocuments(
       .select({
         id: document.id,
         knowledgeBaseId: document.knowledgeBaseId,
-        connectorId: document.connectorId,
+        connectorId: knowledgeConnector.id,
         workspaceId: knowledgeBase.workspaceId,
         organizationId: knowledgeBase.organizationId,
       })
@@ -60,6 +89,12 @@ async function recoverStoredDocuments(
       .where(
         and(
           documentProcessingRecoveryCondition(now),
+          blockedKnowledgeBases.size > 0
+            ? notInArray(document.knowledgeBaseId, [...blockedKnowledgeBases])
+            : undefined,
+          attemptedConnectors.size > 0
+            ? notInArray(document.connectorId, [...attemptedConnectors])
+            : undefined,
           isNull(knowledgeBase.deletedAt),
           isNull(knowledgeConnector.deletedAt),
           isNull(knowledgeConnector.archivedAt),
@@ -67,10 +102,10 @@ async function recoverStoredDocuments(
         )
       )
       .orderBy(asc(document.uploadedAt), asc(document.id))
-      .limit(DOCUMENT_RECOVERY_BATCH_SIZE)
-      .for('update', { of: knowledgeBase, skipLocked: true })
+      .limit(limit)
   })
   signal.throwIfAborted()
+  if (candidates.length === 0) return 0
 
   let recovered = 0
   const groups = new Map<string, typeof candidates>()
@@ -81,7 +116,10 @@ async function recoverStoredDocuments(
   }
   for (const [knowledgeBaseId, group] of groups) {
     if (Date.now() >= deadlineAt) break
+    const connectorIds = [...new Set(group.map((row) => row.connectorId))]
+    for (const connectorId of connectorIds) attemptedConnectors.add(connectorId)
     const owner = group[0]
+    let ownerVerified = false
     try {
       signal.throwIfAborted()
       const attribution = owner.organizationId
@@ -107,18 +145,20 @@ async function recoverStoredDocuments(
           })
           .from(knowledgeBase)
           .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-          .for('update', { skipLocked: true })
+          .for('share', { skipLocked: true })
         signal.throwIfAborted()
-        if (!kb) return 0
+        if (!kb) {
+          blockedKnowledgeBases.add(knowledgeBaseId)
+          return 0
+        }
         assertBillingAttributionOwner(attribution, kb)
+        ownerVerified = true
         const connectors = await tx
           .select({ id: knowledgeConnector.id })
           .from(knowledgeConnector)
           .where(
             and(
-              inArray(knowledgeConnector.id, [
-                ...new Set(group.flatMap((row) => (row.connectorId ? [row.connectorId] : []))),
-              ]),
+              inArray(knowledgeConnector.id, connectorIds),
               eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
               inArray(knowledgeConnector.status, RECOVERABLE_CONNECTOR_STATUSES),
               isNull(knowledgeConnector.archivedAt),
@@ -203,6 +243,7 @@ async function recoverStoredDocuments(
       })
     } catch (error) {
       signal.throwIfAborted()
+      if (!ownerVerified) blockedKnowledgeBases.add(knowledgeBaseId)
       logger.error('Stored document recovery admission failed', {
         knowledgeBaseId,
         diagnostic: getConnectorFailureDiagnostic(error),

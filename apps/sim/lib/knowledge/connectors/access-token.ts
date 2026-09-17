@@ -30,7 +30,7 @@ export interface ConnectorAccessToken {
   /** The trusted site domain belonging to the credential's cloud id. */
   domain?: string
   /** Server-only capability bound to this credential and the connector's declared scopes. */
-  getDelegatedAccessToken?: (subject: string) => Promise<string>
+  getDelegatedAccessToken?: (subject: string, signal?: AbortSignal) => Promise<string>
 }
 
 /**
@@ -97,8 +97,10 @@ export async function resolveConnectorAccessToken(params: {
    * person's files.
    */
   sourceConfig: Record<string, unknown>
+  signal?: AbortSignal
 }): Promise<ConnectorAccessToken | null> {
   const { auth, connector, userId, requestId } = params
+  params.signal?.throwIfAborted()
 
   const apiKeyConfig = getConnectorApiKeyConfig(auth)
   if (
@@ -137,7 +139,14 @@ export async function resolveConnectorAccessToken(params: {
     requestId,
     connectorServiceAccountScopes(auth, params.accessMode),
     subject,
-    ...(githubRepositoryScope ? [{ githubRepositoryScope }] : [])
+    ...(githubRepositoryScope || params.signal
+      ? [
+          {
+            ...(githubRepositoryScope ? { githubRepositoryScope } : {}),
+            ...(params.signal ? { signal: params.signal } : {}),
+          },
+        ]
+      : [])
   )
   if (!bundle?.accessToken) return null
 
@@ -155,12 +164,22 @@ export async function resolveConnectorAccessToken(params: {
     ) {
       const credentialId = identity.credentialId
       const scopes = [...auth.serviceAccountDelegationScopes]
-      getDelegatedAccessToken = async (subject) => {
+      getDelegatedAccessToken = async (subject, signal) => {
+        const tokenSignal =
+          signal && params.signal
+            ? AbortSignal.any([signal, params.signal])
+            : (signal ?? params.signal)
+        tokenSignal?.throwIfAborted()
         const email = normalizeEmail(subject)
         if (!isValidEmailSyntax(email)) {
           throw new Error('A valid Workspace user email is required for delegated access')
         }
-        return getServiceAccountToken(credentialId, scopes, email)
+        return getServiceAccountToken(
+          credentialId,
+          scopes,
+          email,
+          ...(tokenSignal ? [{ signal: tokenSignal }] : [])
+        )
       }
     }
   }

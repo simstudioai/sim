@@ -553,6 +553,14 @@ describe('Google Drive company-wide crawl', () => {
     ).rejects.toThrow()
     expect(mockFetch).not.toHaveBeenCalled()
   })
+
+  it('passes the crawl signal into the delegated token exchange', async () => {
+    fixture({})
+    const controller = new AbortController()
+    const ctx = { ...context(), signal: controller.signal }
+    await drive.listDocuments('directory-token', CONFIG, undefined, ctx)
+    expect(ctx.getDelegatedAccessToken).toHaveBeenCalledWith('alice@corp.com', controller.signal)
+  })
 })
 
 describe('Company-wide setup validation', () => {

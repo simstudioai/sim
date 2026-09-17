@@ -133,7 +133,7 @@ Search schedules syncs hourly. The first sync lists every thread in scope and ca
 
 **Member accounts:** later syncs use each mailbox's Gmail change history, unless the configuration has a search filter. A full relisting runs about weekly, or sooner if Gmail no longer retains the saved history.
 
-**Service account:** each sync revisits the selected active mailboxes and resumes unfinished listings. If Google reports that a user's mailbox is not set up or returns a mailbox `failedPrecondition`, Sim records a warning and continues with the remaining users. The crawl stays incomplete and retries affected users on the next scheduled crawl; existing indexed mail is not deleted because a mailbox could not be read. Credential, delegation, and Directory failures still stop the crawl.
+**Service account:** each user's progress is saved separately, so a large mailbox or an account-specific access failure does not hold up other users. Temporary failures retry automatically. Unavailable mailboxes are revisited without deleting indexed mail solely because the mailbox could not be read. Sim continues discovering users and refreshing existing mail and permissions while unfinished work resumes. Results with stale or unverified permissions remain hidden. Credential, delegation, Directory, and scope failures still require attention.
 
 Updates, removals, and access refresh in the background. Empty mailboxes and filters with no matches complete normally with zero documents. Threads exceeding indexing size limits are skipped and reconsidered when they change.
 

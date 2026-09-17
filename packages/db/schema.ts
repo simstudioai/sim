@@ -5698,6 +5698,67 @@ export const knowledgeConnector = pgTable(
   })
 )
 
+/** Bounded provider partitions, committed atomically with their owning connector listing checkpoint. */
+export const knowledgeConnectorPartition = pgTable(
+  'knowledge_connector_partition',
+  {
+    connectorId: text('connector_id')
+      .notNull()
+      .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
+    partitionKey: text('partition_key').notNull(),
+    generationId: text('generation_id').notNull(),
+    context: jsonb('context').$type<Record<string, unknown>>().notNull(),
+    cursor: text('cursor'),
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    retryAt: timestamp('retry_at').notNull().defaultNow(),
+    lastServedAt: timestamp('last_served_at'),
+    failure: jsonb('failure').$type<Record<string, unknown>>(),
+    permissionCursor: text('permission_cursor'),
+    permissionAttempts: integer('permission_attempts').notNull().default(0),
+    permissionRetryAt: timestamp('permission_retry_at').notNull(),
+    permissionLastServedAt: timestamp('permission_last_served_at'),
+    permissionStartedAt: timestamp('permission_started_at'),
+    permissionFailure: jsonb('permission_failure').$type<Record<string, unknown>>(),
+  },
+  (table) => ({
+    pk: primaryKey({ name: 'kcp_pk', columns: [table.connectorId, table.partitionKey] }),
+    contentDueIdx: index('kcp_content_due_idx').on(
+      table.connectorId,
+      table.generationId,
+      table.status,
+      table.retryAt,
+      table.lastServedAt
+    ),
+    permissionDueIdx: index('kcp_permission_due_idx').on(
+      table.connectorId,
+      table.generationId,
+      table.permissionRetryAt,
+      table.permissionLastServedAt
+    ),
+    partitionKeyCheck: check(
+      'kcp_partition_key_check',
+      sql`octet_length(${table.partitionKey}) BETWEEN 1 AND 1024`
+    ),
+    contextCheck: check(
+      'kcp_context_check',
+      sql`jsonb_typeof(${table.context}) = 'object' AND octet_length(${table.context}::text) <= 16384`
+    ),
+    statusCheck: check(
+      'kcp_status_check',
+      sql`${table.status} IN ('pending', 'complete', 'blocked')`
+    ),
+    cursorCheck: check(
+      'kcp_cursor_check',
+      sql`(${table.cursor} IS NULL OR octet_length(${table.cursor}) <= 393216) AND (${table.permissionCursor} IS NULL OR octet_length(${table.permissionCursor}) <= 393216)`
+    ),
+    attemptsCheck: check(
+      'kcp_attempts_check',
+      sql`${table.attempts} >= 0 AND ${table.permissionAttempts} >= 0`
+    ),
+  })
+)
+
 /** Private provider configuration; metadata reads never materialize the larger normalized payload. */
 export const knowledgeConnectorPermissionSnapshot = pgTable(
   'knowledge_connector_permission_snapshot',

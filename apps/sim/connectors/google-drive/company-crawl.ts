@@ -7,6 +7,10 @@ import {
   listGoogleWorkspaceDrives,
 } from '@/connectors/google-drive/workspace-drives'
 import {
+  type GoogleCompanyCursorAdapter,
+  googleCompanyUserContextSchema,
+} from '@/connectors/google-workspace/company-work'
+import {
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE,
   getGoogleWorkspaceUser,
   listGoogleWorkspaceUsers,
@@ -18,15 +22,7 @@ import { parseOptionalUnlimitedSafeInteger } from '@/connectors/utils'
 const CURSOR_PREFIX = 'gdrive-company:v1:'
 const MAX_CURSOR_BYTES = 384 * 1024
 const cursorSchema = z.object({
-  users: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(256),
-        email: z.string().email().max(254),
-        customerId: z.string().min(1).max(256),
-      })
-    )
-    .max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
+  users: z.array(googleCompanyUserContextSchema).max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
   nextUsersPageToken: z.string().min(1).max(8192).optional(),
   scope: z.discriminatedUnion('kind', [
     z.object({
@@ -52,7 +48,7 @@ const cursorSchema = z.object({
 })
 type CompanyCursor = z.infer<typeof cursorSchema>
 
-type DelegatedTokenResolver = (subject: string) => Promise<string>
+type DelegatedTokenResolver = (subject: string, signal?: AbortSignal) => Promise<string>
 
 function delegatedTokenResolver(syncContext: Record<string, unknown>): DelegatedTokenResolver {
   if (typeof syncContext.getDelegatedAccessToken !== 'function') {
@@ -86,6 +82,21 @@ function writeCursor(cursor: CompanyCursor): string {
     throw new Error('Google Workspace crawl exceeded its continuation-size limit')
   }
   return serialized
+}
+
+/** A single-user cursor preserves shared-drive traversal as well as the user's own Drive page. */
+export const googleDriveCompanyCursorAdapter: GoogleCompanyCursorAdapter = {
+  seed: (user) => writeCursor({ users: [user], scope: { kind: 'user' } }),
+  resume: (cursor) => {
+    const state = readCursor(cursor)
+    return state.users.map((user, index) => ({
+      user,
+      cursor: writeCursor({
+        users: [user],
+        scope: index === 0 ? state.scope : { kind: 'user' },
+      }),
+    }))
+  },
 }
 
 /** Positive caps can stop before later users; central sources must finish their selected corpus. */
@@ -197,7 +208,7 @@ export async function listGoogleCompanyDocuments(input: {
   }
 
   signal?.throwIfAborted()
-  const userToken = await resolveToken(user.email)
+  const userToken = await (signal ? resolveToken(user.email, signal) : resolveToken(user.email))
   const nextDrives = async (pageToken?: string): Promise<CompanyCursor> => {
     const drives = await listGoogleWorkspaceDrives(userToken, pageToken, signal)
     if (drives.driveIds.length > 0) {

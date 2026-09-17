@@ -9,6 +9,14 @@ import {
   readListingCheckpoint,
   runResumableListing,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
+import {
+  googleDriveCompanyCursorAdapter,
+  InvalidGoogleCompanyCursor,
+} from '@/connectors/google-drive/company-crawl'
+import {
+  googleWorkspaceCompanyCursorAdapter,
+  InvalidGoogleWorkspaceCursor,
+} from '@/connectors/google-workspace/company-crawl'
 import type { ExternalDocument } from '@/connectors/types'
 
 const fingerprint = listingFingerprint({ source: 'drive', folder: 'folder-1' })
@@ -233,6 +241,92 @@ describe('durable connector listing checkpoints', () => {
     expect(f.listDocuments.mock.calls[1][2]).toBeUndefined()
     expect(f.processPage.mock.calls[0][1].generationId).toBe(result.generationId)
   })
+
+  it.each(['google_drive', 'gmail', 'google_calendar'] as const)(
+    'safely restarts when the legacy %s reader receives a partition checkpoint',
+    async (provider) => {
+      const adapter =
+        provider === 'google_drive'
+          ? googleDriveCompanyCursorAdapter
+          : googleWorkspaceCompanyCursorAdapter(provider)
+      const InvalidCursorError =
+        provider === 'google_drive' ? InvalidGoogleCompanyCursor : InvalidGoogleWorkspaceCursor
+      const cursor = `google-company-work:v2:${Buffer.from(
+        JSON.stringify({
+          directoryComplete: true,
+          directoryRefreshAt: '2026-09-08T11:00:00.000Z',
+          phase: 'users',
+          revision: 42,
+          permissionTurn: true,
+          active: { userId: 'user-1', kind: 'permissions' },
+        })
+      ).toString('base64url')}`
+      const f = fixture({
+        ...checkpoint(),
+        cursor,
+        listedCount: 700,
+        unsafe: true,
+        contentFailures: true,
+        permissionFailures: true,
+        listingFailures: {
+          count: 1,
+          samples: [{ scope: 'user@example.com', operation: 'google.user.list', reasons: [] }],
+        },
+      })
+      const databaseTime = new Date('2026-09-08T10:00:00.000Z')
+      const getGenerationStartedAt = vi.fn(async () => databaseTime)
+      f.listDocuments.mockImplementation(async (_token, _source, savedCursor) => {
+        expect(savedCursor).toBe(cursor)
+        expect(() => adapter.resume(savedCursor)).toThrow(InvalidCursorError)
+        adapter.resume(savedCursor)
+        return { documents: [doc], hasMore: false }
+      })
+      /** The provider readers and restart contract are shared with staging; its envelope parser is not emulated. */
+      const restarted = await runResumableListing({
+        ...f.input,
+        maxPages: 1,
+        getGenerationStartedAt,
+        connectorConfig: {
+          listDocuments: f.listDocuments,
+          isListingCursorInvalidError: (error) => error instanceof InvalidCursorError,
+        },
+      })
+      expect(f.processPage).not.toHaveBeenCalled()
+      expect(f.saveCheckpoint).toHaveBeenCalledOnce()
+      expect(getGenerationStartedAt).toHaveBeenCalledOnce()
+      expect(restarted.generationId).not.toBe('cycle-1')
+      expect(restarted).toMatchObject({
+        fingerprint,
+        startedAt: databaseTime.toISOString(),
+        cursor: null,
+        complete: false,
+        listedCount: 0,
+        unsafe: false,
+        contentFailures: false,
+        permissionFailures: false,
+        listingFailures: null,
+      })
+      expect(f.saved()).toEqual(restarted)
+
+      const resumed = fixture(f.saved())
+      resumed.listDocuments.mockResolvedValue({
+        documents: [doc],
+        hasMore: true,
+        nextCursor: 'restarted-provider-page-2',
+      })
+      const incomplete = await runResumableListing({ ...resumed.input, maxPages: 1 })
+      expect(resumed.listDocuments.mock.calls[0][2]).toBeUndefined()
+      expect(resumed.processPage).toHaveBeenCalledOnce()
+      expect(resumed.processPage.mock.calls[0][1].generationId).toBe(restarted.generationId)
+      expect(incomplete).toMatchObject({
+        generationId: restarted.generationId,
+        startedAt: databaseTime.toISOString(),
+        cursor: 'restarted-provider-page-2',
+        complete: false,
+        listedCount: 1,
+      })
+    }
+  )
 
   it('finishes a source larger than 50,000 documents without retaining its whole listing', async () => {
     const f = fixture()

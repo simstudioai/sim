@@ -1446,7 +1446,7 @@ async function completeMemberSync(
       .select({ id: knowledgeBase.id })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, run.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-      .for('update')
+      .for('share')
     if (!activeKnowledgeBase) {
       /** Nothing to record against a deleted knowledge base; hand the lease back rather than let it expire as a failure. */
       await tx

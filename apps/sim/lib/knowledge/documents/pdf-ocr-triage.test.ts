@@ -43,6 +43,7 @@ vi.mock('@/lib/internal/mistral/operations', () => ({
 }))
 
 import { env } from '@/lib/core/config/env'
+import { waitForProviderAdmission } from '@/lib/core/rate-limiter/provider-admission'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
@@ -203,6 +204,39 @@ describe('PDF OCR triage', () => {
         }),
         expect.anything()
       )
+    }
+  )
+
+  it.each(['mistral', 'azure-mistral'])(
+    'rejects a Git LFS pointer before %s admission or OCR',
+    async (provider) => {
+      Object.assign(env, {
+        OCR_PROVIDER: provider,
+        OCR_AZURE_API_KEY: 'key',
+        OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+        OCR_AZURE_MODEL_NAME: 'mistral-document-ai-2512',
+      })
+      const bytes = Buffer.from(
+        `version https://git-lfs.github.com/spec/v1\noid sha256:${'b'.repeat(64)}\nsize 9566\n`
+      )
+      mockDownload.mockResolvedValue(bytes)
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        processDocument('https://example.com/image.png', 'image.png', 'image/png', 1024, 0, 1, {
+          userId: 'user-1',
+        })
+      ).rejects.toMatchObject({
+        name: 'PermanentDocumentProcessingError',
+        code: 'invalid_file',
+        message: expect.stringContaining('Git LFS pointer'),
+      })
+      expect(mockDownload).toHaveBeenCalledOnce()
+      expect(waitForProviderAdmission).not.toHaveBeenCalled()
+      expect(mockExecuteMistralParse).not.toHaveBeenCalled()
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(mockParseBuffer).not.toHaveBeenCalled()
     }
   )
 

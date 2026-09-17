@@ -32,6 +32,7 @@ describe('Google API diagnostics', () => {
       new Error('outer private detail', { cause: error })
     )
     expect(diagnostic).toMatchObject({ status, category, operation: OPERATION, reasons: [reason] })
+    expect(diagnostic?.reasonState).toBe('present')
     expect(JSON.stringify(diagnostic)).not.toContain(RESPONSE_SECRET)
     expect(JSON.stringify(diagnostic)).not.toContain('outer private detail')
   })
@@ -40,6 +41,7 @@ describe('Google API diagnostics', () => {
     const error = await readGoogleApiError(failure(403, RESPONSE_SECRET), OPERATION)
     expect(error.diagnostic?.reasons).toEqual([])
     expect(error.reasonsComplete).toBe(false)
+    expect(getConnectorFailureDiagnostic(error)?.reasonState).toBe('filtered')
     expect(JSON.stringify(error)).not.toContain(RESPONSE_SECRET)
   })
 
@@ -82,11 +84,13 @@ describe('Google API diagnostics', () => {
     )
     expect(absent.reasonsComplete).toBe(true)
     expect(absent.diagnostic?.reasons).toEqual([])
+    expect(getConnectorFailureDiagnostic(absent)?.reasonState).toBe('absent')
     const malformed = await readGoogleApiError(
       Response.json({ error: { errors: [{ reason: 123 }] } }, { status: 403 }),
       'calendar.events.list'
     )
     expect(malformed.reasonsComplete).toBe(false)
+    expect(getConnectorFailureDiagnostic(malformed)?.reasonState).toBe('malformed')
     const mixed = await readGoogleApiError(
       Response.json(
         { error: { errors: [{ reason: 'forbidden' }, { reason: RESPONSE_SECRET }] } },
@@ -96,6 +100,7 @@ describe('Google API diagnostics', () => {
     )
     expect(mixed.diagnostic?.reasons).toEqual(['forbidden'])
     expect(mixed.reasonsComplete).toBe(false)
+    expect(getConnectorFailureDiagnostic(mixed)?.reasonState).toBe('filtered')
     expect(JSON.stringify([absent, malformed, mixed])).not.toContain(RESPONSE_SECRET)
   })
 
@@ -120,7 +125,60 @@ describe('Google API diagnostics', () => {
     )
     expect(error.diagnostic?.reasons).toEqual(['forbidden'])
     expect(error.reasonsComplete).toBe(false)
+    expect(getConnectorFailureDiagnostic(error)?.reasonState).toBe('malformed')
     expect(JSON.stringify(error)).not.toContain(RESPONSE_SECRET)
+  })
+
+  it('distinguishes an unreadable body from a malformed response', async () => {
+    const unreadable = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error(RESPONSE_SECRET))
+        },
+      }),
+      { status: 403 }
+    )
+    const error = await readGoogleApiError(unreadable, OPERATION)
+    expect(getConnectorFailureDiagnostic(error)?.reasonState).toBe('unreadable')
+    expect(error.reasonsComplete).toBe(false)
+    expect(JSON.stringify(error)).not.toContain(RESPONSE_SECRET)
+    const malformed = await readGoogleApiError(new Response('not-json', { status: 403 }), OPERATION)
+    expect(getConnectorFailureDiagnostic(malformed)?.reasonState).toBe('malformed')
+  })
+
+  it('retains classification evidence beyond the diagnostic reason limit', async () => {
+    const reasons = [
+      'accessNotConfigured',
+      'appNotAuthorizedToFile',
+      'authError',
+      'badRequest',
+      'cannotDownloadFile',
+      'cannotExportFile',
+      'domainPolicy',
+      'download_restricted_for_revision',
+      'exportSizeLimitExceeded',
+      'failedPrecondition',
+      'fileNotDownloadable',
+      'fileNotExportable',
+      'forbidden',
+      'insufficientFilePermissions',
+      'insufficientPermissions',
+      'invalid',
+      'rateLimitExceeded',
+    ]
+    const error = await readGoogleApiError(
+      Response.json(
+        {
+          error: { errors: reasons.map((reason) => ({ reason })) },
+        },
+        { status: 403 }
+      ),
+      OPERATION
+    )
+    expect(error.rateLimited).toBe(true)
+    expect(error.reasonsComplete).toBe(false)
+    expect(error.diagnostic?.reasonState).toBe('filtered')
+    expect(error.diagnostic?.reasons).toHaveLength(16)
   })
 })
 

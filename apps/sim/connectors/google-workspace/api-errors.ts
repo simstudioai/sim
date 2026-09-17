@@ -5,7 +5,7 @@ import {
   type RetryOptions,
   resolveRetryDelayMs,
 } from '@/lib/knowledge/documents/utils'
-import { ConnectorSourceError } from '@/connectors/source-error'
+import { ConnectorSourceError, type ConnectorSourceReasonState } from '@/connectors/source-error'
 import { readBodyWithLimit } from '@/connectors/utils'
 
 const ERROR_BODY_MAX_BYTES = 64 * 1024
@@ -60,15 +60,16 @@ export function safeGoogleErrorReasons(reasons: readonly string[]): string[] {
 /** Distinguishes a reasonless envelope from one whose reason codes cannot safely be interpreted. */
 export async function readGoogleErrorDetails(
   response: Response
-): Promise<{ reasons: string[]; complete: boolean }> {
-  const unreadable = { reasons: [], complete: false }
+): Promise<{ reasons: string[]; complete: boolean; reasonState: ConnectorSourceReasonState }> {
+  const unreadable = { reasons: [], complete: false, reasonState: 'unreadable' as const }
+  const malformed = { reasons: [], complete: false, reasonState: 'malformed' as const }
   const body = await readBodyWithLimit(response, ERROR_BODY_MAX_BYTES).catch(() => null)
   if (!body) return unreadable
   try {
     const payload: unknown = JSON.parse(body.toString('utf8'))
-    if (!payload || typeof payload !== 'object' || !('error' in payload)) return unreadable
+    if (!payload || typeof payload !== 'object' || !('error' in payload)) return malformed
     const error = payload.error
-    if (!error || typeof error !== 'object' || Array.isArray(error)) return unreadable
+    if (!error || typeof error !== 'object' || Array.isArray(error)) return malformed
     const envelopeValid =
       (!('errors' in error) || Array.isArray(error.errors)) &&
       (!('details' in error) || Array.isArray(error.details))
@@ -82,17 +83,24 @@ export async function readGoogleErrorDetails(
         : []
     )
     const safeReasons = safeGoogleErrorReasons(reasons)
+    const validReasons =
+      envelopeValid &&
+      (entries.length > 0 || ('code' in error && error.code === response.status)) &&
+      reasons.length === entries.length
+    const reasonState: ConnectorSourceReasonState = !validReasons
+      ? 'malformed'
+      : reasons.some((reason) => !SAFE_REASONS.has(reason)) || safeReasons.length > MAX_REASONS
+        ? 'filtered'
+        : reasons.length === 0
+          ? 'absent'
+          : 'present'
     return {
       reasons: safeReasons,
-      complete:
-        envelopeValid &&
-        (entries.length > 0 || ('code' in error && error.code === response.status)) &&
-        reasons.length === entries.length &&
-        reasons.every((reason) => SAFE_REASONS.has(reason)) &&
-        safeReasons.length <= MAX_REASONS,
+      complete: reasonState === 'present' || reasonState === 'absent',
+      reasonState,
     }
   } catch {
-    return unreadable
+    return malformed
   }
 }
 
@@ -104,7 +112,8 @@ export class GoogleApiError extends ConnectorSourceError {
     operation: string,
     status: number,
     reasons: readonly string[],
-    reasonsComplete = true
+    reasonsComplete = true,
+    reasonState?: ConnectorSourceReasonState
   ) {
     const safeReasons = safeGoogleErrorReasons(reasons)
     const suffix = safeReasons.length ? ` (${safeReasons.join(', ')})` : ''
@@ -123,6 +132,7 @@ export class GoogleApiError extends ConnectorSourceError {
     super(`${operation} failed (HTTP ${status})${suffix}.`, status, category, {
       operation,
       reasons: safeReasons.slice(0, MAX_REASONS),
+      ...(reasonState ? { reasonState } : {}),
     })
     this.name = 'GoogleApiError'
     this.reasonsComplete =
@@ -139,7 +149,13 @@ export async function readGoogleApiError(
   operation: string
 ): Promise<GoogleApiError> {
   const details = await readGoogleErrorDetails(response)
-  return new GoogleApiError(operation, response.status, details.reasons, details.complete)
+  return new GoogleApiError(
+    operation,
+    response.status,
+    details.reasons,
+    details.complete,
+    details.reasonState
+  )
 }
 
 /** Preserves Google diagnostics when the shared transport retries a transient HTTP response. */
