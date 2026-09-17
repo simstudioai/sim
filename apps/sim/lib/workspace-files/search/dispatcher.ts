@@ -72,17 +72,14 @@ async function runDispatchPhase<T>(phase: string, operation: () => Promise<T>): 
   }
 }
 
-/** Preparation must roll back before retry; PostgreSQL 16 falls back to an idle transaction guard. */
+/** Preparation must roll back before the worker's hard deadline. */
 async function configureDispatchTimeouts(tx: DbTransaction): Promise<void> {
   await tx.execute(sql`
     SELECT
       set_config('statement_timeout', ${`${FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS}ms`}, true),
       set_config('lock_timeout', ${`${FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS}ms`}, true),
       set_config(
-        case when current_setting('transaction_timeout', true) is null
-          then 'idle_in_transaction_session_timeout'
-          else 'transaction_timeout'
-        end,
+        'transaction_timeout',
         ${`${FILE_SEARCH_DISPATCH_TRANSACTION_TIMEOUT_MS}ms`},
         true
       )

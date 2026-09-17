@@ -90,9 +90,7 @@ describe('workspace file search dispatch deadlines', () => {
     expect(guards).toContain('10000ms')
     expect(guards).toContain("set_config('lock_timeout', ")
     expect(guards).toContain('2000ms')
-    expect(guards).toContain("current_setting('transaction_timeout', true) is null")
-    expect(guards).toContain("then 'idle_in_transaction_session_timeout'")
-    expect(guards).toContain("else 'transaction_timeout'")
+    expect(guards).toContain("'transaction_timeout'")
     expect(guards).toContain('20000ms')
     expect(JSON.stringify(dbChainMockFns.execute.mock.calls[1][0])).toContain(
       'pg_try_advisory_xact_lock'

@@ -141,16 +141,6 @@ jobs:
           KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
         run: bunx vitest run --mode integration lib/workspace-files/search/dispatcher.integration.ts
 
-      - name: Verify file search dispatch deadlines on PostgreSQL 16
-        if: matrix.provision == 'push'
-        working-directory: apps/sim
-        env:
-          TZ: America/Los_Angeles
-          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/sim_acl_test_dispatch
-        run: |
-          bun -e 'import postgres from "postgres"; const url = new URL(process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL); const database = url.pathname.slice(1); url.pathname = "/postgres"; const sql = postgres(url.toString()); await sql`CREATE DATABASE ${sql(database)}`; await sql.end()'
-          bunx vitest run --mode integration lib/workspace-files/search/dispatcher.integration.ts
-
       - name: Verify SCIM and administration over real HTTP
         working-directory: apps/sim
         env:
