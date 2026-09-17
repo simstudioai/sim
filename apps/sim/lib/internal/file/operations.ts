@@ -46,7 +46,6 @@ import type {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
-  mayReadUnrecordedWorkspaceFile,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
@@ -620,7 +619,6 @@ export async function getFileContentProvenance(
     }
     const provenance = await readFileSourceSecretProvenance(principal, workspaceId, source.identity)
     signal?.throwIfAborted()
-    if (provenance.status === 'unrecorded' && mayReadUnrecordedWorkspaceFile(workspaceId)) continue
     if (provenance.status !== 'exact' || (source.opaque && provenance.entries.length > 0)) {
       accumulator.markIncomplete('workspace-file-provenance-unknown')
       continue

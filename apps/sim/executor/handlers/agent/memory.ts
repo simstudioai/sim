@@ -11,10 +11,6 @@ import {
   importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import {
-  isDurableSecretProvenanceEnforced,
-  reportUnrecordedDurableProvenance,
-} from '@/lib/execution/durable-secret-provenance-enforcement'
 import { mergeFileKeys } from '@/lib/execution/payloads/access-keys'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { lockMemoryConversationInTx } from '@/lib/memory/locks'
@@ -101,12 +97,8 @@ export class Memory {
       const staged = new ResolvedSecretTraceRegistry([], scope, { staged: true })
       staged.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
       includeRecovered =
-        (await importDurableSecretProvenance(
-          staged,
-          selection.select(messages, true),
-          messages,
-          'memory'
-        )) && staged.getModelEgressSnapshot().complete
+        (await importDurableSecretProvenance(staged, selection.select(messages, true), messages)) &&
+        staged.getModelEgressSnapshot().complete
       if (includeRecovered) {
         for (const message of messages) {
           const stagedMessage = new ResolvedSecretTraceRegistry([], scope, { staged: true })
@@ -114,8 +106,7 @@ export class Memory {
             !(await importDurableSecretProvenance(
               stagedMessage,
               selection.select([message], true),
-              message,
-              'memory'
+              message
             )) ||
             !stagedMessage.getModelEgressSnapshot().complete
           ) {
@@ -146,31 +137,15 @@ export class Memory {
     const selectProvenance = (values: readonly unknown[]) =>
       selection.select(values, includeRecovered)
     const selectedProvenance = selectProvenance(messages)
-    /**
-     * Unrecorded provenance is checked through the same policy the shared import uses, so stored
-     * memory written by a run that could not vouch does not permanently refuse every later turn.
-     */
-    let refuseStoredProvenance: boolean
-    if (selectedProvenance.status === 'unknown') {
-      refuseStoredProvenance = isDurableSecretProvenanceEnforced('memory')
-      if (!refuseStoredProvenance) {
-        reportUnrecordedDurableProvenance({
-          surface: 'memory',
-          cause: 'stored-memory-provenance-unknown',
-          ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
-        })
-      }
-    } else {
-      refuseStoredProvenance =
-        (selectedProvenance.entries.length > 0 && !ctx.resolvedSecretTraceRegistry) ||
-        (ctx.resolvedSecretTraceRegistry !== undefined &&
-          !(await importDurableSecretProvenance(
-            ctx.resolvedSecretTraceRegistry,
-            selectedProvenance,
-            messages,
-            'memory'
-          )))
-    }
+    const refuseStoredProvenance =
+      selectedProvenance.status === 'unknown' ||
+      (selectedProvenance.entries.length > 0 && !ctx.resolvedSecretTraceRegistry) ||
+      (ctx.resolvedSecretTraceRegistry !== undefined &&
+        !(await importDurableSecretProvenance(
+          ctx.resolvedSecretTraceRegistry,
+          selectedProvenance,
+          messages
+        )))
     if (refuseStoredProvenance) {
       refuseResolvedSecretProjection({
         site: 'memory.storedProvenanceImport',
@@ -187,14 +162,7 @@ export class Memory {
           [],
           ctx.resolvedSecretTraceRegistry?.exportProvenance().scope
         )
-        if (
-          !(await importDurableSecretProvenance(
-            modelRegistry,
-            messageProvenance,
-            message,
-            'memory'
-          ))
-        ) {
+        if (!(await importDurableSecretProvenance(modelRegistry, messageProvenance, message))) {
           refuseResolvedSecretProjection({
             site: 'memory.messageProvenanceImport',
             message: MEMORY_CONTENT_REFUSAL,

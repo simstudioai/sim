@@ -1,11 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { DurableSecretProvenanceEntry } from '@sim/db/schema'
 import {
-  type DurableSecretProvenanceSurface,
-  isDurableSecretProvenanceEnforced,
-  reportUnrecordedDurableProvenance,
-} from '@/lib/execution/durable-secret-provenance-enforcement'
-import {
   isPrivateSecretProvenanceBundleV1,
   type PrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
@@ -205,35 +200,13 @@ export function filterDurableSecretProvenanceBySourceValues(
   return entries ? { status: 'exact', entries } : { status: 'unknown' }
 }
 
-/**
- * Imports durable entries into a model-bound registry, preserving source-scope anonymity.
- *
- * `surface` selects the enforcement policy for provenance nobody recorded. Omitting it enforces,
- * which is the right default for a caller that has not been reviewed against
- * {@link isDurableSecretProvenanceEnforced} yet.
- */
+/** Imports exact durable entries into a model-bound registry, preserving source-scope anonymity. */
 export async function importDurableSecretProvenance(
   registry: ResolvedSecretTraceRegistry,
   provenance: DurableSecretProvenance,
-  value?: unknown,
-  surface?: DurableSecretProvenanceSurface,
-  /**
-   * Set by a caller that reports the whole read itself.
-   *
-   * This function sees one record and knows no workspace, so its report can only ever be a log
-   * line, one per record. A caller reading a page can say the same thing once, with the workspace
-   * and the count — which is the entry that reaches the people who own the secrets. Both reporting
-   * would double-count the same event at two different granularities.
-   */
-  options: { reportUnrecorded?: boolean } = {}
+  value?: unknown
 ): Promise<boolean> {
   if (provenance.status === 'unknown') {
-    if (surface && !isDurableSecretProvenanceEnforced(surface)) {
-      if (options.reportUnrecorded !== false) {
-        reportUnrecordedDurableProvenance({ surface, cause: 'durable-provenance-unknown' })
-      }
-      return true
-    }
     registry.markIncomplete('durable-provenance-unknown')
     return false
   }

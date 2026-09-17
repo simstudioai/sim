@@ -6,20 +6,12 @@ import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnforced, mockReport, mockError } = vi.hoisted(() => ({
-  mockIsEnforced: vi.fn(() => false),
-  mockReport: vi.fn(),
+const { mockError } = vi.hoisted(() => ({
   mockError: vi.fn(),
 }))
 
 vi.mock('@sim/logger', () => ({
   createLogger: () => ({ error: mockError, warn: vi.fn() }),
-}))
-
-vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
-  DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge'],
-  isDurableSecretProvenanceEnforced: mockIsEnforced,
-  reportUnrecordedDurableProvenance: mockReport,
 }))
 
 import { PROVENANCE_MAX_SERIALIZED_BYTES } from '@/lib/execution/provenance-limits'
@@ -65,7 +57,6 @@ describe('table row secret provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockIsEnforced.mockReturnValue(false)
   })
 
   it('checks a version-pinned table with one aggregate rather than loading its rows', async () => {
@@ -99,7 +90,6 @@ describe('table row secret provenance', () => {
     ).resolves.toBe('unsafe-provenance')
 
     expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
-    expect(mockReport).not.toHaveBeenCalled()
   })
 
   it('rejects a snapshot when the table changes during the safety check', async () => {
@@ -114,35 +104,21 @@ describe('table row secret provenance', () => {
         rowsVersion: 7,
       })
     ).resolves.toBe('stale')
-    expect(mockReport).not.toHaveBeenCalled()
   })
 
-  it.each([false, true])(
-    'applies the table-row enforcement policy to snapshot absences (%s)',
-    async (enforced) => {
-      mockIsEnforced.mockReturnValue(enforced)
-      queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
-      queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
-      queueTableRows(userTableRows, [{ unsafeCount: '0', unrecordedCount: '3' }])
+  it('refuses snapshot provenance absences', async () => {
+    queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
+    queueTableRows(userTableDefinitions, [{ rowsVersion: 7 }])
+    queueTableRows(userTableRows, [{ unsafeCount: '0', unrecordedCount: '3' }])
 
-      await expect(
-        getTableSnapshotModelMountSafety({
-          tableId: 'table-1',
-          workspaceId: 'workspace-1',
-          rowsVersion: 7,
-        })
-      ).resolves.toBe(enforced ? 'unsafe-provenance' : 'safe')
-
-      if (enforced) expect(mockReport).not.toHaveBeenCalled()
-      else
-        expect(mockReport).toHaveBeenCalledExactlyOnceWith({
-          surface: 'table-row',
-          cause: 'row-sidecar-not-exact',
-          affectedCount: 3,
-          workspaceId: 'workspace-1',
-        })
-    }
-  )
+    await expect(
+      getTableSnapshotModelMountSafety({
+        tableId: 'table-1',
+        workspaceId: 'workspace-1',
+        rowsVersion: 7,
+      })
+    ).resolves.toBe('unsafe-provenance')
+  })
 
   it('keeps untouched legacy rows readable with exact-empty provenance', async () => {
     queueTableRows(userTableRows, [
@@ -371,8 +347,7 @@ describe('table row secret provenance', () => {
     })
   })
 
-  it('fails closed for stale tracked rows once the table-row surface is enforced', async () => {
-    mockIsEnforced.mockReturnValue(true)
+  it('refuses stale tracked rows', async () => {
     queueTableRows(userTableRows, [
       {
         id: 'tracked-row',
@@ -398,11 +373,7 @@ describe('table row secret provenance', () => {
     })
   })
 
-  /**
-   * The shape that broke production: one unrecorded row in a page voided the whole read, and a
-   * page is what a `query_rows` block hands downstream, so every later model boundary refused.
-   */
-  it('keeps a page readable when one row is unrecorded, without dropping its siblings', async () => {
+  it('refuses a page containing an unknown tracked row', async () => {
     queueTableRows(userTableRows, [
       {
         id: 'unknown-row',
@@ -442,16 +413,9 @@ describe('table row secret provenance', () => {
       )
     ).resolves.toEqual({
       version: 1,
-      complete: true,
-      entries: [{ encryptedValue: 'encrypted-local', name: 'LOCAL_SECRET' }],
+      complete: false,
+      entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-    })
-    expect(mockReport).toHaveBeenCalledWith({
-      surface: 'table-row',
-      cause: 'row-sidecar-not-exact',
-      affectedCount: 1,
-      workspaceId: 'workspace-1',
-      actorUserId: 'user-1',
     })
   })
 

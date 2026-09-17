@@ -13,11 +13,7 @@ import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-sc
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
-import {
-  isDurableSecretProvenanceEnforced,
-  reportDurableSecretProvenanceRefusal,
-  reportUnrecordedDurableProvenance,
-} from '@/lib/execution/durable-secret-provenance-enforcement'
+import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
@@ -550,8 +546,6 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
         status: rerankerStatus,
         candidateCount,
         resultCount: rows.length,
-        unrecordedChunkCount: provenanceSnapshot?.unrecordedCount ?? 0,
-        enforced: isDurableSecretProvenanceEnforced('knowledge'),
         workspaceId: context.workspaceId,
       })
     } else if (useReranker) {
@@ -670,8 +664,6 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
         }
       })
     if (registry && provenanceSnapshot) {
-      const knowledgeEnforced = isDurableSecretProvenanceEnforced('knowledge')
-      let unrecordedCount = provenanceSnapshot.unrecordedCount
       for (const [documentId, document] of Object.entries(provenanceSnapshot.documentMetadata)) {
         const renderedMetadata = results
           .filter((result) => result.documentId === documentId)
@@ -681,35 +673,13 @@ const searchKnowledgeUseCase = defineAuthorizedKnowledgeUseCase({
             metadata: result.metadata,
           }))
         if (renderedMetadata.length === 0) continue
-        if (document.provenance.status === 'unknown' && !knowledgeEnforced) unrecordedCount += 1
         if (
           !(await measureSearchStage('metadata_provenance', () =>
-            importDurableSecretProvenance(
-              registry,
-              document.provenance,
-              renderedMetadata,
-              'knowledge',
-              { reportUnrecorded: false }
-            )
+            importDurableSecretProvenance(registry, document.provenance, renderedMetadata)
           ))
         ) {
           registry.markIncomplete('knowledge-result-provenance-unavailable')
         }
-      }
-      /**
-       * One entry for the whole search — chunks and rendered metadata are one read. Skipped when
-       * the registry latched: a latched read never reaches a model, and this entry exists to say a
-       * fail-open read went ahead unvouched.
-       */
-      if (unrecordedCount > 0 && !registry.isPermanentlyIncomplete()) {
-        reportUnrecordedDurableProvenance({
-          surface: 'knowledge',
-          cause: 'durable-provenance-unknown',
-          affectedCount: unrecordedCount,
-          workspaceId: context.workspaceId,
-
-          actorUserId: userId,
-        })
       }
     }
     annotateSearchDiagnostics({ resultCount: results.length })

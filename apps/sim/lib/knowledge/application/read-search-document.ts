@@ -115,12 +115,10 @@ export const readSearchDocument = defineAuthorizedKnowledgeUseCase({
     const metadata = provenance.documentMetadata[context.documentId]
     if (
       metadata &&
-      !(await importDurableSecretProvenance(
-        input.resultSecretRegistry,
-        metadata.provenance,
-        { documentName: metadata.filename, sourceUrl: metadata.sourceUrl },
-        'knowledge'
-      ))
+      !(await importDurableSecretProvenance(input.resultSecretRegistry, metadata.provenance, {
+        documentName: metadata.filename,
+        sourceUrl: metadata.sourceUrl,
+      }))
     ) {
       throw new Error('Knowledge document provenance is unavailable')
     }

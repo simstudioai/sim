@@ -10,7 +10,6 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 const mocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
   resolvePermission: vi.fn(),
-  reportUnrecorded: vi.fn(),
   readBoundProvenance: vi.fn(),
 }))
 
@@ -28,11 +27,6 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: (value: unknown) => value,
-}))
-
-vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
-  isDurableSecretProvenanceEnforced: () => false,
-  reportUnrecordedDurableProvenance: mocks.reportUnrecorded,
 }))
 
 vi.mock('@/lib/memory/secret-provenance', () => ({
@@ -130,13 +124,6 @@ describe('Memory application use cases', () => {
       userId: BILLING_OWNER_ID,
       workspaceId: WORKSPACE_ID,
     })
-    expect(mocks.reportUnrecorded).toHaveBeenCalledWith({
-      surface: 'memory',
-      cause: 'durable-provenance-unknown',
-      affectedCount: 1,
-      workspaceId: WORKSPACE_ID,
-      actorUserId: BILLING_OWNER_ID,
-    })
   })
 
   it('rejects billing attribution outside the authorized canonical workspace', async () => {
@@ -170,6 +157,5 @@ describe('Memory application use cases', () => {
       resolveBillingAttribution.mock.invocationCallOrder[0]
     )
     expect(mocks.readBoundProvenance).not.toHaveBeenCalled()
-    expect(mocks.reportUnrecorded).not.toHaveBeenCalled()
   })
 })

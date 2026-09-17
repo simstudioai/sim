@@ -1,4 +1,3 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
 import { and, eq, isNull, lte, sql } from 'drizzle-orm'
@@ -161,13 +160,9 @@ export const readIndexedKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       connectorType: doc.connectorType,
       processingStatus: doc.processingStatus,
     }
-    const provenanceContext = {
-      registry: input.resultSecretRegistry,
-      actorUserId: resolvePrincipalSubjectUserId(principal) ?? undefined,
-    }
     if (
       !(await importKnowledgePersistedResponseSecretProvenance({
-        ...provenanceContext,
+        registry: input.resultSecretRegistry,
         documents: [{ id: doc.id, source: createKnowledgeDocumentSourceValue(doc), value }],
       }))
     ) {
@@ -221,7 +216,7 @@ export const readIndexedKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     const chunks = page.chunks.map(({ id, chunkIndex, content }) => ({ id, chunkIndex, content }))
     if (
       !(await importKnowledgePersistedResponseSecretProvenance({
-        ...provenanceContext,
+        registry: input.resultSecretRegistry,
         chunks: chunks.map((chunk) => ({ ...chunk, documentId, value: chunk })),
       }))
     ) {
