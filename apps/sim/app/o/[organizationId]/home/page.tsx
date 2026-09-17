@@ -4,8 +4,8 @@ import { notFound, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import OrganizationHomeLoading from '@/app/o/[organizationId]/home/loading'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
+import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 
 export const metadata: Metadata = {
   title: 'Home',
@@ -25,7 +25,7 @@ export default async function OrganizationHomePage({
     redirect(WORKSPACE_SETTINGS_PATH)
 
   return (
-    <Suspense fallback={<OrganizationHomeLoading />}>
+    <Suspense fallback={<HomeFallback />}>
       <OrganizationHome userName={session.user.name} />
     </Suspense>
   )
