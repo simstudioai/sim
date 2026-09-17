@@ -3,7 +3,10 @@ import { normalizeEmail } from '@sim/utils/string'
 import { z } from 'zod'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
-import type { GoogleCompanyCursorAdapter } from '@/connectors/google-workspace/company-work'
+import {
+  type GoogleCompanyCursorAdapter,
+  googleCompanyUserContextSchema,
+} from '@/connectors/google-workspace/company-work'
 import {
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE,
   type GoogleWorkspaceUser,
@@ -29,15 +32,7 @@ const MAX_PROVIDER_CURSOR_BYTES = 256 * 1024
 const MAX_PAGE_DOCUMENTS = 2500
 const cursorSchema = z.object({
   provider: z.enum(['gmail', 'google_calendar']),
-  users: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(256),
-        email: z.string().email().max(254),
-        customerId: z.string().min(1).max(256),
-      })
-    )
-    .max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
+  users: z.array(googleCompanyUserContextSchema).max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
   nextUsersPageToken: z.string().min(1).max(8192).optional(),
   providerCursor: z.string().min(1).max(MAX_PROVIDER_CURSOR_BYTES).optional(),
   listingFailures: listingFailuresSchema.optional(),

@@ -1,19 +1,21 @@
 /** @vitest-environment node */
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createGoogleCompanyScheduler,
-  type GoogleCompanyWorkChanges,
-  type GoogleCompanyWorkItem,
-  type GoogleCompanyWorkKind,
-  type GoogleCompanyWorkStore,
-} from '@/lib/knowledge/connectors/google-company-scheduler'
+import { createGoogleCompanyScheduler } from '@/lib/knowledge/connectors/google-company-scheduler'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
   runResumableListing,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
+import type {
+  ConnectorPartitionWorkChanges,
+  ConnectorPartitionWorkItem,
+  ConnectorPartitionWorkKind,
+  ConnectorPartitionWorkStore,
+} from '@/lib/knowledge/connectors/partition-work'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
+import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
 import type { GoogleWorkspaceUser } from '@/connectors/google-workspace/users'
 import { ConnectorSourceError } from '@/connectors/source-error'
 import type { ConnectorConfig, ExternalDocument, ExternalListingFailures } from '@/connectors/types'
@@ -34,7 +36,7 @@ const document: ExternalDocument = {
 function user(id: string): GoogleWorkspaceUser {
   return { id, email: `${id}@fixture.test`, customerId: 'customer', active: true }
 }
-interface FakeWork extends GoogleCompanyWorkItem {
+interface FakeWork extends ConnectorPartitionWorkItem<GoogleWorkspaceUser> {
   complete: boolean
   retryAt: Date
   served: number
@@ -45,10 +47,10 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
   let clock = new Date('2026-09-17T00:00:00Z')
   let served = 0
   const rows = new Map<string, FakeWork>()
-  const key = (id: string, kind: GoogleCompanyWorkKind) => `${id}:${kind}`
+  const key = (id: string, kind: ConnectorPartitionWorkKind) => `${id}:${kind}`
   const incomplete = (row: FakeWork) =>
     row.kind === 'content' ? !row.complete : Boolean(row.cursor || row.failure)
-  const store: GoogleCompanyWorkStore = {
+  const store: ConnectorPartitionWorkStore<GoogleWorkspaceUser> = {
     get: async (id, kind) => rows.get(key(id, kind)) ?? null,
     next: async (kind, now) =>
       [...rows.values()]
@@ -59,9 +61,10 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
             (kind !== 'content' ||
               !row.complete ||
               (syncIntervalMinutes > 0 && [...rows.values()].some(incomplete))) &&
-            (kind === 'content' || (rows.get(key(row.user.id, 'content'))?.served ?? 0) > 0)
+            (kind === 'content' || (rows.get(key(row.partitionKey, 'content'))?.served ?? 0) > 0)
         )
-        .sort((a, b) => a.served - b.served || a.user.id.localeCompare(b.user.id))[0] ?? null,
+        .sort((a, b) => a.served - b.served || a.partitionKey.localeCompare(b.partitionKey))[0] ??
+      null,
     remaining: async () => {
       const remaining = [...rows.values()].filter(incomplete)
       const retryable = [...rows.values()].filter(
@@ -69,7 +72,7 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
       )
       const failed = [...rows.values()].filter((row) => row.failure)
       return {
-        count: new Set(remaining.map((row) => row.user.id)).size,
+        count: new Set(remaining.map((row) => row.partitionKey)).size,
         retryAt: remaining.length
           ? (retryable.sort((a, b) => +a.retryAt - +b.retryAt)[0]?.retryAt ?? null)
           : null,
@@ -84,11 +87,12 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
       }
     },
   }
-  const apply = (changes: GoogleCompanyWorkChanges) => {
+  const apply = (changes: ConnectorPartitionWorkChanges) => {
     for (const item of changes.enqueue ?? []) {
-      if (rows.has(key(item.user.id, 'content'))) continue
-      rows.set(key(item.user.id, 'content'), {
+      if (rows.has(key(item.partitionKey, 'content'))) continue
+      rows.set(key(item.partitionKey, 'content'), {
         ...item,
+        context: { ...googleCompanyUserContextSchema.parse(item.context), active: true },
         kind: 'content',
         attempts: 0,
         hasFailure: false,
@@ -96,8 +100,9 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
         retryAt: clock,
         served: 0,
       })
-      rows.set(key(item.user.id, 'permissions'), {
-        user: item.user,
+      rows.set(key(item.partitionKey, 'permissions'), {
+        partitionKey: item.partitionKey,
+        context: { ...googleCompanyUserContextSchema.parse(item.context), active: true },
         kind: 'permissions',
         attempts: 0,
         hasFailure: false,
@@ -107,13 +112,13 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
       })
     }
     if (changes.pin)
-      Object.assign(rows.get(key(changes.pin.userId, changes.pin.kind))!, {
+      Object.assign(rows.get(key(changes.pin.partitionKey, changes.pin.kind))!, {
         cursor: changes.pin.cursor,
         permissionStartedAt: changes.pin.permissionStartedAt,
       })
     if (changes.update) {
       const change = changes.update
-      Object.assign(rows.get(key(change.userId, change.kind))!, {
+      Object.assign(rows.get(key(change.partitionKey, change.kind))!, {
         cursor: change.cursor ?? undefined,
         complete: change.kind === 'content' && change.completed,
         retryAt: change.retryAt,
@@ -123,9 +128,9 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
         permissionStartedAt: change.permissionStartedAt ?? undefined,
       })
       for (const kind of ['content', 'permissions'] as const) {
-        rows.get(key(change.userId, kind))!.hasFailure = Boolean(
-          rows.get(key(change.userId, 'content'))?.failure ||
-            rows.get(key(change.userId, 'permissions'))?.failure
+        rows.get(key(change.partitionKey, kind))!.hasFailure = Boolean(
+          rows.get(key(change.partitionKey, 'content'))?.failure ||
+            rows.get(key(change.partitionKey, 'permissions'))?.failure
         )
       }
     }
@@ -271,20 +276,58 @@ describe('durable Google company user scheduling', () => {
     expect(f.saved().resumeAt).toBe('2026-09-17T00:05:00.000Z')
   })
 
-  it('adopts a legacy cursor without resetting the active provider page', async () => {
-    mocks.directory.mockResolvedValue({ users: [user('a'), user('z')] })
-    const f = fixture()
-    const legacy = `google-workspace:v1:${Buffer.from(JSON.stringify({ provider: 'google_calendar', users: [user('a')], providerCursor: 'existing-page-91', nextUsersPageToken: 'old-directory' })).toString('base64url')}`
-    f.setSaved({ ...f.saved(), cursor: legacy, listedCount: 10 })
-    await f.step(3)
-    expect(f.list.mock.calls[0]?.[2]).toContain('google-workspace:v1:')
-    const resume = JSON.parse(
-      Buffer.from(f.list.mock.calls[0]![2]!.split(':v1:')[1], 'base64url').toString()
-    )
-    expect(resume.providerCursor).toBe('existing-page-91')
-    expect(f.saved().listedCount).toBe(11)
-    expect(mocks.directory.mock.calls[0]?.[1]).toBeUndefined()
-  })
+  it.each([
+    {
+      provider: 'gmail',
+      prefix: 'google-workspace:v1:',
+      state: { provider: 'gmail', providerCursor: 'existing-page-91' },
+    },
+    {
+      provider: 'google_calendar',
+      prefix: 'google-workspace:v1:',
+      state: { provider: 'google_calendar', providerCursor: 'existing-page-91' },
+    },
+    {
+      provider: 'google_drive',
+      prefix: 'gdrive-company:v1:',
+      state: { scope: { kind: 'user', cursor: 'existing-page-91' } },
+    },
+    {
+      provider: 'google_drive',
+      prefix: 'gdrive-company:v1:',
+      state: { scope: { kind: 'drives', pageToken: 'existing-drives-page-91' } },
+    },
+    {
+      provider: 'google_drive',
+      prefix: 'gdrive-company:v1:',
+      state: {
+        scope: {
+          kind: 'drive',
+          driveIds: ['shared-drive'],
+          nextPageToken: 'next-drives-page',
+          cursor: 'existing-page-91',
+        },
+      },
+    },
+  ])(
+    'adopts $provider legacy state $state without resetting the active page',
+    async ({ provider, prefix, state }) => {
+      mocks.directory.mockResolvedValue({ users: [user('a'), user('z')] })
+      const f = fixture(provider)
+      const legacy = `${prefix}${Buffer.from(JSON.stringify({ ...state, users: [user('a')], nextUsersPageToken: 'old-directory' })).toString('base64url')}`
+      const generationId = f.saved().generationId
+      f.setSaved({ ...f.saved(), cursor: legacy, listedCount: 10 })
+      await f.step(3)
+      expect(f.list.mock.calls[0]?.[2]).toContain(prefix)
+      const resume = JSON.parse(
+        Buffer.from(f.list.mock.calls[0]![2]!.slice(prefix.length), 'base64url').toString()
+      )
+      expect(resume).toMatchObject(state)
+      expect(resume.users).toEqual([{ id: 'a', email: 'a@fixture.test', customerId: 'customer' }])
+      expect(f.saved()).toMatchObject({ generationId, listedCount: 11 })
+      expect(mocks.directory.mock.calls[0]?.[1]).toBeUndefined()
+    }
+  )
 
   it('pins the provider snapshot before processing and replays it after interruption', async () => {
     mocks.directory.mockResolvedValue({ users: [user('a')] })

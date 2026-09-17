@@ -2490,8 +2490,8 @@
     {
       "idx": 356,
       "version": "7",
-      "when": 1789668694580,
-      "tag": "0356_google_company_user_progress",
+      "when": 1789672641125,
+      "tag": "0356_connector_partition_progress",
       "breakpoints": true
     }
   ]

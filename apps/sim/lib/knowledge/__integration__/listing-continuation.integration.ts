@@ -11,8 +11,8 @@ import {
   document,
   embedding,
   knowledgeConnector,
-  knowledgeConnectorGoogleUser,
   knowledgeConnectorMember,
+  knowledgeConnectorPartition,
   knowledgeConnectorSyncLog,
   knowledgeDocumentObservation,
   resourcePolicy,
@@ -470,12 +470,11 @@ describe('durable source and member cycles in PostgreSQL', () => {
       processingStatus: 'completed',
       acl: [],
     })
-    await db.insert(knowledgeConnectorGoogleUser).values({
+    await db.insert(knowledgeConnectorPartition).values({
       connectorId,
       generationId: checkpoint.generationId,
-      userId: 'google-user',
-      email: 'google-user@fixture.test',
-      customerId: 'customer',
+      partitionKey: 'google-user',
+      context: { id: 'google-user', email: 'google-user@fixture.test', customerId: 'customer' },
       cursor: 'saved-content-page-91',
       lastServedAt: new Date(checkpoint.startedAt),
       permissionRetryAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
@@ -536,8 +535,8 @@ describe('durable source and member cycles in PostgreSQL', () => {
     expect(syncResult.docsUpdated).toBe(1)
     const [userProgress] = await db
       .select()
-      .from(knowledgeConnectorGoogleUser)
-      .where(eq(knowledgeConnectorGoogleUser.connectorId, connectorId))
+      .from(knowledgeConnectorPartition)
+      .where(eq(knowledgeConnectorPartition.connectorId, connectorId))
     expect(userProgress).toMatchObject({
       generationId: checkpoint.generationId,
       cursor: null,

@@ -1,22 +1,26 @@
 import { db } from '@sim/db'
-import { knowledgeConnectorGoogleUser } from '@sim/db/schema'
+import { knowledgeConnectorPartition } from '@sim/db/schema'
 import { and, asc, eq, exists, isNotNull, lte, ne, or, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import type {
-  GoogleCompanyWorkChanges,
-  GoogleCompanyWorkItem,
-  GoogleCompanyWorkKind,
-  GoogleCompanyWorkStore,
-} from '@/lib/knowledge/connectors/google-company-scheduler'
+  ConnectorPartitionWorkChanges,
+  ConnectorPartitionWorkItem,
+  ConnectorPartitionWorkKind,
+  ConnectorPartitionWorkStore,
+} from '@/lib/knowledge/connectors/partition-work'
 import { listingFailuresSchema, MAX_LISTING_FAILURE_SAMPLES } from '@/connectors/listing-failures'
 
-const PERMISSION_REFRESH_MS = 12 * 60 * 60 * 1000
-type Row = typeof knowledgeConnectorGoogleUser.$inferSelect
-const work = knowledgeConnectorGoogleUser
+type Row = typeof knowledgeConnectorPartition.$inferSelect
+const work = knowledgeConnectorPartition
 
-function project(row: Row, kind: GoogleCompanyWorkKind): GoogleCompanyWorkItem {
+function project<Context>(
+  row: Row,
+  kind: ConnectorPartitionWorkKind,
+  parseContext: (value: unknown) => Context
+): ConnectorPartitionWorkItem<Context> {
   return {
-    user: { id: row.userId, email: row.email, customerId: row.customerId },
+    partitionKey: row.partitionKey,
+    context: parseContext(row.context),
     kind,
     cursor: (kind === 'content' ? row.cursor : row.permissionCursor) ?? undefined,
     attempts: kind === 'content' ? row.attempts : row.permissionAttempts,
@@ -26,11 +30,12 @@ function project(row: Row, kind: GoogleCompanyWorkKind): GoogleCompanyWorkItem {
 }
 
 /** The connector's existing lease is the sole writer lease; no extra worker concurrency is introduced. */
-export function googleCompanyWorkStore(
+export function connectorPartitionWorkStore<Context>(
   connectorId: string,
   generationId: string,
+  parseContext: (value: unknown) => Context,
   rescanCompleted = true
-): GoogleCompanyWorkStore {
+): ConnectorPartitionWorkStore<Context> {
   const scope = and(eq(work.connectorId, connectorId), eq(work.generationId, generationId))
   const contentIncomplete = ne(work.status, 'complete')
   const permissionsIncomplete = or(
@@ -39,20 +44,20 @@ export function googleCompanyWorkStore(
   )
   const incomplete = or(contentIncomplete, permissionsIncomplete)
   return {
-    async get(userId, kind) {
+    async get(partitionKey, kind) {
       const [row] = await db
         .select()
         .from(work)
-        .where(and(scope, eq(work.userId, userId)))
+        .where(and(scope, eq(work.partitionKey, partitionKey)))
         .limit(1)
-      return row ? project(row, kind) : null
+      return row ? project(row, kind, parseContext) : null
     },
     async next(kind, now) {
-      /** A completed sweep must reach EOF instead of starting another overdue user sweep. */
+      /** A completed sweep must reach EOF instead of starting another overdue partition sweep. */
       const contentEligible = rescanCompleted
         ? or(
             contentIncomplete,
-            exists(db.select({ id: work.userId }).from(work).where(and(scope, incomplete)))
+            exists(db.select({ id: work.partitionKey }).from(work).where(and(scope, incomplete)))
           )
         : contentIncomplete
       const [row] = await db
@@ -68,10 +73,10 @@ export function googleCompanyWorkStore(
         )
         .orderBy(
           sql`${kind === 'content' ? work.lastServedAt : work.permissionLastServedAt} ASC NULLS FIRST`,
-          asc(work.userId)
+          asc(work.partitionKey)
         )
         .limit(1)
-      return row ? project(row, kind) : null
+      return row ? project(row, kind, parseContext) : null
     },
     async remaining() {
       const [counts] = await db
@@ -90,7 +95,7 @@ export function googleCompanyWorkStore(
             .select({ failure: work.failure, permissionFailure: work.permissionFailure })
             .from(work)
             .where(and(scope, or(isNotNull(work.failure), isNotNull(work.permissionFailure))))
-            .orderBy(asc(work.userId))
+            .orderBy(asc(work.partitionKey))
             .limit(MAX_LISTING_FAILURE_SAMPLES)
         : []
       return {
@@ -110,12 +115,12 @@ export function googleCompanyWorkStore(
 }
 
 /** Called in the same transaction as the listing checkpoint, after that page's durable work. */
-export async function commitGoogleCompanyWork(
+export async function commitConnectorPartitionWork(
   tx: DbOrTx,
   connectorId: string,
   generationId: string,
-  changes: GoogleCompanyWorkChanges,
-  generationStartedAt: Date
+  changes: ConnectorPartitionWorkChanges,
+  permissionRefreshAt: Date
 ): Promise<void> {
   const scope = and(eq(work.connectorId, connectorId), eq(work.generationId, generationId))
   if (changes.enqueue?.length) {
@@ -123,23 +128,21 @@ export async function commitGoogleCompanyWork(
     await tx
       .insert(work)
       .values(
-        changes.enqueue.map(({ user, cursor }) => ({
+        changes.enqueue.map(({ partitionKey, context, cursor }) => ({
           connectorId,
           generationId,
-          userId: user.id,
-          email: user.email,
-          customerId: user.customerId,
+          partitionKey,
+          context,
           cursor: cursor ?? null,
-          permissionRetryAt: new Date(generationStartedAt.getTime() + PERMISSION_REFRESH_MS),
+          permissionRetryAt: permissionRefreshAt,
         }))
       )
       /** Content restarts must not postpone the earlier deadline for refreshing stored permissions. */
       .onConflictDoUpdate({
-        target: [work.connectorId, work.userId],
+        target: [work.connectorId, work.partitionKey],
         set: {
           generationId,
-          email: sql`excluded.email`,
-          customerId: sql`excluded.customer_id`,
+          context: sql`excluded.context`,
           cursor: sql`excluded.cursor`,
           status: 'pending',
           attempts: 0,
@@ -163,7 +166,7 @@ export async function commitGoogleCompanyWork(
           ? { cursor: pin.cursor }
           : { permissionCursor: pin.cursor, permissionStartedAt: pin.permissionStartedAt }
       )
-      .where(and(scope, eq(work.userId, pin.userId)))
+      .where(and(scope, eq(work.partitionKey, pin.partitionKey)))
   }
   if (changes.update) {
     const update = changes.update
@@ -189,6 +192,6 @@ export async function commitGoogleCompanyWork(
               permissionStartedAt: update.permissionStartedAt,
             }
       )
-      .where(and(scope, eq(work.userId, update.userId)))
+      .where(and(scope, eq(work.partitionKey, update.partitionKey)))
   }
 }

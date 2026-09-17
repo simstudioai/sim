@@ -9,18 +9,19 @@ import {
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   createGoogleCompanyScheduler,
+  GOOGLE_COMPANY_PERMISSION_REFRESH_MS,
   isGoogleCompanySource,
 } from '@/lib/knowledge/connectors/google-company-scheduler'
-import {
-  commitGoogleCompanyWork,
-  googleCompanyWorkStore,
-} from '@/lib/knowledge/connectors/google-company-store'
 import {
   beginListingCheckpoint,
   type ListingCheckpoint,
   readListingCheckpoint,
   runResumableListing,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
+import {
+  commitConnectorPartitionWork,
+  connectorPartitionWorkStore,
+} from '@/lib/knowledge/connectors/partition-store'
 import {
   SOURCE_CONTENT_ERROR,
   SOURCE_PERMISSION_ERROR,
@@ -45,6 +46,7 @@ import {
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
+import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
 import type { ConnectorConfig, ExternalDocument, SyncResult } from '@/connectors/types'
 
 interface ContentPassInput {
@@ -120,9 +122,10 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     input.connector.syncIntervalMinutes ?? SIM_SEARCH_SYNC_INTERVAL_MINUTES
   )
   const companyStore = () =>
-    googleCompanyWorkStore(
+    connectorPartitionWorkStore(
       input.connectorId,
       String(input.syncContext.syncRunId),
+      googleCompanyUserContextSchema.parse,
       syncIntervalMinutes > 0
     )
   const company = isGoogleCompanySource(input.connector.connectorType, input.syncContext)
@@ -293,12 +296,12 @@ export async function runConnectorContentPass(input: ContentPassInput) {
       await withLease(async (tx) => {
         const changes = company?.changesFor(next.cursor)
         if (changes)
-          await commitGoogleCompanyWork(
+          await commitConnectorPartitionWork(
             tx,
             input.connectorId,
             next.generationId,
             changes,
-            new Date(next.startedAt)
+            new Date(new Date(next.startedAt).getTime() + GOOGLE_COMPANY_PERMISSION_REFRESH_MS)
           )
         await tx
           .update(knowledgeConnector)

@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import type {
+  ConnectorPartitionWorkChanges,
+  ConnectorPartitionWorkStore,
+} from '@/lib/knowledge/connectors/partition-work'
 import { googleDriveCompanyCursorAdapter } from '@/connectors/google-drive/company-crawl'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
@@ -20,7 +24,7 @@ import type {
 } from '@/connectors/types'
 
 const CURSOR_PREFIX = 'google-company-work:v2:'
-const PERMISSION_REFRESH_MS = 12 * 60 * 60 * 1000
+export const GOOGLE_COMPANY_PERMISSION_REFRESH_MS = 12 * 60 * 60 * 1000
 const DIRECTORY_REFRESH_MS = 60 * 60 * 1000
 const MAX_UNRESOLVED_FAILURES_PER_PASS = 3
 const cursorSchema = z.object({
@@ -35,43 +39,7 @@ const cursorSchema = z.object({
     .optional(),
 })
 type CompanyWorkCursor = z.infer<typeof cursorSchema>
-export type GoogleCompanyWorkKind = 'content' | 'permissions'
 type ListingFailure = ExternalListingFailures['samples'][number]
-
-export interface GoogleCompanyWorkItem extends GoogleCompanyUserWork {
-  kind: GoogleCompanyWorkKind
-  attempts: number
-  hasFailure: boolean
-  permissionStartedAt?: Date
-}
-
-export interface GoogleCompanyWorkUpdate {
-  userId: string
-  kind: GoogleCompanyWorkKind
-  cursor: string | null
-  completed: boolean
-  retryAt: Date
-  attempts: number
-  failure: ListingFailure | null
-  permissionStartedAt?: Date | null
-}
-
-/** All writes are supplied to the caller's lease-guarded checkpoint transaction. */
-export interface GoogleCompanyWorkChanges {
-  enqueue?: GoogleCompanyUserWork[]
-  pin?: { userId: string; kind: GoogleCompanyWorkKind; cursor: string; permissionStartedAt?: Date }
-  update?: GoogleCompanyWorkUpdate
-}
-
-export interface GoogleCompanyWorkStore {
-  get: (userId: string, kind: GoogleCompanyWorkKind) => Promise<GoogleCompanyWorkItem | null>
-  next: (kind: GoogleCompanyWorkKind, now: Date) => Promise<GoogleCompanyWorkItem | null>
-  remaining: () => Promise<{
-    count: number
-    retryAt: Date | null
-    failures?: ExternalListingFailures
-  }>
-}
 
 function adapterFor(provider: string): GoogleCompanyCursorAdapter | null {
   if (provider === 'google_drive') return googleDriveCompanyCursorAdapter
@@ -143,7 +111,7 @@ function deferredUserFailure(
 /** Durable fair scheduling adds no parallel provider or database work. */
 export function createGoogleCompanyScheduler(input: {
   provider: string
-  store: GoogleCompanyWorkStore
+  store: ConnectorPartitionWorkStore<GoogleCompanyUserWork['user']>
   listDocuments: ConnectorConfig['listDocuments']
   isListingCursorInvalidError?: ConnectorConfig['isListingCursorInvalidError']
   syncIntervalMinutes: number
@@ -152,7 +120,7 @@ export function createGoogleCompanyScheduler(input: {
   const adapter = adapterFor(input.provider)
   if (!adapter) throw new Error('Unsupported Google company provider')
   const now = input.now ?? (() => new Date())
-  const changes = new Map<string, GoogleCompanyWorkChanges>()
+  const changes = new Map<string, ConnectorPartitionWorkChanges>()
   let unresolvedFailures = 0
   let permissionStartedAt: Date | undefined
   const initial = (): CompanyWorkCursor => ({
@@ -161,7 +129,7 @@ export function createGoogleCompanyScheduler(input: {
     revision: 0,
     permissionTurn: false,
   })
-  const nextCursor = (state: CompanyWorkCursor, change: GoogleCompanyWorkChanges): string => {
+  const nextCursor = (state: CompanyWorkCursor, change: ConnectorPartitionWorkChanges): string => {
     const cursor = writeCursor({ ...state, active: undefined, revision: state.revision + 1 })
     changes.set(cursor, change)
     return cursor
@@ -179,7 +147,11 @@ export function createGoogleCompanyScheduler(input: {
       return {
         documents: [],
         hasMore: true,
-        nextCursor: nextCursor(initial(), { enqueue: adapter.resume(cursor) }),
+        nextCursor: nextCursor(initial(), {
+          enqueue: adapter
+            .resume(cursor)
+            .map(({ user, cursor }) => ({ partitionKey: user.id, context: user, cursor })),
+        }),
       }
     }
     let state = cursor ? readCursor(cursor) : initial()
@@ -231,7 +203,7 @@ export function createGoogleCompanyScheduler(input: {
           {
             enqueue: users.map(({ id, email, customerId }) => {
               const user = { id, email, customerId }
-              return { user, cursor: adapter.seed(user) }
+              return { partitionKey: user.id, context: user, cursor: adapter.seed(user) }
             }),
           }
         ),
@@ -274,7 +246,7 @@ export function createGoogleCompanyScheduler(input: {
     const active = {
       ...state,
       revision: state.revision + 1,
-      active: { userId: work.user.id, kind: work.kind },
+      active: { userId: work.partitionKey, kind: work.kind },
     }
     const currentCursor = writeCursor(active)
     const next = {
@@ -304,9 +276,9 @@ export function createGoogleCompanyScheduler(input: {
         hasMore: true,
         nextCursor: nextCursor(next, {
           update: {
-            userId: work.user.id,
+            partitionKey: work.partitionKey,
             kind: work.kind,
-            cursor: resetCursor ? adapter.seed(work.user) : (work.cursor ?? null),
+            cursor: resetCursor ? adapter.seed(work.context) : (work.cursor ?? null),
             completed: false,
             retryAt,
             attempts: work.attempts + 1,
@@ -329,25 +301,25 @@ export function createGoogleCompanyScheduler(input: {
       page = await input.listDocuments(
         accessToken,
         sourceConfig,
-        work.cursor ?? adapter.seed(work.user),
+        work.cursor ?? adapter.seed(work.context),
         syncContext
       )
     } catch (error) {
       signal?.throwIfAborted()
       if (input.isListingCursorInvalidError?.(error))
         return failed(
-          { scope: work.user.email, operation: 'google.user.cursor', reasons: [] },
+          { scope: work.context.email, operation: 'google.user.cursor', reasons: [] },
           false,
           true
         )
-      const failure = deferredUserFailure(error, work.user)
+      const failure = deferredUserFailure(error, work.context)
       if (!failure) throw error
       return failed(failure, true)
     }
     if (page.listingFailures)
       return failed(
         page.listingFailures.samples[0] ?? {
-          scope: work.user.email,
+          scope: work.context.email,
           operation: 'google.user.list',
           reasons: [],
         }
@@ -364,7 +336,7 @@ export function createGoogleCompanyScheduler(input: {
     if (page.currentCursor)
       changes.set(currentCursor, {
         pin: {
-          userId: work.user.id,
+          partitionKey: work.partitionKey,
           kind: work.kind,
           cursor: page.currentCursor,
           permissionStartedAt,
@@ -377,7 +349,7 @@ export function createGoogleCompanyScheduler(input: {
       ...(work.kind === 'permissions' ? { permissionsOnly: true } : {}),
       nextCursor: nextCursor(next, {
         update: {
-          userId: work.user.id,
+          partitionKey: work.partitionKey,
           kind: work.kind,
           cursor: page.nextCursor ?? null,
           completed: !page.hasMore,
@@ -387,7 +359,7 @@ export function createGoogleCompanyScheduler(input: {
             ? new Date(
                 now().getTime() +
                   (work.kind === 'permissions'
-                    ? PERMISSION_REFRESH_MS
+                    ? GOOGLE_COMPANY_PERMISSION_REFRESH_MS
                     : input.syncIntervalMinutes * 60_000)
               )
             : now(),
@@ -401,7 +373,7 @@ export function createGoogleCompanyScheduler(input: {
   return {
     listDocuments,
     permissionStartedAt: () => permissionStartedAt,
-    changesFor: (cursor: string | null): GoogleCompanyWorkChanges | undefined =>
+    changesFor: (cursor: string | null): ConnectorPartitionWorkChanges | undefined =>
       cursor ? changes.get(cursor) : undefined,
     didCommit: (cursor: string | null) => {
       if (cursor) changes.delete(cursor)

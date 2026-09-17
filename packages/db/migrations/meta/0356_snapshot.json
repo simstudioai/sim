@@ -1,5 +1,5 @@
 {
-  "id": "6cbb7342-0685-49b4-b9ef-637e9a092ac3",
+  "id": "91de1d0e-ad87-4ad5-bef8-2c77aa34f2f7",
   "prevId": "ae380daf-a120-4f9d-8908-caa1c0980f76",
   "version": "7",
   "dialect": "postgresql",
@@ -9609,226 +9609,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.knowledge_connector_google_user": {
-      "name": "knowledge_connector_google_user",
-      "schema": "",
-      "columns": {
-        "connector_id": {
-          "name": "connector_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "generation_id": {
-          "name": "generation_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "customer_id": {
-          "name": "customer_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cursor": {
-          "name": "cursor",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "retry_at": {
-          "name": "retry_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_served_at": {
-          "name": "last_served_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "failure": {
-          "name": "failure",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "permission_cursor": {
-          "name": "permission_cursor",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "permission_attempts": {
-          "name": "permission_attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "permission_retry_at": {
-          "name": "permission_retry_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "permission_last_served_at": {
-          "name": "permission_last_served_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "permission_started_at": {
-          "name": "permission_started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "permission_failure": {
-          "name": "permission_failure",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "kcgu_content_due_idx": {
-          "name": "kcgu_content_due_idx",
-          "columns": [
-            {
-              "expression": "connector_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "generation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "retry_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "last_served_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "kcgu_permission_due_idx": {
-          "name": "kcgu_permission_due_idx",
-          "columns": [
-            {
-              "expression": "connector_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "generation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "permission_retry_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "permission_last_served_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "knowledge_connector_google_user_connector_id_knowledge_connector_id_fk": {
-          "name": "knowledge_connector_google_user_connector_id_knowledge_connector_id_fk",
-          "tableFrom": "knowledge_connector_google_user",
-          "tableTo": "knowledge_connector",
-          "columnsFrom": ["connector_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "kcgu_pk": {
-          "name": "kcgu_pk",
-          "columns": ["connector_id", "user_id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "kcgu_status_check": {
-          "name": "kcgu_status_check",
-          "value": "\"knowledge_connector_google_user\".\"status\" IN ('pending', 'complete', 'blocked')"
-        },
-        "kcgu_cursor_check": {
-          "name": "kcgu_cursor_check",
-          "value": "(\"knowledge_connector_google_user\".\"cursor\" IS NULL OR octet_length(\"knowledge_connector_google_user\".\"cursor\") <= 393216) AND (\"knowledge_connector_google_user\".\"permission_cursor\" IS NULL OR octet_length(\"knowledge_connector_google_user\".\"permission_cursor\") <= 393216)"
-        },
-        "kcgu_attempts_check": {
-          "name": "kcgu_attempts_check",
-          "value": "\"knowledge_connector_google_user\".\"attempts\" >= 0 AND \"knowledge_connector_google_user\".\"permission_attempts\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.knowledge_connector_member": {
       "name": "knowledge_connector_member",
       "schema": "",
@@ -10305,6 +10085,228 @@
         "kcmsl_status_check": {
           "name": "kcmsl_status_check",
           "value": "\"knowledge_connector_member_sync_log\".\"status\" IN ('started', 'partial', 'completed', 'failed')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.knowledge_connector_partition": {
+      "name": "knowledge_connector_partition",
+      "schema": "",
+      "columns": {
+        "connector_id": {
+          "name": "connector_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "partition_key": {
+          "name": "partition_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generation_id": {
+          "name": "generation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "context": {
+          "name": "context",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cursor": {
+          "name": "cursor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "retry_at": {
+          "name": "retry_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_served_at": {
+          "name": "last_served_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure": {
+          "name": "failure",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permission_cursor": {
+          "name": "permission_cursor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permission_attempts": {
+          "name": "permission_attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "permission_retry_at": {
+          "name": "permission_retry_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permission_last_served_at": {
+          "name": "permission_last_served_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permission_started_at": {
+          "name": "permission_started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permission_failure": {
+          "name": "permission_failure",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "kcp_content_due_idx": {
+          "name": "kcp_content_due_idx",
+          "columns": [
+            {
+              "expression": "connector_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "generation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "retry_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_served_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kcp_permission_due_idx": {
+          "name": "kcp_permission_due_idx",
+          "columns": [
+            {
+              "expression": "connector_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "generation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "permission_retry_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "permission_last_served_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "knowledge_connector_partition_connector_id_knowledge_connector_id_fk": {
+          "name": "knowledge_connector_partition_connector_id_knowledge_connector_id_fk",
+          "tableFrom": "knowledge_connector_partition",
+          "tableTo": "knowledge_connector",
+          "columnsFrom": ["connector_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "kcp_pk": {
+          "name": "kcp_pk",
+          "columns": ["connector_id", "partition_key"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "kcp_partition_key_check": {
+          "name": "kcp_partition_key_check",
+          "value": "octet_length(\"knowledge_connector_partition\".\"partition_key\") BETWEEN 1 AND 1024"
+        },
+        "kcp_context_check": {
+          "name": "kcp_context_check",
+          "value": "jsonb_typeof(\"knowledge_connector_partition\".\"context\") = 'object' AND octet_length(\"knowledge_connector_partition\".\"context\"::text) <= 16384"
+        },
+        "kcp_status_check": {
+          "name": "kcp_status_check",
+          "value": "\"knowledge_connector_partition\".\"status\" IN ('pending', 'complete', 'blocked')"
+        },
+        "kcp_cursor_check": {
+          "name": "kcp_cursor_check",
+          "value": "(\"knowledge_connector_partition\".\"cursor\" IS NULL OR octet_length(\"knowledge_connector_partition\".\"cursor\") <= 393216) AND (\"knowledge_connector_partition\".\"permission_cursor\" IS NULL OR octet_length(\"knowledge_connector_partition\".\"permission_cursor\") <= 393216)"
+        },
+        "kcp_attempts_check": {
+          "name": "kcp_attempts_check",
+          "value": "\"knowledge_connector_partition\".\"attempts\" >= 0 AND \"knowledge_connector_partition\".\"permission_attempts\" >= 0"
         }
       },
       "isRLSEnabled": false

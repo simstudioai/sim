@@ -6,7 +6,10 @@ import {
   GOOGLE_WORKSPACE_DRIVES_PAGE_SIZE,
   listGoogleWorkspaceDrives,
 } from '@/connectors/google-drive/workspace-drives'
-import type { GoogleCompanyCursorAdapter } from '@/connectors/google-workspace/company-work'
+import {
+  type GoogleCompanyCursorAdapter,
+  googleCompanyUserContextSchema,
+} from '@/connectors/google-workspace/company-work'
 import {
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE,
   getGoogleWorkspaceUser,
@@ -19,15 +22,7 @@ import { parseOptionalUnlimitedSafeInteger } from '@/connectors/utils'
 const CURSOR_PREFIX = 'gdrive-company:v1:'
 const MAX_CURSOR_BYTES = 384 * 1024
 const cursorSchema = z.object({
-  users: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(256),
-        email: z.string().email().max(254),
-        customerId: z.string().min(1).max(256),
-      })
-    )
-    .max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
+  users: z.array(googleCompanyUserContextSchema).max(GOOGLE_WORKSPACE_USERS_PAGE_SIZE),
   nextUsersPageToken: z.string().min(1).max(8192).optional(),
   scope: z.discriminatedUnion('kind', [
     z.object({
