@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { Button, Download, Loader } from '@sim/emcn'
-import { Music } from '@sim/emcn/icons'
+import { DefaultFileIcon, Music } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
-import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'

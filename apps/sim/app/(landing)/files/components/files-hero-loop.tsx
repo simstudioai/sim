@@ -3,9 +3,18 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@sim/emcn'
-import { ArrowUpDown, File, ListFilter, Plus, Search } from '@sim/emcn/icons'
+import {
+  ArrowUpDown,
+  CsvIcon,
+  DocxIcon,
+  File,
+  ListFilter,
+  PdfIcon,
+  Plus,
+  Search,
+  ZipIcon,
+} from '@sim/emcn/icons'
 import { AgentIcon } from '@/components/icons'
-import { CsvIcon, DocxIcon, PdfIcon, ZipIcon } from '@/components/icons/document-icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
