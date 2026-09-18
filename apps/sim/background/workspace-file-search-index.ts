@@ -15,7 +15,7 @@ import {
  */
 export const workspaceFileSearchIndexTask = task({
   id: 'workspace-file-search-index',
-  machine: 'medium-1x',
+  machine: 'medium-2x',
   maxDuration: FILE_SEARCH_INDEX_MAX_DURATION_SECONDS,
   retry: { maxAttempts: 3 },
   queue: {
