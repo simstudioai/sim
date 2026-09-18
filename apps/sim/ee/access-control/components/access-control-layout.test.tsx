@@ -11,7 +11,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/settings/access-control',
 }))
 vi.mock('@/ee/access-control/components/group-detail', () => ({ GroupDetail: () => null }))
-vi.mock('@/components/access-requests/access-request-review', () => ({
+vi.mock('@/ee/access-requests/components/access-request-review', () => ({
   AccessRequestReview: () => null,
 }))
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
@@ -23,7 +23,7 @@ vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
 vi.mock('@/hooks/queries/organization', () => ({
   useOrganizationBilling: () => ({ data: undefined, isPending: false }),
 }))
-vi.mock('@/hooks/queries/access-requests', () => ({
+vi.mock('@/ee/access-requests/hooks/access-requests', () => ({
   ACCESS_REQUEST_PAGE_SIZE: 25,
   useOrganizationAccessRequests: mocks.requests,
   useAccessRequestSettings: () => ({ data: { allowRequests: true }, isPending: false }),

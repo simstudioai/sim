@@ -5,8 +5,8 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { accessRequestOperations } from '@/lib/permission-access-requests/application/operations'
-import { previewAccessRequest } from '@/lib/permission-access-requests/application/review'
+import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
+import { previewAccessRequest } from '@/ee/access-requests/lib/application/review'
 
 export const GET = defineInternalJsonRoute({
   contract: previewAccessRequestContract,

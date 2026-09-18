@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
-import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { getSettingsPermissionConfigKey } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -15,6 +14,7 @@ import {
   getSettingsSectionMeta,
   type SettingsSection,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
 const Admin = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin)

@@ -82,10 +82,10 @@ vi.mock('@/hooks/use-permission-config', () => ({
     isBlockRequestable: (type: string) => type.startsWith('locked-'),
   }),
 }))
-vi.mock('@/components/access-requests/permission-access-boundary', () => ({
+vi.mock('@/ee/access-requests/components/permission-access-boundary', () => ({
   useWorkspaceAccessRequestFeatures: discovery,
 }))
-vi.mock('@/components/access-requests/request-access-action', () => ({
+vi.mock('@/ee/access-requests/components/request-access-action', () => ({
   RequestAccessModal: ({ label, onClose }: { label: string; onClose: () => void }) => (
     <div role='dialog'>
       Request {label}

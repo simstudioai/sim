@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import TableLoading from '@/app/workspace/[workspaceId]/tables/[tableId]/loading'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { Table } from './table'
 
 export const metadata: Metadata = {

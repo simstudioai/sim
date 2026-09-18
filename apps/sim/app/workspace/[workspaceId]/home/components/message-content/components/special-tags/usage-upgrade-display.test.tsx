@@ -24,7 +24,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () =>
 vi.mock('@/hooks/use-settings-navigation', () => ({
   useSettingsNavigation: () => ({ getSettingsHref: () => '/settings/billing' }),
 }))
-vi.mock('@/components/access-requests/member-limit-request-action', () => ({
+vi.mock('@/ee/access-requests/components/member-limit-request-action', () => ({
   MemberLimitRequestAction: () => <button type='button'>Request increase</button>,
 }))
 

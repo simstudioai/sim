@@ -59,7 +59,7 @@ vi.mock('@/components/settings/navigation', () => ({
   ),
   WORKSPACE_PERMISSION_CONFIG_KEYS: { secrets: 'hideSecretsTab' },
 }))
-vi.mock('@/lib/permission-access-requests/settings', () => ({
+vi.mock('@/ee/access-requests/lib/settings', () => ({
   isAccessRequestEnabled: mocks.isAccessRequestEnabled,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({

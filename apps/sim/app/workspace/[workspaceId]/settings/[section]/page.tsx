@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
-import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import {
   getOrganizationSettingsHref,
@@ -13,6 +12,7 @@ import { authorizeWorkspaceSettingsSection } from '@/lib/settings/application/wo
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { resolveSettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { SECTION_PREFETCHERS } from './prefetch'
 import { SettingsPage } from './settings'
 

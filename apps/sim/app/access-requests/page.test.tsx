@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redirect } = vi.hoisted(() => ({ redirect: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect }))
-vi.mock('@/components/access-requests/my-access-requests', () => ({ MyAccessRequests: () => null }))
-vi.mock('@/components/access-requests/organization-access-requests', () => ({
+vi.mock('@/ee/access-requests/components/my-access-requests', () => ({
+  MyAccessRequests: () => null,
+}))
+vi.mock('@/ee/access-requests/components/organization-access-requests', () => ({
   OrganizationAccessRequests: () => null,
 }))
 

@@ -11,7 +11,7 @@ import {
   ACCESS_REQUESTS_STALE_TIME,
   accessRequestKeys,
   workspaceFeatureDiscoveryQuery,
-} from '@/hooks/queries/utils/access-request-keys'
+} from '@/ee/access-requests/hooks/access-request-keys'
 import {
   PERMISSION_GROUPS_STALE_TIME,
   permissionGroupKeys,
@@ -46,7 +46,7 @@ export async function prefetchWorkspaceAccess(
     queryKey: accessRequestKeys.discovery(query),
     queryFn: async () => {
       const { discoverAccessRequests } = await import(
-        '@/lib/permission-access-requests/application/requests'
+        '@/ee/access-requests/lib/application/requests'
       )
       return discoverAccessRequestsContract.response.schema.parse(
         await discoverAccessRequests.execute({ principal, input: query })

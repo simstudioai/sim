@@ -16,7 +16,6 @@ import {
 import { ArrowUpRight, Building, ChevronLeft, Lock } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { useWorkspaceAccessRequestFeatures } from '@/components/access-requests/permission-access-boundary'
 import {
   type DesktopSettingsSurface,
   getOrganizationSettingsHref,
@@ -47,6 +46,7 @@ import {
   SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'

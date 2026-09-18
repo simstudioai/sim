@@ -5,7 +5,6 @@ import { cn, Expandable, ExpandableContent, SecretReveal, Tooltip, toast } from 
 import { ArrowRight, Check, ChevronDown, SquareArrowUpRight, TerminalWindow } from '@sim/emcn/icons'
 import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
-import { MemberLimitRequestAction } from '@/components/access-requests/member-limit-request-action'
 import { useSession } from '@/lib/auth/auth-client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
@@ -62,6 +61,7 @@ import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/in
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
+import { MemberLimitRequestAction } from '@/ee/access-requests/components/member-limit-request-action'
 import {
   useUpdateWorkspaceCredential,
   useWorkspaceCredential,

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import { PermissionAccessBoundary } from '@/components/access-requests/permission-access-boundary'
 import { ConnectedCredentialDetail } from '@/app/workspace/[workspaceId]/integrations/connected/[credentialId]/connected-credential-detail'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
 export const metadata: Metadata = {
   title: 'Connected Integration',

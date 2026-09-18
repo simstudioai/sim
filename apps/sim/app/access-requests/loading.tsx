@@ -1,4 +1,4 @@
-import { AccessRequestsLoading } from '@/components/access-requests/access-requests-loading'
+import { AccessRequestsLoading } from '@/ee/access-requests/components/access-requests-loading'
 
 export default function Loading() {
   return <AccessRequestsLoading />
