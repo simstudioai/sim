@@ -1,9 +1,11 @@
 /** @vitest-environment node */
 import {
+  credentialGroupEnrollment,
   document,
   embedding,
   knowledgeBase,
   knowledgeConnector,
+  knowledgeConnectorMember,
   member,
   organizationSearchIntegration,
   user,
@@ -96,6 +98,7 @@ function source(id: string, connectorType = 'google_drive', accessMode = 'admin'
     memberSyncStatus: 'idle',
     lastSyncAt: LAST_SYNC as Date | null,
     hasRetainedSyncError: false,
+    hasViewerMemberSyncError: false,
     lastMemberSyncAt: null as Date | null,
     credentialGroupId: 'group-secret',
     credentialGroupOptionId: 'option-secret',
@@ -129,6 +132,26 @@ beforeEach(() => {
 })
 
 describe('Search source summaries', () => {
+  it('retains the viewer account failure after an otherwise successful empty run', async () => {
+    seed([{ ...source('github', 'google_drive', 'members'), hasViewerMemberSyncError: true }])
+    const result = await listSearchSources.execute({ principal, input })
+    expect(result.sources[0]).toMatchObject({ hasSyncError: true, isSyncing: false })
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'and',
+        conditions: expect.arrayContaining([
+          { type: 'eq', left: credentialGroupEnrollment.userId, right: principal.userId },
+          {
+            type: 'eq',
+            left: knowledgeConnectorMember.connectorId,
+            right: knowledgeConnector.id,
+          },
+          { type: 'isNotNull', column: knowledgeConnectorMember.lastError },
+        ]),
+      })
+    )
+  })
+
   it.each(['read', 'write', 'admin'])(
     'allows a current workspace %s without exposing credentials or other members',
     async (role) => {
@@ -297,7 +320,7 @@ describe('Search source summaries', () => {
       sources: [],
       nextCursor: null,
     })
-    expect(dbChainMockFns.where.mock.calls[0][0]).toEqual({
+    expect(dbChainMockFns.where).toHaveBeenCalledWith({
       type: 'and',
       conditions: expect.arrayContaining([
         {
@@ -493,6 +516,26 @@ describe('organization Search source summaries', () => {
 })
 
 describe('bounded Search progress', () => {
+  it('keeps reporting an unresolved viewer account failure between retries', async () => {
+    queueTableRows(knowledgeConnector, [
+      {
+        connectorId: 'github',
+        approved: true,
+        status: 'active',
+        accessMode: 'members',
+        memberSyncStatus: 'idle',
+        hasViewerMemberSyncError: true,
+        isIndexing: false,
+        hasIndexingError: false,
+      },
+    ])
+    const result = await readSearchSourceProgress.execute({
+      principal,
+      input: { ...input, connectorIds: ['github'] },
+    })
+    expect(result.sources[0]).toMatchObject({ hasSyncError: true, isSyncing: false })
+  })
+
   it('reports visible pending and failed work without counting documents or chunks', async () => {
     queueTableRows(knowledgeConnector, [
       {

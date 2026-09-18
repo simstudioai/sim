@@ -211,6 +211,37 @@ describe('Search connection card lifecycle', () => {
     expect(m.mutate).toHaveBeenCalledTimes(2)
     expect(connection().pending).toBe(true)
   })
+  it('surfaces callback failures and retries with a fresh completion receipt', async () => {
+    render()
+    await act(async () => {
+      await connection().connect()
+    })
+    const firstId = m.mutate.mock.calls[0][0].oauthCompletionId
+    const failureChannel = m.channels.find(
+      (channel) => channel.name === `sim:credential-group-oauth:${firstId}`
+    )
+    act(() => failureChannel?.onmessage?.(new MessageEvent('message', { data: 'failed' })))
+    expect(connection().pending).toBe(false)
+    expect(connection().connected).toBe(false)
+    expect(connection().error).toContain('Account authorization did not complete')
+    expect(windows[0].close).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await connection().connect()
+    })
+    const secondId = m.mutate.mock.calls[1][0].oauthCompletionId
+    expect(secondId).not.toBe(firstId)
+    expect(connection().pending).toBe(true)
+    expect(connection().error).toBeNull()
+    m.accounts = [{ credentialId: 'mine', status: 'connected' }]
+    m.receipts.set(firstId, 'mine')
+    render()
+    expect(connection().connected).toBe(false)
+    m.receipts.set(secondId, 'mine')
+    render()
+    expect(connection().connected).toBe(true)
+    expect(windows[1].close).toHaveBeenCalled()
+  })
   it('retries the exact source created by the first attempt after cancellation or reload', async () => {
     m.requestedTarget = { type: 'link', provider: 'gmail', connectorType: 'gmail' }
     render()
