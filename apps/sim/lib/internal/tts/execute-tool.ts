@@ -12,6 +12,7 @@ import {
   executeCartesiaTts,
   executeDeepgramTts,
   executeElevenLabsTts,
+  executeGandrTts,
   executeGoogleTts,
   executeLegacyElevenLabsTts,
   executeOpenAiTts,
@@ -114,6 +115,13 @@ const schemas = {
     textGuidance: z.coerce.number().optional(),
     sampleRate: z.coerce.number().optional(),
   }),
+  tts_gandr: z.object({
+    ...auth,
+    voice: z
+      .enum(['gandr-mia', 'gandr-ava', 'gandr-jenny', 'gandr-dane', 'gandr-leo', 'gandr-lewis'])
+      .optional(),
+    responseFormat: z.enum(['mp3', 'wav', 'pcm']).optional(),
+  }),
 } as const
 
 type TtsToolId = keyof typeof schemas
@@ -208,5 +216,7 @@ export const executeTtsTool: InternalToolOperationHandler = async (request) => {
       return executeOperation(schemas.tts_azure, request, executeAzureTts)
     case 'tts_playht':
       return executeOperation(schemas.tts_playht, request, executePlayHtTts)
+    case 'tts_gandr':
+      return executeOperation(schemas.tts_gandr, request, executeGandrTts)
   }
 }

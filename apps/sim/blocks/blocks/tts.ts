@@ -11,7 +11,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   description: 'Convert text to speech using AI voices',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Generate natural-sounding speech from text using state-of-the-art AI voices from OpenAI, Deepgram, ElevenLabs, Cartesia, Google Cloud, Azure, and PlayHT. Supports multiple voices, languages, and audio formats.',
+    'Generate natural-sounding speech from text using state-of-the-art AI voices from OpenAI, Deepgram, ElevenLabs, Cartesia, Google Cloud, Azure, PlayHT, and Gandr. Supports multiple voices, languages, and audio formats.',
   docsLink: 'https://docs.sim.ai/integrations/tts',
   category: 'blocks',
   integrationType: IntegrationType.AI,
@@ -41,6 +41,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'Google Cloud TTS', id: 'google' },
         { label: 'Azure TTS', id: 'azure' },
         { label: 'PlayHT', id: 'playht' },
+        { label: 'Gandr', id: 'gandr' },
       ],
       value: () => 'openai',
       required: true,
@@ -458,6 +459,41 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
+    // Gandr Voice Selection
+    {
+      id: 'voice',
+      title: 'Voice',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'gandr' },
+      options: [
+        { label: 'Mia', id: 'gandr-mia' },
+        { label: 'Ava', id: 'gandr-ava' },
+        { label: 'Jenny', id: 'gandr-jenny' },
+        { label: 'Dane', id: 'gandr-dane' },
+        { label: 'Leo', id: 'gandr-leo' },
+        { label: 'Lewis', id: 'gandr-lewis' },
+      ],
+      value: () => 'gandr-mia',
+      dependsOn: ['provider'],
+      required: false,
+    },
+
+    // Gandr Response Format
+    {
+      id: 'responseFormat',
+      title: 'Audio Format',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'gandr' },
+      options: [
+        { label: 'MP3', id: 'mp3' },
+        { label: 'WAV', id: 'wav' },
+        { label: 'PCM', id: 'pcm' },
+      ],
+      value: () => 'mp3',
+      dependsOn: ['provider'],
+      required: false,
+    },
+
     // API Key (common to all providers)
     {
       id: 'apiKey',
@@ -478,6 +514,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       'tts_google',
       'tts_azure',
       'tts_playht',
+      'tts_gandr',
     ],
     config: {
       tool: (params) => {
@@ -497,6 +534,8 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
             return 'tts_azure'
           case 'playht':
             return 'tts_playht'
+          case 'gandr':
+            return 'tts_gandr'
           default:
             return 'tts_openai'
         }
@@ -576,6 +615,14 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
           }
         }
 
+        if (params.provider === 'gandr') {
+          return {
+            ...baseParams,
+            voice: params.voice,
+            responseFormat: params.responseFormat,
+          }
+        }
+
         return baseParams
       },
     },
@@ -584,7 +631,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   inputs: {
     provider: {
       type: 'string',
-      description: 'TTS provider (openai, deepgram, elevenlabs, cartesia, google, azure, playht)',
+      description: 'TTS provider (openai, deepgram, elevenlabs, cartesia, google, azure, playht, gandr)',
     },
     text: { type: 'string', description: 'Text to convert to speech' },
     apiKey: { type: 'string', description: 'Provider API key' },
