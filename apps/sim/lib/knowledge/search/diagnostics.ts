@@ -78,13 +78,16 @@ export interface SearchDiagnosticMetadata {
   embeddingDimensions?: number
   vectorRanking?: 'exact' | 'candidate-rerank'
   vectorCandidateStorage?: 'stored-halfvec'
-  /** Requested strategy, not an assertion about the physical index selected by PostgreSQL. */
-  vectorCandidateScan?: 'planned' | 'filtered'
+  /**
+   * Whether the bounded traversal filled its candidate limit. `underfilled` means visibility
+   * removed enough neighbours that the rerank pool is smaller than requested, which lowers recall
+   * without widening the scan. Not an assertion about the physical index PostgreSQL selected.
+   */
+  vectorCandidateScan?: 'planned' | 'underfilled'
   vectorBudgetMs?: number
   vectorCandidateLimit?: number
   vectorCandidateCount?: number
   vectorCandidateDimensions?: number
-  vectorInitialCandidateCount?: number
   resultCount?: number
   /** Tool output before the executor's final egress projection; counts only, never content. */
   toolResultBytes?: number

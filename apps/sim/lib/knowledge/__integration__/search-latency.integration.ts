@@ -208,6 +208,15 @@ function explainNodes(node: ExplainNode): ExplainNode[] {
 }
 
 /** Broad ranking must stop the ordered ANN scan instead of sorting every accessible chunk. */
+/**
+ * The bounded ANN traversal, identified by the visibility lateral it alone carries. The probe
+ * aliases its own lateral `scoped_chunk`, so this cannot match it, and matching on the rendered
+ * clause casing would silently stop these assertions from running at all.
+ */
+function isVectorCandidateQuery(statement: string) {
+  return statement.toLowerCase().includes(') as visible')
+}
+
 function assertIndexedCandidates(
   plan: ExplainNode,
   candidateLimit: number,
@@ -218,31 +227,25 @@ function assertIndexedCandidates(
       ? 'embedding_search_cosine_hnsw_idx'
       : `embedding_search_${width}_cosine_hnsw_idx`
   const nodes = explainNodes(plan)
-  const initial = nodes.find((node) => node['Subplan Name'] === 'CTE initial_candidates')
-  expect(initial).toBeDefined()
-  const candidateNodes = explainNodes(initial!)
+  expect(nodes.some((node) => node['Index Name'] === indexName && node['Actual Loops'] > 0)).toBe(
+    true
+  )
+  /** The graph walk supplies the order, so a Sort here means the index ordering was discarded. */
+  expect(nodes.some((node) => node['Node Type'] === 'Sort')).toBe(false)
+  /**
+   * The traversal is the whole candidate set. Reaching the projection by document lookup or by
+   * sequential scan is the corpus-wide rescan this query exists to avoid, at any candidate count.
+   */
+  expect(nodes.some((node) => node['Index Name'] === 'embedding_search_document_lookup_idx')).toBe(
+    false
+  )
   expect(
-    candidateNodes.some((node) => node['Index Name'] === indexName && node['Actual Loops'] > 0)
-  ).toBe(true)
-  expect(candidateNodes.some((node) => node['Node Type'] === 'Sort')).toBe(false)
-  expect(
-    candidateNodes.some((node) => node['Index Name'] === 'embedding_search_document_lookup_idx')
+    nodes.some(
+      (node) => node['Relation Name'] === 'embedding_search' && node['Node Type'] === 'Seq Scan'
+    )
   ).toBe(false)
-  const filtered = nodes.find((node) => node['Subplan Name'] === 'CTE filtered_scores')
-  expect(filtered).toBeDefined()
-  expect(filtered!.Output).toHaveLength(3)
-  expect(filtered!.Output![2]).toContain('<=>')
-  if (initial!['Actual Rows'] >= candidateLimit) {
-    for (const node of nodes.filter(
-      (item) =>
-        item['Subplan Name'] === 'CTE visible_search_documents' ||
-        item['CTE Name'] === 'visible_search_documents' ||
-        item['Subplan Name'] === 'CTE filtered_scores' ||
-        item['CTE Name'] === 'filtered_scores'
-    )) {
-      expect(node['Actual Loops']).toBe(0)
-    }
-  }
+  const traversed = nodes.find((node) => node['Index Name'] === indexName)!
+  expect(traversed['Actual Rows']).toBeLessThanOrEqual(candidateLimit)
 }
 
 /** Small scopes must seek chunk metadata by document without reading the full vector projection. */
@@ -294,7 +297,7 @@ const diagnosticSchema = z
     vectorBudgetMs: z.number().positive(),
     vectorCandidateDimensions: z.number().optional(),
     vectorCandidateLimit: z.number().optional(),
-    vectorCandidateScan: z.enum(['planned', 'filtered']).optional(),
+    vectorCandidateScan: z.enum(['planned', 'underfilled']).optional(),
     retrievalStatus: z.enum(['complete', 'partial']),
     timedOutLegs: z.array(z.enum(['vector', 'keyword', 'tags'])),
     toolResultBytes: z.number().int().nonnegative().optional(),
@@ -472,7 +475,7 @@ async function sample(
       (item.query.includes('order by') ||
         item.query.includes('limit') ||
         item.query.includes('CROSS JOIN LATERAL') ||
-        item.query.includes('WITH visible_search_documents') ||
+        isVectorCandidateQuery(item.query) ||
         item.query.includes('WITH scored_search_candidates') ||
         item.query.includes('WITH visible_keyword_documents'))
   )
@@ -497,10 +500,7 @@ async function sample(
       await tx.unsafe('SET LOCAL jit = off')
       await tx.unsafe("SET LOCAL hnsw.iterative_scan = 'relaxed_order'")
       await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 20000')
-      if (
-        query.query.includes('WITH visible_search_documents') ||
-        (query.query.includes('from "embedding_search"') && query.query.includes('order by'))
-      ) {
+      if (isVectorCandidateQuery(query.query)) {
         await tx.unsafe('SET LOCAL hnsw.max_scan_tuples = 1000')
         await tx.unsafe('SET LOCAL hnsw.ef_search = 1000')
         await tx.unsafe('SET LOCAL hnsw.scan_mem_multiplier = 2')
@@ -514,8 +514,7 @@ async function sample(
     plans.push({
       kind: query.query.includes('keyword_rank')
         ? 'keyword'
-        : query.query.includes('WITH visible_search_documents') ||
-            (query.query.includes('from "embedding_search"') && query.query.includes('order by'))
+        : isVectorCandidateQuery(query.query)
           ? 'vector'
           : query.query.includes('order by') ||
               query.query.includes('WITH scored_search_candidates')
@@ -526,7 +525,7 @@ async function sample(
       plan: parsedPlan,
     })
     saveReport()
-    if (query.query.includes('WITH visible_search_documents')) {
+    if (isVectorCandidateQuery(query.query)) {
       const width = diagnostics.vectorCandidateDimensions!
       expect(query.query).toContain(
         `"embedding_search"."${width === 1536 ? 'vector' : `vector_${width}`}"`
