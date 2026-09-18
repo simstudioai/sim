@@ -2521,6 +2521,13 @@
       "when": 1789692860287,
       "tag": "0360_drop_unused_embedding_hnsw_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 361,
+      "version": "7",
+      "when": 1789699416165,
+      "tag": "0361_workspace_file_search_backfill_keyset",
+      "breakpoints": true
     }
   ]
 }

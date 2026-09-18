@@ -13,7 +13,6 @@ import {
   asc,
   eq,
   exists,
-  gt,
   inArray,
   isNotNull,
   isNull,
@@ -154,6 +153,15 @@ async function enqueueWorkspaces(
     })
 }
 
+/**
+ * Seeds one page of the backfill that walks every live workspace file into the revision table.
+ *
+ * The cursor is compared row-wise so the walk seeks straight to it using
+ * `workspace_files_workspace_active_keyset_idx`. The equivalent
+ * `workspace_id > :ws OR (workspace_id = :ws AND id > :id)` spelling is not something the planner
+ * can turn into an index condition: it stays a filter, so every page rescans the pages before it
+ * and the walk degrades to O(files^2) until it exceeds the dispatch statement timeout.
+ */
 async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
   await tx
     .insert(workspaceFileSearchBackfill)
@@ -188,13 +196,7 @@ async function seedBackfillPage(tx: DbTransaction, now: Date): Promise<number> {
         isNull(workspaceFiles.deletedAt),
         isNotNull(workspaceFiles.workspaceId),
         afterWorkspaceId && afterFileId
-          ? or(
-              gt(workspaceFiles.workspaceId, afterWorkspaceId),
-              and(
-                eq(workspaceFiles.workspaceId, afterWorkspaceId),
-                gt(workspaceFiles.id, afterFileId)
-              )
-            )
+          ? sql`(${workspaceFiles.workspaceId}, ${workspaceFiles.id}) > (${afterWorkspaceId}, ${afterFileId})`
           : undefined
       )
     )
