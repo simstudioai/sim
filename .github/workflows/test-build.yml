@@ -94,11 +94,14 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
-      - name: Verify retired-column contract migration in PostgreSQL
+      - name: Verify schema contract migrations in PostgreSQL
         working-directory: packages/db
         env:
-          RETIRED_COLUMNS_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
-        run: bunx vitest run scripts/retired-columns.postgres.test.ts
+          MIGRATION_CONTRACT_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
+        run: >-
+          bunx vitest run
+          scripts/retired-columns.postgres.test.ts
+          scripts/connector-sync-schedule-precision.postgres.test.ts
 
       - name: Verify OAuth lifecycle and SCIM membership guards in PostgreSQL
         working-directory: apps/sim
