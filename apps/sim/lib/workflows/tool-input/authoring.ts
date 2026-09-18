@@ -37,15 +37,10 @@ const mcpServer = v2AgentMcpServerAdvancedSchema.extend(noIdentityOverrides)
 const agentTools = z
   .array(z.union([integration, customReference, inlineCustom, mcp, mcpServer]))
   .max(MAX_AGENT_TOOLS_PER_BLOCK)
-const mothershipControls = {
-  usageControl: z.enum(['auto', 'none']).optional(),
-  usageControlExpression: z.never().optional(),
-}
 const mothershipTools = z
   .array(
     z.union([
       mcp.extend({
-        ...mothershipControls,
         params: v2AgentMcpToolSchema.shape.params.def.left
           .pick({ serverId: true, toolName: true })
           .strict()
@@ -53,7 +48,7 @@ const mothershipTools = z
             'MCP identity only. Sim Chat discovers arguments at call time; fixed arguments are not supported.'
           ),
       }),
-      mcpServer.extend(mothershipControls),
+      mcpServer,
     ])
   )
   .max(MAX_AGENT_TOOLS_PER_BLOCK)
@@ -124,7 +119,7 @@ export function validateToolBindingAuthoring(
     const parsed = schema.element.safeParse(candidate)
     if (!parsed.success) {
       return blockType === 'mothership'
-        ? `tools[${index}]: Sim Chat accepts MCP tool or MCP server bindings only, with auto/none mode and no fixed arguments. Read blocks get mothership for the exact tools valueSchema; selections supplement integration access, not an allowlist.`
+        ? `tools[${index}]: Sim Chat accepts MCP tool or MCP server bindings only, with fixed or variable auto/force/none mode and no fixed arguments. Read blocks get mothership for the exact tools valueSchema; selections supplement integration access, not an allowlist.`
         : `tools[${index}]: invalid tool binding. Read blocks get agent for the tools valueSchema. ${parsed.error.issues.map((issue) => issue.message).join('; ')}`
     }
   }

@@ -1391,6 +1391,27 @@ describe('tool canonical-mode reindexing', () => {
     })
   })
 
+  it('switches Sim Chat between variable and fixed tool modes through operations apply', () => {
+    const tool = {
+      type: 'mcp',
+      params: { serverId: 'server', toolName: 'search' },
+      usageControl: 'auto',
+    }
+    const workflow = agentWithTools([tool], {})
+    workflow.blocks.agent.type = 'mothership'
+    expect(
+      editTools(workflow, [
+        { type: 'mcp', params: tool.params, usageControlExpression: '<start.toolMode>' },
+      ])
+    ).toEqual({ '0:agentToolUsageControl': 'advanced' })
+    const variable = agentWithTools(
+      [{ type: 'mcp', params: tool.params, usageControlExpression: '<start.toolMode>' }],
+      { '0:agentToolUsageControl': 'advanced' }
+    )
+    variable.blocks.agent.type = 'mothership'
+    expect(editTools(variable, [{ ...tool, usageControl: 'none' }])).toEqual({})
+  })
+
   it('keeps a round-tripped Permission Mode with its tool when an explicit choice moves past it', () => {
     const roundTripTool = { ...selectorTool, usageControlExpression: '<start.dormant>' }
     const expressionTool = {

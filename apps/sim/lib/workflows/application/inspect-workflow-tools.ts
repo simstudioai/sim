@@ -320,12 +320,7 @@ async function inspectSelections(
         ? { displayTitle: value.title }
         : {}),
     }
-    const mode =
-      block.type === 'agent'
-        ? resolveAgentToolUsageControl(value, bindingIndex, block.data?.canonicalModes)
-        : value.usageControl === 'none'
-          ? 'none'
-          : 'auto'
+    const mode = resolveAgentToolUsageControl(value, bindingIndex, block.data?.canonicalModes)
     if (block.enabled === false || mode === 'none' || inactive) {
       result.push({
         ...entry,
@@ -494,7 +489,7 @@ export const inspectWorkflowTools = defineAuthorizedWorkflowUseCase({
         'Sim Chat discovers integration and selected MCP operations and calls them through its integration gateway. An empty selections array does not disable integrations. Catalog visibility does not prove a credential is connected. This block does not inherit the interactive Mothership CLI, browser, terminal or delegation tools.'
       )
       report.notes.push(
-        'MCP selections add operations only; fixed arguments and force/variable permission modes are not applied by Sim Chat.'
+        'MCP selections support fixed or variable auto/force/none modes. Force requires an invocation of each selected operation; None disables that selection. These modes do not change ambient integration access. Fixed MCP arguments are not supported.'
       )
       for (const entry of selected)
         if (entry.status === 'configured') entry.callableName = entry.canonicalName

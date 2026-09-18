@@ -956,6 +956,78 @@ describe('MothershipBlockHandler', () => {
     })
   })
 
+  it.each(['auto', 'force', 'none'])(
+    'resolves variable MCP permission mode %s before discovery and execution',
+    async (mode) => {
+      fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+      block.canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+      await handler.execute(context, block, {
+        prompt: 'Use my tools',
+        tools: [
+          {
+            type: 'mcp',
+            usageControl: 'auto',
+            usageControlExpression: ` ${mode.toUpperCase()} `,
+            params: { serverId: 'mcp-server-1', toolName: 'search' },
+          },
+        ],
+      })
+      const body = JSON.parse(String(fetchMock.mock.calls[0][1].body))
+      expect(body.mcpTools).toEqual(
+        mode === 'none'
+          ? undefined
+          : [
+              {
+                type: 'mcp',
+                usageControl: mode,
+                params: { serverId: 'mcp-server-1', toolName: 'search' },
+              },
+            ]
+      )
+    }
+  )
+
+  it('does not discover an advanced MCP server disabled by a variable', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+    mockDiscoverMcpServerToolsAsExecutor.mockClear()
+    block.canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+    await handler.execute(context, block, {
+      prompt: 'No tools',
+      tools: [
+        {
+          type: 'mcp-server-advanced',
+          usageControl: 'force',
+          usageControlExpression: 'none',
+          params: { serverId: 'mcp-server-1' },
+        },
+      ],
+    })
+    expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).not.toHaveProperty('mcpTools')
+  })
+
+  it.each(['', 'sometimes', '<start.unresolved>', null])(
+    'rejects an invalid variable mode before making requests: %s',
+    async (mode) => {
+      block.canonicalModes = { '0:agentToolUsageControl': 'advanced' }
+      mockDiscoverMcpServerToolsAsExecutor.mockClear()
+      await expect(
+        handler.execute(context, block, {
+          prompt: 'Use tools',
+          tools: [
+            {
+              type: 'mcp-server-advanced',
+              usageControlExpression: mode,
+              params: { serverId: 'mcp-server-1' },
+            },
+          ],
+        })
+      ).rejects.toThrow('mode must resolve to Auto, Force, or None')
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(mockDiscoverMcpServerToolsAsExecutor).not.toHaveBeenCalled()
+    }
+  )
+
   it('forwards only enabled MCP tools and selected skills', async () => {
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
@@ -1248,6 +1320,7 @@ describe('MothershipBlockHandler', () => {
     expect(body.mcpTools).toEqual([
       {
         type: 'mcp',
+        usageControl: 'auto',
         schema: {
           type: 'object',
           description: 'Search {{MCP_SCHEMA_DESCRIPTION}} for Box',
@@ -1681,6 +1754,7 @@ describe('MothershipBlockHandler', () => {
     expect(body.mcpTools).toHaveLength(5)
     expect(body.mcpTools[0]).toEqual({
       type: 'mcp',
+      usageControl: 'auto',
       params: { serverId: secret, toolName: 'search' },
     })
     expect(body.mcpTools[2].schema).toEqual({ type: 'string', enum: [secret] })

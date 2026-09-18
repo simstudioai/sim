@@ -120,6 +120,7 @@ const gatedOperationBlockConfig = {
 const blocksByType: Record<string, unknown> = {
   api: apiBlockConfig,
   agent: agentBlockConfig,
+  mothership: { ...agentBlockConfig, type: 'mothership' },
   condition: conditionBlockConfig,
   knowledge: knowledgeBlockConfig,
   slack: slackBlockConfig,
@@ -164,23 +165,26 @@ describe('createBlockFromParams', () => {
     expect(block.outputs.answer.type).toBe('string')
   })
 
-  it('selects variable Tool Mode when an agent tool supplies an expression', () => {
-    const block = createBlockFromParams('b-agent', {
-      type: 'agent',
-      name: 'Agent',
-      inputs: {
-        tools: [
-          {
-            type: 'custom-tool',
-            customToolId: 'custom-1',
-            usageControlExpression: '<route.toolMode>',
-          },
-        ],
-      },
-    })
+  it.each(['agent', 'mothership'])(
+    'selects variable Tool Mode when a %s tool supplies an expression',
+    (type) => {
+      const block = createBlockFromParams('b-agent', {
+        type,
+        name: 'Agent',
+        inputs: {
+          tools: [
+            {
+              type: 'mcp',
+              params: { serverId: 'server-1', toolName: 'search' },
+              usageControlExpression: '<route.toolMode>',
+            },
+          ],
+        },
+      })
 
-    expect(block.data.canonicalModes['0:agentToolUsageControl']).toBe('advanced')
-  })
+      expect(block.data.canonicalModes['0:agentToolUsageControl']).toBe('advanced')
+    }
+  )
 
   it('preserves configured subblock types and normalizes condition branch ids', () => {
     const block = createBlockFromParams('condition-1', {

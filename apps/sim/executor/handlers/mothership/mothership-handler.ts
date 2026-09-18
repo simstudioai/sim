@@ -37,6 +37,7 @@ import {
   type RawFileInput,
 } from '@/lib/uploads/utils/file-utils'
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
+import { resolveAgentToolUsageControl } from '@/lib/workflows/tool-input/usage-control'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import { BlockType } from '@/executor/constants'
@@ -890,13 +891,24 @@ export class MothershipBlockHandler implements BlockHandler {
     if (!prompt || typeof prompt !== 'string') {
       throw new Error('Prompt input is required')
     }
-    const metadataInputPaths = selectMothershipMetadataModelInputPaths(inputs.tools, requestSkills)
+    const requestTools = Array.isArray(inputs.tools)
+      ? inputs.tools.map((tool: unknown, index: number) => {
+          if (!isPlainRecord(tool)) throw new Error(`Tool ${index + 1} must be a tool binding.`)
+          const usageControl = resolveAgentToolUsageControl(tool, index, block.canonicalModes)
+          if (!usageControl)
+            throw new Error(
+              `Tool ${index + 1} mode must resolve to Auto, Force, or None before Sim Chat can run.`
+            )
+          return { ...tool, usageControl }
+        })
+      : inputs.tools
+    const metadataInputPaths = selectMothershipMetadataModelInputPaths(requestTools, requestSkills)
     if (ctx.resolvedSecretTraceRegistry) {
       assertMothershipStructuralInputsDoNotResolveSecrets(
         ctx.resolvedSecretTraceRegistry,
         metadataInputPaths.structuralInputPaths
       )
-      assertMothershipToolSchemaProjectionsAreSafe(ctx.resolvedSecretTraceRegistry, inputs.tools)
+      assertMothershipToolSchemaProjectionsAreSafe(ctx.resolvedSecretTraceRegistry, requestTools)
     }
     const modelInputPaths: ResolvedSecretInputPath[] = [
       ['prompt'],
@@ -909,7 +921,7 @@ export class MothershipBlockHandler implements BlockHandler {
     ]
     const modelInputProjection = projectResolvedModelInput(
       sourceRegistry,
-      { prompt, files: inputs.files, tools: inputs.tools, skills: requestSkills },
+      { prompt, files: inputs.files, tools: requestTools, skills: requestSkills },
       modelInputPaths
     )
     if (!modelInputProjection.complete || typeof modelInputProjection.value.prompt !== 'string') {

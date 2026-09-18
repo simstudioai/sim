@@ -28,6 +28,8 @@ export type IntegrationCatalogMcpExecution = z.infer<typeof IntegrationCatalogMc
 export const IntegrationCatalogContext = z.object({
   mcpServerIds: z.array(z.string().min(1)).default([]),
   mcpToolIds: z.array(z.string().min(1)).optional(),
+  /** Resolved workflow selections that must be invoked before completion; no schemas. */
+  requiredToolIds: z.array(z.string().min(1)).optional(),
   mcpExecution: IntegrationCatalogMcpExecution.optional(),
 });
 export type IntegrationCatalogContext = z.infer<typeof IntegrationCatalogContext>;

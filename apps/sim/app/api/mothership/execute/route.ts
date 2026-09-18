@@ -253,6 +253,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         const { serverId, toolName } = resolveMcpToolBinding(tool)
         return createMcpToolId(serverId, toolName)
       })
+    const requiredToolIds = (mcpTools ?? [])
+      .filter((tool) => tool.usageControl === 'force')
+      .map((tool) => {
+        const { serverId, toolName } = resolveMcpToolBinding(tool)
+        return createMcpToolId(serverId, toolName)
+      })
     const agentContexts = await processContextsServer(
       nonMcpAgentMentions,
       userId,
@@ -306,6 +312,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       integrationCatalog: {
         mcpServerIds: taggedMcpServerIds,
         mcpToolIds: selectedMcpToolIds,
+        ...(requiredToolIds.length ? { requiredToolIds: [...new Set(requiredToolIds)] } : {}),
         mcpExecution: IntegrationCatalogMcpExecution.parse({
           workflowId: delegation.workflowId,
           executionId: delegation.executionId,
