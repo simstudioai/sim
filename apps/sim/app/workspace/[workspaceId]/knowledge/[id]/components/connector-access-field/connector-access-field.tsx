@@ -5,9 +5,11 @@ import {
   ChipButtonGroup,
   ChipButtonGroupItem,
   ChipCombobox,
+  ChipDropdown,
   ChipLink,
   ChipModalField,
   type ComboboxOption,
+  Tooltip,
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
@@ -164,7 +166,22 @@ export function ConnectorAccessField({
       }
     >
       <div className='flex flex-col gap-2'>
-        {slackSetupOnly ? null : !lockAccessMode && showModeSelector ? (
+        {slackSetupOnly ? null : lockAccessMode ? (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <span className='inline-flex w-fit cursor-not-allowed'>
+                <ChipDropdown
+                  aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
+                  value={value.accessMode}
+                  options={visibleModes.map(({ mode, label }) => ({ value: mode, label }))}
+                  disabled
+                  className='pointer-events-none w-fit'
+                />
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Add a new connection to change the sync method.</Tooltip.Content>
+          </Tooltip.Root>
+        ) : showModeSelector ? (
           <ChipButtonGroup
             value={value.accessMode}
             disabled={disabled}
