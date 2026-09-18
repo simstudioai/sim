@@ -4,9 +4,16 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 const PROTECTED_RESOURCE_METADATA = '/.well-known/oauth-protected-resource'
 const AUTHORIZATION_SERVER_METADATA = '/.well-known/oauth-authorization-server'
 
-/** A `Host` header's hostname: lower-cased, without port or the trailing root dot. */
-function hostnameOf(host: string): string {
-  return host.toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '')
+/**
+ * A `Host` header as a URL authority under `protocol`: lower-cased, without the
+ * trailing root dot, and without the scheme's default port, so it compares
+ * equal to `URL.host`. `null` when the header is not a valid authority.
+ */
+function authorityOf(host: string, protocol: string): string | null {
+  const normalized = host.replace(/\.(?=:\d+$|$)/, '')
+  return URL.canParse(`${protocol}//${normalized}`)
+    ? new URL(`${protocol}//${normalized}`).host
+    : null
 }
 
 /**
@@ -30,7 +37,7 @@ export function resolveSimMcpHostPath(
   const mcp = new URL(getSimMcpUrl())
   const dedicated = mcp.origin !== new URL(getBaseUrl()).origin
   const internalMetadataPath = `${PROTECTED_RESOURCE_METADATA}${SIM_MCP_ROUTE_PATH}`
-  if (!host || hostnameOf(host) !== mcp.hostname) {
+  if (!host || authorityOf(host, mcp.protocol) !== mcp.host) {
     return dedicated && (pathname === SIM_MCP_ROUTE_PATH || pathname === internalMetadataPath)
       ? 'not_found'
       : null

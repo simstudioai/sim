@@ -61,6 +61,13 @@ describe('Sim MCP host routing', () => {
       }
     )
 
+    it('tells the MCP host from an app on the same hostname but another port', () => {
+      mocks.mcpUrl = 'http://localhost:3001/mcp'
+      expect(resolveSimMcpHostPath('localhost:3000', '/workspace')).toBeNull()
+      expect(resolveSimMcpHostPath('localhost:3001', '/mcp')).toBe('/api/mcp')
+      expect(resolveSimMcpHostPath('localhost:3001', '/workspace')).toBe('not_found')
+    })
+
     it('serves the app host as before, without a second MCP URL', () => {
       expect(resolveSimMcpHostPath('sim.ai', '/mcp')).toBeNull()
       expect(resolveSimMcpHostPath('sim.ai', '/workspace')).toBeNull()
