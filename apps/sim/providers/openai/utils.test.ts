@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   buildResponsesInputFromMessages,
+  convertToolsToResponses,
   parseResponsesUsage,
   toOpenAIModelUsage,
 } from '@/providers/openai/utils'
@@ -154,4 +155,29 @@ describe('buildResponsesInputFromMessages', () => {
       },
     ])
   })
+})
+
+describe('convertToolsToResponses', () => {
+  it.each(['wrapped', 'flat'] as const)(
+    'preserves optional inputs on %s tool definitions without implicit strict normalization',
+    (shape) => {
+      const parameters = {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string' },
+          folderPaths: { type: 'array', items: { type: 'string' } },
+          offset: { type: 'number' },
+        },
+        required: ['fileId'],
+      }
+      const tool = { name: 'file_get_content', description: 'Read selected file text', parameters }
+      const converted = convertToolsToResponses([
+        shape === 'wrapped' ? { type: 'function', function: tool } : tool,
+      ])
+
+      expect(converted).toEqual([{ type: 'function', strict: false, ...tool }])
+      expect(converted[0].parameters).toBe(parameters)
+      expect(parameters.required).toEqual(['fileId'])
+    }
+  )
 })
