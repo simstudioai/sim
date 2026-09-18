@@ -50,8 +50,12 @@ const UNDEFINED_OBJECT_SQLSTATE = '42704'
 /** Bound candidate pages retained while live permissions are checked. */
 const MAX_AUTHORIZED_SEARCH_CANDIDATES = 20_000
 /**
- * Stop a permission-starved graph walk early enough to scan the filtered projection instead.
+ * Bounds a permission-starved graph walk, which returns fewer candidates rather than widening.
  * This approximate iterative-visit threshold excludes pgvector's initial scan; it is not a row limit.
+ *
+ * Raising it trades recall for latency far more steeply than its size suggests: on a 132k-chunk
+ * index at 10% visibility, visiting 6.5k tuples instead of 1.5k took 5.1s and 9.7s on consecutive
+ * identical runs, against ~115ms for the bounded walk. Re-measure before changing it.
  */
 const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '1000'
 const CANDIDATE_HNSW_EF_SEARCH = '1000'
