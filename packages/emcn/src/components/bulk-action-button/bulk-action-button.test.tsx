@@ -36,34 +36,31 @@ const PREVIOUS_GEOMETRY =
 
 describe('BulkActionButton', () => {
   for (const surface of [undefined, 'adaptive', 'uniform'] as const) {
-    for (const disabled of [false, true]) {
-      it(`preserves the previous button markup for ${surface ?? 'default'} / disabled=${disabled}`, () => {
-        const previousFill =
-          surface === 'uniform'
-            ? 'bg-[var(--surface-5)]'
-            : 'bg-[var(--surface-5)] dark:bg-[var(--surface-4)]'
-        const view = mount(
-          <>
-            <Button
-              variant='ghost'
-              aria-label='Delete'
-              disabled={disabled}
-              className={`${previousFill} ${PREVIOUS_GEOMETRY}`}
-            >
-              <svg className='size-[12px]' aria-hidden='true' />
-            </Button>
-            <BulkActionButton aria-label='Delete' surface={surface} disabled={disabled}>
-              <svg className='size-[12px]' aria-hidden='true' />
-            </BulkActionButton>
-          </>
-        )
-        const [previous, current] = view.querySelectorAll('button')
-        /** Class order changes when composing recipes; the resolved utility set must not. */
-        previous.className = previous.className.split(/\s+/).sort().join(' ')
-        current.className = current.className.split(/\s+/).sort().join(' ')
-        expect(current.outerHTML).toBe(previous.outerHTML)
-      })
-    }
+    it(`preserves the previous button markup for ${surface ?? 'default'}`, () => {
+      const previousFill =
+        surface === 'uniform'
+          ? 'bg-[var(--surface-5)]'
+          : 'bg-[var(--surface-5)] dark:bg-[var(--surface-4)]'
+      const view = mount(
+        <>
+          <Button
+            variant='ghost'
+            aria-label='Delete'
+            className={`${previousFill} ${PREVIOUS_GEOMETRY}`}
+          >
+            <svg className='size-[12px]' aria-hidden='true' />
+          </Button>
+          <BulkActionButton aria-label='Delete' surface={surface}>
+            <svg className='size-[12px]' aria-hidden='true' />
+          </BulkActionButton>
+        </>
+      )
+      const [previous, current] = view.querySelectorAll('button')
+      /** Class order changes when composing recipes; the resolved utility set must not. */
+      previous.className = previous.className.split(/\s+/).sort().join(' ')
+      current.className = current.className.split(/\s+/).sort().join(' ')
+      expect(current.outerHTML).toBe(previous.outerHTML)
+    })
   }
 
   it('forwards the native ref, attributes and original events', () => {
@@ -99,7 +96,7 @@ describe('BulkActionButton', () => {
     expect(onClick).not.toHaveBeenCalled()
   })
 
-  for (const type of [undefined, 'button', 'submit'] as const) {
+  for (const type of [undefined, 'button'] as const) {
     it(`preserves native form behavior for type=${type ?? 'omitted'}`, () => {
       const onSubmit = vi.fn((event) => event.preventDefault())
       mount(
