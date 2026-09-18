@@ -192,10 +192,12 @@ async function complete(
 describe('search refinement with the real query cache and URL state', () => {
   it('keeps the organization header docked while source and date changes run filtered searches', async () => {
     await render({ organizationPage: true, params: '?q=launch' })
-    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
+    expect(container.querySelector('h1')).toBeNull()
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
+    const input = container.querySelector('input')
     await complete(0)
     expect(container.querySelector('h1')).toBeNull()
-    const input = container.querySelector('input')
+    expect(container.querySelector('input')).toBe(input)
     const filters = container.querySelector('[aria-label="Search filters"]')
 
     for (const [label, expectedFilters] of [
@@ -255,6 +257,7 @@ describe('search refinement with the real query cache and URL state', () => {
 
   it('replaces filter URL state while preserving unrelated parameters', async () => {
     await render({ params: '?q=launch&panel=details' })
+    await complete(0)
     await click('Gmail')
     await click('Past week')
     expect(mocks.urlUpdate).toHaveBeenLastCalledWith(
@@ -272,7 +275,7 @@ describe('search refinement with the real query cache and URL state', () => {
 
   it('keeps controls and focus while retaining only the preceding refinement results', async () => {
     await render()
-    expect(button('Gmail')).toBeDefined()
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
     expect(container.textContent).toContain('Searching…')
     await complete(0)
     const gmail = button('Gmail')
@@ -341,6 +344,7 @@ describe('search refinement with the real query cache and URL state', () => {
       })
       expect(container.textContent).not.toContain('Release plan')
       expect(container.textContent).toContain('Searching…')
+      expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
       expect(requests).toHaveLength(2)
     }
   )
@@ -380,7 +384,7 @@ describe('search refinement with the real query cache and URL state', () => {
   })
 
   it.each([true, false])(
-    'keeps filters and useful matches for partial results, then retries (empty=%s)',
+    'reveals filters only with useful partial results, then retries (empty=%s)',
     async (empty) => {
       await render()
       await complete(0, { partial: true, empty })
@@ -388,15 +392,50 @@ describe('search refinement with the real query cache and URL state', () => {
         empty ? 'Search timed out.' : 'some results may be missing.'
       )
       expect(container.textContent).not.toContain('Search found no results.')
-      const gmail = button('Gmail')
+      const filters = container.querySelector('[aria-label="Search filters"]')
+      expect(filters === null).toBe(empty)
       await click('Try again')
       expect(button('Retrying…').disabled).toBe(true)
-      expect(button('Gmail')).toBe(gmail)
+      expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
       await complete(1, { empty: true })
       expect(container.textContent).toContain('Search found no results.')
       expect(container.textContent).not.toContain('Try again')
+      expect(container.querySelector('[aria-label="Search filters"]')).not.toBeNull()
     }
   )
+
+  it('lets an empty completed search broaden filters supplied in a shared link', async () => {
+    await render({ params: '?source=gmail&updated=7d' })
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
+    expect(requests[0].body.filters).toEqual({
+      source: 'gmail',
+      modifiedAfter: '2026-01-08T12:00:00.000Z',
+    })
+    await complete(0, { empty: true })
+    expect(container.textContent).toContain('Search found no results.')
+    expect(button('Gmail').getAttribute('aria-pressed')).toBe('true')
+    const filters = container.querySelector('[aria-label="Search filters"]')
+    await click('All sources')
+    await click('Any time')
+    expect(requests.at(-1)?.body.filters).toEqual({})
+    expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
+    await complete(requests.length - 1)
+    expect(container.textContent).toContain('Release plan')
+  })
+
+  it('keeps filters hidden after an initial failure and reveals them on a successful retry', async () => {
+    await render()
+    await act(async () => {
+      requests[0].reject(new Error('Search failed'))
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(container.textContent).toContain('Search couldn’t run.')
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
+    await click('Try again')
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
+    await complete(1)
+    expect(container.querySelector('[aria-label="Search filters"]')).not.toBeNull()
+  })
 
   it('preserves filter focus and permits recovery after a failed refinement', async () => {
     await render()

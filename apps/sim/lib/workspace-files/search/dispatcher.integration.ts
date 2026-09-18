@@ -25,6 +25,7 @@ vi.mock('@trigger.dev/sdk', () => ({ tasks: { batchTrigger: mocks.batchTrigger }
 vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
 vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: async () => 'us-east-1' }))
 
+import { FILE_SEARCH_BACKFILL_PAGE_SIZE } from '@/lib/workspace-files/search/constants'
 import {
   dispatchWorkspaceFileSearchIndexJobs,
   prepareWorkspaceFileSearchDispatch,
@@ -42,6 +43,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
   ) {
     throw new Error('File search tests require a disposable local integration database')
   }
+  /** Every statement the dispatcher issues, so a test can EXPLAIN the exact SQL it ran. */
+  const statements: { query: string; params: readonly unknown[] }[] = []
   const connection = postgres(
     databaseUrl,
     withUtcTimestamps({
@@ -50,6 +53,9 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       fetch_types: false,
       connection: { search_path: schemaName },
       onnotice: () => {},
+      debug: (_connection: unknown, query: string, params: readonly unknown[]) => {
+        statements.push({ query, params })
+      },
     })
   )
 
@@ -59,19 +65,30 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       id text PRIMARY KEY, after_workspace_id text, after_file_id text,
       completed_at timestamp, updated_at timestamp NOT NULL
     )`
+    /**
+     * `workspace_id` is nullable here because it is nullable in production. Declaring it NOT NULL
+     * lets PostgreSQL discard the walk's `workspace_id IS NOT NULL` clause as trivially true, after
+     * which it can no longer prove the partial keyset index covers the query and silently stops
+     * using it.
+     */
     await connection`CREATE TABLE workspace_files (
-      id text PRIMARY KEY, workspace_id text NOT NULL, context text NOT NULL,
+      id text PRIMARY KEY, workspace_id text, context text NOT NULL,
       deleted_at timestamp, content_updated_at timestamp NOT NULL
     )`
     await connection`CREATE TABLE workspace_file_search_revision (
-      file_id text NOT NULL, workspace_id text NOT NULL, source_content_updated_at timestamp NOT NULL,
-      status text NOT NULL, dispatched_at timestamp, updated_at timestamp NOT NULL,
-      PRIMARY KEY (file_id, source_content_updated_at)
+      file_id text PRIMARY KEY, workspace_id text NOT NULL,
+      source_content_updated_at timestamp NOT NULL, status text NOT NULL DEFAULT 'pending',
+      build_id text, failure_reason text, line_count integer NOT NULL DEFAULT 0,
+      indexed_bytes integer NOT NULL DEFAULT 0, chunk_count integer NOT NULL DEFAULT 0,
+      dispatched_at timestamp, updated_at timestamp NOT NULL DEFAULT now()
     )`
     await connection`CREATE TABLE workspace_file_search_dispatch_queue (
       workspace_id text PRIMARY KEY, enqueued_at timestamp NOT NULL,
       updated_at timestamp NOT NULL, last_dispatched_at timestamp
     )`
+    await connection`CREATE INDEX workspace_files_workspace_active_keyset_idx
+      ON workspace_files (workspace_id, id)
+      WHERE deleted_at IS NULL AND context = 'workspace' AND workspace_id IS NOT NULL`
     await connection`CREATE INDEX ON workspace_file_search_revision
       (workspace_id, updated_at, file_id, source_content_updated_at)
       WHERE status = 'pending' AND dispatched_at IS NULL`
@@ -89,7 +106,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`DROP TRIGGER IF EXISTS slow_backfill ON workspace_file_search_backfill`
     await connection`TRUNCATE workspace_files, workspace_file_search_revision, workspace_file_search_dispatch_queue`
     await connection`UPDATE workspace_file_search_backfill
-      SET updated_at = '2026-09-16 00:00:00', completed_at = NULL`
+      SET updated_at = '2026-09-16 00:00:00', completed_at = NULL,
+        after_workspace_id = NULL, after_file_id = NULL`
   })
 
   afterAll(async () => {
@@ -175,6 +193,75 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       WHERE status = 'pending' AND dispatched_at IS NOT NULL`
     expect(row.active).toBe(100)
   })
+
+  it('walks every live workspace file exactly once across backfill pages', async () => {
+    /** Deliberately not a whole number of pages, so the short final page ends the walk. */
+    const files =
+      2 * FILE_SEARCH_BACKFILL_PAGE_SIZE + Math.floor(FILE_SEARCH_BACKFILL_PAGE_SIZE / 2)
+    const expectedPages = Math.ceil(files / FILE_SEARCH_BACKFILL_PAGE_SIZE)
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+      SELECT md5(n::text), 'workspace-' || lpad((n % 7)::text, 2, '0'), 'workspace', '2026-09-16'
+      FROM generate_series(1, ${files}) n`
+    await connection`INSERT INTO workspace_files
+      (id, workspace_id, context, deleted_at, content_updated_at)
+      VALUES ('skipped-deleted', 'workspace-00', 'workspace', now(), '2026-09-16')`
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+      VALUES ('skipped-context', 'workspace-00', 'execution', '2026-09-16')`
+
+    let pages = 0
+    let completed = false
+    while (!completed) {
+      await prepareWorkspaceFileSearchDispatch()
+      pages += 1
+      const [cursor] = await connection`SELECT completed_at FROM workspace_file_search_backfill`
+      completed = cursor.completed_at !== null
+      expect(pages).toBeLessThanOrEqual(expectedPages)
+    }
+
+    expect(pages).toBe(expectedPages)
+    const [seeded] =
+      await connection`SELECT count(*)::int AS total FROM workspace_file_search_revision`
+    expect(seeded.total).toBe(files)
+    const [skipped] = await connection`SELECT count(*)::int AS missed FROM workspace_files file
+      WHERE file.context = 'workspace' AND file.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM workspace_file_search_revision revision
+          WHERE revision.file_id = file.id)`
+    expect(skipped.missed).toBe(0)
+  }, 30_000)
+
+  it('seeks the keyset index for the backfill cursor rather than filtering', async () => {
+    await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
+      SELECT md5(n::text), 'workspace-' || lpad((n % 7)::text, 2, '0'), 'workspace', '2026-09-16'
+      FROM generate_series(1, ${2 * FILE_SEARCH_BACKFILL_PAGE_SIZE}) n`
+    await connection`ANALYZE workspace_files`
+
+    /** The first page leaves a cursor behind; the second is the one that has to seek to it. */
+    await prepareWorkspaceFileSearchDispatch()
+    statements.length = 0
+    await prepareWorkspaceFileSearchDispatch()
+
+    const walk = statements.find((statement) =>
+      statement.query.includes('for share of "workspace_files"')
+    )
+    expect(walk).toBeDefined()
+    expect(walk?.query).toContain('"workspace_files"."workspace_id", "workspace_files"."id") >')
+
+    const plan = await connection.begin(async (tx) => {
+      /**
+       * At fixture scale a sequential scan is genuinely cheapest, so the planner is pinned to the
+       * choice production makes on a table where it is not. What is asserted is the shape the
+       * planner can still only reach from a row-wise cursor: the `OR` spelling stays a filter under
+       * these same settings, which is the regression this guards.
+       */
+      await tx`SET LOCAL enable_seqscan = off`
+      await tx`SET LOCAL enable_sort = off`
+      const rows = await tx.unsafe(`EXPLAIN ${walk?.query}`, walk?.params as never[])
+      return rows.map((row: Record<string, unknown>) => row['QUERY PLAN']).join('\n')
+    })
+
+    expect(plan).toContain('workspace_files_workspace_active_keyset_idx')
+    expect(plan).toMatch(/Index Cond:.*ROW\(/)
+  }, 30_000)
 
   it('fails on a locked backfill row and releases the dispatcher lock', async () => {
     let release = () => {}

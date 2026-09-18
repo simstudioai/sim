@@ -30,6 +30,38 @@ export function getPostgresErrorCode(error: unknown): string | undefined {
   return readPgErrorField(error, 'code')
 }
 
+const POSTGRES_CANCELLATION_REASONS = [
+  ['57014', 'canceling statement due to statement timeout', 'statement_timeout'],
+  ['57014', 'canceling statement due to user request', 'user_cancel'],
+  ['40001', 'canceling statement due to conflict with recovery', 'recovery_conflict'],
+  ['55P03', 'canceling statement due to lock timeout', 'lock_timeout'],
+  ['25P04', 'terminating connection due to transaction timeout', 'transaction_timeout'],
+  ['40P01', 'deadlock detected', 'deadlock'],
+] as const
+
+export type PostgresCancellationReason = (typeof POSTGRES_CANCELLATION_REASONS)[number][2]
+
+/** Identifies known cancellations without exposing SQL, driver details, or arbitrary messages. */
+export function getPostgresCancellationReason(
+  error: unknown
+): PostgresCancellationReason | undefined {
+  const seen = new Set<unknown>()
+  let current = error
+  while (current && typeof current === 'object' && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if ('code' in current && typeof current.code === 'string') {
+      const errorCode = current.code
+      const errorMessage = 'message' in current ? current.message : undefined
+      const match = POSTGRES_CANCELLATION_REASONS.find(
+        ([code, message]) => errorCode === code && errorMessage === message
+      )
+      return match?.[2]
+    }
+    current = 'cause' in current ? current.cause : undefined
+  }
+  return undefined
+}
+
 /**
  * Returns the name of the PostgreSQL constraint that triggered the error (e.g. the unique index
  * name on a `23505`), when present on a thrown value. Mirrors the field populated by the

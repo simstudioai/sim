@@ -794,6 +794,7 @@ describe('processDocumentAsync write guards', () => {
       diagnostic: {
         category: 'database',
         code: '57014',
+        databaseReason: 'statement_timeout',
         message: 'Database request failed (SQLSTATE 57014).',
       },
     })

@@ -13,6 +13,7 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
@@ -82,6 +83,12 @@ const { mockGetDocument, mockMapTags, mockListDocuments } = vi.hoisted(() => ({
   mockMapTags: vi.fn(),
   mockListDocuments: vi.fn(),
 }))
+
+const { mockLogError } = vi.hoisted(() => ({ mockLogError: vi.fn() }))
+vi.mock('@sim/logger', async () => {
+  const { createMockLogger } = await import('@sim/testing/mocks/logger.mock')
+  return { createLogger: () => ({ ...createMockLogger(), error: mockLogError }) }
+})
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionOwner: vi.fn(),
@@ -2839,6 +2846,46 @@ describe('executeSync heartbeats during the listing phase', () => {
     // which is what makes the heartbeat below report a lost lock.
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1', accessMode: 'workspace' }])
   }
+
+  it.each(['workspace', 'admin'] as const)(
+    'diagnoses a %s tombstone query failure without continuing the crawl',
+    async (accessMode) => {
+      primeSyncUpToListing()
+      dbChainMockFns.returning.mockReset()
+      dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode }])
+      const error = new DrizzleQueryError(
+        'select private SQL',
+        ['private bound content'],
+        Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+      )
+      dbChainMockFns.limit
+        .mockResolvedValueOnce([CONNECTOR])
+        .mockResolvedValueOnce([{ userId: 'u-1', workspaceId: 'ws-1' }])
+        .mockRejectedValueOnce(error)
+
+      const result = await executeSync('c-1', {
+        billingAttribution: { workspaceId: 'ws-1' } as never,
+      })
+
+      expect(result.error).toBe('Database request failed (SQLSTATE 57014).')
+      expect(mockLogError).toHaveBeenCalledWith('Connector tombstone check failed', {
+        connectorId: 'c-1',
+        operation: 'document.tombstone-check',
+        elapsedMs: expect.any(Number),
+        diagnostic: {
+          category: 'database',
+          code: '57014',
+          databaseReason: 'statement_timeout',
+          message: 'Database request failed (SQLSTATE 57014).',
+        },
+      })
+      expect(mockListDocuments).not.toHaveBeenCalled()
+      expect(JSON.stringify(mockLogError.mock.calls)).not.toContain('private')
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'error', consecutiveFailures: 1 })
+      )
+    }
+  )
 
   it.each(['workspace', 'admin'] as const)(
     'uses the locked source mode %s when resolving its token',

@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import { Chip, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
@@ -94,8 +94,6 @@ type KnowledgeSearchResultsProps = (
   | { scope: ResourceScope; workspaceId?: never }
 ) & {
   query: string
-  /** Lets the page dock its header after this query has displayed results. */
-  renderLayout?: (results: ReactNode, hasDisplayedResults: boolean) => ReactNode
   /** Binds the Assistant turn to the selected canonical document. */
   onSummarize: (prompt: string, filters: WorkspaceSearchFilters) => void
 }
@@ -106,7 +104,6 @@ export function KnowledgeSearchResults({
   scope: suppliedScope,
   query,
   onSummarize,
-  renderLayout,
 }: KnowledgeSearchResultsProps) {
   const scope: ResourceScope = suppliedScope ?? { kind: 'workspace', workspaceId: workspaceId! }
   const { data: session } = useSession()
@@ -117,7 +114,6 @@ export function KnowledgeSearchResults({
       scope={scope}
       query={trimmed}
       onSummarize={onSummarize}
-      renderLayout={renderLayout}
     />
   )
 }
@@ -126,11 +122,10 @@ interface SearchResultsProps {
   scope: ResourceScope
   query: string
   onSummarize: KnowledgeSearchResultsProps['onSummarize']
-  renderLayout: KnowledgeSearchResultsProps['renderLayout']
 }
 
-function SearchResults({ scope, query, onSummarize, renderLayout }: SearchResultsProps) {
-  const [hasDisplayedResults, setHasDisplayedResults] = useState(false)
+function SearchResults({ scope, query, onSummarize }: SearchResultsProps) {
+  const [hasShownFilters, setHasShownFilters] = useState(false)
   const [searchedAt] = useState(Date.now)
   const {
     data: index,
@@ -180,9 +175,11 @@ function SearchResults({ scope, query, onSummarize, renderLayout }: SearchResult
       : null
 
   const showResults = !noSources && !failed && !basesPending && documents.length > 0
-  if (showResults && !hasDisplayedResults) setHasDisplayedResults(true)
+  const showFilters =
+    hasShownFilters || showResults || (!noSources && !pending && !failed && !!search && !partial)
+  if (showFilters && !hasShownFilters) setHasShownFilters(true)
 
-  const content = noSources ? (
+  return noSources ? (
     <div className='flex items-center gap-2 px-2 py-2'>
       <p className='text-[var(--text-muted)] text-caption'>No sources are set up yet.</p>
       <ChipLink
@@ -228,43 +225,45 @@ function SearchResults({ scope, query, onSummarize, renderLayout }: SearchResult
           </Chip>
         )}
       </div>
-      <div
-        role='group'
-        aria-label='Search filters'
-        className='flex flex-wrap items-center gap-1.5 px-2 pb-2'
-      >
-        <Chip
-          shape='round'
-          active={filters.source === null}
-          aria-pressed={filters.source === null}
-          onClick={() => setFilters({ source: null })}
+      {showFilters && (
+        <div
+          role='group'
+          aria-label='Search filters'
+          className='flex flex-wrap items-center gap-1.5 px-2 pb-2'
         >
-          All sources
-        </Chip>
-        {sourceTypes.map((type) => (
           <Chip
-            key={type}
             shape='round'
-            active={filters.source === type}
-            aria-pressed={filters.source === type}
-            onClick={() => setFilters({ source: filters.source === type ? null : type })}
+            active={filters.source === null}
+            aria-pressed={filters.source === null}
+            onClick={() => setFilters({ source: null })}
           >
-            {type === UPLOAD_SOURCE ? 'Uploads' : connectorDisplayName(type)}
+            All sources
           </Chip>
-        ))}
-        <span aria-hidden className='mx-0.5 h-[16px] w-px bg-[var(--border)]' />
-        {UPDATED_WINDOWS.map((window) => (
-          <Chip
-            key={window.id}
-            shape='round'
-            active={filters.updated === window.id}
-            aria-pressed={filters.updated === window.id}
-            onClick={() => setFilters({ updated: window.id })}
-          >
-            {window.label}
-          </Chip>
-        ))}
-      </div>
+          {sourceTypes.map((type) => (
+            <Chip
+              key={type}
+              shape='round'
+              active={filters.source === type}
+              aria-pressed={filters.source === type}
+              onClick={() => setFilters({ source: filters.source === type ? null : type })}
+            >
+              {type === UPLOAD_SOURCE ? 'Uploads' : connectorDisplayName(type)}
+            </Chip>
+          ))}
+          <span aria-hidden className='mx-0.5 h-[16px] w-px bg-[var(--border)]' />
+          {UPDATED_WINDOWS.map((window) => (
+            <Chip
+              key={window.id}
+              shape='round'
+              active={filters.updated === window.id}
+              aria-pressed={filters.updated === window.id}
+              onClick={() => setFilters({ updated: window.id })}
+            >
+              {window.label}
+            </Chip>
+          ))}
+        </div>
+      )}
       {showResults && (
         <div
           role='region'
@@ -296,5 +295,4 @@ function SearchResults({ scope, query, onSummarize, renderLayout }: SearchResult
       )}
     </div>
   )
-  return renderLayout ? renderLayout(content, hasDisplayedResults || showResults) : content
 }

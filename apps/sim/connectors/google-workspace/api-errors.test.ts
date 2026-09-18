@@ -21,6 +21,19 @@ afterEach(() => {
 })
 
 describe('Google API diagnostics', () => {
+  it('retains the Calendar account-status reason without retaining the response message', async () => {
+    const error = await readGoogleApiError(failure(403, 'notACalendarUser'), 'calendar.events.list')
+    expect(error.reasonsComplete).toBe(true)
+    expect(error.rateLimited).toBe(false)
+    expect(getConnectorFailureDiagnostic(error)).toMatchObject({
+      status: 403,
+      operation: 'calendar.events.list',
+      reasons: ['notACalendarUser'],
+      reasonState: 'present',
+    })
+    expect(JSON.stringify(error)).not.toContain(RESPONSE_SECRET)
+  })
+
   it.each([
     [400, 'badRequest', 'request_rejected'],
     [403, 'forbidden', 'authorization'],
@@ -227,6 +240,7 @@ describe('Google API retries', () => {
   it.each([
     [400, 'failedPrecondition'],
     [403, 'forbidden'],
+    [403, 'notACalendarUser'],
     [404, 'notFound'],
   ] as const)('does not retry or suppress %s %s', async (status, reason) => {
     const fetch = vi.fn().mockResolvedValueOnce(failure(status, reason))
