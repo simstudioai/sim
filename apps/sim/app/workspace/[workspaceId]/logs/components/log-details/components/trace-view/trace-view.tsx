@@ -696,6 +696,9 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   if (span.tries !== undefined) metaEntries.push({ label: 'Tries', value: String(span.tries) })
   if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
   if (span.model) metaEntries.push({ label: 'Model', value: span.model })
+  for (const failedModel of span.modelFallbacks ?? []) {
+    metaEntries.push({ label: 'Failed model', value: failedModel })
+  }
   if (span.finishReason) metaEntries.push({ label: 'Finish reason', value: span.finishReason })
   const ttftFormatted = formatTtft(span.ttft)
   if (ttftFormatted) metaEntries.push({ label: 'TTFT', value: ttftFormatted })

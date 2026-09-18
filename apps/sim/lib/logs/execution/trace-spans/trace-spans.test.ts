@@ -1027,6 +1027,36 @@ describe('buildTraceSpans', () => {
   })
 })
 
+describe('modelFallbacks', () => {
+  const log = (modelFallbacks?: string[]) => ({
+    blockId: 'agent-1',
+    blockName: 'Agent',
+    blockType: 'agent',
+    startedAt: '2024-01-01T10:00:00.000Z',
+    endedAt: '2024-01-01T10:00:01.000Z',
+    durationMs: 1000,
+    success: true,
+    output: { content: 'ok', model: 'gpt-5.4-mini' },
+    executionOrder: 1,
+    ...(modelFallbacks ? { modelFallbacks } : {}),
+  })
+
+  it.concurrent('carries the failed models onto the span and omits the field when empty', () => {
+    const withFallbacks = buildTraceSpans({
+      success: true,
+      output: {},
+      logs: [log(['claude-sonnet-5'])],
+    })
+    expect(withFallbacks.traceSpans[0].modelFallbacks).toEqual(['claude-sonnet-5'])
+    expect(withFallbacks.traceSpans[0].model).toBe('gpt-5.4-mini')
+
+    const empty = buildTraceSpans({ success: true, output: {}, logs: [log([])] })
+    expect(empty.traceSpans[0]).not.toHaveProperty('modelFallbacks')
+    const none = buildTraceSpans({ success: true, output: {}, logs: [log()] })
+    expect(none.traceSpans[0]).not.toHaveProperty('modelFallbacks')
+  })
+})
+
 describe('errorHandled - handled errors should not bubble up', () => {
   it.concurrent('block span stays error but is marked errorHandled', () => {
     const result: ExecutionResult = {

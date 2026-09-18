@@ -75,6 +75,8 @@ import {
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  providerRequiresFamilyCredentials,
+  requiresProviderFamilyCredentials,
 } from '@/blocks/utils'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -96,6 +98,45 @@ const BASE_CLOUD_MODELS: Record<string, string> = {
   'gemini-2.5-pro': 'google',
   'mistral-large-latest': 'mistral',
 }
+
+describe('providerRequiresFamilyCredentials', () => {
+  it('answers for a provider the caller already resolved', () => {
+    expect(providerRequiresFamilyCredentials('vertex')).toBe(true)
+    expect(providerRequiresFamilyCredentials('openai')).toBe(false)
+    expect(providerRequiresFamilyCredentials(null)).toBe(false)
+    expect(providerRequiresFamilyCredentials(undefined)).toBe(false)
+  })
+})
+
+describe('requiresProviderFamilyCredentials', () => {
+  beforeEach(() => {
+    setEnvFlags({ isHosted: false, isAzureConfigured: false, isOllamaConfigured: false })
+  })
+
+  it('is true for Vertex, and for Bedrock until the deployment provides default credentials', () => {
+    expect(requiresProviderFamilyCredentials('vertex/gemini-2.5-pro')).toBe(true)
+    expect(requiresProviderFamilyCredentials('bedrock/my-inference-profile')).toBe(true)
+    vi.stubEnv('NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS', 'true')
+    try {
+      expect(requiresProviderFamilyCredentials('bedrock/my-inference-profile')).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('is true for Azure only until the deployment configures it server-side', () => {
+    expect(requiresProviderFamilyCredentials('azure/my-deployment')).toBe(true)
+    expect(requiresProviderFamilyCredentials('azure-anthropic/my-deployment')).toBe(true)
+    setEnvFlags({ isAzureConfigured: true })
+    expect(requiresProviderFamilyCredentials('azure/my-deployment')).toBe(false)
+  })
+
+  it('is false for API-key providers, local servers, and unknown ids', () => {
+    expect(requiresProviderFamilyCredentials('openrouter/anthropic/claude')).toBe(false)
+    expect(requiresProviderFamilyCredentials('ollama/llama3')).toBe(false)
+    expect(requiresProviderFamilyCredentials('')).toBe(false)
+  })
+})
 
 describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
   const evaluateCondition = (model: string): boolean => {

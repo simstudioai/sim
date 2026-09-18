@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { ChartBarIcon } from '@/components/icons'
+import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import {
   getModelOptions,
@@ -189,6 +190,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),
+    getModelFallbackSubBlock(),
     {
       id: 'temperature',
       title: 'Temperature',
@@ -294,6 +296,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
     },
     model: { type: 'string' as ParamType, description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...MODEL_FALLBACK_INPUTS,
     temperature: {
       type: 'number' as ParamType,
       description: 'Response randomness level (low for consistent evaluation)',

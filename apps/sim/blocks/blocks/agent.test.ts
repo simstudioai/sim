@@ -30,6 +30,27 @@ describe('AgentBlock', () => {
   }
 
   describe('tools.config.params function', () => {
+    it('normalizes fallback models and drops the key when none survive', () => {
+      const withRows = paramsFunction({
+        model: 'gpt-4o',
+        fallbackModels: [
+          { id: 'a', model: ' claude-sonnet-5 ' },
+          { id: 'b', model: 'sim-auto' },
+          { id: 'c', model: 'claude-sonnet-5' },
+          { id: 'd', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+          { id: 'e', model: 'openrouter/y', apiKey: '' },
+        ],
+      })
+      expect(withRows.fallbackModels).toEqual([
+        { model: 'claude-sonnet-5' },
+        { model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
+        { model: 'openrouter/y' },
+      ])
+
+      const empty = paramsFunction({ model: 'gpt-4o', fallbackModels: [{ id: 'a', model: '' }] })
+      expect(empty).not.toHaveProperty('fallbackModels')
+    })
+
     it('should pass through params when no tools array is provided', () => {
       const params = {
         model: 'gpt-4o',

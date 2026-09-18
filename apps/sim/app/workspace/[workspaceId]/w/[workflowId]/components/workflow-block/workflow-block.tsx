@@ -61,6 +61,7 @@ import {
   getDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
+  resolveFallbackModelsLabel,
   resolveFilterFieldLabel,
   resolveFolderPathLabel,
   resolveSandboxLabel,
@@ -158,6 +159,7 @@ const SUBBLOCK_META_ICONS_BY_TYPE: Record<string, MetaIcon> = {
   'messages-input': MessageSquareText,
   'tool-input': Wrench,
   'skill-input': Sparkles,
+  'model-fallback-list': ArrowLeftRight,
   'oauth-input': Key,
   switch: ToggleLeft,
   'file-upload': Paperclip,
@@ -574,6 +576,11 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, workspaceSkills]
   )
 
+  const fallbackModelsDisplayValue = useMemo(
+    () => resolveFallbackModelsLabel(subBlock, rawValue),
+    [subBlock, rawValue]
+  )
+
   /**
    * Hydrates the Function block's sandbox id to its name. Deliberately scoped to
    * the sandbox row: this row is memoized per subblock, and the shared list query
@@ -605,6 +612,7 @@ const SubBlockRow = memo(function SubBlockRow({
     filterDisplayValue ||
     toolsDisplayValue ||
     skillsDisplayValue ||
+    fallbackModelsDisplayValue ||
     sandboxDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||

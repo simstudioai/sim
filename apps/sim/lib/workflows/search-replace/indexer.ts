@@ -212,6 +212,10 @@ function isSearchableLeafPath(
   if (mode === 'text' && subBlockType === 'messages-input' && lastSegment === 'role') {
     return false
   }
+  /** A fallback row's key is a `{{VAR}}` reference; rewriting it would turn it into a raw value. */
+  if (mode === 'text' && subBlockType === 'model-fallback-list' && lastSegment === 'apiKey') {
+    return false
+  }
   if (mode === 'text' && subBlockType === 'tool-input') {
     if (TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS.has(lastSegment)) return false
     if (lastSegment.endsWith('Id')) return false

@@ -11,6 +11,7 @@ import {
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
+import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'
 import {
   CheckboxList,
   Code,
@@ -32,6 +33,7 @@ import {
   McpServerSelector,
   McpToolSelector,
   MessagesInput,
+  ModelFallbackList,
   ResponseFormat,
   ScheduleInfo,
   SelectorInput,
@@ -1197,6 +1199,27 @@ function SubBlockComponent({
         }
         return <ModalComponent blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
       }
+      case 'model-fallback-list':
+        return (
+          <ModelFallbackList
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as FallbackModelEntry[] | null | undefined}
+            previewPrimary={
+              isPreview
+                ? {
+                    model: subBlockValues?.model?.value,
+                    reasoningEffort: subBlockValues?.reasoningEffort?.value,
+                    thinkingLevel: subBlockValues?.thinkingLevel?.value,
+                    verbosity: subBlockValues?.verbosity?.value,
+                  }
+                : undefined
+            }
+            disabled={isDisabled}
+          />
+        )
+
       case 'messages-input':
         return (
           <MessagesInput

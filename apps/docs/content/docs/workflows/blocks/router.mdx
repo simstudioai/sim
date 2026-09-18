@@ -35,6 +35,12 @@ Each route is a **title** and a **description** of when to choose it ("Route her
 
 The model that makes the decision, defaulting to `claude-sonnet-4-6`. Stronger reasoning models route more accurately; a faster, cheaper model is fine when the routes are clearly distinct. Type or pick any supported model, or a local one through Ollama or VLLM. On hosted Sim the API key is supplied for you.
 
+### Fallback models
+
+Under **Additional fields**, add up to five models to try in order when a model request fails. With **Retry on fail** enabled, the selected model exhausts its tries first; each fallback is then tried once. Every attempt uses the same context and route definitions. `<router.model>` reports the model that answered. This also works for existing legacy Router blocks.
+
+Hosted models on hosted Sim use workspace BYOK or platform credentials. On local or self-hosted installations, a fallback on another provider may need a secret selected on its row; same-provider fallbacks reuse the selected model's key. Auto cannot be a fallback. A completed `NO_MATCH` decision still takes the error path; it does not trigger another model request.
+
 ## Outputs
 
 | Output | What it is |

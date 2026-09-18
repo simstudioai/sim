@@ -119,6 +119,60 @@ describe('BlockExecutor retry', () => {
 
     await expect(executor.execute(createContext(state), createNode(block), block)).rejects.toThrow()
     expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute.mock.calls[0][3]).not.toHaveProperty('retry')
+  })
+
+  it('tells each try where it sits in the policy, and a block without one nothing', async () => {
+    const block = createBlock({ enabled: true, maxTries: 3, waitBetweenTriesMs: 0 })
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('one'))
+      .mockRejectedValueOnce(new Error('two'))
+      .mockResolvedValueOnce({ ok: true })
+    const state = new ExecutionState()
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    await executor.execute(createContext(state), createNode(block), block)
+
+    expect(execute.mock.calls.map(([, , , metadata]) => metadata.retry)).toEqual([
+      { attempt: 1, maxTries: 3, isFinalTry: false },
+      { attempt: 2, maxTries: 3, isFinalTry: false },
+      { attempt: 3, maxTries: 3, isFinalTry: true },
+    ])
+    expect(execute.mock.calls[0][3].nodeId).toBe(block.id)
+
+    const plain = createBlock()
+    const executePlain = vi.fn().mockResolvedValue({ ok: true })
+    const plainState = new ExecutionState()
+    await buildExecutor(
+      plain,
+      { canHandle: () => true, execute: executePlain },
+      plainState
+    ).execute(createContext(plainState), createNode(plain), plain)
+    expect(executePlain.mock.calls[0][3]).not.toHaveProperty('retry')
+  })
+
+  it('hands the same try position to a handler that takes the node', async () => {
+    const block = createBlock({ enabled: true, maxTries: 2, waitBetweenTriesMs: 0 })
+    const executeWithNode = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('one'))
+      .mockResolvedValueOnce({ ok: true })
+    const execute = vi.fn()
+    const state = new ExecutionState()
+    const executor = buildExecutor(
+      block,
+      { canHandle: () => true, execute, executeWithNode },
+      state
+    )
+
+    await executor.execute(createContext(state), createNode(block), block)
+
+    expect(execute).not.toHaveBeenCalled()
+    expect(executeWithNode.mock.calls.map(([, , , metadata]) => metadata.retry)).toEqual([
+      { attempt: 1, maxTries: 2, isFinalTry: false },
+      { attempt: 2, maxTries: 2, isFinalTry: true },
+    ])
   })
 
   it('replays any failure and succeeds on a later try', async () => {

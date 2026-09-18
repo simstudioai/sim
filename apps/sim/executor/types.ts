@@ -286,6 +286,13 @@ export interface BlockLog {
   errorHandled?: boolean
   /** Total handler tries, present only when the block retried at least once. */
   tries?: number
+  /**
+   * Models that failed before the one that answered, in the order tried.
+   * Present only when an Agent block fell back at least once. Under retry only
+   * the final try walks the fallbacks, so the field reflects that try; every
+   * earlier try clears it.
+   */
+  modelFallbacks?: string[]
   loopId?: string
   parallelId?: string
   iterationIndex?: number
@@ -750,6 +757,22 @@ export interface BlockNodeMetadata {
   originalBlockId?: string
   isLoopNode?: boolean
   executionOrder?: number
+  /** Where this invocation sits in the block's retry policy; absent when the block has none. */
+  retry?: BlockRetryAttempt
+}
+
+/**
+ * One try of a block under its retry policy, told to the handler so it can hold
+ * work for the last try. `isFinalTry` is the executor's own judgment, not
+ * `attempt >= maxTries` recomputed by the handler: what makes a try final is the
+ * policy's business, and a handler that fails on a non-final try is promised
+ * another invocation for any retryable error.
+ */
+export interface BlockRetryAttempt {
+  /** 1-based. */
+  attempt: number
+  maxTries: number
+  isFinalTry: boolean
 }
 
 export interface BlockHandler {
