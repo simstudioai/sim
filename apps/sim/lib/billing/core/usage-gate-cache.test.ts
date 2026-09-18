@@ -85,7 +85,7 @@ describe('checkIngestionUsageLimits', () => {
     expect(mockCheck).toHaveBeenCalledTimes(2)
   })
 
-  it('separates answers by actor, period, payer and plan', async () => {
+  it('separates answers by actor, period, period source, payer and plan', async () => {
     await checkIngestionUsageLimits(ATTRIBUTION)
     await checkIngestionUsageLimits({ ...ATTRIBUTION, actorUserId: 'member-2' })
     await checkIngestionUsageLimits({
@@ -97,12 +97,16 @@ describe('checkIngestionUsageLimits', () => {
       billedAccountUserId: 'owner-2',
       billingEntity: { type: 'user', id: 'owner-2' },
     })
+    await checkIngestionUsageLimits({
+      ...ATTRIBUTION,
+      billingPeriod: { ...ATTRIBUTION.billingPeriod, source: 'reporting' },
+    })
     await checkIngestionUsageLimits({ ...ATTRIBUTION, payerSubscription: SUBSCRIPTION })
     await checkIngestionUsageLimits({
       ...ATTRIBUTION,
       payerSubscription: { ...SUBSCRIPTION, plan: 'enterprise' },
     })
-    expect(mockCheck).toHaveBeenCalledTimes(6)
+    expect(mockCheck).toHaveBeenCalledTimes(7)
   })
 
   it('does not cache a failed read', async () => {
