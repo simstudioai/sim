@@ -121,6 +121,7 @@ export function QueuedMessages({
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
                         <button
+                          aria-label='Cancel edit'
                           type='button'
                           onClick={(e) => {
                             e.stopPropagation()
@@ -140,6 +141,7 @@ export function QueuedMessages({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <button
+                            aria-label={isDispatching ? 'Sending now' : 'Edit queued message'}
                             type='button'
                             disabled={isDispatching}
                             onClick={(e) => {
@@ -159,6 +161,7 @@ export function QueuedMessages({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <button
+                            aria-label='Send now'
                             type='button'
                             disabled={isDispatching}
                             onClick={(e) => {
@@ -178,6 +181,7 @@ export function QueuedMessages({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <button
+                            aria-label='Remove from queue'
                             type='button'
                             onClick={(e) => {
                               e.stopPropagation()

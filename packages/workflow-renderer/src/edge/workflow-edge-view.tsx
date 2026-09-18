@@ -277,6 +277,7 @@ export function WorkflowEdgeView({
       {isSelected && (
         <EdgeLabelRenderer>
           <button
+            aria-label='Delete connection'
             type='button'
             className='nodrag nopan group flex size-[22px] cursor-pointer items-center justify-center transition-colors'
             style={{

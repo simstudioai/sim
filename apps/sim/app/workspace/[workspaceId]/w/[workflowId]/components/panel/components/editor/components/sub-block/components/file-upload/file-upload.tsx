@@ -209,6 +209,7 @@ function SingleFileSelector({
         }
       />
       <Button
+        aria-label='Remove file'
         type='button'
         variant='ghost'
         className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'
@@ -762,6 +763,7 @@ export function FileUpload({
           </span>
         </div>
         <Button
+          aria-label='Remove file'
           type='button'
           variant='ghost'
           className='-translate-y-1/2 absolute top-1/2 right-[4px] size-6 p-0'

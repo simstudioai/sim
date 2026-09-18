@@ -420,6 +420,7 @@ export function Table({
     !disabled && (
       <td className='w-0 p-0'>
         <Button
+          aria-label='Delete row'
           variant='ghost'
           className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}

@@ -168,7 +168,12 @@ export default function PlaygroundPage() {
           <div className='absolute top-8 left-8 flex items-center gap-2'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <Button variant='ghost' onClick={() => router.back()} className='size-8 p-0'>
+                <Button
+                  aria-label='Go back'
+                  variant='ghost'
+                  onClick={() => router.back()}
+                  className='size-8 p-0'
+                >
                   <ArrowLeft className='size-4' />
                 </Button>
               </Tooltip.Trigger>
@@ -178,7 +183,12 @@ export default function PlaygroundPage() {
           <div className='absolute top-8 right-8'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <Button variant='default' onClick={toggleDarkMode} className='size-8 p-0'>
+                <Button
+                  aria-label={isDarkMode ? 'Light mode' : 'Dark mode'}
+                  variant='default'
+                  onClick={toggleDarkMode}
+                  className='size-8 p-0'
+                >
                   {isDarkMode ? <Sun className='size-4' /> : <Moon className='size-4' />}
                 </Button>
               </Tooltip.Trigger>

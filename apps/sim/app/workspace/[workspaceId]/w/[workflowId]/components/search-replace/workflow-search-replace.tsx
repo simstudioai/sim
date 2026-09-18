@@ -577,7 +577,12 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           onMouseDown={(event) => event.stopPropagation()}
         >
           <span className='text-[var(--text-muted)] text-xs'>{matchCountLabel}</span>
-          <Button variant='ghost' className='size-[26px] p-0' onClick={close}>
+          <Button
+            aria-label='Close search'
+            variant='ghost'
+            className='size-[26px] p-0'
+            onClick={close}
+          >
             <X className='size-[14px]' />
           </Button>
         </div>
@@ -609,6 +614,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           onChange={(event) => setQuery(event.target.value)}
         />
         <Button
+          aria-label='Previous match'
           variant='ghost'
           className='size-8 p-0'
           disabled={hydratedMatches.length === 0}
@@ -617,6 +623,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
           <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
         </Button>
         <Button
+          aria-label='Next match'
           variant='ghost'
           className='size-8 p-0'
           disabled={hydratedMatches.length === 0}

@@ -1068,7 +1068,12 @@ function PreviewEditorContent({
           <BlockTile blockType={block.type} size='lg' />
           <OverflowText label={subflowName} className='flex-1 text-[var(--text-primary)] text-sm' />
           {onClose && (
-            <Button variant='ghost' className='shrink-0 p-1!' onClick={onClose}>
+            <Button
+              aria-label='Close preview'
+              variant='ghost'
+              className='shrink-0 p-1!'
+              onClick={onClose}
+            >
               <X className='size-[14px]' />
             </Button>
           )}
@@ -1155,7 +1160,12 @@ function PreviewEditorContent({
           className='flex-1 text-[var(--text-primary)] text-sm'
         />
         {onClose && (
-          <Button variant='ghost' className='shrink-0 p-1!' onClick={onClose}>
+          <Button
+            aria-label='Close preview'
+            variant='ghost'
+            className='shrink-0 p-1!'
+            onClick={onClose}
+          >
             <X className='size-[14px]' />
           </Button>
         )}
@@ -1224,6 +1234,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label={copiedSection === 'input' ? 'Copied' : 'Copy'}
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1246,6 +1257,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label='Search'
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1296,6 +1308,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label={copiedSection === 'output' ? 'Copied' : 'Copy'}
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1318,6 +1331,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label='Search'
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1374,6 +1388,11 @@ function PreviewEditorContent({
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button
+                              aria-label={
+                                isExecutionMode && onDrillDown
+                                  ? 'Expand workflow'
+                                  : 'Open in new tab'
+                              }
                               type='button'
                               variant='ghost'
                               onClick={handleExpandChildWorkflow}

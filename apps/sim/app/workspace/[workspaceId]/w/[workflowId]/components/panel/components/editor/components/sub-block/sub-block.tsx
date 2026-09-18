@@ -338,6 +338,7 @@ const renderLabel = (
                   placeholder='Generate with AI...'
                 />
                 <Button
+                  aria-label='Generate'
                   variant='primary'
                   disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
                   onMouseDown={(e: React.MouseEvent) => {

@@ -512,6 +512,7 @@ const Pagination = memo(function Pagination({
     <div className='flex items-center justify-center border-[var(--border)] border-t bg-[var(--bg)] px-4 py-2.5'>
       <div className='flex items-center gap-1'>
         <Button
+          aria-label='Previous page'
           variant='ghost'
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
@@ -548,6 +549,7 @@ const Pagination = memo(function Pagination({
           })}
         </div>
         <Button
+          aria-label='Next page'
           variant='ghost'
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
