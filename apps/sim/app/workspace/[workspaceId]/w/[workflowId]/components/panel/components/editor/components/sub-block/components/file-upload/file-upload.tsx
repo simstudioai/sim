@@ -212,7 +212,8 @@ function SingleFileSelector({
         aria-label='Remove file'
         type='button'
         variant='ghost'
-        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'
+        iconSize='compact'
+        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10'
         onClick={onClear}
         disabled={isDeleting}
       >
@@ -766,7 +767,8 @@ export function FileUpload({
           aria-label='Remove file'
           type='button'
           variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[4px] size-6 p-0'
+          iconSize='compact'
+          className='-translate-y-1/2 absolute top-1/2 right-[4px]'
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
         >
