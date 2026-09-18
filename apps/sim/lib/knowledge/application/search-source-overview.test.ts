@@ -45,10 +45,16 @@ const indexingProbeCount = () =>
   dbChainMockFns.limit.mock.calls.filter(([rows]) => rows === MAX_SEARCH_SOURCE_PROVIDER_TYPES)
     .length - CONFIGURED_PROVIDER_READS
 
+/** Counted at the yield, so batches the use case never asks for stay uncounted. */
 function yieldBatches(count: number) {
+  const consumed = { batches: 0 }
   mocks.batches.mockImplementation(async function* () {
-    for (let index = 0; index < count; index += 1) yield sql`batch-${sql.raw(String(index))}`
+    for (let index = 0; index < count; index += 1) {
+      consumed.batches += 1
+      yield sql`batch-${sql.raw(String(index))}`
+    }
   })
+  return consumed
 }
 
 beforeEach(() => {
@@ -84,15 +90,20 @@ describe('readSearchSourceOverview', () => {
   })
 
   it('stops probing for indexing once every configured provider type is known', async () => {
-    yieldBatches(3)
+    const consumed = yieldBatches(3)
     queueTableRows(member, [{ role: 'owner' }])
     queueTableRows(knowledgeConnector, [{ connectorType: 'gmail' }])
     queueTableRows(knowledgeConnector, [{ connectorType: 'gmail' }])
 
     const result = await readSearchSourceOverview.execute({ principal, input })
 
-    expect(result.providers).toEqual([{ connectorType: 'gmail', isSyncing: true }])
+    expect(result).toEqual({
+      providers: [{ connectorType: 'gmail', isSyncing: true }],
+      hasSearchableDocuments: false,
+    })
     expect(indexingProbeCount()).toBe(1)
+    /** The searchable probe is still unsatisfied, so the batches keep being consumed. */
+    expect(consumed.batches).toBe(3)
   })
 
   it('keeps probing every batch while a configured provider type is still unaccounted for', async () => {
@@ -108,5 +119,40 @@ describe('readSearchSourceOverview', () => {
       { connectorType: 'notion', isSyncing: false },
     ])
     expect(indexingProbeCount()).toBe(3)
+  })
+
+  it('stops consuming access batches once neither probe can change the result', async () => {
+    const consumed = yieldBatches(3)
+    queueTableRows(member, [{ role: 'owner' }])
+    queueTableRows(knowledgeConnector, [{ connectorType: 'gmail' }])
+    queueTableRows(knowledgeConnector, [{ connectorType: 'gmail' }])
+    queueTableRows(document, [{ id: 'doc-1' }])
+
+    const result = await readSearchSourceOverview.execute({ principal, input })
+
+    expect(result).toEqual({
+      providers: [{ connectorType: 'gmail', isSyncing: true }],
+      hasSearchableDocuments: true,
+    })
+    expect(consumed.batches).toBe(1)
+  })
+
+  it('keeps consuming access batches for a provider type still unaccounted for', async () => {
+    const consumed = yieldBatches(3)
+    queueTableRows(member, [{ role: 'owner' }])
+    queueTableRows(knowledgeConnector, [{ connectorType: 'gmail' }, { connectorType: 'notion' }])
+    queueTableRows(knowledgeConnector, [{ connectorType: 'gmail' }])
+    queueTableRows(document, [{ id: 'doc-1' }])
+
+    const result = await readSearchSourceOverview.execute({ principal, input })
+
+    expect(result).toEqual({
+      providers: [
+        { connectorType: 'gmail', isSyncing: true },
+        { connectorType: 'notion', isSyncing: false },
+      ],
+      hasSearchableDocuments: true,
+    })
+    expect(consumed.batches).toBe(3)
   })
 })

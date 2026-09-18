@@ -107,26 +107,27 @@ export const readSearchSourceOverview = instrumentSourceOverviewUseCase(
       const indexingTypes = new Set<string>()
       let searchableProbes = 0
       let hasSearchableDocuments = false
+      const probesSources: boolean = availability.memberScoped || availability.sourceMirrored
+      /** One searchable document is the whole answer, so later batches skip the probe entirely. */
+      const probesSearchable = (): boolean => probesSources && !hasSearchableDocuments
+      /**
+       * A provider type is only read back as membership of `indexingTypes`, so once every
+       * configured type is in the set no later batch can change the answer.
+       */
+      const probesIndexing = (): boolean =>
+        probesSources && providers.some(({ connectorType }) => !indexingTypes.has(connectorType))
       for await (const accessCondition of knowledgeReadAccessBatches(access, [
         configured,
         available,
         documentConditions,
       ])) {
         const readableDocument = and(documentConditions, accessCondition)
-        const probesSources: boolean = availability.memberScoped || availability.sourceMirrored
-        /** One searchable document is the whole answer, so later batches skip the probe entirely. */
-        const probesSearchable: boolean = probesSources && !hasSearchableDocuments
-        if (probesSearchable) searchableProbes += 1
-        /**
-         * A provider type is only read back as membership of `indexingTypes`, so once every
-         * configured type is in the set no later batch can change the answer.
-         */
-        const probesIndexing: boolean =
-          probesSources && providers.some(({ connectorType }) => !indexingTypes.has(connectorType))
+        const probesSearchableNow = probesSearchable()
+        if (probesSearchableNow) searchableProbes += 1
         /** Annotated so the searchable probe's guard does not infer through its own result. */
         const [indexing, searchable]: [{ connectorType: string }[], { id: string }[]] =
           await Promise.all([
-            probesIndexing
+            probesIndexing()
               ? measureSearchStage('source_overview.indexing', () =>
                   configuredProvidersQuery()
                     .where(
@@ -164,7 +165,7 @@ export const readSearchSourceOverview = instrumentSourceOverviewUseCase(
                     .limit(MAX_SEARCH_SOURCE_PROVIDER_TYPES)
                 )
               : [],
-            probesSearchable
+            probesSearchableNow
               ? measureSearchStage('source_overview.searchable', () =>
                   db
                     .select({ id: document.id })
@@ -199,6 +200,12 @@ export const readSearchSourceOverview = instrumentSourceOverviewUseCase(
           ])
         for (const provider of indexing) indexingTypes.add(provider.connectorType)
         hasSearchableDocuments ||= searchable.length > 0
+        /**
+         * Both probes are saturated, so every remaining batch would be discovered and live-proved
+         * for no probe. `accessBatchCount` and `liveProofConnectorCount` stay what they document:
+         * the batches and proofs this read actually spent, not the batches the owner could produce.
+         */
+        if (!probesSearchable() && !probesIndexing()) break
       }
       annotateSearchDiagnostics({ searchableProbeCount: searchableProbes })
       return {
