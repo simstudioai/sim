@@ -175,7 +175,7 @@ describe.skipIf(!smokeEnabled)('sim.* helpers in a real isolate', () => {
       const result = await run(
         [
           'const names = ["sim","fetch","console","JSON","Uint8Array",',
-          '  "Buffer","require","process","atob","TextDecoder","crypto","setTimeout"]',
+          '  "Buffer","require","process","atob","btoa","TextEncoder","TextDecoder","crypto","setTimeout"]',
           'const out = {}',
           'for (const name of names) out[name] = typeof globalThis[name] !== "undefined"',
           'return out',
@@ -184,23 +184,19 @@ describe.skipIf(!smokeEnabled)('sim.* helpers in a real isolate', () => {
       )
 
       expect(result.error).toBeUndefined()
-      // The isolate/sandbox split made concrete. The fast runtime is plain
-      // ECMAScript plus `fetch` and `sim.*` — no Node built-ins, and notably no
-      // `crypto`, `TextDecoder`, or even `setTimeout`. Reaching for any of them
-      // is what makes a block need an import, which is what moves it to the
-      // slower remote sandbox. The block tip documents exactly this list, so
-      // pin it here rather than letting it drift.
       expect(result.result).toEqual({
         sim: true,
         fetch: true,
         console: true,
         JSON: true,
         Uint8Array: true,
-        Buffer: false,
+        Buffer: true,
         require: false,
         process: false,
-        atob: false,
-        TextDecoder: false,
+        atob: true,
+        btoa: true,
+        TextEncoder: true,
+        TextDecoder: true,
         crypto: false,
         setTimeout: false,
       })
