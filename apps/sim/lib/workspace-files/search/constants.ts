@@ -32,6 +32,16 @@ export const FILE_SEARCH_CLEANUP_BATCH_BUILDS = 100
 export const FILE_SEARCH_CLEANUP_BACKLOG_ROWS = 10000
 export const FILE_SEARCH_CLEANUP_MAX_BATCHES = 10
 export const FILE_SEARCH_CLEANUP_BUDGET_MS = 5000
+/**
+ * One batch's nominal share of the run budget, and so the smallest slice worth starting another
+ * with.
+ *
+ * Running out of budget is how cleanup normally ends. A batch admitted with less than its share
+ * either runs past the budget it was given or aborts on its own statement timeout, which the caller
+ * reports as a cleanup failure rather than as work still to do.
+ */
+export const FILE_SEARCH_CLEANUP_MIN_BATCH_MS =
+  FILE_SEARCH_CLEANUP_BUDGET_MS / FILE_SEARCH_CLEANUP_MAX_BATCHES
 export const FILE_SEARCH_RECONCILE_INTERVAL_MS = 60 * 60 * 1000
 export const FILE_SEARCH_INSERT_BATCH_ROWS = 250
 export const FILE_SEARCH_INSERT_BATCH_BYTES = 1024 * 1024
