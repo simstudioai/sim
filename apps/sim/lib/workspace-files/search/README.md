@@ -12,6 +12,8 @@ PostgreSQL stores complete extracted text in bounded chunks. Object storage rema
 
 Workers download and extract outside database transactions, then insert batches of at most 250 rows / 1 MiB. Each batch checks the build token and lease. Publication locks the canonical file, build, and revision in that order, verifies the stored chunk count, and changes the visible pointer only after every batch succeeds. Old dispatch failure callbacks cannot overwrite newer dispatches or successful builds.
 
+The indexing task uses an isolated `medium-2x` Trigger worker (4 GB RAM). Document parsers can materialize expanded content before chunking, so source and extracted-text byte limits do not bound parser memory. Parser complexity guards and the worker's memory budget remain separate protections.
+
 File edits, context changes, and deletion invalidate metadata and expire builds. Chunks have no cascading foreign key to files or workspaces. Cleanup locks at most 100 expired builds with `SKIP LOCKED`, deletes at most 1,000 chunks per transaction, retires empty builds in the same batch, and stops after 10 batches or five seconds. Dispatch pauses while at least 10,000 expired chunks await cleanup, so sustained revisions cannot keep admitting new builds faster than retirement can drain them. Existing ready files remain searchable. Stale workers cannot revive a reclaimed build.
 
 ## Search
