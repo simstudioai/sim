@@ -902,57 +902,37 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         ),
       })
       /**
-       * LIMIT keeps document authorization downstream of vector traversal, with a primary-key
-       * lookup per candidate. Only an underfilled ANN scan materializes the visible document set.
-       * Its exact fallback scores the compact projection once, then joins scalar distances to
-       * visible identities; it cannot turn into a random vector lookup for every document.
+       * The bounded ANN traversal is the whole candidate set. LIMIT keeps document authorization
+       * downstream of the traversal, with a primary-key lookup per candidate.
+       *
+       * An underfilled traversal yields fewer candidates rather than widening the search. Widening
+       * it has no affordable form here: rescoring the projection exhaustively is O(corpus) and a
+       * deeper `hnsw.max_scan_tuples` is worse still — measured on a 132k-chunk index at 10%
+       * visibility, the exhaustive rescan took 1.9s while scanning 6.5k tuples instead of 1.5k took
+       * 5.1s and 9.7s on consecutive identical runs. Both exceed the retrieval budget on a corpus
+       * an order of magnitude larger, and a leg that exceeds its budget returns nothing at all, so
+       * fewer candidates strictly beats every widening strategy available.
        */
       const identities = await withVectorScanSettings(
         (executor) =>
-          executor.execute<{ id: string; initial_count: number }>(sql`
-          WITH visible_search_documents AS MATERIALIZED (
-            SELECT ${document.id} AS id FROM ${document}
-            WHERE ${and(...candidateDocumentVisibility)}
-          ), initial_candidates AS MATERIALIZED (
-            SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
-            CROSS JOIN LATERAL (
-              SELECT 1 FROM ${document}
-              WHERE ${and(eq(document.id, embeddingSearch.documentId), ...candidateDocumentVisibility, candidateTagCondition)}
-              LIMIT 1
-            ) AS visible
-            WHERE ${and(
-              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-              eq(embeddingSearch.enabled, true)
-            )}
-            ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
-          ), filtered_scores AS MATERIALIZED (
-            SELECT ${embeddingSearch.id} AS id, ${embeddingSearch.documentId} AS document_id,
-              ${candidateDistance} AS distance FROM ${embeddingSearch}
-            WHERE ${and(
-              inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
-              eq(embeddingSearch.enabled, true),
-              candidateTagCondition
-            )}
-              AND (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
-          ), candidates AS (
-            SELECT id FROM initial_candidates
-            WHERE (SELECT count(*) FROM initial_candidates) >= ${candidateLimit}
-            UNION ALL (
-              SELECT filtered_scores.id FROM filtered_scores
-              INNER JOIN visible_search_documents ON visible_search_documents.id = filtered_scores.document_id
-              WHERE (SELECT count(*) FROM initial_candidates) < ${candidateLimit}
-              ORDER BY filtered_scores.distance + 0, filtered_scores.id
-              LIMIT ${candidateLimit}
-            )
-          ) SELECT id, (SELECT count(*)::int FROM initial_candidates) AS initial_count FROM candidates
+          executor.execute<{ id: string }>(sql`
+          SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
+          CROSS JOIN LATERAL (
+            SELECT 1 FROM ${document}
+            WHERE ${and(eq(document.id, embeddingSearch.documentId), ...candidateDocumentVisibility, candidateTagCondition)}
+            LIMIT 1
+          ) AS visible
+          WHERE ${and(
+            inArray(embeddingSearch.knowledgeBaseId, params.knowledgeBaseIds),
+            eq(embeddingSearch.enabled, true)
+          )}
+          ORDER BY ${candidateDistance} LIMIT ${candidateLimit}
         `),
         params.budget
       )
-      const initialCount = identities[0]?.initial_count ?? 0
       annotateSearchDiagnostics({
         vectorCandidateCount: identities.length,
-        vectorInitialCandidateCount: initialCount,
-        vectorCandidateScan: initialCount < candidateLimit ? 'filtered' : 'planned',
+        vectorCandidateScan: identities.length < candidateLimit ? 'underfilled' : 'planned',
       })
       if (!identities.length) return { candidates: [], nextOffset: offset }
       /** Score each bounded candidate once; sorting the materialized scalar cannot invoke HNSW again. */

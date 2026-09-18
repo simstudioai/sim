@@ -294,7 +294,7 @@ const diagnosticSchema = z
     vectorBudgetMs: z.number().positive(),
     vectorCandidateDimensions: z.number().optional(),
     vectorCandidateLimit: z.number().optional(),
-    vectorCandidateScan: z.enum(['planned', 'filtered']).optional(),
+    vectorCandidateScan: z.enum(['planned', 'underfilled']).optional(),
     retrievalStatus: z.enum(['complete', 'partial']),
     timedOutLegs: z.array(z.enum(['vector', 'keyword', 'tags'])),
     toolResultBytes: z.number().int().nonnegative().optional(),
