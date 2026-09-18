@@ -305,7 +305,12 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       skippedItems,
       mintedBlockIds,
     } = await withBlockVisibility(blockVisibility, async () =>
-      applyOperationsToWorkflowState(baseGraph, filteredOperations, permissionConfig)
+      applyOperationsToWorkflowState(
+        baseGraph,
+        filteredOperations,
+        permissionConfig,
+        principal.kind === 'delegated' && principal.serviceId === 'copilot'
+      )
     )
     validationErrors.push(...credentialErrors)
 

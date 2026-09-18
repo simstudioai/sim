@@ -34,6 +34,7 @@ import {
   isCanonicalPair,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
+import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
@@ -107,7 +108,8 @@ export function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
   blockId: string,
-  existingValues: Record<string, unknown> = {}
+  existingValues: Record<string, unknown> = {},
+  enforceToolBindingContract = false
 ): ValidationResult {
   const errors: ValidationError[] = []
 
@@ -230,6 +232,14 @@ export function validateInputsForBlock(
      * accepting dormant fields: if no variant matches, use the existing last
      * declaration fallback. Missing selector values are not inferred defaults.
      */
+
+    if (enforceToolBindingContract && subBlockConfig.type === 'tool-input') {
+      const error = validateToolBindingAuthoring(blockType, value, existingValues[key])
+      if (error) {
+        errors.push({ blockId, blockType, field: key, value, error })
+        continue
+      }
+    }
 
     // Validate value based on subBlock type
     const validationResult = validateValueForSubBlockType(

@@ -95,6 +95,27 @@ describe('curateBlockDetail', () => {
     expect(await curateBlockDetail(input, viewer)).toBe(input)
   })
 
+  it.each(['agent', 'mothership'])(
+    'publishes the %s attachment contract on demand only',
+    async (id) => {
+      const original = { ...blockDetail(), id, inputSchema: [{ id: 'tools', type: 'tool-input' }] }
+      const result = await curateBlockDetail(ok(JSON.stringify(original)), viewer)
+      const detail = mothershipBlockDetailSchema.parse(JSON.parse(result.stdout))
+      const field = detail.inputSchema[0]
+      expect(field?.valueSchema).toMatchObject({
+        type: 'array',
+        items: { anyOf: expect.any(Array) },
+      })
+      expect(field?.toolBinding?.selectionMode).toBe(id === 'agent' ? 'explicit' : 'additive')
+      expect(field?.toolBinding?.naming).toContain(
+        id === 'agent' ? 'operations[operation].toolId' : 'call_integration_tool'
+      )
+      expect(v2BlockDetailSchema.parse(detail).inputSchema[0]).not.toHaveProperty('toolBinding')
+      expect(v2BlockDetailSchema.parse(detail).inputSchema[0]).not.toHaveProperty('valueSchema')
+      expect(original.inputSchema[0]).not.toHaveProperty('valueSchema')
+    }
+  )
+
   it.each(['start_trigger', 'api_trigger', 'input_trigger', 'human_in_the_loop'])(
     'publishes the input editor value contract for %s without changing v2',
     async (id) => {

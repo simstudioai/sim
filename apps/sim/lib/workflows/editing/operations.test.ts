@@ -44,6 +44,11 @@ vi.mock('@/blocks/registry', () => {
         { id: 'tools', type: 'tool-input' },
       ],
     },
+    mothership: {
+      type: 'mothership',
+      name: 'Sim Chat',
+      subBlocks: [{ id: 'tools', type: 'tool-input' }],
+    },
     function: {
       type: 'function',
       name: 'Function',
@@ -1616,4 +1621,106 @@ describe('conditional input validation through workflow operations', () => {
       expect(state.blocks[blockId].subBlocks.format.value).toBe('csv')
     }
   )
+})
+
+describe('Mothership tool attachment writes', () => {
+  const tool = { type: 'slack', operation: 'send', title: 'Approved sender' }
+  const graph = { blocks: {}, edges: [], loops: {}, parallels: {} }
+  const add: EditWorkflowOperation = {
+    operation_type: 'add',
+    block_id: 'agent',
+    params: { type: 'agent', name: 'Agent', inputs: { tools: [tool] } },
+  }
+
+  it('rejects an alias before storing a new binding, without changing ordinary API authoring', () => {
+    const internal = applyOperationsToWorkflowState(graph, [add], null, true)
+    expect(internal.validationErrors).toEqual([
+      expect.objectContaining({ field: 'tools', error: expect.stringContaining('read-only') }),
+    ])
+    const publicResult = applyOperationsToWorkflowState(graph, [add])
+    expect(publicResult.validationErrors).toEqual([])
+    const id = publicResult.mintedBlockIds.agent
+    expect(publicResult.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+  })
+
+  it('preserves existing labels during unrelated edits and rejects a subsequent rename', () => {
+    const existing = applyOperationsToWorkflowState(graph, [add])
+    const id = existing.mintedBlockIds.agent
+    const untouched = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { systemPrompt: 'New instructions' } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(untouched.validationErrors).toEqual([])
+    expect(untouched.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+    const preserved = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { tools: [{ ...tool, params: { channel: 'support' } }] } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(preserved.validationErrors).toEqual([])
+    const renamed = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { tools: [{ ...tool, title: 'Another name' }] } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(renamed.validationErrors[0]?.error).toContain('read-only')
+    expect(renamed.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+  })
+
+  it('refuses an integration selection that Sim Chat would ignore', () => {
+    const result = applyOperationsToWorkflowState(
+      graph,
+      [
+        {
+          ...add,
+          params: {
+            type: 'mothership',
+            name: 'Sim Chat',
+            inputs: { tools: [{ type: 'slack', operation: 'send' }] },
+          },
+        },
+      ],
+      null,
+      true
+    )
+    expect(result.validationErrors[0]?.error).toContain('MCP tool or MCP server bindings only')
+  })
+
+  it('enforces attachment names inside new nested blocks too', () => {
+    const result = applyOperationsToWorkflowState(
+      graph,
+      [
+        {
+          operation_type: 'add',
+          block_id: 'loop',
+          params: { type: 'loop', name: 'Tool loop', nestedNodes: { nested: add.params } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(result.validationErrors.some((error) => error.error.includes('read-only'))).toBe(true)
+  })
 })
