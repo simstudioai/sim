@@ -148,6 +148,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const {
       messages,
       responseFormat,
+      useConversationHistory,
       modelSelection,
       effort,
       workspaceId,
@@ -301,6 +302,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
     const requestPayload: Record<string, unknown> = {
       messages: wireMessages,
+      ...(useConversationHistory !== undefined ? { useConversationHistory } : {}),
       ...(modelSelection ? { modelSelection } : {}),
       ...(effort ? { effort } : {}),
       ...(responseFormat !== undefined ? { responseFormat } : {}),
