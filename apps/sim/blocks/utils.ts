@@ -137,7 +137,12 @@ function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
   return shouldShow ? { field: 'model', value: model } : { field: 'model', value: model, not: true }
 }
 
-function shouldRequireApiKeyForModel(model: string): boolean {
+/**
+ * Whether the block must show an API Key field for `model` on this deployment:
+ * false for hosted models on hosted Sim (BYOK or the platform key serve them),
+ * for providers with their own credential fields, and for local servers.
+ */
+export function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
 
@@ -276,6 +281,22 @@ export function getCohereRerankerApiKeyCondition() {
       and: { field: 'rerankerEnabled', value: true },
     }
   }
+}
+
+/**
+ * Whether `model` can only run with credentials that live on the block beyond an
+ * API key: a Vertex OAuth credential, Bedrock AWS keys and region, or an Azure
+ * endpoint the deployment has not configured server-side. Those fields render
+ * only while the block's own `model` is in that provider family, so nothing
+ * outside the family can inherit them.
+ */
+export function requiresProviderFamilyCredentials(model: string): boolean {
+  const provider = findProviderFromModel(model.trim())
+  if (provider === 'vertex' || provider === 'bedrock') return true
+  if (provider === 'azure-openai' || provider === 'azure-anthropic') {
+    return !getDeploymentShape().azureConfigured
+  }
+  return false
 }
 
 function getModelProviderCondition(...providerIds: ProviderId[]) {

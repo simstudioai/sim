@@ -32,8 +32,8 @@ export interface AgentInputs {
   // Deep research multi-turn
   previousInteractionId?: string // Interactions API previous interaction reference
   // LLM parameters
-  temperature?: string
-  maxTokens?: string
+  temperature?: string | number
+  maxTokens?: string | number
   apiKey?: string
   azureEndpoint?: string
   azureApiVersion?: string
@@ -48,6 +48,8 @@ export interface AgentInputs {
   thinkingLevel?: string
   promptCaching?: boolean
   files?: unknown
+  /** Ordered models tried when the request to `model` fails; see `normalizeFallbackModels`. */
+  fallbackModels?: Array<{ id?: string; model: string; apiKey?: string }>
 }
 
 /**

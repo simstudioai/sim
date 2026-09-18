@@ -75,6 +75,7 @@ import {
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  requiresProviderFamilyCredentials,
 } from '@/blocks/utils'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -96,6 +97,30 @@ const BASE_CLOUD_MODELS: Record<string, string> = {
   'gemini-2.5-pro': 'google',
   'mistral-large-latest': 'mistral',
 }
+
+describe('requiresProviderFamilyCredentials', () => {
+  beforeEach(() => {
+    setEnvFlags({ isHosted: false, isAzureConfigured: false, isOllamaConfigured: false })
+  })
+
+  it('is true for Vertex and Bedrock, whose credentials live on the block', () => {
+    expect(requiresProviderFamilyCredentials('vertex/gemini-2.5-pro')).toBe(true)
+    expect(requiresProviderFamilyCredentials('bedrock/my-inference-profile')).toBe(true)
+  })
+
+  it('is true for Azure only until the deployment configures it server-side', () => {
+    expect(requiresProviderFamilyCredentials('azure/my-deployment')).toBe(true)
+    expect(requiresProviderFamilyCredentials('azure-anthropic/my-deployment')).toBe(true)
+    setEnvFlags({ isAzureConfigured: true })
+    expect(requiresProviderFamilyCredentials('azure/my-deployment')).toBe(false)
+  })
+
+  it('is false for API-key providers, local servers, and unknown ids', () => {
+    expect(requiresProviderFamilyCredentials('openrouter/anthropic/claude')).toBe(false)
+    expect(requiresProviderFamilyCredentials('ollama/llama3')).toBe(false)
+    expect(requiresProviderFamilyCredentials('')).toBe(false)
+  })
+})
 
 describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
   const evaluateCondition = (model: string): boolean => {

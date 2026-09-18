@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import { AgentIcon } from '@/components/icons'
+import { normalizeFallbackModels } from '@/lib/workflows/blocks/fallback-models'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
@@ -429,6 +431,14 @@ Return ONLY the JSON array.`,
         value: MODELS_WITH_DEEP_RESEARCH,
       },
     },
+    {
+      id: 'fallbackModels',
+      title: 'Fallback models',
+      type: 'model-fallback-list',
+      mode: 'advanced',
+      description:
+        'Ordered models tried in sequence when the request to the selected model fails. Each row is { model, apiKey?, reasoningEffort?, thinkingLevel?, verbosity? }; apiKey, when present, must be a whole {{ENV_VAR}} reference, and a tuning value must be one the row model declares. sim-auto is not allowed. Max 5.',
+    },
   ],
   tools: {
     access: [
@@ -448,7 +458,12 @@ Return ONLY the JSON array.`,
       },
       params: (params: Record<string, any>) => {
         const normalizedFiles = normalizeFileInput(params.files)
-        const baseParams = normalizedFiles ? { ...params, files: normalizedFiles } : params
+        const withFiles = normalizedFiles ? { ...params, files: normalizedFiles } : params
+        const fallbackModels = normalizeFallbackModels(params.fallbackModels)
+        const baseParams =
+          fallbackModels.length > 0
+            ? { ...withFiles, fallbackModels }
+            : omit(withFiles, ['fallbackModels'])
 
         // If tools array is provided, handle tool usage control
         if (params.tools && Array.isArray(params.tools)) {
@@ -585,6 +600,11 @@ Return ONLY the JSON array.`,
     promptCaching: {
       type: 'boolean',
       description: 'Cache the system prompt and tool definitions on models that support it',
+    },
+    fallbackModels: {
+      type: 'json',
+      description:
+        'Ordered fallback models tried when the selected model fails, each { model, apiKey?: "{{ENV_VAR}}", reasoningEffort?, thinkingLevel?, verbosity? }',
     },
     tools: { type: 'json', description: 'Available tools configuration' },
     skills: { type: 'json', description: 'Selected skills configuration' },
