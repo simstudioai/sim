@@ -3309,72 +3309,20 @@ export const embedding = pgTable(
     kbEnabledIdx: index('emb_kb_enabled_idx').on(table.knowledgeBaseId, table.enabled),
     docEnabledIdx: index('emb_doc_enabled_idx').on(table.documentId, table.enabled),
 
-    // Vector similarity search indexes (HNSW), one per stored width
-    embeddingVectorHnswIdx: index('embedding_vector_hnsw_idx')
-      .using('hnsw', table.embedding.op('vector_cosine_ops'))
-      .with({
-        m: 16,
-        ef_construction: 64,
-      }),
-    embedding384VectorHnswIdx: index('embedding_384_vector_hnsw_idx')
-      .using('hnsw', table.embedding384.op('vector_cosine_ops'))
-      .with({
-        m: 16,
-        ef_construction: 64,
-      }),
-    embedding768VectorHnswIdx: index('embedding_768_vector_hnsw_idx')
-      .using('hnsw', table.embedding768.op('vector_cosine_ops'))
-      .with({
-        m: 16,
-        ef_construction: 64,
-      }),
-    embedding1024VectorHnswIdx: index('embedding_1024_vector_hnsw_idx')
-      .using('hnsw', table.embedding1024.op('vector_cosine_ops'))
-      .with({
-        m: 16,
-        ef_construction: 64,
-      }),
     /**
-     * pgvector indexes `vector` only up to 2,000 dimensions and `halfvec` up to
-     * 4,000, so the 3,072 column is indexed through a `halfvec` cast — the
-     * recipe pgvector documents for wider vectors.
+     * `embedding` deliberately carries no ANN index.
      *
-     * Postgres matches an expression index by its expression, so a query must
-     * repeat the cast to use this index. That makes the comparison itself
-     * half-precision, not just the index scan; only the stored vector keeps its
-     * full width. The cost is nil in practice and bounded in principle: every
-     * component of a `text-embedding-3-large` vector is already exactly
-     * representable in binary16 as OpenAI serves it (measured across 27,648
-     * components: zero changed by the cast), and even a model that is not would
-     * move a cosine distance by binary16's ~5e-4 relative error, orders below
-     * what reorders a result.
+     * Approximate retrieval is served by the compact `embedding_search`
+     * projection and its own HNSW indexes. The only vector ordering this table
+     * still takes is the search layer's exact rerank, which wraps its distance
+     * (`(distance) + 0`) precisely so the planner cannot match an index
+     * expression and must rank the bounded candidate set exhaustively.
      *
-     * The search layer derives its distance expression per width from one place
-     * so the query and this index cannot drift apart.
+     * An HNSW index here would therefore never be scanned while still being
+     * maintained on every chunk write, so the per-width vector and
+     * `binary_quantize` expression indexes were dropped once the last app
+     * version that ordered by a bare distance had drained.
      */
-    embedding3072VectorHnswIdx: index('embedding_3072_vector_hnsw_idx')
-      .using('hnsw', sql`(${table.embedding3072}::halfvec(3072)) halfvec_cosine_ops`)
-      .with({
-        m: 16,
-        ef_construction: 64,
-      }),
-
-    /** contract-pending(after stored candidate retrieval is fully deployed): remove these expression indexes; old app versions still query them during rollout. */
-    embeddingBinaryHnswIdx: index('embedding_binary_hnsw_idx')
-      .using('hnsw', sql`(binary_quantize(${table.embedding})::bit(1536)) bit_hamming_ops`)
-      .with({ m: 16, ef_construction: 64 }),
-    embedding384BinaryHnswIdx: index('embedding_384_binary_hnsw_idx')
-      .using('hnsw', sql`(binary_quantize(${table.embedding384})::bit(384)) bit_hamming_ops`)
-      .with({ m: 16, ef_construction: 64 }),
-    embedding768BinaryHnswIdx: index('embedding_768_binary_hnsw_idx')
-      .using('hnsw', sql`(binary_quantize(${table.embedding768})::bit(768)) bit_hamming_ops`)
-      .with({ m: 16, ef_construction: 64 }),
-    embedding1024BinaryHnswIdx: index('embedding_1024_binary_hnsw_idx')
-      .using('hnsw', sql`(binary_quantize(${table.embedding1024})::bit(1024)) bit_hamming_ops`)
-      .with({ m: 16, ef_construction: 64 }),
-    embedding3072BinaryHnswIdx: index('embedding_3072_binary_hnsw_idx')
-      .using('hnsw', sql`(binary_quantize(${table.embedding3072})::bit(3072)) bit_hamming_ops`)
-      .with({ m: 16, ef_construction: 64 }),
 
     // Text tag indexes
     tag1Idx: index('emb_kb_tag1_lower_idx').on(table.knowledgeBaseId, sql`lower(${table.tag1})`),
