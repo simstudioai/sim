@@ -94,9 +94,12 @@ export interface SearchDiagnosticMetadata {
   timedOutLegs?: RetrievalLeg[]
   maxPassageBytes?: number
   uniqueDocumentCount?: number
-  /** Access batches consumed; each one costs a connector query plus a live source proof. */
+  /**
+   * Access predicates yielded to the caller. The first needs no query and no live proof; every
+   * later one costs a connector discovery query plus a live source proof over the network.
+   */
   accessBatchCount?: number
-  /** Connector identities sent for live proof, summed over every batch. */
+  /** Connector identities sent for live proof, summed over every batch after the first. */
   liveProofConnectorCount?: number
   /** Provider types with a configured search source, before any access probe. */
   configuredProviderCount?: number

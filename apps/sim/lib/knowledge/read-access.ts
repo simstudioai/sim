@@ -31,6 +31,8 @@ export async function* knowledgeReadAccessBatches(
   const provider = 'get' in access ? access : undefined
   const scope = 'get' in access ? await access.get() : access
   const ordinary = knowledgeAccessCondition(scope)
+  /** Recorded before the yield so the count survives a caller that stops consuming here. */
+  annotateSearchDiagnostics({ accessBatchCount: 1, liveProofConnectorCount: 0 })
   yield ordinary
   if (!provider || scope.kind !== 'user') return
   const liveSources = await provider.liveSourceConnectorCondition()
