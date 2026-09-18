@@ -1058,7 +1058,8 @@ export function NoteBlockView({
                       event.stopPropagation()
                       onExpandedChange(!isExpanded)
                     }}
-                    className='nodrag nopan nowheel pointer-events-none ml-1 size-[24px] shrink-0 rounded-md border-none bg-transparent p-0 text-current opacity-0 transition-[background-color,color,opacity,transform] duration-150 hover-hover:bg-current/10 hover-hover:opacity-100 active:scale-[0.96] group-hover:pointer-events-auto group-hover:opacity-70 group-data-[node-selected]:pointer-events-auto group-data-[node-selected]:opacity-70'
+                    iconSize='compact-fixed'
+                    className='nodrag nopan nowheel pointer-events-none ml-1 shrink-0 rounded-md border-none bg-transparent text-current opacity-0 transition-[background-color,color,opacity,transform] duration-150 hover-hover:bg-current/10 hover-hover:opacity-100 active:scale-[0.96] group-hover:pointer-events-auto group-hover:opacity-70 group-data-[node-selected]:pointer-events-auto group-data-[node-selected]:opacity-70'
                   >
                     <span className='relative size-[14px]'>
                       <Expand

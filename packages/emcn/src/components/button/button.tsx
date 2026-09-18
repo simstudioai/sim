@@ -50,6 +50,10 @@ const buttonVariants = cva(
         md: 'px-2 py-1.5 text-[length:12px]',
         icon: 'size-[20px] rounded-sm p-0 [&_svg]:[stroke-width:1.25]',
       },
+      iconSize: {
+        compact: 'size-6 p-0',
+        'compact-fixed': 'size-[24px] p-0',
+      },
       iconPadding: {
         sm: 'p-1',
         md: 'p-1.5',
@@ -76,6 +80,15 @@ export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   /**
+   * Square icon-action geometry without changing the selected size's typography,
+   * corner radius, icon stroke or color. `compact` follows the spacing scale
+   * (24px at the default root font size); `compact-fixed` stays at 24px.
+   * Both remove padding; an explicit iconPadding or className can override it.
+   * Omit to retain the selected size's geometry.
+   * @example <Button variant='ghost' iconSize='compact' aria-label='Remove'><X /></Button>
+   */
+  iconSize?: VariantProps<typeof buttonVariants>['iconSize']
+  /**
    * Symmetric padding for icon actions whose content or layout determines their size.
    * Preserves the selected size's typography, corner radius and icon stroke.
    * Omit for the standard size padding, including the fixed `size='icon'` treatment.
@@ -85,11 +98,11 @@ export interface ButtonProps
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, iconPadding, ...props }, ref) => {
+  ({ className, variant, size, iconSize, iconPadding, ...props }, ref) => {
     return (
       <button
         ref={ref}
-        className={cn(buttonVariants({ variant, size, iconPadding }), className)}
+        className={cn(buttonVariants({ variant, size, iconSize, iconPadding }), className)}
         {...props}
       />
     )

@@ -1398,7 +1398,8 @@ function PreviewEditorContent({
                               type='button'
                               variant='ghost'
                               onClick={handleExpandChildWorkflow}
-                              className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
+                              iconSize='compact-fixed'
+                              className='absolute right-[6px] bottom-1.5 z-10 cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] hover-hover:bg-[var(--surface-4)]'
                             >
                               {isExecutionMode && onDrillDown ? (
                                 <Expand className='size-[12px]' />
