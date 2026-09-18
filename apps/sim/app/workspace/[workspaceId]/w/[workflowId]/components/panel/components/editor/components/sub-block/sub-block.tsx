@@ -32,6 +32,7 @@ import {
   McpServerSelector,
   McpToolSelector,
   MessagesInput,
+  ModelFallbackList,
   ResponseFormat,
   ScheduleInfo,
   SelectorInput,
@@ -1196,6 +1197,17 @@ function SubBlockComponent({
         }
         return <ModalComponent blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
       }
+      case 'model-fallback-list':
+        return (
+          <ModelFallbackList
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as any}
+            disabled={isDisabled}
+          />
+        )
+
       case 'messages-input':
         return (
           <MessagesInput
