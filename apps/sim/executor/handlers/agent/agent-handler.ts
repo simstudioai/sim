@@ -2755,12 +2755,17 @@ export class AgentBlockHandler implements BlockHandler {
   private async primeStreamingExecution(result: StreamingExecution): Promise<StreamingExecution> {
     const reader = result.stream.getReader()
     const first = await reader.read()
+    /**
+     * A stream that closes before its first chunk answered nothing; with another
+     * candidate waiting that is a startup failure to fall through from, not an
+     * empty answer to return. The last candidate is never primed, so a block
+     * without fallbacks still returns such a stream as it always has.
+     */
+    if (first.done) {
+      throw new Error('Provider stream closed before its first chunk')
+    }
     const stream = new ReadableStream({
       start(controller) {
-        if (first.done) {
-          controller.close()
-          return
-        }
         controller.enqueue(first.value)
       },
       async pull(controller) {

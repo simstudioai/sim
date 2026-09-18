@@ -1182,6 +1182,24 @@ describe('AgentBlockHandler', () => {
       expect(open.modelFallbacks).toEqual(['gpt-4o'])
     })
 
+    it('falls back when a streaming candidate closes before its first chunk', async () => {
+      mockExecuteProviderRequest
+        .mockResolvedValueOnce(streamingResponse([]))
+        .mockResolvedValueOnce(streamingResponse(['answer']))
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        fallbackModels: [{ model: 'claude-sonnet-5' }],
+      })) as StreamingExecution
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      expect(mockAgentLogger.warn).toHaveBeenCalledWith(
+        'Agent model failed; trying fallback',
+        expect.objectContaining({ error: 'Provider stream closed before its first chunk' })
+      )
+      await expect(drain(result.stream as ReadableStream<string>)).resolves.toEqual(['answer'])
+    })
+
     it('falls back when a streaming primary fails before its first chunk, and replays the first chunk otherwise', async () => {
       mockExecuteProviderRequest
         .mockResolvedValueOnce(

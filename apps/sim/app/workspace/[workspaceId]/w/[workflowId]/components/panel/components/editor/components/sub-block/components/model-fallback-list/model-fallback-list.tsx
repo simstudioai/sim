@@ -33,11 +33,21 @@ import { useProvidersStore } from '@/stores/providers/store'
 
 const CREATE_SECRET_VALUE = 'action-create-secret'
 
+/** The sibling values a preview renders against, since the store holds the live block's. */
+export interface FallbackListPreviewPrimary {
+  model?: unknown
+  reasoningEffort?: unknown
+  thinkingLevel?: unknown
+  verbosity?: unknown
+}
+
 interface ModelFallbackListProps {
   blockId: string
   subBlockId: string
   isPreview?: boolean
   previewValue?: FallbackModelEntry[] | null
+  /** Required for a faithful preview; ignored outside preview mode. */
+  previewPrimary?: FallbackListPreviewPrimary
   disabled?: boolean
 }
 
@@ -233,6 +243,7 @@ export function ModelFallbackList({
   subBlockId,
   isPreview = false,
   previewValue,
+  previewPrimary,
   disabled = false,
 }: ModelFallbackListProps) {
   const params = useParams()
@@ -251,14 +262,33 @@ export function ModelFallbackList({
   })
 
   const readOnly = isPreview || disabled
-  const primaryModel = typeof primaryModelValue === 'string' ? primaryModelValue : ''
+  /** A preview shows another version's rows, so its gates read that version's primary, not the live one. */
+  const primarySource = isPreview
+    ? {
+        model: previewPrimary?.model,
+        reasoningEffort: previewPrimary?.reasoningEffort,
+        thinkingLevel: previewPrimary?.thinkingLevel,
+        verbosity: previewPrimary?.verbosity,
+      }
+    : {
+        model: primaryModelValue,
+        reasoningEffort: primaryReasoningEffort,
+        thinkingLevel: primaryThinkingLevel,
+        verbosity: primaryVerbosity,
+      }
+  const primaryModel = typeof primarySource.model === 'string' ? primarySource.model : ''
+  const {
+    reasoningEffort: sourceReasoningEffort,
+    thinkingLevel: sourceThinkingLevel,
+    verbosity: sourceVerbosity,
+  } = primarySource
   const primaryTuning = useMemo(
     () => ({
-      reasoningEffort: primaryReasoningEffort,
-      thinkingLevel: primaryThinkingLevel,
-      verbosity: primaryVerbosity,
+      reasoningEffort: sourceReasoningEffort,
+      thinkingLevel: sourceThinkingLevel,
+      verbosity: sourceVerbosity,
     }),
-    [primaryReasoningEffort, primaryThinkingLevel, primaryVerbosity]
+    [sourceReasoningEffort, sourceThinkingLevel, sourceVerbosity]
   )
   const rows: FallbackModelEntry[] = useMemo(() => {
     const value = isPreview ? previewValue : storeValue

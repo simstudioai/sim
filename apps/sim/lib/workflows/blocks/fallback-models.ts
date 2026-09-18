@@ -105,7 +105,8 @@ export function normalizeTuningValues(row: Record<string, unknown>): FallbackTun
   for (const knob of FALLBACK_TUNING_KNOBS) {
     const value = row[knob]
     const level = typeof value === 'string' ? value.trim().toLowerCase() : ''
-    if (level) values[knob] = level
+    /** The provider-decides entry is stored as absence, the same way the editor stores it. */
+    if (level && level !== KNOB_SENTINEL[knob]) values[knob] = level
   }
   return values
 }
@@ -152,7 +153,7 @@ export function changeFallbackRowModel(
   return rows.map((row) => {
     if (row.id !== id) return row
     const keepKey =
-      row.apiKey &&
+      isWholeEnvVarReference(row.apiKey) &&
       fallbackRowNeedsApiKey(model, primaryModel) &&
       findProviderFromModel(model.trim()) === findProviderFromModel(row.model.trim())
     return { id: row.id, model, ...(keepKey ? { apiKey: row.apiKey } : {}) }

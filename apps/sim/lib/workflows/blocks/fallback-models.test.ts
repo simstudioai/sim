@@ -331,6 +331,12 @@ describe('normalizeTuningValues', () => {
       })
     ).toEqual({ reasoningEffort: 'low' })
   })
+
+  it('stores the provider-decides entry as absence, as the editor does', () => {
+    expect(
+      normalizeTuningValues({ reasoningEffort: 'auto', thinkingLevel: 'NONE', verbosity: 'low' })
+    ).toEqual({ verbosity: 'low' })
+  })
 })
 
 describe('row transforms', () => {
@@ -371,6 +377,13 @@ describe('row transforms', () => {
     mockShouldRequireApiKey.mockReturnValue(false)
     expect(changeFallbackRowModel(rows, 'b', 'openrouter/y', 'claude-sonnet-5')[1]).toEqual({
       id: 'b',
+      model: 'openrouter/y',
+    })
+    /** A key that is not a reference never survives an edit, even on the same provider. */
+    mockShouldRequireApiKey.mockReturnValue(true)
+    const raw = [{ id: 'r', model: 'openrouter/x', apiKey: 'sk-raw' }]
+    expect(changeFallbackRowModel(raw, 'r', 'openrouter/y', 'claude-sonnet-5')[0]).toEqual({
+      id: 'r',
       model: 'openrouter/y',
     })
   })

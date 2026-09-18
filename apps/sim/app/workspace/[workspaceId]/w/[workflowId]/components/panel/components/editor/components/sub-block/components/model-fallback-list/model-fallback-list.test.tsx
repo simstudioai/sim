@@ -126,9 +126,9 @@ vi.mock('@/lib/workflows/blocks/fallback-models', async (importOriginal) => {
 
 import { ModelFallbackList } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/model-fallback-list/model-fallback-list'
 
-function render() {
+function render(extra: Partial<React.ComponentProps<typeof ModelFallbackList>> = {}) {
   return renderToStaticMarkup(
-    <ModelFallbackList blockId='block-1' subBlockId='fallbackModels' disabled={false} />
+    <ModelFallbackList blockId='block-1' subBlockId='fallbackModels' disabled={false} {...extra} />
   )
 }
 
@@ -195,6 +195,18 @@ describe('ModelFallbackList', () => {
     expect(html).toContain('data-combobox="Select reasoning effort" data-value="low"')
     expect(html.match(/Select reasoning effort/g)).toHaveLength(1)
     expect(html).not.toContain('Thinking level')
+  })
+
+  it('gates a preview against the previewed primary, not the live block', () => {
+    /** The live block selects claude-sonnet-5; the previewed version selected gpt-5. */
+    const html = render({
+      isPreview: true,
+      previewValue: [{ id: 'r1', model: 'openrouter/x' }],
+      previewPrimary: { model: 'gpt-5' },
+    })
+    expect(html).not.toContain('>gpt-5<')
+    expect(html).toContain('>claude-sonnet-5<')
+    expect(html).not.toContain('Add fallback model')
   })
 
   it('disables the add affordance at the cap', () => {
