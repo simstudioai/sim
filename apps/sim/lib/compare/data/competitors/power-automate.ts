@@ -64,12 +64,12 @@ export const powerAutomateProfile: CompetitorProfile = {
     {
       title: 'Built-in per-run analytics dashboard for cloud flows',
       description:
-        'The Power Platform admin center ships a native Power Automate Analytics dashboard with Runs, Usage, Created, Errors, Shared, and Connectors reports for cloud flows, without needing a third-party observability tool.',
-      shortDescription: 'Native run analytics dashboard, no third-party tool needed.',
+        "The Power Platform admin center ships a native Power Automate Analytics dashboard with Runs, Usage, Created, Errors, Shared, and Connectors reports for cloud flows, without needing a third-party observability tool. This coverage excludes solution-aware cloud flows (flows created as part of a Dataverse solution), which Microsoft's own documentation states are not currently included in analytics reports, and the feature is not available in government or sovereign clouds.",
+      shortDescription: 'Native run analytics dashboard; excludes solution-aware flows',
       source: {
         url: 'https://learn.microsoft.com/en-us/power-platform/admin/analytics-flow',
         label: 'View analytics for Power Automate cloud flows - Power Platform | Microsoft Learn',
-        asOf: '2026-07-08',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -260,10 +260,11 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       versionControlDepth: {
         value:
-          'Server-persisted version history with restore, for solution-aware cloud flows only; no native visual diff/compare between versions; no explicit undo/redo in the flow editor; no branching model',
+          'Server-persisted version history with restore, for solution-aware cloud flows only; no native visual diff/compare between versions for cloud flows and no explicit undo/redo in the flow editor; no branching model for cloud flows. Desktop flows are the exception: Power Automate for desktop has a dedicated Version comparison view that diffs two saved versions side by side, with color-coded added/removed/edited indicators across subflows, actions, variables, UI elements, and images.',
         detail:
           'The Version History panel lists timestamped snapshots and lets a user preview/restore a prior version as a new draft; desktop flows have a separate read-only version-comparison view. There is no branch-and-merge version control or in-editor undo/redo stack for cloud flows.',
-        shortValue: 'Version history with restore, no diff view, no branching',
+        shortValue:
+          'Cloud flows: history + restore, no diff, no branching; desktop flows: full visual diff view',
         confidence: 'verified',
         sources: [
           {
@@ -279,7 +280,7 @@ export const powerAutomateProfile: CompetitorProfile = {
           {
             url: 'https://learn.microsoft.com/en-us/power-automate/desktop-flows/version-control',
             label: 'Version control in Power Automate for desktop - Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -350,7 +351,7 @@ export const powerAutomateProfile: CompetitorProfile = {
         detail:
           'No built-in WYSIWYG document editor exists in Power Automate; document editing happens through separate connected apps like Word/SharePoint.',
         shortValue: 'No native document rich-text editor',
-        confidence: 'estimated',
+        confidence: 'unknown',
         sources: [],
       },
       subWorkflows: {
@@ -496,19 +497,19 @@ export const powerAutomateProfile: CompetitorProfile = {
         value:
           "Yes: a dedicated 'Start and wait for an approval' action pauses the flow run until a designated approver responds via the Power Automate mobile app, email, or Microsoft Teams notification, then resumes down Approve/Reject/custom-response branches",
         detail:
-          'Supports first-to-respond or everybody-must-approve modes, custom response options beyond approve/reject, and timeout/escalation branches for production-grade approval chains.',
+          "Supports first-to-respond, everybody-must-approve, and sequential approval modes, plus custom response options beyond approve/reject (defined by the flow author). A production-grade approval chain can be built by adding a timeout branch manually (e.g., a parallel 'Delay' action feeding a Condition), but Power Automate does not document a built-in timeout or automatic escalation setting on the approval action itself.",
         shortValue: 'Built-in approval action with Teams/email/mobile response',
         confidence: 'verified',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/power-automate/get-started-approvals',
             label: 'Get started with Power Automate approvals - Power Automate | Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://learn.microsoft.com/en-us/power-automate/all-assigned-must-approve',
             label: 'Create an approval flow that requires everyone to approve - Microsoft Learn',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -904,18 +905,23 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
+      compliance: {
         value:
-          "Power Automate is SOC 2 Type 2 in-scope for Commercial and GCC environments only. It is not in-scope for GCC High or DoD in that attestation, separate from the product's general availability in those government clouds.",
+          "Power Automate is SOC 2 Type 2 in-scope for Commercial, GCC, and GCC High environments per Microsoft's Office 365 SOC 2 Type 2 applicability table. It is not in-scope for the DoD environment in that attestation, separate from the product's general availability in that government cloud. The SOC 2 Type 2 report also incorporates the Cloud Security Alliance CCM and German BSI C5:2020 criteria. Beyond SOC 2 there is HIPAA/HITECH (Microsoft will sign a BAA as a business associate) and inclusion in the broader Office 365/Azure compliance program, which separately covers ISO 27001, FedRAMP, and other certifications at the Azure/Office 365 platform level.",
         detail:
-          "Microsoft's compliance documentation lists Power Automate among in-scope Commercial/GCC services.",
-        shortValue: 'SOC 2 Type 2 in-scope for Commercial and GCC only',
-        confidence: 'verified',
+          "Microsoft's compliance documentation lists Power Automate among in-scope Commercial, GCC, and GCC High services (not DoD). HIPAA/BAA support and CSA CCM/BSI C5:2020 coverage are documented directly in Microsoft's SOC 2 documentation. No Power Automate-specific ISO 27001/FedRAMP attestation page exists, so treat those two as platform-level coverage rather than product-specific certification.",
+        shortValue: 'SOC 2 (Commercial/GCC/GCC High, not DoD), HIPAA BAA, CSA CCM, BSI C5',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
             label:
               'System and Organization Controls (SOC) 2 Type 2 - Microsoft Compliance | Microsoft Learn',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.keragon.com/hipaa/hipaa-compliant-checker/microsoft-powerautomate',
+            label: 'Is Microsoft Power Automate HIPAA Compliant? - Keragon',
             asOf: '2026-07-02',
           },
         ],
@@ -963,26 +969,6 @@ export const powerAutomateProfile: CompetitorProfile = {
         shortValue: 'Likely covered by M365 unified audit log, not confirmed',
         confidence: 'unknown',
         sources: [],
-      },
-      additionalCompliance: {
-        value:
-          'HIPAA/HITECH (Microsoft will sign a BAA as a business associate) and inclusion in the broader Office 365/Azure compliance program, which separately covers ISO 27001, FedRAMP, and other certifications at the Azure/Office 365 platform level. The SOC 2 Type 2 report also incorporates the Cloud Security Alliance CCM and German BSI C5:2020 criteria.',
-        detail:
-          "HIPAA/BAA support and CSA CCM/BSI C5:2020 coverage are documented directly in Microsoft's SOC 2 documentation. No Power Automate-specific ISO 27001/FedRAMP attestation page exists, so treat those two as platform-level coverage rather than product-specific certification.",
-        shortValue: 'HIPAA/BAA, CSA CCM, BSI C5:2020; ISO/FedRAMP at platform level',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://learn.microsoft.com/en-us/compliance/regulatory/offering-soc-2',
-            label: 'SOC 2 Type 2 - Microsoft Compliance | Microsoft Learn',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://www.keragon.com/hipaa/hipaa-compliant-checker/microsoft-powerautomate',
-            label: 'Is Microsoft Power Automate HIPAA Compliant? - Keragon',
-            asOf: '2026-07-02',
-          },
-        ],
       },
       modelAndToolGovernance: {
         value: 'Not publicly documented',
@@ -1078,10 +1064,10 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       sso: {
         value:
-          'Yes: Power Platform is built on Microsoft Entra ID (Azure AD), which natively supports SAML/OIDC single sign-on plus automatic user/app provisioning (SAML Just-in-Time and SCIM-based). Organizations signing in via Entra ID SSO get org-level access without manual per-user account setup. Power Pages/portals additionally document explicit SAML 2.0 setup with Entra ID as an identity provider.',
+          'Yes: Power Platform is built on Microsoft Entra ID (Azure AD), which natively supports SAML/OIDC single sign-on. Organizations signing in via Entra ID SSO get org-level access without manual per-user account setup. Power Pages/portals additionally document explicit SAML 2.0 setup with Entra ID as an identity provider.',
         detail:
-          "SSO/provisioning is inherited from the Microsoft 365/Entra ID tenant rather than a Power Automate-specific setting, standard for Microsoft's enterprise stack.",
-        shortValue: 'SSO via Entra ID (SAML/OIDC), JIT/SCIM auto-provisioning',
+          "SSO is inherited from the Microsoft 365/Entra ID tenant rather than a Power Automate-specific setting, standard for Microsoft's enterprise stack.",
+        shortValue: 'SSO via Entra ID (SAML/OIDC), tenant-inherited',
         confidence: 'verified',
         sources: [
           {
@@ -1089,6 +1075,27 @@ export const powerAutomateProfile: CompetitorProfile = {
             label:
               'Set up a SAML 2.0 provider with Microsoft Entra ID - Power Pages | Microsoft Learn',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      scim: {
+        value:
+          "Yes, but at the Microsoft Entra ID tenant level rather than in Power Automate itself: Microsoft documents no Power Automate-specific SCIM endpoint, and Power Platform user creation and lifecycle run through the Microsoft 365 admin center and Microsoft Entra ID. Microsoft Entra ID can be enabled as a SCIM 2.0 service provider so external SCIM-compatible clients (HR apps, identity platforms, orchestration tools, or custom automation frameworks) create, read, update, and enable or disable users, and create groups and manage group membership, in the tenant, scoped by Microsoft Graph application permissions such as User.Create, User.ReadUpdate.All, User.EnableDisableAccount.All, Group.Create, and GroupMember.ReadWrite.All. That SCIM Provisioning API requires an Entra ID P1 license (or any license containing it) and is a paid add-on billed monthly per API call through a linked Azure subscription; SCIM bulk operations are not supported, filters return at most 200 results, page size is capped at 1,000, and because the API is app-only, properties requiring delegated authorization cannot be updated. Access to Power Automate then follows from that Entra identity: a background process syncs Microsoft Entra users into an environment's Dataverse SystemUser table when they are enabled in Entra ID, hold a valid license, and belong to the security group associated with the environment, and a user who becomes disabled or unlicensed in Entra ID has the Dataverse record set to disabled rather than deleted. In the outbound direction, Entra ID's own automatic app provisioning into third-party SaaS apps is itself SCIM 2.0-based, distinct from SAML just-in-time provisioning.",
+        detail:
+          "The Entra SCIM Provisioning API is separate from Entra ID's built-in app provisioning, HR-driven provisioning, and API-driven provisioning, which do not require enabling it. Turning it on needs an Application Administrator or Cloud Application Administrator to register the calling app and a Billing Administrator to enable billing and link the Azure subscription.",
+        shortValue: 'Yes: SCIM at the Entra ID tenant level',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api',
+            label:
+              'Enable the SCIM Provisioning API in Microsoft Entra ID - Microsoft Entra ID | Microsoft Learn',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://learn.microsoft.com/en-us/power-platform/admin/create-users',
+            label: 'Create users - Power Platform | Microsoft Learn',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://learn.microsoft.com/en-us/entra/identity/app-provisioning/user-provisioning',
@@ -1346,26 +1353,26 @@ export const powerAutomateProfile: CompetitorProfile = {
       },
       companyMaturity: {
         value:
-          'Microsoft Corporation. Founded April 4, 1975. Approximately 228,000 employees. Market capitalization approximately $2.8 trillion USD. Publicly traded (NASDAQ: MSFT) with quarterly revenue in the $80B+ range as of FY2026 SEC filings',
+          "Microsoft Corporation. Founded April 4, 1975. Approximately 223,000 employees (per Wikipedia's 2026 figure). Market capitalization approximately $3.69 trillion USD as of September 2026. Publicly traded (NASDAQ: MSFT) with quarterly revenue in the $80B+ range as of FY2026 SEC filings (Q3 FY2026 revenue was $82.9 billion).",
         detail:
           "Power Automate is a product line within Microsoft's Power Platform/Business Applications segment, backed by Microsoft's overall corporate scale rather than an independent startup.",
-        shortValue: 'Microsoft Corporation. Public, ~228,000 employees',
+        shortValue: 'Microsoft Corporation. Public, ~223,000 employees',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.sec.gov/Archives/edgar/data/0000789019/000119312526191457/msft-ex99_1.htm',
             label: 'Microsoft Corp 8-K FY2026 filing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://stockanalysis.com/stocks/msft/market-cap/',
             label: 'Microsoft (MSFT) Market Cap - StockAnalysis.com',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://en.wikipedia.org/wiki/Microsoft',
             label: 'Microsoft - Wikipedia',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
