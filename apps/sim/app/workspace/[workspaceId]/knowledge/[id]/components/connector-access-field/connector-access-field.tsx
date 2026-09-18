@@ -5,7 +5,6 @@ import {
   ChipButtonGroup,
   ChipButtonGroupItem,
   ChipCombobox,
-  ChipDropdown,
   ChipLink,
   ChipModalField,
   type ComboboxOption,
@@ -159,23 +158,13 @@ export function ConnectorAccessField({
       hint={
         canAdmin && isAvailabilityReady && !currentMode?.allowed
           ? `This connection method is not available in this ${scope.kind}.`
-          : lockAccessMode
-            ? 'Add a new connection to change the sync method.'
-            : value.accessMode === 'workspace'
-              ? 'Everyone in this workspace can search these documents.'
-              : undefined
+          : value.accessMode === 'workspace'
+            ? 'Everyone in this workspace can search these documents.'
+            : undefined
       }
     >
       <div className='flex flex-col gap-2'>
-        {slackSetupOnly ? null : lockAccessMode ? (
-          <ChipDropdown
-            aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
-            value={value.accessMode}
-            options={visibleModes.map(({ mode, label }) => ({ value: mode, label }))}
-            disabled
-            className='w-fit'
-          />
-        ) : showModeSelector ? (
+        {slackSetupOnly ? null : !lockAccessMode && showModeSelector ? (
           <ChipButtonGroup
             value={value.accessMode}
             disabled={disabled}

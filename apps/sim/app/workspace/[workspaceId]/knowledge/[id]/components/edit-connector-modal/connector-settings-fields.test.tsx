@@ -338,7 +338,7 @@ describe('connector settings service-account choices', () => {
   it.each([true, false])(
     'locks the sync method only for Search settings (%s)',
     async (isSearchIndex) => {
-      await render(confluenceConnectorMeta, { isSearchIndex })
+      await render(confluenceConnectorMeta, { isSearchIndex, needsWorkspaceCredential: false })
       expect(mocks.accessField).toHaveBeenLastCalledWith(
         expect.objectContaining({ lockAccessMode: isSearchIndex })
       )
@@ -499,6 +499,35 @@ describe('connector settings service-account choices', () => {
         },
       })
     )
+  })
+
+  it('browses spaces with the draft replacement account without a separate save action', async () => {
+    mocks.renderConfigFields = true
+    mocks.credentials = [
+      {
+        id: 'replacement',
+        name: 'Updated account',
+        provider: 'confluence',
+        type: 'service_account',
+      },
+    ]
+    await render(confluenceConnectorMeta, {
+      credentialId: 'previous',
+      workspaceCredentialId: 'replacement',
+      accessModeChanged: false,
+      sourceConfig: { domain: 'https://example.atlassian.net', spaceKey: ['ENG'] },
+      isFieldVisible: (field) => field.id === 'spaceSelector',
+    })
+
+    expect(mocks.selectorOptions).toHaveBeenLastCalledWith(
+      'confluence.spaces',
+      expect.objectContaining({
+        context: expect.objectContaining({ oauthCredential: 'replacement' }),
+      })
+    )
+    expect(mocks.accessField).not.toHaveBeenCalled()
+    expect(container.textContent).not.toContain('Change service account')
+    expect(container.textContent).not.toContain('Cancel')
   })
 
   it.each([
