@@ -40,7 +40,7 @@ export const RunStatusControl = memo(function RunStatusControl({
       </div>
       <Button
         variant='subtle'
-        className='px-2 py-1 text-caption'
+        className='py-1 text-caption'
         onClick={onStopAll}
         disabled={isStopping}
       >

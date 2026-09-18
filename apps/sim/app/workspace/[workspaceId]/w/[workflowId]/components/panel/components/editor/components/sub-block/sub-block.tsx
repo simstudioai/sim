@@ -300,7 +300,7 @@ const renderLabel = (
             {!wandState.isSearchActive ? (
               <Button
                 variant='active'
-                className='-my-1 h-5 px-2 py-0 text-xs'
+                className='-my-1 h-5 py-0 text-xs'
                 onClick={wandState.onSearchClick}
               >
                 Generate

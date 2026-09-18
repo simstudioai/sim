@@ -14,7 +14,7 @@ import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 
-const SEND_BUTTON_BASE = 'size-[28px] rounded-full border-0 p-0 transition-colors'
+const SEND_BUTTON_BASE = 'size-[28px] rounded-full border-0 p-0'
 const SEND_BUTTON_ACTIVE =
   'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
 const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'

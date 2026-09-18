@@ -243,24 +243,14 @@ export function TableFilter({
         ))}
 
         <div className={cn('mt-1 flex items-center', !autoApply && 'justify-between')}>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={handleAdd}
-            className='px-2 py-1 text-[var(--text-secondary)] text-xs'
-          >
+          <Button variant='ghost' size='sm' onClick={handleAdd} className='px-2 text-xs'>
             <Plus className='mr-1 size-[10px]' />
             Add filter
           </Button>
           {!autoApply && (
             <div className='flex items-center gap-1.5'>
               {filter !== null && (
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={handleClear}
-                  className='px-2 py-1 text-[var(--text-secondary)] text-xs'
-                >
+                <Button variant='ghost' size='sm' onClick={handleClear} className='px-2 text-xs'>
                   Clear filters
                 </Button>
               )}
