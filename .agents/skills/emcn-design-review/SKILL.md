@@ -16,6 +16,14 @@ User arguments: $ARGUMENTS
 
 This codebase uses **emcn**, a custom component library built on Radix UI primitives with CVA variants and CSS variable design tokens. All UI must use emcn components and tokens.
 
+## Deterministic conformance and fixes
+
+For committed product UI changes, run `bun run check:design --base <actual-target-branch> --head HEAD`. This checks central derivation, component ownership and system changes; it does not judge whether an approved red variant or monospace font is a good product choice. The style review advice below may inform suggestions, but must not be presented as additional deterministic linter rules.
+
+With fixes enabled, correct straightforward local violations using the cited central token, recipe or component prop. For a small gray adjustment, choose the approved token that fits its role (body, muted, icon or surface); do not hardcode the nearest hex. Ask the engineer when a correction has broad impact or ambiguous intent, especially before changing shared definitions or adding variants. An intentional change or justified artwork exception can proceed with an explanation in the PR; retain the warning. New shared standards should involve the designer. Do not enlarge this task into a whole-codebase cleanup or invent a central token just to pass.
+
+Untouched debt stays quiet. Bringing noncompliant styling into a new file or component is an opportunity to fix it, even when its value is unchanged. Product artwork should use the registered central libraries; central asset changes notify. Landing pages, user media and sanctioned provider branding are separate scope. Unknown HTML illustrations may still receive normal styling warnings. Unresolved inputs are not proof of conformance. Only committed blobs are checked, and exit 2 means an operational failure; CI findings currently warn without blocking. See `scripts/design-conformance/README.md` for exact coverage.
+
 ## Steps
 
 1. Read the emcn public barrel at `packages/emcn/src/index.ts` (re-exports components, Calendar, Table*, and icons) to know what's available; for the full icon set read `packages/emcn/src/icons/index.ts`
