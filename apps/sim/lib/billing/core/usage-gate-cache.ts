@@ -52,27 +52,32 @@ function gateKey(attribution: BillingAttributionSnapshot): string {
 /**
  * Serves a cached answer the caller accepts, otherwise reads the gate.
  *
+ * `cacheRefusals` governs both directions: a caller that must re-read refusals
+ * also never stores one, so a refusal read on the search path never reaches
+ * ingestion. The usage read fails closed (a ledger error comes back as
+ * exceeded), which makes that the only way a search-path outage stays out of
+ * the cache. A read that throws writes nothing.
+ *
  * `coalesceLocally` collapses concurrent misses onto one ledger read and bounds
- * a hung read at its settle deadline. A failed read throws without writing, so
- * an outage is never recorded as an answer. The write stays on the value this
- * caller received, so a producer that timed out and later resolved cannot
- * overwrite a fresher answer.
+ * a hung read at its settle deadline. The write stays on the value this caller
+ * received, so a producer that timed out and later resolved cannot overwrite a
+ * fresher answer.
  *
  * There is deliberately no invalidator: usage and limit changes land in other
  * processes (execution workers, Stripe webhooks), so the TTL is the real bound.
  */
 async function checkUsageLimitsThroughCache(
   attribution: BillingAttributionSnapshot,
-  serveCachedRefusal: boolean
+  cacheRefusals: boolean
 ): Promise<AttributedUsageLimitsResult> {
   const key = gateKey(attribution)
   const cached = gateCache.get(key)
-  if (cached !== undefined && (serveCachedRefusal || !cached.isExceeded)) return cached
+  if (cached !== undefined && (cacheRefusals || !cached.isExceeded)) return cached
 
   const result = await coalesceLocally(`usage-gate:${key}`, () =>
     checkAttributedUsageLimits(attribution)
   )
-  gateCache.set(key, result)
+  if (cacheRefusals || !result.isExceeded) gateCache.set(key, result)
   return result
 }
 

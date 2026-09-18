@@ -140,6 +140,13 @@ describe('checkSearchUsageLimits', () => {
     expect(mockCheck).toHaveBeenCalledTimes(2)
   })
 
+  it('never stores a refusal for ingestion to serve', async () => {
+    mockCheck.mockResolvedValueOnce({ isExceeded: true, scope: 'payer', message: 'over' })
+    expect((await checkSearchUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
+    expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+
   it('does not cache a failed read', async () => {
     mockCheck.mockRejectedValueOnce(new Error('ledger unavailable'))
     await expect(checkSearchUsageLimits(ATTRIBUTION)).rejects.toThrow('ledger unavailable')
