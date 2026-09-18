@@ -502,21 +502,24 @@ describe('Google Workspace per-user central crawl', () => {
     expect((await list(context(), undefined, CONFIG, 'google_calendar')).documents).toHaveLength(1)
   })
 
-  it('isolates explicit Calendar list access failures without claiming a disabled service', async () => {
-    listUserDocuments.mockRejectedValueOnce(
-      new GoogleApiError('calendar.events.list', 403, ['forbidden'])
-    )
-    const first = await list(context(), undefined, CONFIG, 'google_calendar')
-    expect(first.listingFailures?.samples[0]).toEqual({
-      scope: 'alice@corp.com',
-      operation: 'calendar.events.list',
-      status: 403,
-      reasons: ['forbidden'],
-    })
-    const second = await list(context(), first.nextCursor, CONFIG, 'google_calendar')
-    expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
-    expect(second.reconciliationSafe).toBe(false)
-  })
+  it.each(['forbidden', 'notACalendarUser'])(
+    'isolates explicit Calendar list access failures (%s) without claiming a disabled service',
+    async (reason) => {
+      listUserDocuments.mockRejectedValueOnce(
+        new GoogleApiError('calendar.events.list', 403, [reason])
+      )
+      const first = await list(context(), undefined, CONFIG, 'google_calendar')
+      expect(first.listingFailures?.samples[0]).toEqual({
+        scope: 'alice@corp.com',
+        operation: 'calendar.events.list',
+        status: 403,
+        reasons: [reason],
+      })
+      const second = await list(context(), first.nextCursor, CONFIG, 'google_calendar')
+      expect(second.documents[0].acl).toEqual(['u:bob@corp.com'])
+      expect(second.reconciliationSafe).toBe(false)
+    }
+  )
 
   it.each([{ error: { code: 403 } }, { error: { code: 403, errors: [], details: [] } }])(
     'propagates a Calendar 403 without reason codes: %j',
@@ -542,6 +545,9 @@ describe('Google Workspace per-user central crawl', () => {
     [403, ['domainPolicy']],
     [403, ['unrecognized-provider-code']],
     [403, ['forbidden', 'unrecognized-provider-code']],
+    [403, ['notACalendarUser', 'unrecognized-provider-code']],
+    [403, ['notACalendarUser', 'insufficientPermissions']],
+    [403, ['notACalendarUser', 'rateLimitExceeded']],
     [401, ['authError']],
     [429, []],
     [500, ['backendError']],
@@ -567,6 +573,15 @@ describe('Google Workspace per-user central crawl', () => {
 
   it('does not isolate an unreadable Calendar error envelope', async () => {
     const error = new GoogleApiError('calendar.events.list', 403, [], false)
+    listUserDocuments.mockRejectedValueOnce(error)
+    await expect(list(context(), undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
+  })
+
+  it.each([
+    new GoogleApiError('calendar.events.list', 403, ['notACalendarUser'], false),
+    new GoogleApiError('calendar.calendarList.list', 403, ['notACalendarUser']),
+    new GoogleApiError('calendar.events.list', 401, ['notACalendarUser']),
+  ])('does not isolate Calendar unavailability outside a complete list 403: %s', async (error) => {
     listUserDocuments.mockRejectedValueOnce(error)
     await expect(list(context(), undefined, CONFIG, 'google_calendar')).rejects.toBe(error)
   })

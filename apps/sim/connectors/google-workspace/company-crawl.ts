@@ -177,7 +177,7 @@ function userListingFailure(
       : error.diagnostic.operation === 'calendar.events.list' &&
         error.status === 403 &&
         reasons.length > 0 &&
-        reasons.every((reason) => reason === 'forbidden')
+        reasons.every((reason) => reason === 'forbidden' || reason === 'notACalendarUser')
   return isolated
     ? { operation: error.diagnostic.operation, status: error.status, reasons: [...reasons] }
     : null
