@@ -11,6 +11,7 @@ import {
   MAX_KNOWLEDGE_ACCESS_CANDIDATES,
   type SystemAccessScope,
 } from '@/lib/knowledge/access/types'
+import { annotateSearchDiagnostics, measureSearchStage } from '@/lib/knowledge/search/diagnostics'
 
 export type KnowledgeReadAccess = KnowledgeAccessScope | SystemAccessScope | KnowledgeAccessProvider
 
@@ -36,36 +37,49 @@ export async function* knowledgeReadAccessBatches(
   if (!liveSources) return
 
   let cursor: string | undefined
+  let batches = 1
+  let liveProofConnectors = 0
   while (true) {
     signal?.throwIfAborted()
-    const rows = await db
-      .select({ connectorId: knowledgeConnector.id })
-      .from(knowledgeConnector)
-      .where(
-        and(
-          liveSources,
-          cursor ? gt(knowledgeConnector.id, cursor) : undefined,
-          exists(
-            db
-              .select({ id: document.id })
-              .from(document)
-              .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-              .where(
-                and(
-                  eq(document.connectorId, knowledgeConnector.id),
-                  ...conditions,
-                  knowledgeMetadataCandidateAccessCondition(scope),
-                  not(ordinary)
+    const rows = await measureSearchStage('access_batch.connectors', () =>
+      db
+        .select({ connectorId: knowledgeConnector.id })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            liveSources,
+            cursor ? gt(knowledgeConnector.id, cursor) : undefined,
+            exists(
+              db
+                .select({ id: document.id })
+                .from(document)
+                .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+                .where(
+                  and(
+                    eq(document.connectorId, knowledgeConnector.id),
+                    ...conditions,
+                    knowledgeMetadataCandidateAccessCondition(scope),
+                    not(ordinary)
+                  )
                 )
-              )
+            )
           )
         )
-      )
-      .orderBy(asc(knowledgeConnector.id))
-      .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+        .orderBy(asc(knowledgeConnector.id))
+        .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+    )
     if (rows.length === 0) return
     const connectorIds = rows.map(({ connectorId }) => connectorId)
-    const proof = await provider.getForConnectors(connectorIds, signal)
+    liveProofConnectors += connectorIds.length
+    batches += 1
+    annotateSearchDiagnostics({
+      accessBatchCount: batches,
+      liveProofConnectorCount: liveProofConnectors,
+    })
+    /** Live proof reaches the source over the network, once per connector it cannot already prove. */
+    const proof = await measureSearchStage('access_batch.live_proof', () =>
+      provider.getForConnectors(connectorIds, signal)
+    )
     yield and(
       not(ordinary),
       inArray(document.connectorId, connectorIds),

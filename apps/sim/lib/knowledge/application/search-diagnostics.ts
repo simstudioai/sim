@@ -1,4 +1,5 @@
 import type { AuthorizingUseCase } from '@/lib/core/application'
+import type { ResourceOwner } from '@/lib/core/resource-scope'
 import type { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import type { SearchKnowledgeInput } from '@/lib/knowledge/application/search'
 import {
@@ -40,6 +41,32 @@ export function instrumentSearchUseCase<
           ),
         },
         () => measureSearchStage(stage, () => useCase.execute(args))
+      ),
+  }
+}
+
+/**
+ * Times the source overview, whose cost is access batching and live source proof rather than
+ * retrieval. It shares the search trace so one log line explains a slow Sim Search surface.
+ */
+export function instrumentSourceOverviewUseCase<I extends ResourceOwner, R>(
+  useCase: AuthorizingUseCase<typeof knowledgeOperations.readSearchSourceOverview, I, R>
+): AuthorizingUseCase<typeof knowledgeOperations.readSearchSourceOverview, I, R> {
+  return {
+    ...useCase,
+    execute: (args) =>
+      withSearchDiagnostics(
+        {
+          operation: 'read_search_source_overview',
+          principalKind: args.principal.kind,
+          /** Derived without `resourceScopeFromOwner`, which throws before authorization runs. */
+          scopeKind: args.input.organizationId
+            ? 'organization'
+            : args.input.workspaceId
+              ? 'workspace'
+              : undefined,
+        },
+        () => measureSearchStage('source_overview', () => useCase.execute(args))
       ),
   }
 }

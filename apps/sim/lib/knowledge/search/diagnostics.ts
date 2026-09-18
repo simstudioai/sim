@@ -49,10 +49,17 @@ export type SearchStage =
   | 'vector.rerank'
   | 'vector.exact'
   | 'vector.candidate_search'
+  | 'source_overview'
+  | 'source_overview.availability'
+  | 'source_overview.providers'
+  | 'source_overview.indexing'
+  | 'source_overview.searchable'
+  | 'access_batch.connectors'
+  | 'access_batch.live_proof'
 
 /** Fixed, content-free fields. Never pass queries, filters, document identities, SQL, or errors. */
 export interface SearchDiagnosticMetadata {
-  operation?: 'search_workspace' | 'read_document'
+  operation?: 'search_workspace' | 'read_document' | 'read_search_source_overview'
   surface?: 'dashboard' | 'mcp' | 'copilot' | 'workflow' | 'api' | 'slack' | 'other'
   toolCallId?: string
   executionId?: string
@@ -87,6 +94,14 @@ export interface SearchDiagnosticMetadata {
   timedOutLegs?: RetrievalLeg[]
   maxPassageBytes?: number
   uniqueDocumentCount?: number
+  /** Access batches consumed; each one costs a connector query plus a live source proof. */
+  accessBatchCount?: number
+  /** Connector identities sent for live proof, summed over every batch. */
+  liveProofConnectorCount?: number
+  /** Provider types with a configured search source, before any access probe. */
+  configuredProviderCount?: number
+  /** Searchable-document probes actually issued; one per batch until the answer is known. */
+  searchableProbeCount?: number
 }
 
 interface StageTiming {
