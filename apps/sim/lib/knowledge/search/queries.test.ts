@@ -884,7 +884,7 @@ describe('live repository authorization follows ranked candidates', () => {
       const statement = render(query).sql
       if (statement.includes('AS visible')) return candidatePages.shift() ?? []
       if (statement.includes('WITH scored_search_candidates')) return rerankPages.shift() ?? []
-      if (statement.includes('WITH visible_keyword_documents')) return keywordPages.shift() ?? []
+      if (statement.includes('WITH matched_keyword_chunks')) return keywordPages.shift() ?? []
       if (isExactRanking(statement)) return exactPages.shift() ?? []
       if (statement.includes('AS id FROM')) return probePages.shift() ?? []
       return []
@@ -1102,8 +1102,8 @@ describe('live repository authorization follows ranked candidates', () => {
       expect(getForConnectors).toHaveBeenCalledWith(['allowed-source'], undefined)
       if (mode === 'keyword') {
         const ranking = render(dbChainMockFns.execute.mock.calls[0][0]).sql
-        expect(ranking).toContain('scored_keyword_candidates AS MATERIALIZED')
-        expect(ranking).toContain('ORDER BY keyword_rank DESC, id LIMIT')
+        expect(ranking).toContain('matched_keyword_chunks AS MATERIALIZED')
+        expect(ranking).toContain('ORDER BY keyword_rank DESC, matched_keyword_chunks.id')
         expect(ranking).not.toContain('<=>')
         expect(ranking).not.toContain('"content"')
       } else if (mode === 'tags') {
@@ -1238,6 +1238,22 @@ describe('live repository authorization follows ranked candidates', () => {
     const refillPredicate = JSON.stringify(dbChainMockFns.where.mock.calls[2][0])
     expect(refillPredicate).toContain('NOT')
     expect(refillPredicate).toContain('revoked-source')
+  })
+
+  it('matches keyword chunks before the visibility predicate and ranks only what survives it', async () => {
+    keywordPages.push([candidate('selected', 'allowed-source')])
+    queueTableRows(schemaMock.embedding, [{ id: 'selected', content: 'verified result' }])
+    await executeKeywordSearch({ ...params, query: 'release', queryVector: params.queryVector! })
+    const ranking = render(dbChainMockFns.execute.mock.calls[0][0]).sql
+    const matched = ranking.indexOf('matched_keyword_chunks AS MATERIALIZED')
+    const visible = ranking.indexOf('visible_keyword_documents AS MATERIALIZED')
+    expect(matched).toBeGreaterThanOrEqual(0)
+    expect(visible).toBeGreaterThan(matched)
+    expect(ranking.slice(matched, visible)).not.toContain('keyword_rank')
+    expect(ranking.slice(visible)).toContain('FROM matched_keyword_chunks INNER JOIN')
+    /** The predicate fragments are parameterized, so the restriction is read off the query tree. */
+    const fragments = JSON.stringify(dbChainMockFns.execute.mock.calls[0][0])
+    expect(fragments).toContain('= ANY (ARRAY(SELECT document_id FROM matched_keyword_chunks))')
   })
 
   it('recomputes keyword candidates after excluding a revoked source and rechecks content access', async () => {

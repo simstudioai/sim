@@ -477,7 +477,7 @@ async function sample(
         item.query.includes('CROSS JOIN LATERAL') ||
         isVectorCandidateQuery(item.query) ||
         item.query.includes('WITH scored_search_candidates') ||
-        item.query.includes('WITH visible_keyword_documents'))
+        item.query.includes('WITH matched_keyword_chunks'))
   )
   const plans: Array<
     CapturedQuery & {
@@ -550,7 +550,7 @@ async function sample(
         assertIndexedCandidates(parsedPlan[0].Plan, diagnostics.vectorCandidateLimit!, width)
       }
     }
-    if (query.query.includes('WITH visible_keyword_documents')) {
+    if (query.query.includes('WITH matched_keyword_chunks')) {
       assertScalarKeywordSorts(parsedPlan[0].Plan)
     }
   }
