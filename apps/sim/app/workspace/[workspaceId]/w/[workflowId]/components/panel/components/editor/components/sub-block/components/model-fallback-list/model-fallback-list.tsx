@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Button, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
 import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
@@ -51,7 +51,10 @@ interface ViableModelOption {
 interface FallbackRowProps {
   row: FallbackModelEntry
   index: number
-  count: number
+  /** The row can move down only while another follows it. */
+  isLast: boolean
+  /** Move controls render only once a second row exists. */
+  canMove: boolean
   primaryModel: string
   primaryTuning: Partial<Record<FallbackTuningKnob, unknown>>
   viableOptions: ViableModelOption[]
@@ -69,7 +72,8 @@ interface FallbackRowProps {
 const FallbackRow = memo(function FallbackRow({
   row,
   index,
-  count,
+  isLast,
+  canMove,
   primaryModel,
   primaryTuning,
   viableOptions,
@@ -96,7 +100,12 @@ const FallbackRow = memo(function FallbackRow({
     return {
       needsApiKey: fallbackRowNeedsApiKey(row.model, primaryModel),
       tuningFields: getFallbackTuningKnobsToShow(row.model, primaryModel, primaryTuning).map(
-        (knob) => ({ knob, options: getTuningOptionsForModel(row.model, knob) ?? [] })
+        (knob) => ({
+          knob,
+          options: (getTuningOptionsForModel(row.model, knob) ?? []).map(
+            (value): ComboboxOption => ({ label: value, value })
+          ),
+        })
       ),
     }
   }, [row.model, primaryModel, primaryTuning])
@@ -112,7 +121,7 @@ const FallbackRow = memo(function FallbackRow({
       <div className='flex items-center justify-between rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
         <span className='text-[var(--text-tertiary)] text-sm'>{ordinalChoiceLabel(index)}</span>
         <div className='flex items-center gap-2'>
-          {count > 1 && (
+          {canMove && (
             <>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -133,7 +142,7 @@ const FallbackRow = memo(function FallbackRow({
                   <Button
                     variant='ghost'
                     onClick={() => onMove(row.id, 1)}
-                    disabled={readOnly || index === count - 1}
+                    disabled={readOnly || isLast}
                     className='h-auto p-0'
                     aria-label='Move down'
                   >
@@ -196,8 +205,8 @@ const FallbackRow = memo(function FallbackRow({
           <div key={knob} className='flex flex-col gap-1.5'>
             <Label>{FALLBACK_TUNING_LABELS[knob]}</Label>
             <Combobox
-              options={options.map((value) => ({ label: value, value }))}
-              value={row[knob] ?? options[0] ?? ''}
+              options={options}
+              value={row[knob] ?? options[0]?.value ?? ''}
               onChange={(value) => onChangeTuning(row.id, knob, value)}
               placeholder={`Select ${FALLBACK_TUNING_LABELS[knob].toLowerCase()}`}
               disabled={readOnly}
@@ -306,38 +315,53 @@ export function ModelFallbackList({
     return options
   }, [workspaceId, workspaceEnv, personalEnv, navigateToSettings])
 
+  /**
+   * Handlers read the latest rows through a ref so their identity survives an
+   * edit; otherwise every keystroke in one row would re-render all of them.
+   */
+  const rowsRef = useRef(rows)
+  useEffect(() => {
+    rowsRef.current = rows
+  }, [rows])
+
   const write = useCallback(
-    (next: FallbackModelEntry[]) => {
-      if (readOnly || next === rows) return
-      setStoreValue(next)
+    (transform: (current: FallbackModelEntry[]) => FallbackModelEntry[]) => {
+      if (readOnly) return
+      const current = rowsRef.current
+      const next = transform(current)
+      if (next !== current) setStoreValue(next)
     },
-    [readOnly, rows, setStoreValue]
+    [readOnly, setStoreValue]
   )
 
-  const handleAdd = useCallback(() => write(addFallbackRow(rows, generateShortId())), [rows, write])
+  const handleAdd = useCallback(
+    () => write((current) => addFallbackRow(current, generateShortId())),
+    [write]
+  )
   const handleRemove = useCallback(
-    (id: string) => write(removeFallbackRow(rows, id)),
-    [rows, write]
+    (id: string) => write((current) => removeFallbackRow(current, id)),
+    [write]
   )
   const handleMove = useCallback(
-    (id: string, direction: -1 | 1) => write(moveFallbackRow(rows, id, direction)),
-    [rows, write]
+    (id: string, direction: -1 | 1) => write((current) => moveFallbackRow(current, id, direction)),
+    [write]
   )
   const handleChangeModel = useCallback(
-    (id: string, model: string) => write(changeFallbackRowModel(rows, id, model, primaryModel)),
-    [rows, primaryModel, write]
+    (id: string, model: string) =>
+      write((current) => changeFallbackRowModel(current, id, model, primaryModel)),
+    [primaryModel, write]
   )
   const handleChangeTuning = useCallback(
     (id: string, knob: FallbackTuningKnob, value: string) =>
-      write(changeFallbackRowTuning(rows, id, knob, value)),
-    [rows, write]
+      write((current) => changeFallbackRowTuning(current, id, knob, value)),
+    [write]
   )
   const handleChangeApiKey = useCallback(
     (id: string, apiKey: string) => {
       if (apiKey === CREATE_SECRET_VALUE) return
-      write(changeFallbackRowApiKey(rows, id, apiKey))
+      write((current) => changeFallbackRowApiKey(current, id, apiKey))
     },
-    [rows, write]
+    [write]
   )
 
   return (
@@ -347,7 +371,8 @@ export function ModelFallbackList({
           key={row.id}
           row={row}
           index={index}
-          count={rows.length}
+          isLast={index === rows.length - 1}
+          canMove={rows.length > 1}
           primaryModel={primaryModel}
           primaryTuning={primaryTuning}
           viableOptions={viableOptions}

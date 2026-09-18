@@ -75,6 +75,7 @@ import {
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  providerRequiresFamilyCredentials,
   requiresProviderFamilyCredentials,
 } from '@/blocks/utils'
 import { getProviderFromModel } from '@/providers/utils'
@@ -97,6 +98,15 @@ const BASE_CLOUD_MODELS: Record<string, string> = {
   'gemini-2.5-pro': 'google',
   'mistral-large-latest': 'mistral',
 }
+
+describe('providerRequiresFamilyCredentials', () => {
+  it('answers for a provider the caller already resolved', () => {
+    expect(providerRequiresFamilyCredentials('vertex')).toBe(true)
+    expect(providerRequiresFamilyCredentials('openai')).toBe(false)
+    expect(providerRequiresFamilyCredentials(null)).toBe(false)
+    expect(providerRequiresFamilyCredentials(undefined)).toBe(false)
+  })
+})
 
 describe('requiresProviderFamilyCredentials', () => {
   beforeEach(() => {

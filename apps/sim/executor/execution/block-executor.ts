@@ -569,12 +569,9 @@ export class BlockExecutor {
     try {
       for (;;) {
         tries++
+        const isFinalTry = tries >= policy.maxTries
         try {
-          const output = await invoke({
-            attempt: tries,
-            maxTries: policy.maxTries,
-            isFinalTry: tries >= policy.maxTries,
-          })
+          const output = await invoke({ attempt: tries, maxTries: policy.maxTries, isFinalTry })
           if (!shouldAccumulateFunctionCost || !accumulatedFunctionCost || !isRecordLike(output)) {
             return output
           }
@@ -596,7 +593,6 @@ export class BlockExecutor {
             )
           }
 
-          const isFinalTry = tries >= policy.maxTries
           if (isFinalTry || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
             attachTrustedExecutionCost(error, accumulatedFunctionCost)
             throw error

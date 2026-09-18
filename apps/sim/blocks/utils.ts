@@ -292,7 +292,15 @@ export function getCohereRerankerApiKeyCondition() {
  * that provider family, so nothing outside the family can inherit them.
  */
 export function requiresProviderFamilyCredentials(model: string): boolean {
-  const provider = findProviderFromModel(model.trim())
+  return providerRequiresFamilyCredentials(findProviderFromModel(model.trim()))
+}
+
+/**
+ * The provider-keyed half of {@link requiresProviderFamilyCredentials}, for a
+ * caller that has already resolved the provider and must not pay for a second
+ * catalog scan.
+ */
+export function providerRequiresFamilyCredentials(provider: string | null | undefined): boolean {
   if (provider === 'vertex') return true
   if (provider === 'bedrock') return !isTruthy(getEnv('NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS'))
   if (provider === 'azure-openai' || provider === 'azure-anthropic') {

@@ -1,4 +1,4 @@
-import { requiresProviderFamilyCredentials, shouldRequireApiKeyForModel } from '@/blocks/utils'
+import { providerRequiresFamilyCredentials, shouldRequireApiKeyForModel } from '@/blocks/utils'
 import {
   findProviderFromModel,
   getMaxTemperature,
@@ -185,9 +185,9 @@ export function changeFallbackRowTuning(
  * Whether a model can serve as a fallback for `primaryModel` with the
  * credentials the block can actually give it.
  *
- * A fallback resolves its key the way the primary does — workspace BYOK, the
- * platform key, or the block's own field — with one addition: a row may name a
- * workspace variable holding its key. What it can never do is inherit a Vertex
+ * A fallback resolves its key the way the primary does, through workspace BYOK,
+ * the platform key, or the block's own field, with one addition: a row may name
+ * a workspace variable holding its key. What it can never do is inherit a Vertex
  * credential, Bedrock keys, or an Azure endpoint from a primary in another
  * family, because those fields only render for the primary's own provider.
  */
@@ -199,7 +199,7 @@ export function isViableFallbackModel(model: string, primaryModel: string): bool
   const provider = findProviderFromModel(trimmed)
   if (!provider) return false
 
-  if (requiresProviderFamilyCredentials(trimmed)) {
+  if (providerRequiresFamilyCredentials(provider)) {
     return provider === findProviderFromModel(primaryModel.trim())
   }
   return true

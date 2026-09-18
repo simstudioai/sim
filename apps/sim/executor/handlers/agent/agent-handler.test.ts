@@ -22,10 +22,14 @@ import type { AutoRoutingSignals } from '@/lib/model-router/resolve'
 import * as userFileBase64 from '@/lib/uploads/utils/user-file-base64.server'
 import { getAllBlocks } from '@/blocks'
 import { AGENT, BlockType, isMcpTool } from '@/executor/constants'
+import type { DAGNode } from '@/executor/dag/builder'
+import { BlockExecutor } from '@/executor/execution/block-executor'
+import { ExecutionState } from '@/executor/execution/state'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { VariableResolver } from '@/executor/variables/resolver'
 import { executeProviderRequest } from '@/providers'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import { getModelCapabilities, SIM_AUTO_MODEL_ID } from '@/providers/models'
@@ -93,6 +97,7 @@ vi.mock('@/providers/utils', () => ({
 
 vi.mock('@/blocks', () => ({
   getAllBlocks: vi.fn().mockReturnValue([]),
+  getBlock: vi.fn().mockReturnValue(undefined),
 }))
 
 vi.mock('@/tools', () => ({
@@ -182,6 +187,7 @@ describe('AgentBlockHandler', () => {
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
+    mockValidateModelProvider.mockReset().mockResolvedValue(undefined)
     mockDiscoverMcpServerToolsAsExecutor.mockImplementation(
       async ({ serverId }: { serverId: string }) =>
         [
@@ -707,7 +713,16 @@ describe('AgentBlockHandler', () => {
         .mockRejectedValueOnce(new Error('three'))
         .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
 
-      await handler.execute(mockContext, mockBlock, {
+      const storedRows = [
+        { model: 'claude-sonnet-5', apiKey: '{{ANTHROPIC_KEY}}' },
+        { model: 'claude-haiku-5' },
+        { model: 'gpt-4o-mini' },
+      ]
+      const block = {
+        ...mockBlock,
+        config: { ...mockBlock.config, params: { fallbackModels: storedRows } },
+      }
+      await handler.execute(mockContext, block, {
         ...baseInputs,
         fallbackModels: [
           { model: 'claude-sonnet-5', apiKey: 'anthropic-row-key' },
@@ -725,7 +740,12 @@ describe('AgentBlockHandler', () => {
         .mockRejectedValueOnce(new Error('one'))
         .mockResolvedValueOnce(providerResponse('claude-sonnet-5'))
 
-      await handler.execute(mockContext, mockBlock, {
+      const storedRows = [{ model: 'claude-sonnet-5', apiKey: '{{MISSING_KEY}}' }]
+      const block = {
+        ...mockBlock,
+        config: { ...mockBlock.config, params: { fallbackModels: storedRows } },
+      }
+      await handler.execute(mockContext, block, {
         ...baseInputs,
         fallbackModels: [{ model: 'claude-sonnet-5', apiKey: '{{MISSING_KEY}}' }],
       })
@@ -735,6 +755,33 @@ describe('AgentBlockHandler', () => {
         'Fallback key variable is not set for this run',
         expect.objectContaining({ model: 'claude-sonnet-5', variable: '{{MISSING_KEY}}' })
       )
+    })
+
+    it('ignores a row key the block did not store as a reference', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('one'))
+        .mockResolvedValueOnce(providerResponse('claude-sonnet-5'))
+      const block = {
+        ...mockBlock,
+        config: {
+          ...mockBlock.config,
+          params: {
+            fallbackModels: [{ model: 'claude-sonnet-5', apiKey: 'sk-raw-through-socket' }],
+          },
+        },
+      }
+
+      await handler.execute(mockContext, block, {
+        ...baseInputs,
+        fallbackModels: [{ model: 'claude-sonnet-5', apiKey: 'sk-raw-through-socket' }],
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[1][1].apiKey).toBeUndefined()
+      expect(mockAgentLogger.warn).toHaveBeenCalledWith(
+        'Fallback row key ignored; only an environment variable reference is accepted',
+        expect.objectContaining({ model: 'claude-sonnet-5', row: 1 })
+      )
+      expect(JSON.stringify(mockAgentLogger.warn.mock.calls)).not.toContain('sk-raw-through-socket')
     })
 
     it('re-resolves tuning for the fallback: row value wins, caps clamp, undeclared values drop', async () => {
@@ -865,17 +912,201 @@ describe('AgentBlockHandler', () => {
       expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
     })
 
-    it('does not fall back on an explicitly non-retryable failure', async () => {
-      const error = Object.assign(new Error('permanent'), { retryable: false })
-      mockExecuteProviderRequest.mockRejectedValueOnce(error)
+    it('does not start another candidate after a stop during a skipped one', async () => {
+      const controller = new AbortController()
+      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('primary down'))
+      mockValidateModelProvider.mockImplementation(async (_user, _workspace, model: string) => {
+        if (model !== 'claude-sonnet-5') return
+        controller.abort()
+        throw new Error('not permitted')
+      })
 
       await expect(
-        handler.execute(mockContext, mockBlock, {
+        handler.execute({ ...mockContext, abortSignal: controller.signal }, mockBlock, {
           ...baseInputs,
-          fallbackModels: [{ model: 'claude-sonnet-5' }],
+          fallbackModels: [{ model: 'claude-sonnet-5' }, { model: 'gpt-4o-mini' }],
+        })
+      ).rejects.toThrow('primary down')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips a fallback whose provider cannot take the attachments and hydrates once per provider', async () => {
+      const file = {
+        id: 'file-1',
+        name: 'example.png',
+        key: 'execution/test-workspace/test-workflow/exec-1/example.png',
+        url: 'https://storage.example.com/example.png',
+        size: 8,
+        type: 'image/png',
+        context: 'execution',
+      }
+      const hydrate = vi
+        .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+        .mockImplementation(async (value) => {
+          const files = value as Array<typeof file>
+          return files.map((attachment) => ({
+            ...attachment,
+            base64: 'iVBORw0KGgo=',
+          })) as typeof value
+        })
+      mockGetProviderFromModel.mockImplementation((model: string) =>
+        model.startsWith('deepseek') ? 'deepseek' : providerFor(model)
+      )
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('down'))
+        .mockRejectedValueOnce(new Error('down'))
+        .mockResolvedValueOnce(providerResponse('claude-haiku-5'))
+      const blockLog = openLog()
+
+      try {
+        await handler.execute({ ...mockContext, blockLogs: [blockLog] }, mockBlock, {
+          ...baseInputs,
+          userPrompt: 'Describe this file',
+          files: [file],
+          fallbackModels: [
+            { model: 'deepseek-chat' },
+            { model: 'claude-sonnet-5' },
+            { model: 'claude-haiku-5' },
+          ],
+        })
+
+        expect(mockAgentLogger.warn).toHaveBeenCalledWith(
+          'Fallback model cannot take the attached files; skipping',
+          expect.objectContaining({ model: 'deepseek-chat' })
+        )
+        expect(mockExecuteProviderRequest.mock.calls.map(([, request]) => request.model)).toEqual([
+          'gpt-4o',
+          'claude-sonnet-5',
+          'claude-haiku-5',
+        ])
+        /** One hydration for openai, one for anthropic; the skipped provider never hydrates. */
+        expect(hydrate).toHaveBeenCalledTimes(2)
+        /** A skipped candidate is not a failed try. */
+        expect(blockLog.modelFallbacks).toEqual(['gpt-4o', 'claude-sonnet-5'])
+      } finally {
+        hydrate.mockRestore()
+      }
+    })
+
+    it('does not prime a stream when no candidate follows', async () => {
+      mockExecuteProviderRequest.mockResolvedValueOnce(
+        streamingResponse([], { failBeforeFirstChunk: new Error('429 at stream start') })
+      )
+
+      const result = (await handler.execute(
+        mockContext,
+        mockBlock,
+        baseInputs
+      )) as StreamingExecution
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+      await expect(drain(result.stream as ReadableStream<string>)).rejects.toThrow(
+        '429 at stream start'
+      )
+    })
+
+    it('does not fall back on an explicitly non-retryable failure, on any try', async () => {
+      const error = Object.assign(new Error('permanent'), { retryable: false })
+      mockExecuteProviderRequest.mockRejectedValue(error)
+      const inputs = { ...baseInputs, fallbackModels: [{ model: 'claude-sonnet-5' }] }
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toBe(error)
+      await expect(
+        handler.execute(mockContext, mockBlock, inputs, {
+          nodeId: mockBlock.id,
+          retry: { attempt: 1, maxTries: 3, isFinalTry: false },
         })
       ).rejects.toBe(error)
-      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      expect(mockAgentLogger.warn).not.toHaveBeenCalledWith(
+        'Agent model failed; trying fallback',
+        expect.anything()
+      )
+    })
+
+    it('retries the selected model under the executor policy, then walks the fallbacks once', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('one'))
+        .mockRejectedValueOnce(new Error('two'))
+        .mockRejectedValueOnce(new Error('three'))
+        .mockRejectedValueOnce(new Error('four'))
+        .mockResolvedValueOnce(providerResponse('gpt-4o-mini', 'from the third choice'))
+      const block = {
+        ...mockBlock,
+        config: {
+          tool: 'mock-tool',
+          params: {
+            ...baseInputs,
+            fallbackModels: [{ model: 'claude-sonnet-5' }, { model: 'gpt-4o-mini' }],
+          },
+        },
+        retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 0 },
+      } as SerializedBlock
+      const workflow = {
+        version: '1',
+        blocks: [block],
+        connections: [],
+        loops: {},
+        parallels: {},
+      } as SerializedWorkflow
+      const state = new ExecutionState()
+      const executor = new BlockExecutor(
+        [handler],
+        new VariableResolver(workflow, {}, state),
+        {
+          workspaceId: 'test-workspace',
+          executionId: 'execution-1',
+          userId: 'user-1',
+          metadata: {
+            requestId: 'request-1',
+            executionId: 'execution-1',
+            workflowId: 'test-workflow',
+            workspaceId: 'test-workspace',
+            userId: 'user-1',
+            triggerType: 'manual',
+            useDraftState: false,
+            startTime: new Date().toISOString(),
+          },
+        },
+        state
+      )
+      const ctx = {
+        ...mockContext,
+        executionId: 'execution-1',
+        userId: 'user-1',
+        blockStates: state.getBlockStates(),
+        blockLogs: [],
+      } as ExecutionContext
+      const node = {
+        id: block.id,
+        block,
+        incomingEdges: new Set(),
+        outgoingEdges: new Map(),
+        metadata: {},
+      } as unknown as DAGNode
+
+      const output = await executor.execute(ctx, node, block)
+
+      /** Three tries on the selected model, then each fallback exactly once. */
+      expect(mockExecuteProviderRequest.mock.calls.map(([, request]) => request.model)).toEqual([
+        'gpt-4o',
+        'gpt-4o',
+        'gpt-4o',
+        'claude-sonnet-5',
+        'gpt-4o-mini',
+      ])
+      expect(output).toMatchObject({ model: 'gpt-4o-mini' })
+      expect(ctx.blockLogs[0]).toMatchObject({
+        success: true,
+        tries: 3,
+        modelFallbacks: ['gpt-4o', 'claude-sonnet-5'],
+      })
+      expect(mockAgentLogger.info).toHaveBeenCalledTimes(2)
+      expect(mockAgentLogger.info).toHaveBeenNthCalledWith(
+        2,
+        'Fallback models held for the final try',
+        { blockId: mockBlock.id, attempt: 2, maxTries: 3 }
+      )
     })
 
     it('keeps the fallback name when a routed sim-auto primary fails and a fallback answers', async () => {

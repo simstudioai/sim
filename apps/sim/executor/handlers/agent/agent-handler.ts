@@ -365,6 +365,8 @@ export class AgentBlockHandler implements BlockHandler {
         ...modelInputProjection.value,
         responseFormat: responseFormatProjection.value,
       }
+      /** The system prompt as the model may see it, before any auto-routing preamble joins it. */
+      const projectedSystemPrompt = modelInputs.systemPrompt
       const projectedToolInputs = this.projectToolInputsForProvenance(ctx, tools)
 
       await this.validateToolPermissions(ctx, filteredInputs.tools || [])
@@ -498,7 +500,9 @@ export class AgentBlockHandler implements BlockHandler {
        * provider; another model has none of that conversation, so a green answer
        * from it would be built on a fresh context. Such a request never falls back.
        */
-      const configuredFallbacks = normalizeFallbackModels(filteredInputs.fallbackModels)
+      const configuredFallbacks = normalizeFallbackModels(
+        this.keepReferenceRowKeys(ctx, block, filteredInputs.fallbackModels)
+      )
       const retry = nodeMetadata?.retry
       const fallbacksHeld = retry !== undefined && !retry.isFinalTry
       const fallbackCandidates =
@@ -534,7 +538,7 @@ export class AgentBlockHandler implements BlockHandler {
         hydratedByProvider,
         fileProjection,
         modelInputs,
-        fallbackSystemPrompt: autoRouting ? filteredInputs.systemPrompt : undefined,
+        fallbackSystemPrompt: autoRouting ? projectedSystemPrompt : undefined,
         formattedTools: formatted.tools,
         responseFormat,
         streaming: streamingConfig.shouldUseStreaming ?? false,
@@ -2485,14 +2489,7 @@ export class AgentBlockHandler implements BlockHandler {
           candidateProviderId = getProviderFromModel(candidate.model)
           await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
         } catch (error) {
-          logger.warn(
-            'Fallback model unusable; skipping',
-            projectAgentDiagnosticMetadata(
-              ctx,
-              { blockId: block.id, model: candidate.model, error: getErrorMessage(error) },
-              { blockId: block.id }
-            )
-          )
+          this.warnFallbackSkipped(ctx, block, candidate.model, 'unusable', error)
           continue
         }
       }
@@ -2511,13 +2508,12 @@ export class AgentBlockHandler implements BlockHandler {
           )
         } catch (error) {
           if (candidate.isPrimary) throw error
-          logger.warn(
-            'Fallback model cannot take the attached files; skipping',
-            projectAgentDiagnosticMetadata(
-              ctx,
-              { blockId: block.id, model: candidate.model, error: getErrorMessage(error) },
-              { blockId: block.id }
-            )
+          this.warnFallbackSkipped(
+            ctx,
+            block,
+            candidate.model,
+            'cannot take the attached files',
+            error
           )
           continue
         }
@@ -2636,10 +2632,10 @@ export class AgentBlockHandler implements BlockHandler {
               blockId: block.id,
               failedModel: candidate.model,
               nextModel: config.candidates[index + 1].model,
-              attempt: index + 1,
+              candidate: index + 1,
               error: getErrorMessage(error),
             },
-            { blockId: block.id, attempt: index + 1 }
+            { blockId: block.id, candidate: index + 1 }
           )
         )
         lastErrorRegistries = { error: errorRegistry, resolved: ctx.resolvedSecretTraceRegistry }
@@ -2655,6 +2651,61 @@ export class AgentBlockHandler implements BlockHandler {
     }
     this.recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
     throw lastError
+  }
+
+  /**
+   * Keeps a fallback row's key only when the block stored it as a whole
+   * `{{NAME}}` reference, which is the one form the editor offers, the validator
+   * accepts, and an export preserves. A raw value written through the realtime
+   * subblock op would otherwise reach the provider while the row shows no key
+   * at all; it is dropped here so every surface agrees, and named in a warn so
+   * the builder can find and clear it.
+   */
+  private keepReferenceRowKeys(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    rows: AgentInputs['fallbackModels']
+  ): AgentInputs['fallbackModels'] {
+    if (!Array.isArray(rows)) return rows
+    const storedRows: unknown = block.config?.params?.fallbackModels
+    return rows.map((row, index) => {
+      if (!row || typeof row !== 'object' || row.apiKey === undefined) return row
+      const stored = Array.isArray(storedRows) ? storedRows[index] : undefined
+      const storedKey =
+        stored && typeof stored === 'object' ? (stored as { apiKey?: unknown }).apiKey : undefined
+      if (isWholeEnvVarReference(storedKey)) return row
+      logger.warn(
+        'Fallback row key ignored; only an environment variable reference is accepted',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { blockId: block.id, model: row.model, row: index + 1 },
+          { blockId: block.id, row: index + 1 }
+        )
+      )
+      return { ...row, apiKey: undefined }
+    })
+  }
+
+  /**
+   * Warns that a fallback candidate was passed over, projected like every other
+   * diagnostic so a model id resolved from a reference never reaches the log.
+   * A skipped candidate is not a failed try: it never appears in `modelFallbacks`.
+   */
+  private warnFallbackSkipped(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    model: string,
+    reason: 'unusable' | 'cannot take the attached files',
+    error: unknown
+  ): void {
+    logger.warn(
+      `Fallback model ${reason}; skipping`,
+      projectAgentDiagnosticMetadata(
+        ctx,
+        { blockId: block.id, model, error: getErrorMessage(error) },
+        { blockId: block.id }
+      )
+    )
   }
 
   /**

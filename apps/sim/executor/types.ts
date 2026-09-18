@@ -288,8 +288,9 @@ export interface BlockLog {
   tries?: number
   /**
    * Models that failed before the one that answered, in the order tried.
-   * Present only when an Agent block fell back at least once; under retry the
-   * last try's chain wins, matching `tries`.
+   * Present only when an Agent block fell back at least once. Under retry only
+   * the final try walks the fallbacks, so the field reflects that try; every
+   * earlier try clears it.
    */
   modelFallbacks?: string[]
   loopId?: string

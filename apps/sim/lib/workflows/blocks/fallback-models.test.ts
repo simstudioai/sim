@@ -5,12 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockShouldRequireApiKey, mockRequiresFamilyCredentials } = vi.hoisted(() => ({
   mockShouldRequireApiKey: vi.fn((model: string) => false),
-  mockRequiresFamilyCredentials: vi.fn((model: string) => false),
+  mockRequiresFamilyCredentials: vi.fn((provider: string | null | undefined) => false),
 }))
 
 vi.mock('@/blocks/utils', () => ({
   shouldRequireApiKeyForModel: mockShouldRequireApiKey,
-  requiresProviderFamilyCredentials: mockRequiresFamilyCredentials,
+  providerRequiresFamilyCredentials: mockRequiresFamilyCredentials,
 }))
 
 vi.mock('@/providers/models', () => ({
@@ -161,7 +161,7 @@ describe('isViableFallbackModel', () => {
   })
 
   it('offers a family-bound model only alongside a primary of the same family', () => {
-    mockRequiresFamilyCredentials.mockImplementation((model: string) => model.startsWith('vertex/'))
+    mockRequiresFamilyCredentials.mockImplementation((provider) => provider === 'vertex')
     expect(isViableFallbackModel('vertex/gemini-b', 'vertex/gemini-a')).toBe(true)
     expect(isViableFallbackModel('vertex/gemini-b', 'gpt-5')).toBe(false)
   })
@@ -280,6 +280,13 @@ describe('resolveFallbackTuning', () => {
     })
     expect(small.temperature).toBe(0.2)
     expect(small.maxTokens).toBe('4096')
+
+    /** A value that never resolved to a number passes through untouched. */
+    const unresolved = resolveFallbackTuning({ model: 'claude-sonnet-5' }, 'gpt-big', {
+      temperature: '{{TEMP}}',
+    })
+    expect(unresolved.temperature).toBe('{{TEMP}}')
+    expect(unresolved.adjustments).toEqual([])
   })
 
   it('passes everything through for an uncatalogued fallback', () => {

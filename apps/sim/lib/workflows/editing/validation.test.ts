@@ -391,6 +391,10 @@ describe('validateInputsForBlock', () => {
       expect(bad.valid).toBe(false)
       expect((bad as { error: { error: string } }).error.error).toContain('thinking level option')
 
+      const notAString = validate([{ model: 'claude-sonnet-5', thinkingLevel: 42 }])
+      expect(notAString.valid).toBe(false)
+      expect((notAString as { error: { error: string } }).error.error).toContain('"42"')
+
       const undeclared = (['reasoningEffort', 'verbosity', 'thinkingLevel'] as const).find(
         (knob) => getTuningOptionsForModel('claude-sonnet-5', knob) === null
       )
