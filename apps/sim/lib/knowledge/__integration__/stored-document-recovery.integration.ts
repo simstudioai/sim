@@ -24,13 +24,31 @@ const fixture = vi.hoisted(() => ({
   embeddingCalls: 0,
   useTrigger: false,
   listRuns: vi.fn(),
+  batchTrigger: vi.fn(),
 }))
 vi.mock('@/lib/core/config/trigger-runtime', () => ({
   isInsideTriggerRun: () => fixture.useTrigger,
 }))
-vi.mock('@trigger.dev/sdk', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@trigger.dev/sdk')>()),
-  runs: { list: fixture.listRuns },
+vi.mock('@trigger.dev/core/v3', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@trigger.dev/core/v3')>()),
+  apiClientManager: {
+    clientOrThrow: () => ({ baseUrl: 'https://api.trigger.dev', getHeaders: () => ({}) }),
+  },
+}))
+vi.mock('@trigger.dev/core/v3/zodfetch', () => ({
+  zodfetchCursorPage: (_schema: unknown, _url: string, params: { query: URLSearchParams }) =>
+    fixture.listRuns({ tag: params.query.get('filter[tag]') }),
+}))
+vi.mock('@trigger.dev/sdk', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@trigger.dev/sdk')>()
+  return {
+    ...original,
+    runs: { list: fixture.listRuns },
+    tasks: { ...original.tasks, batchTrigger: fixture.batchTrigger },
+  }
+})
+vi.mock('@/lib/core/async-jobs/region', () => ({
+  resolveTriggerRegion: async () => 'us-east-1',
 }))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
@@ -65,6 +83,7 @@ import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-sea
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import {
   DOCUMENT_RECOVERY_BATCH_SIZE,
@@ -135,6 +154,7 @@ async function failedFile(
 afterEach(() => {
   fixture.useTrigger = false
   fixture.listRuns.mockReset()
+  fixture.batchTrigger.mockReset()
 })
 
 beforeAll(() => {
@@ -156,6 +176,95 @@ afterAll(async () => {
 })
 
 describe('independent recovery of retained connector documents', () => {
+  it.each([null, 'abandoned-generation'])(
+    'redelivers an abandoned upload with token %s without spending another admission',
+    async (processingQueueToken) => {
+      const ids = await seed()
+      const file = await failedFile(ids)
+      const queuedAt = old()
+      await db
+        .update(document)
+        .set({
+          connectorId: null,
+          processingStatus: 'pending',
+          processingQueueToken,
+          processingQueuedAt: queuedAt,
+          processingCompletedAt: null,
+        })
+        .where(eq(document.id, file.documentId))
+      const eventId = await enqueueKnowledgeDocumentProcessing(db, {
+        knowledgeBaseId: ids.knowledgeBaseId,
+        documentId: file.documentId,
+        processingOptions: {},
+        billingAttribution: await resolveSystemBillingAttribution(ids.workspaceId),
+        processingLane: 'interactive',
+      })
+      fixture.useTrigger = true
+      fixture.listRuns.mockResolvedValue({ data: [], hasNextPage: () => false })
+      fixture.batchTrigger.mockResolvedValue({ batchId: 'fixture-batch' })
+      expect(
+        await outbox.processOutboxEventById(eventId, knowledgeDocumentProcessingOutboxHandlers)
+      ).toBe('completed')
+      expect(fixture.batchTrigger).toHaveBeenCalledOnce()
+      expect(fixture.batchTrigger.mock.calls[0][1][0].payload).toMatchObject({
+        documentId: file.documentId,
+        processingQueueToken: eventId,
+        processingQueuedAt: queuedAt.toISOString(),
+        chargedAtDispatch: false,
+      })
+      const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(row.processingQueueToken).toBe(eventId)
+      expect(row.processingAttempts).toBe(1)
+    }
+  )
+
+  it.each(['live', 'unknown', 'race'])(
+    'does not adopt a legacy upload when its processing is %s',
+    async (state) => {
+      const ids = await seed()
+      const file = await failedFile(ids)
+      await db
+        .update(document)
+        .set({
+          connectorId: null,
+          processingStatus: 'pending',
+          processingQueueToken: null,
+          processingCompletedAt: null,
+        })
+        .where(eq(document.id, file.documentId))
+      const eventId = await enqueueKnowledgeDocumentProcessing(db, {
+        knowledgeBaseId: ids.knowledgeBaseId,
+        documentId: file.documentId,
+        processingOptions: {},
+        billingAttribution: await resolveSystemBillingAttribution(ids.workspaceId),
+        processingLane: 'interactive',
+      })
+      fixture.useTrigger = true
+      if (state === 'unknown')
+        fixture.listRuns.mockRejectedValue(new Error('Synthetic lookup failure'))
+      else if (state === 'live')
+        fixture.listRuns.mockResolvedValue({
+          data: [{ status: 'QUEUED' }],
+          hasNextPage: () => false,
+        })
+      else
+        fixture.listRuns.mockImplementation(async () => {
+          await db
+            .update(document)
+            .set({ processingQueueToken: 'winning-generation', processingQueuedAt: new Date() })
+            .where(eq(document.id, file.documentId))
+          return { data: [], hasNextPage: () => false }
+        })
+      expect(
+        await outbox.processOutboxEventById(eventId, knowledgeDocumentProcessingOutboxHandlers)
+      ).toBe(state === 'live' ? 'completed' : 'pending')
+      expect(fixture.batchTrigger).not.toHaveBeenCalled()
+      const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(row.processingQueueToken).toBe(state === 'race' ? 'winning-generation' : null)
+      expect(row.processingAttempts).toBe(1)
+    }
+  )
+
   it.each(['QUEUED', 'DELAYED', 'WAITING'])(
     'preserves a seven-hour %s run and its existing attempt',
     async (status) => {

@@ -105,8 +105,10 @@ import {
 import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
 import {
+  DOCUMENT_LIVENESS_BATCH_SIZE,
   documentProcessingSnapshotCondition,
   findAbandonedDocumentProcessing,
+  inspectDocumentProcessingLiveness,
   processingSnapshotColumns,
 } from '@/lib/knowledge/documents/processing-liveness'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
@@ -829,10 +831,15 @@ interface MarkDocumentsQueuedResult {
 }
 
 function acceptedDocumentStateCondition(observedAt: Date): SQL | undefined {
+  const queuedCutoff = new Date(observedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
   const processingCutoff = new Date(observedAt.getTime() - DOCUMENT_PROCESSING_STALE_THRESHOLD_MS)
   return or(
     eq(document.processingStatus, 'completed'),
-    and(eq(document.processingStatus, 'pending'), isNotNull(document.processingQueuedAt)),
+    and(
+      eq(document.processingStatus, 'pending'),
+      isNotNull(document.processingQueuedAt),
+      gte(document.processingQueuedAt, queuedCutoff)
+    ),
     and(
       eq(document.processingStatus, 'processing'),
       isNotNull(document.processingStartedAt),
@@ -879,9 +886,10 @@ async function markDocumentsQueued(
   knowledgeBaseId: string,
   queueToken: string,
   queuedAt: Date,
-  lease: ProcessingDispatchLease | undefined
+  lease: ProcessingDispatchLease | undefined,
+  signal?: AbortSignal
 ): Promise<MarkDocumentsQueuedResult> {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     if (lease) await assertSyncLeaseHeldInTx(tx, lease.connectorId, lease)
     const claimed = await tx
       .update(document)
@@ -983,6 +991,68 @@ async function markDocumentsQueued(
       ),
     }
   })
+
+  if (result.unresolvedIds.length === 0) return result
+  const candidates = await db
+    .select(processingSnapshotColumns)
+    .from(document)
+    .where(
+      and(
+        inArray(document.id, result.unresolvedIds),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.processingStatus, 'pending'),
+        lt(document.processingQueuedAt, new Date(queuedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)),
+        isNull(document.processingDeferredUntil),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(DOCUMENT_LIVENESS_BATCH_SIZE)
+  const { abandoned, live } = await inspectDocumentProcessingLiveness(candidates, signal)
+  /** Redelivery resumes an abandoned admission; it does not spend another attempt. */
+  const adopted =
+    abandoned.length === 0
+      ? []
+      : await db.transaction(async (tx) => {
+          signal?.throwIfAborted()
+          if (lease) await assertSyncLeaseHeldInTx(tx, lease.connectorId, lease)
+          return tx
+            .update(document)
+            .set({ processingQueueToken: queueToken })
+            .where(
+              and(
+                eq(document.knowledgeBaseId, knowledgeBaseId),
+                or(...abandoned.map(documentProcessingSnapshotCondition)),
+                eq(document.userExcluded, false),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt)
+              )
+            )
+            .returning({ id: document.id, processingQueuedAt: document.processingQueuedAt })
+        })
+  const acceptedIds = new Set([...live, ...adopted].map((row) => row.id))
+  return {
+    generations: [
+      ...result.generations,
+      ...adopted.flatMap((row) =>
+        row.processingQueuedAt
+          ? [
+              {
+                documentId: row.id,
+                processingQueuedAt: row.processingQueuedAt,
+                chargedAtDispatch: false,
+              },
+            ]
+          : []
+      ),
+    ],
+    acceptedWithoutDispatchIds: [
+      ...result.acceptedWithoutDispatchIds,
+      ...live.map((row) => row.id),
+    ],
+    unresolvedIds: result.unresolvedIds.filter((id) => !acceptedIds.has(id)),
+  }
 }
 
 /**
@@ -1095,7 +1165,14 @@ export async function processDocumentsWithQueue(
     generations: queuedGenerations,
     acceptedWithoutDispatchIds,
     unresolvedIds,
-  } = await markDocumentsQueued(documentIds, knowledgeBaseId, requestId, queuedAt, lease)
+  } = await markDocumentsQueued(
+    documentIds,
+    knowledgeBaseId,
+    requestId,
+    queuedAt,
+    lease,
+    executionContext?.signal
+  )
   const generationByDocumentId = new Map(
     queuedGenerations.map((generation) => [generation.documentId, generation])
   )

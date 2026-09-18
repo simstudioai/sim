@@ -22,6 +22,7 @@ import {
 } from '@/lib/core/config/trigger-runtime'
 import { SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
+import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const { mockBatchTrigger, mockResolveTriggerRegion } = vi.hoisted(() => ({
   mockBatchTrigger: vi.fn(),
@@ -525,7 +526,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
         (node: MockCondition) =>
           node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
       )
-    ).toBe(false)
+    ).toBe(true)
     const liveProcessingState = acceptedStatuses.find(
       (condition) =>
         condition.type === 'and' &&
@@ -619,7 +620,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
     ).toBe(true)
   })
 
-  it('preserves an old legacy generation for the liveness-aware recovery path', async () => {
+  it('preserves a recently queued generation without dispatching duplicate work', async () => {
     markInsideTriggerRun()
     dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([])
     queueTableRows(schemaMock.document, [{ id: 'document-1' }])
@@ -901,7 +902,7 @@ describe('processDocumentsWithQueue dispatch backend', () => {
       (node: MockCondition) =>
         node.type === 'gte' && node.left === schemaMock.document.processingQueuedAt
     )
-    expect(queuedFreshness).toBeUndefined()
+    expect(queuedFreshness?.right).toEqual(new Date(now.getTime() - QUEUED_DISPATCH_GRACE_MS))
     const processingState = acceptedStatuses.find(
       (condition) =>
         condition.type === 'and' &&

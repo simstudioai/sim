@@ -3,7 +3,19 @@ import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { listRuns } = vi.hoisted(() => ({ listRuns: vi.fn() }))
-vi.mock('@trigger.dev/sdk', () => ({ runs: { list: listRuns } }))
+vi.mock('@trigger.dev/core/v3', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@trigger.dev/core/v3')>()),
+  apiClientManager: {
+    clientOrThrow: () => ({
+      baseUrl: 'https://api.trigger.dev',
+      getHeaders: () => ({
+        Authorization: 'Bearer fixture-key',
+        'x-trigger-branch': 'fixture-branch',
+      }),
+    }),
+  },
+}))
+vi.mock('@trigger.dev/core/v3/zodfetch', () => ({ zodfetchCursorPage: listRuns }))
 
 import { env } from '@/lib/core/config/env'
 import { resetInsideTriggerRunForTests } from '@/lib/core/config/trigger-runtime'
@@ -29,12 +41,13 @@ beforeEach(() => {
   resetInsideTriggerRunForTests()
   setEnvFlags({ isTriggerDevEnabled: true })
   env.TRIGGER_SECRET_KEY = 'test-secret'
-  listRuns.mockResolvedValue({ data: [], hasNextPage: () => false })
+  listRuns.mockReset().mockResolvedValue({ data: [], hasNextPage: () => false })
 })
 afterEach(() => {
   env.TRIGGER_SECRET_KEY = originalSecret
   resetEnvFlagsMock()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 describe('document processing liveness', () => {
@@ -46,19 +59,27 @@ describe('document processing liveness', () => {
       expect(dbChainMockFns.set).toHaveBeenCalledWith({ processingRecoveryAfter: expect.any(Date) })
       expect(dbChainMockFns.delete).not.toHaveBeenCalled()
       expect(listRuns).toHaveBeenCalledWith(
+        expect.anything(),
+        'https://api.trigger.dev/api/v1/runs',
         expect.objectContaining({
-          tag: 'documentId:doc-1',
+          query: expect.any(URLSearchParams),
           limit: 1,
-          status: expect.arrayContaining([
-            'QUEUED',
-            'WAITING',
-            'DELAYED',
-            'EXECUTING',
-            'DEQUEUED',
-            'PENDING_VERSION',
-          ]),
         }),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
         { retry: { maxAttempts: 1 } }
+      )
+      const params = listRuns.mock.calls[0][2].query as URLSearchParams
+      expect(params.get('filter[tag]')).toBe('documentId:doc-1')
+      expect(params.get('filter[taskIdentifier]')).toBe('knowledge-process-document')
+      expect(params.get('filter[status]')?.split(',')).toEqual(
+        expect.arrayContaining([
+          'QUEUED',
+          'WAITING',
+          'DELAYED',
+          'EXECUTING',
+          'DEQUEUED',
+          'PENDING_VERSION',
+        ])
       )
     }
   )
@@ -103,6 +124,60 @@ describe('document processing liveness', () => {
     expect(await result).toEqual([])
     expect(listRuns).toHaveBeenCalledTimes(4)
   })
+
+  it('cancels the actual SDK HTTP requests at the deadline without accumulating requests', async () => {
+    const { zodfetchCursorPage } = await vi.importActual<
+      typeof import('@trigger.dev/core/v3/zodfetch')
+    >('@trigger.dev/core/v3/zodfetch')
+    listRuns.mockImplementation(zodfetchCursorPage)
+    vi.useFakeTimers()
+    let active = 0
+    const fetch = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          active++
+          init.signal!.addEventListener(
+            'abort',
+            () => {
+              active--
+              reject(init.signal!.reason)
+            },
+            { once: true }
+          )
+        })
+    )
+    vi.stubGlobal('fetch', fetch)
+    const candidates = Array.from({ length: 20 }, (_, i) => ({ ...snapshot, id: `doc-${i}` }))
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = findAbandonedDocumentProcessing(candidates)
+      await vi.advanceTimersByTimeAsync(8_000)
+      expect(await result).toEqual([])
+      expect(active).toBe(0)
+      expect(fetch).toHaveBeenCalledTimes((attempt + 1) * 4)
+    }
+    const headers = new Headers(fetch.mock.calls[0][1].headers)
+    expect(headers.get('Authorization')).toBe('Bearer fixture-key')
+    expect(headers.get('x-trigger-branch')).toBe('fixture-branch')
+  })
+
+  it.each([true, false])(
+    'validates the SDK response before declaring abandonment: valid=%s',
+    async (valid) => {
+      const { zodfetchCursorPage } = await vi.importActual<
+        typeof import('@trigger.dev/core/v3/zodfetch')
+      >('@trigger.dev/core/v3/zodfetch')
+      listRuns.mockImplementation(zodfetchCursorPage)
+      const fetch = vi
+        .fn()
+        .mockResolvedValue(Response.json(valid ? { data: [], pagination: {} } : { data: [] }))
+      vi.stubGlobal('fetch', fetch)
+      expect(await findAbandonedDocumentProcessing([snapshot])).toEqual(valid ? [snapshot] : [])
+      expect(fetch).toHaveBeenCalledOnce()
+      const url = new URL(fetch.mock.calls[0][0])
+      expect(url.searchParams.get('page[size]')).toBe('1')
+      expect(url.searchParams.get('filter[tag]')).toBe('documentId:doc-1')
+    }
+  )
 
   it('retains recovery on installations using the in-process fallback', async () => {
     env.TRIGGER_SECRET_KEY = undefined

@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { document, outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import type { RunStatus } from '@trigger.dev/core/v3'
-import { runs } from '@trigger.dev/sdk'
+import { apiClientManager, ListRunResponseItem, type RunStatus } from '@trigger.dev/core/v3'
+import { zodfetchCursorPage } from '@trigger.dev/core/v3/zodfetch'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
@@ -69,16 +69,24 @@ type ProcessingLiveness = 'live' | 'abandoned' | 'unknown'
 
 async function inspectTriggerWork(documentId: string, deadlineAt: number, signal?: AbortSignal) {
   return withinDeadline(
-    async () => {
-      const page = await runs.list(
+    async (requestSignal) => {
+      const client = apiClientManager.clientOrThrow()
+      /** The SDK's runs.list wrapper omits RequestInit.signal; its transport supports it. */
+      const page = await zodfetchCursorPage(
+        ListRunResponseItem,
+        `${client.baseUrl}/api/v1/runs`,
         {
-          taskIdentifier: ['knowledge-process-document'],
-          tag: `documentId:${documentId}`,
-          status: ACTIVE_RUN_STATUSES,
+          query: new URLSearchParams({
+            'filter[taskIdentifier]': 'knowledge-process-document',
+            'filter[tag]': `documentId:${documentId}`,
+            'filter[status]': ACTIVE_RUN_STATUSES.join(','),
+          }),
           limit: 1,
         },
+        { method: 'GET', headers: client.getHeaders(), signal: requestSignal },
         { retry: { maxAttempts: 1 } }
       )
+      requestSignal.throwIfAborted()
       if (page.data.length > 0) return 'live' as const
       return page.hasNextPage() ? ('unknown' as const) : ('abandoned' as const)
     },
@@ -92,11 +100,11 @@ async function inspectTriggerWork(documentId: string, deadlineAt: number, signal
  * outside row locks. Any live document run protects continuation handoffs and legacy jobs.
  * Failed or incomplete lookups defer recovery; they never authorize another admission.
  */
-export async function findAbandonedDocumentProcessing<T extends DocumentProcessingSnapshot>(
+export async function inspectDocumentProcessingLiveness<T extends DocumentProcessingSnapshot>(
   candidates: readonly T[],
   signal?: AbortSignal
-): Promise<T[]> {
-  if (candidates.length === 0) return []
+): Promise<{ abandoned: T[]; live: T[] }> {
+  if (candidates.length === 0) return { abandoned: [], live: [] }
   if (candidates.length > DOCUMENT_LIVENESS_BATCH_SIZE) {
     throw new Error('Document liveness batch exceeds its limit')
   }
@@ -184,5 +192,15 @@ export async function findAbandonedDocumentProcessing<T extends DocumentProcessi
         count: protectedRows.length,
       })
   }
-  return candidates.filter((row) => states.get(row.id) === 'abandoned')
+  return {
+    abandoned: candidates.filter((row) => states.get(row.id) === 'abandoned'),
+    live: candidates.filter((row) => states.get(row.id) === 'live'),
+  }
+}
+
+export async function findAbandonedDocumentProcessing<T extends DocumentProcessingSnapshot>(
+  candidates: readonly T[],
+  signal?: AbortSignal
+): Promise<T[]> {
+  return (await inspectDocumentProcessingLiveness(candidates, signal)).abandoned
 }
