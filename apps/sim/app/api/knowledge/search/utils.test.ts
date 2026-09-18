@@ -212,11 +212,14 @@ describe('Knowledge Search Utils', () => {
   describe('handleTagAndVectorSearch', () => {
     it('returns only bounded ranked rows without first materializing every matching tag ID', async () => {
       resetDbChainMock()
-      queueTableRows(
-        schemaMock.embedding,
-        Array.from({ length: 201 }, (_, index) => ({ id: `candidate-${index}` }))
-      )
-      queueTableRows(schemaMock.embedding, [makeResult('second', 0.2), makeResult('first', 0.1)])
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = (query as { toSQL: () => { sql: string } }).toSQL().sql
+        if (statement.includes('AS visible')) return []
+        if (statement.includes(') + 0 LIMIT')) return [{ id: 'first' }, { id: 'second' }]
+        if (statement.includes('WITH scored_search_candidates'))
+          return [makeResult('second', 0.2), makeResult('first', 0.1)]
+        return [{ id: 'doc-first' }, { id: 'doc-second' }]
+      })
       queueTableRows(schemaMock.embedding, [makeResult('second', 0.2), makeResult('first', 0.1)])
 
       const results = await handleTagAndVectorSearch({
@@ -231,11 +234,13 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((row) => row.id)).toEqual(['first', 'second'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
-      expect(Object.keys(dbChainMockFns.select.mock.calls[0][0])).toEqual(['id'])
-      expect(dbChainMockFns.limit).toHaveBeenNthCalledWith(1, 400)
-      expect(dbChainMockFns.select.mock.calls[1][0]).toHaveProperty('distance')
-      expect(dbChainMockFns.limit).toHaveBeenCalledWith(20)
+      /** Only hydration reads through the query builder; ranking never materializes tag IDs. */
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+      expect(dbChainMockFns.select.mock.calls[0][0]).toHaveProperty('distance')
+      const exact = dbChainMockFns.execute.mock.calls
+        .map(([query]) => (query as { toSQL: () => { sql: string; params: unknown[] } }).toSQL())
+        .find((statement) => statement.sql.includes(') + 0 LIMIT'))!
+      expect(exact.params).toContain(400)
     })
 
     it('should throw error when no filters provided', async () => {
@@ -552,13 +557,13 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id)).toEqual(['vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     })
 
     it('runs both legs and fuses them in hybrid mode', async () => {
       /**
-       * The raw vector probe does not consume a table chain. Keyword ranking and
-       * hydration complete before vector exact ranking and content hydration.
+       * Vector ranking is raw SQL throughout and consumes no table chain. Keyword ranking and
+       * hydration complete before vector content hydration.
        */
       dbChainMockFns.execute.mockResolvedValue([{ id: 'vector-hit' }])
       queueTableRows(schemaMock.embedding, [{ id: 'keyword-hit', keywordRank: 0.9 }])
@@ -576,7 +581,7 @@ describe('Knowledge Search Utils', () => {
       })
 
       expect(results.map((r) => r.id).sort()).toEqual(['keyword-hit', 'vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(4)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
     })
 
     it('propagates unexpected keyword errors after the vector leg finishes', async () => {
@@ -601,7 +606,7 @@ describe('Knowledge Search Utils', () => {
           queryVector: { vector: JSON.stringify(TEST_EMBEDDING), dimensions: 1536 },
         })
       ).rejects.toBe(failure)
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(3)
+      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
     })
 
     it('skips both query legs when only tag filters are provided', async () => {
