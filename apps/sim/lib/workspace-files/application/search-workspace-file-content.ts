@@ -3,15 +3,13 @@ import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
+import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 import {
   compileFileSearchPattern,
   type FileSearchMode,
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
-import {
-  searchWorkspaceFileIndex,
-  WorkspaceFileSearchUnavailableError,
-} from '@/lib/workspace-files/search/repository'
+import { searchWorkspaceFileIndex } from '@/lib/workspace-files/search/repository'
 
 export interface SearchWorkspaceFileContentInput {
   workspaceId: string

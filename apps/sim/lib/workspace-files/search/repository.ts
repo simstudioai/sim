@@ -1,10 +1,11 @@
-import { db } from '@sim/db'
+import { dbFor } from '@sim/db'
 import { workspaceFileSearchRevision, workspaceFiles } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, or, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { fileSearchAdmission } from '@/lib/workspace-files/search/admission'
 import {
   probeFileSearchCandidates,
   readOrderedFileSearchCandidates,
@@ -19,6 +20,7 @@ import {
   FILE_SEARCH_QUERY_WORKSPACE_CONCURRENCY,
   FILE_SEARCH_STATEMENT_TIMEOUT_MS,
 } from '@/lib/workspace-files/search/constants'
+import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 import {
   alignToCodePoints,
   type CompiledFileSearchPattern,
@@ -70,18 +72,6 @@ interface SearchWorkspaceFileIndexInput {
 const QUERY_CANCELED = '57014'
 const LOCK_NOT_AVAILABLE = '55P03'
 const INVALID_REGULAR_EXPRESSION = '2201B'
-
-/**
- * The search could not run, for a reason the caller did not cause and cannot fix
- * by changing the query — distinct from {@link FileSearchPatternError}, so a
- * surface reports "try again" rather than blaming the pattern.
- */
-export class WorkspaceFileSearchUnavailableError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'WorkspaceFileSearchUnavailableError'
-  }
-}
 
 /** Query deadlines cover expensive patterns; lock and transaction faults are retryable. */
 function asFileSearchFault(error: unknown): Error | null {
@@ -237,10 +227,13 @@ export async function searchWorkspaceFileIndex({
    */
   const folderPredicate = folderScope ? buildFolderPredicate(folderScope) : undefined
 
+  const release = await fileSearchAdmission.acquire(workspaceId, signal)
   try {
+    signal?.throwIfAborted()
     /** Metadata pages and line reads share one deadline and a consistent revision snapshot. */
-    const { rows, coverageRows } = await db.transaction(
+    const { rows, coverageRows } = await dbFor('search').transaction(
       async (tx) => {
+        signal?.throwIfAborted()
         await configureFileSearchTransaction(tx)
 
         /** Transaction-owned slots release on completion, cancellation, or connection loss. */
@@ -398,5 +391,7 @@ export async function searchWorkspaceFileIndex({
     const fault = asFileSearchFault(error)
     if (fault) throw fault
     throw error
+  } finally {
+    release()
   }
 }

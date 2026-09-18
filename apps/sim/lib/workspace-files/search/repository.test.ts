@@ -4,14 +4,12 @@
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
 import {
   compileFileSearchPattern,
   FileSearchPatternError,
 } from '@/lib/workspace-files/search/pattern'
-import {
-  searchWorkspaceFileIndex,
-  WorkspaceFileSearchUnavailableError,
-} from '@/lib/workspace-files/search/repository'
+import { searchWorkspaceFileIndex } from '@/lib/workspace-files/search/repository'
 
 /**
  * The shape a failed query really arrives in, captured from PostgreSQL 17
