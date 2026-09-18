@@ -112,11 +112,18 @@ The repo is public. **Everything you publish — title, description, commit mess
 
 Describe the bug by its mechanism, not by how you found it. "Expired OAuth credentials fail to refresh in the worker" — not "the Sheets canary failed at 16:31Z for workspace abc-123". Aggregate counts are fine once detached from the tenant ("1,379 PDFs failed"); the same number attributed to a named customer is not. Replace real examples with placeholders (`<real sheet name>`) rather than cutting them — the illustration is usually the useful part.
 
-**Scrub before publishing, not after** — a leak is public the instant it posts, and editing later does not unsend the notification email. This applies to every PR you open, including ones created directly with `gh pr create` rather than through this skill. Grep the title, body, and `git log origin/staging..HEAD` before publishing:
+**Measurements are not the problem; absolute production scale is.** Keep the numbers that justify a change — durations, ratios, before/after timings, test and audit counts. They are the evidence a reviewer needs, and stripping them makes the rationale unfalsifiable. What does not belong is anything that sizes production or a tenant: table and index byte sizes, row/chunk/document totals, dead-tuple counts, buffer and heap-fetch counts, worker or instance counts. "Visiting four times as many tuples took 5.1s and 9.7s on consecutive runs" is fine; "on a 132k-chunk index" or "reclaims ~19 GB" is not. The same rule applies to code comments and migration comments, which are published exactly like a PR body — this is the most commonly missed case, because they do not feel like publishing.
+
+**Scrub before publishing, not after** — a leak is public the instant it posts, and editing later does not unsend the notification email. This applies to every PR you open, including ones created directly with `gh pr create` rather than through this skill. Grep the title, body, `git log origin/staging..HEAD`, AND the diff itself before publishing:
 
 ```bash
+# identities, IDs, infrastructure
 grep -niE 'customer-or-company-name|@[a-z0-9.-]+\.(com|io|ai)|[0-9a-f]{8}-[0-9a-f]{4}-|\.sharepoint\.com|arn:aws|https?://[a-z0-9.-]*\.internal'
+# absolute production scale — byte sizes, k/M-scale entity counts, 7-figure totals
+grep -niE '[0-9][0-9.,]* ?(TB|GB)\b|[0-9]+(\.[0-9]+)?[kKmM][- ](row|chunk|document|vector|tuple|doc)|[0-9]{1,3}(,[0-9]{3}){2,}'
 ```
+
+The second pattern deliberately allows ordinary engineering numbers (`5.1s`, `46 audits`, `2,921 tests`) and flags only production sizing.
 
 ## PR Description Format
 
