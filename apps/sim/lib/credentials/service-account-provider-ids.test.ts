@@ -16,6 +16,7 @@ describe('isServiceAccountProviderId', () => {
     expect(isServiceAccountProviderId('notion-service-account')).toBe(true)
     expect(isServiceAccountProviderId('salesforce-service-account')).toBe(true)
     expect(isServiceAccountProviderId('netsuite-service-account')).toBe(true)
+    expect(isServiceAccountProviderId('oracle-fusion-service-account')).toBe(true)
   })
 
   it('is case- and whitespace-insensitive', () => {
@@ -39,6 +40,7 @@ describe('getServiceAccountGatingBlockType', () => {
     expect(getServiceAccountGatingBlockType('notion-service-account')).toBeNull()
     expect(getServiceAccountGatingBlockType('google-service-account')).toBeNull()
     expect(getServiceAccountGatingBlockType('salesforce-service-account')).toBeNull()
+    expect(getServiceAccountGatingBlockType('oracle-fusion-service-account')).toBeNull()
   })
 })
 
@@ -52,6 +54,7 @@ describe('getServiceAccountConnectNoun', () => {
   it('names the client-credential secret', () => {
     expect(getServiceAccountConnectNoun('zoom-service-account')).toBe('server-to-server app')
     expect(getServiceAccountConnectNoun('netsuite-service-account')).toBe('OAuth certificate')
+    expect(getServiceAccountConnectNoun('oracle-fusion-service-account')).toBe('integration user')
   })
 
   it('calls a custom Slack bot a custom bot', () => {
