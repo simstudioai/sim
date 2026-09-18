@@ -829,6 +829,8 @@ export function AddConnectorModal({
                       connecting={githubSetup.pending}
                       connectionError={githubSetup.error}
                       onCancel={githubSetup.cancel}
+                      onCheckConnection={() => void githubSetup.checkConnection()}
+                      isChecking={githubSetup.isChecking}
                       onChange={(credentialId) => {
                         if (credentialId !== installationCredentialId)
                           handleFieldChange('repository', '')

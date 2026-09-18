@@ -296,6 +296,8 @@ export function ConnectorSettingsFields({
               : undefined
           }
           onCancel={githubSetup.cancel}
+          onCheckConnection={() => void githubSetup.checkConnection()}
+          isChecking={githubSetup.isChecking}
           onChange={onContentCredentialChange}
         >
           {(accessDirty || canReenableMemberSync) && (

@@ -119,6 +119,51 @@ describe('GitHub installation setup handoff', () => {
     expect(mocks.start).toHaveBeenCalledOnce()
     expect(tab.focus).toHaveBeenCalledOnce()
   })
+  it('rechecks the same attempt on return to Sim without relying on a GitHub redirect', async () => {
+    await act(async () => current.connect())
+    mocks.start.mockResolvedValue({ url: `${window.location.origin}/credential-groups/complete` })
+    await act(async () => window.dispatchEvent(new Event('focus')))
+    expect(mocks.start).toHaveBeenLastCalledWith(mocks.start.mock.calls[0][0])
+    expect(mocks.refetch).toHaveBeenCalledOnce()
+    expect(mocks.connected).not.toHaveBeenCalled()
+    mocks.status = {
+      status: 'completed',
+      credential: { id: 'installation-1', displayName: 'Acme' },
+    }
+    act(() => root.render(<Probe />))
+    expect(current.pending).toBe(false)
+    expect(mocks.connected).toHaveBeenCalledExactlyOnceWith('installation-1')
+  })
+  it('leaves GitHub in place if installation is unfinished and exposes a retry', async () => {
+    await act(async () => current.connect())
+    const initialUrl = tab.location.href
+    await act(async () => current.checkConnection())
+    expect(tab.location.href).toBe(initialUrl)
+    expect(current.error).toContain('Finish setup on GitHub')
+    expect(current.pending).toBe(true)
+    expect(mocks.cancel).not.toHaveBeenCalled()
+  })
+  it('ignores an installation recheck that finishes after cancellation', async () => {
+    await act(async () => current.connect())
+    let resolve!: (value: { url: string }) => void
+    mocks.start.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      })
+    )
+    let checking!: Promise<void>
+    act(() => {
+      checking = current.checkConnection()
+    })
+    act(() => current.cancel())
+    await act(async () => {
+      resolve({ url: `${window.location.origin}/credential-groups/complete` })
+      await checking
+    })
+    expect(mocks.refetch).not.toHaveBeenCalled()
+    expect(mocks.connected).not.toHaveBeenCalled()
+    expect(current.pending).toBe(false)
+  })
 
   it('cancels without navigating a late start response or accepting its completion', async () => {
     let resolve!: (value: { url: string }) => void
