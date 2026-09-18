@@ -117,16 +117,30 @@ export const readSearchSourceOverview = instrumentSourceOverviewUseCase(
         /** One searchable document is the whole answer, so later batches skip the probe entirely. */
         const probesSearchable: boolean = probesSources && !hasSearchableDocuments
         if (probesSearchable) searchableProbes += 1
+        /**
+         * A provider type is only read back as membership of `indexingTypes`, so once every
+         * configured type is in the set no later batch can change the answer.
+         */
+        const probesIndexing: boolean =
+          probesSources && providers.some(({ connectorType }) => !indexingTypes.has(connectorType))
         /** Annotated so the searchable probe's guard does not infer through its own result. */
         const [indexing, searchable]: [{ connectorType: string }[], { id: string }[]] =
           await Promise.all([
-            probesSources
+            probesIndexing
               ? measureSearchStage('source_overview.indexing', () =>
                   configuredProvidersQuery()
                     .where(
                       and(
                         configured,
                         syncingEnabled,
+                        /**
+                         * The probe narrows the configured set the provider list came from, so a
+                         * type already found stays found; excluding it only drops repeated work.
+                         * An empty set adds no predicate rather than a no-op one.
+                         */
+                        indexingTypes.size > 0
+                          ? notInArray(knowledgeConnector.connectorType, [...indexingTypes])
+                          : undefined,
                         or(
                           inArray(knowledgeConnector.status, ['pending', 'syncing']),
                           and(

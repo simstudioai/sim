@@ -53,9 +53,10 @@ const MAX_AUTHORIZED_SEARCH_CANDIDATES = 20_000
  * Bounds a permission-starved graph walk, which returns fewer candidates rather than widening.
  * This approximate iterative-visit threshold excludes pgvector's initial scan; it is not a row limit.
  *
- * Raising it trades recall for latency far more steeply than its size suggests: on a 132k-chunk
- * index at 10% visibility, visiting 6.5k tuples instead of 1.5k took 5.1s and 9.7s on consecutive
- * identical runs, against ~115ms for the bounded walk. Re-measure before changing it.
+ * Raising it trades recall for latency far more steeply than its size suggests. Measured on a
+ * search index where visibility admitted a tenth of the corpus, visiting four times as many tuples
+ * took 5.1s and 9.7s on consecutive identical runs, against ~115ms for the bounded walk — the walk
+ * degrades superlinearly with depth, and unpredictably. Re-measure before changing it.
  */
 const CANDIDATE_HNSW_MAX_SCAN_TUPLES = '1000'
 const CANDIDATE_HNSW_EF_SEARCH = '1000'
@@ -911,11 +912,11 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
        *
        * An underfilled traversal yields fewer candidates rather than widening the search. Widening
        * it has no affordable form here: rescoring the projection exhaustively is O(corpus) and a
-       * deeper `hnsw.max_scan_tuples` is worse still — measured on a 132k-chunk index at 10%
-       * visibility, the exhaustive rescan took 1.9s while scanning 6.5k tuples instead of 1.5k took
-       * 5.1s and 9.7s on consecutive identical runs. Both exceed the retrieval budget on a corpus
-       * an order of magnitude larger, and a leg that exceeds its budget returns nothing at all, so
-       * fewer candidates strictly beats every widening strategy available.
+       * deeper `hnsw.max_scan_tuples` is worse still. Measured where visibility admitted a tenth of
+       * the corpus, the exhaustive rescan took 1.9s while visiting four times as many tuples took
+       * 5.1s and 9.7s on consecutive identical runs. Both exceed the retrieval budget once the
+       * corpus grows, and a leg that exceeds its budget returns nothing at all, so fewer candidates
+       * strictly beats every widening strategy available.
        */
       const identities = await withVectorScanSettings(
         (executor) =>

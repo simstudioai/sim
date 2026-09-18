@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs'
-import { generateId } from '@sim/utils/id'
-import postgres from 'postgres'
+import {
+  applyMigration,
+  migrationTestDatabaseUrl,
+  withMigrationSchema,
+} from '@sim/db/scripts/migration-fixture'
+import type postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.RETIRED_COLUMNS_TEST_DATABASE_URL
 const migration = readFileSync(
   new URL('../migrations/0348_drop_retired_usage_columns.sql', import.meta.url),
   'utf8'
@@ -39,11 +42,7 @@ const receipts = [
 ]
 
 async function fixture(run: (sql: postgres.Sql) => Promise<void>): Promise<void> {
-  const sql = postgres(databaseUrl!, { max: 1, onnotice: () => {} })
-  const schemaName = `retired_columns_${generateId().replaceAll('-', '')}`
-  try {
-    await sql`CREATE SCHEMA ${sql(schemaName)}`
-    await sql`SET search_path = ${sql(schemaName)}`
+  await withMigrationSchema('retired_columns', async (sql) => {
     await sql`CREATE TABLE script_migrations (name text PRIMARY KEY)`
     await sql`CREATE TABLE organization (id text, departed_member_usage numeric, credit_balance numeric)`
     await sql`CREATE TABLE user_stats (id text, credit_balance numeric)`
@@ -54,22 +53,12 @@ async function fixture(run: (sql: postgres.Sql) => Promise<void>): Promise<void>
     await sql`CREATE TABLE workspace_files (id text, size integer NOT NULL, size_bytes bigint)`
     await sql.unsafe(bridge)
     await run(sql)
-  } finally {
-    try {
-      await sql`DROP SCHEMA IF EXISTS ${sql(schemaName)} CASCADE`
-    } finally {
-      await sql.end()
-    }
-  }
+  })
 }
 
-async function apply(sql: postgres.Sql): Promise<void> {
-  for (const statement of migration.split('--> statement-breakpoint')) {
-    await sql.unsafe(statement)
-  }
-}
+const apply = (sql: postgres.Sql) => applyMigration(sql, migration)
 
-describe.skipIf(!databaseUrl)('retired-column contract migration', () => {
+describe.skipIf(!migrationTestDatabaseUrl)('retired-column contract migration', () => {
   it('allows a fresh database and replays after the columns are gone', async () => {
     await fixture(async (sql) => {
       await apply(sql)

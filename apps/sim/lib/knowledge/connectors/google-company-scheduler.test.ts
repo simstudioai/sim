@@ -15,15 +15,18 @@ import type {
 } from '@/lib/knowledge/connectors/partition-work'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
+import { listGoogleWorkspaceDocuments } from '@/connectors/google-workspace/company-crawl'
 import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
 import type { GoogleWorkspaceUser } from '@/connectors/google-workspace/users'
 import { ConnectorSourceError } from '@/connectors/source-error'
 import type { ConnectorConfig, ExternalDocument, ExternalListingFailures } from '@/connectors/types'
+import { memberDocumentId } from '@/connectors/utils'
 
-const mocks = vi.hoisted(() => ({ directory: vi.fn() }))
+const mocks = vi.hoisted(() => ({ directory: vi.fn(), getUser: vi.fn() }))
 vi.mock('@/connectors/google-workspace/users', async (original) => ({
   ...(await original<typeof import('@/connectors/google-workspace/users')>()),
   listGoogleWorkspaceUsers: mocks.directory,
+  getGoogleWorkspaceUser: mocks.getUser,
 }))
 
 const document: ExternalDocument = {
@@ -203,6 +206,7 @@ function fixture(provider = 'google_calendar', syncIntervalMinutes = 60) {
 
 beforeEach(() => {
   mocks.directory.mockReset()
+  mocks.getUser.mockReset().mockImplementation(async (_token: string, id: string) => user(id))
 })
 
 describe('durable Google company user scheduling', () => {
@@ -268,6 +272,58 @@ describe('durable Google company user scheduling', () => {
       expect(f.rows.get('a:content')?.attempts).toBe(0)
     }
   )
+
+  it('continues past unavailable Calendar users without the unresolved-error pause and retries them later', async () => {
+    mocks.directory.mockResolvedValue({ users: ['a', 'b', 'c', 'z'].map(user) })
+    const f = fixture()
+    const listUserDocuments = vi.fn<ConnectorConfig['listDocuments']>(
+      async (_token, _config, _cursor, ctx) => ({
+        documents: [{ ...document, externalId: memberDocumentId('event', ctx) }],
+        hasMore: false,
+      })
+    )
+    for (let i = 0; i < 3; i++) {
+      listUserDocuments.mockRejectedValueOnce(
+        new GoogleApiError('calendar.events.list', 403, ['notACalendarUser'])
+      )
+    }
+    const syncContext = {
+      mirrorsSourceAcls: true,
+      getDelegatedAccessToken: vi.fn(async () => 'user-token'),
+    }
+    f.list.mockImplementation(async (accessToken, sourceConfig, cursor) =>
+      listGoogleWorkspaceDocuments({
+        provider: 'google_calendar',
+        accessToken,
+        sourceConfig,
+        cursor,
+        syncContext,
+        listUserDocuments,
+      })
+    )
+
+    await f.step(5)
+
+    expect(f.rows.get('z:content')?.complete).toBe(true)
+    expect(f.saved()).toMatchObject({ complete: false, unsafe: true, resumeAt: null })
+    for (const id of ['a', 'b', 'c']) {
+      expect(f.rows.get(`${id}:content`)).toMatchObject({
+        complete: false,
+        attempts: 1,
+        retryAt: new Date('2026-09-17T01:00:00Z'),
+        failure: { status: 403, reasons: ['notACalendarUser'] },
+      })
+    }
+
+    f.advance(60 * 60 * 1000)
+    f.restart()
+    await f.step(4)
+
+    for (const id of ['a', 'b', 'c']) {
+      expect(f.rows.get(`${id}:content`)).toMatchObject({ complete: true, attempts: 0 })
+      expect(f.rows.get(`${id}:content`)?.failure).toBeUndefined()
+    }
+  })
 
   it('bounds a run of unresolved user errors rather than marking the tenant complete', async () => {
     mocks.directory.mockResolvedValue({ users: ['a', 'b', 'c', 'd'].map(user) })
