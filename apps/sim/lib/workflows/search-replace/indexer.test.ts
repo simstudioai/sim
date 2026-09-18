@@ -1450,6 +1450,14 @@ describe('indexWorkflowSearchMatches', () => {
         searchText: 'fallback-visible-model',
       }),
     ])
+    /** A row key is a `{{VAR}}` reference; text search must never offer to rewrite it. */
+    const keyMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'HIDDEN_KEY_REF',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+    expect(keyMatches).toEqual([])
     expect(containsMatches).toEqual([
       expect.objectContaining({
         subBlockId: 'filters',

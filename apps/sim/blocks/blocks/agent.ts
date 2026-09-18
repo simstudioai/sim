@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { AgentIcon } from '@/components/icons'
-import { normalizeFallbackModels } from '@/lib/workflows/blocks/fallback-models'
+import {
+  MAX_FALLBACK_MODELS,
+  normalizeFallbackModels,
+} from '@/lib/workflows/blocks/fallback-models'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
@@ -33,6 +36,8 @@ const logger = createLogger('AgentBlock')
 
 /** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
 const AGENT_FALLBACK_MODEL = 'claude-sonnet-5'
+
+const FALLBACK_MODELS_DESCRIPTION = `Ordered models tried in sequence when the request to the selected model fails. Each row is { model, apiKey?, reasoningEffort?, thinkingLevel?, verbosity? }; apiKey, when present, must be a whole {{ENV_VAR}} reference, and a tuning value must be one the row model declares. sim-auto is not allowed. Max ${MAX_FALLBACK_MODELS}.`
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
@@ -436,8 +441,7 @@ Return ONLY the JSON array.`,
       title: 'Fallback models',
       type: 'model-fallback-list',
       mode: 'advanced',
-      description:
-        'Ordered models tried in sequence when the request to the selected model fails. Each row is { model, apiKey?, reasoningEffort?, thinkingLevel?, verbosity? }; apiKey, when present, must be a whole {{ENV_VAR}} reference, and a tuning value must be one the row model declares. sim-auto is not allowed. Max 5.',
+      description: FALLBACK_MODELS_DESCRIPTION,
     },
   ],
   tools: {
@@ -601,11 +605,7 @@ Return ONLY the JSON array.`,
       type: 'boolean',
       description: 'Cache the system prompt and tool definitions on models that support it',
     },
-    fallbackModels: {
-      type: 'json',
-      description:
-        'Ordered fallback models tried when the selected model fails, each { model, apiKey?: "{{ENV_VAR}}", reasoningEffort?, thinkingLevel?, verbosity? }',
-    },
+    fallbackModels: { type: 'json', description: FALLBACK_MODELS_DESCRIPTION },
     tools: { type: 'json', description: 'Available tools configuration' },
     skills: { type: 'json', description: 'Selected skills configuration' },
   },

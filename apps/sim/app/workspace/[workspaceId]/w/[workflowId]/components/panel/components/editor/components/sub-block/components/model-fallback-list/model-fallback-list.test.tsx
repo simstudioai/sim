@@ -35,7 +35,7 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </button>
   ),
-  ChipCombobox: ({
+  Combobox: ({
     options,
     value,
     placeholder,
@@ -155,23 +155,35 @@ describe('ModelFallbackList', () => {
     expect(html).toContain('3rd choice')
     expect(html).not.toContain('Auto')
     expect(html).not.toContain('denied-model')
-    /** The primary is never offered; a model already chosen is offered but disabled. */
+    /** The primary is never offered. A model another row holds is disabled there, never in its own row. */
     expect(html).not.toContain('>claude-sonnet-5<')
-    expect(html).toContain('data-disabled="true">gpt-5<')
+    expect(html.match(/data-disabled="true">gpt-5</g)).toHaveLength(1)
+    expect(html.match(/>gpt-5</g)).toHaveLength(2)
+    expect(html).toContain('aria-label="Move up"')
+  })
+
+  it('renders no move controls for a single row and never shows a non-reference key', () => {
+    subBlockValues.fallbackModels = [
+      { id: 'r1', model: 'openrouter/x', apiKey: 'sk-raw-through-socket' },
+    ]
+    const html = render()
+    expect(html).not.toContain('aria-label="Move up"')
+    expect(html).not.toContain('sk-raw-through-socket')
+    expect(html).toContain('data-combobox="Select a secret" data-value=""')
   })
 
   it('asks for an environment variable only when the row model needs its own key', () => {
     subBlockValues.fallbackModels = [{ id: 'r1', model: 'gpt-5' }]
-    expect(render()).not.toContain('data-combobox="Select an environment variable"')
+    expect(render()).not.toContain('data-combobox="Select a secret"')
 
     subBlockValues.fallbackModels = [
       { id: 'r1', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
     ]
     const html = render()
-    expect(html).toContain('data-combobox="Select an environment variable"')
+    expect(html).toContain('data-combobox="Select a secret"')
     expect(html).toContain('data-value="{{OPENROUTER_API_KEY}}"')
     expect(html).toContain('OPENROUTER_API_KEY')
-    expect(html).toContain('Create variable')
+    expect(html).toContain('Create Secret')
   })
 
   it('shows a tuning field only for the knobs the helper says need one', () => {

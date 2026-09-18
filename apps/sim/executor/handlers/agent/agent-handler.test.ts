@@ -43,13 +43,21 @@ process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 const {
   mockDiscoverMcpServerToolsAsExecutor,
   mockImportWorkspaceFileSecretProvenanceForModelView,
+  mockValidateModelProvider,
 } = vi.hoisted(() => ({
   mockDiscoverMcpServerToolsAsExecutor: vi.fn().mockResolvedValue([]),
   mockImportWorkspaceFileSecretProvenanceForModelView: vi.fn().mockResolvedValue(true),
+  mockValidateModelProvider: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/internal/mcp/discover-tools', () => ({
   discoverMcpServerToolsAsExecutor: mockDiscoverMcpServerToolsAsExecutor,
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateBlockType: vi.fn().mockResolvedValue(undefined),
+  validateModelProvider: mockValidateModelProvider,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -501,7 +509,6 @@ describe('AgentBlockHandler', () => {
       userPrompt: 'Hello',
       apiKey: 'primary-key',
       temperature: 0.4,
-      previousInteractionId: 'interaction-1',
     }
 
     const providerFor = (model: string) => {
@@ -511,12 +518,62 @@ describe('AgentBlockHandler', () => {
       return 'openai'
     }
 
+    const providerResponse = (model: string, content = 'ok') => ({
+      content,
+      model,
+      tokens: { input: 1, output: 1, total: 2 },
+      toolCalls: [],
+      cost: 0,
+      timing: { total: 1 },
+    })
+
+    const openLog = (blockId = mockBlock.id, endedAt = '') => ({
+      blockId,
+      startedAt: '2026-01-01T00:00:00.000Z',
+      endedAt,
+      durationMs: 0,
+      success: false,
+      executionOrder: 1,
+    })
+
+    const streamingResponse = (
+      chunks: string[],
+      options: { failBeforeFirstChunk?: Error; failAfterFirstChunk?: Error } = {}
+    ) => ({
+      stream: new ReadableStream<string>({
+        async pull(controller) {
+          if (options.failBeforeFirstChunk) throw options.failBeforeFirstChunk
+          const chunk = chunks.shift()
+          if (chunk !== undefined) {
+            controller.enqueue(chunk)
+            return
+          }
+          if (options.failAfterFirstChunk) throw options.failAfterFirstChunk
+          controller.close()
+        },
+      }),
+      execution: { output: { content: '' } },
+    })
+
+    const drain = async (stream: ReadableStream<string>) => {
+      const reader = stream.getReader()
+      const chunks: string[] = []
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) return chunks
+        chunks.push(value)
+      }
+    }
+
     beforeEach(() => {
       mockGetProviderFromModel.mockImplementation(providerFor)
+      mockValidateModelProvider.mockResolvedValue(undefined)
     })
 
     it('never touches the fallbacks when the primary answers', async () => {
-      await handler.execute(mockContext, mockBlock, {
+      const log = openLog()
+      log.modelFallbacks = ['stale-from-earlier-try']
+      await handler.execute({ ...mockContext, blockLogs: [log] }, mockBlock, {
         ...baseInputs,
         fallbackModels: [{ model: 'claude-sonnet-5' }],
       })
@@ -527,28 +584,15 @@ describe('AgentBlockHandler', () => {
         'Agent model failed; trying fallback',
         expect.anything()
       )
-      expect(mockContext.blockLogs).toEqual([])
+      /** A try that succeeds on the primary clears what an earlier try wrote. */
+      expect(log.modelFallbacks).toBeUndefined()
     })
 
     it('falls through to the next model with the same request and no primary-only fields', async () => {
       mockExecuteProviderRequest
         .mockRejectedValueOnce(new Error('overloaded'))
-        .mockResolvedValueOnce({
-          content: 'from fallback',
-          model: 'claude-sonnet-5',
-          tokens: { input: 1, output: 1, total: 2 },
-          toolCalls: [],
-          cost: 0.001,
-          timing: { total: 10 },
-        })
-      const blockLog = {
-        blockId: mockBlock.id,
-        startedAt: new Date().toISOString(),
-        endedAt: '',
-        durationMs: 0,
-        success: false,
-        executionOrder: 1,
-      }
+        .mockResolvedValueOnce(providerResponse('claude-sonnet-5', 'from fallback'))
+      const blockLog = openLog()
       const ctx = { ...mockContext, blockLogs: [blockLog] }
 
       const result = await handler.execute(ctx, mockBlock, {
@@ -564,8 +608,6 @@ describe('AgentBlockHandler', () => {
       expect(fallbackRequest.model).toBe('claude-sonnet-5')
       expect(fallbackRequest.messages).toEqual(primaryRequest.messages)
       expect(fallbackRequest.temperature).toBe(primaryRequest.temperature)
-      expect(primaryRequest.previousInteractionId).toBe('interaction-1')
-      expect(fallbackRequest.previousInteractionId).toBeUndefined()
       expect((result as { model: string }).model).toBe('claude-sonnet-5')
       expect(mockAgentLogger.warn).toHaveBeenCalledWith(
         'Agent model failed; trying fallback',
@@ -574,44 +616,66 @@ describe('AgentBlockHandler', () => {
       expect(blockLog).toMatchObject({ modelFallbacks: ['gpt-4o'] })
     })
 
+    it('never falls back on a deep-research follow-up turn', async () => {
+      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          ...baseInputs,
+          previousInteractionId: 'interaction-1',
+          fallbackModels: [{ model: 'claude-sonnet-5' }],
+        })
+      ).rejects.toThrow('overloaded')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+      expect(mockAgentLogger.info).toHaveBeenCalledWith(
+        'Fallback models skipped for a deep-research follow-up turn',
+        expect.objectContaining({ blockId: mockBlock.id })
+      )
+    })
+
     it('gives a fallback its own key, the block key on the same provider, and nothing otherwise', async () => {
       mockExecuteProviderRequest
         .mockRejectedValueOnce(new Error('one'))
         .mockRejectedValueOnce(new Error('two'))
         .mockRejectedValueOnce(new Error('three'))
-        .mockResolvedValueOnce({
-          content: 'ok',
-          model: 'gpt-4o-mini',
-          tokens: { input: 1, output: 1, total: 2 },
-          toolCalls: [],
-          cost: 0,
-          timing: { total: 1 },
-        })
+        .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
 
       await handler.execute(mockContext, mockBlock, {
         ...baseInputs,
         fallbackModels: [
-          { model: 'claude-sonnet-5', apiKey: '{{ANTHROPIC_KEY}}' },
+          { model: 'claude-sonnet-5', apiKey: 'anthropic-row-key' },
           { model: 'claude-haiku-5' },
           { model: 'gpt-4o-mini' },
         ],
       })
 
       const keys = mockExecuteProviderRequest.mock.calls.map(([, request]) => request.apiKey)
-      expect(keys).toEqual(['primary-key', '{{ANTHROPIC_KEY}}', undefined, 'primary-key'])
+      expect(keys).toEqual(['primary-key', 'anthropic-row-key', undefined, 'primary-key'])
+    })
+
+    it('treats a row key that was never resolved as no key and says which variable', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('one'))
+        .mockResolvedValueOnce(providerResponse('claude-sonnet-5'))
+
+      await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        fallbackModels: [{ model: 'claude-sonnet-5', apiKey: '{{MISSING_KEY}}' }],
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[1][1].apiKey).toBeUndefined()
+      expect(mockAgentLogger.warn).toHaveBeenCalledWith(
+        'Fallback key variable is not set for this run',
+        expect.objectContaining({ model: 'claude-sonnet-5', variable: '{{MISSING_KEY}}' })
+      )
     })
 
     it('re-resolves tuning for the fallback: row value wins, caps clamp, undeclared values drop', async () => {
       const fallbackCap = getModelCapabilities('gpt-5.4-mini')?.maxOutputTokens
       expect(fallbackCap).toEqual(expect.any(Number))
-      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce({
-        content: 'ok',
-        model: 'gpt-5.4-mini',
-        tokens: { input: 1, output: 1, total: 2 },
-        toolCalls: [],
-        cost: 0,
-        timing: { total: 1 },
-      })
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('down'))
+        .mockResolvedValueOnce(providerResponse('gpt-5.4-mini'))
 
       await handler.execute(mockContext, mockBlock, {
         ...baseInputs,
@@ -640,14 +704,7 @@ describe('AgentBlockHandler', () => {
       const first = new Error('primary down')
       const last = new Error('fallback down')
       mockExecuteProviderRequest.mockRejectedValueOnce(first).mockRejectedValueOnce(last)
-      const blockLog = {
-        blockId: mockBlock.id,
-        startedAt: '',
-        endedAt: '',
-        durationMs: 0,
-        success: false,
-        executionOrder: 1,
-      }
+      const blockLog = openLog()
 
       await expect(
         handler.execute({ ...mockContext, blockLogs: [blockLog] }, mockBlock, {
@@ -659,15 +716,25 @@ describe('AgentBlockHandler', () => {
       expect(blockLog).toMatchObject({ modelFallbacks: ['gpt-4o'] })
     })
 
+    it('rethrows the primary error when every fallback was skipped as unusable', async () => {
+      const primaryError = new Error('primary down')
+      mockExecuteProviderRequest.mockRejectedValueOnce(primaryError)
+      const blockLog = openLog()
+
+      await expect(
+        handler.execute({ ...mockContext, blockLogs: [blockLog] }, mockBlock, {
+          ...baseInputs,
+          fallbackModels: [{ model: 'blacklisted-model' }],
+        })
+      ).rejects.toBe(primaryError)
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+      expect(blockLog.modelFallbacks).toBeUndefined()
+    })
+
     it('skips sim-auto, duplicates, the primary itself, and unusable providers', async () => {
-      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce({
-        content: 'ok',
-        model: 'claude-sonnet-5',
-        tokens: { input: 1, output: 1, total: 2 },
-        toolCalls: [],
-        cost: 0,
-        timing: { total: 1 },
-      })
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('down'))
+        .mockResolvedValueOnce(providerResponse('claude-sonnet-5'))
 
       await handler.execute(mockContext, mockBlock, {
         ...baseInputs,
@@ -685,6 +752,33 @@ describe('AgentBlockHandler', () => {
       expect(mockAgentLogger.warn).toHaveBeenCalledWith(
         'Fallback model unusable; skipping',
         expect.objectContaining({ model: 'blacklisted-model' })
+      )
+    })
+
+    it('skips a fallback the workspace does not permit', async () => {
+      mockValidateModelProvider.mockImplementation(async (_user, _workspace, model: string) => {
+        if (model === 'claude-sonnet-5') throw new Error('Model not permitted')
+      })
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('down'))
+        .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
+
+      await handler.execute(
+        { ...mockContext, userId: 'user-1', workspaceId: 'workspace-1' },
+        mockBlock,
+        {
+          ...baseInputs,
+          fallbackModels: [{ model: 'claude-sonnet-5' }, { model: 'gpt-4o-mini' }],
+        }
+      )
+
+      expect(mockExecuteProviderRequest.mock.calls.map(([, request]) => request.model)).toEqual([
+        'gpt-4o',
+        'gpt-4o-mini',
+      ])
+      expect(mockAgentLogger.warn).toHaveBeenCalledWith(
+        'Fallback model unusable; skipping',
+        expect.objectContaining({ model: 'claude-sonnet-5', error: 'Model not permitted' })
       )
     })
 
@@ -715,6 +809,83 @@ describe('AgentBlockHandler', () => {
         })
       ).rejects.toBe(error)
       expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the fallback name when a routed sim-auto primary fails and a fallback answers', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('pool model down'))
+        .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        model: SIM_AUTO_MODEL_ID,
+        systemPrompt: 'Be brief.',
+        userPrompt: 'Hello!',
+        fallbackModels: [{ model: 'gpt-4o-mini' }],
+      })) as { model: string }
+
+      expect(result.model).toBe('gpt-4o-mini')
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      /** The auto identity preamble belongs to the pool model, not a named fallback. */
+      const systemText = (request: { messages?: Array<{ role: string; content: string }> }) =>
+        (request.messages ?? [])
+          .filter((message) => message.role === 'system')
+          .map((message) => message.content)
+          .join('\n')
+      expect(systemText(mockExecuteProviderRequest.mock.calls[0][1])).toContain('Sim auto model')
+      expect(systemText(mockExecuteProviderRequest.mock.calls[1][1])).not.toContain(
+        'Sim auto model'
+      )
+    })
+
+    it('records the failed models on the open log entry, not an earlier closed one', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('down'))
+        .mockResolvedValueOnce(providerResponse('claude-sonnet-5'))
+      const closed = openLog(mockBlock.id, '2026-01-01T00:00:01.000Z')
+      const open = openLog()
+
+      await handler.execute({ ...mockContext, blockLogs: [closed, open] }, mockBlock, {
+        ...baseInputs,
+        fallbackModels: [{ model: 'claude-sonnet-5' }],
+      })
+
+      expect(closed.modelFallbacks).toBeUndefined()
+      expect(open.modelFallbacks).toEqual(['gpt-4o'])
+    })
+
+    it('falls back when a streaming primary fails before its first chunk, and replays the first chunk otherwise', async () => {
+      mockExecuteProviderRequest
+        .mockResolvedValueOnce(
+          streamingResponse([], { failBeforeFirstChunk: new Error('429 at stream start') })
+        )
+        .mockResolvedValueOnce(streamingResponse(['first', 'second']))
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        fallbackModels: [{ model: 'claude-sonnet-5' }],
+      })) as StreamingExecution
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
+      expect(mockAgentLogger.warn).toHaveBeenCalledWith(
+        'Agent model failed; trying fallback',
+        expect.objectContaining({ failedModel: 'gpt-4o', error: '429 at stream start' })
+      )
+      expect(await drain(result.stream as ReadableStream<string>)).toEqual(['first', 'second'])
+    })
+
+    it('leaves a failure after the first chunk to the stream, as before', async () => {
+      const midStream = new Error('dropped mid-stream')
+      mockExecuteProviderRequest.mockResolvedValueOnce(
+        streamingResponse(['first'], { failAfterFirstChunk: midStream })
+      )
+
+      const result = (await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        fallbackModels: [{ model: 'claude-sonnet-5' }],
+      })) as StreamingExecution
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+      await expect(drain(result.stream as ReadableStream<string>)).rejects.toBe(midStream)
     })
   })
 

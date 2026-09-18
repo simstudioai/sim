@@ -89,19 +89,96 @@ export function normalizeFallbackModels(raw: unknown): FallbackModelCandidate[] 
     if (seen.has(key)) continue
     seen.add(key)
     const resolvedKey = typeof apiKey === 'string' ? apiKey.trim() : ''
-    const candidate: FallbackModelCandidate = {
+    candidates.push({
       model: trimmed,
       ...(resolvedKey ? { apiKey: resolvedKey } : {}),
-    }
-    for (const knob of FALLBACK_TUNING_KNOBS) {
-      const value = (row as Record<string, unknown>)[knob]
-      const level = typeof value === 'string' ? value.trim().toLowerCase() : ''
-      if (level) candidate[knob] = level
-    }
-    candidates.push(candidate)
+      ...normalizeTuningValues(row as Record<string, unknown>),
+    })
     if (candidates.length >= MAX_FALLBACK_MODELS) break
   }
   return candidates
+}
+
+/** The tuning knobs a row carries, trimmed and lower-cased; blanks and non-strings are dropped. */
+export function normalizeTuningValues(row: Record<string, unknown>): FallbackTuningValues {
+  const values: FallbackTuningValues = {}
+  for (const knob of FALLBACK_TUNING_KNOBS) {
+    const value = row[knob]
+    const level = typeof value === 'string' ? value.trim().toLowerCase() : ''
+    if (level) values[knob] = level
+  }
+  return values
+}
+
+/**
+ * The edits the editor makes to a fallback list, as pure transforms so the
+ * component stays a thin binding and the rules are unit-testable.
+ */
+export function addFallbackRow(rows: FallbackModelEntry[], id: string): FallbackModelEntry[] {
+  if (rows.length >= MAX_FALLBACK_MODELS) return rows
+  return [...rows, { id, model: '' }]
+}
+
+export function removeFallbackRow(rows: FallbackModelEntry[], id: string): FallbackModelEntry[] {
+  return rows.filter((row) => row.id !== id)
+}
+
+export function moveFallbackRow(
+  rows: FallbackModelEntry[],
+  id: string,
+  direction: -1 | 1
+): FallbackModelEntry[] {
+  const index = rows.findIndex((row) => row.id === id)
+  const target = index + direction
+  if (index === -1 || target < 0 || target >= rows.length) return rows
+  const next = [...rows]
+  ;[next[index], next[target]] = [next[target], next[index]]
+  return next
+}
+
+/**
+ * A new model gets a clean row. Tuning always goes, since the new model may not
+ * declare it. The key survives only when the new model still needs one and sits
+ * on the same provider as the old one: a key reference is a credential for one
+ * provider, and carrying it to another would send that provider's secret to an
+ * unrelated service.
+ */
+export function changeFallbackRowModel(
+  rows: FallbackModelEntry[],
+  id: string,
+  model: string,
+  primaryModel: string
+): FallbackModelEntry[] {
+  return rows.map((row) => {
+    if (row.id !== id) return row
+    const keepKey =
+      row.apiKey &&
+      fallbackRowNeedsApiKey(model, primaryModel) &&
+      findProviderFromModel(model.trim()) === findProviderFromModel(row.model.trim())
+    return { id: row.id, model, ...(keepKey ? { apiKey: row.apiKey } : {}) }
+  })
+}
+
+export function changeFallbackRowApiKey(
+  rows: FallbackModelEntry[],
+  id: string,
+  apiKey: string
+): FallbackModelEntry[] {
+  return rows.map((row) => (row.id === id ? { ...row, apiKey } : row))
+}
+
+/** The provider-decides entry is the field's default, so it is stored as absence. */
+export function changeFallbackRowTuning(
+  rows: FallbackModelEntry[],
+  id: string,
+  knob: FallbackTuningKnob,
+  value: string
+): FallbackModelEntry[] {
+  return rows.map((row) => {
+    if (row.id !== id) return row
+    const { [knob]: _previous, ...rest } = row
+    return value && value !== KNOB_SENTINEL[knob] ? { ...rest, [knob]: value } : rest
+  })
 }
 
 /**
@@ -223,7 +300,10 @@ function clampToCap(
 /**
  * The tuning a fallback candidate runs with.
  *
- * Graded knobs: the row's own value wins; otherwise the primary's value is
+ * Graded knobs: the row's own value wins, but only for a knob the row is
+ * currently asked about (`getFallbackTuningKnobsToShow`), so a value stored
+ * while the primary was incompatible stops applying once the primary's own
+ * value fits and the field is no longer shown. Otherwise the primary's value is
  * carried over only when the fallback declares it, and dropped to the
  * provider's default otherwise, which is what the row field exists to override.
  * Temperature and max output tokens are caps in the primary's terms, so they
@@ -239,9 +319,10 @@ export function resolveFallbackTuning(
 ): ResolvedFallbackTuning {
   const adjustments: string[] = []
   const resolved: ResolvedFallbackTuning = { adjustments }
+  const overridable = new Set(getFallbackTuningKnobsToShow(candidate.model, primaryModel, primary))
 
   for (const knob of FALLBACK_TUNING_KNOBS) {
-    const own = candidate[knob]
+    const own = overridable.has(knob) ? candidate[knob] : undefined
     if (own) {
       resolved[knob] = own
       if (own !== primary[knob]) adjustments.push(`${knob}: ${primary[knob] ?? 'unset'} -> ${own}`)

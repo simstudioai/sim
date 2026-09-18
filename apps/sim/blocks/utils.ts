@@ -1,6 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import { SimAutoIcon } from '@/components/icons'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isOllamaConfigured } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
@@ -285,14 +286,15 @@ export function getCohereRerankerApiKeyCondition() {
 
 /**
  * Whether `model` can only run with credentials that live on the block beyond an
- * API key: a Vertex OAuth credential, Bedrock AWS keys and region, or an Azure
- * endpoint the deployment has not configured server-side. Those fields render
- * only while the block's own `model` is in that provider family, so nothing
- * outside the family can inherit them.
+ * API key: a Vertex OAuth credential, Bedrock AWS keys, or an Azure endpoint,
+ * unless the deployment supplies them server-side (the same env flags that hide
+ * those fields). The fields render only while the block's own `model` is in
+ * that provider family, so nothing outside the family can inherit them.
  */
 export function requiresProviderFamilyCredentials(model: string): boolean {
   const provider = findProviderFromModel(model.trim())
-  if (provider === 'vertex' || provider === 'bedrock') return true
+  if (provider === 'vertex') return true
+  if (provider === 'bedrock') return !isTruthy(getEnv('NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS'))
   if (provider === 'azure-openai' || provider === 'azure-anthropic') {
     return !getDeploymentShape().azureConfigured
   }

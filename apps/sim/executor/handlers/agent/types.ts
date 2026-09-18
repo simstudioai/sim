@@ -1,4 +1,5 @@
 import type { McpOperationPolicy } from '@/lib/mcp/operation-policy'
+import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'
 import type { UserFile } from '@/executor/types'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -49,7 +50,7 @@ export interface AgentInputs {
   promptCaching?: boolean
   files?: unknown
   /** Ordered models tried when the request to `model` fails; see `normalizeFallbackModels`. */
-  fallbackModels?: Array<{ id?: string; model: string; apiKey?: string }>
+  fallbackModels?: Array<Partial<FallbackModelEntry> & { model: string }>
 }
 
 /**

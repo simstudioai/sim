@@ -1,4 +1,5 @@
 import { isPlainRecord } from '@sim/utils/object'
+import { isWholeEnvVarReference } from '@/lib/workflows/blocks/fallback-models'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
@@ -184,9 +185,7 @@ function sanitizeFallbackModelsValue(
   return value.map((row) => {
     if (!row || typeof row !== 'object' || Array.isArray(row)) return row
     const { apiKey, ...rest } = row as Record<string, unknown>
-    return options.preserveEnvVars && isEnvironmentVariableReference(apiKey)
-      ? { ...rest, apiKey }
-      : rest
+    return options.preserveEnvVars && isWholeEnvVarReference(apiKey) ? { ...rest, apiKey } : rest
   })
 }
 

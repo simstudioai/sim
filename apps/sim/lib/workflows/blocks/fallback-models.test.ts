@@ -47,6 +47,10 @@ vi.mock('@/providers/models', () => ({
 }))
 
 import {
+  addFallbackRow,
+  changeFallbackRowApiKey,
+  changeFallbackRowModel,
+  changeFallbackRowTuning,
   fallbackRowNeedsApiKey,
   getFallbackTuningKnobsToShow,
   getTuningOptionsForModel,
@@ -54,8 +58,11 @@ import {
   isViableFallbackModel,
   isWholeEnvVarReference,
   MAX_FALLBACK_MODELS,
+  moveFallbackRow,
   normalizeFallbackModels,
+  normalizeTuningValues,
   ordinalChoiceLabel,
+  removeFallbackRow,
   resolveFallbackTuning,
 } from '@/lib/workflows/blocks/fallback-models'
 
@@ -288,6 +295,94 @@ describe('resolveFallbackTuning', () => {
       temperature: '1.9',
       maxTokens: '99999',
       adjustments: [],
+    })
+  })
+})
+
+describe('resolveFallbackTuning hidden overrides', () => {
+  it('ignores a stored row value once the primary value fits and the field is no longer shown', () => {
+    const resolved = resolveFallbackTuning(
+      { model: 'gpt-small', reasoningEffort: 'low' },
+      'gpt-big',
+      {
+        reasoningEffort: 'high',
+      }
+    )
+    expect(resolved.reasoningEffort).toBe('high')
+    expect(resolved.adjustments).toEqual([])
+  })
+})
+
+describe('normalizeTuningValues', () => {
+  it('keeps trimmed lower-cased strings and drops blanks and non-strings', () => {
+    expect(
+      normalizeTuningValues({
+        reasoningEffort: ' Low ',
+        thinkingLevel: '',
+        verbosity: 3,
+        model: 'x',
+      })
+    ).toEqual({ reasoningEffort: 'low' })
+  })
+})
+
+describe('row transforms', () => {
+  const rows = [
+    { id: 'a', model: 'gpt-big' },
+    { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}', reasoningEffort: 'low' },
+  ]
+
+  it('adds a blank row until the cap and never past it', () => {
+    expect(addFallbackRow(rows, 'c')).toEqual([...rows, { id: 'c', model: '' }])
+    const full = Array.from({ length: MAX_FALLBACK_MODELS }, (_, i) => ({
+      id: `r${i}`,
+      model: 'm',
+    }))
+    expect(addFallbackRow(full, 'extra')).toBe(full)
+  })
+
+  it('removes by id and moves within bounds', () => {
+    expect(removeFallbackRow(rows, 'a')).toEqual([rows[1]])
+    expect(moveFallbackRow(rows, 'b', -1)).toEqual([rows[1], rows[0]])
+    expect(moveFallbackRow(rows, 'a', -1)).toBe(rows)
+    expect(moveFallbackRow(rows, 'b', 1)).toBe(rows)
+    expect(moveFallbackRow(rows, 'missing', 1)).toBe(rows)
+  })
+
+  it('clears tuning on a model change and keeps the key only for the same keyed provider', () => {
+    mockShouldRequireApiKey.mockReturnValue(true)
+    expect(changeFallbackRowModel(rows, 'b', 'openrouter/y', 'claude-sonnet-5')[1]).toEqual({
+      id: 'b',
+      model: 'openrouter/y',
+      apiKey: '{{OPENROUTER_API_KEY}}',
+    })
+    /** Another provider must never receive the previous provider's credential. */
+    expect(changeFallbackRowModel(rows, 'b', 'gpt-small', 'claude-sonnet-5')[1]).toEqual({
+      id: 'b',
+      model: 'gpt-small',
+    })
+    mockShouldRequireApiKey.mockReturnValue(false)
+    expect(changeFallbackRowModel(rows, 'b', 'openrouter/y', 'claude-sonnet-5')[1]).toEqual({
+      id: 'b',
+      model: 'openrouter/y',
+    })
+  })
+
+  it('stores a tuning value, and the provider-decides entry as absence', () => {
+    expect(changeFallbackRowTuning(rows, 'a', 'reasoningEffort', 'high')[0]).toEqual({
+      id: 'a',
+      model: 'gpt-big',
+      reasoningEffort: 'high',
+    })
+    expect(changeFallbackRowTuning(rows, 'b', 'reasoningEffort', 'auto')[1]).toEqual({
+      id: 'b',
+      model: 'openrouter/x',
+      apiKey: '{{OPENROUTER_API_KEY}}',
+    })
+    expect(changeFallbackRowApiKey(rows, 'a', '{{K}}')[0]).toEqual({
+      id: 'a',
+      model: 'gpt-big',
+      apiKey: '{{K}}',
     })
   })
 })

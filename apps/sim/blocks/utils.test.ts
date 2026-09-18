@@ -103,9 +103,15 @@ describe('requiresProviderFamilyCredentials', () => {
     setEnvFlags({ isHosted: false, isAzureConfigured: false, isOllamaConfigured: false })
   })
 
-  it('is true for Vertex and Bedrock, whose credentials live on the block', () => {
+  it('is true for Vertex, and for Bedrock until the deployment provides default credentials', () => {
     expect(requiresProviderFamilyCredentials('vertex/gemini-2.5-pro')).toBe(true)
     expect(requiresProviderFamilyCredentials('bedrock/my-inference-profile')).toBe(true)
+    vi.stubEnv('NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS', 'true')
+    try {
+      expect(requiresProviderFamilyCredentials('bedrock/my-inference-profile')).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('is true for Azure only until the deployment configures it server-side', () => {

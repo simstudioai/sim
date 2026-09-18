@@ -16,6 +16,7 @@ import {
   isTuningValueValidForModel,
   isWholeEnvVarReference,
   MAX_FALLBACK_MODELS,
+  normalizeTuningValues,
 } from '@/lib/workflows/blocks/fallback-models'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
@@ -369,6 +370,23 @@ function validateAgentToolEntry(item: any, index: number): string | null {
  * Skills are a SEPARATE array from tools; each entry references a workspace or
  * builtin skill by `skillId`. Returns an error string or null when valid.
  */
+function validateAgentSkillEntry(item: any, index: number): string | null {
+  const where = `skills[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be a skill object like {"skillId":"<id>","name":"<name>"}`
+  }
+  if (typeof item.skillId !== 'string' || item.skillId.trim() === '') {
+    if (typeof item.id === 'string') {
+      return `${where} uses "id" but skills require "skillId" (the "id" from agent/skills/{name}.json)`
+    }
+    if (typeof item.type === 'string' || item.schema || item.customToolId) {
+      return `${where} looks like a tool entry. Skills go in the SEPARATE "skills" array and need only {"skillId":"<id>"} - no "type"/"schema"/"customToolId"`
+    }
+    return `${where} must include "skillId" (the "id" from agent/skills/{name}.json)`
+  }
+  return null
+}
+
 /**
  * Validates one fallback-model row. Returns an error string or null when valid.
  *
@@ -409,23 +427,6 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
         : ` ${model} has no such setting.`
       return `${where}.${knob}: "${String(value)}" is not a ${FALLBACK_TUNING_LABELS[knob].toLowerCase()} option for ${model}.${hint}`
     }
-  }
-  return null
-}
-
-function validateAgentSkillEntry(item: any, index: number): string | null {
-  const where = `skills[${index}]`
-  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
-    return `${where} must be a skill object like {"skillId":"<id>","name":"<name>"}`
-  }
-  if (typeof item.skillId !== 'string' || item.skillId.trim() === '') {
-    if (typeof item.id === 'string') {
-      return `${where} uses "id" but skills require "skillId" (the "id" from agent/skills/{name}.json)`
-    }
-    if (typeof item.type === 'string' || item.schema || item.customToolId) {
-      return `${where} looks like a tool entry. Skills go in the SEPARATE "skills" array and need only {"skillId":"<id>"} - no "type"/"schema"/"customToolId"`
-    }
-    return `${where} must include "skillId" (the "id" from agent/skills/{name}.json)`
   }
   return null
 }
@@ -680,11 +681,7 @@ export function validateValueForSubBlockType(
           id: typeof item.id === 'string' && item.id ? item.id : generateShortId(),
           model: item.model.trim(),
           ...(isWholeEnvVarReference(item.apiKey) ? { apiKey: item.apiKey.trim() } : {}),
-          ...Object.fromEntries(
-            FALLBACK_TUNING_KNOBS.filter(
-              (knob) => typeof item[knob] === 'string' && (item[knob] as string).trim() !== ''
-            ).map((knob) => [knob, (item[knob] as string).trim().toLowerCase()])
-          ),
+          ...normalizeTuningValues(item),
         })),
       }
     }
