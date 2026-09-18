@@ -2308,6 +2308,7 @@ export const workspaceFiles = pgTable(
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
+      .concurrently()
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),

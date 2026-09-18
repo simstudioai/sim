@@ -1,5 +1,5 @@
 {
-  "id": "652fd0ee-d230-441d-9265-6dc83845e800",
+  "id": "adb8500a-f0dc-4352-9153-aa71f94955a8",
   "prevId": "8ad7811c-cbe2-4bac-bebf-4fef00f7d86f",
   "version": "7",
   "dialect": "postgresql",
@@ -26436,7 +26436,7 @@
           ],
           "isUnique": false,
           "where": "\"workspace_files\".\"deleted_at\" IS NULL AND \"workspace_files\".\"context\" = 'workspace' AND \"workspace_files\".\"workspace_id\" IS NOT NULL",
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
